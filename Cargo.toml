@@ -1,0 +1,29 @@
+[package]
+name = "super-duper"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+config = "0.14.0"
+toml = "0.8.11"
+dotenv = "0.15.0"
+serde = { version = "1.0", features = ["derive"] }
+walkdir = "2.3"
+rayon = "1.9"
+dashmap = "5.5"
+diesel = { version = "2.1.0", features = ["postgres", "chrono"] }
+colored = "2.1"
+twox-hash = "1.6"
+blake3 = "1.5.1"
+winapi = { version = "0.3", features = [
+  "fileapi",
+  "handleapi",
+  "winnt",
+  "winbase",
+] }
+
+
+[build-dependencies]
+diesel_migrations = "2.1.0"
