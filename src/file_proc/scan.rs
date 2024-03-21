@@ -33,9 +33,7 @@ fn visit_dirs(dir: &Path, map: &DashMap<u64, Vec<PathBuf>>) -> io::Result<()> {
             } else if !metadata.file_type().is_symlink() && metadata.len() > 0 {
                 // Only add non-symlink files to the map
                 let file_size = metadata.len();
-                map.entry(file_size)
-                    .or_insert_with(Vec::new)
-                    .push(path.to_path_buf());
+                map.entry(file_size).or_default().push(path.to_path_buf());
             }
             Ok::<_, io::Error>(())
         })?;

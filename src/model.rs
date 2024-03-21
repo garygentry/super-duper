@@ -13,6 +13,7 @@ pub struct FileInfo {
     pub last_modified: SystemTime,
     pub content_hash: i64,
     pub volume_serial_number: i32,
+    pub parent_dir: String,
 }
 
 impl FileInfo {

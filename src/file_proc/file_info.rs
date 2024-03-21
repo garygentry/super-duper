@@ -27,6 +27,11 @@ pub fn build_file_info_vec(
                 .to_string();
             let path_no_drive = path_str.get(3..).unwrap_or_default().to_string();
 
+            let parent_dir = path
+                .parent()
+                .and_then(|p| p.to_str().map(String::from))
+                .expect("Failed to get parent directory or convert to string");
+
             let file_info = FileInfo {
                 canonical_name: fs::canonicalize(path)?.to_string_lossy().into_owned(),
                 file_size: metadata.len() as i64,
@@ -36,6 +41,7 @@ pub fn build_file_info_vec(
                 file_index,
                 drive_letter,
                 path_no_drive,
+                parent_dir,
             };
 
             file_info_vec.push(file_info);

@@ -2,11 +2,14 @@ use crate::db;
 use crate::model;
 use colored::*;
 use std::time::Instant;
+use tracing::debug;
+use tracing::info;
 
 mod debug;
 mod file_info;
 mod hash;
 mod scan;
+mod scan_dir;
 mod win;
 
 pub fn process(root_paths: &Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
@@ -16,85 +19,90 @@ pub fn process(root_paths: &Vec<String>) -> Result<(), Box<dyn std::error::Error
     /*
         Scan and build index on file size
     */
+    info!("Scanning files...");
     let scan_start_time = Instant::now();
-    let size_to_files_map = scan::build_size_to_files_map(&&root_path_slices)?;
+    let size_to_files_map = scan::build_size_to_files_map(&root_path_slices)?;
     let scan_duration = scan_start_time.elapsed();
-    debug::print_size_to_files_map(&size_to_files_map);
+    debug!(
+        "Scan files completed in {} seconds",
+        format_args!("{}", format!("{:.2}", &scan_duration.as_secs_f64()).green()),
+    );
 
     /*
-        Build ccontent Hash
+        Build content Hash
     */
+    info!("Building content hash for possible dupes...");
     let hash_start_time = Instant::now();
     let content_hash_map = hash::build_content_hash_map(size_to_files_map)?;
     let hash_duration = hash_start_time.elapsed();
-    debug::print_content_hash_map(&content_hash_map);
+    let dupe_file_count = content_hash_map.len();
+    debug!(
+        "Build content hash completed in {} seconds",
+        format_args!("{}", format!("{:.2}", &hash_duration.as_secs_f64()).green()),
+    );
+    info!(
+        "{} files with duplicates",
+        format_args!("{}", format!("{:.2}", &dupe_file_count).red()),
+    );
 
     /*
         Build File Info
     */
+    info!("Collecting file info...");
     let fi_start_time = Instant::now();
     let file_info_vector = file_info::build_file_info_vec(content_hash_map)?;
     let fi_duration = fi_start_time.elapsed();
-    debug::print_file_info_vec(&file_info_vector);
+    debug!(
+        "Build file_info completed in {} seconds",
+        format_args!("{}", format!("{:.2}", &fi_duration.as_secs_f64()).green()),
+    );
 
     /*
         Write to db
     */
+    info!("Writing to database...");
     let db_start_time = Instant::now();
     db::dupe_file::insert_file_info_vec(file_info_vector)?;
     let db_duration = db_start_time.elapsed();
-    // debug::print_file_info_vec(&file_info_vector);
+    debug!(
+        "Write to database completed in {} seconds",
+        format_args!("{}", format!("{:.2}", &db_duration.as_secs_f64()).green()),
+    );
 
     /*
         Summary
     */
-    println!(
-        "File Scan completed in {} seconds",
-        format!("{}", format!("{:.2}", scan_duration.as_secs_f64()).green())
-    );
-
-    println!(
-        "File Hash completed in {} seconds",
-        format!("{}", format!("{:.2}", hash_duration.as_secs_f64()).green())
-    );
-
-    println!(
-        "File Info completed in {} seconds",
-        format!("{}", format!("{:.2}", fi_duration.as_secs_f64()).green())
-    );
-
-    println!(
-        "Db update completed in {} seconds",
-        format!("{}", format!("{:.2}", db_duration.as_secs_f64()).green())
+    debug!(
+        "File Scan completed in {} seconds, File Hash completed in {} seconds, File Info completed in {} seconds, File Info completed in {} seconds",
+        format_args!("{}", format!("{:.2}", &scan_duration.as_secs_f64()).green()),
+        format_args!("{}", format!("{:.2}", &hash_duration.as_secs_f64()).green()),
+        format_args!("{}", format!("{:.2}", &fi_duration.as_secs_f64()).green()),
+        format_args!("{}", format!("{:.2}", &db_duration.as_secs_f64()).green())
     );
 
     Ok(())
 }
 
-// pub fn process(root_paths: &Vec<String>) {
-//     println!("Root Files: {:?}", root_paths);
-//     /*
-//      Scan
-//     */
+// pub fn process_dir(root_paths: &Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+//     println!("Processing paths: {:?}", root_paths);
 //     let root_path_slices: Vec<&str> = root_paths.iter().map(|s| s.as_str()).collect();
-//     let scan_start_time = Instant::now();
-//     // let mut scan_duration Instant::min(self, other);
-//     match scan::scan(&&root_path_slices) {
-//         Ok(map) => {
-//             let scan_duration = scan_start_time.elapsed();
-//             let hash_start_time = Instant::now();
-//             let _ = hash::calculate_checksums(map, false);
-//             let hash_duration = hash_start_time.elapsed();
-//             println!(
-//                 "File Hash completed in {} seconds",
-//                 format!("{}", format!("{:.2}", hash_duration.as_secs_f64()).green())
-//             );
-//         }
-//         Err(e) => eprintln!("Error scanning directories: {}", e),
-//     }
 
-//     println!(
-//         "File Scan completed in {} seconds",
-//         format!("{}", format!("{:.2}", scan_duration.as_secs_f64()).green())
+//     /*
+//         Scan and build index on file size
+//     */
+//     info!("Scanning files...");
+//     let scan_start_time = Instant::now();
+//     let size_to_files_map = scan_dir::build_directory_sizes_map(&root_path_slices)?;
+//     let scan_duration = scan_start_time.elapsed();
+//     debug::print_size_to_files_map(&size_to_files_map);
+
+//     /*
+//         Summary
+//     */
+//     debug!(
+//         "Dir Scan completed in {} seconds",
+//         format_args!("{}", format!("{:.2}", scan_duration.as_secs_f64()).green()),
 //     );
+
+//     Ok(())
 // }

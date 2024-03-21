@@ -1,8 +1,9 @@
 # root_paths = ["C:/Temp", "D:/Data"]
 # root_paths = ["C:/Temp", "D:/Data"]
 
-# root_paths = ["C:/Temp", "../test-data/folder1", "../test-data/folder2"]
 root_paths = ["C:/Temp", "../test-data/folder1", "../test-data/folder2"]
+# root_paths = ["D:/Data"]
+# root_paths = ["D:/Temp/Slate"]
 
 
 # root_paths_test = ["C:/Temp", "C:/Intel"]

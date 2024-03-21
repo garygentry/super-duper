@@ -7,5 +7,6 @@ CREATE TABLE dupe_file (
     file_size BIGINT NOT NULL,
     last_modified TIMESTAMP NOT NULL,
     content_hash BIGINT NOT NULL,
-    volume_serial_number INTEGER NOT NULL
+    volume_serial_number INTEGER NOT NULL,
+    parent_dir TEXT NOT NULL
 );

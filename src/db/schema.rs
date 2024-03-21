@@ -12,5 +12,6 @@ diesel::table! {
         last_modified -> Timestamp,
         content_hash -> Int8,
         volume_serial_number -> Int4,
+        parent_dir -> Text,
     }
 }

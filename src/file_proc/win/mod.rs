@@ -30,13 +30,13 @@ pub(crate) fn get_win_file_id(file_path: &Path) -> (i32, i64) {
         );
 
         if handle.is_null() {
-            panic!("Failed to open file");
+            panic!("Failed to open file: {:?}", file_path);
         }
 
         let mut file_info: BY_HANDLE_FILE_INFORMATION = std::mem::zeroed();
         if GetFileInformationByHandle(handle, &mut file_info) == 0 {
             CloseHandle(handle);
-            panic!("Failed to get file information");
+            panic!("Failed to get file information: {:?}", file_path);
         }
 
         CloseHandle(handle);

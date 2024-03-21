@@ -26,7 +26,7 @@ pub fn build_content_hash_map(
                     let hash = hash_data(&data)?;
                     partial_hash_to_file_map
                         .entry(hash)
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(file.clone());
                     Ok(())
                 }
@@ -45,7 +45,7 @@ pub fn build_content_hash_map(
                         let hash = hash_data(&data)?;
                         confirmed_duplicates
                             .entry(hash)
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push(file.clone());
                         Ok(())
                     }
