@@ -1,51 +1,29 @@
-extern crate winapi;
-
-// use std::ffi::OsStr;
-use std::os::windows::ffi::OsStrExt;
+use std::fs::File;
+use std::io::Error;
+use std::os::windows::io::AsRawHandle;
 use std::path::Path;
-// use std::path::PathBuf;
-use std::ptr;
-use winapi::um::fileapi::OPEN_EXISTING;
-use winapi::um::fileapi::{CreateFileW, GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION};
-use winapi::um::handleapi::CloseHandle;
+use winapi::um::fileapi::GetFileInformationByHandle;
+use winapi::um::fileapi::BY_HANDLE_FILE_INFORMATION;
 
-use winapi::um::winnt::{FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, FILE_SHARE_WRITE};
+pub fn get_win_file_id(file_path: &Path) -> Result<(i32, i64), Error> {
+    // Open the file
+    let file = File::open(file_path)?;
 
-pub(crate) fn get_win_file_id(file_path: &Path) -> (i32, i64) {
-    let file_path_wide: Vec<u16> = file_path
-        .as_os_str()
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
+    // Prepare the BY_HANDLE_FILE_INFORMATION struct
+    let mut file_info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
 
-    unsafe {
-        let handle = CreateFileW(
-            file_path_wide.as_ptr(),
-            0,
-            FILE_SHARE_READ | FILE_SHARE_WRITE,
-            ptr::null_mut(),
-            OPEN_EXISTING,
-            FILE_ATTRIBUTE_NORMAL,
-            ptr::null_mut(),
-        );
+    // Call GetFileInformationByHandle
+    let result = unsafe { GetFileInformationByHandle(file.as_raw_handle(), &mut file_info) };
 
-        if handle.is_null() {
-            panic!("Failed to open file: {:?}", file_path);
-        }
-
-        let mut file_info: BY_HANDLE_FILE_INFORMATION = std::mem::zeroed();
-        if GetFileInformationByHandle(handle, &mut file_info) == 0 {
-            CloseHandle(handle);
-            panic!("Failed to get file information: {:?}", file_path);
-        }
-
-        CloseHandle(handle);
-
-        // Convert file index to u64 and then to i64
-        let file_index =
-            (((file_info.nFileIndexHigh as u64) << 32) | file_info.nFileIndexLow as u64) as i64;
-
-        // Return the volume serial number (converted to i32) and file index (as i64)
-        (file_info.dwVolumeSerialNumber as i32, file_index)
+    // Check the result
+    if result == 0 {
+        // The function failed, get the last error code
+        Err(Error::last_os_error())
+    } else {
+        // The function succeeded, return the volume serial number and the file index
+        Ok((
+            file_info.dwVolumeSerialNumber as i32,
+            file_info.nFileIndexHigh as i64,
+        ))
     }
 }

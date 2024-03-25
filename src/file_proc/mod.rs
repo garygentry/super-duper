@@ -21,8 +21,10 @@ pub fn process(root_paths: &Vec<String>) -> Result<(), Box<dyn std::error::Error
     */
     info!("Scanning files...");
     let scan_start_time = Instant::now();
-    let size_to_files_map = scan::build_size_to_files_map(&root_path_slices)?;
+    let size_to_files_map =
+        scan::build_size_to_files_map(&root_path_slices, &["**/node_modules/**".to_string()])?;
     let scan_duration = scan_start_time.elapsed();
+    // debug::print_size_to_files_map(&size_to_files_map);
     debug!(
         "Scan files completed in {} seconds",
         format_args!("{}", format!("{:.2}", &scan_duration.as_secs_f64()).green()),
