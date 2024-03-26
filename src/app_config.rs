@@ -4,6 +4,7 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 pub struct AppConfig {
     pub root_paths: Vec<String>,
+    pub ignore_patterns: Vec<String>,
 }
 
 pub fn load_configuration() -> Result<AppConfig, ConfigError> {

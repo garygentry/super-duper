@@ -2,19 +2,22 @@ use crate::db;
 use crate::model;
 use colored::*;
 use std::time::Instant;
-use tracing::debug;
-use tracing::info;
+use tracing::{debug, info};
 
 mod debug;
 mod file_info;
-mod hash;
+pub mod hash;
 mod scan;
 mod scan_dir;
 mod win;
 
-pub fn process(root_paths: &Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+pub fn process(
+    root_paths: &Vec<String>,
+    ignore_patterns: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Processing paths: {:?}", root_paths);
     let root_path_slices: Vec<&str> = root_paths.iter().map(|s| s.as_str()).collect();
+    let ignore_patterns_slices: Vec<&str> = ignore_patterns.iter().map(|s| s.as_str()).collect();
 
     /*
         Scan and build index on file size
@@ -22,13 +25,30 @@ pub fn process(root_paths: &Vec<String>) -> Result<(), Box<dyn std::error::Error
     info!("Scanning files...");
     let scan_start_time = Instant::now();
     let size_to_files_map =
-        scan::build_size_to_files_map(&root_path_slices, &["**/node_modules/**".to_string()])?;
+        scan::build_size_to_files_map(&root_path_slices, &ignore_patterns_slices)?;
     let scan_duration = scan_start_time.elapsed();
     // debug::print_size_to_files_map(&size_to_files_map);
     debug!(
         "Scan files completed in {} seconds",
         format_args!("{}", format!("{:.2}", &scan_duration.as_secs_f64()).green()),
     );
+
+    let print_size_map_start_time = Instant::now();
+    debug::print_size_to_files_map_stats(&size_to_files_map);
+    let print_size_map_duration = print_size_map_start_time.elapsed();
+    debug!(
+        "print size map completed in {} seconds",
+        format_args!(
+            "{}",
+            format!("{:.2}", &print_size_map_duration.as_secs_f64()).green()
+        ),
+    );
+
+    // std::process::exit(0);
+
+    // println!("Scan complete. Pausing for 10 seconds...");
+    // thread::sleep(Duration::from_secs(10));
+    // println!("Resuming after 10 seconds.");
 
     /*
         Build content Hash
@@ -84,27 +104,3 @@ pub fn process(root_paths: &Vec<String>) -> Result<(), Box<dyn std::error::Error
 
     Ok(())
 }
-
-// pub fn process_dir(root_paths: &Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
-//     println!("Processing paths: {:?}", root_paths);
-//     let root_path_slices: Vec<&str> = root_paths.iter().map(|s| s.as_str()).collect();
-
-//     /*
-//         Scan and build index on file size
-//     */
-//     info!("Scanning files...");
-//     let scan_start_time = Instant::now();
-//     let size_to_files_map = scan_dir::build_directory_sizes_map(&root_path_slices)?;
-//     let scan_duration = scan_start_time.elapsed();
-//     debug::print_size_to_files_map(&size_to_files_map);
-
-//     /*
-//         Summary
-//     */
-//     debug!(
-//         "Dir Scan completed in {} seconds",
-//         format_args!("{}", format!("{:.2}", scan_duration.as_secs_f64()).green()),
-//     );
-
-//     Ok(())
-// }

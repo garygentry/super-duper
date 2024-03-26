@@ -3,11 +3,12 @@ use std::io;
 use std::path::PathBuf;
 
 pub mod builders;
+pub mod hash_cache;
 
 pub fn build_content_hash_map(
     size_to_file_map: DashMap<u64, Vec<PathBuf>>,
 ) -> io::Result<DashMap<u64, Vec<PathBuf>>> {
-    build_content_hash_map_custom(size_to_file_map, builders::default::build_content_hash_map)
+    build_content_hash_map_custom(size_to_file_map, builders::rayon::build_content_hash_map)
 }
 
 pub fn build_content_hash_map_custom<F>(

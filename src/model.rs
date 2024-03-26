@@ -6,13 +6,13 @@ use std::time::SystemTime;
 #[diesel(table_name = schema::dupe_file)]
 pub struct FileInfo {
     pub canonical_name: String,
-    pub file_index: i64,
+    // pub file_index: i64,
     pub drive_letter: String,
     pub path_no_drive: String,
     pub file_size: i64,
     pub last_modified: SystemTime,
     pub content_hash: i64,
-    pub volume_serial_number: i32,
+    // pub volume_serial_number: i32,
     pub parent_dir: String,
 }
 

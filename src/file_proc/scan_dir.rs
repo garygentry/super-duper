@@ -4,7 +4,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-pub fn build_directory_sizes_map(root_paths: &Vec<&str>) -> io::Result<DashMap<u64, Vec<PathBuf>>> {
+pub fn build_directory_sizes_map(root_paths: &[&str]) -> io::Result<DashMap<u64, Vec<PathBuf>>> {
     let map: DashMap<u64, Vec<PathBuf>> = DashMap::new();
 
     root_paths
@@ -37,9 +37,7 @@ fn visit_dirs(dir: &Path, map: &DashMap<u64, Vec<PathBuf>>) -> io::Result<()> {
 
         // Add the directory to the map if it contains any files
         if total_size > 0 {
-            map.entry(total_size)
-                .or_insert(Vec::new())
-                .push(dir.to_path_buf());
+            map.entry(total_size).or_default().push(dir.to_path_buf());
         }
 
         // Recursively visit subdirectories

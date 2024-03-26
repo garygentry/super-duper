@@ -2,6 +2,7 @@
 
 use dashmap::DashMap;
 use std::path::PathBuf;
+use tracing::debug;
 
 pub fn print_size_to_files_map(map: &DashMap<u64, Vec<PathBuf>>) {
     for entry in map.iter() {
@@ -29,4 +30,48 @@ pub fn print_file_info_vec(file_info_vec: &Vec<super::model::FileInfo>) {
         // file_info.print();
         println!("{:?}", file_info)
     }
+}
+
+pub fn print_size_to_files_map_stats(map: &DashMap<u64, Vec<PathBuf>>) {
+    let (key_count, total_distinct_size, total_file_count, total_size) =
+        get_size_to_files_map_stats(map);
+
+    debug!(
+        "SIZE_MAP_STATS: Total number of distinct files: {}",
+        key_count
+    );
+    debug!(
+        "SIZE_MAP_STATS: Total size of distinct files: {}",
+        total_distinct_size
+    );
+    debug!(
+        "SIZE_MAP_STATS: Total number of files: {}",
+        total_file_count
+    );
+    debug!("SIZE_MAP_STATS: Total size of all files: {}", total_size);
+}
+
+pub fn get_size_to_files_map_stats(map: &DashMap<u64, Vec<PathBuf>>) -> (u64, u64, usize, u64) {
+    let mut total_size = 0;
+    let mut total_distinct_size = 0;
+    let mut key_count = 0;
+    let mut total_file_count = 0;
+
+    for entry in map.iter() {
+        let key = entry.key();
+        let value = entry.value();
+
+        key_count += 1;
+
+        total_distinct_size += *key;
+
+        // Count of all key values
+        // Sum of counts for each vector in the value
+        total_file_count += value.len();
+
+        // Sum of values calculated by multiplying the key value by the count of items in the vector
+        total_size += *key * value.len() as u64;
+    }
+
+    (key_count, total_distinct_size, total_file_count, total_size)
 }

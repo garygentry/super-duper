@@ -1,11 +1,12 @@
-use std::{env, panic};
+use std::env;
 mod app_config;
 mod db;
 mod file_proc;
 mod model;
+mod status;
 mod utils;
 use dotenv::dotenv;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 use tracing_appender::rolling;
 use tracing_subscriber::{
     fmt::{self},
@@ -27,12 +28,15 @@ fn init_logger() -> impl Drop {
         .unwrap_or_else(|_| EnvFilter::new("info,error"));
 
     // Formatter for stdout, allowing ANSI codes
-    let stdout_layer = fmt::layer().with_writer(std::io::stdout).pretty(); // Use pretty printing for stdout
+    let stdout_layer = fmt::layer()
+        .with_writer(std::io::stdout)
+        .pretty()
+        .with_file(false)
+        .without_time(); // Use pretty printing for stdout
 
     // Custom formatter for file, omitting ANSI codes
     let file_layer = fmt::layer()
         .with_writer(non_blocking_writer)
-        .without_time() // Example of customization, omitting timestamps
         .with_ansi(false); // Disable ANSI codes for the file logger
 
     // Combine filter with both output layers into a single subscriber
@@ -93,14 +97,14 @@ fn main() {
     let _guard = init_logger();
 
     utils::hide_cursor();
-    // panic::set_hook(Box::new(|panic_info| {
-    //     utils::show_cursor();
-    //     eprintln!("Panic occurred: {:?}", panic_info);
-    // }));
+
+    crate::file_proc::hash::hash_cache::print_hash_cache_count();
 
     if let Err(err) = run_app() {
         error!("Error: {}", err);
     }
+
+    crate::file_proc::hash::hash_cache::print_hash_cache_count();
 
     utils::show_cursor();
 }
@@ -109,9 +113,10 @@ fn run_app() -> Result<(), String> {
     let config = app_config::load_configuration()
         .map_err(|err| format!("Error loading configuration: {}", err))?;
     debug!("config.root_paths: {:?}", config.root_paths);
+    debug!("config.ignore_patterns: {:?}", config.ignore_patterns);
     let non_overlapping = utils::non_overlapping_directories(config.root_paths);
     info!("Processing directories: {:?}", non_overlapping);
-    file_proc::process(&non_overlapping)
+    file_proc::process(&non_overlapping, &config.ignore_patterns)
         .map_err(|err| format!("Error processing files: {}", err))?;
 
     // file_proc::process_dir(&non_overlapping)
