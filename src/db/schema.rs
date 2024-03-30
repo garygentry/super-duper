@@ -13,3 +13,16 @@ diesel::table! {
         parent_dir -> Text,
     }
 }
+
+diesel::table! {
+    path_part (id) {
+        id -> Int4,
+        canonical_name -> Text,
+        name -> Text,
+        file_size -> Int8,
+        parent_id -> Nullable<Int4>,
+        part_type -> Int4,
+    }
+}
+
+diesel::allow_tables_to_appear_in_same_query!(dupe_file, path_part,);

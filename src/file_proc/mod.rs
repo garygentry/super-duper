@@ -95,7 +95,7 @@ pub fn process(
         Summary
     */
     debug!(
-        "File Scan completed in {} seconds, File Hash completed in {} seconds, File Info completed in {} seconds, File Info completed in {} seconds",
+        "File Scan completed in {} seconds, File Hash completed in {} seconds, File Info completed in {} seconds, Database update completed in {} seconds",
         format_args!("{}", format!("{:.2}", &scan_duration.as_secs_f64()).green()),
         format_args!("{}", format!("{:.2}", &hash_duration.as_secs_f64()).green()),
         format_args!("{}", format!("{:.2}", &fi_duration.as_secs_f64()).green()),

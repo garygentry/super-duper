@@ -39,7 +39,7 @@ fn visit_dirs(
             .any(|pattern| pattern.matches_path(dir))
         {
             // Skip further processing of the directory
-            error!("Ignoring: {}", dir.display());
+            // error!("Ignoring: {}", dir.display());
             return Ok(());
         }
 

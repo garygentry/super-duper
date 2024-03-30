@@ -6,7 +6,13 @@
 # root_paths = ["D:/Data/Dev/Scratch/TestD3"]
 root_paths = ["D:/", "E:/", "H:/"]
 # root_paths = ["D:/Temp"]
-ignore_patterns = ["**/node_modules/**", "*/$RECYCLE.BIN/*", "*/.bzvol/*"]
+ignore_patterns = [
+  "**/node_modules/**",
+  "*/$RECYCLE.BIN",
+  "*/.bzvol",
+  "*/System Volume Information",
+  "*/Recovery",
+]
 
 # root_paths = ["D:/Temp/Slate"]
 

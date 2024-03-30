@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crossterm::{cursor, terminal, ExecutableCommand, QueueableCommand};
+use crossterm::{cursor, terminal, QueueableCommand};
 use std::io::{stdout, Write};
 use std::thread_local;
 
