@@ -13,19 +13,3 @@ ignore_patterns = [
   "*/System Volume Information",
   "*/Recovery",
 ]
-
-# root_paths = ["D:/Temp/Slate"]
-
-
-# root_paths_test = ["C:/Temp", "C:/Intel"]
-
-# root_paths_all = [
-#   "D:/Ableton Gary first try Project",
-#   "D:/Archive",
-#   "D:/Data",
-#   "D:/Music",
-#   "D:/Pictures",
-#   "D:/Video",
-# ]
-
-# root_paths = ["D:/Data", "D:/Pictures", "D:/Video"]

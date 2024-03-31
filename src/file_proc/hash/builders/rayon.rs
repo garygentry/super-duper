@@ -1,16 +1,13 @@
 #![allow(dead_code)]
 
-use super::super::hash_cache;
 use bincode;
 use dashmap::DashMap;
 use rayon::prelude::*;
-use rocksdb::{Options, DB};
 use std::fs::{self, File};
 use std::hash::Hasher as _;
 use std::io::Read;
 use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::trace;
 use twox_hash::XxHash64;

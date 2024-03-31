@@ -1,35 +1,10 @@
-use std::path::Path;
 use std::time::Instant;
 
-// use super::schema::dupe_file::{self};
-// use super::schema::path_part::{self};
 use super::schema;
 use crate::model;
 use crossterm::style::Stylize;
 use diesel::prelude::*;
 use diesel::result::Error;
-
-#[derive(Debug, Queryable, Insertable)]
-#[diesel(table_name = schema::path_part)]
-struct PathPart {
-    id: Option<i32>,
-    canonical_name: String,
-    name: String,
-    file_size: i64,
-    parent_id: Option<i32>,
-    part_type: i32,
-}
-
-#[derive(Debug, Queryable)]
-#[diesel(table_name = schema::path_part)]
-struct PathPartQuery {
-    id: i32,
-    canonical_name: String,
-    name: String,
-    file_size: i64,
-    parent_id: Option<i32>,
-    part_type: i32,
-}
 
 fn truncate_path_part(connection: &mut PgConnection) {
     diesel::sql_query("TRUNCATE TABLE path_part RESTART IDENTITY CASCADE")
@@ -65,7 +40,7 @@ fn process_path_parts(connection: &mut PgConnection, canonical_name: &str, file_
             1
         };
         let canonical_name = parts[..=i].join("\\");
-        let path_part = PathPart {
+        let path_part = model::PathPart {
             id: None,
             canonical_name: canonical_name.clone(),
             file_size: if part_type == 2 { file_size } else { 0 },
@@ -73,7 +48,7 @@ fn process_path_parts(connection: &mut PgConnection, canonical_name: &str, file_
             parent_id,
             part_type,
         };
-        let existing_part: Option<PathPartQuery> = schema::path_part::table
+        let existing_part: Option<model::PathPartQuery> = schema::path_part::table
             .filter(schema::path_part::canonical_name.eq(&canonical_name))
             .first(connection)
             .optional()
@@ -118,7 +93,7 @@ pub fn dupe_file_to_part_path() -> Result<(), Error> {
         //         .or(schema::dupe_file::id.eq(270256))
         //         .or(schema::dupe_file::id.eq(74182)),
         // )
-        .limit(5000)
+        // .limit(5000)
         .load::<model::DupeFileRead>(&mut connection)
         .expect("Error loading dupe_files");
     let load_duration = load_start_time.elapsed();

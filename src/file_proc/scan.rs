@@ -1,5 +1,3 @@
-use crate::status;
-use crate::status::print_status;
 use dashmap::DashMap;
 use glob::Pattern;
 use rayon::prelude::*;

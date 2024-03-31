@@ -1,4 +1,4 @@
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)] // requires `derive` feature
 #[command(name = "super-duper")]
@@ -13,17 +13,16 @@ pub enum Commands {
     /// Perform full process on input paths
     #[command()]
     Process,
-    /// A subcommand for doing bar which requires an argument 'blah'
-    Bar(BarArgs),
+    /// Create part_part from dupe_file in db
+    BuildPathParts,
+    /// Create part_part from dupe_file in (HASH)
+    BuildPathPartsHash,
+    /// Display the number of keys in the cache hash
+    CountHashCache,
+    /// Print configuration values
+    PrintConfig,
     /// A subcommand for doing baz which has an optional argument 'blat'
     Baz(BazArgs),
-}
-
-#[derive(Debug, Parser)]
-pub struct BarArgs {
-    /// An argument required for the bar subcommand
-    #[clap(value_parser)]
-    pub blah: String,
 }
 
 #[derive(Debug, Parser)]

@@ -32,26 +32,36 @@ pub fn print_file_info_vec(file_info_vec: &Vec<super::model::FileInfo>) {
     }
 }
 
+#[derive(Debug)]
+pub struct SizeToFilesMapStats {
+    pub key_count: u64,
+    pub total_distinct_size: u64,
+    pub total_file_count: usize,
+    pub total_size: u64,
+}
+
 pub fn print_size_to_files_map_stats(map: &DashMap<u64, Vec<PathBuf>>) {
-    let (key_count, total_distinct_size, total_file_count, total_size) =
-        get_size_to_files_map_stats(map);
+    let stats = get_size_to_files_map_stats(map);
 
     debug!(
         "SIZE_MAP_STATS: Total number of distinct files: {}",
-        key_count
+        stats.key_count
     );
     debug!(
         "SIZE_MAP_STATS: Total size of distinct files: {}",
-        total_distinct_size
+        stats.total_distinct_size
     );
     debug!(
         "SIZE_MAP_STATS: Total number of files: {}",
-        total_file_count
+        stats.total_file_count
     );
-    debug!("SIZE_MAP_STATS: Total size of all files: {}", total_size);
+    debug!(
+        "SIZE_MAP_STATS: Total size of all files: {}",
+        stats.total_size
+    );
 }
 
-pub fn get_size_to_files_map_stats(map: &DashMap<u64, Vec<PathBuf>>) -> (u64, u64, usize, u64) {
+pub fn get_size_to_files_map_stats(map: &DashMap<u64, Vec<PathBuf>>) -> SizeToFilesMapStats {
     let mut total_size = 0;
     let mut total_distinct_size = 0;
     let mut key_count = 0;
@@ -73,5 +83,10 @@ pub fn get_size_to_files_map_stats(map: &DashMap<u64, Vec<PathBuf>>) -> (u64, u6
         total_size += *key * value.len() as u64;
     }
 
-    (key_count, total_distinct_size, total_file_count, total_size)
+    SizeToFilesMapStats {
+        key_count,
+        total_distinct_size,
+        total_file_count,
+        total_size,
+    }
 }

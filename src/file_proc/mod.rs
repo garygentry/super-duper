@@ -43,13 +43,6 @@ pub fn process(
             format!("{:.2}", &print_size_map_duration.as_secs_f64()).green()
         ),
     );
-
-    // std::process::exit(0);
-
-    // println!("Scan complete. Pausing for 10 seconds...");
-    // thread::sleep(Duration::from_secs(10));
-    // println!("Resuming after 10 seconds.");
-
     /*
         Build content Hash
     */

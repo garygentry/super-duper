@@ -25,4 +25,7 @@ diesel::table! {
     }
 }
 
-diesel::allow_tables_to_appear_in_same_query!(dupe_file, path_part,);
+diesel::allow_tables_to_appear_in_same_query!(
+    dupe_file,
+    path_part,
+);
