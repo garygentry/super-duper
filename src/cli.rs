@@ -15,19 +15,20 @@ pub enum Commands {
     Process,
     /// Create part_part from dupe_file in db
     BuildPathParts,
-    /// Create part_part from dupe_file in (HASH)
-    BuildPathPartsHash,
     /// Display the number of keys in the cache hash
     CountHashCache,
     /// Print configuration values
     PrintConfig,
+    /// Truncate Database tables
+    TruncateDb,
     /// A subcommand for doing baz which has an optional argument 'blat'
-    Baz(BazArgs),
+    // Baz(BazArgs),
+    Test,
 }
 
 #[derive(Debug, Parser)]
 pub struct BazArgs {
     /// An optional argument for the baz subcommand
-    #[clap(value_parser)]
-    pub blat: Option<String>,
+    #[arg(long, short)]
+    pub truncate: bool,
 }

@@ -39,10 +39,11 @@ pub struct DupeFileRead {
     pub content_hash: i64,
     pub parent_dir: String,
 }
+pub const DUPE_FILE_FIELD_COUNT: usize = 8;
 
 #[derive(Debug, Queryable, Insertable, Selectable, Clone)]
 #[diesel(table_name = schema::path_part)]
-pub struct PathPartQuery {
+pub struct PathPart {
     pub id: i32,
     pub canonical_name: String,
     pub name: String,
@@ -50,6 +51,8 @@ pub struct PathPartQuery {
     pub parent_id: Option<i32>,
     pub part_type: i32,
 }
+
+pub const PATH_PART_FIELD_COUNT: usize = 6;
 
 // #[derive(Debug, Queryable, Insertable)]
 // #[diesel(table_name = schema::path_part)]

@@ -38,12 +38,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Some(Commands::BuildPathParts) => {
-            info!("Building path_part");
-            // let _ = db::part_path::dupe_file_to_part_path();
-        }
-        Some(Commands::BuildPathPartsHash) => {
             info!("Building path_part (HASH)");
-            db::part_path_hash::dupe_file_to_part_path()?;
+            db::part_path::dupe_file_to_part_path()?;
         }
         Some(Commands::CountHashCache) => {
             info!("Counting content cache hash...");
@@ -57,10 +53,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 env::var("DATABASE_URL").unwrap_or_default()
             );
         }
-        Some(Commands::Baz(args)) => match args.blat {
-            Some(blat) => info!("Handling 'baz' subcommand with blat = {}", blat),
-            None => info!("Handling 'baz' subcommand without blat"),
-        },
+        Some(Commands::Test) => {
+            println!("Test");
+        }
+        Some(Commands::TruncateDb) => {
+            println!(
+                "This command will WIPE OUT all Data in the database\nDATABASE_URL: {:?}",
+                env::var("DATABASE_URL").unwrap_or_default()
+            );
+            match utils::prompt_confirm(
+                "Are you SURE you want to COMPLETELY DELETE the Database?",
+                Some(false),
+            ) {
+                Ok(true) => {
+                    db::truncate_tables();
+                    println!("All tables truncated");
+                }
+                _ => {
+                    process::exit(0);
+                }
+            }
+        }
+        // Some(Commands::Baz(args)) => match .tru {
+        //     Some(blat) => info!("Handling 'baz' subcommand with blat = {}", blat),
+        //     None => info!("Handling 'baz' subcommand without blat"),
+        // },
         None => {
             // Default no subcommand
             let _ = Cli::command().print_long_help();

@@ -24,8 +24,8 @@ pub fn init_logger() -> impl Drop {
         .with(
             fmt::layer()
                 .with_writer(std::io::stdout) // Log to stdout
-                .with_file(false)
                 .pretty()
+                .with_file(false)
                 .without_time()
                 .with_ansi(true),
         ) // Enable ANSI escape codes for colors in the terminal
