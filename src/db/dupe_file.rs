@@ -3,7 +3,7 @@ use crate::model;
 use diesel::prelude::*;
 use diesel::result::Error;
 
-pub fn insert_file_info_vec(file_info_vector: Vec<model::FileInfo>) -> Result<usize, Error> {
+pub fn insert_file_info_vec(file_info_vector: Vec<model::FileInfo_OLD>) -> Result<usize, Error> {
     let mut connection = super::establish_connection();
 
     let chunk_size: usize = super::POSTGRES_MAX_PARAMETERS / model::DUPE_FILE_FIELD_COUNT;

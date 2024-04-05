@@ -25,7 +25,7 @@ pub fn print_content_hash_map(checksum_map: &DashMap<u64, Vec<PathBuf>>) {
     }
 }
 
-pub fn print_file_info_vec(file_info_vec: &Vec<super::model::FileInfo>) {
+pub fn print_file_info_vec(file_info_vec: &Vec<super::model::FileInfo_OLD>) {
     for file_info in file_info_vec {
         // file_info.print();
         println!("{:?}", file_info)

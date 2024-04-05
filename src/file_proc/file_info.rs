@@ -1,4 +1,4 @@
-use super::model::FileInfo;
+use super::model::{FileInfo2, FileInfo_OLD};
 use dashmap::DashMap;
 use rayon::prelude::*;
 use std::ffi::OsString;
@@ -50,7 +50,7 @@ fn get_drive_letter(_path: &PathBuf) -> Option<OsString> {
 
 pub fn build_file_info_vec(
     content_hash_map: DashMap<u64, Vec<PathBuf>>,
-) -> io::Result<Vec<FileInfo>> {
+) -> io::Result<Vec<FileInfo_OLD>> {
     let entries: Vec<_> = content_hash_map.iter().collect();
 
     let file_info_vec: Result<Vec<_>, io::Error> = entries
@@ -107,7 +107,7 @@ pub fn build_file_info_vec(
                     .and_then(|p| p.to_str().map(String::from))
                     .expect("Failed to get parent directory or convert to string");
 
-                let file_info = FileInfo {
+                let file_info = FileInfo_OLD {
                     // canonical_name: fs::canonicalize(path)?.to_string_lossy().into_owned(),
                     canonical_name: canonical_path.to_string_lossy().into_owned(),
                     file_size: metadata.len() as i64,
@@ -126,4 +126,37 @@ pub fn build_file_info_vec(
         .collect();
 
     file_info_vec
+}
+
+pub fn to_file_info2(path: PathBuf) -> Result<FileInfo2, Box<dyn std::error::Error>> {
+    let metadata = fs::metadata(&path)?;
+
+    let canonical_path = fs::canonicalize(&path)?;
+
+    let drive_letter = match get_drive_letter(&canonical_path) {
+        Some(drive) => drive.to_string_lossy().into_owned(),
+        None => "No drive letter found or not applicable.".to_string(),
+    };
+
+    let path_no_drive = get_path_without_drive_letter(&canonical_path)
+        .to_string_lossy()
+        .into_owned();
+
+    let parent_dir = canonical_path
+        .parent()
+        .and_then(|p| p.to_str().map(String::from))
+        .expect("Failed to get parent directory or convert to string");
+
+    let file_info = FileInfo2 {
+        canonical_name: canonical_path.to_string_lossy().into_owned(),
+        file_size: metadata.len() as i64,
+        last_modified: metadata.modified()?, // Cloning the last modified time
+        content_hash: None,
+        partial_hash: None,
+        drive_letter,
+        path_no_drive,
+        parent_dir,
+    };
+
+    Ok(file_info)
 }

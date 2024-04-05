@@ -23,7 +23,7 @@ pub enum Commands {
     TruncateDb,
     /// A subcommand for doing baz which has an optional argument 'blat'
     // Baz(BazArgs),
-    Test,
+    Test1,
 }
 
 #[derive(Debug, Parser)]

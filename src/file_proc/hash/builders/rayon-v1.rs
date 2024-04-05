@@ -20,88 +20,56 @@ const HASH_LENGTH: usize = 1024; // 1KB
 pub fn build_content_hash_map(
     size_to_file_map: DashMap<u64, Vec<PathBuf>>,
 ) -> io::Result<DashMap<u64, Vec<PathBuf>>> {
+    let partial_hash_to_file_map: DashMap<u64, Vec<PathBuf>> = DashMap::new();
     let confirmed_duplicates: DashMap<u64, Vec<PathBuf>> = DashMap::new();
 
     let size_to_file_vec: Vec<_> = size_to_file_map.iter().collect();
-    // Iterate over map keyed on file size, with value of all files that match that file_size
     size_to_file_vec.par_iter().try_for_each(|files| {
-        // map of files keyed on hash of first few bytes of the file (maybe/likely dupe)
-        let partial_hash_to_file_map: DashMap<u64, Vec<PathBuf>> = DashMap::new();
-        // map of files with keyed on hash of full contents (definite dupe)
-        let full_hash_to_file_map: DashMap<u64, Vec<PathBuf>> = DashMap::new();
-
-        // First iterate all files of same size to elliminate non-dupes as quickly as possible
         files
             .value()
             .par_iter()
-            .try_for_each(|file| populate_partial_hash_map(file, &partial_hash_to_file_map))?;
+            .try_for_each(|file| match read_portion(file) {
+                Ok(data) => {
+                    let hash = hash_data(&data)?;
+                    partial_hash_to_file_map
+                        .entry(hash)
+                        .or_default()
+                        .push(file.clone());
+                    Ok(())
+                }
+                Err(e) => {
+                    log_exception(file, &e);
+                    Ok::<_, std::io::Error>(()) // Add type annotation for Ok(())
+                }
+            })
+    })?;
 
-        // Now iterate possible dupes matching first few bytes to fully hash the files to be sure
-        let partial_hash_to_file_vec: Vec<_> = partial_hash_to_file_map.iter().collect();
-        partial_hash_to_file_vec.par_iter().try_for_each(|files| {
-            // if only one entry, there is no dupe..
-            if files.value().len() > 1 {
-                files
-                    .value()
-                    .par_iter()
-                    .try_for_each(|file| populate_full_hash_map(file, &full_hash_to_file_map))?;
-            }
-            Ok::<_, std::io::Error>(())
-        })?;
-
-        // itereate full content hash map to add confirmed dupes to return map
-        let full_hash_to_file_vec: Vec<_> = full_hash_to_file_map.iter().collect();
-        full_hash_to_file_vec.par_iter().for_each(|entry| {
-            if entry.value().len() > 1 {
-                confirmed_duplicates
-                    .entry(*entry.key())
-                    .or_default()
-                    .extend_from_slice(entry.value());
-            }
-        });
-        Ok::<_, std::io::Error>(())
+    let partial_hash_to_file_vec: Vec<_> = partial_hash_to_file_map.iter().collect();
+    partial_hash_to_file_vec.par_iter().try_for_each(|files| {
+        if files.value().len() > 1 {
+            files
+                .value()
+                .par_iter()
+                .try_for_each(|file| match get_content_hash(file) {
+                    Ok(hash) => {
+                        // let hash = hash_data(&data)?;
+                        confirmed_duplicates
+                            .entry(hash)
+                            .or_default()
+                            .push(file.clone());
+                        Ok::<_, std::io::Error>(()) // Add type annotation for Ok(())
+                    }
+                    Err(e) => {
+                        log_exception(file, &e);
+                        Ok::<_, std::io::Error>(()) // Add type annotation for Ok(())
+                    }
+                })
+        } else {
+            Ok(())
+        }
     })?;
 
     Ok(confirmed_duplicates)
-}
-
-fn populate_full_hash_map(
-    file: &PathBuf,
-    full_hash_to_file_map: &DashMap<u64, Vec<PathBuf>>,
-) -> io::Result<()> {
-    match get_content_hash(file) {
-        Ok(hash) => {
-            full_hash_to_file_map
-                .entry(hash)
-                .or_default()
-                .push(file.clone());
-            Ok::<_, std::io::Error>(()) // Add type annotation for Ok(())
-        }
-        Err(e) => {
-            log_exception(file, &e);
-            Ok::<_, std::io::Error>(()) // Add type annotation for Ok(())
-        }
-    }
-}
-
-fn populate_partial_hash_map(
-    file: &PathBuf,
-    partial_hash_to_file_map: &DashMap<u64, Vec<PathBuf>>,
-) -> io::Result<()> {
-    match read_portion(file) {
-        Ok(data) => {
-            let hash = hash_data(&data)?;
-            partial_hash_to_file_map
-                .entry(hash)
-                .or_default()
-                .push(file.clone());
-            Ok(())
-        }
-        Err(e) => {
-            log_exception(file, &e);
-            Ok::<_, std::io::Error>(()) // Add type annotation for Ok(())
-        }
-    }
 }
 
 fn read_portion(file: &PathBuf) -> std::io::Result<Vec<u8>> {

@@ -5,7 +5,7 @@ use std::time::Instant;
 use tracing::{debug, info};
 
 mod debug;
-mod file_info;
+pub mod file_info;
 pub mod hash;
 mod scan;
 mod scan_dir;

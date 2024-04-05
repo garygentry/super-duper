@@ -4,6 +4,7 @@ mod db;
 mod file_proc;
 mod logging;
 mod model;
+mod test1;
 mod utils;
 
 use std::{env, process};
@@ -53,8 +54,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 env::var("DATABASE_URL").unwrap_or_default()
             );
         }
-        Some(Commands::Test) => {
-            println!("Test");
+        Some(Commands::Test1) => {
+            test1::test1();
         }
         Some(Commands::TruncateDb) => {
             println!(
