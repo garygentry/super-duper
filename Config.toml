@@ -2,7 +2,7 @@
 # root_paths = ["D:/Data/Dev/Scratch/TestD3"]
 
 # root_paths = ["C:/Temp", "../test-data/folder1", "../test-data/folder2"]
-root_paths = ["../test-data/folder1", "../test-data/folder2"]
+root_paths = ["D:/Temp", "../test-data/folder1", "../test-data/folder2"]
 
 # root_paths_full_run = ["D:/", "E:/", "H:/"]
 ignore_patterns = [

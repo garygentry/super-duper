@@ -21,14 +21,20 @@ pub enum Commands {
     PrintConfig,
     /// Truncate Database tables
     TruncateDb,
-    /// A subcommand for doing baz which has an optional argument 'blat'
-    // Baz(BazArgs),
-    Test,
-}
-
-#[derive(Debug, Parser)]
-pub struct BazArgs {
-    /// An optional argument for the baz subcommand
-    #[arg(long, short)]
-    pub truncate: bool,
+    /// Test1
+    Test1,
+    /// Test Cache
+    TestCache,
+    /// Test Cache
+    TestScan,
+    /// Test Hash
+    TestHash,
+    /// Test Print Cache
+    TestPrintCache,
+    /// Print number of keys in file cache
+    PrintFileCacheLen,
+    /// Count old hash cache
+    PrintOldFileCacheLen,
+    /// Migrate old cache version to new cache
+    MigrateOldCacheVersion,
 }
