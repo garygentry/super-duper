@@ -33,8 +33,4 @@ pub enum Commands {
     TestPrintCache,
     /// Print number of keys in file cache
     PrintFileCacheLen,
-    /// Count old hash cache
-    PrintOldFileCacheLen,
-    /// Migrate old cache version to new cache
-    MigrateOldCacheVersion,
 }

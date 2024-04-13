@@ -1,12 +1,20 @@
-use crate::model::ScanFile;
 use crate::utils;
 use dashmap::DashMap;
 use glob::Pattern;
 use rayon::prelude::*;
 use std::fs;
+use std::fs::Metadata;
 use std::io;
 use std::path::Path;
+use std::path::PathBuf;
 use tracing::error;
+
+#[derive(Debug, Clone)]
+pub struct ScanFile {
+    pub path_buf: PathBuf,
+    pub file_size: i64,
+    pub metadata: Metadata,
+}
 
 /// Builds a map of file sizes to the corresponding file paths.
 ///

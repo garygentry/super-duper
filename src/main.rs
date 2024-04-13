@@ -1,6 +1,7 @@
 mod config;
 use config::AppConfig;
 mod cli;
+mod db;
 mod debug;
 mod file_cache;
 mod file_proc;
@@ -35,6 +36,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match args.command {
         Some(Commands::Process) => {
             info!("Processing...");
+            file_proc::process(&config.root_paths, &config.ignore_patterns)
+                .map_err(|err| format!("Error processing files: {}", err))?;
+
             // if let Err(err) = run_process(&config) {
             //     error!("Error: {}", err);
             // }
@@ -103,24 +107,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Err(e) => error!("Error: {}", e),
             }
         }
-        Some(Commands::PrintOldFileCacheLen) => {
-            info!("Print Old Hash Cache Count...");
-            match file_cache::old_cache::get_file_cache_len() {
-                Ok(count) => info!("Total keys in OLD file cache: {}", count),
-                Err(e) => error!("Error: {}", e),
-            }
-        }
-        Some(Commands::MigrateOldCacheVersion) => {
-            info!("Migrate old file cache version...");
-            let start = Instant::now();
-            file_cache::old_cache::migrate_old_cache_version();
-            let duration = start.elapsed();
-            info!(
-                "Migrated old cache version in {} seconds",
-                format_args!("{}", format!("{:.2}", &duration.as_secs_f64()).green()),
-            );
-        }
-
         None => {
             // Default no subcommand
             let _ = Cli::command().print_long_help();

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use crate::file_cache::CacheFile;
-use crate::model::ScanFile;
+use crate::file_cache::*;
+use crate::file_proc::scan::ScanFile;
 use dashmap::DashMap;
 use rayon::prelude::*;
 use std::fs::File;
@@ -104,7 +104,7 @@ fn populate_partial_hash_map(
     if cache_file.partial_hash.is_some() {
         trace!(
             "Partial Hash IS cached for {}: {}",
-            cache_file.canonical_name,
+            cache_file.canonical_path,
             cache_file.partial_hash.unwrap()
         );
         map.entry(cache_file.partial_hash.unwrap())
@@ -117,7 +117,7 @@ fn populate_partial_hash_map(
         cache_file.partial_hash = Some(hash);
         trace!(
             "Partial Hash NOT cached. Put partial hash for {}: {}",
-            cache_file.canonical_name,
+            cache_file.canonical_path,
             hash
         );
         // save file to cache with new hash
@@ -150,7 +150,7 @@ fn build_full_hash(cache_file: &CacheFile) -> io::Result<u64> {
 }
 
 fn read_portion(file: &CacheFile) -> std::io::Result<Vec<u8>> {
-    let mut f = File::open(&file.canonical_name)?;
+    let mut f = File::open(&file.canonical_path)?;
     let mut buffer = vec![0; HASH_LENGTH];
 
     // Read up to HASH_LENGTH bytes
@@ -170,7 +170,7 @@ fn populate_full_hash_map(
     if cache_file.full_hash.is_some() {
         trace!(
             "Full Hash IS cached for {}: {}",
-            cache_file.canonical_name,
+            cache_file.canonical_path,
             cache_file.full_hash.unwrap()
         );
         map.entry(cache_file.full_hash.unwrap())
@@ -183,7 +183,7 @@ fn populate_full_hash_map(
         cache_file.full_hash = Some(hash);
         trace!(
             "Full Hash NOT cached. Put full hash for {}: {}",
-            cache_file.canonical_name,
+            cache_file.canonical_path,
             hash
         );
 
@@ -197,7 +197,7 @@ fn populate_full_hash_map(
 }
 
 fn read_full_file(file: &CacheFile) -> io::Result<Vec<u8>> {
-    let mut f = File::open(&file.canonical_name)?;
+    let mut f = File::open(&file.canonical_path)?;
     let mut buffer = Vec::new();
     f.read_to_end(&mut buffer)?;
     Ok(buffer)

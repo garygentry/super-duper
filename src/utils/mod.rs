@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+pub mod path;
 
 use std::{
     io::{self, Write},

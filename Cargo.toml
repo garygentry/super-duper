@@ -11,6 +11,7 @@ clap = { version = "4.5.4", features = ["derive"] }
 colored = "2.1.0"
 config = "0.14.0"
 dashmap = "5.5.3"
+diesel = { version = "2.1.0", features = ["postgres", "chrono"] }
 dotenv = "0.15.0"
 glob = "0.3.1"
 lazy_static = "1.4.0"
