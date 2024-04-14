@@ -12,4 +12,4 @@ pub struct PathPart {
     pub part_type: i32,
 }
 
-pub const PATH_PART_FIELD_COUNT: usize = 6;
+pub const _PATH_PART_FIELD_COUNT: usize = 6;

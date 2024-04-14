@@ -1,14 +1,17 @@
 #![allow(dead_code)]
 
+use super::status::*;
 use crate::file_cache::*;
 use crate::file_proc::scan::ScanFile;
 use dashmap::DashMap;
 use rayon::prelude::*;
 use std::fs::File;
 use std::hash::Hasher as _;
-use std::io;
 use std::io::Read;
 use std::path::Path;
+use std::sync::{mpsc, Arc};
+use std::time::Duration;
+use std::{io, thread};
 use tracing::*;
 use twox_hash::XxHash64;
 
@@ -19,25 +22,50 @@ const HASH_LENGTH: usize = 1024; // 1KB
 /// value containing vector of all
 pub fn build_content_hash_map(
     size_to_file_map: &DashMap<u64, Vec<ScanFile>>,
+    tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>,
 ) -> Result<DashMap<u64, Vec<CacheFile>>, Box<dyn std::error::Error>> {
+    tx_status(StatusMessage::HashBegin);
+
     let confirmed_duplicates: DashMap<u64, Vec<CacheFile>> = DashMap::new();
 
+    // Convert the DashMap to a vector we can iterate over
     let size_to_file_vec: Vec<_> = size_to_file_map.iter().collect();
+
     // Iterate over map keyed on file size, with value of all files that match that file_size
     // size_to_file_vec.par_iter().try_for_each(|scan_files| {
     size_to_file_vec.iter().try_for_each(|scan_files| {
-        trace!(
-            "Processing: {} files for size {}",
-            scan_files.len(),
-            scan_files.key()
-        );
+        tx_status(StatusMessage::HashProcScanFiles(
+            HashProcScanFilesStatusMessage {
+                count: scan_files.len(),
+                file_size: *scan_files.key(),
+            },
+        ));
+
+        // TODO: Remove this sleep after testing
+        thread::sleep(Duration::from_millis(10));
 
         // Load all cache files for the scan files into new vector of CacheFile type
         let cache_files: Vec<CacheFile> = scan_files
             .value()
             .iter()
-            .map(|scan_file| scan_file.load_from_cache().unwrap())
+            .filter_map(|scan_file| {
+                scan_file
+                    .load_from_cache()
+                    .map_err(|err| {
+                        // Log the file name and the error, then continue processing
+                        error!(
+                            "Error loading cache file: {:?} - {}",
+                            scan_file.path_buf, err
+                        );
+                    })
+                    .ok() // Skip the element if there's an error
+            })
             .collect();
+
+        if cache_files.is_empty() {
+            // If all files encountered errors, just return early
+            return Ok(());
+        }
 
         // If all files are fully cached, we can skip the hashing
         if is_fully_cached(cache_files.clone()) {
@@ -88,6 +116,8 @@ pub fn build_content_hash_map(
 
         Ok::<_, std::io::Error>(())
     })?;
+
+    tx_status(StatusMessage::HashEnd);
 
     Ok(confirmed_duplicates)
 }

@@ -28,7 +28,7 @@ pub const DUPE_FILE_FIELD_COUNT: usize = 10;
 impl DupeFile {
     pub fn from_cache_file(cache_file: &CacheFile) -> DupeFile {
         let path_parts = utils::path::extract_path_components(&cache_file.path);
-        dbg!(&path_parts);
+        // dbg!(&path_parts);
 
         DupeFile {
             // id: 0,

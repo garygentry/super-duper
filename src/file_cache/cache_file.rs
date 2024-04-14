@@ -86,21 +86,6 @@ impl CacheFile {
     }
 }
 
-pub fn get_file_cache_len() -> Result<usize, Box<dyn std::error::Error>> {
-    let db = FILE_CACHE_INSTANCE.lock().unwrap();
-
-    // Initialize count to zero
-    let mut count = 0usize;
-
-    // Iterate through the keys and count them
-    let iterator = DB::iterator(&db, IteratorMode::Start);
-    for _ in iterator {
-        count += 1;
-    }
-
-    Ok(count)
-}
-
 impl ScanFile {
     pub fn load_from_cache(&self) -> io::Result<CacheFile> {
         let cache_file = CacheFile::from_scan_file(self)?;
@@ -141,5 +126,27 @@ pub fn print_all_cache_values() {
                 eprintln!("Error iterating through keys: {:?}", err);
             }
         }
+    }
+}
+
+pub fn get_file_cache_len() -> Result<usize, Box<dyn std::error::Error>> {
+    let db = FILE_CACHE_INSTANCE.lock().unwrap();
+
+    // Initialize count to zero
+    let mut count = 0usize;
+
+    // Iterate through the keys and count them
+    let iterator = DB::iterator(&db, IteratorMode::Start);
+    for _ in iterator {
+        count += 1;
+    }
+
+    Ok(count)
+}
+
+pub fn print_count() {
+    match get_file_cache_len() {
+        Ok(count) => info!("Total keys in hash cache: {}", count),
+        Err(e) => error!("Error: {}", e),
     }
 }

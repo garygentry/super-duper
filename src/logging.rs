@@ -23,14 +23,14 @@ pub fn init_logger() -> impl Drop {
 
     // Combine everything together
     tracing_subscriber::registry()
-        .with(
-            fmt::layer()
-                .with_writer(std::io::stdout) // Log to stdout
-                // .pretty()
-                .with_file(false)
-                .without_time()
-                .with_ansi(true),
-        ) // Enable ANSI escape codes for colors in the terminal
+        // .with(
+        //     fmt::layer()
+        //         .with_writer(std::io::stdout) // Log to stdout
+        //         // .pretty()
+        //         .with_file(false)
+        //         .without_time()
+        //         .with_ansi(true),
+        // ) // Enable ANSI escape codes for colors in the terminal
         .with(
             fmt::layer()
                 .with_writer(non_blocking) // Log to file

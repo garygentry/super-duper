@@ -1,10 +1,15 @@
 # root_paths = ["D:/Data/Dev/Scratch/testReact"]
 # root_paths = ["D:/Data/Dev/Scratch/TestD3"]
 
-# root_paths = ["C:/Temp", "../test-data/folder1", "../test-data/folder2"]
-root_paths = ["../test-data/folder1", "../test-data/folder2"]
+# root_paths = ["../test-data/folder1", "../test-data/folder2"]
+root_paths = ["D:/Temp", "../test-data/folder1", "../test-data/folder2"]
 
-# root_paths_full_run = ["D:/", "E:/", "H:/"]
+# root_paths = ["D:/", "E:/", "H:/"]
+# root_paths = [
+#   "E:/Temp/sd.webui/system/transformers-cache/models--openai--clip-vit-large-patch14",
+# ]
+# root_paths = ["D:/"]
+# root_paths = ["D:/"]
 ignore_patterns = [
   "**/node_modules/**",
   "*/$RECYCLE.BIN",

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use std::env;

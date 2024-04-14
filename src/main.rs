@@ -13,9 +13,8 @@ mod utils;
 // use app_config::AppConfig;
 use clap::{CommandFactory, Parser};
 use cli::{Cli, Commands};
-use colored::*;
 use dotenv::dotenv;
-use std::{env, process, time::Instant};
+use std::{env, process};
 use tracing::{error, info};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -36,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match args.command {
         Some(Commands::Process) => {
             info!("Processing...");
-            file_proc::process(&config.root_paths, &config.ignore_patterns)
+            file_proc::process(config.root_paths, config.ignore_patterns)
                 .map_err(|err| format!("Error processing files: {}", err))?;
 
             // if let Err(err) = run_process(&config) {
@@ -49,6 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some(Commands::CountHashCache) => {
             info!("Counting content cache hash...");
+            file_cache::print_count();
             // crate::file_proc::hash::hash_cache::print_count();
         }
         Some(Commands::PrintConfig) => {
@@ -71,11 +71,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some(Commands::TestScan) => {
             info!("Test Scan...");
-            test1::test_scan(&config);
+            // test1::test_scan(&config);
         }
         Some(Commands::TestHash) => {
             info!("Test Hash...");
-            test1::test_hash(&config);
+            // test1::test_hash(&config);
         }
         Some(Commands::TestPrintCache) => {
             info!("Test Print Cache...");

@@ -1,3 +1,4 @@
+use super::status::*;
 use crate::utils;
 use dashmap::DashMap;
 use glob::Pattern;
@@ -7,12 +8,15 @@ use std::fs::Metadata;
 use std::io;
 use std::path::Path;
 use std::path::PathBuf;
-use tracing::error;
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+use tracing::*;
 
 #[derive(Debug, Clone)]
 pub struct ScanFile {
     pub path_buf: PathBuf,
-    pub file_size: i64,
+    pub file_size: u64,
     pub metadata: Metadata,
 }
 
@@ -35,7 +39,10 @@ pub struct ScanFile {
 pub fn build_size_to_files_map(
     root_paths: &[String],
     ignore_globs: &[String],
+    tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>,
 ) -> io::Result<DashMap<u64, Vec<ScanFile>>> {
+    tx_status(StatusMessage::ScanBegin);
+
     let map: DashMap<u64, Vec<ScanFile>> = DashMap::new();
     // make sure no root paths overlap
     let root_paths = utils::to_non_overlapping_directories(root_paths);
@@ -47,13 +54,25 @@ pub fn build_size_to_files_map(
         .collect();
 
     // iterate files in root paths indexed on file size
-    root_paths
-        .par_iter()
-        .try_for_each(|root_dir| visit_dirs(Path::new(root_dir), &map, &ignore_patterns))?;
+    root_paths.par_iter().try_for_each(|root_dir| {
+        visit_dirs(Path::new(root_dir), &map, &ignore_patterns, tx_status)
+    })?;
 
     // remove entries with only 1 file (not dupes)
-    map.retain(|_, vec_scanfile| vec_scanfile.len() > 1);
+    // map.retain(|_, vec_scanfile| vec_scanfile.len() > 1);
+    map.retain(|&index, vec_scanfile| {
+        if vec_scanfile.len() > 1 {
+            tx_status(StatusMessage::ScanAddDupe(ScanAddDupeStatusMessage {
+                count: vec_scanfile.len(),
+                file_size: index,
+            }));
+            true // Keep the entry in the map
+        } else {
+            false // Remove the entry from the map
+        }
+    });
 
+    tx_status(StatusMessage::ScanEnd);
     Ok(map)
 }
 
@@ -77,6 +96,7 @@ fn visit_dirs(
     dir: &Path,
     map: &DashMap<u64, Vec<ScanFile>>,
     ignore_patterns: &[Pattern],
+    tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>,
 ) -> io::Result<()> {
     if dir.is_dir() {
         // Check if the directory matches any ignore patterns
@@ -85,7 +105,6 @@ fn visit_dirs(
             .any(|pattern| pattern.matches_path(dir))
         {
             // Skip further processing of the directory
-            // error!("Ignoring: {}", dir.display());
             return Ok(());
         }
 
@@ -126,8 +145,11 @@ fn visit_dirs(
                 }
             };
 
+            // TODO: Remove this sleep after testing
+            thread::sleep(Duration::from_millis(1));
+
             let path = entry.path();
-            let metadata = match fs::metadata(&path) {
+            let metadata = match fs::symlink_metadata(&path) {
                 Ok(metadata) => metadata,
                 Err(err) => {
                     return Err(io::Error::new(
@@ -142,9 +164,9 @@ fn visit_dirs(
             };
 
             // Check if the path is a directory or a non-symlink file
-            if path.is_dir() {
+            if metadata.is_dir() {
                 // Recursively visit directories
-                visit_dirs(&path, map, ignore_patterns)?;
+                visit_dirs(&path, map, ignore_patterns, tx_status)?;
             } else if !metadata.file_type().is_symlink() && metadata.len() > 0 {
                 // Only add non-symlink files to the map
                 let file_size = metadata.len();
@@ -156,15 +178,26 @@ fn visit_dirs(
                 {
                     let scan_file = ScanFile {
                         path_buf: path.to_path_buf(),
-                        file_size: file_size as i64,
+                        file_size,
                         metadata,
                     };
 
+                    tx_status(StatusMessage::ScanAddRaw(ScanAddRawStatusMessage {
+                        file_path: path.to_path_buf(),
+                        file_size: scan_file.file_size,
+                    }));
+
                     map.entry(file_size).or_default().push(scan_file);
                 }
+            } else {
+                // Skip symlinks and files with size 0
+                // debug!("Skipping (symlink or file size 0): {}", path.display());
             }
             Ok(())
         })?;
+    } else {
+        // Skip non-directory paths
+        error!("Skipping (not a directory): {}", dir.display());
     }
     Ok(())
 }
