@@ -39,7 +39,7 @@ pub struct ScanFile {
 pub fn build_size_to_files_map(
     root_paths: &[String],
     ignore_globs: &[String],
-    tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>,
+    tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>
 ) -> io::Result<DashMap<u64, Vec<ScanFile>>> {
     tx_status(StatusMessage::ScanBegin);
 
@@ -54,18 +54,22 @@ pub fn build_size_to_files_map(
         .collect();
 
     // iterate files in root paths indexed on file size
-    root_paths.par_iter().try_for_each(|root_dir| {
-        visit_dirs(Path::new(root_dir), &map, &ignore_patterns, tx_status)
-    })?;
+    root_paths
+        .par_iter()
+        .try_for_each(|root_dir| {
+            visit_dirs(Path::new(root_dir), &map, &ignore_patterns, tx_status)
+        })?;
 
     // remove entries with only 1 file (not dupes)
     // map.retain(|_, vec_scanfile| vec_scanfile.len() > 1);
     map.retain(|&index, vec_scanfile| {
         if vec_scanfile.len() > 1 {
-            tx_status(StatusMessage::ScanAddDupe(ScanAddDupeStatusMessage {
-                count: vec_scanfile.len(),
-                file_size: index,
-            }));
+            tx_status(
+                StatusMessage::ScanAddDupe(ScanAddDupeStatusMessage {
+                    count: vec_scanfile.len(),
+                    file_size: index,
+                })
+            );
             true // Keep the entry in the map
         } else {
             false // Remove the entry from the map
@@ -96,14 +100,11 @@ fn visit_dirs(
     dir: &Path,
     map: &DashMap<u64, Vec<ScanFile>>,
     ignore_patterns: &[Pattern],
-    tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>,
+    tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>
 ) -> io::Result<()> {
     if dir.is_dir() {
         // Check if the directory matches any ignore patterns
-        if ignore_patterns
-            .iter()
-            .any(|pattern| pattern.matches_path(dir))
-        {
+        if ignore_patterns.iter().any(|pattern| pattern.matches_path(dir)) {
             // Skip further processing of the directory
             return Ok(());
         }
@@ -113,17 +114,15 @@ fn visit_dirs(
             Ok(entries) => entries,
             Err(err) => {
                 if err.kind() == io::ErrorKind::PermissionDenied {
-                    error!(
-                        "Access denied error reading directory {}: {}",
-                        dir.display(),
-                        err
-                    );
+                    error!("Access denied error reading directory {}: {}", dir.display(), err);
                     return Ok(()); // Skip further processing of the directory
                 } else {
-                    return Err(io::Error::new(
-                        err.kind(),
-                        format!("Error reading directory {}: {}", dir.display(), err),
-                    ));
+                    return Err(
+                        io::Error::new(
+                            err.kind(),
+                            format!("Error reading directory {}: {}", dir.display(), err)
+                        )
+                    );
                 }
             }
         };
@@ -134,14 +133,12 @@ fn visit_dirs(
             let entry = match entry_result {
                 Ok(entry) => entry,
                 Err(err) => {
-                    return Err(io::Error::new(
-                        err.kind(),
-                        format!(
-                            "Error reading entry in directory {}: {}",
-                            dir.display(),
-                            err
-                        ),
-                    ));
+                    return Err(
+                        io::Error::new(
+                            err.kind(),
+                            format!("Error reading entry in directory {}: {}", dir.display(), err)
+                        )
+                    );
                 }
             };
 
@@ -152,14 +149,12 @@ fn visit_dirs(
             let metadata = match fs::symlink_metadata(&path) {
                 Ok(metadata) => metadata,
                 Err(err) => {
-                    return Err(io::Error::new(
-                        err.kind(),
-                        format!(
-                            "Error getting metadata for file {}: {}",
-                            path.display(),
-                            err
-                        ),
-                    ));
+                    return Err(
+                        io::Error::new(
+                            err.kind(),
+                            format!("Error getting metadata for file {}: {}", path.display(), err)
+                        )
+                    );
                 }
             };
 
@@ -172,20 +167,19 @@ fn visit_dirs(
                 let file_size = metadata.len();
 
                 // Check if the file matches any of the glob patterns
-                if !ignore_patterns
-                    .iter()
-                    .any(|pattern| pattern.matches_path(&path))
-                {
+                if !ignore_patterns.iter().any(|pattern| pattern.matches_path(&path)) {
                     let scan_file = ScanFile {
                         path_buf: path.to_path_buf(),
                         file_size,
                         metadata,
                     };
 
-                    tx_status(StatusMessage::ScanAddRaw(ScanAddRawStatusMessage {
-                        file_path: path.to_path_buf(),
-                        file_size: scan_file.file_size,
-                    }));
+                    tx_status(
+                        StatusMessage::ScanAddRaw(ScanAddRawStatusMessage {
+                            file_path: path.to_path_buf(),
+                            file_size: scan_file.file_size,
+                        })
+                    );
 
                     map.entry(file_size).or_default().push(scan_file);
                 }

@@ -1,9 +1,13 @@
 use super::schema;
 use super::sd_pg::*;
 use crate::file_cache::CacheFile;
+use crate::file_proc::status::{DbDupeFileInsertProcStatusMessage, StatusMessage};
 use crate::utils;
 use diesel::prelude::*;
 use diesel::result::Error;
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 use std::time::SystemTime;
 
 pub struct DupeFileDb {}
@@ -47,7 +51,11 @@ impl DupeFile {
 }
 
 impl DupeFileDb {
-    pub fn insert_dupe_files(dupe_files: &[DupeFile]) -> Result<usize, Error> {
+    pub fn insert_dupe_files(
+        dupe_files: &[DupeFile],
+        tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>,
+    ) -> Result<usize, Error> {
+        tx_status(StatusMessage::DbDupeFileInsertBegin);
         let mut connection = establish_connection();
 
         let chunk_size: usize = POSTGRES_MAX_PARAMETERS / DUPE_FILE_FIELD_COUNT;
@@ -59,7 +67,18 @@ impl DupeFileDb {
                 .values(chunk)
                 .execute(&mut connection)?;
             rows_added += rows;
+
+            tx_status(StatusMessage::DbDupeFileInsertProc(
+                DbDupeFileInsertProcStatusMessage {
+                    rows_inserted: rows,
+                },
+            ));
+
+            // TODO: Remove this sleep after testing
+            thread::sleep(Duration::from_millis(1000));
         }
+
+        tx_status(StatusMessage::DbDupeFileInsertEnd);
 
         Ok(rows_added)
     }

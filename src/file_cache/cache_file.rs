@@ -87,7 +87,36 @@ impl CacheFile {
 }
 
 impl ScanFile {
-    pub fn load_from_cache(&self) -> io::Result<CacheFile> {
+    /// Returns `CacheFile` associated with the `ScanFile` instance.
+    ///
+    /// This method attempts to load the cache file from the file cache database.
+    /// If the file is found in the database, it is deserialized and returned.
+    /// If the cache file is not found in the database, a new `CacheFile` is created (without
+    /// updating the cahce database).
+    ///
+    /// # Errors
+    ///
+    /// This method can return an `io::Error` if there is an error accessing the file cache database.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::io;
+    /// use super_duper::file_cache::ScanFile;
+    ///
+    /// let scan_file = ScanFile::new("path/to/file.txt");
+    /// match scan_file.load_cache_file() {
+    ///     Ok(cache_file) => {
+    ///         // Cache file loaded successfully
+    ///         println!("Cache file: {:?}", cache_file);
+    ///     }
+    ///     Err(error) => {
+    ///         // Error loading cache file
+    ///         eprintln!("Failed to load cache file: {}", error);
+    ///     }
+    /// }
+    /// ```
+    pub fn load_cache_file(&self) -> io::Result<CacheFile> {
         let cache_file = CacheFile::from_scan_file(self)?;
         let db_key = cache_file.get_cache_key()?;
         let db = FILE_CACHE_INSTANCE.lock().unwrap();
