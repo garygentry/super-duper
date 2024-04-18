@@ -66,7 +66,8 @@ pub fn process(
 
     let final_stats = *stats.lock().unwrap();
 
-    final_stats.test();
+    final_stats.print();
+    let _ = final_stats.write_csv("stats.csv");
 
     // println!("Final stats: {:?}", *final_stats);
     // let tmp = stats;

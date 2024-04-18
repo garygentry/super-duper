@@ -3,6 +3,7 @@ use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Instant;
+use std::time::SystemTime;
 use crate::file_proc::stats::FileProcStats;
 use super::types::*;
 
@@ -149,6 +150,7 @@ fn update_stats(message: StatusMessage, stats: &Arc<Mutex<FileProcStats>>) {
     let mut stats = stats.lock().unwrap();
     match message {
         StatusMessage::ProcessStart => {
+            stats.run_start_time = Some(SystemTime::now());
             stats.process_start = Some(Instant::now());
         }
         StatusMessage::ScanStart => {

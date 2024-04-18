@@ -1,4 +1,4 @@
-use std::{ path::PathBuf, time::{ Duration, Instant } };
+use std::{ path::PathBuf, time::Duration };
 
 #[derive(Debug, Clone)]
 pub struct ScanAddInputFileStatusMessage {
