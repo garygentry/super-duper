@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::time::Duration;
+use console::{ style, StyledObject };
 
 use indicatif::MultiProgress;
 use indicatif::{ HumanBytes, HumanCount, HumanDuration, ProgressBar, ProgressStyle };
@@ -74,8 +75,8 @@ impl FileProcStatusBars {
         pb.set_style(
             ProgressStyle::with_template(
                 &format!(
-                    "[{{elapsed_precise}}] {{prefix:.bold}}▕{{bar:.{}}}▏{{percent}} {{msg}}",
-                    String::from("blue")
+                    "[{{elapsed_precise}}] {{prefix:.bold}}▕{{bar:.{}}}▏ {{wide_msg}}",
+                    String::from("green")
                 )
             )
                 .unwrap()
@@ -86,6 +87,7 @@ impl FileProcStatusBars {
 
     pub fn new_progress_bars() -> ([ProgressBar; STATUS_BAR_TYPE_COUNT], MultiProgress) {
         let m = MultiProgress::new();
+        m.set_move_cursor(true);
 
         let bars: [ProgressBar; STATUS_BAR_TYPE_COUNT] = [
             m.add(FileProcStatusBars::new_spinner()), // FileProcStatusType::Scan => 0,
@@ -104,9 +106,30 @@ impl FileProcStatusBars {
     }
 }
 
+pub fn to_count_style<T: std::fmt::Display>(count: T) -> StyledObject<HumanCount>
+    where T: std::fmt::Display + Into<u64>
+{
+    style(HumanCount(count.into())).bold().green()
+}
+
+pub fn to_bytes_style<T: std::fmt::Display>(bytes: T) -> StyledObject<HumanBytes>
+    where T: std::fmt::Display + Into<u64>
+{
+    style(HumanBytes(bytes.into())).bold().green()
+}
+
+pub fn to_duration_style(count: Duration) -> StyledObject<HumanDuration> {
+    style(HumanDuration(count)).bold().red()
+}
+
 pub trait FileProcProgressBar {
     fn finish_with_finish_style(&self, message: impl Into<Cow<'static, str>>);
     fn enable_steady_tick_default(&self);
+    fn to_count_style<T: std::fmt::Display>(&self, count: T) -> StyledObject<HumanCount>
+        where T: std::fmt::Display + Into<u64>;
+    fn to_bytes_style<T: std::fmt::Display>(&self, count: T) -> StyledObject<HumanBytes>
+        where T: std::fmt::Display + Into<u64>;
+    fn to_duration_style(&self, duration: Duration) -> StyledObject<HumanDuration>;
 }
 
 impl FileProcProgressBar for ProgressBar {
@@ -116,5 +139,21 @@ impl FileProcProgressBar for ProgressBar {
     }
     fn enable_steady_tick_default(&self) {
         self.enable_steady_tick(Duration::from_millis(DEFAULT_STEADY_TICK_MS));
+    }
+    fn to_count_style<T: std::fmt::Display>(&self, count: T) -> StyledObject<HumanCount>
+        where T: std::fmt::Display + Into<u64>
+    {
+        style(HumanCount(count.into())).bold().green()
+    }
+
+    fn to_bytes_style<T: std::fmt::Display>(&self, bytes: T) -> StyledObject<HumanBytes>
+        where T: std::fmt::Display + Into<u64>
+    {
+        style(HumanBytes(bytes.into())).bold().green()
+    }
+
+    fn to_duration_style(&self, count: Duration) -> StyledObject<HumanDuration> {
+        style(HumanDuration(count)).bold().red()
+        // style(HumanBytes(bytes.into())).bold().green()
     }
 }

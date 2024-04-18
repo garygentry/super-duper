@@ -1,6 +1,7 @@
 use super::hash;
 use super::scan;
 use super::status;
+use super::stats::FileProcStats;
 use super::status::{ CacheToDupeProcStatusMessage, StatusMessage };
 use crate::db::dupe_file::{ DupeFile, DupeFileDb };
 use crate::file_cache::CacheFile;
@@ -18,7 +19,7 @@ pub fn process(
     ignore_patterns: Vec<String>
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the process stats
-    let stats = Arc::new(Mutex::new(status::FileProcStats::default()));
+    let stats = Arc::new(Mutex::new(FileProcStats::default()));
 
     // Initialize channel for sending status messages
     let (tx, rx): (
@@ -44,13 +45,35 @@ pub fn process(
     });
 
     // Spawn a thread to handle status messages
-    let status_handle = thread::spawn(move || {
-        status::handle_status(rx, Arc::clone(&stats));
+    // let status_handle = thread::spawn(move || {
+    //     status::handle_status(rx, Arc::clone(&stats));
+    //     let stats_lock = &stats.lock().unwrap();
+    //     print_stats(stats_lock);
+    // });
+
+    let status_handle = thread::spawn({
+        let stats = Arc::clone(&stats);
+        move || {
+            status::handle_status(rx, Arc::clone(&stats));
+            // let stats_lock = &stats.lock().unwrap();
+            // print_stats(stats_lock);
+        }
     });
 
-    // Wait for the threads to finish
+    // // Wait for the threads to finish
     process_handle.join().unwrap();
     status_handle.join().unwrap();
+
+    let final_stats = *stats.lock().unwrap();
+
+    final_stats.test();
+
+    // println!("Final stats: {:?}", *final_stats);
+    // let tmp = stats;
+
+    // Lock the stats and call print_stats
+    // let stats_lock = &stats.lock().unwrap();
+    // print_stats(&stats_lock);
 
     Ok(())
 }
@@ -60,7 +83,7 @@ fn process_inner(
     ignore_patterns: Vec<String>,
     tx_status: &Arc<dyn Fn(status::StatusMessage) + Send + Sync>
 ) -> Result<(), Box<dyn std::error::Error>> {
-    tx_status(StatusMessage::ProcessBegin);
+    tx_status(StatusMessage::ProcessStart);
 
     let size_map = scan::build_size_to_files_map(&root_paths, &ignore_patterns, tx_status).unwrap();
 
@@ -69,7 +92,7 @@ fn process_inner(
     let dupe_files = cache_file_map_to_dupe_files(hash_map, tx_status).unwrap();
 
     let _db_rows = DupeFileDb::insert_dupe_files(&dupe_files, tx_status)?;
-    tx_status(StatusMessage::ProcessEnd);
+    tx_status(StatusMessage::ProcessFinish);
 
     Ok(())
 }
@@ -78,7 +101,7 @@ fn cache_file_map_to_dupe_files(
     map: DashMap<u64, Vec<CacheFile>>,
     tx_status: &Arc<dyn Fn(status::StatusMessage) + Send + Sync>
 ) -> io::Result<Vec<DupeFile>> {
-    tx_status(StatusMessage::CacheToDupeBegin);
+    tx_status(StatusMessage::CacheToDupeStart);
     let entries: Vec<_> = map.iter().collect();
     let dupe_file_vec: Result<Vec<_>, io::Error> = entries
         .par_iter()
@@ -86,7 +109,7 @@ fn cache_file_map_to_dupe_files(
             let cache_files = entry.value();
 
             // TODO: Remove this sleep after testing
-            thread::sleep(Duration::from_millis(20));
+            thread::sleep(Duration::from_millis(crate::debug::DEBUG_CACHE_TO_VEC_SLEEP_TIME));
 
             tx_status(
                 StatusMessage::CacheToDupeProc(CacheToDupeProcStatusMessage {
@@ -100,6 +123,6 @@ fn cache_file_map_to_dupe_files(
             })
         })
         .collect();
-    tx_status(StatusMessage::CacheToDupeEnd);
+    tx_status(StatusMessage::CacheToDupeFinish);
     dupe_file_vec
 }

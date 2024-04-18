@@ -41,7 +41,7 @@ pub fn build_size_to_files_map(
     ignore_globs: &[String],
     tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>
 ) -> io::Result<DashMap<u64, Vec<ScanFile>>> {
-    tx_status(StatusMessage::ScanBegin);
+    tx_status(StatusMessage::ScanStart);
 
     let map: DashMap<u64, Vec<ScanFile>> = DashMap::new();
     // make sure no root paths overlap
@@ -65,7 +65,7 @@ pub fn build_size_to_files_map(
     map.retain(|&index, vec_scanfile| {
         if vec_scanfile.len() > 1 {
             tx_status(
-                StatusMessage::ScanAddDupe(ScanAddDupeStatusMessage {
+                StatusMessage::ScanAddRetainedFile(ScanAddSizeDupeStatusMessage {
                     count: vec_scanfile.len(),
                     file_size: index,
                 })
@@ -76,7 +76,7 @@ pub fn build_size_to_files_map(
         }
     });
 
-    tx_status(StatusMessage::ScanEnd);
+    tx_status(StatusMessage::ScanFinish);
     Ok(map)
 }
 
@@ -143,7 +143,7 @@ fn visit_dirs(
             };
 
             // TODO: Remove this sleep after testing
-            thread::sleep(Duration::from_millis(1));
+            thread::sleep(Duration::from_millis(crate::debug::DEBUG_SCAN_SLEEP_TIME));
 
             let path = entry.path();
             let metadata = match fs::symlink_metadata(&path) {
@@ -175,7 +175,7 @@ fn visit_dirs(
                     };
 
                     tx_status(
-                        StatusMessage::ScanAddRaw(ScanAddRawStatusMessage {
+                        StatusMessage::ScanAddInputFile(ScanAddInputFileStatusMessage {
                             file_path: path.to_path_buf(),
                             file_size: scan_file.file_size,
                         })

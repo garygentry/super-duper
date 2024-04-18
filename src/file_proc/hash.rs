@@ -10,8 +10,8 @@ use std::hash::Hasher as _;
 use std::io::Read;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
-use std::{io, thread};
+use std::time::{ Duration, Instant };
+use std::{ io, thread };
 use tracing::*;
 use twox_hash::XxHash64;
 
@@ -22,9 +22,9 @@ const HASH_LENGTH: usize = 1024; // 1KB
 /// value containing vector of all
 pub fn build_content_hash_map(
     size_to_file_map: &DashMap<u64, Vec<ScanFile>>,
-    tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>,
+    tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>
 ) -> Result<DashMap<u64, Vec<CacheFile>>, Box<dyn std::error::Error>> {
-    tx_status(StatusMessage::HashBegin);
+    tx_status(StatusMessage::HashStart);
 
     let confirmed_duplicates: DashMap<u64, Vec<CacheFile>> = DashMap::new();
 
@@ -36,14 +36,16 @@ pub fn build_content_hash_map(
     size_to_file_vec.iter().try_for_each(|scan_files| {
         let file_size = *scan_files.key();
 
-        tx_status(StatusMessage::HashProc(HashProcStatusMessage {
-            scan_file_proc_count: scan_files.len(),
-            file_size,
-            ..Default::default()
-        }));
+        tx_status(
+            StatusMessage::HashProc(HashProcStatusMessage {
+                scan_file_count: scan_files.len(),
+                file_size,
+                ..Default::default()
+            })
+        );
 
         // TODO: Remove this sleep after testing
-        thread::sleep(Duration::from_millis(1));
+        thread::sleep(Duration::from_millis(crate::debug::DEBUG_HASH_SLEEP_TIME));
 
         // Load all cache files for the scan files into new vector of CacheFile type
         // This will load from persistent cache if available, otherwise new CacheFile
@@ -57,10 +59,7 @@ pub fn build_content_hash_map(
                     .map_err(|err| {
                         // Log the file name and the error, then continue processing.
                         // Should only hit here if there's an issue loading from fs (e.g. access denied)
-                        error!(
-                            "Error loading cache file: {:?} - {}",
-                            scan_file.path_buf, err
-                        );
+                        error!("Error loading cache file: {:?} - {}", scan_file.path_buf, err);
                     })
                     .ok() // Skip the element if there's an error
             })
@@ -78,18 +77,17 @@ pub fn build_content_hash_map(
         // TODO: Clone needed here?  Perf hit?
         if is_fully_cached(cache_files.clone()) {
             cache_files.iter().for_each(|file| {
-                confirmed_duplicates
-                    .entry(file.full_hash.unwrap())
-                    .or_default()
-                    .push(file.clone());
+                confirmed_duplicates.entry(file.full_hash.unwrap()).or_default().push(file.clone());
             });
             // capture short-cicuited confirmed dupes
-            tx_status(StatusMessage::HashProc(HashProcStatusMessage {
-                full_cache_hit_count: cache_files.len(),
-                confirmed_dupe_count: cache_files.len(),
-                file_size,
-                ..Default::default()
-            }));
+            tx_status(
+                StatusMessage::HashProc(HashProcStatusMessage {
+                    cache_hit_full_count: cache_files.len(),
+                    confirmed_dupe_count: cache_files.len(),
+                    file_size,
+                    ..Default::default()
+                })
+            );
             return Ok(());
         } else {
             // Initialize map of files keyed on hash of first few bytes of the file (maybe/likely dupe)
@@ -98,33 +96,36 @@ pub fn build_content_hash_map(
             let full_hash_to_file_map: DashMap<u64, Vec<CacheFile>> = DashMap::new();
 
             // Iterate cache_files to populate partial hash to quickly eliminate non-dupes
-            cache_files.par_iter().try_for_each(|scan_file| {
-                update_partial_map_for_cache_file(
-                    scan_file,
-                    &partial_hash_to_file_map,
-                    tx_status,
-                    file_size,
-                )
-            })?;
+            cache_files
+                .par_iter()
+                .try_for_each(|scan_file| {
+                    update_partial_map_for_cache_file(
+                        scan_file,
+                        &partial_hash_to_file_map,
+                        tx_status,
+                        file_size
+                    )
+                })?;
 
             // Now iterate possible dupes matching first few bytes to fully hash the files to be sure
             let partial_hash_to_file_vec: Vec<_> = partial_hash_to_file_map.iter().collect();
-            partial_hash_to_file_vec
-                .par_iter()
-                .try_for_each(|cache_files| {
-                    // if only one entry, there is no dupe..
-                    if cache_files.value().len() > 1 {
-                        cache_files.value().par_iter().try_for_each(|file| {
+            partial_hash_to_file_vec.par_iter().try_for_each(|cache_files| {
+                // if only one entry, there is no dupe..
+                if cache_files.value().len() > 1 {
+                    cache_files
+                        .value()
+                        .par_iter()
+                        .try_for_each(|file| {
                             update_full_map_for_cache_file(
                                 file,
                                 &full_hash_to_file_map,
                                 tx_status,
-                                file_size,
+                                file_size
                             )
                         })?;
-                    }
-                    Ok::<_, std::io::Error>(())
-                })?;
+                }
+                Ok::<_, std::io::Error>(())
+            })?;
 
             // itereate full content hash map to add confirmed dupes to return map
             let full_hash_to_file_vec: Vec<_> = full_hash_to_file_map.iter().collect();
@@ -136,11 +137,13 @@ pub fn build_content_hash_map(
                         .or_default()
                         .extend_from_slice(entry.value());
 
-                    tx_status(StatusMessage::HashProc(HashProcStatusMessage {
-                        confirmed_dupe_count: file_count,
-                        file_size,
-                        ..Default::default()
-                    }));
+                    tx_status(
+                        StatusMessage::HashProc(HashProcStatusMessage {
+                            confirmed_dupe_count: file_count,
+                            file_size,
+                            ..Default::default()
+                        })
+                    );
                 }
             });
         }
@@ -148,7 +151,7 @@ pub fn build_content_hash_map(
         Ok::<_, std::io::Error>(())
     })?;
 
-    tx_status(StatusMessage::HashEnd);
+    tx_status(StatusMessage::HashFinish);
 
     Ok(confirmed_duplicates)
 }
@@ -161,43 +164,51 @@ fn update_partial_map_for_cache_file(
     cache_file: &CacheFile,
     map: &DashMap<u64, Vec<CacheFile>>,
     tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>,
-    file_size: u64,
+    file_size: u64
 ) -> io::Result<()> {
     // check whether the file is already partially hashed (from cache)
     if cache_file.partial_hash.is_some() {
         // Partial has is in cache, add to map
-        map.entry(cache_file.partial_hash.unwrap())
-            .or_default()
-            .push(cache_file.clone());
-        tx_status(StatusMessage::HashProc(HashProcStatusMessage {
-            partial_cache_hit_count: 1,
-            file_size,
-            ..Default::default()
-        }));
+        map.entry(cache_file.partial_hash.unwrap()).or_default().push(cache_file.clone());
+        tx_status(
+            StatusMessage::HashProc(HashProcStatusMessage {
+                cache_hit_partial_count: 1,
+                file_size,
+                ..Default::default()
+            })
+        );
     } else {
         // partial hash NOT in cache, create a new hash for the partial file contents
         let mut cache_file = cache_file.clone();
+        tx_status(
+            StatusMessage::HashStartGenerateFileHash(HashStartGenerateFileHashStatusMessage {
+                canonical_path: cache_file.canonical_path.clone(),
+                hash_type: HashGenerateType::Partial,
+            })
+        );
         // Generate the partial hash
-        let hash = build_partial_hash(&cache_file)?;
+        let start_time = Instant::now();
+        let hash = generate_partial_hash(&cache_file)?;
+        tx_status(
+            StatusMessage::HashFinishGenerateFileHash(HashFinishGenerateFileHashStatusMessage {
+                canonical_path: cache_file.canonical_path.clone(),
+                hash_type: HashGenerateType::Partial,
+                duration: start_time.elapsed(),
+                file_size,
+            })
+        );
+
         cache_file.partial_hash = Some(hash);
-        let canonical_path = cache_file.canonical_path.clone();
         // save file to cache with new hash
         let _ = cache_file.put();
         // add file to map
         map.entry(hash).or_default().push(cache_file);
-        tx_status(StatusMessage::HashGenCacheFile(
-            HashGenCacheFileStatusMessage {
-                partial_count: 1,
-                canonical_path,
-                ..Default::default()
-            },
-        ));
     }
 
     Ok(())
 }
 
-fn build_partial_hash(cache_file: &CacheFile) -> io::Result<u64> {
+fn generate_partial_hash(cache_file: &CacheFile) -> io::Result<u64> {
     match read_portion(cache_file) {
         Ok(data) => {
             let hash = hash_data(&data)?;
@@ -224,46 +235,48 @@ fn update_full_map_for_cache_file(
     cache_file: &CacheFile,
     map: &DashMap<u64, Vec<CacheFile>>,
     tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>,
-    file_size: u64,
+    file_size: u64
 ) -> io::Result<()> {
     // check whether the file is already partially hashed (from cache)
     if cache_file.full_hash.is_some() {
-        map.entry(cache_file.full_hash.unwrap())
-            .or_default()
-            .push(cache_file.clone());
-        tx_status(StatusMessage::HashProc(HashProcStatusMessage {
-            full_cache_hit_count: 1,
-            file_size,
-            ..Default::default()
-        }));
+        map.entry(cache_file.full_hash.unwrap()).or_default().push(cache_file.clone());
+        tx_status(
+            StatusMessage::HashProc(HashProcStatusMessage {
+                cache_hit_full_count: 1,
+                file_size,
+                ..Default::default()
+            })
+        );
     } else {
         // create a new hash for the partial file contents
         let mut cache_file = cache_file.clone(); // Change the type of cache_file to CacheFile
-        let hash = build_full_hash(&cache_file)?; // Pass a reference to cache_file
-        cache_file.full_hash = Some(hash);
-        trace!(
-            "Full Hash NOT cached. Put full hash for {}: {}",
-            cache_file.canonical_path,
-            hash
+        tx_status(
+            StatusMessage::HashStartGenerateFileHash(HashStartGenerateFileHashStatusMessage {
+                canonical_path: cache_file.canonical_path.clone(),
+                hash_type: HashGenerateType::Full,
+            })
         );
-        let canonical_path = cache_file.canonical_path.clone();
+        let start_time = Instant::now();
+        let hash = generate_full_hash(&cache_file)?; // Pass a reference to cache_file
+        tx_status(
+            StatusMessage::HashFinishGenerateFileHash(HashFinishGenerateFileHashStatusMessage {
+                canonical_path: cache_file.canonical_path.clone(),
+                hash_type: HashGenerateType::Partial,
+                duration: start_time.elapsed(),
+                file_size,
+            })
+        );
+        cache_file.full_hash = Some(hash);
         // save file to cache with new hash
         let _ = cache_file.put();
         // add file to map
         map.entry(hash).or_default().push(cache_file);
-        tx_status(StatusMessage::HashGenCacheFile(
-            HashGenCacheFileStatusMessage {
-                full_count: 1,
-                canonical_path,
-                ..Default::default()
-            },
-        ));
     }
 
     Ok(())
 }
 
-fn build_full_hash(cache_file: &CacheFile) -> io::Result<u64> {
+fn generate_full_hash(cache_file: &CacheFile) -> io::Result<u64> {
     match read_full_file(cache_file) {
         Ok(data) => {
             let hash = hash_data(&data)?;

@@ -1,6 +1,11 @@
 #![allow(dead_code)]
 
-use crate::{db::dupe_file::DupeFile, file_cache::CacheFile, file_proc::scan::ScanFile};
+pub const DEBUG_SCAN_SLEEP_TIME: u64 = 0;
+pub const DEBUG_HASH_SLEEP_TIME: u64 = 0;
+pub const DEBUG_CACHE_TO_VEC_SLEEP_TIME: u64 = 0;
+pub const DEBUG_DB_DUPE_FILE_SLEEP_TIME: u64 = 0;
+
+use crate::{ db::dupe_file::DupeFile, file_cache::CacheFile, file_proc::scan::ScanFile };
 use dashmap::DashMap;
 use tracing::*;
 

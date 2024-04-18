@@ -1,7 +1,7 @@
 use super::schema;
 use super::sd_pg::*;
 use crate::file_cache::CacheFile;
-use crate::file_proc::status::{DbDupeFileInsertProcStatusMessage, StatusMessage};
+use crate::file_proc::status::{ DbDupeFileInsertProcStatusMessage, StatusMessage };
 use crate::utils;
 use diesel::prelude::*;
 use diesel::result::Error;
@@ -53,9 +53,9 @@ impl DupeFile {
 impl DupeFileDb {
     pub fn insert_dupe_files(
         dupe_files: &[DupeFile],
-        tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>,
+        tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>
     ) -> Result<usize, Error> {
-        tx_status(StatusMessage::DbDupeFileInsertBegin);
+        tx_status(StatusMessage::DbDupeFileInsertStart);
         let mut connection = establish_connection();
 
         let chunk_size: usize = POSTGRES_MAX_PARAMETERS / DUPE_FILE_FIELD_COUNT;
@@ -63,22 +63,23 @@ impl DupeFileDb {
         let mut rows_added = 0;
 
         for chunk in dupe_files.chunks(chunk_size) {
-            let rows = diesel::insert_into(schema::dupe_file::table)
+            let rows = diesel
+                ::insert_into(schema::dupe_file::table)
                 .values(chunk)
                 .execute(&mut connection)?;
             rows_added += rows;
 
-            tx_status(StatusMessage::DbDupeFileInsertProc(
-                DbDupeFileInsertProcStatusMessage {
+            tx_status(
+                StatusMessage::DbDupeFileInsertProc(DbDupeFileInsertProcStatusMessage {
                     rows_inserted: rows,
-                },
-            ));
+                })
+            );
 
             // TODO: Remove this sleep after testing
-            thread::sleep(Duration::from_millis(1000));
+            thread::sleep(Duration::from_millis(crate::debug::DEBUG_DB_DUPE_FILE_SLEEP_TIME));
         }
 
-        tx_status(StatusMessage::DbDupeFileInsertEnd);
+        tx_status(StatusMessage::DbDupeFileInsertFinish);
 
         Ok(rows_added)
     }
