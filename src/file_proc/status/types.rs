@@ -1,6 +1,16 @@
 use std::{ path::PathBuf, time::Duration };
 
 #[derive(Debug, Clone)]
+pub struct ProcessStartStatusMessage {
+    pub input_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ScanStartStatusMessage {
+    pub input_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct ScanAddInputFileStatusMessage {
     pub file_path: PathBuf,
     pub file_size: u64,
@@ -52,8 +62,8 @@ pub struct DbDupeFileInsertProcStatusMessage {
 
 #[derive(Clone, Debug)]
 pub enum StatusMessage {
-    ProcessStart,
-    ScanStart,
+    ProcessStart(ProcessStartStatusMessage),
+    ScanStart(ScanStartStatusMessage),
     ScanAddInputFile(ScanAddInputFileStatusMessage),
     ScanAddRetainedFile(ScanAddSizeDupeStatusMessage),
     ScanFinish,

@@ -1,3 +1,4 @@
+pub mod dedupe_session;
 pub mod dupe_file;
 pub mod dupe_file_part;
 pub mod pg;

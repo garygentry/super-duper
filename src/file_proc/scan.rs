@@ -37,15 +37,19 @@ pub struct ScanFile {
 /// Returns an `io::Result` containing a `DashMap` where the keys are file sizes (in bytes)
 /// and the values are vectors of `PathBuf` representing the file paths with the corresponding size.
 pub fn build_size_to_files_map(
-    root_paths: &[String],
+    input_paths: &[String],
     ignore_globs: &[String],
     tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>
 ) -> io::Result<DashMap<u64, Vec<ScanFile>>> {
-    tx_status(StatusMessage::ScanStart);
-
     let map: DashMap<u64, Vec<ScanFile>> = DashMap::new();
     // make sure no root paths overlap
-    let root_paths = utils::to_non_overlapping_directories(root_paths);
+    let input_paths = utils::to_non_overlapping_directories(input_paths);
+
+    tx_status(
+        StatusMessage::ScanStart(ScanStartStatusMessage {
+            input_paths: input_paths.clone(),
+        })
+    );
 
     // Compile the glob patterns for paths to ignore
     let ignore_patterns: Vec<Pattern> = ignore_globs
@@ -54,7 +58,7 @@ pub fn build_size_to_files_map(
         .collect();
 
     // iterate files in root paths indexed on file size
-    root_paths
+    input_paths
         .par_iter()
         .try_for_each(|root_dir| {
             visit_dirs(Path::new(root_dir), &map, &ignore_patterns, tx_status)

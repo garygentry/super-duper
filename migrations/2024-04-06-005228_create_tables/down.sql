@@ -2,3 +2,4 @@
 
 DROP TABLE dupe_file;
 DROP TABLE dupe_file_part;
+DROP TABLE dedupe_session;

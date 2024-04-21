@@ -1,11 +1,10 @@
 use std::{ fmt, fs::{ self, OpenOptions }, time::{ Duration, Instant, SystemTime } };
-// use chrono::Duration as ChronoDuration;
 use indicatif::{ HumanBytes, HumanCount, HumanDuration };
 use tabled::{ Tabled, Table };
 use tabled::settings::Style;
 use chrono::{ DateTime, Utc };
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 pub struct FileProcStats {
     /// The time the process started
     pub run_start_time: Option<SystemTime>,
@@ -18,6 +17,8 @@ pub struct FileProcStats {
     pub scan_start: Option<Instant>,
     /// The time the file scan finished.
     pub scan_finish: Option<Instant>,
+    /// The input paths to scan.
+    pub scan_input_paths: Vec<String>,
     // The number of files matching input specification.
     pub scan_file_count: usize,
     // Total size of all files matching input specification.
@@ -82,6 +83,7 @@ pub enum FileProcStatsValueType {
     Count(usize),
     FileSize(u64),
     SystemTime(SystemTime),
+    StringVec(Vec<String>),
 }
 
 impl fmt::Display for FileProcStatsValueType {
@@ -95,21 +97,25 @@ impl fmt::Display for FileProcStatsValueType {
                 let datetime = datetime.format("%Y-%m-%d %H:%M:%S").to_string();
                 write!(f, "{}", datetime)
             }
+            FileProcStatsValueType::StringVec(vec) => {
+                let vec_str = vec.join(", ");
+                write!(f, "{}", vec_str)
+            }
         }
     }
 }
 
 #[derive(Debug, Clone, Tabled)]
 pub struct FileProcStatsPrintItem {
-    #[tabled(skip)]
+    // #[tabled(skip)]
     pub name: String,
     #[tabled(rename = "Stat")]
     pub human_name: String,
-    #[tabled(skip)]
+    // #[tabled(skip)]
     pub value: FileProcStatsValueType,
     #[tabled(rename = "Value")]
     pub human_value: String,
-    #[tabled(skip)]
+    // #[tabled(skip)]
     pub raw_string_value: String,
 }
 
@@ -139,6 +145,7 @@ impl FileProcStatsPrintItem {
                 let datetime = DateTime::<Utc>::from(*time);
                 datetime.format("%Y-%m-%d %H:%M:%S").to_string()
             }
+            FileProcStatsValueType::StringVec(vec) => { vec.join(", ") }
         };
 
         let raw_string_value = match &value {
@@ -156,6 +163,7 @@ impl FileProcStatsPrintItem {
                 let datetime = DateTime::<Utc>::from(*time);
                 datetime.format("%Y-%m-%d %H:%M:%S").to_string()
             }
+            FileProcStatsValueType::StringVec(vec) => { vec.join(", ") }
         };
 
         Self {
@@ -183,13 +191,13 @@ impl FileProcStats {
             }
         }
     }
-    pub fn print(&self) {
+    pub fn print(self) {
         let items = self.to_print_items();
         let table = Table::new(items).with(Style::psql()).to_string();
         println!("{}", table);
     }
 
-    pub fn to_print_items(self) -> Vec<FileProcStatsPrintItem> {
+    pub fn to_print_items(&self) -> Vec<FileProcStatsPrintItem> {
         let items = vec![
             FileProcStatsPrintItem::new(
                 "run_start_time",
@@ -211,6 +219,11 @@ impl FileProcStats {
                 FileProcStatsValueType::Duration(
                     FileProcStats::get_elapsed(&self.scan_start, &self.scan_finish)
                 )
+            ),
+            FileProcStatsPrintItem::new(
+                "scan_input_paths",
+                None,
+                FileProcStatsValueType::StringVec(self.scan_input_paths.clone())
             ),
             FileProcStatsPrintItem::new(
                 "scan_file_count",
@@ -344,57 +357,22 @@ impl FileProcStats {
         items
     }
 
-    // pub fn write_csv(&self, filename: &str) -> std::io::Result<()> {
-    //     let mut wtr = csv::Writer::from_path(filename)?;
-
-    //     wtr.write_record(["stat", "value"])?;
-
-    //     let items = self.to_print_items();
-    //     for item in items {
-    //         wtr.write_record([&item.name, &item.raw_string_value])?;
-    //     }
-
-    //     wtr.flush()?;
-    //     Ok(())
-    // }
-
-    // pub fn write_csv(self, filename: &str) -> std::io::Result<()> {
-    //     let mut wtr = csv::Writer::from_path(filename)?;
-
-    //     // Collect headers and values
-    //     let mut headers = vec![];
-    //     let mut values = vec![];
-
-    //     for item in self.to_print_items() {
-    //         let item = item.clone();
-    //         headers.push(item.name);
-    //         values.push(item.raw_string_value);
-    //     }
-
-    //     // Write headers
-    //     wtr.write_record(&headers)?;
-
-    //     // Write values
-    //     wtr.write_record(&values)?;
-
-    //     wtr.flush()?;
-    //     Ok(())
-    // }
-
-    pub fn write_csv(&self, filename: &str) -> std::io::Result<()> {
+    pub fn write_csv(self, filename: &str) -> std::io::Result<()> {
         let file_exists = fs::metadata(filename).is_ok();
 
         let mut wtr = if file_exists {
-            let file = OpenOptions::new().write(true).append(true).create(true).open(filename)?;
+            let file = OpenOptions::new().append(true).create(true).open(filename)?;
             csv::Writer::from_writer(file)
         } else {
             let file = fs::File::create(filename)?;
             csv::Writer::from_writer(file)
         };
 
+        let items = self.to_print_items();
+
         if !file_exists {
             // Collect headers
-            let items = self.to_print_items();
+            // let items = self.to_print_items();
             let mut headers = vec![];
             for item in &items {
                 headers.push(&item.name);
@@ -405,7 +383,7 @@ impl FileProcStats {
         }
 
         // Collect values
-        let items = self.to_print_items();
+        // let items = self.to_print_items();
         let mut values = vec![];
         for item in &items {
             values.push(&item.raw_string_value);

@@ -19,12 +19,12 @@ pub fn handle_status(rx: mpsc::Receiver<StatusMessage>, stats: Arc<Mutex<FilePro
         let stats = stats.lock().unwrap();
 
         match message {
-            StatusMessage::ProcessStart => {
+            StatusMessage::ProcessStart(msg) => {
                 term.hide_cursor().unwrap();
-                println!("Processing...");
+                println!("Processing: {}", msg.input_paths.join(", "));
             }
-            StatusMessage::ScanStart => {
-                bars[Scan].set_prefix("Scanning:");
+            StatusMessage::ScanStart(_msg) => {
+                bars[Scan].set_prefix("Scanning...");
                 bars[Scan].enable_steady_tick_default();
             }
             StatusMessage::ScanAddInputFile(msg) => {
@@ -33,7 +33,7 @@ pub fn handle_status(rx: mpsc::Receiver<StatusMessage>, stats: Arc<Mutex<FilePro
                 let message = format!(
                     "{} files ({}) ({})",
                     pb.to_count_style(stats.scan_file_count as u64),
-                    pb.to_count_style(stats.scan_file_size),
+                    pb.to_bytes_style(stats.scan_file_size),
                     msg.file_path.display()
                 );
                 bars[Scan].set_message(message);
@@ -149,12 +149,13 @@ pub fn handle_status(rx: mpsc::Receiver<StatusMessage>, stats: Arc<Mutex<FilePro
 fn update_stats(message: StatusMessage, stats: &Arc<Mutex<FileProcStats>>) {
     let mut stats = stats.lock().unwrap();
     match message {
-        StatusMessage::ProcessStart => {
+        StatusMessage::ProcessStart(_msg) => {
             stats.run_start_time = Some(SystemTime::now());
             stats.process_start = Some(Instant::now());
         }
-        StatusMessage::ScanStart => {
+        StatusMessage::ScanStart(msg) => {
             stats.scan_start = Some(Instant::now());
+            stats.scan_input_paths = msg.input_paths.clone();
         }
         StatusMessage::ScanAddInputFile(msg) => {
             stats.scan_file_count += 1;

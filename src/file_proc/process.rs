@@ -2,9 +2,12 @@ use super::hash;
 use super::scan;
 use super::status;
 use super::stats::FileProcStats;
+use super::status::ProcessStartStatusMessage;
 use super::status::{ CacheToDupeProcStatusMessage, StatusMessage };
-use crate::db::dupe_file::{ DupeFile, DupeFileDb };
+use crate::db::dupe_file::DupeFile;
+use crate::db::dedupe_session::DupeFileDb;
 use crate::file_cache::CacheFile;
+use crate::utils;
 use dashmap::DashMap;
 use rayon::iter::{ IntoParallelRefIterator, ParallelIterator };
 use std::io;
@@ -35,28 +38,22 @@ pub fn process(
     );
 
     // Spawn a thread to process the files
+    let process_status = Arc::clone(&stats);
     let process_handle = thread::spawn(move || {
+        // let stats = Arc::clone(&stats);
         process_inner(
             root_paths.to_vec(),
             ignore_patterns.to_vec(),
+            Arc::clone(&process_status),
             // tx,
             &tx_status
         ).unwrap();
     });
 
-    // Spawn a thread to handle status messages
-    // let status_handle = thread::spawn(move || {
-    //     status::handle_status(rx, Arc::clone(&stats));
-    //     let stats_lock = &stats.lock().unwrap();
-    //     print_stats(stats_lock);
-    // });
-
+    let status_stats = Arc::clone(&stats);
     let status_handle = thread::spawn({
-        let stats = Arc::clone(&stats);
         move || {
-            status::handle_status(rx, Arc::clone(&stats));
-            // let stats_lock = &stats.lock().unwrap();
-            // print_stats(stats_lock);
+            status::handle_status(rx, Arc::clone(&status_stats));
         }
     });
 
@@ -64,17 +61,11 @@ pub fn process(
     process_handle.join().unwrap();
     status_handle.join().unwrap();
 
-    let final_stats = *stats.lock().unwrap();
+    let final_stats: FileProcStats = stats.lock().unwrap().clone();
+    let final_stats_clone = final_stats.clone();
 
     final_stats.print();
-    let _ = final_stats.write_csv("stats.csv");
-
-    // println!("Final stats: {:?}", *final_stats);
-    // let tmp = stats;
-
-    // Lock the stats and call print_stats
-    // let stats_lock = &stats.lock().unwrap();
-    // print_stats(&stats_lock);
+    let _ = final_stats_clone.write_csv("stats.csv");
 
     Ok(())
 }
@@ -82,17 +73,30 @@ pub fn process(
 fn process_inner(
     root_paths: Vec<String>,
     ignore_patterns: Vec<String>,
+    stats: Arc<Mutex<FileProcStats>>,
     tx_status: &Arc<dyn Fn(status::StatusMessage) + Send + Sync>
 ) -> Result<(), Box<dyn std::error::Error>> {
-    tx_status(StatusMessage::ProcessStart);
+    let input_paths = utils::to_non_overlapping_directories(&root_paths.clone());
 
-    let size_map = scan::build_size_to_files_map(&root_paths, &ignore_patterns, tx_status).unwrap();
+    tx_status(
+        StatusMessage::ProcessStart(ProcessStartStatusMessage {
+            input_paths: input_paths.clone(),
+        })
+    );
+
+    let size_map = scan
+        ::build_size_to_files_map(&input_paths, &ignore_patterns, tx_status)
+        .unwrap();
 
     let hash_map = hash::build_content_hash_map(&size_map, tx_status).unwrap();
 
     let dupe_files = cache_file_map_to_dupe_files(hash_map, tx_status).unwrap();
 
-    let _db_rows = DupeFileDb::insert_dupe_files(&dupe_files, tx_status)?;
+    // let _db_rows = DupeFileDb::insert_dupe_files(&dupe_files, tx_status)?;
+    let stats = Arc::clone(&stats);
+    // let stats = stats.lock().unwrap();
+    let write_id = DupeFileDb::write_session(stats, &dupe_files, tx_status)?;
+
     tx_status(StatusMessage::ProcessFinish);
 
     Ok(())
