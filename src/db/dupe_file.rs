@@ -1,18 +1,14 @@
 use super::schema;
 use super::sd_pg::*;
 use crate::file_cache::CacheFile;
-use crate::file_proc::status::{ DbDupeFileInsertProcStatusMessage, StatusMessage };
 use crate::utils;
 use diesel::prelude::*;
 use diesel::result::Error;
-use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use std::time::SystemTime;
 
-pub struct DupeFileDb {}
-
-#[derive(Debug, Insertable)]
+#[derive(Debug, Insertable, Clone)]
 #[diesel(table_name = schema::dupe_file)]
 pub struct DupeFile {
     // pub id: i32,
@@ -26,8 +22,9 @@ pub struct DupeFile {
     pub last_modified: SystemTime,
     pub full_hash: i64,
     pub partial_hash: i64,
+    pub session_id: Option<i32>,
 }
-pub const DUPE_FILE_FIELD_COUNT: usize = 10;
+pub const DUPE_FILE_FIELD_COUNT: usize = 11;
 
 impl DupeFile {
     pub fn from_cache_file(cache_file: &CacheFile) -> DupeFile {
@@ -46,18 +43,27 @@ impl DupeFile {
             last_modified: cache_file.last_modified,
             full_hash: cache_file.full_hash.unwrap_or(0) as i64,
             partial_hash: cache_file.partial_hash.unwrap_or(0) as i64,
+            session_id: None,
         }
     }
-}
 
-impl DupeFileDb {
     pub fn insert_dupe_files(
         dupe_files: &[DupeFile],
-        tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>
+        session_id: i32
+        // tx_status: &Arc<dyn Fn(StatusMessage) + Send + Sync>
     ) -> Result<usize, Error> {
-        tx_status(StatusMessage::DbDupeFileInsertStart);
+        // tx_status(StatusMessage::DbDupeFileInsertStart);
         let mut connection = establish_connection();
 
+        let dupe_files = dupe_files
+            .iter()
+            .map(|dupe_file| DupeFile {
+                session_id: Some(session_id),
+                ..(*dupe_file).clone()
+            })
+            .collect::<Vec<DupeFile>>();
+
+        // calculate chunk size to stay under Postgres max parameters
         let chunk_size: usize = POSTGRES_MAX_PARAMETERS / DUPE_FILE_FIELD_COUNT;
 
         let mut rows_added = 0;
@@ -69,17 +75,17 @@ impl DupeFileDb {
                 .execute(&mut connection)?;
             rows_added += rows;
 
-            tx_status(
-                StatusMessage::DbDupeFileInsertProc(DbDupeFileInsertProcStatusMessage {
-                    rows_inserted: rows,
-                })
-            );
+            // tx_status(
+            //     StatusMessage::DbDupeFileInsertProc(DbDupeFileInsertProcStatusMessage {
+            //         rows_inserted: rows,
+            //     })
+            // );
 
             // TODO: Remove this sleep after testing
             thread::sleep(Duration::from_millis(crate::debug::DEBUG_DB_DUPE_FILE_SLEEP_TIME));
         }
 
-        tx_status(StatusMessage::DbDupeFileInsertFinish);
+        // tx_status(StatusMessage::DbDupeFileInsertFinish);
 
         Ok(rows_added)
     }

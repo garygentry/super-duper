@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Instant;
 use std::time::SystemTime;
-use crate::file_proc::stats::FileProcStats;
+use crate::file_proc::stats::{ FileProcStats, StatsTimer };
 use super::types::*;
 
 use super::progress_bars::{ *, FileProcStatusType::* };
@@ -46,7 +46,8 @@ pub fn handle_status(rx: mpsc::Receiver<StatusMessage>, stats: Arc<Mutex<FilePro
                     to_bytes_style(stats.scan_file_size),
                     to_count_style(stats.scan_size_dupe_file_count as u64),
                     to_bytes_style(stats.scan_size_dupe_file_size),
-                    to_duration_style(bars[Scan].elapsed())
+                    // to_duration_style(bars[Scan].elapsed())
+                    to_duration_style(stats.scan_timer.get_duration())
                 );
 
                 bars[Scan].finish_with_finish_style(message);
@@ -97,12 +98,13 @@ pub fn handle_status(rx: mpsc::Receiver<StatusMessage>, stats: Arc<Mutex<FilePro
 
             StatusMessage::HashFinish => {
                 let message = format!(
-                    "Hashed {} files ({}), {} confirmed Dupes - {} ({}) distinct dupe files",
+                    "Hashed {} files ({}), {} confirmed Dupes - {} ({}) distinct dupe files in {}",
                     to_count_style(stats.hash_scan_file_count as u64),
                     to_bytes_style(stats.hash_scan_file_size),
                     to_count_style(stats.hash_confirmed_dupe_count as u64),
                     to_count_style(stats.hash_confirmed_dupe_distinct_count as u64),
-                    to_bytes_style(stats.hash_confirmed_dupe_distinct_size)
+                    to_bytes_style(stats.hash_confirmed_dupe_distinct_size),
+                    to_duration_style(stats.hash_timer.get_duration())
                 );
 
                 bars[HashBar].finish_and_clear();
@@ -123,24 +125,40 @@ pub fn handle_status(rx: mpsc::Receiver<StatusMessage>, stats: Arc<Mutex<FilePro
                 bars[CacheToDupe].finish_and_clear();
                 bars[CacheToDupeBar].finish_and_clear();
             }
-            StatusMessage::DbDupeFileInsertStart => {
-                bars[DbDupeFile].set_length(stats.cache_map_to_dupe_vec_count as u64);
-            }
-            StatusMessage::DbDupeFileInsertProc(_msg) => {
-                bars[DbDupeFile].set_position(stats.db_dupe_file_insert_count as u64);
-            }
-            StatusMessage::DbDupeFileInsertFinish => {
-                let message = format!(
-                    "Inserted {} rows into dupe_file table",
-                    to_count_style(stats.db_dupe_file_insert_count as u64)
-                );
+            // StatusMessage::DbDupeFileInsertStart => {
+            //     bars[DbDupeFile].set_length(stats.cache_map_to_dupe_vec_count as u64);
+            // }
+            // StatusMessage::DbDupeFileInsertProc(_msg) => {
+            //     bars[DbDupeFile].set_position(stats.db_dupe_file_insert_count as u64);
+            // }
+            // StatusMessage::DbDupeFileInsertFinish => {
+            //     let message = format!(
+            //         "Inserted {} rows into dupe_file table",
+            //         to_count_style(stats.db_dupe_file_insert_count as u64)
+            //     );
 
-                bars[DbDupeFile].finish_with_finish_style(message);
-            }
+            //     bars[DbDupeFile].finish_with_finish_style(message);
+            // }
 
             StatusMessage::ProcessFinish => {
                 term.show_cursor().unwrap();
-                println!("Done");
+                let message = format!(
+                    "Process complete in {}",
+                    to_duration_style(stats.process_timer.get_duration())
+                );
+                println!("{}", message);
+
+                // let x = stats.process_timer.get_duration();
+                // println!("Done (get_duration): {:?}", stats.process_timer.get_duration());
+                // println!("Done (get_duration_secs): {:?}", stats.process_timer.get_duration_secs());
+                // println!(
+                //     "Done (get_duration_human): {:?}",
+                //     stats.process_timer.get_duration_human().to_string()
+                // );
+                // println!(
+                //     "Done (get_duration_string): {:?}",
+                //     stats.process_timer.get_duration_string()
+                // );
             }
         }
     }
@@ -152,9 +170,11 @@ fn update_stats(message: StatusMessage, stats: &Arc<Mutex<FileProcStats>>) {
         StatusMessage::ProcessStart(_msg) => {
             stats.run_start_time = Some(SystemTime::now());
             stats.process_start = Some(Instant::now());
+            stats.process_timer = StatsTimer::new();
         }
         StatusMessage::ScanStart(msg) => {
             stats.scan_start = Some(Instant::now());
+            stats.scan_timer = StatsTimer::new();
             stats.scan_input_paths = msg.input_paths.clone();
         }
         StatusMessage::ScanAddInputFile(msg) => {
@@ -167,9 +187,11 @@ fn update_stats(message: StatusMessage, stats: &Arc<Mutex<FileProcStats>>) {
         }
         StatusMessage::ScanFinish => {
             stats.scan_finish = Some(Instant::now());
+            stats.scan_timer.finish();
         }
         StatusMessage::HashStart => {
             stats.hash_start = Some(Instant::now());
+            stats.hash_timer = StatsTimer::new();
         }
         StatusMessage::HashProc(msg) => {
             stats.hash_scan_file_count += msg.scan_file_count;
@@ -205,6 +227,7 @@ fn update_stats(message: StatusMessage, stats: &Arc<Mutex<FileProcStats>>) {
         }
         StatusMessage::HashFinish => {
             stats.hash_finish = Some(Instant::now());
+            stats.hash_timer.finish();
         }
         StatusMessage::CacheToDupeStart => {
             stats.cache_map_to_dupe_vec_start = Some(Instant::now());
@@ -215,18 +238,19 @@ fn update_stats(message: StatusMessage, stats: &Arc<Mutex<FileProcStats>>) {
         StatusMessage::CacheToDupeFinish => {
             stats.cache_map_to_dupe_vec_finish = Some(Instant::now());
         }
-        StatusMessage::DbDupeFileInsertStart => {
-            stats.db_dupe_file_insert_start = Some(Instant::now());
-        }
-        StatusMessage::DbDupeFileInsertProc(msg) => {
-            stats.db_dupe_file_insert_count += msg.rows_inserted;
-        }
-        StatusMessage::DbDupeFileInsertFinish => {
-            stats.db_dupe_file_insert_finish = Some(Instant::now());
-        }
+        // StatusMessage::DbDupeFileInsertStart => {
+        //     stats.db_dupe_file_insert_start = Some(Instant::now());
+        // }
+        // StatusMessage::DbDupeFileInsertProc(msg) => {
+        //     stats.db_dupe_file_insert_count += msg.rows_inserted;
+        // }
+        // StatusMessage::DbDupeFileInsertFinish => {
+        //     stats.db_dupe_file_insert_finish = Some(Instant::now());
+        // }
 
         StatusMessage::ProcessFinish => {
             stats.process_finish = Some(Instant::now());
+            stats.process_timer.finish();
         }
     }
 }

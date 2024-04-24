@@ -28,6 +28,7 @@ performance_measure = "2.0.0"
 rayon = "1.10.0"
 rocksdb = "0.22.0"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.116"
 tabled = { version = "0.15.0", features = ["ansi"] }
 tempfile = "3.10.1"
 thiserror = "1.0.58"

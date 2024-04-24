@@ -75,8 +75,8 @@ pub enum StatusMessage {
     CacheToDupeStart,
     CacheToDupeProc(CacheToDupeProcStatusMessage),
     CacheToDupeFinish,
-    DbDupeFileInsertStart,
-    DbDupeFileInsertProc(DbDupeFileInsertProcStatusMessage),
-    DbDupeFileInsertFinish,
+    // DbDupeFileInsertStart,
+    // DbDupeFileInsertProc(DbDupeFileInsertProcStatusMessage),
+    // DbDupeFileInsertFinish,
     ProcessFinish,
 }

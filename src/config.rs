@@ -1,5 +1,6 @@
-use config::{Config, ConfigError, File as ConfigFile};
+use config::{ Config, ConfigError, File as ConfigFile };
 use serde::Deserialize;
+use crate::utils;
 
 #[derive(Debug, Deserialize)]
 pub struct AppConfig {
@@ -19,6 +20,15 @@ impl AppConfig {
             .build()?;
 
         // Try to deserialize the configuration into our AppConfig struct
-        builder.try_deserialize::<AppConfig>()
+        let config = builder.try_deserialize::<AppConfig>()?;
+
+        let config = Self::sanitize_config(config);
+
+        Ok(config)
+    }
+
+    fn sanitize_config(mut config: AppConfig) -> AppConfig {
+        config.root_paths = utils::to_non_overlapping_directories(&config.root_paths);
+        config
     }
 }
