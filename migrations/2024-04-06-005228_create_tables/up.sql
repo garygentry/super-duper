@@ -15,13 +15,14 @@ CREATE TABLE dupe_file (
 
 CREATE TABLE dupe_file_part
 (
-    id              INTEGER,
-    canonical_path  TEXT NOT NULL,
-    name            TEXT NOT NULL, 
-    file_size       BIGINT NOT NULL,
-    part_type       INTEGER NOT NULL,
-    parent_id       INTEGER NULL,
-    session_id      INTEGER NOT NULL,
+    id INTEGER,
+    canonical_path TEXT NOT NULL,
+    name TEXT NOT NULL, 
+    file_size BIGINT NOT NULL,
+    part_type INTEGER NOT NULL,
+    parent_id INTEGER NULL,
+    has_child_dirs BOOLEAN NOT NULL,
+    session_id INTEGER NOT NULL,
     PRIMARY KEY (id, session_id)
 );
 

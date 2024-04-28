@@ -4,13 +4,19 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Instant;
 use std::time::SystemTime;
-use crate::file_proc::stats::{ FileProcStats, StatsTimer };
+use crate::file_proc::stats::FileProcStats;
+use crate::utils::stats::StatsTimer;
 use super::types::*;
+use crate::AppConfig;
 
 use super::progress_bars::{ *, FileProcStatusType::* };
 
-pub fn handle_status(rx: mpsc::Receiver<StatusMessage>, stats: Arc<Mutex<FileProcStats>>) {
-    let (bars, _) = FileProcStatusBars::new_progress_bars();
+pub fn handle_status(
+    rx: mpsc::Receiver<StatusMessage>,
+    stats: Arc<Mutex<FileProcStats>>,
+    app_config: AppConfig
+) {
+    let (bars, _) = FileProcStatusBars::new_progress_bars(app_config);
 
     let term = Term::stdout();
 
@@ -54,7 +60,9 @@ pub fn handle_status(rx: mpsc::Receiver<StatusMessage>, stats: Arc<Mutex<FilePro
             }
             StatusMessage::HashStart => {
                 bars[Hash].enable_steady_tick_default();
-                bars[HashBar].set_length(stats.scan_size_dupe_file_count as u64);
+                bars[HashBar].set_length(
+                    stats.scan_size_dupe_file_count as u64
+                );
             }
             StatusMessage::HashProc(_) => {
                 let message = format!(
@@ -102,7 +110,9 @@ pub fn handle_status(rx: mpsc::Receiver<StatusMessage>, stats: Arc<Mutex<FilePro
                     to_count_style(stats.hash_scan_file_count as u64),
                     to_bytes_style(stats.hash_scan_file_size),
                     to_count_style(stats.hash_confirmed_dupe_count as u64),
-                    to_count_style(stats.hash_confirmed_dupe_distinct_count as u64),
+                    to_count_style(
+                        stats.hash_confirmed_dupe_distinct_count as u64
+                    ),
                     to_bytes_style(stats.hash_confirmed_dupe_distinct_size),
                     to_duration_style(stats.hash_timer.get_duration())
                 );
@@ -113,13 +123,17 @@ pub fn handle_status(rx: mpsc::Receiver<StatusMessage>, stats: Arc<Mutex<FilePro
             StatusMessage::CacheToDupeStart => {
                 bars[CacheToDupe].set_prefix("Cache to duping...");
                 bars[CacheToDupe].enable_steady_tick_default();
-                bars[CacheToDupeBar].set_length(stats.hash_confirmed_dupe_count as u64);
+                bars[CacheToDupeBar].set_length(
+                    stats.hash_confirmed_dupe_count as u64
+                );
                 bars[CacheToDupeBar].set_prefix(
                     "Converting duplicate hash map to vector for database.."
                 );
             }
             StatusMessage::CacheToDupeProc(_msg) => {
-                bars[CacheToDupeBar].set_position(stats.cache_map_to_dupe_vec_count as u64);
+                bars[CacheToDupeBar].set_position(
+                    stats.cache_map_to_dupe_vec_count as u64
+                );
             }
             StatusMessage::CacheToDupeFinish => {
                 bars[CacheToDupe].finish_and_clear();
@@ -183,7 +197,8 @@ fn update_stats(message: StatusMessage, stats: &Arc<Mutex<FileProcStats>>) {
         }
         StatusMessage::ScanAddRetainedFile(msg) => {
             stats.scan_size_dupe_file_count += msg.count;
-            stats.scan_size_dupe_file_size += (msg.count as u64) * msg.file_size;
+            stats.scan_size_dupe_file_size +=
+                (msg.count as u64) * msg.file_size;
         }
         StatusMessage::ScanFinish => {
             stats.scan_finish = Some(Instant::now());
@@ -195,11 +210,13 @@ fn update_stats(message: StatusMessage, stats: &Arc<Mutex<FileProcStats>>) {
         }
         StatusMessage::HashProc(msg) => {
             stats.hash_scan_file_count += msg.scan_file_count;
-            stats.hash_scan_file_size += (msg.scan_file_count as u64) * msg.file_size;
+            stats.hash_scan_file_size +=
+                (msg.scan_file_count as u64) * msg.file_size;
             stats.hash_cache_hit_full_count += msg.cache_hit_full_count;
             stats.hash_cache_hit_partial_count += msg.cache_hit_partial_count;
             stats.hash_confirmed_dupe_count += msg.confirmed_dupe_count;
-            stats.hash_confirmed_dupe_size += (msg.confirmed_dupe_count as u64) * msg.file_size;
+            stats.hash_confirmed_dupe_size +=
+                (msg.confirmed_dupe_count as u64) * msg.file_size;
 
             // Assumes all dupes are grouped when this is called  (believe this _should_ be true...)
             if msg.confirmed_dupe_count > 0 {

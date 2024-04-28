@@ -1,53 +1,13 @@
-use std::{ fmt, fs::{ self, OpenOptions }, time::{ Duration, Instant, SystemTime } };
+use std::{
+    fmt,
+    fs::{ self, OpenOptions },
+    time::{ Duration, Instant, SystemTime },
+};
 use indicatif::{ HumanBytes, HumanCount, HumanDuration };
 use tabled::{ Tabled, Table };
 use tabled::settings::Style;
 use chrono::{ DateTime, Utc };
-
-#[derive(Debug, Default, Clone)]
-pub struct StatsTimer {
-    start_time: Option<Instant>,
-    finish_time: Option<Instant>,
-    duration: Duration,
-}
-
-impl StatsTimer {
-    pub fn new() -> Self {
-        Self {
-            start_time: Some(Instant::now()),
-            finish_time: None,
-            duration: Duration::new(0, 0),
-        }
-    }
-
-    pub fn finish(&mut self) {
-        self.finish_time = Some(Instant::now());
-        self.duration = self.finish_time.unwrap().duration_since(self.start_time.unwrap());
-    }
-
-    pub fn get_duration(&self) -> Duration {
-        self.duration
-    }
-
-    pub fn get_duration_secs(&self) -> f32 {
-        let secs = self.duration.as_secs() as f32;
-        let subsecs = (self.duration.subsec_nanos() as f32) / 1_000_000_000.0;
-        secs + subsecs
-    }
-
-    pub fn get_duration_human(&self) -> String {
-        HumanDuration(self.duration).to_string()
-    }
-
-    pub fn get_duration_string(&self) -> String {
-        let total_seconds = self.duration.as_secs();
-        let hours = total_seconds / 3600;
-        let minutes = (total_seconds % 3600) / 60;
-        let seconds = total_seconds % 60;
-        let millis = self.duration.subsec_millis();
-        format!("{:02}:{:02}:{:02}.{:03}", hours, minutes, seconds, millis)
-    }
-}
+use crate::utils::stats::StatsTimer;
 
 #[derive(Debug, Default, Clone)]
 pub struct FileProcStats {
@@ -138,7 +98,8 @@ pub enum FileProcStatsValueType {
 impl fmt::Display for FileProcStatsValueType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            FileProcStatsValueType::Duration(duration) => write!(f, "{}", HumanDuration(*duration)),
+            FileProcStatsValueType::Duration(duration) =>
+                write!(f, "{}", HumanDuration(*duration)),
             FileProcStatsValueType::Count(count) => write!(f, "{}", count),
             FileProcStatsValueType::FileSize(size) => write!(f, "{}", size),
             FileProcStatsValueType::SystemTime(time) => {
@@ -169,7 +130,11 @@ pub struct FileProcStatsPrintItem {
 }
 
 impl FileProcStatsPrintItem {
-    pub fn new(name: &str, human_name: Option<&str>, value: FileProcStatsValueType) -> Self {
+    pub fn new(
+        name: &str,
+        human_name: Option<&str>,
+        value: FileProcStatsValueType
+    ) -> Self {
         let human_name = match human_name {
             Some(name) => name.to_string(),
             None =>
@@ -179,7 +144,9 @@ impl FileProcStatsPrintItem {
                         let mut chars = s.chars();
                         match chars.next() {
                             None => String::new(),
-                            Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
+                            Some(f) =>
+                                f.to_uppercase().collect::<String>() +
+                                    chars.as_str(),
                         }
                     })
                     .collect::<Vec<String>>()
@@ -187,9 +154,15 @@ impl FileProcStatsPrintItem {
         };
 
         let human_value = match &value {
-            FileProcStatsValueType::Duration(duration) => { HumanDuration(*duration).to_string() }
-            FileProcStatsValueType::Count(count) => { HumanCount(*count as u64).to_string() }
-            FileProcStatsValueType::FileSize(size) => { HumanBytes(*size).to_string() }
+            FileProcStatsValueType::Duration(duration) => {
+                HumanDuration(*duration).to_string()
+            }
+            FileProcStatsValueType::Count(count) => {
+                HumanCount(*count as u64).to_string()
+            }
+            FileProcStatsValueType::FileSize(size) => {
+                HumanBytes(*size).to_string()
+            }
             FileProcStatsValueType::SystemTime(time) => {
                 let datetime = DateTime::<Utc>::from(*time);
                 datetime.format("%Y-%m-%d %H:%M:%S").to_string()
@@ -204,7 +177,13 @@ impl FileProcStatsPrintItem {
                 let minutes = (total_seconds % 3600) / 60;
                 let seconds = total_seconds % 60;
                 let millis = duration.subsec_millis();
-                format!("{:02}:{:02}:{:02}.{:03}", hours, minutes, seconds, millis)
+                format!(
+                    "{:02}:{:02}:{:02}.{:03}",
+                    hours,
+                    minutes,
+                    seconds,
+                    millis
+                )
             }
             FileProcStatsValueType::Count(count) => { count.to_string() }
             FileProcStatsValueType::FileSize(size) => { size.to_string() }
@@ -259,14 +238,20 @@ impl FileProcStats {
                 "process_duration",
                 None,
                 FileProcStatsValueType::Duration(
-                    FileProcStats::get_elapsed(&self.process_start, &self.process_finish)
+                    FileProcStats::get_elapsed(
+                        &self.process_start,
+                        &self.process_finish
+                    )
                 )
             ),
             FileProcStatsPrintItem::new(
                 "scan_duration",
                 None,
                 FileProcStatsValueType::Duration(
-                    FileProcStats::get_elapsed(&self.scan_start, &self.scan_finish)
+                    FileProcStats::get_elapsed(
+                        &self.scan_start,
+                        &self.scan_finish
+                    )
                 )
             ),
             FileProcStatsPrintItem::new(
@@ -298,7 +283,10 @@ impl FileProcStats {
                 "hash_duration",
                 None,
                 FileProcStatsValueType::Duration(
-                    FileProcStats::get_elapsed(&self.hash_start, &self.hash_finish)
+                    FileProcStats::get_elapsed(
+                        &self.hash_start,
+                        &self.hash_finish
+                    )
                 )
             ),
             FileProcStatsPrintItem::new(
@@ -334,7 +322,9 @@ impl FileProcStats {
             FileProcStatsPrintItem::new(
                 "hash_gen_partial_file_size",
                 None,
-                FileProcStatsValueType::FileSize(self.hash_gen_partial_file_size)
+                FileProcStatsValueType::FileSize(
+                    self.hash_gen_partial_file_size
+                )
             ),
             FileProcStatsPrintItem::new(
                 "hash_gen_full_count",
@@ -364,12 +354,16 @@ impl FileProcStats {
             FileProcStatsPrintItem::new(
                 "hash_confirmed_dupe_distinct_count",
                 None,
-                FileProcStatsValueType::Count(self.hash_confirmed_dupe_distinct_count)
+                FileProcStatsValueType::Count(
+                    self.hash_confirmed_dupe_distinct_count
+                )
             ),
             FileProcStatsPrintItem::new(
                 "hash_confirmed_dupe_distinct_size",
                 None,
-                FileProcStatsValueType::FileSize(self.hash_confirmed_dupe_distinct_size)
+                FileProcStatsValueType::FileSize(
+                    self.hash_confirmed_dupe_distinct_size
+                )
             ),
             FileProcStatsPrintItem::new(
                 "cache_map_to_dupe_vec_duration",
@@ -410,7 +404,10 @@ impl FileProcStats {
         let file_exists = fs::metadata(filename).is_ok();
 
         let mut wtr = if file_exists {
-            let file = OpenOptions::new().append(true).create(true).open(filename)?;
+            let file = OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(filename)?;
             csv::Writer::from_writer(file)
         } else {
             let file = fs::File::create(filename)?;

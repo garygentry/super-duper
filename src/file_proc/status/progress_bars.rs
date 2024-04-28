@@ -4,59 +4,40 @@ use std::time::Duration;
 use console::{ style, StyledObject };
 
 use indicatif::MultiProgress;
-use indicatif::{ HumanBytes, HumanCount, HumanDuration, ProgressBar, ProgressStyle };
+use indicatif::{
+    HumanBytes,
+    HumanCount,
+    HumanDuration,
+    ProgressBar,
+    ProgressStyle,
+};
 
 use serde::{ Deserialize, Serialize };
 use std::fs::File;
 use std::io::BufReader;
 
-pub fn load_spinner_frames(name: String) -> &'static [&'static str] {
-    // Open the JSON file
-    let file = File::open("./spinners.json").ok().unwrap();
+use crate::config::AppConfig;
+
+const SPINNERS_JSON_FILE_PATH: &str = "./spinners.json";
+const DEFAULT_SPINNER_KEY: &str = "dots";
+
+fn load_spinner(name: String) -> SpinnerConfig {
+    let file = File::open(SPINNERS_JSON_FILE_PATH).ok().unwrap();
     let reader = BufReader::new(file);
 
-    // Deserialize the JSON into a Frames struct
-    let json_data: serde_json::Value = serde_json::from_reader(reader).ok().unwrap();
+    let json_data: serde_json::Value = serde_json
+        ::from_reader(reader)
+        .ok()
+        .unwrap();
 
-    // Extract the "dots" object
     let item_json = json_data.get(name).unwrap();
 
-    // Deserialize the "dots" object into a Frames struct
-    let frames: SpinnerConfig = serde_json::from_value(item_json.clone()).ok().unwrap();
-
-    // Convert Vec<String> to Vec<&'static str>
-    // Convert Vec<String> to Vec<&'static str>
-    let frames_array: Vec<&'static str> = frames.frames
-        .iter()
-        .map(|s| s.as_str())
-        .map(|s| Box::leak(s.to_owned().into_boxed_str()))
-        .map(|s| s as &'static str) // Cloning mutable references into immutable ones
-        .collect();
-
-    let frames_slice: &'static [&'static str] = Box::leak(frames_array.into_boxed_slice());
-
-    frames_slice
-}
-
-pub fn load_spinner(name: String) -> SpinnerConfig {
-    // Open the JSON file
-    let file = File::open("./spinners.json").ok().unwrap();
-    let reader = BufReader::new(file);
-
-    // Deserialize the JSON into a Frames struct
-    let json_data: serde_json::Value = serde_json::from_reader(reader).ok().unwrap();
-
-    // Extract the "dots" object
-    let item_json = json_data.get(name).unwrap();
-
-    // Deserialize the "dots" object into a Frames struct
-    // let frames: SpinnerConfig =
     serde_json::from_value(item_json.clone()).ok().unwrap()
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SpinnerConfig {
-    interval: i32,
+    interval: u64,
     frames: Vec<String>,
 }
 
@@ -88,7 +69,8 @@ impl FileProcStatusType {
 }
 
 // Implement indexing for Task enum
-impl std::ops::Index<FileProcStatusType> for [ProgressBar; STATUS_BAR_TYPE_COUNT] {
+impl std::ops::Index<FileProcStatusType>
+for [ProgressBar; STATUS_BAR_TYPE_COUNT] {
     type Output = ProgressBar;
 
     fn index(&self, task: FileProcStatusType) -> &Self::Output {
@@ -98,7 +80,8 @@ impl std::ops::Index<FileProcStatusType> for [ProgressBar; STATUS_BAR_TYPE_COUNT
 }
 
 // Implement mutable indexing for Task enum
-impl std::ops::IndexMut<FileProcStatusType> for [ProgressBar; STATUS_BAR_TYPE_COUNT] {
+impl std::ops::IndexMut<FileProcStatusType>
+for [ProgressBar; STATUS_BAR_TYPE_COUNT] {
     fn index_mut(&mut self, task: FileProcStatusType) -> &mut Self::Output {
         let index = task.to_index();
         &mut self[index]
@@ -111,7 +94,6 @@ const DEFAULT_SPINNER_TEMPLATE: &str =
     "[{elapsed_precise}] {spinner} {prefix:.bold.dim} {wide_msg}";
 
 const DEFAULT_FINISH_TEMPLATE: &str = "[{elapsed_precise}] {msg}";
-// const DEFAULT_STEADY_TICK_MS: u64 = 80;
 
 static DEFAULT_STEADY_TICK_MS: Mutex<u64> = Mutex::new(80);
 
@@ -131,7 +113,6 @@ fn get_default_steady_tick() -> u64 {
 }
 
 impl FileProcStatusBars {
-    // fn new_spinner(spinner_frames: &[&str]) -> ProgressBar {
     fn new_spinner(spinner_config: &SpinnerConfig) -> ProgressBar {
         let frames: Vec<&'static str> = spinner_config.frames
             .iter()
@@ -140,8 +121,11 @@ impl FileProcStatusBars {
             .map(|s| s as &'static str) // Cloning mutable references into immutable ones
             .collect();
 
+        set_default_steady_tick(spinner_config.interval);
         let pb = ProgressBar::new_spinner();
-        let spinner_style = ProgressStyle::with_template(DEFAULT_SPINNER_TEMPLATE)
+        let spinner_style = ProgressStyle::with_template(
+            DEFAULT_SPINNER_TEMPLATE
+        )
             .unwrap()
             .tick_strings(&frames);
 
@@ -151,27 +135,44 @@ impl FileProcStatusBars {
 
     fn new_progress_bar() -> ProgressBar {
         let pb = ProgressBar::new(0);
+        let bar_width = 40;
+        // let progress_chars = "█  ";
+        // let progress_chars = "█▓▒░  ";
+        let progress_chars = "█▉▊▋▌▍▎▏  ";
+        // let progress_chars = "█▇▆▅▄▃▂▁  ";
+        // let progress_chars = "█▛▌▖  ";
+        // let progress_chars = "=> ";
+        // let progress_chars = "#>-";
+        // let progress_chars = "##-";
+        let bar_color = "green";
+
         pb.set_style(
             ProgressStyle::with_template(
                 &format!(
-                    "[{{elapsed_precise}}] {{prefix:.bold}}▕{{bar:.{}}}▏ {{wide_msg}}",
-                    String::from("green")
+                    "[{{elapsed_precise}}] {{prefix:.bold}}▕{{bar:{}.{}}}▍ {{wide_msg}}",
+                    bar_width,
+                    String::from(bar_color)
                 )
             )
                 .unwrap()
-                .progress_chars("█▓▒░  ")
+                .progress_chars(progress_chars)
         );
         pb
     }
 
-    pub fn new_progress_bars() -> ([ProgressBar; STATUS_BAR_TYPE_COUNT], MultiProgress) {
+    pub fn new_progress_bars(
+        app_config: AppConfig
+    ) -> ([ProgressBar; STATUS_BAR_TYPE_COUNT], MultiProgress) {
         let m = MultiProgress::new();
         m.set_move_cursor(true);
 
-        let spinner_frames_key = "dots";
-        // let frames = load_spinner_frames(spinner_frames_key.to_string());
-        let spinner_config = load_spinner(spinner_frames_key.to_string());
-        // let frames = spinner_config.frames.as_slice();
+        let spinner_config_key = match app_config.spinner_key {
+            Some(key) => key,
+            None => DEFAULT_SPINNER_KEY.to_string(),
+        };
+
+        // let spinner_config_key = DEFAULT_SPINNER_KEY.to_string();
+        let spinner_config = load_spinner(spinner_config_key.to_string());
 
         let bars: [ProgressBar; STATUS_BAR_TYPE_COUNT] = [
             m.add(FileProcStatusBars::new_spinner(&spinner_config)), // FileProcStatusType::Scan => 0,
@@ -190,13 +191,17 @@ impl FileProcStatusBars {
     }
 }
 
-pub fn to_count_style<T: std::fmt::Display>(count: T) -> StyledObject<HumanCount>
+pub fn to_count_style<T: std::fmt::Display>(
+    count: T
+) -> StyledObject<HumanCount>
     where T: std::fmt::Display + Into<u64>
 {
     style(HumanCount(count.into())).bold().green()
 }
 
-pub fn to_bytes_style<T: std::fmt::Display>(bytes: T) -> StyledObject<HumanBytes>
+pub fn to_bytes_style<T: std::fmt::Display>(
+    bytes: T
+) -> StyledObject<HumanBytes>
     where T: std::fmt::Display + Into<u64>
 {
     style(HumanBytes(bytes.into())).bold().green()
@@ -209,11 +214,20 @@ pub fn to_duration_style(count: Duration) -> StyledObject<HumanDuration> {
 pub trait FileProcProgressBar {
     fn finish_with_finish_style(&self, message: impl Into<Cow<'static, str>>);
     fn enable_steady_tick_default(&self);
-    fn to_count_style<T: std::fmt::Display>(&self, count: T) -> StyledObject<HumanCount>
+    fn to_count_style<T: std::fmt::Display>(
+        &self,
+        count: T
+    ) -> StyledObject<HumanCount>
         where T: std::fmt::Display + Into<u64>;
-    fn to_bytes_style<T: std::fmt::Display>(&self, count: T) -> StyledObject<HumanBytes>
+    fn to_bytes_style<T: std::fmt::Display>(
+        &self,
+        count: T
+    ) -> StyledObject<HumanBytes>
         where T: std::fmt::Display + Into<u64>;
-    fn to_duration_style(&self, duration: Duration) -> StyledObject<HumanDuration>;
+    fn to_duration_style(
+        &self,
+        duration: Duration
+    ) -> StyledObject<HumanDuration>;
 }
 
 impl FileProcProgressBar for ProgressBar {
@@ -222,21 +236,32 @@ impl FileProcProgressBar for ProgressBar {
         self.finish_with_message(message);
     }
     fn enable_steady_tick_default(&self) {
-        self.enable_steady_tick(Duration::from_millis(get_default_steady_tick()));
+        self.enable_steady_tick(
+            Duration::from_millis(get_default_steady_tick())
+        );
     }
-    fn to_count_style<T: std::fmt::Display>(&self, count: T) -> StyledObject<HumanCount>
+    fn to_count_style<T: std::fmt::Display>(
+        &self,
+        count: T
+    ) -> StyledObject<HumanCount>
         where T: std::fmt::Display + Into<u64>
     {
         style(HumanCount(count.into())).bold().green()
     }
 
-    fn to_bytes_style<T: std::fmt::Display>(&self, bytes: T) -> StyledObject<HumanBytes>
+    fn to_bytes_style<T: std::fmt::Display>(
+        &self,
+        bytes: T
+    ) -> StyledObject<HumanBytes>
         where T: std::fmt::Display + Into<u64>
     {
         style(HumanBytes(bytes.into())).bold().green()
     }
 
-    fn to_duration_style(&self, count: Duration) -> StyledObject<HumanDuration> {
+    fn to_duration_style(
+        &self,
+        count: Duration
+    ) -> StyledObject<HumanDuration> {
         style(HumanDuration(count)).bold().red()
         // style(HumanBytes(bytes.into())).bold().green()
     }

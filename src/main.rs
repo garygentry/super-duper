@@ -1,7 +1,7 @@
 mod config;
 use config::AppConfig;
 mod cli;
-mod db;
+mod store;
 mod debug;
 mod file_cache;
 mod file_proc;
@@ -37,7 +37,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::Process) => {
             info!("Processing...");
             scan_and_store
-                ::scan_and_store_dupes(config.root_paths, config.ignore_patterns)
+                ::scan_and_store_dupes(
+                    config.root_paths.clone(),
+                    config.ignore_patterns.clone(),
+                    config.clone()
+                )
                 .map_err(|err| format!("Error processing files: {}", err))?;
 
             // if let Err(err) = run_process(&config) {
@@ -56,14 +60,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::PrintConfig) => {
             println!("Configuration: {:?}", config);
             println!("Environment variables:");
-            println!("DATABASE_URL: {:?}", env::var("DATABASE_URL").unwrap_or_default());
+            println!(
+                "DATABASE_URL: {:?}",
+                env::var("DATABASE_URL").unwrap_or_default()
+            );
         }
         Some(Commands::Test1) => {
             info!("Test1...");
-            let spinner = file_proc::status::progress_bars::load_spinner_frames("dots".to_string());
-            println!("Spinner: {:?}", spinner);
-            //test1::test_cache();
-            // test1::test1();
         }
         Some(Commands::TestCache) => {
             info!("Test Cache...");

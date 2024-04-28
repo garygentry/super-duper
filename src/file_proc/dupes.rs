@@ -2,7 +2,7 @@ use super::hash;
 use super::scan;
 use super::status;
 use super::status::{ CacheToDupeProcStatusMessage, StatusMessage };
-use crate::db::dupe_file::DupeFile;
+use crate::store::dupe_file::DupeFile;
 use crate::file_cache::CacheFile;
 use dashmap::DashMap;
 use rayon::iter::{ IntoParallelRefIterator, ParallelIterator };
@@ -42,7 +42,10 @@ pub fn build_dupe_files(
     let hash_map = hash::build_content_hash_map(&size_map, tx_status).unwrap();
 
     // convert the hash map to a vector of DupeFile structs
-    let dupe_files: Vec<DupeFile> = cache_file_map_to_dupe_files(hash_map, tx_status).unwrap();
+    let dupe_files: Vec<DupeFile> = cache_file_map_to_dupe_files(
+        hash_map,
+        tx_status
+    ).unwrap();
 
     // return the vector of DupeFile structs
     Ok(dupe_files)
@@ -74,7 +77,11 @@ fn cache_file_map_to_dupe_files(
             let cache_files = entry.value();
 
             // TODO: Remove this sleep after testing
-            thread::sleep(Duration::from_millis(crate::debug::DEBUG_CACHE_TO_VEC_SLEEP_TIME));
+            thread::sleep(
+                Duration::from_millis(
+                    crate::debug::DEBUG_CACHE_TO_VEC_SLEEP_TIME
+                )
+            );
 
             tx_status(
                 StatusMessage::CacheToDupeProc(CacheToDupeProcStatusMessage {

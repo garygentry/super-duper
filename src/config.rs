@@ -2,10 +2,11 @@ use config::{ Config, ConfigError, File as ConfigFile };
 use serde::Deserialize;
 use crate::utils;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct AppConfig {
     pub root_paths: Vec<String>,
     pub ignore_patterns: Vec<String>,
+    pub spinner_key: Option<String>,
 }
 
 impl AppConfig {
@@ -28,7 +29,9 @@ impl AppConfig {
     }
 
     fn sanitize_config(mut config: AppConfig) -> AppConfig {
-        config.root_paths = utils::to_non_overlapping_directories(&config.root_paths);
+        config.root_paths = utils::to_non_overlapping_directories(
+            &config.root_paths
+        );
         config
     }
 }

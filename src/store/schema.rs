@@ -52,13 +52,14 @@ diesel::table! {
 }
 
 diesel::table! {
-    dupe_file_part (id) {
+    dupe_file_part (id, session_id) {
         id -> Int4,
         canonical_path -> Text,
         name -> Text,
         file_size -> Int8,
         part_type -> Int4,
         parent_id -> Nullable<Int4>,
+        has_child_dirs -> Bool,
         session_id -> Int4,
     }
 }

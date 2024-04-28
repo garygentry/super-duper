@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use super::sd_pg::*;
 use super::schema;
@@ -14,12 +15,61 @@ pub struct DupeFilePart {
     pub file_size: i64,
     pub parent_id: Option<i32>,
     pub part_type: i32,
+    pub has_child_dirs: bool,
     pub session_id: i32,
+}
+
+impl DupeFilePart {
+    fn is_directory(&self) -> bool {
+        self.part_type == 1
+    }
+    // fn is_drive(&self) -> bool {
+    //     self.part_type == 0
+    // }
+    // fn is_file(&self) -> bool {
+    //     self.part_type == 2
+    // }
 }
 
 pub const PATH_PART_FIELD_COUNT: usize = 7;
 
 const FILE_TO_PART_FACTOR: f64 = 1.25;
+
+fn update_has_child_dirs(parts: &mut [DupeFilePart]) {
+    // Create a hash map to store parent-child relationships
+    let mut children_map: HashMap<i32, Vec<usize>> = HashMap::new();
+
+    // Populate the hash map with indices of child parts
+    for (index, part) in parts.iter().enumerate() {
+        if let Some(parent_id) = part.parent_id {
+            children_map.entry(parent_id).or_default().push(index);
+        }
+    }
+
+    // Temporary vector to hold which parts should have `has_child_dirs` set to true
+    let mut has_children_dirs = vec![false; parts.len()];
+
+    // Determine which parts should have their `has_child_dirs` set to true
+    for (index, part) in parts.iter().enumerate() {
+        if part.part_type != 2 {
+            // Not a file
+            if let Some(child_indices) = children_map.get(&part.id) {
+                // Check if any child is a directory
+                for &child_index in child_indices {
+                    if parts[child_index].is_directory() {
+                        has_children_dirs[index] = true;
+                        break; // No need to check further if we find at least one directory
+                    }
+                }
+            }
+        }
+    }
+
+    // Update `has_child_dirs` based on the earlier determination
+    for (part, has_children) in parts.iter_mut().zip(has_children_dirs.iter()) {
+        part.has_child_dirs = *has_children;
+    }
+}
 
 fn get_canonical_name_parts(name: &str) -> Vec<&str> {
     // canonical name starts with \\?\.. which is surprisingly tricky to skip past
@@ -49,7 +99,13 @@ fn process_path_parts(
     let mut path_part_vec = Vec::new();
 
     for (i, part) in parts.iter().enumerate() {
-        let part_type = if i == 0 { 0 } else if i == parts.len() - 1 { 2 } else { 1 };
+        let part_type = if i == 0 {
+            0
+        } else if i == parts.len() - 1 {
+            2
+        } else {
+            1
+        };
         let canonical_name = parts[..=i].join("\\");
 
         match path_parts.get_mut(&canonical_name) {
@@ -66,6 +122,7 @@ fn process_path_parts(
                     parent_id,
                     part_type,
                     session_id: *session_id,
+                    has_child_dirs: false,
                 };
                 parent_id = Some(*id_counter);
                 *id_counter += 1;
@@ -79,12 +136,18 @@ fn process_path_parts(
 }
 
 impl DupeFilePart {
-    pub fn parts_from_dupe_files(dupe_files: &[DupeFile], session_id: &i32) -> Vec<DupeFilePart> {
+    pub fn parts_from_dupe_files(
+        dupe_files: &[DupeFile],
+        session_id: &i32
+    ) -> Vec<DupeFilePart> {
         let map_capacity: usize = (
             (dupe_files.len() as f64) * FILE_TO_PART_FACTOR
         ).floor() as usize;
 
-        let mut path_parts: HashMap<String, DupeFilePart> = HashMap::with_capacity(map_capacity);
+        let mut path_parts: HashMap<
+            String,
+            DupeFilePart
+        > = HashMap::with_capacity(map_capacity);
         let mut id_counter = 1;
 
         for dupe_file in dupe_files {
@@ -97,13 +160,14 @@ impl DupeFilePart {
             );
         }
 
-        let values: Vec<DupeFilePart> = path_parts.values().cloned().collect();
-        values
+        let mut values: Vec<DupeFilePart> = path_parts
+            .values()
+            .cloned()
+            .collect();
 
-        // let _empty_vec: Vec<DupeFilePart> = vec![];
-        // _empty_vec
-        // let values: Vec<_> = path_parts.values().collect();
-        // values
+        update_has_child_dirs(&mut values);
+
+        values
     }
 
     pub fn insert_dupe_file_parts(
