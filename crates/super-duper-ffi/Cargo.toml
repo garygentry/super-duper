@@ -1,0 +1,12 @@
+[package]
+name = "super-duper-ffi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+super-duper-core = { path = "../super-duper-core" }
+tracing = "0.1"
+lazy_static = "1.4"

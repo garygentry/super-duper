@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- Reference the P/Invoke declarations from the main project -->
+  <ItemGroup>
+    <Compile Include="..\SuperDuper\NativeMethods\SuperDuperEngine.cs" Link="NativeMethods\SuperDuperEngine.cs" />
+  </ItemGroup>
+
+  <!-- Copy native DLL -->
+  <ItemGroup>
+    <None Include="..\..\..\target\release\super_duper_ffi.dll"
+          Link="super_duper_ffi.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Condition="Exists('..\..\..\target\release\super_duper_ffi.dll')" />
+  </ItemGroup>
+</Project>

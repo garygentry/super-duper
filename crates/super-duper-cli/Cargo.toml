@@ -1,0 +1,19 @@
+[package]
+name = "super-duper-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+super-duper-core = { path = "../super-duper-core" }
+
+# CLI
+clap = { version = "4.5.4", features = ["derive"] }
+dotenv = "0.15.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "ansi"] }
+tracing-appender = "0.2"
+
+# Display
+colored = "2.1"
