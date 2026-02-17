@@ -1,0 +1,63 @@
+<!-- DeletionReviewPage: Review and execute deletion plan -->
+<Page
+    x:Class="SuperDuper.Views.DeletionReviewPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Padding="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,16">
+            <TextBlock Text="Deletion Review" Style="{StaticResource TitleTextBlockStyle}" />
+            <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
+                       Style="{StaticResource SubtitleTextBlockStyle}" />
+        </StackPanel>
+
+        <!-- Summary cards -->
+        <Grid Grid.Row="1" ColumnSpacing="16" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="8" Padding="16">
+                <StackPanel>
+                    <TextBlock Text="Files to Delete" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="{x:Bind ViewModel.FileCount, Mode=OneWay}"
+                               Style="{StaticResource HeaderTextBlockStyle}" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="8" Padding="16">
+                <StackPanel>
+                    <TextBlock Text="Space to Reclaim" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="{x:Bind ViewModel.FormattedTotalBytes, Mode=OneWay}"
+                               Style="{StaticResource HeaderTextBlockStyle}" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Action buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="12" Margin="0,0,0,16">
+            <Button Content="Auto-Mark Duplicates"
+                    Command="{x:Bind ViewModel.AutoMarkCommand}" />
+            <Button Content="Refresh Summary"
+                    Command="{x:Bind ViewModel.RefreshSummaryCommand}" />
+            <Button Content="Execute Deletion"
+                    Command="{x:Bind ViewModel.ExecuteDeletionCommand}"
+                    Style="{StaticResource AccentButtonStyle}" />
+        </StackPanel>
+
+        <ProgressRing Grid.Row="3"
+                      IsActive="{x:Bind ViewModel.IsExecuting, Mode=OneWay}"
+                      Visibility="{x:Bind ViewModel.IsExecuting, Mode=OneWay}" />
+    </Grid>
+</Page>

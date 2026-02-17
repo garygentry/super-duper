@@ -21,6 +21,7 @@ public static partial class SuperDuperEngine
         DatabaseError = 4,
         ScanInProgress = 5,
         ScanNotRunning = 6,
+        Cancelled = 7,
         InternalError = 99,
     }
 
@@ -62,6 +63,50 @@ public static partial class SuperDuperEngine
         public uint Count;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SdDirectoryNode
+    {
+        public long Id;
+        public IntPtr Path;
+        public IntPtr Name;
+        public long ParentId;
+        public long TotalSize;
+        public long FileCount;
+        public long Depth;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SdDirectoryNodePage
+    {
+        public IntPtr Nodes;
+        public uint Count;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SdDirectorySimilarity
+    {
+        public long Id;
+        public long DirAId;
+        public long DirBId;
+        public double SimilarityScore;
+        public long SharedBytes;
+        public IntPtr MatchType;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SdDirectorySimilarityPage
+    {
+        public IntPtr Pairs;
+        public uint Count;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SdDeletionResult
+    {
+        public uint SuccessCount;
+        public uint ErrorCount;
+    }
+
     // ── Callbacks ────────────────────────────────────────────────
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -97,6 +142,20 @@ public static partial class SuperDuperEngine
     [return: MarshalAs(UnmanagedType.U1)]
     public static extern bool sd_scan_is_running(ulong handle);
 
+    // ── Scan Cancellation ───────────────────────────────────────
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern SdResultCode sd_scan_cancel(ulong handle);
+
+    // ── Progress Callback ──────────────────────────────────────
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern SdResultCode sd_set_progress_callback(
+        ulong handle, SdProgressCallback callback);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern SdResultCode sd_clear_progress_callback(ulong handle);
+
     // ── Queries ──────────────────────────────────────────────────
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -112,6 +171,24 @@ public static partial class SuperDuperEngine
         long groupId,
         out SdFileRecordPage page);
 
+    // ── Directory Queries ────────────────────────────────────────
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern SdResultCode sd_query_directory_children(
+        ulong handle,
+        long parentId,
+        long offset,
+        long limit,
+        out SdDirectoryNodePage page);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern SdResultCode sd_query_similar_directories(
+        ulong handle,
+        double minScore,
+        long offset,
+        long limit,
+        out SdDirectorySimilarityPage page);
+
     // ── Memory Management ────────────────────────────────────────
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -119,6 +196,12 @@ public static partial class SuperDuperEngine
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void sd_free_file_record_page(ref SdFileRecordPage page);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void sd_free_directory_node_page(ref SdDirectoryNodePage page);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void sd_free_directory_similarity_page(ref SdDirectorySimilarityPage page);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void sd_free_string(IntPtr ptr);
@@ -141,6 +224,18 @@ public static partial class SuperDuperEngine
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern SdResultCode sd_deletion_plan_summary(
         ulong handle, out long count, out long bytes);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern SdResultCode sd_mark_directory_for_deletion(
+        ulong handle,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string directoryPath);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern SdResultCode sd_auto_mark_for_deletion(ulong handle);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern SdResultCode sd_deletion_execute(
+        ulong handle, out SdDeletionResult result);
 
     // ── Helpers ──────────────────────────────────────────────────
 

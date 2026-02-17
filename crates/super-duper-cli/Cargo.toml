@@ -17,3 +17,4 @@ tracing-appender = "0.2"
 
 # Display
 colored = "2.1"
+indicatif = "0.17"

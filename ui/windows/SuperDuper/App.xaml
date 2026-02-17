@@ -1,0 +1,14 @@
+<Application
+    x:Class="SuperDuper.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:SuperDuper">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+            </ResourceDictionary.MergedDictionaries>
+            <local:InvertBoolConverter x:Key="InvertBoolConverter" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

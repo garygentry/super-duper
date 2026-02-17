@@ -24,6 +24,13 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _totalFilesScanned;
 
+    public string FormattedWastedBytes => FormatBytes(TotalWastedBytes);
+
+    partial void OnTotalWastedBytesChanged(long value)
+    {
+        OnPropertyChanged(nameof(FormattedWastedBytes));
+    }
+
     public ObservableCollection<DuplicateGroupInfo> DuplicateGroups { get; } = new();
 
     [RelayCommand]

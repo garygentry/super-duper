@@ -1,5 +1,6 @@
 mod commands;
 mod logging;
+mod progress;
 
 use std::io::{self, Write};
 use std::process;
@@ -8,7 +9,8 @@ use clap::{CommandFactory, Parser};
 use colored::*;
 use commands::{Cli, Commands};
 use dotenv::dotenv;
-use super_duper_core::{ScanEngine, SilentReporter};
+use progress::CliReporter;
+use super_duper_core::ScanEngine;
 use tracing::{error, info};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -23,8 +25,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             process::exit(1);
         }
     };
-
-    hide_cursor();
 
     let args = Cli::parse();
 
@@ -73,8 +73,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    show_cursor();
-
     Ok(())
 }
 
@@ -82,8 +80,10 @@ fn run_process(
     config: &super_duper_core::AppConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let engine = ScanEngine::new(config.clone());
-    let result = engine.scan(&SilentReporter)?;
+    let reporter = CliReporter::new();
+    let result = engine.scan(&reporter)?;
 
+    println!();
     info!(
         "Scan: {}, Hash: {}, DB: {}",
         format!("{:.2}s", result.scan_duration.as_secs_f64()).green(),
@@ -114,16 +114,6 @@ fn run_analyze_directories() -> Result<(), Box<dyn std::error::Error>> {
     info!("{} similar directory pairs found", similarity_count);
 
     Ok(())
-}
-
-fn hide_cursor() {
-    print!("\x1B[?25l");
-    io::stdout().flush().unwrap();
-}
-
-fn show_cursor() {
-    print!("\x1B[?25h");
-    io::stdout().flush().unwrap();
 }
 
 fn prompt_confirm(prompt: &str, default: Option<bool>) -> io::Result<bool> {

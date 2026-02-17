@@ -1,4 +1,4 @@
-<!-- MainPage: NavigationView shell with summary dashboard -->
+<!-- MainPage: NavigationView shell with page-based navigation -->
 <Page
     x:Class="SuperDuper.Views.MainPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -6,73 +6,75 @@
     xmlns:local="using:SuperDuper.Views">
 
     <NavigationView
+        x:Name="NavView"
         IsBackButtonVisible="Collapsed"
         IsSettingsVisible="True"
-        PaneDisplayMode="Left">
+        PaneDisplayMode="Left"
+        SelectionChanged="NavView_SelectionChanged">
 
         <NavigationView.MenuItems>
-            <NavigationViewItem Content="Dashboard" Icon="Home" Tag="dashboard" />
+            <NavigationViewItem Content="Dashboard" Icon="Home" Tag="dashboard" IsSelected="True" />
             <NavigationViewItem Content="Duplicate Groups" Icon="Copy" Tag="duplicates" />
             <NavigationViewItem Content="Directory Comparison" Icon="Folder" Tag="directories" />
             <NavigationViewItem Content="Deletion Review" Icon="Delete" Tag="deletion" />
         </NavigationView.MenuItems>
 
-        <!-- Dashboard content -->
-        <Grid Padding="24">
-            <StackPanel Spacing="16">
-                <!-- Summary cards -->
-                <TextBlock Text="Super Duper" Style="{StaticResource TitleTextBlockStyle}" />
-                <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
-                           Style="{StaticResource SubtitleTextBlockStyle}" />
+        <Grid>
+            <!-- Dashboard (inline, shown by default) -->
+            <Grid x:Name="DashboardContent" Padding="24">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="Super Duper" Style="{StaticResource TitleTextBlockStyle}" />
+                    <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
+                               Style="{StaticResource SubtitleTextBlockStyle}" />
 
-                <Grid ColumnSpacing="16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
 
-                    <!-- Total Files -->
-                    <Border Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                            CornerRadius="8" Padding="16">
-                        <StackPanel>
-                            <TextBlock Text="Files Scanned" Style="{StaticResource CaptionTextBlockStyle}" />
-                            <TextBlock Text="{x:Bind ViewModel.TotalFilesScanned, Mode=OneWay}"
-                                       Style="{StaticResource HeaderTextBlockStyle}" />
-                        </StackPanel>
-                    </Border>
+                        <Border Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                CornerRadius="8" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="Files Scanned" Style="{StaticResource CaptionTextBlockStyle}" />
+                                <TextBlock Text="{x:Bind ViewModel.TotalFilesScanned, Mode=OneWay}"
+                                           Style="{StaticResource HeaderTextBlockStyle}" />
+                            </StackPanel>
+                        </Border>
 
-                    <!-- Duplicate Groups -->
-                    <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                            CornerRadius="8" Padding="16">
-                        <StackPanel>
-                            <TextBlock Text="Duplicate Groups" Style="{StaticResource CaptionTextBlockStyle}" />
-                            <TextBlock Text="{x:Bind ViewModel.TotalDuplicateGroups, Mode=OneWay}"
-                                       Style="{StaticResource HeaderTextBlockStyle}" />
-                        </StackPanel>
-                    </Border>
+                        <Border Grid.Column="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                CornerRadius="8" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="Duplicate Groups" Style="{StaticResource CaptionTextBlockStyle}" />
+                                <TextBlock Text="{x:Bind ViewModel.TotalDuplicateGroups, Mode=OneWay}"
+                                           Style="{StaticResource HeaderTextBlockStyle}" />
+                            </StackPanel>
+                        </Border>
 
-                    <!-- Wasted Space -->
-                    <Border Grid.Column="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                            CornerRadius="8" Padding="16">
-                        <StackPanel>
-                            <TextBlock Text="Wasted Space" Style="{StaticResource CaptionTextBlockStyle}" />
-                            <TextBlock Text="{x:Bind ViewModel.TotalWastedBytes, Mode=OneWay}"
-                                       Style="{StaticResource HeaderTextBlockStyle}" />
-                        </StackPanel>
-                    </Border>
-                </Grid>
+                        <Border Grid.Column="2" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                CornerRadius="8" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="Wasted Space" Style="{StaticResource CaptionTextBlockStyle}" />
+                                <TextBlock Text="{x:Bind ViewModel.FormattedWastedBytes, Mode=OneWay}"
+                                           Style="{StaticResource HeaderTextBlockStyle}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
 
-                <!-- Scan button -->
-                <Button Content="Start Scan"
-                        Command="{x:Bind ViewModel.StartScanCommand}"
-                        IsEnabled="{x:Bind ViewModel.IsScanning, Mode=OneWay, Converter={StaticResource InvertBoolConverter}}"
-                        Style="{StaticResource AccentButtonStyle}"
-                        HorizontalAlignment="Left" />
+                    <Button Content="Start Scan"
+                            Command="{x:Bind ViewModel.StartScanCommand}"
+                            IsEnabled="{x:Bind ViewModel.IsScanning, Mode=OneWay, Converter={StaticResource InvertBoolConverter}}"
+                            Style="{StaticResource AccentButtonStyle}"
+                            HorizontalAlignment="Left" />
 
-                <ProgressRing IsActive="{x:Bind ViewModel.IsScanning, Mode=OneWay}"
-                              Visibility="{x:Bind ViewModel.IsScanning, Mode=OneWay}" />
-            </StackPanel>
+                    <ProgressRing IsActive="{x:Bind ViewModel.IsScanning, Mode=OneWay}"
+                                  Visibility="{x:Bind ViewModel.IsScanning, Mode=OneWay}" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Frame for sub-pages (hidden by default) -->
+            <Frame x:Name="SubPageFrame" Visibility="Collapsed" />
         </Grid>
     </NavigationView>
 </Page>
