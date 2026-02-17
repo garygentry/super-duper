@@ -1,9 +1,11 @@
+use crate::progress::ProgressReporter;
 use dashmap::DashMap;
 use glob::Pattern;
 use rayon::prelude::*;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use tracing::error;
 
 /// Parallel directory traversal. Builds a map of file_size → Vec<PathBuf>,
@@ -11,6 +13,8 @@ use tracing::error;
 pub fn build_size_to_files_map(
     root_paths: &[&str],
     ignore_globs: &[&str],
+    cancel_token: &AtomicBool,
+    progress: &dyn ProgressReporter,
 ) -> io::Result<DashMap<u64, Vec<PathBuf>>> {
     let map: DashMap<u64, Vec<PathBuf>> = DashMap::new();
 
@@ -25,9 +29,20 @@ pub fn build_size_to_files_map(
         })
         .collect();
 
+    let file_count = AtomicUsize::new(0);
+
     root_paths
         .par_iter()
-        .try_for_each(|root_dir| visit_dirs(Path::new(root_dir), &map, &ignore_patterns))?;
+        .try_for_each(|root_dir| {
+            visit_dirs(
+                Path::new(root_dir),
+                &map,
+                &ignore_patterns,
+                cancel_token,
+                progress,
+                &file_count,
+            )
+        })?;
 
     Ok(map)
 }
@@ -36,7 +51,14 @@ fn visit_dirs(
     dir: &Path,
     map: &DashMap<u64, Vec<PathBuf>>,
     ignore_patterns: &[Pattern],
+    cancel_token: &AtomicBool,
+    progress: &dyn ProgressReporter,
+    file_count: &AtomicUsize,
 ) -> io::Result<()> {
+    if cancel_token.load(Ordering::Relaxed) {
+        return Ok(());
+    }
+
     if !dir.is_dir() {
         return Ok(());
     }
@@ -68,6 +90,10 @@ fn visit_dirs(
     };
 
     entries.par_bridge().try_for_each(|entry_result| {
+        if cancel_token.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+
         let entry = match entry_result {
             Ok(entry) => entry,
             Err(err) => {
@@ -98,7 +124,7 @@ fn visit_dirs(
         };
 
         if path.is_dir() {
-            visit_dirs(&path, map, ignore_patterns)?;
+            visit_dirs(&path, map, ignore_patterns, cancel_token, progress, file_count)?;
         } else if !metadata.file_type().is_symlink() && metadata.len() > 0 {
             let file_size = metadata.len();
             if !ignore_patterns
@@ -106,6 +132,10 @@ fn visit_dirs(
                 .any(|pattern| pattern.matches_path(&path))
             {
                 map.entry(file_size).or_default().push(path.to_path_buf());
+                let count = file_count.fetch_add(1, Ordering::Relaxed) + 1;
+                if count % 1000 == 0 {
+                    progress.on_scan_progress(count, &path.to_string_lossy());
+                }
             }
         }
         Ok(())

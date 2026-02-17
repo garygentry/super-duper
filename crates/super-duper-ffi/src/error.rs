@@ -19,6 +19,7 @@ pub fn map_core_error(e: super_duper_core::Error) -> SdResultCode {
         super_duper_core::Error::Io(_) => SdResultCode::IoError,
         super_duper_core::Error::Database(_) => SdResultCode::DatabaseError,
         super_duper_core::Error::Config(_) => SdResultCode::InvalidArgument,
+        super_duper_core::Error::Cancelled => SdResultCode::Cancelled,
         _ => SdResultCode::InternalError,
     }
 }

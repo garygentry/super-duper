@@ -45,3 +45,37 @@ pub fn non_overlapping_directories(dirs: Vec<String>) -> Vec<String> {
 
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_non_overlapping_no_overlap() {
+        let dirs = vec![
+            "/home/user/photos".to_string(),
+            "/home/user/docs".to_string(),
+            "/var/data".to_string(),
+        ];
+        let result = non_overlapping_directories(dirs);
+        assert_eq!(result.len(), 3);
+        assert!(result.contains(&"/home/user/photos".to_string()));
+        assert!(result.contains(&"/home/user/docs".to_string()));
+        assert!(result.contains(&"/var/data".to_string()));
+    }
+
+    #[test]
+    fn test_non_overlapping_with_subdirectory() {
+        let dirs = vec![
+            "/home/user".to_string(),
+            "/home/user/docs".to_string(),
+            "/var/data".to_string(),
+        ];
+        let result = non_overlapping_directories(dirs);
+        assert_eq!(result.len(), 2);
+        assert!(result.contains(&"/home/user".to_string()));
+        assert!(result.contains(&"/var/data".to_string()));
+        // /home/user/docs should be removed as it's under /home/user
+        assert!(!result.contains(&"/home/user/docs".to_string()));
+    }
+}

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use super_duper_core::ScanEngine;
 use super_duper_core::storage::Database;
 
@@ -10,6 +10,8 @@ pub struct EngineState {
     pub engine: ScanEngine,
     pub db: Option<Database>,
     pub is_scanning: bool,
+    pub cancel_token: Arc<AtomicBool>,
+    pub progress_bridge: Option<crate::callbacks::FfiProgressBridge>,
 }
 
 lazy_static! {

@@ -14,6 +14,9 @@ pub enum Error {
     #[error("Cache error: {0}")]
     Cache(String),
 
+    #[error("Operation cancelled")]
+    Cancelled,
+
     #[error("{0}")]
     Other(String),
 }

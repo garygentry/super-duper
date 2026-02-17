@@ -12,6 +12,7 @@ pub enum SdResultCode {
     DatabaseError = 4,
     ScanInProgress = 5,
     ScanNotRunning = 6,
+    Cancelled = 7,
     InternalError = 99,
 }
 
@@ -49,6 +50,50 @@ pub struct SdFileRecord {
     pub parent_dir: *mut c_char,
     pub file_size: i64,
     pub content_hash: i64,
+}
+
+/// A page of directory nodes.
+#[repr(C)]
+pub struct SdDirectoryNodePage {
+    pub nodes: *mut SdDirectoryNode,
+    pub count: u32,
+}
+
+/// A single directory node.
+#[repr(C)]
+pub struct SdDirectoryNode {
+    pub id: i64,
+    pub path: *mut c_char,
+    pub name: *mut c_char,
+    pub parent_id: i64,
+    pub total_size: i64,
+    pub file_count: i64,
+    pub depth: i64,
+}
+
+/// A page of directory similarity pairs.
+#[repr(C)]
+pub struct SdDirectorySimilarityPage {
+    pub pairs: *mut SdDirectorySimilarity,
+    pub count: u32,
+}
+
+/// A single directory similarity pair.
+#[repr(C)]
+pub struct SdDirectorySimilarity {
+    pub id: i64,
+    pub dir_a_id: i64,
+    pub dir_b_id: i64,
+    pub similarity_score: f64,
+    pub shared_bytes: i64,
+    pub match_type: *mut c_char,
+}
+
+/// Deletion execution result.
+#[repr(C)]
+pub struct SdDeletionResult {
+    pub success_count: u32,
+    pub error_count: u32,
 }
 
 /// Progress callback signature.

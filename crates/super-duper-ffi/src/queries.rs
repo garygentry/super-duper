@@ -160,5 +160,169 @@ pub unsafe extern "C" fn sd_free_file_record_page(page: *mut SdFileRecordPage) {
     }
 }
 
+/// Query directory children. Pass parent_id = -1 for root directories.
+///
+/// # Safety
+/// `out_page` must be a valid pointer. The returned page must be freed with `sd_free_directory_node_page`.
+#[no_mangle]
+pub unsafe extern "C" fn sd_query_directory_children(
+    handle: u64,
+    parent_id: i64,
+    offset: i64,
+    limit: i64,
+    out_page: *mut SdDirectoryNodePage,
+) -> SdResultCode {
+    if out_page.is_null() {
+        set_last_error("out_page is null".to_string());
+        return SdResultCode::InvalidArgument;
+    }
+
+    let parent = if parent_id < 0 { None } else { Some(parent_id) };
+
+    let result = with_handle(handle, |state| {
+        let db = match &state.db {
+            Some(db) => db,
+            None => {
+                set_last_error("No database open".to_string());
+                return SdResultCode::DatabaseError;
+            }
+        };
+
+        match db.get_directory_children(parent, offset, limit) {
+            Ok(nodes) => {
+                let count = nodes.len() as u32;
+                let c_nodes: Vec<SdDirectoryNode> = nodes
+                    .iter()
+                    .map(|n| SdDirectoryNode {
+                        id: n.id,
+                        path: rust_string_to_c(&n.path),
+                        name: rust_string_to_c(&n.name),
+                        parent_id: n.parent_id.unwrap_or(-1),
+                        total_size: n.total_size,
+                        file_count: n.file_count,
+                        depth: n.depth,
+                    })
+                    .collect();
+
+                let boxed = c_nodes.into_boxed_slice();
+                let ptr = Box::into_raw(boxed) as *mut SdDirectoryNode;
+
+                *out_page = SdDirectoryNodePage {
+                    nodes: ptr,
+                    count,
+                };
+
+                SdResultCode::Ok
+            }
+            Err(e) => {
+                set_last_error(format!("Query error: {}", e));
+                SdResultCode::DatabaseError
+            }
+        }
+    });
+
+    result.unwrap_or(SdResultCode::InvalidHandle)
+}
+
+/// Free a directory node page allocated by `sd_query_directory_children`.
+///
+/// # Safety
+/// `page` must have been returned by `sd_query_directory_children`.
+#[no_mangle]
+pub unsafe extern "C" fn sd_free_directory_node_page(page: *mut SdDirectoryNodePage) {
+    if page.is_null() {
+        return;
+    }
+    let page = &*page;
+    if !page.nodes.is_null() && page.count > 0 {
+        let slice = std::slice::from_raw_parts_mut(page.nodes, page.count as usize);
+        for node in slice.iter() {
+            sd_free_string(node.path);
+            sd_free_string(node.name);
+        }
+        drop(Box::from_raw(slice as *mut [SdDirectoryNode]));
+    }
+}
+
+/// Query similar directory pairs above a minimum score.
+///
+/// # Safety
+/// `out_page` must be a valid pointer. The returned page must be freed with `sd_free_directory_similarity_page`.
+#[no_mangle]
+pub unsafe extern "C" fn sd_query_similar_directories(
+    handle: u64,
+    min_score: f64,
+    offset: i64,
+    limit: i64,
+    out_page: *mut SdDirectorySimilarityPage,
+) -> SdResultCode {
+    if out_page.is_null() {
+        set_last_error("out_page is null".to_string());
+        return SdResultCode::InvalidArgument;
+    }
+
+    let result = with_handle(handle, |state| {
+        let db = match &state.db {
+            Some(db) => db,
+            None => {
+                set_last_error("No database open".to_string());
+                return SdResultCode::DatabaseError;
+            }
+        };
+
+        match db.get_similar_directories(min_score, offset, limit) {
+            Ok(pairs) => {
+                let count = pairs.len() as u32;
+                let c_pairs: Vec<SdDirectorySimilarity> = pairs
+                    .iter()
+                    .map(|p| SdDirectorySimilarity {
+                        id: p.id,
+                        dir_a_id: p.dir_a_id,
+                        dir_b_id: p.dir_b_id,
+                        similarity_score: p.similarity_score,
+                        shared_bytes: p.shared_bytes,
+                        match_type: rust_string_to_c(&p.match_type),
+                    })
+                    .collect();
+
+                let boxed = c_pairs.into_boxed_slice();
+                let ptr = Box::into_raw(boxed) as *mut SdDirectorySimilarity;
+
+                *out_page = SdDirectorySimilarityPage {
+                    pairs: ptr,
+                    count,
+                };
+
+                SdResultCode::Ok
+            }
+            Err(e) => {
+                set_last_error(format!("Query error: {}", e));
+                SdResultCode::DatabaseError
+            }
+        }
+    });
+
+    result.unwrap_or(SdResultCode::InvalidHandle)
+}
+
+/// Free a directory similarity page allocated by `sd_query_similar_directories`.
+///
+/// # Safety
+/// `page` must have been returned by `sd_query_similar_directories`.
+#[no_mangle]
+pub unsafe extern "C" fn sd_free_directory_similarity_page(page: *mut SdDirectorySimilarityPage) {
+    if page.is_null() {
+        return;
+    }
+    let page = &*page;
+    if !page.pairs.is_null() && page.count > 0 {
+        let slice = std::slice::from_raw_parts_mut(page.pairs, page.count as usize);
+        for pair in slice.iter() {
+            sd_free_string(pair.match_type);
+        }
+        drop(Box::from_raw(slice as *mut [SdDirectorySimilarity]));
+    }
+}
+
 // Re-export sd_free_string so it's accessible from this module
 use crate::error::sd_free_string;

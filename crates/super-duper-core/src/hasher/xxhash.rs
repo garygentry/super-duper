@@ -1,10 +1,12 @@
 use super::cache;
+use crate::progress::ProgressReporter;
 use dashmap::DashMap;
 use rayon::prelude::*;
 use std::fs::File;
 use std::hash::Hasher as _;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use twox_hash::XxHash64;
 
 const PARTIAL_HASH_LENGTH: usize = 1024; // 1KB
@@ -17,12 +19,22 @@ const PARTIAL_HASH_LENGTH: usize = 1024; // 1KB
 /// and returns a map of content_hash → Vec<PathBuf> for confirmed duplicates only.
 pub fn build_content_hash_map(
     size_to_file_map: DashMap<u64, Vec<PathBuf>>,
+    cancel_token: &AtomicBool,
+    progress: &dyn ProgressReporter,
 ) -> io::Result<DashMap<u64, Vec<PathBuf>>> {
     let confirmed_duplicates: DashMap<u64, Vec<PathBuf>> = DashMap::new();
+
+    // Count total files for progress reporting
+    let total_files: usize = size_to_file_map.iter().map(|e| e.value().len()).sum();
+    let files_processed = AtomicUsize::new(0);
 
     let size_to_file_vec: Vec<_> = size_to_file_map.iter().collect();
 
     size_to_file_vec.par_iter().try_for_each(|files| {
+        if cancel_token.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+
         let partial_hash_to_file_map: DashMap<u64, Vec<PathBuf>> = DashMap::new();
         let full_hash_to_file_map: DashMap<u64, Vec<PathBuf>> = DashMap::new();
 
@@ -35,6 +47,9 @@ pub fn build_content_hash_map(
         // Second pass: full hash only on partial-hash collisions (>1 file)
         let partial_hash_to_file_vec: Vec<_> = partial_hash_to_file_map.iter().collect();
         partial_hash_to_file_vec.par_iter().try_for_each(|files| {
+            if cancel_token.load(Ordering::Relaxed) {
+                return Ok::<_, io::Error>(());
+            }
             if files.value().len() > 1 {
                 files
                     .value()
@@ -56,6 +71,13 @@ pub fn build_content_hash_map(
                     .extend_from_slice(entry.value());
             }
         });
+
+        // Update progress
+        let processed = files_processed.fetch_add(files.value().len(), Ordering::Relaxed)
+            + files.value().len();
+        if processed % 500 < files.value().len() {
+            progress.on_hash_progress(processed, total_files);
+        }
 
         Ok::<_, io::Error>(())
     })?;

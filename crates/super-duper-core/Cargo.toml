@@ -40,6 +40,9 @@ ahash = "0.8.11"
 # Time
 chrono = "0.4.37"
 
+[dev-dependencies]
+tempfile = "3"
+
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = [
     "fileapi",

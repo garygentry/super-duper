@@ -8,7 +8,7 @@ use clap::{CommandFactory, Parser};
 use colored::*;
 use commands::{Cli, Commands};
 use dotenv::dotenv;
-use super_duper_core::ScanEngine;
+use super_duper_core::{ScanEngine, SilentReporter};
 use tracing::{error, info};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -82,7 +82,7 @@ fn run_process(
     config: &super_duper_core::AppConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let engine = ScanEngine::new(config.clone());
-    let result = engine.scan()?;
+    let result = engine.scan(&SilentReporter)?;
 
     info!(
         "Scan: {}, Hash: {}, DB: {}",

@@ -2,18 +2,22 @@ use crate::config::{self, AppConfig};
 use crate::error::Error;
 use crate::hasher;
 use crate::platform;
+use crate::progress::ProgressReporter;
 use crate::scanner;
 use crate::storage::models::ScannedFile;
 use crate::storage::Database;
 use dashmap::DashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant, UNIX_EPOCH};
 use tracing::{debug, info};
 
 pub struct ScanEngine {
     config: AppConfig,
     db_path: String,
+    cancel_token: Arc<AtomicBool>,
 }
 
 #[derive(Debug)]
@@ -39,6 +43,7 @@ impl ScanEngine {
         Self {
             config,
             db_path: "super_duper.db".to_string(),
+            cancel_token: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -47,11 +52,24 @@ impl ScanEngine {
         self
     }
 
+    /// Request cancellation of the current scan.
+    pub fn cancel(&self) {
+        self.cancel_token.store(true, Ordering::Relaxed);
+    }
+
+    /// Get a clone of the cancel token (for FFI layer to store).
+    pub fn cancel_token(&self) -> Arc<AtomicBool> {
+        self.cancel_token.clone()
+    }
+
     /// Run the full duplicate detection pipeline:
     /// 1. Parallel directory scan (build file_size → paths map)
     /// 2. Two-tier content hashing (partial 1KB, then full on matches)
     /// 3. Write results to SQLite
-    pub fn scan(&self) -> Result<ScanResult, Error> {
+    pub fn scan(&self, progress: &dyn ProgressReporter) -> Result<ScanResult, Error> {
+        // Reset cancel token for new scan
+        self.cancel_token.store(false, Ordering::Relaxed);
+
         let non_overlapping =
             config::non_overlapping_directories(self.config.root_paths.clone());
         info!("Processing directories: {:?}", non_overlapping);
@@ -62,12 +80,22 @@ impl ScanEngine {
 
         // Phase 1: Scan
         info!("Scanning files...");
+        progress.on_scan_start();
         let scan_start = Instant::now();
-        let size_to_files_map =
-            scanner::build_size_to_files_map(&root_path_slices, &ignore_pattern_slices)?;
+        let size_to_files_map = scanner::build_size_to_files_map(
+            &root_path_slices,
+            &ignore_pattern_slices,
+            &self.cancel_token,
+            progress,
+        )?;
         let scan_duration = scan_start.elapsed();
 
+        if self.cancel_token.load(Ordering::Relaxed) {
+            return Err(Error::Cancelled);
+        }
+
         let stats = compute_scan_stats(&size_to_files_map);
+        progress.on_scan_complete(stats.total_files, scan_duration.as_secs_f64());
         debug!(
             "Scan completed in {:.2}s — {} distinct sizes, {} files, {} bytes total",
             scan_duration.as_secs_f64(),
@@ -78,10 +106,18 @@ impl ScanEngine {
 
         // Phase 2: Hash
         info!("Building content hash for possible dupes...");
+        progress.on_hash_start();
         let hash_start = Instant::now();
-        let content_hash_map = hasher::build_content_hash_map(size_to_files_map)?;
+        let content_hash_map =
+            hasher::build_content_hash_map(size_to_files_map, &self.cancel_token, progress)?;
         let hash_duration = hash_start.elapsed();
+
+        if self.cancel_token.load(Ordering::Relaxed) {
+            return Err(Error::Cancelled);
+        }
+
         let dupe_group_count = content_hash_map.len();
+        progress.on_hash_complete(dupe_group_count, hash_duration.as_secs_f64());
         debug!(
             "Hash completed in {:.2}s — {} duplicate groups",
             hash_duration.as_secs_f64(),
@@ -90,11 +126,13 @@ impl ScanEngine {
 
         // Phase 3: Write to SQLite
         info!("Writing to database...");
+        progress.on_db_write_start();
         let db_start = Instant::now();
         let db = Database::open(&self.db_path)?;
         let (groups_written, files_written, wasted_bytes) =
             write_to_database(&db, &content_hash_map, &non_overlapping)?;
         let db_duration = db_start.elapsed();
+        progress.on_db_write_complete(files_written, db_duration.as_secs_f64());
         debug!(
             "Database write completed in {:.2}s — {} groups, {} files",
             db_duration.as_secs_f64(),

@@ -10,3 +10,6 @@ crate-type = ["cdylib"]
 super-duper-core = { path = "../super-duper-core" }
 tracing = "0.1"
 lazy_static = "1.4"
+
+[build-dependencies]
+cbindgen = "0.26"
