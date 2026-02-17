@@ -9,6 +9,9 @@ static NEXT_HANDLE: AtomicU64 = AtomicU64::new(1);
 pub struct EngineState {
     pub engine: ScanEngine,
     pub db: Option<Database>,
+    pub db_path: String,
+    pub root_paths: Vec<String>,
+    pub ignore_patterns: Vec<String>,
     pub is_scanning: bool,
     pub cancel_token: Arc<AtomicBool>,
     pub progress_bridge: Option<crate::callbacks::FfiProgressBridge>,

@@ -37,6 +37,9 @@ pub unsafe extern "C" fn sd_engine_create(db_path: *const c_char) -> u64 {
     let state = EngineState {
         engine,
         db,
+        db_path: db_path_str,
+        root_paths: Vec::new(),
+        ignore_patterns: Vec::new(),
         is_scanning: false,
         cancel_token,
         progress_bridge: None,
@@ -84,11 +87,53 @@ pub unsafe extern "C" fn sd_engine_set_scan_paths(
     }
 
     let result = with_handle(handle, |state| {
+        state.root_paths = root_paths;
         let config = AppConfig {
-            root_paths,
-            ignore_patterns: Vec::new(),
+            root_paths: state.root_paths.clone(),
+            ignore_patterns: state.ignore_patterns.clone(),
         };
-        state.engine = ScanEngine::new(config);
+        state.engine = ScanEngine::new(config).with_db_path(&state.db_path);
+        state.cancel_token = state.engine.cancel_token();
+        SdResultCode::Ok
+    });
+
+    result.unwrap_or(SdResultCode::InvalidHandle)
+}
+
+/// Set ignore patterns for file scanning.
+///
+/// # Safety
+/// `patterns` must be a valid array of `count` null-terminated C strings.
+#[no_mangle]
+pub unsafe extern "C" fn sd_engine_set_ignore_patterns(
+    handle: u64,
+    patterns: *const *const c_char,
+    count: u32,
+) -> SdResultCode {
+    if patterns.is_null() && count > 0 {
+        set_last_error("patterns is null".to_string());
+        return SdResultCode::InvalidArgument;
+    }
+
+    let mut ignore_patterns = Vec::new();
+    for i in 0..count {
+        let pattern_ptr = *patterns.add(i as usize);
+        match c_string_to_rust(pattern_ptr) {
+            Some(s) => ignore_patterns.push(s),
+            None => {
+                set_last_error(format!("Invalid pattern at index {}", i));
+                return SdResultCode::InvalidArgument;
+            }
+        }
+    }
+
+    let result = with_handle(handle, |state| {
+        state.ignore_patterns = ignore_patterns;
+        let config = AppConfig {
+            root_paths: state.root_paths.clone(),
+            ignore_patterns: state.ignore_patterns.clone(),
+        };
+        state.engine = ScanEngine::new(config).with_db_path(&state.db_path);
         state.cancel_token = state.engine.cancel_token();
         SdResultCode::Ok
     });

@@ -31,6 +31,13 @@ public sealed class EngineWrapper : IDisposable
         ThrowOnError(result, "SetScanPaths");
     }
 
+    public void SetIgnorePatterns(string[] patterns)
+    {
+        ThrowIfDisposed();
+        var result = sd_engine_set_ignore_patterns(_handle, patterns, (uint)patterns.Length);
+        ThrowOnError(result, "SetIgnorePatterns");
+    }
+
     public void StartScan()
     {
         ThrowIfDisposed();

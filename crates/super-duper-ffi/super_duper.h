@@ -164,6 +164,16 @@ uint64_t sd_engine_create(const char *db_path);
 enum SdResultCode sd_engine_destroy(uint64_t handle);
 
 /**
+ * Set ignore patterns for file scanning.
+ *
+ * # Safety
+ * `patterns` must be a valid array of `count` null-terminated C strings.
+ */
+enum SdResultCode sd_engine_set_ignore_patterns(uint64_t handle,
+                                                const char *const *patterns,
+                                                uint32_t count);
+
+/**
  * Set the scan paths for an engine instance.
  *
  * # Safety

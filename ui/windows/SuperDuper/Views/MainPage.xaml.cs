@@ -1,3 +1,4 @@
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using SuperDuper.ViewModels;
@@ -11,6 +12,7 @@ public sealed partial class MainPage : Page
     public MainPage()
     {
         this.InitializeComponent();
+        ViewModel.SetDispatcherQueue(DispatcherQueue.GetForCurrentThread());
     }
 
     private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
@@ -30,16 +32,17 @@ public sealed partial class MainPage : Page
             DashboardContent.Visibility = Visibility.Collapsed;
             SubPageFrame.Visibility = Visibility.Visible;
 
+            var engine = ViewModel.Engine;
             switch (tag)
             {
                 case "duplicates":
-                    SubPageFrame.Navigate(typeof(DuplicateGroupsPage));
+                    SubPageFrame.Navigate(typeof(DuplicateGroupsPage), engine);
                     break;
                 case "directories":
-                    SubPageFrame.Navigate(typeof(DirectoryComparisonPage));
+                    SubPageFrame.Navigate(typeof(DirectoryComparisonPage), engine);
                     break;
                 case "deletion":
-                    SubPageFrame.Navigate(typeof(DeletionReviewPage));
+                    SubPageFrame.Navigate(typeof(DeletionReviewPage), engine);
                     break;
             }
         }

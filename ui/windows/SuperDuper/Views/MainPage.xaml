@@ -62,14 +62,86 @@
                         </Border>
                     </Grid>
 
-                    <Button Content="Start Scan"
-                            Command="{x:Bind ViewModel.StartScanCommand}"
-                            IsEnabled="{x:Bind ViewModel.IsScanning, Mode=OneWay, Converter={StaticResource InvertBoolConverter}}"
-                            Style="{StaticResource AccentButtonStyle}"
-                            HorizontalAlignment="Left" />
+                    <!-- Scan paths configuration -->
+                    <TextBlock Text="Scan Paths" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBox x:Name="ScanPathInput"
+                                 Text="{x:Bind ViewModel.NewScanPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 PlaceholderText="Enter folder path to scan..."
+                                 MinWidth="400" />
+                        <Button Content="Add"
+                                Command="{x:Bind ViewModel.AddScanPathCommand}" />
+                    </StackPanel>
 
-                    <ProgressRing IsActive="{x:Bind ViewModel.IsScanning, Mode=OneWay}"
-                                  Visibility="{x:Bind ViewModel.IsScanning, Mode=OneWay}" />
+                    <ListView ItemsSource="{x:Bind ViewModel.ScanPaths}"
+                              SelectionMode="None"
+                              MaxHeight="150">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{x:Bind}"
+                                               VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" Content="&#xE711;"
+                                            FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                            Command="{Binding DataContext.ViewModel.RemoveScanPathCommand, ElementName=ScanPathInput}"
+                                            CommandParameter="{x:Bind}"
+                                            Background="Transparent" BorderThickness="0"
+                                            Padding="4" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <!-- Ignore patterns configuration -->
+                    <TextBlock Text="Ignore Patterns" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBox Text="{x:Bind ViewModel.NewIgnorePattern, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 PlaceholderText="e.g. **/node_modules/**"
+                                 MinWidth="400" />
+                        <Button Content="Add"
+                                Command="{x:Bind ViewModel.AddIgnorePatternCommand}" />
+                    </StackPanel>
+
+                    <ListView ItemsSource="{x:Bind ViewModel.IgnorePatterns}"
+                              SelectionMode="None"
+                              MaxHeight="120">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{x:Bind}"
+                                               VerticalAlignment="Center"
+                                               FontFamily="Consolas" />
+                                    <Button Grid.Column="1" Content="&#xE711;"
+                                            FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                            Command="{Binding DataContext.ViewModel.RemoveIgnorePatternCommand, ElementName=ScanPathInput}"
+                                            CommandParameter="{x:Bind}"
+                                            Background="Transparent" BorderThickness="0"
+                                            Padding="4" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Button Content="Start Scan"
+                                Command="{x:Bind ViewModel.StartScanCommand}"
+                                IsEnabled="{x:Bind ViewModel.IsScanning, Mode=OneWay, Converter={StaticResource InvertBoolConverter}}"
+                                Style="{StaticResource AccentButtonStyle}" />
+                        <Button Content="Cancel"
+                                Command="{x:Bind ViewModel.CancelScanCommand}"
+                                Visibility="{x:Bind ViewModel.IsScanning, Mode=OneWay}" />
+                        <ProgressRing IsActive="{x:Bind ViewModel.IsScanning, Mode=OneWay}"
+                                      Visibility="{x:Bind ViewModel.IsScanning, Mode=OneWay}"
+                                      Width="24" Height="24" />
+                    </StackPanel>
                 </StackPanel>
             </Grid>
 

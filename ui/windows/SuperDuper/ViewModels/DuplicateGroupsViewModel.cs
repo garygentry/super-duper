@@ -94,20 +94,39 @@ public partial class DuplicateGroupViewModel : ObservableObject
         var files = _engine.QueryFilesInGroup(Group.Id);
         foreach (var f in files)
         {
-            Files.Add(new FileViewModel(f));
+            Files.Add(new FileViewModel(f, _engine));
         }
     }
 }
 
 public partial class FileViewModel : ObservableObject
 {
+    private readonly EngineWrapper _engine;
+
     public NativeMethods.FileInfo File { get; }
 
     [ObservableProperty]
     private bool _isMarkedForDeletion;
 
-    public FileViewModel(NativeMethods.FileInfo file)
+    public FileViewModel(NativeMethods.FileInfo file, EngineWrapper engine)
     {
         File = file;
+        _engine = engine;
+    }
+
+    partial void OnIsMarkedForDeletionChanged(bool value)
+    {
+        try
+        {
+            if (value)
+                _engine.MarkForDeletion(File.Id);
+            else
+                _engine.UnmarkForDeletion(File.Id);
+        }
+        catch
+        {
+            // Revert on failure without re-triggering the handler
+            SetProperty(ref _isMarkedForDeletion, !value, nameof(IsMarkedForDeletion));
+        }
     }
 }
