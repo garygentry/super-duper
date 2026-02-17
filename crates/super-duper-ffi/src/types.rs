@@ -50,6 +50,7 @@ pub struct SdFileRecord {
     pub parent_dir: *mut c_char,
     pub file_size: i64,
     pub content_hash: i64,
+    pub is_marked_for_deletion: u8,
 }
 
 /// A page of directory nodes.

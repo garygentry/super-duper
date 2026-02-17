@@ -102,6 +102,7 @@ typedef struct SdFileRecord {
     char *parent_dir;
     int64_t file_size;
     int64_t content_hash;
+    uint8_t is_marked_for_deletion;
 } SdFileRecord;
 
 /**

@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Dispatching;
 using SuperDuper.NativeMethods;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Runtime.InteropServices;
 using static SuperDuper.NativeMethods.SuperDuperEngine;
 
@@ -25,6 +26,11 @@ public partial class MainViewModel : ObservableObject
     {
         _dispatcherQueue = queue;
     }
+
+    /// <summary>
+    /// Raised when an error occurs. Tuple is (title, detail).
+    /// </summary>
+    public event EventHandler<(string Title, string Detail)>? ErrorOccurred;
 
     [ObservableProperty]
     private bool _isScanning;
@@ -67,11 +73,18 @@ public partial class MainViewModel : ObservableObject
     private void AddScanPath()
     {
         var path = NewScanPath.Trim();
-        if (!string.IsNullOrEmpty(path) && !ScanPaths.Contains(path))
+        if (string.IsNullOrEmpty(path) || ScanPaths.Contains(path))
+            return;
+
+        if (!Directory.Exists(path))
         {
-            ScanPaths.Add(path);
-            NewScanPath = "";
+            StatusMessage = $"Warning: \"{path}\" does not exist or is not a directory.";
+            ErrorOccurred?.Invoke(this, ("Invalid Path", $"The path \"{path}\" does not exist or is not a directory."));
+            return;
         }
+
+        ScanPaths.Add(path);
+        NewScanPath = "";
     }
 
     [RelayCommand]
@@ -111,6 +124,17 @@ public partial class MainViewModel : ObservableObject
         if (ScanPaths.Count == 0)
         {
             StatusMessage = "Add at least one scan path before starting.";
+            return;
+        }
+
+        // Validate all paths exist
+        var invalidPaths = ScanPaths.Where(p => !Directory.Exists(p)).ToList();
+        if (invalidPaths.Count > 0)
+        {
+            var pathList = string.Join("\n", invalidPaths);
+            StatusMessage = $"{invalidPaths.Count} scan path(s) not found.";
+            ErrorOccurred?.Invoke(this, ("Invalid Scan Paths",
+                $"The following paths do not exist or are not directories:\n\n{pathList}"));
             return;
         }
 
@@ -160,9 +184,14 @@ public partial class MainViewModel : ObservableObject
         {
             var message = ex.Message;
             if (message.Contains("Cancelled"))
+            {
                 StatusMessage = "Scan cancelled.";
+            }
             else
+            {
                 StatusMessage = $"Error: {message}";
+                ErrorOccurred?.Invoke(this, ("Scan Failed", message));
+            }
         }
         finally
         {

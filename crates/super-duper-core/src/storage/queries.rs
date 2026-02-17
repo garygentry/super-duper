@@ -329,6 +329,15 @@ impl Database {
         Ok(entries)
     }
 
+    pub fn is_file_marked_for_deletion(&self, file_id: i64) -> Result<bool> {
+        let count: i64 = self.connection().query_row(
+            "SELECT COUNT(*) FROM deletion_plan WHERE file_id = ?1 AND executed_at IS NULL",
+            params![file_id],
+            |row| row.get(0),
+        )?;
+        Ok(count > 0)
+    }
+
     pub fn get_deletion_plan_summary(&self) -> Result<(i64, i64)> {
         self.connection().query_row(
             "SELECT COUNT(*), COALESCE(SUM(sf.file_size), 0) \

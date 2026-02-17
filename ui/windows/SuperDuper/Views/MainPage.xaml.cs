@@ -13,10 +13,31 @@ public sealed partial class MainPage : Page
     {
         this.InitializeComponent();
         ViewModel.SetDispatcherQueue(DispatcherQueue.GetForCurrentThread());
+        ViewModel.ErrorOccurred += OnErrorOccurred;
+    }
+
+    private async void OnErrorOccurred(object? sender, (string Title, string Detail) error)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = error.Title,
+            Content = error.Detail,
+            CloseButtonText = "OK",
+            XamlRoot = this.XamlRoot,
+        };
+        await dialog.ShowAsync();
     }
 
     private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
+        if (args.IsSettingsSelected)
+        {
+            DashboardContent.Visibility = Visibility.Collapsed;
+            SubPageFrame.Visibility = Visibility.Visible;
+            SubPageFrame.Navigate(typeof(SettingsPage));
+            return;
+        }
+
         if (args.SelectedItemContainer is NavigationViewItem item)
         {
             var tag = item.Tag?.ToString();
@@ -28,7 +49,6 @@ public sealed partial class MainPage : Page
                 return;
             }
 
-            // Navigate to a sub-page
             DashboardContent.Visibility = Visibility.Collapsed;
             SubPageFrame.Visibility = Visibility.Visible;
 

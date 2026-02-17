@@ -29,6 +29,8 @@ public partial class DeletionReviewViewModel : ObservableObject
     [ObservableProperty]
     private uint _lastErrorCount;
 
+    public event EventHandler<(string Title, string Detail)>? ErrorOccurred;
+
     public void Initialize(EngineWrapper engine)
     {
         _engine = engine;
@@ -70,9 +72,15 @@ public partial class DeletionReviewViewModel : ObservableObject
             var (success, errors) = _engine.ExecuteDeletionPlan();
             LastSuccessCount = success;
             LastErrorCount = errors;
-            StatusMessage = errors > 0
-                ? $"Deleted {success} files with {errors} errors."
-                : $"Successfully deleted {success} files.";
+            if (errors > 0)
+            {
+                StatusMessage = $"Deleted {success} files with {errors} errors.";
+                ErrorOccurred?.Invoke(this, ("Deletion Errors", $"{errors} files could not be deleted."));
+            }
+            else
+            {
+                StatusMessage = $"Successfully deleted {success} files.";
+            }
             RefreshSummary();
         }
         finally

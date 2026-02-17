@@ -1359,6 +1359,7 @@ dependencies = [
  "cbindgen",
  "lazy_static",
  "super-duper-core",
+ "tempfile",
  "tracing",
 ]
 

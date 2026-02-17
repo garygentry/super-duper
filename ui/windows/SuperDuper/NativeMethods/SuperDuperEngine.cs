@@ -54,6 +54,7 @@ public static partial class SuperDuperEngine
         public IntPtr ParentDir;
         public long FileSize;
         public long ContentHash;
+        public byte IsMarkedForDeletion;
     }
 
     [StructLayout(LayoutKind.Sequential)]

@@ -11,11 +11,27 @@
     <Compile Include="..\SuperDuper\NativeMethods\SuperDuperEngine.cs" Link="NativeMethods\SuperDuperEngine.cs" />
   </ItemGroup>
 
-  <!-- Copy native DLL -->
+  <!-- Rust native DLL configuration -->
+  <PropertyGroup>
+    <CargoWorkspaceRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\..'))</CargoWorkspaceRoot>
+    <CargoProfile Condition="'$(Configuration)' == 'Release'">release</CargoProfile>
+    <CargoProfile Condition="'$(CargoProfile)' == ''">debug</CargoProfile>
+    <CargoProfileFlag Condition="'$(Configuration)' == 'Release'">--release</CargoProfileFlag>
+    <NativeDllPath>$(CargoWorkspaceRoot)\target\$(CargoProfile)\super_duper_ffi.dll</NativeDllPath>
+  </PropertyGroup>
+
+  <Target Name="BuildNativeDll" BeforeTargets="Build">
+    <Message Importance="high" Text="Building Rust FFI library ($(CargoProfile))..." />
+    <Exec Command="cargo build -p super-duper-ffi $(CargoProfileFlag)"
+          WorkingDirectory="$(CargoWorkspaceRoot)" />
+    <Error Condition="!Exists('$(NativeDllPath)')"
+           Text="Native DLL not found at $(NativeDllPath). Rust build may have failed." />
+  </Target>
+
   <ItemGroup>
-    <None Include="..\..\..\target\release\super_duper_ffi.dll"
+    <None Include="$(NativeDllPath)"
           Link="super_duper_ffi.dll"
           CopyToOutputDirectory="PreserveNewest"
-          Condition="Exists('..\..\..\target\release\super_duper_ffi.dll')" />
+          Condition="Exists('$(NativeDllPath)')" />
   </ItemGroup>
 </Project>

@@ -109,13 +109,19 @@ pub unsafe extern "C" fn sd_query_files_in_group(
                 let count = files.len() as u32;
                 let c_files: Vec<SdFileRecord> = files
                     .iter()
-                    .map(|f| SdFileRecord {
-                        id: f.id,
-                        canonical_path: rust_string_to_c(&f.canonical_path),
-                        file_name: rust_string_to_c(&f.file_name),
-                        parent_dir: rust_string_to_c(&f.parent_dir),
-                        file_size: f.file_size,
-                        content_hash: f.content_hash.unwrap_or(0),
+                    .map(|f| {
+                        let marked = db
+                            .is_file_marked_for_deletion(f.id)
+                            .unwrap_or(false);
+                        SdFileRecord {
+                            id: f.id,
+                            canonical_path: rust_string_to_c(&f.canonical_path),
+                            file_name: rust_string_to_c(&f.file_name),
+                            parent_dir: rust_string_to_c(&f.parent_dir),
+                            file_size: f.file_size,
+                            content_hash: f.content_hash.unwrap_or(0),
+                            is_marked_for_deletion: if marked { 1 } else { 0 },
+                        }
                     })
                     .collect();
 

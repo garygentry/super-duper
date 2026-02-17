@@ -9,6 +9,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -76,5 +77,16 @@
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>
+
+        <!-- Pagination footer -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="12"
+                    Margin="0,12,0,0"
+                    Visibility="{x:Bind ViewModel.HasMoreGroups, Mode=OneWay}">
+            <Button Content="Load More"
+                    Command="{x:Bind ViewModel.LoadNextPageCommand}" />
+            <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
+                          Visibility="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
+                          Width="20" Height="20" />
+        </StackPanel>
     </Grid>
 </Page>

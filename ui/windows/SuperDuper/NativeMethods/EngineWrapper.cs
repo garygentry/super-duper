@@ -24,6 +24,35 @@ public sealed class EngineWrapper : IDisposable
         }
     }
 
+    /// <summary>
+    /// Validates that the native FFI library can be loaded.
+    /// Call once at app startup before creating any EngineWrapper instances.
+    /// </summary>
+    /// <returns>null if OK, or an error message string if the library failed to load.</returns>
+    public static string? ValidateNativeLibrary()
+    {
+        try
+        {
+            // Call the simplest FFI function to verify the DLL loads
+            var ptr = sd_last_error_message();
+            if (ptr != IntPtr.Zero)
+                sd_free_string(ptr);
+            return null;
+        }
+        catch (DllNotFoundException ex)
+        {
+            return $"Native library 'super_duper_ffi' not found.\n\n{ex.Message}";
+        }
+        catch (EntryPointNotFoundException ex)
+        {
+            return $"Native library is incompatible (missing exports).\n\n{ex.Message}";
+        }
+        catch (BadImageFormatException ex)
+        {
+            return $"Native library architecture mismatch (32/64-bit).\n\n{ex.Message}";
+        }
+    }
+
     public void SetScanPaths(string[] paths)
     {
         ThrowIfDisposed();
@@ -134,6 +163,7 @@ public sealed class EngineWrapper : IDisposable
                     ParentDir = Marshal.PtrToStringUTF8(native.ParentDir) ?? "",
                     FileSize = native.FileSize,
                     ContentHash = native.ContentHash,
+                    IsMarkedForDeletion = native.IsMarkedForDeletion != 0,
                 });
             }
         }
@@ -304,6 +334,7 @@ public class FileInfo
     public string ParentDir { get; set; } = "";
     public long FileSize { get; set; }
     public long ContentHash { get; set; }
+    public bool IsMarkedForDeletion { get; set; }
 }
 
 public class DirectoryNodeInfo

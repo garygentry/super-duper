@@ -4,12 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 super-duper-core = { path = "../super-duper-core" }
 tracing = "0.1"
 lazy_static = "1.4"
+
+[dev-dependencies]
+tempfile = "3"
 
 [build-dependencies]
 cbindgen = "0.26"

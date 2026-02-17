@@ -1,0 +1,28 @@
+<!-- SettingsPage: Application configuration -->
+<Page
+    x:Class="SuperDuper.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer Padding="24">
+        <StackPanel Spacing="24" MaxWidth="800">
+            <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" />
+
+            <!-- Database -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Database" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <TextBlock Text="Database file: super_duper.db (in working directory)"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+
+            <!-- About -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="About" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <TextBlock Text="Super Duper — Multi-platform duplicate file detection"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <TextBlock Text="Powered by Rust core library with XxHash64 two-tier hashing"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

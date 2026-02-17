@@ -21,6 +21,8 @@ public partial class DuplicateGroupsViewModel : ObservableObject
     [ObservableProperty]
     private int _totalGroups;
 
+    public bool HasMoreGroups => _currentOffset < TotalGroups;
+
     public ObservableCollection<DuplicateGroupViewModel> Groups { get; } = new();
 
     public void Initialize(EngineWrapper engine)
@@ -47,6 +49,7 @@ public partial class DuplicateGroupsViewModel : ObservableObject
             }
 
             _currentOffset += groups.Count;
+            OnPropertyChanged(nameof(HasMoreGroups));
         }
         finally
         {
@@ -57,7 +60,7 @@ public partial class DuplicateGroupsViewModel : ObservableObject
     [RelayCommand]
     private void LoadNextPage()
     {
-        if (_currentOffset < TotalGroups)
+        if (HasMoreGroups)
         {
             LoadPage();
         }
@@ -112,6 +115,8 @@ public partial class FileViewModel : ObservableObject
     {
         File = file;
         _engine = engine;
+        // Load initial state from DB without triggering the change handler
+        _isMarkedForDeletion = file.IsMarkedForDeletion;
     }
 
     partial void OnIsMarkedForDeletionChanged(bool value)

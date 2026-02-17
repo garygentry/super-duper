@@ -12,6 +12,7 @@ public sealed partial class DeletionReviewPage : Page
     public DeletionReviewPage()
     {
         this.InitializeComponent();
+        ViewModel.ErrorOccurred += OnErrorOccurred;
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -21,5 +22,17 @@ public sealed partial class DeletionReviewPage : Page
         {
             ViewModel.Initialize(engine);
         }
+    }
+
+    private async void OnErrorOccurred(object? sender, (string Title, string Detail) error)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = error.Title,
+            Content = error.Detail,
+            CloseButtonText = "OK",
+            XamlRoot = this.XamlRoot,
+        };
+        await dialog.ShowAsync();
     }
 }
