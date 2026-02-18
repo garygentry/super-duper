@@ -68,6 +68,7 @@
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <CheckBox Grid.Column="0"
                                                       IsChecked="{x:Bind IsMarkedForDeletion, Mode=TwoWay}" />
@@ -77,6 +78,14 @@
                                                 <TextBlock Text="{x:Bind File.DisplayPath}"
                                                            Style="{StaticResource PathTextStyle}" />
                                             </StackPanel>
+                                            <Button Grid.Column="2"
+                                                    Content="&#xE838;"
+                                                    FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                                    Command="{x:Bind RevealInExplorerCommand}"
+                                                    Background="Transparent" BorderThickness="0"
+                                                    Padding="6"
+                                                    VerticalAlignment="Center"
+                                                    ToolTipService.ToolTip="Reveal in Explorer" />
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsRepeater.ItemTemplate>

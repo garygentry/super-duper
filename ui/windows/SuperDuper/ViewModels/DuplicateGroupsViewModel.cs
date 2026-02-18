@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SuperDuper.NativeMethods;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 
 namespace SuperDuper.ViewModels;
 
@@ -163,5 +164,12 @@ public partial class FileViewModel : ObservableObject
             // Revert on failure without re-triggering the handler
             SetProperty(ref _isMarkedForDeletion, !value, nameof(IsMarkedForDeletion));
         }
+    }
+
+    [RelayCommand]
+    private void RevealInExplorer()
+    {
+        try { Process.Start("explorer.exe", $"/select,\"{File.CanonicalPath}\""); }
+        catch { }
     }
 }

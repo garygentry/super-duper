@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using SuperDuper.NativeMethods;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -182,6 +183,13 @@ public partial class MarkedFileViewModel : ObservableObject
     {
         _engine.UnmarkForDeletion(Id);
         _parent.RemoveFile(this);
+    }
+
+    [RelayCommand]
+    private void RevealInExplorer()
+    {
+        try { Process.Start("explorer.exe", $"/select,\"{CanonicalPath}\""); }
+        catch { }
     }
 
     private static string FormatBytes(long bytes)

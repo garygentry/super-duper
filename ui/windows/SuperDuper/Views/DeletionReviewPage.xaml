@@ -88,6 +88,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
                                 <StackPanel Grid.Column="0" Spacing="2">
@@ -101,7 +102,16 @@
                                            VerticalAlignment="Center"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
-                                <Button Grid.Column="2" Content="Unmark"
+                                <Button Grid.Column="2"
+                                        Content="&#xE838;"
+                                        FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                        Command="{x:Bind RevealInExplorerCommand}"
+                                        Background="Transparent" BorderThickness="0"
+                                        Padding="6"
+                                        VerticalAlignment="Center"
+                                        ToolTipService.ToolTip="Reveal in Explorer" />
+
+                                <Button Grid.Column="3" Content="Unmark"
                                         Command="{x:Bind UnmarkCommand}"
                                         VerticalAlignment="Center"
                                         FontSize="12" Padding="10,4" />
