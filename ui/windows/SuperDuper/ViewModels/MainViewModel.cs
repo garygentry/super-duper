@@ -206,6 +206,7 @@ public partial class MainViewModel : ObservableObject
         if (_engine == null) return;
 
         DuplicateGroups.Clear();
+        TotalWastedBytes = 0;
         var (groups, total) = _engine.QueryDuplicateGroups(0, 100);
         TotalDuplicateGroups = total;
 
