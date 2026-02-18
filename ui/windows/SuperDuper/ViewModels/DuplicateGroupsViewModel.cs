@@ -23,6 +23,9 @@ public partial class DuplicateGroupsViewModel : ObservableObject
 
     public bool HasMoreGroups => _currentOffset < TotalGroups;
 
+    [ObservableProperty]
+    private bool _hasNoGroups;
+
     public ObservableCollection<DuplicateGroupViewModel> Groups { get; } = new();
 
     public void Initialize(EngineWrapper engine)
@@ -44,12 +47,11 @@ public partial class DuplicateGroupsViewModel : ObservableObject
             TotalGroups = total;
 
             foreach (var g in groups)
-            {
                 Groups.Add(new DuplicateGroupViewModel(g, _engine));
-            }
 
             _currentOffset += groups.Count;
             OnPropertyChanged(nameof(HasMoreGroups));
+            HasNoGroups = TotalGroups == 0;
         }
         finally
         {
@@ -73,6 +75,10 @@ public partial class DuplicateGroupViewModel : ObservableObject
 
     public DuplicateGroupInfo Group { get; }
 
+    public string FileCountLabel => $"{Group.FileCount} files";
+    public string FileSizeLabel => FormatBytes(Group.FileSize) + " each";
+    public string WastedBytesLabel => FormatBytes(Group.WastedBytes) + " wasted";
+
     [ObservableProperty]
     private bool _isExpanded;
 
@@ -87,18 +93,23 @@ public partial class DuplicateGroupViewModel : ObservableObject
     partial void OnIsExpandedChanged(bool value)
     {
         if (value && Files.Count == 0)
-        {
             LoadFiles();
-        }
     }
 
     private void LoadFiles()
     {
         var files = _engine.QueryFilesInGroup(Group.Id);
         foreach (var f in files)
-        {
             Files.Add(new FileViewModel(f, _engine));
-        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1) { order++; len /= 1024; }
+        return $"{len:0.##} {sizes[order]}";
     }
 }
 
