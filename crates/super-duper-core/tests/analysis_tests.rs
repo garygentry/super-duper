@@ -16,7 +16,7 @@ fn make_test_scanned_file(path: &str, size: i64, hash: i64, session_id: i64) -> 
         last_modified: 1700000000,
         partial_hash: None,
         content_hash: Some(hash),
-        scan_session_id: session_id,
+        last_seen_session_id: Some(session_id),
         marked_deleted: false,
     }
 }
@@ -260,7 +260,7 @@ fn test_mark_directory_for_deletion() {
 
 #[test]
 fn test_auto_mark_duplicates() {
-    let (db, _session_id) = setup_db_with_files(&[
+    let (db, session_id) = setup_db_with_files(&[
         ("/z/beta.txt", 100, 111),
         ("/a/alpha.txt", 100, 111),
     ]);
@@ -270,9 +270,9 @@ fn test_auto_mark_duplicates() {
         100_i64,
         vec!["/z/beta.txt".to_string(), "/a/alpha.txt".to_string()],
     )];
-    db.insert_duplicate_groups(&groups).unwrap();
+    db.insert_duplicate_groups(session_id, &groups).unwrap();
 
-    let marked = deletion_plan::auto_mark_duplicates(&db, Some("auto")).unwrap();
+    let marked = deletion_plan::auto_mark_duplicates(&db, session_id, Some("auto")).unwrap();
     assert_eq!(marked, 1);
 
     // /a/alpha.txt is first alphabetically, so /z/beta.txt should be marked

@@ -90,6 +90,8 @@ public static partial class SuperDuperEngine
         public long Id;
         public long DirAId;
         public long DirBId;
+        public IntPtr DirAPath;
+        public IntPtr DirBPath;
         public double SimilarityScore;
         public long SharedBytes;
         public IntPtr MatchType;
@@ -107,6 +109,28 @@ public static partial class SuperDuperEngine
     {
         public uint SuccessCount;
         public uint ErrorCount;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SdSessionInfo
+    {
+        public long Id;
+        public IntPtr StartedAt;
+        public IntPtr CompletedAt;   // null if still running
+        public IntPtr Status;
+        public IntPtr RootPaths;
+        public long FilesScanned;
+        public long TotalBytes;
+        public long GroupCount;
+        public byte IsActive;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SdSessionPage
+    {
+        public IntPtr Sessions;
+        public uint Count;
+        public uint TotalAvailable;
     }
 
     // ── Callbacks ────────────────────────────────────────────────
@@ -243,6 +267,23 @@ public static partial class SuperDuperEngine
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern SdResultCode sd_deletion_execute(
         ulong handle, out SdDeletionResult result);
+
+    // ── Session Management ───────────────────────────────────────
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern SdResultCode sd_list_sessions(
+        ulong handle, long offset, long limit, out SdSessionPage page);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern SdResultCode sd_set_active_session(
+        ulong handle, long sessionId);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern SdResultCode sd_delete_session(
+        ulong handle, long sessionId);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void sd_free_session_page(ref SdSessionPage page);
 
     // ── Helpers ──────────────────────────────────────────────────
 

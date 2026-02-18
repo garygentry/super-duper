@@ -160,6 +160,7 @@ public partial class MainViewModel : ObservableObject
                         ? $"Hashing... {current:N0} / {total:N0} files"
                         : $"Hashing... {current:N0} files",
                     2 => "Writing results to database...",
+                    3 => "Analyzing directory structure...",
                     _ => msg,
                 };
 

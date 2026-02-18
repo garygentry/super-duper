@@ -1,3 +1,5 @@
+PRAGMA user_version = 2;
+
 -- Track scan runs
 CREATE TABLE IF NOT EXISTS scan_session (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -5,11 +7,12 @@ CREATE TABLE IF NOT EXISTS scan_session (
     completed_at TEXT,
     status TEXT NOT NULL DEFAULT 'running',
     root_paths TEXT NOT NULL,
+    root_paths_hash TEXT,
     files_scanned INTEGER DEFAULT 0,
     total_bytes INTEGER DEFAULT 0
 );
 
--- All scanned files (duplicates populated during scan; extended to all files for directory analysis)
+-- Global file index: keyed by canonical_path, updated on each re-scan via upsert
 CREATE TABLE IF NOT EXISTS scanned_file (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     canonical_path TEXT NOT NULL UNIQUE,
@@ -20,25 +23,26 @@ CREATE TABLE IF NOT EXISTS scanned_file (
     last_modified INTEGER NOT NULL,
     partial_hash INTEGER,
     content_hash INTEGER,
-    scan_session_id INTEGER NOT NULL REFERENCES scan_session(id),
+    last_seen_session_id INTEGER REFERENCES scan_session(id),
     marked_deleted INTEGER NOT NULL DEFAULT 0
 );
 
--- Explicit duplicate groups
+-- Duplicate groups scoped to a session
 CREATE TABLE IF NOT EXISTS duplicate_group (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL REFERENCES scan_session(id),
     content_hash INTEGER NOT NULL,
     file_size INTEGER NOT NULL,
     file_count INTEGER NOT NULL,
     wasted_bytes INTEGER NOT NULL,
-    UNIQUE(content_hash, file_size)
+    UNIQUE(session_id, content_hash, file_size)
 );
 
 CREATE TABLE IF NOT EXISTS duplicate_group_member (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    group_id INTEGER NOT NULL REFERENCES duplicate_group(id),
+    group_id INTEGER NOT NULL REFERENCES duplicate_group(id) ON DELETE CASCADE,
     file_id INTEGER NOT NULL REFERENCES scanned_file(id),
-    UNIQUE(file_id)
+    UNIQUE(group_id, file_id)
 );
 
 -- Directory hierarchy
@@ -87,8 +91,10 @@ CREATE INDEX IF NOT EXISTS idx_file_size ON scanned_file(file_size);
 CREATE INDEX IF NOT EXISTS idx_file_content_hash ON scanned_file(content_hash) WHERE content_hash IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_file_parent_dir ON scanned_file(parent_dir);
 CREATE INDEX IF NOT EXISTS idx_file_canonical_path ON scanned_file(canonical_path);
+CREATE INDEX IF NOT EXISTS idx_group_session ON duplicate_group(session_id);
 CREATE INDEX IF NOT EXISTS idx_group_wasted ON duplicate_group(wasted_bytes DESC);
 CREATE INDEX IF NOT EXISTS idx_group_member_group ON duplicate_group_member(group_id);
 CREATE INDEX IF NOT EXISTS idx_dir_parent ON directory_node(parent_id);
 CREATE INDEX IF NOT EXISTS idx_dir_fingerprint ON directory_fingerprint(content_fingerprint);
 CREATE INDEX IF NOT EXISTS idx_dir_similarity_score ON directory_similarity(similarity_score DESC);
+CREATE INDEX IF NOT EXISTS idx_session_paths_hash ON scan_session(root_paths_hash) WHERE root_paths_hash IS NOT NULL;

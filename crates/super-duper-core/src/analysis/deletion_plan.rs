@@ -32,12 +32,14 @@ pub fn mark_directory_for_deletion(
 }
 
 /// Auto-mark duplicates for deletion using a strategy.
-/// For each duplicate group, keep one file (the first alphabetically) and mark the rest.
+/// For each duplicate group in the given session, keep one file (the first alphabetically)
+/// and mark the rest.
 pub fn auto_mark_duplicates(
     db: &Database,
+    session_id: i64,
     strategy: Option<&str>,
 ) -> Result<usize, crate::Error> {
-    let groups = db.get_duplicate_groups(0, i64::MAX)?;
+    let groups = db.get_duplicate_groups(session_id, 0, i64::MAX)?;
     let mut marked_count = 0;
 
     for group in &groups {
@@ -73,7 +75,7 @@ pub fn execute_deletion_plan(db: &Database) -> Result<(usize, usize), crate::Err
             .query_row(
                 "SELECT id, canonical_path, file_name, parent_dir, drive_letter, \
                  file_size, last_modified, partial_hash, content_hash, \
-                 scan_session_id, marked_deleted \
+                 last_seen_session_id, marked_deleted \
                  FROM scanned_file WHERE id = ?1",
                 params![entry.file_id],
                 |row| {
@@ -87,7 +89,7 @@ pub fn execute_deletion_plan(db: &Database) -> Result<(usize, usize), crate::Err
                         last_modified: row.get(6)?,
                         partial_hash: row.get(7)?,
                         content_hash: row.get(8)?,
-                        scan_session_id: row.get(9)?,
+                        last_seen_session_id: row.get(9)?,
                         marked_deleted: row.get(10)?,
                     })
                 },

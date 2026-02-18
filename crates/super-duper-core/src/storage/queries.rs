@@ -7,11 +7,14 @@ impl Database {
     // ── Scan Session ─────────────────────────────────────────────
 
     pub fn create_scan_session(&self, root_paths: &[String]) -> Result<i64> {
-        let paths_json = serde_json::to_string(root_paths).unwrap_or_default();
+        let mut sorted = root_paths.to_vec();
+        sorted.sort();
+        let paths_json = serde_json::to_string(&sorted).unwrap_or_default();
         let now = chrono::Utc::now().to_rfc3339();
         self.connection().execute(
-            "INSERT INTO scan_session (started_at, status, root_paths) VALUES (?1, 'running', ?2)",
-            params![now, paths_json],
+            "INSERT INTO scan_session (started_at, status, root_paths, root_paths_hash) \
+             VALUES (?1, 'running', ?2, ?3)",
+            params![now, paths_json, paths_json],
         )?;
         Ok(self.connection().last_insert_rowid())
     }
@@ -31,6 +34,134 @@ impl Database {
         Ok(())
     }
 
+    /// Find an existing completed session with the same sorted root paths, or create a new one.
+    /// If found, deletes its old duplicate groups (they'll be rebuilt by the current scan)
+    /// and resets its status to 'running'.
+    pub fn find_or_create_session(&self, root_paths: &[String]) -> Result<i64> {
+        let mut sorted = root_paths.to_vec();
+        sorted.sort();
+        let paths_json = serde_json::to_string(&sorted).unwrap_or_default();
+
+        match self.find_session_by_paths_hash(&paths_json)? {
+            Some(session_id) => {
+                self.delete_duplicate_groups_for_session(session_id)?;
+                self.reset_scan_session(session_id)?;
+                debug!("Reusing session {} for paths: {}", session_id, paths_json);
+                Ok(session_id)
+            }
+            None => {
+                let now = chrono::Utc::now().to_rfc3339();
+                self.connection().execute(
+                    "INSERT INTO scan_session (started_at, status, root_paths, root_paths_hash) \
+                     VALUES (?1, 'running', ?2, ?3)",
+                    params![now, paths_json, paths_json],
+                )?;
+                let id = self.connection().last_insert_rowid();
+                debug!("Created new session {} for paths: {}", id, paths_json);
+                Ok(id)
+            }
+        }
+    }
+
+    /// Find the id of the most recent completed session with the given paths hash.
+    pub fn find_session_by_paths_hash(&self, hash: &str) -> Result<Option<i64>> {
+        match self.connection().query_row(
+            "SELECT id FROM scan_session \
+             WHERE root_paths_hash = ?1 AND status = 'completed' \
+             ORDER BY id DESC LIMIT 1",
+            params![hash],
+            |row| row.get(0),
+        ) {
+            Ok(id) => Ok(Some(id)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Delete all duplicate groups (and their members via CASCADE) for a session.
+    pub fn delete_duplicate_groups_for_session(&self, session_id: i64) -> Result<()> {
+        self.connection().execute(
+            "DELETE FROM duplicate_group WHERE session_id = ?1",
+            params![session_id],
+        )?;
+        Ok(())
+    }
+
+    /// Reset a session to 'running' state, clearing completion timestamps and stats.
+    pub fn reset_scan_session(&self, session_id: i64) -> Result<()> {
+        let now = chrono::Utc::now().to_rfc3339();
+        self.connection().execute(
+            "UPDATE scan_session SET started_at = ?1, completed_at = NULL, \
+             status = 'running', files_scanned = 0, total_bytes = 0 WHERE id = ?2",
+            params![now, session_id],
+        )?;
+        Ok(())
+    }
+
+    /// Get the id of the most recent completed session, if any.
+    /// List scan sessions ordered newest-first, with per-session duplicate group counts.
+    /// Returns (sessions_with_group_count, total_session_count).
+    pub fn list_sessions(&self, offset: i64, limit: i64) -> Result<(Vec<(ScanSession, i64)>, i64)> {
+        let total: i64 = self
+            .connection()
+            .query_row("SELECT COUNT(*) FROM scan_session", [], |row| row.get(0))?;
+
+        let mut stmt = self.connection().prepare(
+            "SELECT ss.id, ss.started_at, ss.completed_at, ss.status, ss.root_paths, \
+                    ss.files_scanned, ss.total_bytes, COUNT(dg.id) as group_count \
+             FROM scan_session ss \
+             LEFT JOIN duplicate_group dg ON dg.session_id = ss.id \
+             GROUP BY ss.id \
+             ORDER BY ss.id DESC \
+             LIMIT ?1 OFFSET ?2",
+        )?;
+
+        let sessions = stmt
+            .query_map(params![limit, offset], |row| {
+                Ok((
+                    ScanSession {
+                        id: row.get(0)?,
+                        started_at: row.get(1)?,
+                        completed_at: row.get(2)?,
+                        status: row.get(3)?,
+                        root_paths: row.get(4)?,
+                        files_scanned: row.get(5)?,
+                        total_bytes: row.get(6)?,
+                    },
+                    row.get::<_, i64>(7)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok((sessions, total))
+    }
+
+    /// Delete a session and its duplicate groups (members cascade automatically).
+    /// scanned_file rows are NOT deleted — they remain in the global file index.
+    pub fn delete_session(&self, session_id: i64) -> Result<()> {
+        self.connection().execute(
+            "DELETE FROM duplicate_group WHERE session_id = ?1",
+            params![session_id],
+        )?;
+        self.connection().execute(
+            "DELETE FROM scan_session WHERE id = ?1",
+            params![session_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_latest_session_id(&self) -> Result<Option<i64>> {
+        match self.connection().query_row(
+            "SELECT id FROM scan_session WHERE status = 'completed' ORDER BY id DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        ) {
+            Ok(id) => Ok(Some(id)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     // ── Scanned Files ────────────────────────────────────────────
 
     pub fn insert_scanned_files(&self, files: &[ScannedFile]) -> Result<usize> {
@@ -38,10 +169,19 @@ impl Database {
         let mut count = 0;
         {
             let mut stmt = tx.prepare_cached(
-                "INSERT OR IGNORE INTO scanned_file \
+                "INSERT INTO scanned_file \
                  (canonical_path, file_name, parent_dir, drive_letter, file_size, \
-                  last_modified, partial_hash, content_hash, scan_session_id) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                  last_modified, partial_hash, content_hash, last_seen_session_id) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) \
+                 ON CONFLICT(canonical_path) DO UPDATE SET \
+                     file_name = excluded.file_name, \
+                     parent_dir = excluded.parent_dir, \
+                     drive_letter = excluded.drive_letter, \
+                     file_size = excluded.file_size, \
+                     last_modified = excluded.last_modified, \
+                     partial_hash = excluded.partial_hash, \
+                     content_hash = excluded.content_hash, \
+                     last_seen_session_id = excluded.last_seen_session_id",
             )?;
             for file in files {
                 count += stmt.execute(params![
@@ -53,28 +193,30 @@ impl Database {
                     file.last_modified,
                     file.partial_hash,
                     file.content_hash,
-                    file.scan_session_id,
+                    file.last_seen_session_id,
                 ])?;
             }
         }
         tx.commit()?;
-        debug!("Inserted {} scanned files", count);
+        debug!("Upserted {} scanned files", count);
         Ok(count)
     }
 
     // ── Duplicate Groups ─────────────────────────────────────────
 
-    /// Insert duplicate groups. Each entry is (content_hash, file_size, Vec<canonical_path>).
+    /// Insert duplicate groups for a session. Each entry is (content_hash, file_size, Vec<canonical_path>).
     pub fn insert_duplicate_groups(
         &self,
+        session_id: i64,
         content_hash_groups: &[(i64, i64, Vec<String>)],
     ) -> Result<usize> {
         let tx = self.connection().unchecked_transaction()?;
         let mut group_count = 0;
         {
             let mut group_stmt = tx.prepare_cached(
-                "INSERT INTO duplicate_group (content_hash, file_size, file_count, wasted_bytes) \
-                 VALUES (?1, ?2, ?3, ?4)",
+                "INSERT INTO duplicate_group \
+                 (session_id, content_hash, file_size, file_count, wasted_bytes) \
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
             )?;
             let mut member_stmt = tx.prepare_cached(
                 "INSERT INTO duplicate_group_member (group_id, file_id) \
@@ -84,7 +226,13 @@ impl Database {
             for (content_hash, file_size, paths) in content_hash_groups {
                 let file_count = paths.len() as i64;
                 let wasted_bytes = file_size * (file_count - 1);
-                group_stmt.execute(params![content_hash, file_size, file_count, wasted_bytes])?;
+                group_stmt.execute(params![
+                    session_id,
+                    content_hash,
+                    file_size,
+                    file_count,
+                    wasted_bytes
+                ])?;
                 let group_id = tx.last_insert_rowid();
                 for path in paths {
                     member_stmt.execute(params![group_id, path])?;
@@ -93,7 +241,7 @@ impl Database {
             }
         }
         tx.commit()?;
-        debug!("Inserted {} duplicate groups", group_count);
+        debug!("Inserted {} duplicate groups for session {}", group_count, session_id);
         Ok(group_count)
     }
 
@@ -101,21 +249,24 @@ impl Database {
 
     pub fn get_duplicate_groups(
         &self,
+        session_id: i64,
         offset: i64,
         limit: i64,
     ) -> Result<Vec<DuplicateGroup>> {
         let mut stmt = self.connection().prepare(
-            "SELECT id, content_hash, file_size, file_count, wasted_bytes \
-             FROM duplicate_group ORDER BY wasted_bytes DESC LIMIT ?1 OFFSET ?2",
+            "SELECT id, session_id, content_hash, file_size, file_count, wasted_bytes \
+             FROM duplicate_group WHERE session_id = ?1 \
+             ORDER BY wasted_bytes DESC LIMIT ?2 OFFSET ?3",
         )?;
         let groups = stmt
-            .query_map(params![limit, offset], |row| {
+            .query_map(params![session_id, limit, offset], |row| {
                 Ok(DuplicateGroup {
                     id: row.get(0)?,
-                    content_hash: row.get(1)?,
-                    file_size: row.get(2)?,
-                    file_count: row.get(3)?,
-                    wasted_bytes: row.get(4)?,
+                    session_id: row.get(1)?,
+                    content_hash: row.get(2)?,
+                    file_size: row.get(3)?,
+                    file_count: row.get(4)?,
+                    wasted_bytes: row.get(5)?,
                 })
             })?
             .collect::<Result<Vec<_>>>()?;
@@ -126,7 +277,7 @@ impl Database {
         let mut stmt = self.connection().prepare(
             "SELECT sf.id, sf.canonical_path, sf.file_name, sf.parent_dir, sf.drive_letter, \
                     sf.file_size, sf.last_modified, sf.partial_hash, sf.content_hash, \
-                    sf.scan_session_id, sf.marked_deleted \
+                    sf.last_seen_session_id, sf.marked_deleted \
              FROM scanned_file sf \
              JOIN duplicate_group_member dgm ON sf.id = dgm.file_id \
              WHERE dgm.group_id = ?1",
@@ -143,7 +294,7 @@ impl Database {
                     last_modified: row.get(6)?,
                     partial_hash: row.get(7)?,
                     content_hash: row.get(8)?,
-                    scan_session_id: row.get(9)?,
+                    last_seen_session_id: row.get(9)?,
                     marked_deleted: row.get(10)?,
                 })
             })?
@@ -151,17 +302,18 @@ impl Database {
         Ok(files)
     }
 
-    pub fn get_duplicate_group_count(&self) -> Result<i64> {
-        self.connection()
-            .query_row("SELECT COUNT(*) FROM duplicate_group", [], |row| {
-                row.get(0)
-            })
+    pub fn get_duplicate_group_count(&self, session_id: i64) -> Result<i64> {
+        self.connection().query_row(
+            "SELECT COUNT(*) FROM duplicate_group WHERE session_id = ?1",
+            params![session_id],
+            |row| row.get(0),
+        )
     }
 
-    pub fn get_total_wasted_bytes(&self) -> Result<i64> {
+    pub fn get_total_wasted_bytes(&self, session_id: i64) -> Result<i64> {
         self.connection().query_row(
-            "SELECT COALESCE(SUM(wasted_bytes), 0) FROM duplicate_group",
-            [],
+            "SELECT COALESCE(SUM(wasted_bytes), 0) FROM duplicate_group WHERE session_id = ?1",
+            params![session_id],
             |row| row.get(0),
         )
     }
@@ -266,9 +418,13 @@ impl Database {
         limit: i64,
     ) -> Result<Vec<DirectorySimilarity>> {
         let mut stmt = self.connection().prepare(
-            "SELECT id, dir_a_id, dir_b_id, similarity_score, shared_bytes, match_type \
-             FROM directory_similarity WHERE similarity_score >= ?1 \
-             ORDER BY similarity_score DESC LIMIT ?2 OFFSET ?3",
+            "SELECT ds.id, ds.dir_a_id, ds.dir_b_id, ds.similarity_score, ds.shared_bytes, \
+                    ds.match_type, dn_a.path, dn_b.path \
+             FROM directory_similarity ds \
+             JOIN directory_node dn_a ON dn_a.id = ds.dir_a_id \
+             JOIN directory_node dn_b ON dn_b.id = ds.dir_b_id \
+             WHERE ds.similarity_score >= ?1 \
+             ORDER BY ds.similarity_score DESC LIMIT ?2 OFFSET ?3",
         )?;
         let pairs = stmt
             .query_map(params![min_score, limit, offset], |row| {
@@ -279,6 +435,8 @@ impl Database {
                     similarity_score: row.get(3)?,
                     shared_bytes: row.get(4)?,
                     match_type: row.get(5)?,
+                    dir_a_path: row.get(6)?,
+                    dir_b_path: row.get(7)?,
                 })
             })?
             .collect::<Result<Vec<_>>>()?;

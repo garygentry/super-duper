@@ -10,7 +10,7 @@ impl Database {
         let conn = Connection::open(path)?;
         let db = Database { conn };
         db.configure_pragmas()?;
-        db.create_tables()?;
+        db.migrate_schema()?;
         Ok(db)
     }
 
@@ -18,7 +18,7 @@ impl Database {
         let conn = Connection::open_in_memory()?;
         let db = Database { conn };
         db.configure_pragmas()?;
-        db.create_tables()?;
+        db.migrate_schema()?;
         Ok(db)
     }
 
@@ -35,10 +35,29 @@ impl Database {
         Ok(())
     }
 
-    fn create_tables(&self) -> Result<()> {
-        self.conn
-            .execute_batch(include_str!("schema.sql"))?;
-        debug!("SQLite schema initialized");
+    /// Check schema version and migrate if needed.
+    /// Version < 2: drop all tables and recreate (data is derived/recomputable).
+    fn migrate_schema(&self) -> Result<()> {
+        let version: i64 = self
+            .conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))?;
+
+        if version < 2 {
+            debug!("Schema version {} < 2, dropping all tables and recreating", version);
+            self.conn.execute_batch(
+                "DROP TABLE IF EXISTS deletion_plan;
+                 DROP TABLE IF EXISTS directory_similarity;
+                 DROP TABLE IF EXISTS directory_fingerprint;
+                 DROP TABLE IF EXISTS directory_node;
+                 DROP TABLE IF EXISTS duplicate_group_member;
+                 DROP TABLE IF EXISTS duplicate_group;
+                 DROP TABLE IF EXISTS scanned_file;
+                 DROP TABLE IF EXISTS scan_session;",
+            )?;
+        }
+
+        self.conn.execute_batch(include_str!("schema.sql"))?;
+        debug!("SQLite schema initialized (version 2)");
         Ok(())
     }
 

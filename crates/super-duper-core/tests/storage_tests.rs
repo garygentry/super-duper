@@ -15,7 +15,7 @@ fn make_test_scanned_file(path: &str, size: i64, hash: i64, session_id: i64) -> 
         last_modified: 1700000000,
         partial_hash: None,
         content_hash: Some(hash),
-        scan_session_id: session_id,
+        last_seen_session_id: Some(session_id),
         marked_deleted: false,
     }
 }
@@ -61,10 +61,10 @@ fn test_insert_and_query_scanned_files() {
         "/root/a.txt".to_string(),
         "/root/c.txt".to_string(),
     ])];
-    let gcount = db.insert_duplicate_groups(&groups).unwrap();
+    let gcount = db.insert_duplicate_groups(session_id, &groups).unwrap();
     assert_eq!(gcount, 1);
 
-    let dg = db.get_duplicate_groups(0, 10).unwrap();
+    let dg = db.get_duplicate_groups(session_id, 0, 10).unwrap();
     assert_eq!(dg.len(), 1);
     let files_in_group = db.get_files_in_group(dg[0].id).unwrap();
     assert_eq!(files_in_group.len(), 2);
@@ -92,10 +92,10 @@ fn test_insert_and_query_duplicate_groups() {
             vec!["/c".to_string(), "/d".to_string(), "/e".to_string()],
         ),
     ];
-    db.insert_duplicate_groups(&groups).unwrap();
+    db.insert_duplicate_groups(session_id, &groups).unwrap();
 
     // Verify wasted_bytes DESC ordering
-    let dg = db.get_duplicate_groups(0, 10).unwrap();
+    let dg = db.get_duplicate_groups(session_id, 0, 10).unwrap();
     assert_eq!(dg.len(), 2);
     // Group with wasted 500 (1*500) first, then 400 (2*200)
     assert!(dg[0].wasted_bytes >= dg[1].wasted_bytes);
@@ -117,9 +117,9 @@ fn test_get_files_in_group() {
         300_i64,
         vec!["/x/file1.txt".to_string(), "/y/file2.txt".to_string()],
     )];
-    db.insert_duplicate_groups(&groups).unwrap();
+    db.insert_duplicate_groups(session_id, &groups).unwrap();
 
-    let dg = db.get_duplicate_groups(0, 10).unwrap();
+    let dg = db.get_duplicate_groups(session_id, 0, 10).unwrap();
     let files = db.get_files_in_group(dg[0].id).unwrap();
     assert_eq!(files.len(), 2);
 

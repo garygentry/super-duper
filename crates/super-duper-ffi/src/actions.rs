@@ -27,22 +27,26 @@ pub unsafe extern "C" fn sd_engine_create(db_path: *const c_char) -> u64 {
     let cancel_token = engine.cancel_token();
 
     let db = match Database::open(&db_path_str) {
-        Ok(db) => Some(db),
+        Ok(db) => db,
         Err(e) => {
             set_last_error(format!("Failed to open database: {}", e));
             return 0;
         }
     };
 
+    // Initialise active_session_id from the most recent completed session in the DB.
+    let active_session_id = db.get_latest_session_id().unwrap_or(None);
+
     let state = EngineState {
         engine,
-        db,
+        db: Some(db),
         db_path: db_path_str,
         root_paths: Vec::new(),
         ignore_patterns: Vec::new(),
         is_scanning: false,
         cancel_token,
         progress_bridge: None,
+        active_session_id,
     };
 
     allocate_handle(state)
@@ -184,7 +188,10 @@ pub extern "C" fn sd_scan_start(handle: u64) -> SdResultCode {
         state.is_scanning = false;
 
         match scan_result {
-            Ok(_) => SdResultCode::Ok,
+            Ok(result) => {
+                state.active_session_id = Some(result.session_id);
+                SdResultCode::Ok
+            }
             Err(e) => map_core_error(e),
         }
     });
@@ -334,6 +341,13 @@ pub unsafe extern "C" fn sd_mark_directory_for_deletion(
 #[no_mangle]
 pub extern "C" fn sd_auto_mark_for_deletion(handle: u64) -> SdResultCode {
     let result = with_handle(handle, |state| {
+        let session_id = match state.active_session_id {
+            Some(id) => id,
+            None => {
+                set_last_error("No active session — run a scan first".to_string());
+                return SdResultCode::DatabaseError;
+            }
+        };
         let db = match &state.db {
             Some(db) => db,
             None => {
@@ -341,12 +355,54 @@ pub extern "C" fn sd_auto_mark_for_deletion(handle: u64) -> SdResultCode {
                 return SdResultCode::DatabaseError;
             }
         };
-        match super_duper_core::analysis::deletion_plan::auto_mark_duplicates(db, Some("auto")) {
+        match super_duper_core::analysis::deletion_plan::auto_mark_duplicates(
+            db, session_id, Some("auto"),
+        ) {
             Ok(_) => SdResultCode::Ok,
             Err(e) => map_core_error(e),
         }
     });
 
+    result.unwrap_or(SdResultCode::InvalidHandle)
+}
+
+/// Set the active session used by all query functions.
+#[no_mangle]
+pub extern "C" fn sd_set_active_session(handle: u64, session_id: i64) -> SdResultCode {
+    let result = with_handle(handle, |state| {
+        state.active_session_id = Some(session_id);
+        SdResultCode::Ok
+    });
+    result.unwrap_or(SdResultCode::InvalidHandle)
+}
+
+/// Delete a scan session and its duplicate groups.
+/// scanned_file rows are preserved (they are the global file index).
+/// If the deleted session was the active one, the active session is updated to the
+/// most recent remaining completed session.
+#[no_mangle]
+pub extern "C" fn sd_delete_session(handle: u64, session_id: i64) -> SdResultCode {
+    let result = with_handle(handle, |state| {
+        let db = match &state.db {
+            Some(db) => db,
+            None => {
+                set_last_error("No database open".to_string());
+                return SdResultCode::DatabaseError;
+            }
+        };
+        match db.delete_session(session_id) {
+            Ok(()) => {
+                if state.active_session_id == Some(session_id) {
+                    state.active_session_id = db.get_latest_session_id().unwrap_or(None);
+                }
+                SdResultCode::Ok
+            }
+            Err(e) => {
+                set_last_error(format!("Failed to delete session: {}", e));
+                SdResultCode::DatabaseError
+            }
+        }
+    });
     result.unwrap_or(SdResultCode::InvalidHandle)
 }
 

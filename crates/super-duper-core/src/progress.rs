@@ -11,6 +11,8 @@ pub trait ProgressReporter: Send + Sync {
     fn on_hash_complete(&self, _total_dupes: usize, _duration_secs: f64) {}
     fn on_db_write_start(&self) {}
     fn on_db_write_complete(&self, _rows: usize, _duration_secs: f64) {}
+    fn on_dir_analysis_start(&self) {}
+    fn on_dir_analysis_complete(&self, _fingerprints: usize, _similarity_pairs: usize, _duration_secs: f64) {}
 }
 
 /// No-op progress reporter for silent operation.

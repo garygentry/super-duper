@@ -48,15 +48,22 @@
                             </Grid.ColumnDefinitions>
 
                             <StackPanel Grid.Row="0" Grid.Column="0" Spacing="4">
-                                <TextBlock Text="{x:Bind DirAId}" FontWeight="SemiBold" />
-                                <TextBlock Text="{x:Bind DirBId}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{x:Bind DirAPath}" FontWeight="SemiBold"
+                                           FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" />
+                                <TextBlock Text="{x:Bind DirBPath}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" />
                             </StackPanel>
 
                             <StackPanel Grid.Row="0" Grid.Column="1" HorizontalAlignment="Right" Spacing="4">
                                 <TextBlock Text="{x:Bind MatchType}" FontWeight="Bold"
                                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                                <TextBlock Text="{x:Bind SimilarityScore}"
+                                <TextBlock Text="{x:Bind FormattedScore}"
                                            HorizontalAlignment="Right" />
+                                <TextBlock Text="{x:Bind FormattedSharedBytes}"
+                                           HorizontalAlignment="Right"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           FontSize="11" />
                             </StackPanel>
                         </Grid>
                     </Border>

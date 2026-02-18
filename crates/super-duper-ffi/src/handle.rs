@@ -15,6 +15,10 @@ pub struct EngineState {
     pub is_scanning: bool,
     pub cancel_token: Arc<AtomicBool>,
     pub progress_bridge: Option<crate::callbacks::FfiProgressBridge>,
+    /// The session whose results are returned by query functions.
+    /// Set to the most recent completed session on engine create,
+    /// and updated after each successful scan.
+    pub active_session_id: Option<i64>,
 }
 
 lazy_static! {

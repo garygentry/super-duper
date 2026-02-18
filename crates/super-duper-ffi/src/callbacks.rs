@@ -54,4 +54,12 @@ impl ProgressReporter for FfiProgressBridge {
     fn on_db_write_complete(&self, rows: usize, _duration_secs: f64) {
         self.fire(2, rows as u64, rows as u64, "db_write_complete");
     }
+
+    fn on_dir_analysis_start(&self) {
+        self.fire(3, 0, 0, "Analyzing directory structure...");
+    }
+
+    fn on_dir_analysis_complete(&self, fingerprints: usize, similarity_pairs: usize, _duration_secs: f64) {
+        self.fire(3, fingerprints as u64, similarity_pairs as u64, "dir_analysis_complete");
+    }
 }

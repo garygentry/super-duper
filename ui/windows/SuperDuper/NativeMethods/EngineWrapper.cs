@@ -253,6 +253,8 @@ public sealed class EngineWrapper : IDisposable
                     Id = native.Id,
                     DirAId = native.DirAId,
                     DirBId = native.DirBId,
+                    DirAPath = Marshal.PtrToStringUTF8(native.DirAPath) ?? "",
+                    DirBPath = Marshal.PtrToStringUTF8(native.DirBPath) ?? "",
                     SimilarityScore = native.SimilarityScore,
                     SharedBytes = native.SharedBytes,
                     MatchType = Marshal.PtrToStringUTF8(native.MatchType) ?? "",
@@ -287,6 +289,57 @@ public sealed class EngineWrapper : IDisposable
         var result = sd_deletion_execute(_handle, out var deletionResult);
         ThrowOnError(result, "ExecuteDeletionPlan");
         return (deletionResult.SuccessCount, deletionResult.ErrorCount);
+    }
+
+    public (List<SessionInfo> Sessions, int TotalAvailable) ListSessions(long offset = 0, long limit = 100)
+    {
+        ThrowIfDisposed();
+        var result = sd_list_sessions(_handle, offset, limit, out var page);
+        ThrowOnError(result, "ListSessions");
+
+        var sessions = new List<SessionInfo>((int)page.Count);
+        try
+        {
+            for (int i = 0; i < page.Count; i++)
+            {
+                var ptr = page.Sessions + i * Marshal.SizeOf<SdSessionInfo>();
+                var native = Marshal.PtrToStructure<SdSessionInfo>(ptr);
+                sessions.Add(new SessionInfo
+                {
+                    Id = native.Id,
+                    StartedAt = Marshal.PtrToStringUTF8(native.StartedAt) ?? "",
+                    CompletedAt = native.CompletedAt == IntPtr.Zero
+                        ? null
+                        : Marshal.PtrToStringUTF8(native.CompletedAt),
+                    Status = Marshal.PtrToStringUTF8(native.Status) ?? "",
+                    RootPaths = Marshal.PtrToStringUTF8(native.RootPaths) ?? "",
+                    FilesScanned = native.FilesScanned,
+                    TotalBytes = native.TotalBytes,
+                    GroupCount = native.GroupCount,
+                    IsActive = native.IsActive != 0,
+                });
+            }
+        }
+        finally
+        {
+            sd_free_session_page(ref page);
+        }
+
+        return (sessions, (int)page.TotalAvailable);
+    }
+
+    public void SetActiveSession(long sessionId)
+    {
+        ThrowIfDisposed();
+        var result = sd_set_active_session(_handle, sessionId);
+        ThrowOnError(result, "SetActiveSession");
+    }
+
+    public void DeleteSession(long sessionId)
+    {
+        ThrowIfDisposed();
+        var result = sd_delete_session(_handle, sessionId);
+        ThrowOnError(result, "DeleteSession");
     }
 
     public (long FileCount, long TotalBytes) GetDeletionPlanSummary()
@@ -359,12 +412,38 @@ public class DirectoryNodeInfo
     public long Depth { get; set; }
 }
 
+public class SessionInfo
+{
+    public long Id { get; set; }
+    public string StartedAt { get; set; } = "";
+    public string? CompletedAt { get; set; }
+    public string Status { get; set; } = "";
+    public string RootPaths { get; set; } = "";
+    public long FilesScanned { get; set; }
+    public long TotalBytes { get; set; }
+    public long GroupCount { get; set; }
+    public bool IsActive { get; set; }
+}
+
 public class DirectorySimilarityInfo
 {
     public long Id { get; set; }
     public long DirAId { get; set; }
     public long DirBId { get; set; }
+    public string DirAPath { get; set; } = "";
+    public string DirBPath { get; set; } = "";
     public double SimilarityScore { get; set; }
     public long SharedBytes { get; set; }
     public string MatchType { get; set; } = "";
+    public string FormattedScore => $"{SimilarityScore:P0}";
+    public string FormattedSharedBytes => FormatBytes(SharedBytes);
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1) { order++; len /= 1024; }
+        return $"{len:0.##} {sizes[order]} shared";
+    }
 }

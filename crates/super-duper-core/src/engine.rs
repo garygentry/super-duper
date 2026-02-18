@@ -1,3 +1,4 @@
+use crate::analysis::{dir_fingerprint, dir_similarity};
 use crate::config::{self, AppConfig};
 use crate::error::Error;
 use crate::hasher;
@@ -22,13 +23,17 @@ pub struct ScanEngine {
 
 #[derive(Debug)]
 pub struct ScanResult {
+    pub session_id: i64,
     pub scan_duration: Duration,
     pub hash_duration: Duration,
     pub db_write_duration: Duration,
+    pub dir_analysis_duration: Duration,
     pub total_files_scanned: usize,
     pub duplicate_groups: usize,
     pub duplicate_files: usize,
     pub wasted_bytes: u64,
+    pub dir_fingerprints: usize,
+    pub dir_similarity_pairs: usize,
 }
 
 #[derive(Debug)]
@@ -129,25 +134,47 @@ impl ScanEngine {
         progress.on_db_write_start();
         let db_start = Instant::now();
         let db = Database::open(&self.db_path)?;
-        let (groups_written, files_written, wasted_bytes) =
+        let (groups_written, files_written, wasted_bytes, session_id) =
             write_to_database(&db, &content_hash_map, &non_overlapping)?;
         let db_duration = db_start.elapsed();
         progress.on_db_write_complete(files_written, db_duration.as_secs_f64());
         debug!(
-            "Database write completed in {:.2}s — {} groups, {} files",
+            "Database write completed in {:.2}s — {} groups, {} files (session {})",
             db_duration.as_secs_f64(),
             groups_written,
             files_written,
+            session_id,
+        );
+
+        // Phase 4: Directory fingerprints + similarity
+        info!("Analyzing directory structure...");
+        progress.on_dir_analysis_start();
+        let dir_start = Instant::now();
+        let dir_fingerprints = dir_fingerprint::build_directory_fingerprints(&db)
+            .unwrap_or_else(|e| { tracing::warn!("Directory fingerprint failed: {}", e); 0 });
+        let dir_similarity_pairs = dir_similarity::compute_directory_similarity(&db, 0.5)
+            .unwrap_or_else(|e| { tracing::warn!("Directory similarity failed: {}", e); 0 });
+        let dir_duration = dir_start.elapsed();
+        progress.on_dir_analysis_complete(dir_fingerprints, dir_similarity_pairs, dir_duration.as_secs_f64());
+        debug!(
+            "Directory analysis completed in {:.2}s — {} fingerprints, {} similar pairs",
+            dir_duration.as_secs_f64(),
+            dir_fingerprints,
+            dir_similarity_pairs,
         );
 
         Ok(ScanResult {
+            session_id,
             scan_duration,
             hash_duration,
             db_write_duration: db_duration,
+            dir_analysis_duration: dir_duration,
             total_files_scanned: stats.total_files,
             duplicate_groups: groups_written,
             duplicate_files: files_written,
             wasted_bytes,
+            dir_fingerprints,
+            dir_similarity_pairs,
         })
     }
 }
@@ -174,9 +201,9 @@ fn write_to_database(
     db: &Database,
     content_hash_map: &DashMap<u64, Vec<PathBuf>>,
     root_paths: &[String],
-) -> Result<(usize, usize, u64), Error> {
-    // Create scan session
-    let session_id = db.create_scan_session(root_paths)?;
+) -> Result<(usize, usize, u64, i64), Error> {
+    // Find or create session (idempotent: reuses existing session for same paths)
+    let session_id = db.find_or_create_session(root_paths)?;
 
     // Build file records and duplicate group info
     let mut all_files: Vec<ScannedFile> = Vec::new();
@@ -246,7 +273,7 @@ fn write_to_database(
                 last_modified,
                 partial_hash: None,
                 content_hash: Some(content_hash as i64),
-                scan_session_id: session_id,
+                last_seen_session_id: Some(session_id),
                 marked_deleted: false,
             });
         }
@@ -258,15 +285,15 @@ fn write_to_database(
         }
     }
 
-    // Insert files
+    // Upsert files into the global file index
     let files_written = db.insert_scanned_files(&all_files)?;
 
-    // Insert duplicate groups
-    let groups_written = db.insert_duplicate_groups(&dupe_groups)?;
+    // Insert duplicate groups for this session (old groups were pre-deleted by find_or_create_session)
+    let groups_written = db.insert_duplicate_groups(session_id, &dupe_groups)?;
 
     // Complete session
     let total_bytes: i64 = all_files.iter().map(|f| f.file_size).sum();
     db.complete_scan_session(session_id, files_written as i64, total_bytes)?;
 
-    Ok((groups_written, files_written, total_wasted))
+    Ok((groups_written, files_written, total_wasted, session_id))
 }

@@ -34,7 +34,7 @@ public sealed partial class MainPage : Page
         {
             DashboardContent.Visibility = Visibility.Collapsed;
             SubPageFrame.Visibility = Visibility.Visible;
-            SubPageFrame.Navigate(typeof(SettingsPage));
+            SubPageFrame.Navigate(typeof(SettingsPage), ViewModel.Engine);
             return;
         }
 

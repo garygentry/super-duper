@@ -85,16 +85,22 @@ fn run_process(
 
     println!();
     info!(
-        "Scan: {}, Hash: {}, DB: {}",
+        "Scan: {}, Hash: {}, DB: {}, Dir: {}",
         format!("{:.2}s", result.scan_duration.as_secs_f64()).green(),
         format!("{:.2}s", result.hash_duration.as_secs_f64()).green(),
         format!("{:.2}s", result.db_write_duration.as_secs_f64()).green(),
+        format!("{:.2}s", result.dir_analysis_duration.as_secs_f64()).green(),
     );
     info!(
         "{} duplicate groups, {} files with duplicates, {} bytes wasted",
         format!("{}", result.duplicate_groups).red(),
         format!("{}", result.duplicate_files).red(),
         format!("{}", result.wasted_bytes).red(),
+    );
+    info!(
+        "{} directory fingerprints, {} similar directory pairs",
+        format!("{}", result.dir_fingerprints).cyan(),
+        format!("{}", result.dir_similarity_pairs).cyan(),
     );
 
     Ok(())

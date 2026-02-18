@@ -19,6 +19,19 @@ pub unsafe extern "C" fn sd_query_duplicate_groups(
     }
 
     let result = with_handle(handle, |state| {
+        let session_id = match state.active_session_id {
+            Some(id) => id,
+            None => {
+                // No session yet — return empty page
+                *out_page = SdDuplicateGroupPage {
+                    groups: std::ptr::null_mut(),
+                    count: 0,
+                    total_available: 0,
+                };
+                return SdResultCode::Ok;
+            }
+        };
+
         let db = match &state.db {
             Some(db) => db,
             None => {
@@ -27,9 +40,9 @@ pub unsafe extern "C" fn sd_query_duplicate_groups(
             }
         };
 
-        match db.get_duplicate_groups(offset, limit) {
+        match db.get_duplicate_groups(session_id, offset, limit) {
             Ok(groups) => {
-                let total: i64 = db.get_duplicate_group_count().unwrap_or(0);
+                let total: i64 = db.get_duplicate_group_count(session_id).unwrap_or(0);
                 let count = groups.len() as u32;
 
                 let c_groups: Vec<SdDuplicateGroup> = groups
@@ -285,6 +298,8 @@ pub unsafe extern "C" fn sd_query_similar_directories(
                         id: p.id,
                         dir_a_id: p.dir_a_id,
                         dir_b_id: p.dir_b_id,
+                        dir_a_path: rust_string_to_c(&p.dir_a_path),
+                        dir_b_path: rust_string_to_c(&p.dir_b_path),
                         similarity_score: p.similarity_score,
                         shared_bytes: p.shared_bytes,
                         match_type: rust_string_to_c(&p.match_type),
@@ -324,9 +339,106 @@ pub unsafe extern "C" fn sd_free_directory_similarity_page(page: *mut SdDirector
     if !page.pairs.is_null() && page.count > 0 {
         let slice = std::slice::from_raw_parts_mut(page.pairs, page.count as usize);
         for pair in slice.iter() {
+            sd_free_string(pair.dir_a_path);
+            sd_free_string(pair.dir_b_path);
             sd_free_string(pair.match_type);
         }
         drop(Box::from_raw(slice as *mut [SdDirectorySimilarity]));
+    }
+}
+
+/// List scan sessions with pagination, ordered newest-first.
+/// `is_active` is set to 1 for the session matching the handle's active_session_id.
+///
+/// # Safety
+/// `out_page` must be a valid pointer. The returned page must be freed with `sd_free_session_page`.
+#[no_mangle]
+pub unsafe extern "C" fn sd_list_sessions(
+    handle: u64,
+    offset: i64,
+    limit: i64,
+    out_page: *mut SdSessionPage,
+) -> SdResultCode {
+    if out_page.is_null() {
+        set_last_error("out_page is null".to_string());
+        return SdResultCode::InvalidArgument;
+    }
+
+    let result = with_handle(handle, |state| {
+        let db = match &state.db {
+            Some(db) => db,
+            None => {
+                set_last_error("No database open".to_string());
+                return SdResultCode::DatabaseError;
+            }
+        };
+        let active_id = state.active_session_id;
+
+        match db.list_sessions(offset, limit) {
+            Ok((sessions, total)) => {
+                let count = sessions.len() as u32;
+
+                let c_sessions: Vec<SdSessionInfo> = sessions
+                    .iter()
+                    .map(|(s, group_count)| SdSessionInfo {
+                        id: s.id,
+                        started_at: rust_string_to_c(&s.started_at),
+                        completed_at: s
+                            .completed_at
+                            .as_deref()
+                            .map(rust_string_to_c)
+                            .unwrap_or(std::ptr::null_mut()),
+                        status: rust_string_to_c(&s.status),
+                        root_paths: rust_string_to_c(&s.root_paths),
+                        files_scanned: s.files_scanned,
+                        total_bytes: s.total_bytes,
+                        group_count: *group_count,
+                        is_active: if active_id == Some(s.id) { 1 } else { 0 },
+                    })
+                    .collect();
+
+                let boxed = c_sessions.into_boxed_slice();
+                let ptr = Box::into_raw(boxed) as *mut SdSessionInfo;
+
+                *out_page = SdSessionPage {
+                    sessions: ptr,
+                    count,
+                    total_available: total as u32,
+                };
+
+                SdResultCode::Ok
+            }
+            Err(e) => {
+                set_last_error(format!("Query error: {}", e));
+                SdResultCode::DatabaseError
+            }
+        }
+    });
+
+    result.unwrap_or(SdResultCode::InvalidHandle)
+}
+
+/// Free a session page allocated by `sd_list_sessions`.
+///
+/// # Safety
+/// `page` must have been returned by `sd_list_sessions`.
+#[no_mangle]
+pub unsafe extern "C" fn sd_free_session_page(page: *mut SdSessionPage) {
+    if page.is_null() {
+        return;
+    }
+    let page = &*page;
+    if !page.sessions.is_null() && page.count > 0 {
+        let slice = std::slice::from_raw_parts_mut(page.sessions, page.count as usize);
+        for session in slice.iter() {
+            sd_free_string(session.started_at);
+            if !session.completed_at.is_null() {
+                sd_free_string(session.completed_at);
+            }
+            sd_free_string(session.status);
+            sd_free_string(session.root_paths);
+        }
+        drop(Box::from_raw(slice as *mut [SdSessionInfo]));
     }
 }
 

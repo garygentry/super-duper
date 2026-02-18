@@ -114,4 +114,24 @@ impl ProgressReporter for CliReporter {
             rows, duration_secs
         );
     }
+
+    fn on_dir_analysis_start(&self) {
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::with_template("{spinner:.cyan} {msg}")
+                .unwrap()
+                .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
+        );
+        pb.set_message("Analyzing directory structure...");
+        pb.enable_steady_tick(std::time::Duration::from_millis(80));
+        self.set_bar(pb);
+    }
+
+    fn on_dir_analysis_complete(&self, fingerprints: usize, similarity_pairs: usize, duration_secs: f64) {
+        self.finish_bar();
+        eprintln!(
+            "  \x1b[32m✓\x1b[0m Directory analysis complete: {} fingerprints, {} similar pairs in {:.2}s",
+            fingerprints, similarity_pairs, duration_secs
+        );
+    }
 }

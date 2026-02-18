@@ -22,14 +22,15 @@ pub struct ScannedFile {
     pub last_modified: i64,
     pub partial_hash: Option<i64>,
     pub content_hash: Option<i64>,
-    pub scan_session_id: i64,
+    pub last_seen_session_id: Option<i64>,
     pub marked_deleted: bool,
 }
 
-/// A group of files sharing the same content hash and size.
+/// A group of files sharing the same content hash and size, scoped to a session.
 #[derive(Debug, Clone)]
 pub struct DuplicateGroup {
     pub id: i64,
+    pub session_id: i64,
     pub content_hash: i64,
     pub file_size: i64,
     pub file_count: i64,
@@ -71,6 +72,8 @@ pub struct DirectorySimilarity {
     pub id: i64,
     pub dir_a_id: i64,
     pub dir_b_id: i64,
+    pub dir_a_path: String,
+    pub dir_b_path: String,
     pub similarity_score: f64,
     pub shared_bytes: i64,
     pub match_type: String,

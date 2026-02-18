@@ -96,7 +96,7 @@ fn test_full_scan_pipeline() {
 
     // Verify we can read back from the database
     let db = Database::open(db_path.to_str().unwrap()).unwrap();
-    let groups = db.get_duplicate_groups(0, 100).unwrap();
+    let groups = db.get_duplicate_groups(result.session_id, 0, 100).unwrap();
     assert_eq!(groups.len(), 2);
 
     // Each group should have 2 files
@@ -260,7 +260,7 @@ fn test_full_pipeline_with_deletion() {
 
     // Auto-mark duplicates for deletion
     let db = Database::open(db_path.to_str().unwrap()).unwrap();
-    deletion_plan::auto_mark_duplicates(&db, None).unwrap();
+    deletion_plan::auto_mark_duplicates(&db, scan_result.session_id, None).unwrap();
 
     // Check deletion plan
     let (count, bytes) = db.get_deletion_plan_summary().unwrap();
@@ -326,4 +326,42 @@ fn test_rescan_after_deletion() {
         "After removing one shared.txt, expected 1 dup group, got {}",
         result2.duplicate_groups
     );
+}
+
+#[test]
+fn test_idempotent_rescan() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path().join("scan_idempotent");
+    create_test_tree(&root);
+
+    let db_dir = tempdir().unwrap();
+    let db_path = db_dir.path().join("test_idempotent.db");
+
+    let config = AppConfig {
+        root_paths: vec![root.to_string_lossy().into_owned()],
+        ignore_patterns: vec![],
+    };
+
+    // First scan
+    let engine = ScanEngine::new(config.clone())
+        .with_db_path(db_path.to_str().unwrap());
+    let result1 = engine.scan(&SilentReporter).unwrap();
+    assert_eq!(result1.duplicate_groups, 2);
+
+    // Second scan — same paths, no truncate, must NOT crash and must produce same results
+    let engine2 = ScanEngine::new(config)
+        .with_db_path(db_path.to_str().unwrap());
+    let result2 = engine2.scan(&SilentReporter).unwrap();
+    assert_eq!(
+        result2.duplicate_groups, 2,
+        "Second scan of same paths should produce same group count"
+    );
+
+    // Both scans should reuse the same session (find_or_create_session semantics)
+    let db = Database::open(db_path.to_str().unwrap()).unwrap();
+    let session_count: i64 = db
+        .connection()
+        .query_row("SELECT COUNT(*) FROM scan_session", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(session_count, 1, "Idempotent rescan should reuse the same session");
 }

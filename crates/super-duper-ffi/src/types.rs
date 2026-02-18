@@ -85,9 +85,33 @@ pub struct SdDirectorySimilarity {
     pub id: i64,
     pub dir_a_id: i64,
     pub dir_b_id: i64,
+    pub dir_a_path: *mut c_char,
+    pub dir_b_path: *mut c_char,
     pub similarity_score: f64,
     pub shared_bytes: i64,
     pub match_type: *mut c_char,
+}
+
+/// A page of scan session records.
+#[repr(C)]
+pub struct SdSessionPage {
+    pub sessions: *mut SdSessionInfo,
+    pub count: u32,
+    pub total_available: u32,
+}
+
+/// A single scan session record.
+#[repr(C)]
+pub struct SdSessionInfo {
+    pub id: i64,
+    pub started_at: *mut c_char,
+    pub completed_at: *mut c_char, // null if still running
+    pub status: *mut c_char,
+    pub root_paths: *mut c_char,
+    pub files_scanned: i64,
+    pub total_bytes: i64,
+    pub group_count: i64,
+    pub is_active: u8,
 }
 
 /// Deletion execution result.

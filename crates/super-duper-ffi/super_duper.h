@@ -59,6 +59,8 @@ typedef struct SdDirectorySimilarity {
     int64_t id;
     int64_t dir_a_id;
     int64_t dir_b_id;
+    char *dir_a_path;
+    char *dir_b_path;
     double similarity_score;
     int64_t shared_bytes;
     char *match_type;
@@ -114,6 +116,30 @@ typedef struct SdFileRecordPage {
 } SdFileRecordPage;
 
 /**
+ * A single scan session record.
+ */
+typedef struct SdSessionInfo {
+    int64_t id;
+    char *started_at;
+    char *completed_at;
+    char *status;
+    char *root_paths;
+    int64_t files_scanned;
+    int64_t total_bytes;
+    int64_t group_count;
+    uint8_t is_active;
+} SdSessionInfo;
+
+/**
+ * A page of scan session records.
+ */
+typedef struct SdSessionPage {
+    struct SdSessionInfo *sessions;
+    uint32_t count;
+    uint32_t total_available;
+} SdSessionPage;
+
+/**
  * Progress callback signature.
  */
 typedef void (*SdProgressCallback)(uint32_t phase,
@@ -134,6 +160,14 @@ enum SdResultCode sd_auto_mark_for_deletion(uint64_t handle);
  * Clear the progress callback.
  */
 enum SdResultCode sd_clear_progress_callback(uint64_t handle);
+
+/**
+ * Delete a scan session and its duplicate groups.
+ * scanned_file rows are preserved (they are the global file index).
+ * If the deleted session was the active one, the active session is updated to the
+ * most recent remaining completed session.
+ */
+enum SdResultCode sd_delete_session(uint64_t handle, int64_t session_id);
 
 /**
  * Execute the deletion plan. Returns success/error counts via out parameters.
@@ -217,6 +251,14 @@ void sd_free_duplicate_group_page(struct SdDuplicateGroupPage *page);
 void sd_free_file_record_page(struct SdFileRecordPage *page);
 
 /**
+ * Free a session page allocated by `sd_list_sessions`.
+ *
+ * # Safety
+ * `page` must have been returned by `sd_list_sessions`.
+ */
+void sd_free_session_page(struct SdSessionPage *page);
+
+/**
  * Free a string allocated by the FFI layer.
  *
  * # Safety
@@ -231,6 +273,18 @@ void sd_free_string(char *ptr);
  * Caller must free the returned string with `sd_free_string`.
  */
 char *sd_last_error_message(void);
+
+/**
+ * List scan sessions with pagination, ordered newest-first.
+ * `is_active` is set to 1 for the session matching the handle's active_session_id.
+ *
+ * # Safety
+ * `out_page` must be a valid pointer. The returned page must be freed with `sd_free_session_page`.
+ */
+enum SdResultCode sd_list_sessions(uint64_t handle,
+                                   int64_t offset,
+                                   int64_t limit,
+                                   struct SdSessionPage *out_page);
 
 /**
  * Mark all files in a directory for deletion.
@@ -304,6 +358,11 @@ bool sd_scan_is_running(uint64_t handle);
  * Start a synchronous scan. Blocks until complete.
  */
 enum SdResultCode sd_scan_start(uint64_t handle);
+
+/**
+ * Set the active session used by all query functions.
+ */
+enum SdResultCode sd_set_active_session(uint64_t handle, int64_t session_id);
 
 /**
  * Set a progress callback for scan operations.
