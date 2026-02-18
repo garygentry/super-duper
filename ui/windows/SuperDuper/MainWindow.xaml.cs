@@ -13,5 +13,13 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         ContentFrame.Navigate(typeof(Views.MainPage));
+
+        var iconPath = System.IO.Path.Combine(
+            System.IO.Path.GetDirectoryName(
+                System.Reflection.Assembly.GetExecutingAssembly().Location)!,
+            "Assets", "AppIcon.ico");
+
+        if (System.IO.File.Exists(iconPath))
+            AppWindow.SetIcon(iconPath);
     }
 }
