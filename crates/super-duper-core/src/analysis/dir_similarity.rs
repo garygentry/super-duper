@@ -41,6 +41,21 @@ pub fn compute_directory_similarity(
         return Ok(0);
     }
 
+    // Build content_hash → file_size map for accurate shared-bytes computation.
+    // Duplicate files share the same content_hash and file_size, so one row per hash suffices.
+    let hash_to_size: AHashMap<i64, i64> = {
+        let mut stmt = db.connection().prepare(
+            "SELECT content_hash, file_size FROM scanned_file \
+             WHERE content_hash IS NOT NULL \
+             GROUP BY content_hash",
+        )?;
+        let map: AHashMap<i64, i64> = stmt
+            .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))?
+            .filter_map(|r| r.ok())
+            .collect();
+        map
+    };
+
     // Build inverted index: hash → Vec<dir_id>
     let mut inverted_index: AHashMap<i64, Vec<i64>> = AHashMap::new();
     let mut dir_hash_sets: AHashMap<i64, AHashSet<i64>> = AHashMap::new();
@@ -105,9 +120,11 @@ pub fn compute_directory_similarity(
                 "threshold"
             };
 
-            // Estimate shared bytes (sum of file sizes for shared hashes)
-            // This is an approximation; exact value would need file size lookup
-            let shared_bytes = intersection_size as i64;
+            // Sum actual file sizes for shared hashes
+            let shared_bytes: i64 = set_a
+                .intersection(set_b)
+                .map(|h| hash_to_size.get(h).copied().unwrap_or(0))
+                .sum();
 
             Some((dir_a, dir_b, jaccard, shared_bytes, match_type))
         })
