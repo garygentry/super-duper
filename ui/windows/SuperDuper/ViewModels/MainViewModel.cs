@@ -20,6 +20,13 @@ public partial class MainViewModel : ObservableObject
         LoadUserConfig();
         ScanPaths.CollectionChanged += (_, _) => SaveUserConfig();
         IgnorePatterns.CollectionChanged += (_, _) => SaveUserConfig();
+
+        // Open the engine eagerly so existing DB data is visible without requiring a scan
+        _engine = new EngineWrapper();
+        var (sessions, _) = _engine.ListSessions(0, 1);
+        if (sessions.Count > 0)
+            TotalFilesScanned = (int)sessions[0].FilesScanned;
+        _ = LoadDuplicateGroupsAsync();
     }
 
     /// <summary>
