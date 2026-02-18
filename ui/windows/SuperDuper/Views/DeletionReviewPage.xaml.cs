@@ -1,3 +1,4 @@
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using SuperDuper.NativeMethods;
@@ -19,9 +20,25 @@ public sealed partial class DeletionReviewPage : Page
     {
         base.OnNavigatedTo(e);
         if (e.Parameter is EngineWrapper engine)
-        {
             ViewModel.Initialize(engine);
-        }
+    }
+
+    private async void ExecuteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.IsExecuting || ViewModel.FileCount == 0) return;
+
+        var dialog = new ContentDialog
+        {
+            Title = "Confirm Deletion",
+            Content = $"Permanently delete {ViewModel.FileCount} files ({ViewModel.FormattedTotalBytes})?\n\nThis cannot be undone.",
+            PrimaryButtonText = "Delete Files",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = this.XamlRoot,
+        };
+
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            ViewModel.ExecuteDeletion();
     }
 
     private async void OnErrorOccurred(object? sender, (string Title, string Detail) error)

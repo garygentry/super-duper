@@ -17,11 +17,18 @@ public partial class DirectoryComparisonViewModel : ObservableObject
     [ObservableProperty]
     private double _minScore = 0.5;
 
-    public ObservableCollection<DirectorySimilarityInfo> SimilarPairs { get; } = new();
+    public ObservableCollection<SimilarPairViewModel> SimilarPairs { get; } = new();
 
     public void Initialize(EngineWrapper engine)
     {
         _engine = engine;
+        Reload();
+    }
+
+    partial void OnMinScoreChanged(double value) => Reload();
+
+    private void Reload()
+    {
         _currentOffset = 0;
         SimilarPairs.Clear();
         LoadPage();
@@ -37,9 +44,7 @@ public partial class DirectoryComparisonViewModel : ObservableObject
         {
             var pairs = _engine.QuerySimilarDirectories(MinScore, _currentOffset, _pageSize);
             foreach (var p in pairs)
-            {
-                SimilarPairs.Add(p);
-            }
+                SimilarPairs.Add(new SimilarPairViewModel(p, _engine));
             _currentOffset += pairs.Count;
         }
         finally
@@ -50,10 +55,50 @@ public partial class DirectoryComparisonViewModel : ObservableObject
 
     [RelayCommand]
     private void LoadNextPage() => LoadPage();
+}
+
+public partial class SimilarPairViewModel : ObservableObject
+{
+    private readonly EngineWrapper _engine;
+
+    public string DirAPath { get; }
+    public string DirBPath { get; }
+    public string MatchType { get; }
+    public string FormattedScore { get; }
+    public string FormattedSharedBytes { get; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDirANotMarked))]
+    private bool _dirAMarked;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDirBNotMarked))]
+    private bool _dirBMarked;
+
+    public bool IsDirANotMarked => !DirAMarked;
+    public bool IsDirBNotMarked => !DirBMarked;
+
+    public SimilarPairViewModel(DirectorySimilarityInfo info, EngineWrapper engine)
+    {
+        _engine = engine;
+        DirAPath = info.DirAPath;
+        DirBPath = info.DirBPath;
+        MatchType = info.MatchType;
+        FormattedScore = info.FormattedScore;
+        FormattedSharedBytes = info.FormattedSharedBytes;
+    }
 
     [RelayCommand]
-    private void MarkDirectoryForDeletion(string directoryPath)
+    private void MarkAForDeletion()
     {
-        _engine?.MarkDirectoryForDeletion(directoryPath);
+        _engine.MarkDirectoryForDeletion(DirAPath);
+        DirAMarked = true;
+    }
+
+    [RelayCommand]
+    private void MarkBForDeletion()
+    {
+        _engine.MarkDirectoryForDeletion(DirBPath);
+        DirBMarked = true;
     }
 }

@@ -179,6 +179,11 @@ public partial class MainViewModel : ObservableObject
 
             _engine.ClearProgressCallback();
             StatusMessage = "Scan complete. Loading results...";
+
+            var (sessions, _) = _engine.ListSessions(0, 1);
+            if (sessions.Count > 0)
+                TotalFilesScanned = (int)sessions[0].FilesScanned;
+
             await LoadDuplicateGroupsAsync();
         }
         catch (Exception ex)
