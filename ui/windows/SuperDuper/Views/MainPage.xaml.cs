@@ -75,7 +75,7 @@ public sealed partial class MainPage : Page
                     SubPageFrame.Navigate(typeof(DirectoryComparisonPage), engine);
                     break;
                 case "deletion":
-                    SubPageFrame.Navigate(typeof(DeletionReviewPage), engine);
+                    SubPageFrame.Navigate(typeof(DeletionReviewPage), (engine, ViewModel));
                     break;
             }
         }

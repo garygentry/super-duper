@@ -19,19 +19,24 @@ public sealed partial class DeletionReviewPage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        if (e.Parameter is EngineWrapper engine)
-            ViewModel.Initialize(engine);
+        if (e.Parameter is (EngineWrapper engine, MainViewModel mainVm))
+            ViewModel.Initialize(engine, mainVm);
+        else if (e.Parameter is EngineWrapper eng)
+            ViewModel.Initialize(eng, null);
     }
 
     private async void ExecuteButton_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel.IsExecuting || ViewModel.FileCount == 0) return;
 
+        bool trash = ViewModel.UseTrash;
         var dialog = new ContentDialog
         {
-            Title = "Confirm Deletion",
-            Content = $"Permanently delete {ViewModel.FileCount} files ({ViewModel.FormattedTotalBytes})?\n\nThis cannot be undone.",
-            PrimaryButtonText = "Delete Files",
+            Title = trash ? "Move to Recycle Bin?" : "Confirm Permanent Deletion",
+            Content = trash
+                ? $"Move {ViewModel.FileCount} files ({ViewModel.FormattedTotalBytes}) to the Recycle Bin?\n\nYou can restore them from the Recycle Bin if needed."
+                : $"Permanently delete {ViewModel.FileCount} files ({ViewModel.FormattedTotalBytes})?\n\nThis cannot be undone.",
+            PrimaryButtonText = trash ? "Move to Recycle Bin" : "Delete Files",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = this.XamlRoot,

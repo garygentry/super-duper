@@ -185,6 +185,11 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<DuplicateGroupInfo> DuplicateGroups { get; } = new();
 
     [ObservableProperty]
+    private bool _useTrash = true;
+
+    partial void OnUseTrashChanged(bool value) => SaveUserConfig();
+
+    [ObservableProperty]
     private string _newScanPath = "";
 
     [ObservableProperty]
@@ -424,6 +429,7 @@ public partial class MainViewModel : ObservableObject
             IgnorePatterns.Clear();
             foreach (var pattern in config.IgnorePatterns ?? [])
                 IgnorePatterns.Add(pattern);
+            UseTrash = config.UseTrash;
         }
         catch { }
     }
@@ -436,6 +442,7 @@ public partial class MainViewModel : ObservableObject
             {
                 ScanPaths = ScanPaths.ToArray(),
                 IgnorePatterns = IgnorePatterns.ToArray(),
+                UseTrash = UseTrash,
             };
             File.WriteAllText(UserConfigPath,
                 JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true }));
@@ -447,6 +454,7 @@ public partial class MainViewModel : ObservableObject
     {
         public string[]? ScanPaths { get; set; }
         public string[]? IgnorePatterns { get; set; }
+        public bool UseTrash { get; set; } = true;
     }
 
     private static string FormatBytes(long bytes)

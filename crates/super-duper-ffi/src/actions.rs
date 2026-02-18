@@ -445,11 +445,15 @@ pub extern "C" fn sd_clear_hash_cache() -> SdResultCode {
 
 /// Execute the deletion plan. Returns success/error counts via out parameters.
 ///
+/// When `use_trash` is non-zero, files are moved to the system Recycle Bin / Trash
+/// instead of being permanently deleted.
+///
 /// # Safety
 /// `out_result` must be a valid pointer.
 #[no_mangle]
 pub unsafe extern "C" fn sd_deletion_execute(
     handle: u64,
+    use_trash: u8,
     out_result: *mut SdDeletionResult,
 ) -> SdResultCode {
     if out_result.is_null() {
@@ -465,7 +469,7 @@ pub unsafe extern "C" fn sd_deletion_execute(
                 return SdResultCode::DatabaseError;
             }
         };
-        match super_duper_core::analysis::deletion_plan::execute_deletion_plan(db) {
+        match super_duper_core::analysis::deletion_plan::execute_deletion_plan(db, use_trash != 0) {
             Ok((success, errors)) => {
                 *out_result = SdDeletionResult {
                     success_count: success as u32,

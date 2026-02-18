@@ -63,7 +63,10 @@ pub fn auto_mark_duplicates(
 }
 
 /// Execute the deletion plan. Returns (success_count, error_count).
-pub fn execute_deletion_plan(db: &Database) -> Result<(usize, usize), crate::Error> {
+///
+/// When `use_trash` is true, files are moved to the system Recycle Bin / Trash
+/// instead of being permanently deleted.
+pub fn execute_deletion_plan(db: &Database, use_trash: bool) -> Result<(usize, usize), crate::Error> {
     let plan = db.get_deletion_plan()?;
     let mut success_count = 0;
     let mut error_count = 0;
@@ -119,30 +122,44 @@ pub fn execute_deletion_plan(db: &Database) -> Result<(usize, usize), crate::Err
             continue;
         }
 
-        // Delete the file
-        match fs::remove_file(path) {
+        // Delete or trash the file
+        let delete_result: Result<(), String> = if use_trash {
+            #[cfg(windows)]
+            {
+                trash::delete(path).map_err(|e| format!("trash error: {}", e))
+            }
+            #[cfg(not(windows))]
+            {
+                // Trash not supported on this platform; fall back to permanent deletion
+                fs::remove_file(path).map_err(|e| format!("error: {}", e))
+            }
+        } else {
+            fs::remove_file(path).map_err(|e| format!("error: {}", e))
+        };
+
+        match delete_result {
             Ok(()) => {
                 let now = chrono::Utc::now().to_rfc3339();
+                let result_label = if use_trash { "trashed" } else { "success" };
                 db.connection().execute(
-                    "UPDATE deletion_plan SET executed_at = ?1, execution_result = 'success' \
-                     WHERE id = ?2",
-                    params![now, entry.id],
+                    "UPDATE deletion_plan SET executed_at = ?1, execution_result = ?2 \
+                     WHERE id = ?3",
+                    params![now, result_label, entry.id],
                 )?;
                 db.connection().execute(
                     "UPDATE scanned_file SET marked_deleted = 1 WHERE id = ?1",
                     params![file.id],
                 )?;
                 success_count += 1;
-                debug!("Deleted: {}", file.canonical_path);
+                debug!("{}: {}", result_label, file.canonical_path);
             }
             Err(e) => {
-                error!("Failed to delete '{}': {}", file.canonical_path, e);
+                error!("Failed to remove '{}': {}", file.canonical_path, e);
                 let now = chrono::Utc::now().to_rfc3339();
-                let error_msg = format!("error: {}", e);
                 db.connection().execute(
                     "UPDATE deletion_plan SET executed_at = ?1, execution_result = ?2 \
                      WHERE id = ?3",
-                    params![now, error_msg, entry.id],
+                    params![now, e, entry.id],
                 )?;
                 error_count += 1;
             }

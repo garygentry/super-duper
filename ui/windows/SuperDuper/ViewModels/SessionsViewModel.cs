@@ -24,6 +24,15 @@ public partial class SessionsViewModel : ObservableObject
 
     public ObservableCollection<SessionItemViewModel> Sessions { get; } = new();
 
+    /// <summary>
+    /// Pass-through so SettingsPage can bind a toggle to the persisted MainViewModel setting.
+    /// </summary>
+    public bool UseTrash
+    {
+        get => _mainViewModel?.UseTrash ?? true;
+        set { if (_mainViewModel != null) _mainViewModel.UseTrash = value; }
+    }
+
     public void Initialize(EngineWrapper engine, MainViewModel? mainViewModel = null)
     {
         _engine = engine;

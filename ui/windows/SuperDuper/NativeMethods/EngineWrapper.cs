@@ -283,10 +283,10 @@ public sealed class EngineWrapper : IDisposable
         ThrowOnError(result, "AutoMarkForDeletion");
     }
 
-    public (uint SuccessCount, uint ErrorCount) ExecuteDeletionPlan()
+    public (uint SuccessCount, uint ErrorCount) ExecuteDeletionPlan(bool useTrash = true)
     {
         ThrowIfDisposed();
-        var result = sd_deletion_execute(_handle, out var deletionResult);
+        var result = sd_deletion_execute(_handle, useTrash ? (byte)1 : (byte)0, out var deletionResult);
         ThrowOnError(result, "ExecuteDeletionPlan");
         return (deletionResult.SuccessCount, deletionResult.ErrorCount);
     }

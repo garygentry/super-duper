@@ -266,7 +266,7 @@ public static partial class SuperDuperEngine
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern SdResultCode sd_deletion_execute(
-        ulong handle, out SdDeletionResult result);
+        ulong handle, byte useTrash, out SdDeletionResult result);
 
     // ── Session Management ───────────────────────────────────────
 

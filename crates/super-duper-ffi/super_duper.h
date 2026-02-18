@@ -178,10 +178,15 @@ enum SdResultCode sd_delete_session(uint64_t handle, int64_t session_id);
 /**
  * Execute the deletion plan. Returns success/error counts via out parameters.
  *
+ * When `use_trash` is non-zero, files are moved to the system Recycle Bin / Trash
+ * instead of being permanently deleted.
+ *
  * # Safety
  * `out_result` must be a valid pointer.
  */
-enum SdResultCode sd_deletion_execute(uint64_t handle, struct SdDeletionResult *out_result);
+enum SdResultCode sd_deletion_execute(uint64_t handle,
+                                      uint8_t use_trash,
+                                      struct SdDeletionResult *out_result);
 
 /**
  * Get deletion plan summary: (file_count, total_bytes).

@@ -11,6 +11,7 @@ namespace SuperDuper.ViewModels;
 public partial class DeletionReviewViewModel : ObservableObject
 {
     private EngineWrapper? _engine;
+    private MainViewModel? _mainViewModel;
 
     [ObservableProperty]
     private long _fileCount;
@@ -43,9 +44,12 @@ public partial class DeletionReviewViewModel : ObservableObject
 
     public event EventHandler<(string Title, string Detail)>? ErrorOccurred;
 
-    public void Initialize(EngineWrapper engine)
+    public bool UseTrash => _mainViewModel?.UseTrash ?? true;
+
+    public void Initialize(EngineWrapper engine, MainViewModel? mainViewModel = null)
     {
         _engine = engine;
+        _mainViewModel = mainViewModel;
         RefreshSummary();
         _ = LoadMarkedFilesAsync();
     }
@@ -83,7 +87,7 @@ public partial class DeletionReviewViewModel : ObservableObject
         IsExecuting = true;
         try
         {
-            var (success, errors) = _engine.ExecuteDeletionPlan();
+            var (success, errors) = _engine.ExecuteDeletionPlan(UseTrash);
             LastSuccessCount = success;
             LastErrorCount = errors;
             if (errors > 0)

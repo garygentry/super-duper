@@ -110,6 +110,31 @@
                 </TextBlock>
             </StackPanel>
 
+            <!-- Deletion -->
+            <StackPanel Spacing="12">
+                <TextBlock Text="Deletion" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        CornerRadius="8" Padding="16">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="4">
+                            <TextBlock Text="Move to Recycle Bin"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <TextBlock Text="When enabled, deleted files are moved to the Recycle Bin and can be restored. When disabled, files are permanently deleted immediately."
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap" FontSize="12" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1"
+                                      IsOn="{x:Bind ViewModel.UseTrash, Mode=TwoWay}"
+                                      OnContent="" OffContent=""
+                                      VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+            </StackPanel>
+
             <!-- Database -->
             <StackPanel Spacing="12">
                 <TextBlock Text="Database" Style="{StaticResource BodyStrongTextBlockStyle}" />

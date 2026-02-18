@@ -44,6 +44,7 @@ chrono = "0.4.37"
 tempfile = "3"
 
 [target.'cfg(windows)'.dependencies]
+trash = "3"
 winapi = { version = "0.3", features = [
     "fileapi",
     "handleapi",
