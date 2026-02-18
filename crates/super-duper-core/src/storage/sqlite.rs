@@ -44,15 +44,18 @@ impl Database {
 
         if version < 2 {
             debug!("Schema version {} < 2, dropping all tables and recreating", version);
+            // Disable FK enforcement for the drop batch so table order doesn't matter.
             self.conn.execute_batch(
-                "DROP TABLE IF EXISTS deletion_plan;
+                "PRAGMA foreign_keys = OFF;
+                 DROP TABLE IF EXISTS deletion_plan;
                  DROP TABLE IF EXISTS directory_similarity;
                  DROP TABLE IF EXISTS directory_fingerprint;
                  DROP TABLE IF EXISTS directory_node;
                  DROP TABLE IF EXISTS duplicate_group_member;
                  DROP TABLE IF EXISTS duplicate_group;
                  DROP TABLE IF EXISTS scanned_file;
-                 DROP TABLE IF EXISTS scan_session;",
+                 DROP TABLE IF EXISTS scan_session;
+                 PRAGMA foreign_keys = ON;",
             )?;
         }
 
