@@ -4,6 +4,7 @@ using Microsoft.UI.Dispatching;
 using SuperDuper.NativeMethods;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using static SuperDuper.NativeMethods.SuperDuperEngine;
@@ -14,18 +15,16 @@ public partial class MainViewModel : ObservableObject
 {
     private EngineWrapper? _engine;
     private DispatcherQueue? _dispatcherQueue;
+    private bool _suppressPickerSideEffects;
 
     public MainViewModel()
     {
         LoadUserConfig();
-        ScanPaths.CollectionChanged += (_, _) => SaveUserConfig();
+        ScanPaths.CollectionChanged    += (_, _) => SaveUserConfig();
         IgnorePatterns.CollectionChanged += (_, _) => SaveUserConfig();
 
-        // Open the engine eagerly so existing DB data is visible without requiring a scan
         _engine = new EngineWrapper();
-        var (sessions, _) = _engine.ListSessions(0, 1);
-        if (sessions.Count > 0)
-            TotalFilesScanned = (int)sessions[0].FilesScanned;
+        _ = LoadSessionPickerAsync();
         _ = LoadDuplicateGroupsAsync();
     }
 
@@ -85,6 +84,95 @@ public partial class MainViewModel : ObservableObject
     partial void OnTotalWastedBytesChanged(long value)
     {
         OnPropertyChanged(nameof(FormattedWastedBytes));
+    }
+
+    // Session picker
+    public ObservableCollection<SessionPickerItem> SessionPickerItems { get; } = new();
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNewScanSelected))]
+    private SessionPickerItem? _selectedSession;
+
+    public bool IsNewScanSelected => SelectedSession?.IsNewScan ?? true;
+
+    partial void OnSelectedSessionChanged(SessionPickerItem? value)
+    {
+        if (_suppressPickerSideEffects) return;
+        OnPropertyChanged(nameof(IsNewScanSelected));
+
+        if (value is null || value.IsNewScan)
+        {
+            TotalFilesScanned    = 0;
+            TotalDuplicateGroups = 0;
+            TotalWastedBytes     = 0;
+            StatusMessage = "Configure paths and click Start Scan.";
+            return;
+        }
+
+        if (value.IsAborted)
+        {
+            TotalFilesScanned    = 0;
+            TotalDuplicateGroups = 0;
+            TotalWastedBytes     = 0;
+            StatusMessage = "This scan was aborted. Re-run to get results.";
+            PopulateScanPathsFrom(value.RootPaths);
+            return;
+        }
+
+        // Completed session
+        try   { _engine?.SetActiveSession(value.SessionId!.Value); }
+        catch (Exception ex) { StatusMessage = $"Could not activate session: {ex.Message}"; return; }
+
+        TotalFilesScanned    = (int)value.FilesScanned;
+        TotalDuplicateGroups = (int)value.GroupCount;
+        TotalWastedBytes     = 0;   // updated async below
+        PopulateScanPathsFrom(value.RootPaths);
+        _ = RefreshWastedBytesAsync();
+    }
+
+    private void PopulateScanPathsFrom(string[] paths)
+    {
+        ScanPaths.Clear();
+        foreach (var p in paths) ScanPaths.Add(p);
+        // CollectionChanged fires → SaveUserConfig() — intentional
+    }
+
+    private async Task RefreshWastedBytesAsync()
+    {
+        if (_engine == null) return;
+        var (groups, total) = await Task.Run(() => _engine.QueryDuplicateGroups(0, 500));
+        long wasted = groups.Sum(g => g.WastedBytes);
+        TotalWastedBytes     = wasted;
+        TotalDuplicateGroups = total;
+        StatusMessage = $"{total:N0} duplicate groups, {FormatBytes(wasted)} wasted";
+    }
+
+    public async Task LoadSessionPickerAsync()
+    {
+        if (_engine == null) return;
+        var (sessions, _) = await Task.Run(() => _engine.ListSessions(0, 50));
+
+        _dispatcherQueue?.TryEnqueue(() =>
+        {
+            SessionPickerItems.Clear();
+            SessionPickerItems.Add(SessionPickerItem.NewScan);
+
+            SessionPickerItem? activeItem = null;
+            foreach (var s in sessions)
+            {
+                var item = SessionPickerItem.FromSession(s);
+                SessionPickerItems.Add(item);
+                if (s.IsActive && !item.IsAborted)
+                    activeItem = item;
+            }
+
+            // Set without triggering side effects (engine already has the right active session)
+            _suppressPickerSideEffects = true;
+            SelectedSession = activeItem
+                ?? (SessionPickerItems.Count > 1 ? SessionPickerItems[1] : SessionPickerItem.NewScan);
+            _suppressPickerSideEffects = false;
+            OnPropertyChanged(nameof(IsNewScanSelected));
+        });
     }
 
     public ObservableCollection<string> ScanPaths { get; } = new();
@@ -190,6 +278,16 @@ public partial class MainViewModel : ObservableObject
             IsScanning = true;
             StatusMessage = "Scanning...";
 
+            // Reset stats immediately
+            TotalFilesScanned    = 0;
+            TotalDuplicateGroups = 0;
+            TotalWastedBytes     = 0;
+            // Show "New Scan" in picker without triggering session-switch side effects
+            _suppressPickerSideEffects = true;
+            SelectedSession = SessionPickerItem.NewScan;
+            _suppressPickerSideEffects = false;
+            OnPropertyChanged(nameof(IsNewScanSelected));
+
             _engine?.Dispose();
             _engine = new EngineWrapper();
 
@@ -231,6 +329,8 @@ public partial class MainViewModel : ObservableObject
 
                 _dispatcherQueue?.TryEnqueue(() =>
                 {
+                    if (phase == 0)
+                        TotalFilesScanned = (int)current;   // live update during file discovery
                     ScanPhaseLabel = phaseLabel;
                     ScanCountLabel = countLabel;
                     ScanProgressIndeterminate = indeterminate;
@@ -251,11 +351,7 @@ public partial class MainViewModel : ObservableObject
 
             _engine.ClearProgressCallback();
             StatusMessage = "Scan complete. Loading results...";
-
-            var (sessions, _) = _engine.ListSessions(0, 1);
-            if (sessions.Count > 0)
-                TotalFilesScanned = (int)sessions[0].FilesScanned;
-
+            await LoadSessionPickerAsync();
             await LoadDuplicateGroupsAsync();
         }
         catch (Exception ex)
@@ -282,7 +378,6 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
     private async Task LoadDuplicateGroupsAsync()
     {
         if (_engine == null) return;
@@ -370,5 +465,53 @@ public partial class MainViewModel : ObservableObject
     public void Dispose()
     {
         _engine?.Dispose();
+    }
+}
+
+public sealed class SessionPickerItem
+{
+    public long?    SessionId    { get; init; }   // null = "New Scan" sentinel
+    public bool     IsNewScan    => SessionId is null;
+    public bool     IsAborted    { get; init; }
+    public string[] RootPaths   { get; init; } = [];
+    public long     FilesScanned { get; init; }
+    public long     GroupCount   { get; init; }
+    public string   DisplayLabel { get; init; } = "";
+
+    public static readonly SessionPickerItem NewScan = new()
+    {
+        SessionId    = null,
+        DisplayLabel = "New Scan",
+    };
+
+    public static SessionPickerItem FromSession(SessionInfo s)
+    {
+        var paths   = ParseRootPaths(s.RootPaths);
+        bool aborted = s.Status == "running";
+        string date = DateTime.TryParse(s.CompletedAt ?? s.StartedAt, out var dt)
+            ? dt.ToLocalTime().ToString("g") : (s.CompletedAt ?? s.StartedAt);
+        string shortPath = paths.Length == 0 ? ""
+            : Path.GetFileName(paths[0].TrimEnd('\\', '/'))
+              + (paths.Length > 1 ? $" +{paths.Length - 1}" : "");
+
+        string label = aborted
+            ? $"[Aborted] {date} — {shortPath}"
+            : $"{date}  •  {s.FilesScanned:N0} files  •  {s.GroupCount:N0} groups";
+
+        return new SessionPickerItem
+        {
+            SessionId    = s.Id,
+            IsAborted    = aborted,
+            RootPaths    = paths,
+            FilesScanned = s.FilesScanned,
+            GroupCount   = s.GroupCount,
+            DisplayLabel = label,
+        };
+    }
+
+    private static string[] ParseRootPaths(string json)
+    {
+        try   { return JsonSerializer.Deserialize<string[]>(json) ?? []; }
+        catch { return []; }
     }
 }

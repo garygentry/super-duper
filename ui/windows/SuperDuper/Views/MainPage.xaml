@@ -32,6 +32,18 @@
                 <StackPanel Spacing="16">
                     <TextBlock Text="Super Duper" Style="{StaticResource TitleLargeTextBlockStyle}" />
 
+                    <!-- Session picker row -->
+                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <TextBlock Text="Session:"
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"
+                                   VerticalAlignment="Center" />
+                        <ComboBox ItemsSource="{x:Bind ViewModel.SessionPickerItems}"
+                                  SelectedItem="{x:Bind ViewModel.SelectedSession, Mode=TwoWay}"
+                                  DisplayMemberPath="DisplayLabel"
+                                  MinWidth="380"
+                                  IsEnabled="{x:Bind ViewModel.IsNotScanning, Mode=OneWay}" />
+                    </StackPanel>
+
                     <!-- Stat cards -->
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
