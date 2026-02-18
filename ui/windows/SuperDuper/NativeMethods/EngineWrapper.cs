@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.Text;
 using static SuperDuper.NativeMethods.SuperDuperEngine;
 
 namespace SuperDuper.NativeMethods;
@@ -78,23 +77,6 @@ public sealed class EngineWrapper : IDisposable
         finally { FreeUtf8StringArray(handles); }
     }
 
-    private static (IntPtr[] Ptrs, GCHandle[] Handles) MarshalUtf8StringArray(string[] strings)
-    {
-        var ptrs = new IntPtr[strings.Length];
-        var handles = new GCHandle[strings.Length];
-        for (int i = 0; i < strings.Length; i++)
-        {
-            var bytes = Encoding.UTF8.GetBytes(strings[i] + "\0");
-            handles[i] = GCHandle.Alloc(bytes, GCHandleType.Pinned);
-            ptrs[i] = handles[i].AddrOfPinnedObject();
-        }
-        return (ptrs, handles);
-    }
-
-    private static void FreeUtf8StringArray(GCHandle[] handles)
-    {
-        foreach (var h in handles) h.Free();
-    }
 
     public void StartScan()
     {

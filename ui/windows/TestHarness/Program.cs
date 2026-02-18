@@ -25,7 +25,9 @@ class Program
         // 2. Set scan paths
         var paths = args.Length > 0 ? args : new[] { @"../test-data/folder1", @"../test-data/folder2" };
         Console.Write($"Setting scan paths ({string.Join(", ", paths)})... ");
-        var result = sd_engine_set_scan_paths(handle, paths, (uint)paths.Length);
+        var (pathPtrs, pathHandles) = MarshalUtf8StringArray(paths);
+        var result = sd_engine_set_scan_paths(handle, pathPtrs, (uint)pathPtrs.Length);
+        FreeUtf8StringArray(pathHandles);
         if (result != SdResultCode.Ok)
         {
             Console.WriteLine($"FAILED: {result} - {GetLastError()}");

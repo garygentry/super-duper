@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace SuperDuper.NativeMethods;
 
@@ -244,6 +245,24 @@ public static partial class SuperDuperEngine
         ulong handle, out SdDeletionResult result);
 
     // ── Helpers ──────────────────────────────────────────────────
+
+    public static (IntPtr[] Ptrs, GCHandle[] Handles) MarshalUtf8StringArray(string[] strings)
+    {
+        var ptrs = new IntPtr[strings.Length];
+        var handles = new GCHandle[strings.Length];
+        for (int i = 0; i < strings.Length; i++)
+        {
+            var bytes = Encoding.UTF8.GetBytes(strings[i] + "\0");
+            handles[i] = GCHandle.Alloc(bytes, GCHandleType.Pinned);
+            ptrs[i] = handles[i].AddrOfPinnedObject();
+        }
+        return (ptrs, handles);
+    }
+
+    public static void FreeUtf8StringArray(GCHandle[] handles)
+    {
+        foreach (var h in handles) h.Free();
+    }
 
     public static string? GetLastError()
     {
