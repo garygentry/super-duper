@@ -162,7 +162,7 @@ public partial class MarkedFileViewModel : ObservableObject
     public string FileName { get; }
     public string FormattedSize { get; }
 
-    public MarkedFileViewModel(FileInfo file, EngineWrapper engine, DeletionReviewViewModel parent)
+    public MarkedFileViewModel(NativeMethods.FileInfo file, EngineWrapper engine, DeletionReviewViewModel parent)
     {
         _engine = engine;
         _parent = parent;
