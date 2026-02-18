@@ -285,6 +285,14 @@ public static partial class SuperDuperEngine
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void sd_free_session_page(ref SdSessionPage page);
 
+    // ── Database Management ──────────────────────────────────────
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern SdResultCode sd_truncate_database(ulong handle);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern SdResultCode sd_clear_hash_cache();
+
     // ── Helpers ──────────────────────────────────────────────────
 
     public static (IntPtr[] Ptrs, GCHandle[] Handles) MarshalUtf8StringArray(string[] strings)

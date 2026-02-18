@@ -462,6 +462,25 @@ public partial class MainViewModel : ObservableObject
         return $"{len:0.##} {sizes[order]}";
     }
 
+    /// <summary>
+    /// Called by SessionsViewModel after a database clear or full reset.
+    /// </summary>
+    public void OnDatabaseCleared()
+    {
+        TotalFilesScanned    = 0;
+        TotalDuplicateGroups = 0;
+        TotalWastedBytes     = 0;
+        DuplicateGroups.Clear();
+        StatusMessage = "Database cleared. Configure paths and click Start Scan.";
+
+        _suppressPickerSideEffects = true;
+        SessionPickerItems.Clear();
+        SessionPickerItems.Add(SessionPickerItem.NewScan);
+        SelectedSession = SessionPickerItem.NewScan;
+        _suppressPickerSideEffects = false;
+        OnPropertyChanged(nameof(IsNewScanSelected));
+    }
+
     public void Dispose()
     {
         _engine?.Dispose();

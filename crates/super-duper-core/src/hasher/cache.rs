@@ -84,6 +84,22 @@ pub fn count_keys() -> Result<usize, io::Error> {
     Ok(count)
 }
 
+pub fn clear_all() -> io::Result<()> {
+    let db = DB_INSTANCE
+        .lock()
+        .map_err(|e| io::Error::new(ErrorKind::Other, format!("Failed to lock cache: {}", e)))?;
+
+    let mut batch = rocksdb::WriteBatch::default();
+    for item in db.iterator(IteratorMode::Start) {
+        let (key, _) = item.map_err(|e| io::Error::new(ErrorKind::Other, e))?;
+        batch.delete(&key);
+    }
+    db.write(batch)
+        .map_err(|e| io::Error::new(ErrorKind::Other, e))?;
+    info!("Hash cache cleared");
+    Ok(())
+}
+
 pub fn print_count() {
     match count_keys() {
         Ok(count) => info!("Total keys in hash cache: {}", count),

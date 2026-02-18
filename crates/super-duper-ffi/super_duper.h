@@ -157,6 +157,12 @@ extern "C" {
 enum SdResultCode sd_auto_mark_for_deletion(uint64_t handle);
 
 /**
+ * Clear all entries from the RocksDB hash cache.
+ * Does not affect the SQLite database.
+ */
+enum SdResultCode sd_clear_hash_cache(void);
+
+/**
  * Clear the progress callback.
  */
 enum SdResultCode sd_clear_progress_callback(uint64_t handle);
@@ -368,6 +374,13 @@ enum SdResultCode sd_set_active_session(uint64_t handle, int64_t session_id);
  * Set a progress callback for scan operations.
  */
 enum SdResultCode sd_set_progress_callback(uint64_t handle, SdProgressCallback callback);
+
+/**
+ * Truncate all SQLite tables (sessions, files, groups, directory data, deletion plan).
+ * The hash cache (RocksDB) is NOT touched.
+ * Clears the engine's active_session_id.
+ */
+enum SdResultCode sd_truncate_database(uint64_t handle);
 
 /**
  * Unmark a file from the deletion plan.

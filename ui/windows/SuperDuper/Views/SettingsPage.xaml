@@ -111,12 +111,55 @@
             </StackPanel>
 
             <!-- Database -->
-            <StackPanel Spacing="8">
+            <StackPanel Spacing="12">
                 <TextBlock Text="Database" Style="{StaticResource BodyStrongTextBlockStyle}" />
                 <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                           FontFamily="Consolas" FontSize="12" TextWrapping="Wrap">
-                    <Run Text="{x:Bind ViewModel.DatabasePath, Mode=OneWay}" />
-                </TextBlock>
+                           FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"
+                           Text="{x:Bind ViewModel.DatabasePath, Mode=OneWay}" />
+
+                <!-- Clear Scan History -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        CornerRadius="8" Padding="16">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="4">
+                            <TextBlock Text="Clear Scan History"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <TextBlock Text="Deletes all sessions, file records, and duplicate groups. The hash cache is preserved so the next scan will be fast."
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap" FontSize="12" />
+                        </StackPanel>
+                        <Button Grid.Column="1" x:Name="ClearHistoryButton"
+                                Content="Clear History"
+                                VerticalAlignment="Center"
+                                Click="ClearHistoryButton_Click" />
+                    </Grid>
+                </Border>
+
+                <!-- Full Reset -->
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        CornerRadius="8" Padding="16">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="4">
+                            <TextBlock Text="Full Reset"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <TextBlock Text="Deletes all database records AND the hash cache. The next scan will re-hash all files from scratch. Use for testing or to recover from corruption."
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap" FontSize="12" />
+                        </StackPanel>
+                        <Button Grid.Column="1" x:Name="FullResetButton"
+                                Content="Full Reset"
+                                VerticalAlignment="Center"
+                                Click="FullResetButton_Click" />
+                    </Grid>
+                </Border>
             </StackPanel>
 
             <!-- About -->

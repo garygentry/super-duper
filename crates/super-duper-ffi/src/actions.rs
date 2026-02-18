@@ -406,6 +406,43 @@ pub extern "C" fn sd_delete_session(handle: u64, session_id: i64) -> SdResultCod
     result.unwrap_or(SdResultCode::InvalidHandle)
 }
 
+/// Truncate all SQLite tables (sessions, files, groups, directory data, deletion plan).
+/// The hash cache (RocksDB) is NOT touched.
+/// Clears the engine's active_session_id.
+#[no_mangle]
+pub extern "C" fn sd_truncate_database(handle: u64) -> SdResultCode {
+    let result = with_handle(handle, |state| {
+        if state.is_scanning {
+            return SdResultCode::ScanInProgress;
+        }
+        match state.db.as_ref().map(|db| db.truncate_all()) {
+            Some(Ok(())) => {
+                state.active_session_id = None;
+                SdResultCode::Ok
+            }
+            Some(Err(e)) => {
+                set_last_error(e.to_string());
+                SdResultCode::DatabaseError
+            }
+            None => SdResultCode::InternalError,
+        }
+    });
+    result.unwrap_or(SdResultCode::InvalidHandle)
+}
+
+/// Clear all entries from the RocksDB hash cache.
+/// Does not affect the SQLite database.
+#[no_mangle]
+pub extern "C" fn sd_clear_hash_cache() -> SdResultCode {
+    match super_duper_core::hasher::cache::clear_all() {
+        Ok(()) => SdResultCode::Ok,
+        Err(e) => {
+            set_last_error(e.to_string());
+            SdResultCode::InternalError
+        }
+    }
+}
+
 /// Execute the deletion plan. Returns success/error counts via out parameters.
 ///
 /// # Safety
