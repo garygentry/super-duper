@@ -48,7 +48,10 @@ public partial class MainViewModel : ObservableObject
     public event EventHandler<(string Title, string Detail)>? ErrorOccurred;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNotScanning))]
     private bool _isScanning;
+
+    public bool IsNotScanning => !IsScanning;
 
     [ObservableProperty]
     private string _statusMessage = "Ready";

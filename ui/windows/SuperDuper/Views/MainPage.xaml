@@ -154,8 +154,7 @@
 
                     <!-- Not scanning: Start Scan button -->
                     <StackPanel Orientation="Horizontal" Spacing="8"
-                                Visibility="{x:Bind ViewModel.IsScanning, Mode=OneWay,
-                                             Converter={StaticResource InvertBoolConverter}}">
+                                Visibility="{x:Bind ViewModel.IsNotScanning, Mode=OneWay}">
                         <Button Content="Start Scan"
                                 Style="{StaticResource AccentButtonStyle}"
                                 Command="{x:Bind ViewModel.StartScanCommand}" />
