@@ -1,342 +1,241 @@
-# Super Duper — Feature Roadmap
+# Roadmap
 
-This roadmap is organized by theme. Items within each theme are loosely prioritized top-to-bottom.
-
----
-
-## 1. Duplicate Detection & Analysis
-
-### 1.1 Fuzzy / Near-Duplicate File Matching
-**Problem**: Bit-for-bit duplicate detection misses files that are functionally identical but differ by metadata — e.g. two JPEGs with different EXIF timestamps, or two MP3s with different ID3 tags.
-
-**Approach**:
-- Images: perceptual hashing (pHash / dHash) with Hamming-distance threshold; expose as a configurable second pass after exact-hash detection
-- Audio: acoustic fingerprinting (Chromaprint) for music files
-- Text/documents: MinHash / Locality Sensitive Hashing (LSH) for document similarity
-- Configurable similarity threshold per media type
+This document tracks future work for Super Duper, organized by urgency. See [README.md](README.md) for architecture and getting-started documentation.
 
 ---
 
-### 1.2 File-Type–Aware Duplicate Groups
-**Problem**: The UI presents all duplicate groups identically regardless of content type. Users working through large photo or video libraries want to filter and sort by type.
+## Current State
 
-**Approach**:
-- Store detected MIME type in `scanned_file` during scan (via `infer` crate, magic-byte detection)
-- Add type filter to Duplicate Groups page (All / Images / Video / Audio / Documents / Archives / Other)
-- Sort groups by type, then by wasted bytes within type
+The core pipeline is complete and functional:
 
----
-
-### 1.3 Incremental / Watch-Mode Scanning
-**Problem**: A full re-scan is required to detect changes. For large libraries this takes minutes.
-
-**Approach**:
-- Inotify/FSEvents/ReadDirectoryChangesW watcher that enqueues changed paths
-- On change: re-hash only the affected file, update its `scanned_file` row, recalculate affected duplicate groups
-- Expose as an optional "watch" flag in the CLI and a toggle in Settings
+- Two-tier hashing (size bucket → 1 KB partial → full XxHash64) with RocksDB cache
+- SQLite session storage with WAL mode, 64 MB page cache, 256 MB mmap
+- Directory fingerprinting (bottom-up XxHash64 of sorted child hash sets)
+- Jaccard similarity with inverted-index candidate generation
+- FFI: handle-based design, paginated queries, thread-local error detail
+- WinUI 3 UI: dashboard, duplicate groups, directory comparison, deletion review, settings, session history
+- CLI: `process`, `analyze-directories`, `count-hash-cache`, `print-config`, `truncate-db`
 
 ---
 
-### 1.4 Archive-Aware Scanning
-**Problem**: Duplicates hidden inside ZIP, 7z, or tar archives are invisible to the current scanner.
+## Now — Safety & Correctness
 
-**Approach**:
-- Optional second pass: for each archive file, extract a virtual file list and compute member hashes in-memory
-- Store virtual members in a separate `archive_member` table with a foreign key to the parent archive file
-- Report cross-archive and archive-to-filesystem duplicates distinctly in the UI
+These items block confident daily use. No existing feature compensates for them.
 
----
+### 1. Recycle Bin deletion
 
-### 1.5 Duplicate Video Frame Detection
-**Problem**: Users often have the same video in multiple resolutions or re-encoded formats. Bit-level hashing never matches these.
+**Why it matters**: `fs::remove_file` in `analysis/deletion_plan.rs` permanently deletes files with no recovery path. A single mistaken auto-mark wipes data forever.
 
-**Approach**:
-- Extract evenly-spaced frame thumbnails with ffmpeg
-- Run perceptual hash on each thumbnail
-- Compare frame-hash sequences between candidate videos; threshold on sequential match rate
-- Flag as "probable video duplicate" with confidence score
+**Implementation**: Introduce the [`trash`](https://crates.io/crates/trash) crate (cross-platform) or call the Windows Shell `SHFileOperation` API via `platform/windows.rs`. Add a `use_trash: bool` flag to `execute_deletion_plan()` defaulting to `true`. Surface as a Settings toggle ("Move to Recycle Bin" vs "Permanently delete").
+
+**Files**: `crates/super-duper-core/src/analysis/deletion_plan.rs`, `crates/super-duper-core/src/platform/windows.rs`, `ui/windows/SuperDuper/Views/SettingsPage.xaml`
 
 ---
 
-## 2. Deletion & Space Recovery
+### 2. Reveal in Explorer / Open file
 
-### 2.1 Intelligent Keep-Selection Rules
-**Problem**: Auto-mark currently keeps the alphabetically first file in each group. Users often want a different policy.
+**Why it matters**: Users identifying duplicates need to inspect files in context before deciding what to keep. There is currently no way to open a file or its folder from the UI.
 
-**Proposed policies** (selectable per session):
-- **Newest**: keep the most recently modified copy
-- **Oldest**: keep the earliest modified copy (original)
-- **Shortest path**: keep the file closest to a root directory
-- **Path regex**: keep the copy whose path matches a user-supplied regular expression
-- **Largest parent folder**: keep the copy in the directory with the most files (heuristic for "primary" collection)
+**Implementation**: Add a context menu or icon button on each file row in DuplicateGroupsPage and DeletionReviewPage. Use `Process.Start("explorer.exe", $"/select,\"{path}\"")` in the code-behind to highlight the file in Explorer.
+
+**Files**: `ui/windows/SuperDuper/Views/` (DuplicateGroupsPage, DeletionReviewPage)
 
 ---
 
-### 2.2 Recycle Bin / Trash Integration
-**Problem**: `fs::remove_file()` permanently deletes without recovery.
+### 3. Scan-in-progress UI guard
 
-**Approach**:
-- Windows: move to Recycle Bin via `SHFileOperation` (COM) before permanent delete
-- macOS/Linux: move to `~/.Trash` or `XDG_DATA_HOME/Trash`
-- Add "Move to Trash" vs "Delete Permanently" option in the UI; default to Trash
-- Store trash path in `deletion_plan.execution_result` for potential undo
+**Why it matters**: Double-clicking "Start Scan" while a scan is running submits a second scan request. The FFI layer blocks re-entry, but the UI gives no feedback and the button remains clickable.
 
----
+**Implementation**: Bind the Start Scan button's `IsEnabled` to `ViewModel.IsNotScanning` — a property already implied by the existing `IsScanning` flag. No new logic required; just the binding.
 
-### 2.3 Symbolic Link / Hard Link Replacement
-**Problem**: After deleting redundant copies, users still need to update references. An alternative is to replace duplicates with hard links or symbolic links, eliminating the redundant bytes while preserving all original paths.
-
-**Approach**:
-- Post-deletion: offer to create a hard link at the deleted path pointing to the kept copy
-- For cross-filesystem duplicates: offer symbolic links instead
-- Record the link type in `deletion_plan`
+**Files**: `ui/windows/SuperDuper/Views/MainPage.xaml`, `ui/windows/SuperDuper/ViewModels/MainViewModel.cs`
 
 ---
 
-### 2.4 Undo / Deletion History
-**Problem**: There is no way to recover from an executed deletion plan short of restoring from backup.
+### 4. Shared bytes accuracy in directory similarity
 
-**Approach**:
-- Before execution, snapshot the deletion plan to a timestamped log file (JSON)
-- For Trash-based deletions: offer "Undo Last Plan" that moves files out of Trash and clears their `marked_deleted` flag
-- Retention: keep last N plans (configurable); auto-purge older logs
+**Why it matters**: The "shared bytes" figure shown on the Directory Comparison page is documented as approximate (`dir_similarity.rs` line 110). It currently counts shared file hashes without consulting actual file sizes, making the displayed savings misleading for groups of large files.
 
----
+**Implementation**: Join `directory_fingerprint.hash_set` with `scanned_file.file_size` at query time in `storage/queries.rs`. All required data is already present; this is a query change only.
 
-### 2.5 Dry-Run Mode
-**Problem**: Users want to see what *would* be deleted before committing.
-
-**Approach**:
-- CLI flag: `--dry-run` on `execute-deletion`
-- UI: "Preview" button alongside "Execute" that shows the list without touching disk
-- Print per-file would-delete log and aggregate totals
+**Files**: `crates/super-duper-core/src/analysis/dir_similarity.rs`, `crates/super-duper-core/src/storage/queries.rs`
 
 ---
 
-## 3. Directory Comparison & Organization
+## Soon — Workflow & Usability
 
-### 3.1 Interactive Directory Tree Browser
-**Problem**: The current Directory Comparison page shows a flat list of similar pairs. There is no way to visualize where they sit in the overall tree.
+These items add missing workflow steps that users will hit on first real use.
 
-**Approach**:
-- Add a tree-view panel showing the directory hierarchy with color-coded similarity badges
-- Click a node to see which other directories it overlaps with, and by how much
-- Filter tree to show only directories above a similarity threshold
+### 5. Auto-mark strategy picker
 
----
+**Why it matters**: The current auto-mark strategy ("keep first alphabetically") is hardcoded. Users with date-structured archives want to keep the oldest copy; users with preferred archive paths want to keep files under a specific prefix.
 
-### 3.2 Adjustable Similarity Threshold (Live Slider)
-**Problem**: The 0.5 Jaccard threshold is set at scan time. Changing it requires a full re-analyze pass.
+**Implementation**: Define a `KeepStrategy` enum in core (`FirstAlpha`, `Newest`, `Oldest`, `PreferredPath(prefix)`). Extend `auto_mark_duplicates()` to accept it. Add a `strategy: u32` parameter to `sd_auto_mark_for_deletion` in the FFI. Surface as a dropdown on the Deletion Review page next to the Auto-Mark button.
 
-**Approach**:
-- Store all pairs with similarity ≥ 0.1 in `directory_similarity` at scan time
-- The UI filters in-memory (or re-queries with a `WHERE similarity_score >=` clause) as the slider moves
-- No re-scan needed; threshold adjustment is instant
+**Files**: `crates/super-duper-core/src/analysis/deletion_plan.rs`, `crates/super-duper-ffi/src/actions.rs`, `ui/windows/SuperDuper/Views/` (DeletionReviewPage)
 
 ---
 
-### 3.3 Side-by-Side Directory Diff
-**Problem**: When two directories are flagged as near-duplicates, there is no way to see what files are exclusive to each side.
+### 6. Filter & sort in Duplicate Groups
 
-**Approach**:
-- New panel: given a selected pair, show three columns: "Only in A", "In both", "Only in B"
-- "In both" shows files present (by content hash) in both trees; "Only in A/B" shows unique content
-- Allow bulk-marking files in a single column for deletion
+**Why it matters**: Large scans produce hundreds of duplicate groups. Without filtering, users scroll through noise (tiny files, known-ignorable types) to find high-value targets.
 
----
+**Implementation**: Add a filter bar above the groups list: minimum wasted size (slider), file extension filter (text field), filename search. All filtering operates client-side on loaded groups — no new FFI needed for basic cases. Add sort options: wasted bytes (current default), file count, individual file size.
 
-### 3.4 Cross-Drive / Cross-Machine Duplicate Detection
-**Problem**: The scanner only runs on the local machine. Archives on external drives or NAS are missed unless manually mounted.
-
-**Approach**:
-- Exportable scan manifest: `super-duper-cli export-manifest --out scan.json` writes all `scanned_file` rows to JSON
-- Import command: `super-duper-cli import-manifest scan.json` merges rows from another machine/drive into the local DB
-- Cross-origin duplicate groups resolved by matching `content_hash`
+**Files**: `ui/windows/SuperDuper/Views/` (DuplicateGroupsPage), `ui/windows/SuperDuper/ViewModels/` (DuplicateGroupsViewModel)
 
 ---
 
-## 4. User Interface
+### 7. Export results
 
-### 4.1 macOS / Linux UI
-**Problem**: The native UI is Windows-only. The core library and CLI are fully cross-platform.
+**Why it matters**: Power users want to script follow-up actions (move files, build reports) on the duplicate list without re-running a scan. There is currently no way to extract data from the database without a SQLite client.
 
-**Approach options**:
-- **Tauri** (Rust backend + web frontend): smallest binary, cross-platform; reuse all Rust core directly without FFI
-- **Slint** (Rust-native UI): native-feeling widgets, no web runtime
-- Share all scan/analysis/storage logic; only the view layer changes
+**Implementation**:
+- CLI: add an `export` subcommand to `super-duper-cli` writing the current session's duplicate groups to stdout as CSV or JSON (`--format csv|json`)
+- UI (optional): add an "Export" button to the Duplicate Groups page that opens a `FileSavePicker` and writes CSV/JSON
 
----
-
-### 4.2 File Preview in Duplicate Groups
-**Problem**: When deciding which copy to keep, users can't tell files apart without opening them externally.
-
-**Approach**:
-- Images: inline thumbnail rendered in a `BitmapImage` control
-- Text/code: first N lines shown in a monospace read-only text area
-- Video: first-frame thumbnail via ffmpeg or Windows Media Foundation
-- Audio: file metadata (artist, album, duration) from ID3/FLAC tags
-- All other types: file metadata summary (size, path, modified date)
+**Files**: `crates/super-duper-cli/src/commands.rs`, `crates/super-duper-cli/src/main.rs`, `crates/super-duper-core/src/storage/queries.rs`
 
 ---
 
-### 4.3 Persistent Column Sorting & Filters
-**Problem**: Duplicate group sort order resets to "wasted bytes descending" on every navigation.
+### 8. CLI deletion command
 
-**Approach**:
-- Persist selected sort column, direction, and active type filter in `user_config.json`
-- Apply on page load without user interaction
+**Why it matters**: The CLI can detect duplicates but cannot act on them. Users running headless or in CI have no way to execute a reviewed deletion plan without launching the Windows UI.
 
----
+**Implementation**: Add a `delete` subcommand with a `--dry-run` flag that prints the plan without acting, and a standard mode that prompts for terminal confirmation before calling `execute_deletion_plan()`.
 
-### 4.4 Bulk Path Operations
-**Problem**: Adding 20 scan paths one by one is tedious.
-
-**Approach**:
-- "Add multiple folders" button opens a multi-select folder picker (Windows `IFileOpenDialog` multi-select mode)
-- Paste from clipboard: detect newline-separated paths in the clipboard and offer to add all
+**Files**: `crates/super-duper-cli/src/commands.rs`, `crates/super-duper-cli/src/main.rs`
 
 ---
 
-### 4.5 Keyboard Navigation & Shortcuts
-**Problem**: Power users working through large lists must use the mouse for every action.
+### 9. Configurable similarity thresholds
 
-**Proposed bindings**:
+**Why it matters**: The Jaccard threshold (0.5) and noise cutoff (50 directories) are hardcoded in `dir_similarity.rs`. A threshold of 0.5 misses near-duplicates at 0.4; the noise cutoff of 50 is arbitrary and may exclude valid candidates in large trees.
 
-| Key | Action |
-|---|---|
-| `Space` | Toggle mark-for-deletion on focused file |
-| `Enter` | Expand / collapse focused duplicate group |
-| `Delete` | Remove focused scan path |
-| `Ctrl+A` | Select all files in focused group |
-| `Ctrl+Z` | Undo last mark |
-| `F5` | Start scan |
-| `Escape` | Cancel scan |
+**Implementation**: Add `min_jaccard_score: f64` and `max_hash_frequency: usize` fields to `AppConfig` in `config.rs`. Update `analyze_directory_similarity()` to read them. Add Settings UI sliders. Running `analyze-directories` picks up the new values automatically.
+
+**Files**: `crates/super-duper-core/src/config.rs`, `crates/super-duper-core/src/analysis/dir_similarity.rs`, `ui/windows/SuperDuper/Views/SettingsPage.xaml`
 
 ---
 
-### 4.6 Export Reports
-**Problem**: There is no way to share scan results without sharing the SQLite database.
+### 10. Drag-and-drop path addition
 
-**Approach**:
-- Export to CSV: duplicate groups with all member paths, sizes, and wasted bytes
-- Export to HTML: self-contained report with sortable tables and summary statistics
-- Export to JSON: machine-readable format suitable for scripting downstream actions
+**Why it matters**: Users want to drag folders from Explorer onto the scan path list rather than type or paste paths. This is a standard Windows UX expectation.
 
----
+**Implementation**: Subscribe to `DragOver` and `Drop` on the scan paths `ListView` in `MainPage.xaml`. Extract `StorageFolder` items from `DragEventArgs.DataView` and add their paths to the scan list.
 
-### 4.7 System Tray / Background Mode
-**Problem**: The app must stay in focus to monitor scan progress.
-
-**Approach**:
-- Minimize to system tray; show progress as tray tooltip
-- Windows notification on scan completion with "View Results" action that brings the window to focus
-- Optional: run a background watch-mode scan (see 1.3) from the tray without opening the full UI
+**Files**: `ui/windows/SuperDuper/Views/MainPage.xaml`, `ui/windows/SuperDuper/Views/MainPage.xaml.cs`
 
 ---
 
-## 5. Performance & Scalability
+## Later — Performance & Scale
 
-### 5.1 Streaming DB Writes
-**Problem**: All results are written in a single transaction at the end of the scan. For very large scans this can cause a multi-second UI freeze and risks losing all results if the process is killed.
+These items become important as file libraries grow into the millions.
 
-**Approach**:
-- Write `scanned_file` rows in batches of 10,000 during the hash phase (not just at the end)
-- Write duplicate groups incrementally as each size bucket is resolved
-- The UI can display partial results while scanning continues
+### 11. Hash cache eviction
 
----
+**Why it matters**: The RocksDB hash cache grows without bound. Users with large file libraries will accumulate stale entries for files that no longer exist, consuming disk space indefinitely.
 
-### 5.2 Parallel Directory Analysis
-**Problem**: `build_directory_fingerprints()` processes one depth level at a time (sequentially across levels) to respect the parent-before-child dependency. Within a level, computation is serial.
+**Implementation**: Add an `sd_trim_hash_cache(max_entries: u64)` FFI function. Iterate the RocksDB column family and delete entries beyond the cap, approximating LRU with an insertion-order key prefix or a separate timestamp column. Show the entry count in Settings with a "Trim" button (the count query already exists: `count-hash-cache` CLI command).
 
-**Approach**:
-- Within each depth level, fingerprint computation for sibling directories is fully independent — run with `par_iter()`
-- Profile and identify the bottleneck level; likely to yield meaningful speedup on deeply nested trees
+**Files**: `crates/super-duper-core/src/hasher/cache.rs`, `crates/super-duper-ffi/src/actions.rs`, `ui/windows/SuperDuper/Views/SettingsPage.xaml`
 
 ---
 
-### 5.3 Configurable Hash Algorithm
-**Problem**: XxHash64 is non-cryptographic. For users who need collision resistance (forensic use, legal record-keeping), SHA-256 or BLAKE3 would be preferable.
+### 12. Incremental scan (dirty-directory detection)
 
-**Approach**:
-- Add `hash_algorithm` field to `AppConfig` (`xxhash64` | `blake3` | `sha256`)
-- Implement each behind a `ContentHasher` trait
-- Store algorithm identifier in `scan_session` so mixed-algorithm sessions are never compared
-- Cache keys include algorithm identifier to prevent stale cross-algorithm hits
+**Why it matters**: Every scan re-walks all configured paths. For large stable archives (say, 500 GB of unchanged video files), this wastes significant time re-checking files that haven't changed since the last scan.
 
----
+**Implementation**: Record directory `mtime` in the `directory_node` table. On re-scan, compare current `mtime` against the stored value; skip subtrees where it hasn't changed. This is the single biggest performance win for users with large, mostly-static archives.
 
-### 5.4 Large File Streaming
-**Problem**: Files larger than available RAM cannot be safely fully-read into a single buffer. The current implementation reads the entire file into memory for hashing.
-
-**Approach**:
-- Stream file through hash in fixed-size chunks (e.g. 1 MB) using `Read::read_exact` in a loop
-- Already works for XxHash64 (incremental update); BLAKE3 and SHA-256 also support incremental APIs
-- Memory usage becomes constant regardless of file size
+**Files**: `crates/super-duper-core/src/storage/schema.sql`, `crates/super-duper-core/src/storage/queries.rs`, `crates/super-duper-core/src/scanner/walk.rs`
 
 ---
 
-### 5.5 Multi-Database / Split Storage
-**Problem**: On very large libraries the SQLite file can grow to several GB, and writes become contended.
+### 13. Virtual scrolling
 
-**Approach**:
-- Separate `scan.db` (write-heavy, per-session data) from `analysis.db` (read-heavy, directory similarity)
-- Attach both databases in a single SQLite connection via `ATTACH DATABASE`
-- Or migrate to a proper embedded database (e.g. DuckDB) for analytical queries
+**Why it matters**: The "Load More" button requires manual interaction to page through results. For sessions with thousands of duplicate groups, the experience is tedious.
 
----
+**Implementation**: Replace the `ListView + Load More` pattern with `ItemsRepeater` driven by scroll position. `sd_query_duplicate_groups` already returns `TotalAvailable`; a scroll-triggered load threshold is the only missing piece.
 
-## 6. Developer & Operational
-
-### 6.1 Automated Integration Tests
-**Problem**: The test suite covers individual crates but there are no end-to-end tests that exercise the full pipeline from CLI invocation through to database state.
-
-**Approach**:
-- Generate a deterministic synthetic test corpus with known duplicates and directory structures
-- CLI integration test: invoke `cargo run -p super-duper-cli -- process`, assert output contains expected group counts
-- FFI integration test: drive the C ABI directly from a Rust test binary
+**Files**: `ui/windows/SuperDuper/Views/` (DuplicateGroupsPage), `ui/windows/SuperDuper/ViewModels/` (DuplicateGroupsViewModel)
 
 ---
 
-### 6.2 Metrics & Telemetry (opt-in)
-**Problem**: There is no visibility into scan performance regressions across versions.
+### 14. CLI JSON output
 
-**Approach**:
-- Emit structured timing events at each pipeline stage: scan, partial hash, full hash, db write, dir analysis
-- Write to a `performance_log` SQLite table: session_id, stage, duration_ms, file_count
-- CLI flag `--benchmark` prints per-stage breakdown after each run
+**Why it matters**: Piping `process` output into `jq` or other tools is blocked because the CLI currently emits only human-readable log lines. Structured output is essential for scripting.
 
----
+**Implementation**: Add `--format json` to the `process` and `export` subcommands. Emit a JSON object to stdout: `{ "session": {...}, "groups": [...] }`. Keep the default as human-readable.
 
-### 6.3 Plugin / Extension System
-**Problem**: Custom duplicate-detection strategies (e.g. perceptual image hashing, audio fingerprinting) require modifying the Rust core and rebuilding.
-
-**Approach**:
-- Define a `ContentHasher` plugin trait with a stable C ABI
-- Load plugins from a configurable directory at startup via `dlopen`/`LoadLibrary`
-- Allow plugins to register for file type patterns (e.g. `*.jpg`, `*.mp3`)
-- This unlocks community-contributed detectors without coupling them to the core release cycle
+**Files**: `crates/super-duper-cli/src/commands.rs`, `crates/super-duper-cli/src/main.rs`
 
 ---
 
-### 6.4 Installer & Auto-Update (Windows)
-**Problem**: Distribution requires manually building from source.
+### 15. Async scan FFI
 
-**Approach**:
-- MSIX package with `<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>` to bundle the Windows App Runtime
-- Or WiX-based MSI that chains the Windows App SDK installer as a prerequisite
-- GitHub Releases workflow: build, sign, and upload installer on tag push
-- In-app update check against GitHub Releases API; prompt user when a newer version is available
+**Why it matters**: `sd_scan_start()` blocks the calling thread. The current C# workaround (`Task.Run` + callback marshalling to the UI dispatcher) is functional but adds complexity and makes it harder to cancel a running scan.
+
+**Implementation**: Add `sd_scan_start_async(handle, on_complete_callback)` that returns immediately and delivers the result via callback on a background thread. Add `sd_scan_cancel()` to request early termination. The synchronous variant stays for CLI use.
+
+**Files**: `crates/super-duper-ffi/src/actions.rs`, `crates/super-duper-ffi/src/callbacks.rs`, `ui/windows/SuperDuper/NativeMethods/EngineWrapper.cs`
 
 ---
 
-### 6.5 Configuration UI
-**Problem**: Ignore patterns, hash algorithm, similarity threshold, and other advanced settings are only configurable by editing files.
+## Someday — Platform & Advanced Analysis
 
-**Approach**:
-- Expand the existing Settings page to expose all `AppConfig` fields
-- Changes are written to `user_config.json` immediately; take effect on next scan
-- Add a "Reset to defaults" button
+These items expand scope significantly. Each is a meaningful project in its own right.
+
+### 16. macOS / Linux UI
+
+**Why it matters**: The FFI crate already compiles as a shared library on Linux and macOS. A cross-platform frontend would make Super Duper useful on non-Windows machines without any core changes.
+
+**Implementation**: [Tauri](https://tauri.app/) (Rust + web frontend) would reuse the FFI directly and produce a native binary for all three platforms. Alternatives: MAUI, Flutter, or [Slint](https://slint.dev/).
+
+**Files**: New `ui/tauri/` directory; no core changes required.
+
+---
+
+### 17. File type breakdown
+
+**Why it matters**: Aggregate "X GB wasted" figures are useful, but users want to know whether the waste is video files, document backups, or build artifacts before deciding what to act on.
+
+**Implementation**: Add a query in `storage/queries.rs` that categorizes duplicate groups by extension group (Images, Video, Audio, Archives, Documents, Other) and returns per-category wasted bytes and file counts. Display as stat cards or a breakdown chart on the dashboard.
+
+**Files**: `crates/super-duper-core/src/storage/queries.rs`, `crates/super-duper-ffi/src/queries.rs`, `ui/windows/SuperDuper/ViewModels/MainViewModel.cs`
+
+---
+
+### 18. Perceptual image deduplication
+
+**Why it matters**: Content-identical images are caught by the existing pipeline. Near-identical images — same photo at different JPEG quality levels or with a slight crop — are not. These are common in photo library archives.
+
+**Implementation**: Compute a [perceptual hash (pHash)](https://www.phash.org/) for image files alongside the content hash. Store in a new `image_phash` column on `scanned_file`. Compare pairs using Hamming distance ≤ N as the similarity threshold. Surface results in a new "Similar Images" page.
+
+**Files**: `crates/super-duper-core/src/hasher/`, `crates/super-duper-core/src/storage/schema.sql`, new `ui/windows/SuperDuper/Views/SimilarImagesPage.*`
+
+---
+
+### 19. Near-duplicate file detection (fuzzy hashing)
+
+**Why it matters**: `report_v1.docx` and `report_v2.docx` are not content-identical and are missed by the current pipeline. Fuzzy hashing detects modified copies of text and document files — common in working directories and email archives.
+
+**Implementation**: Compute [TLSH](https://github.com/trendmicro/tlsh) or `ssdeep` hashes for text, document, and source-code files. Store in a new `fuzzy_hash` column. Compare pairs using the respective distance metric. Surface in a new "Similar Files" section.
+
+**Files**: `crates/super-duper-core/src/hasher/`, `crates/super-duper-core/src/storage/schema.sql`
+
+---
+
+### 20. Installer / distribution
+
+**Why it matters**: Currently requires building from source with a full Rust toolchain. A packaged installer would allow non-developer use.
+
+**Implementation**:
+- MSIX package using `<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>` to bundle the Windows App Runtime (no separate runtime installer required)
+- winget manifest submission to the [winget-pkgs](https://github.com/microsoft/winget-pkgs) repository
+- GitHub Releases CI pipeline: build → sign → publish `.msix` on tag push
+
+**Files**: `ui/windows/SuperDuper/SuperDuper.csproj`, new `.github/workflows/release.yml`
 
 ---
 

@@ -269,7 +269,7 @@ The `super-duper-ffi` crate exposes a stable C ABI consumed by the C# UI via P/I
 
 ## Project Status
 
-The core pipeline, Windows UI, and CLI are all functional. This is an actively developed personal tool; the API surface and database schema may change between releases.
+The core pipeline, Windows UI, and CLI are all functional. This is an actively developed personal tool; the API surface and database schema may change between releases. See [ROADMAP.md](ROADMAP.md) for planned enhancements.
 
 ---
 
