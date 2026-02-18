@@ -32,6 +32,13 @@
         <!-- Similarity pairs list -->
         <ScrollViewer Grid.Row="2">
             <StackPanel Spacing="0">
+                <!-- Empty state -->
+                <TextBlock Text="No similar directories found at this similarity threshold."
+                           Visibility="{x:Bind ViewModel.HasNoPairs, Mode=OneWay}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           HorizontalAlignment="Center"
+                           Margin="0,32,0,0" />
+
                 <ListView ItemsSource="{x:Bind ViewModel.SimilarPairs}"
                           SelectionMode="None">
                     <ListView.ItemContainerStyle>
@@ -102,9 +109,10 @@
                     </ListView.ItemTemplate>
                 </ListView>
 
-                <!-- Load More -->
+                <!-- Load More (only visible when more results are available) -->
                 <Button Content="Load More"
                         Command="{x:Bind ViewModel.LoadNextPageCommand}"
+                        Visibility="{x:Bind ViewModel.HasMoreResults, Mode=OneWay}"
                         HorizontalAlignment="Center"
                         Margin="0,8,0,0" />
             </StackPanel>

@@ -113,8 +113,10 @@
             <!-- Database -->
             <StackPanel Spacing="8">
                 <TextBlock Text="Database" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                <TextBlock Text="Database file: super_duper.db (in working directory)"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           FontFamily="Consolas" FontSize="12" TextWrapping="Wrap">
+                    <Run Text="{x:Bind ViewModel.DatabasePath, Mode=OneWay}" />
+                </TextBlock>
             </StackPanel>
 
             <!-- About -->

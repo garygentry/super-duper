@@ -18,11 +18,15 @@ public partial class SessionsViewModel : ObservableObject
     [ObservableProperty]
     private int _totalSessions;
 
+    [ObservableProperty]
+    private string _databasePath = string.Empty;
+
     public ObservableCollection<SessionItemViewModel> Sessions { get; } = new();
 
     public void Initialize(EngineWrapper engine)
     {
         _engine = engine;
+        DatabasePath = System.IO.Path.GetFullPath("super_duper.db");
         _ = LoadSessionsAsync();
     }
 

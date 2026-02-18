@@ -64,6 +64,13 @@
                           Visibility="{x:Bind ViewModel.IsLoadingFiles, Mode=OneWay}"
                           HorizontalAlignment="Left" Width="24" Height="24" Margin="0,4,0,0" />
 
+            <TextBlock Text="No files are marked for deletion. Use Auto-Mark or mark files from the Duplicates view."
+                       Visibility="{x:Bind ViewModel.HasNoFiles, Mode=OneWay}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       HorizontalAlignment="Center"
+                       Margin="0,32,0,0" />
+
             <ListView ItemsSource="{x:Bind ViewModel.MarkedFiles}"
                       SelectionMode="None">
                 <ListView.ItemContainerStyle>

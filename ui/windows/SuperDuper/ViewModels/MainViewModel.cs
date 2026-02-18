@@ -5,6 +5,7 @@ using SuperDuper.NativeMethods;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using static SuperDuper.NativeMethods.SuperDuperEngine;
 
 namespace SuperDuper.ViewModels;
@@ -13,6 +14,13 @@ public partial class MainViewModel : ObservableObject
 {
     private EngineWrapper? _engine;
     private DispatcherQueue? _dispatcherQueue;
+
+    public MainViewModel()
+    {
+        LoadUserConfig();
+        ScanPaths.CollectionChanged += (_, _) => SaveUserConfig();
+        IgnorePatterns.CollectionChanged += (_, _) => SaveUserConfig();
+    }
 
     /// <summary>
     /// Exposes the engine so sub-pages can receive it via navigation parameter.
@@ -234,6 +242,47 @@ public partial class MainViewModel : ObservableObject
     private void UnmarkForDeletion(long fileId)
     {
         _engine?.UnmarkForDeletion(fileId);
+    }
+
+    private const string UserConfigPath = "user_config.json";
+
+    private void LoadUserConfig()
+    {
+        try
+        {
+            if (!File.Exists(UserConfigPath)) return;
+            var json = File.ReadAllText(UserConfigPath);
+            var config = JsonSerializer.Deserialize<UserConfig>(json);
+            if (config == null) return;
+            ScanPaths.Clear();
+            foreach (var path in config.ScanPaths ?? [])
+                ScanPaths.Add(path);
+            IgnorePatterns.Clear();
+            foreach (var pattern in config.IgnorePatterns ?? [])
+                IgnorePatterns.Add(pattern);
+        }
+        catch { }
+    }
+
+    private void SaveUserConfig()
+    {
+        try
+        {
+            var config = new UserConfig
+            {
+                ScanPaths = ScanPaths.ToArray(),
+                IgnorePatterns = IgnorePatterns.ToArray(),
+            };
+            File.WriteAllText(UserConfigPath,
+                JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch { }
+    }
+
+    private sealed class UserConfig
+    {
+        public string[]? ScanPaths { get; set; }
+        public string[]? IgnorePatterns { get; set; }
     }
 
     private static string FormatBytes(long bytes)

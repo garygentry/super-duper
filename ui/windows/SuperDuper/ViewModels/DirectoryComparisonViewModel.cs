@@ -17,6 +17,12 @@ public partial class DirectoryComparisonViewModel : ObservableObject
     [ObservableProperty]
     private double _minScore = 0.5;
 
+    [ObservableProperty]
+    private bool _hasNoPairs;
+
+    [ObservableProperty]
+    private bool _hasMoreResults;
+
     public ObservableCollection<SimilarPairViewModel> SimilarPairs { get; } = new();
 
     public void Initialize(EngineWrapper engine)
@@ -31,6 +37,8 @@ public partial class DirectoryComparisonViewModel : ObservableObject
     {
         _currentOffset = 0;
         SimilarPairs.Clear();
+        HasNoPairs = false;
+        HasMoreResults = false;
         LoadPage();
     }
 
@@ -46,6 +54,8 @@ public partial class DirectoryComparisonViewModel : ObservableObject
             foreach (var p in pairs)
                 SimilarPairs.Add(new SimilarPairViewModel(p, _engine));
             _currentOffset += pairs.Count;
+            HasMoreResults = pairs.Count == _pageSize;
+            HasNoPairs = SimilarPairs.Count == 0;
         }
         finally
         {

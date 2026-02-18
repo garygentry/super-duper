@@ -31,6 +31,9 @@ public partial class DeletionReviewViewModel : ObservableObject
     private bool _isLoadingFiles;
 
     [ObservableProperty]
+    private bool _hasNoFiles;
+
+    [ObservableProperty]
     private uint _lastSuccessCount;
 
     [ObservableProperty]
@@ -124,6 +127,7 @@ public partial class DeletionReviewViewModel : ObservableObject
             MarkedFiles.Clear();
             foreach (var vm in marked)
                 MarkedFiles.Add(vm);
+            HasNoFiles = MarkedFiles.Count == 0;
         }
         finally
         {
@@ -134,6 +138,7 @@ public partial class DeletionReviewViewModel : ObservableObject
     internal void RemoveFile(MarkedFileViewModel vm)
     {
         MarkedFiles.Remove(vm);
+        HasNoFiles = MarkedFiles.Count == 0;
         RefreshSummary();
     }
 
