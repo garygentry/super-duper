@@ -6,7 +6,7 @@ namespace SuperDuper;
 
 public partial class App : Application
 {
-    private Window? _window;
+    public static Window? MainWindow { get; private set; }
 
     public App()
     {
@@ -15,8 +15,8 @@ public partial class App : Application
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
-        _window = new MainWindow();
-        _window.Activate();
+        MainWindow = new MainWindow();
+        MainWindow.Activate();
 
         var error = EngineWrapper.ValidateNativeLibrary();
         if (error != null)
@@ -26,10 +26,10 @@ public partial class App : Application
                 Title = "Failed to Load Native Library",
                 Content = error,
                 CloseButtonText = "Exit",
-                XamlRoot = _window.Content.XamlRoot,
+                XamlRoot = MainWindow.Content.XamlRoot,
             };
             await dialog.ShowAsync();
-            _window.Close();
+            MainWindow.Close();
         }
     }
 }

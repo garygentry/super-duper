@@ -159,6 +159,7 @@ public partial class MarkedFileViewModel : ObservableObject
 
     public long Id { get; }
     public string CanonicalPath { get; }
+    public string DisplayPath => CanonicalPath.StartsWith(@"\\?\") ? CanonicalPath[4..] : CanonicalPath;
     public string FileName { get; }
     public string FormattedSize { get; }
 

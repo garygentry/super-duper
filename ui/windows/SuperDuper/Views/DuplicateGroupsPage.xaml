@@ -15,10 +15,8 @@
         <!-- Header -->
         <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,16">
             <TextBlock Text="Duplicate Groups" Style="{StaticResource TitleTextBlockStyle}" />
-            <TextBlock Style="{StaticResource SubtitleTextBlockStyle}">
-                <Run Text="{x:Bind ViewModel.TotalGroups, Mode=OneWay}" />
-                <Run Text=" groups found" />
-            </TextBlock>
+            <TextBlock Text="{x:Bind ViewModel.TotalWastedLabel, Mode=OneWay}"
+                       Style="{StaticResource SubtitleTextBlockStyle}" />
         </StackPanel>
 
         <!-- Empty state -->
@@ -73,10 +71,12 @@
                                             </Grid.ColumnDefinitions>
                                             <CheckBox Grid.Column="0"
                                                       IsChecked="{x:Bind IsMarkedForDeletion, Mode=TwoWay}" />
-                                            <TextBlock Grid.Column="1"
-                                                       Text="{x:Bind File.CanonicalPath}"
-                                                       TextWrapping="Wrap"
-                                                       VerticalAlignment="Center" />
+                                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{x:Bind File.FileName}"
+                                                           Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                <TextBlock Text="{x:Bind File.DisplayPath}"
+                                                           Style="{StaticResource PathTextStyle}" />
+                                            </StackPanel>
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsRepeater.ItemTemplate>

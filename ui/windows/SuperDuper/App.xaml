@@ -9,6 +9,12 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
             <local:InvertBoolConverter x:Key="InvertBoolConverter" />
+            <Style x:Key="PathTextStyle" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="Consolas"/>
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <Setter Property="TextWrapping" Value="Wrap"/>
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

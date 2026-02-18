@@ -2,6 +2,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using SuperDuper.ViewModels;
+using Windows.Storage.Pickers;
 
 namespace SuperDuper.Views;
 
@@ -26,6 +27,18 @@ public sealed partial class MainPage : Page
             XamlRoot = this.XamlRoot,
         };
         await dialog.ShowAsync();
+    }
+
+    private async void BrowseFolderButton_Click(object sender, RoutedEventArgs e)
+    {
+        var picker = new FolderPicker();
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow!);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+        picker.SuggestedStartLocation = PickerLocationId.ComputerFolder;
+        picker.FileTypeFilter.Add("*");
+        var folder = await picker.PickSingleFolderAsync();
+        if (folder != null)
+            ViewModel.AddScanPathDirect(folder.Path);
     }
 
     private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)

@@ -3,5 +3,9 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Super Duper">
-    <Frame x:Name="ContentFrame" />
+    <Grid>
+        <Frame x:Name="ContentFrame" />
+        <Grid x:Name="AppTitleBar" Height="48" VerticalAlignment="Top"
+              Background="Transparent" IsHitTestVisible="False" />
+    </Grid>
 </Window>

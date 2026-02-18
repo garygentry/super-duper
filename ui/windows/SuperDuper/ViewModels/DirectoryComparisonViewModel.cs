@@ -17,6 +17,8 @@ public partial class DirectoryComparisonViewModel : ObservableObject
     [ObservableProperty]
     private double _minScore = 0.5;
 
+    public string FormattedMinScore => $"{MinScore:P0}";
+
     [ObservableProperty]
     private bool _hasNoPairs;
 
@@ -31,7 +33,11 @@ public partial class DirectoryComparisonViewModel : ObservableObject
         Reload();
     }
 
-    partial void OnMinScoreChanged(double value) => Reload();
+    partial void OnMinScoreChanged(double value)
+    {
+        OnPropertyChanged(nameof(FormattedMinScore));
+        Reload();
+    }
 
     private void Reload()
     {
@@ -73,6 +79,8 @@ public partial class SimilarPairViewModel : ObservableObject
 
     public string DirAPath { get; }
     public string DirBPath { get; }
+    public string DirADisplayPath => DirAPath.StartsWith(@"\\?\") ? DirAPath[4..] : DirAPath;
+    public string DirBDisplayPath => DirBPath.StartsWith(@"\\?\") ? DirBPath[4..] : DirBPath;
     public string MatchType { get; }
     public string FormattedScore { get; }
     public string FormattedSharedBytes { get; }

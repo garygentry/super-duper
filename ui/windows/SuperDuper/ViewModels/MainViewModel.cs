@@ -54,6 +54,21 @@ public partial class MainViewModel : ObservableObject
     private string _statusMessage = "Ready";
 
     [ObservableProperty]
+    private double _scanProgressMax = 1;
+
+    [ObservableProperty]
+    private double _scanProgressValue = 0;
+
+    [ObservableProperty]
+    private bool _scanProgressIndeterminate = true;
+
+    [ObservableProperty]
+    private string _scanPhaseLabel = "";
+
+    [ObservableProperty]
+    private string _scanCountLabel = "";
+
+    [ObservableProperty]
     private int _totalDuplicateGroups;
 
     [ObservableProperty]
@@ -100,6 +115,20 @@ public partial class MainViewModel : ObservableObject
 
         ScanPaths.Add(path);
         NewScanPath = "";
+    }
+
+    public void AddScanPathDirect(string path)
+    {
+        if (string.IsNullOrEmpty(path) || ScanPaths.Contains(path))
+            return;
+
+        if (!Directory.Exists(path))
+        {
+            ErrorOccurred?.Invoke(this, ("Invalid Path", $"The path \"{path}\" does not exist or is not a directory."));
+            return;
+        }
+
+        ScanPaths.Add(path);
     }
 
     [RelayCommand]
@@ -164,22 +193,47 @@ public partial class MainViewModel : ObservableObject
             // Set up progress callback to update status on UI thread
             _engine.SetProgressCallback((phase, current, total, messagePtr) =>
             {
-                var msg = messagePtr != IntPtr.Zero
-                    ? Marshal.PtrToStringUTF8(messagePtr) ?? ""
-                    : "";
+                string phaseLabel, countLabel;
+                double max = 1, value = 0;
+                bool indeterminate = true;
 
-                string status = phase switch
+                switch (phase)
                 {
-                    0 => $"Scanning... {current:N0} files found",
-                    1 => total > 0
-                        ? $"Hashing... {current:N0} / {total:N0} files"
-                        : $"Hashing... {current:N0} files",
-                    2 => "Writing results to database...",
-                    3 => "Analyzing directory structure...",
-                    _ => msg,
-                };
+                    case 0:
+                        phaseLabel = "Scanning for files...";
+                        countLabel = $"{current:N0} files found";
+                        break;
+                    case 1:
+                        phaseLabel = "Computing checksums...";
+                        indeterminate = total == 0;
+                        max = total > 0 ? total : 1;
+                        value = current;
+                        countLabel = total > 0 ? $"{current:N0} / {total:N0}" : $"{current:N0}";
+                        break;
+                    case 2:
+                        phaseLabel = "Writing to database...";
+                        countLabel = "";
+                        break;
+                    case 3:
+                        phaseLabel = "Analyzing directories...";
+                        countLabel = "";
+                        break;
+                    default:
+                        phaseLabel = "";
+                        countLabel = messagePtr != IntPtr.Zero
+                            ? Marshal.PtrToStringUTF8(messagePtr) ?? ""
+                            : "";
+                        break;
+                }
 
-                _dispatcherQueue?.TryEnqueue(() => StatusMessage = status);
+                _dispatcherQueue?.TryEnqueue(() =>
+                {
+                    ScanPhaseLabel = phaseLabel;
+                    ScanCountLabel = countLabel;
+                    ScanProgressIndeterminate = indeterminate;
+                    ScanProgressMax = max;
+                    ScanProgressValue = value;
+                });
             });
 
             var paths = ScanPaths.ToArray();
@@ -217,6 +271,11 @@ public partial class MainViewModel : ObservableObject
         finally
         {
             IsScanning = false;
+            ScanPhaseLabel = "";
+            ScanCountLabel = "";
+            ScanProgressIndeterminate = true;
+            ScanProgressMax = 1;
+            ScanProgressValue = 0;
         }
     }
 

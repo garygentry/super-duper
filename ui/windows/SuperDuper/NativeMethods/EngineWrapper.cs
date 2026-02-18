@@ -399,6 +399,7 @@ public class FileInfo
     public long FileSize { get; set; }
     public long ContentHash { get; set; }
     public bool IsMarkedForDeletion { get; set; }
+    public string DisplayPath => CanonicalPath.StartsWith(@"\\?\") ? CanonicalPath[4..] : CanonicalPath;
 }
 
 public class DirectoryNodeInfo
@@ -437,6 +438,8 @@ public class DirectorySimilarityInfo
     public string MatchType { get; set; } = "";
     public string FormattedScore => $"{SimilarityScore:P0}";
     public string FormattedSharedBytes => FormatBytes(SharedBytes);
+    public string DirADisplayPath => DirAPath.StartsWith(@"\\?\") ? DirAPath[4..] : DirAPath;
+    public string DirBDisplayPath => DirBPath.StartsWith(@"\\?\") ? DirBPath[4..] : DirBPath;
 
     private static string FormatBytes(long bytes)
     {

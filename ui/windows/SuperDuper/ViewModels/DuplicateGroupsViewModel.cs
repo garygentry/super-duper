@@ -14,6 +14,7 @@ public partial class DuplicateGroupsViewModel : ObservableObject
     private EngineWrapper? _engine;
     private int _pageSize = 50;
     private int _currentOffset;
+    private long _totalWastedBytes;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -26,12 +27,17 @@ public partial class DuplicateGroupsViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasNoGroups;
 
+    public string TotalWastedLabel => TotalGroups == 0
+        ? "No duplicate groups found"
+        : $"{TotalGroups} groups · {FormatBytes(_totalWastedBytes)} wasted";
+
     public ObservableCollection<DuplicateGroupViewModel> Groups { get; } = new();
 
     public void Initialize(EngineWrapper engine)
     {
         _engine = engine;
         _currentOffset = 0;
+        _totalWastedBytes = 0;
         LoadPage();
     }
 
@@ -47,10 +53,14 @@ public partial class DuplicateGroupsViewModel : ObservableObject
             TotalGroups = total;
 
             foreach (var g in groups)
+            {
                 Groups.Add(new DuplicateGroupViewModel(g, _engine));
+                _totalWastedBytes += g.WastedBytes;
+            }
 
             _currentOffset += groups.Count;
             OnPropertyChanged(nameof(HasMoreGroups));
+            OnPropertyChanged(nameof(TotalWastedLabel));
             HasNoGroups = TotalGroups == 0;
         }
         finally
