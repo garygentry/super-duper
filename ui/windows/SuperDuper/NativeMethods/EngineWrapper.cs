@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Text;
 using static SuperDuper.NativeMethods.SuperDuperEngine;
 
 namespace SuperDuper.NativeMethods;
@@ -56,15 +57,43 @@ public sealed class EngineWrapper : IDisposable
     public void SetScanPaths(string[] paths)
     {
         ThrowIfDisposed();
-        var result = sd_engine_set_scan_paths(_handle, paths, (uint)paths.Length);
-        ThrowOnError(result, "SetScanPaths");
+        var (ptrs, handles) = MarshalUtf8StringArray(paths);
+        try
+        {
+            var result = sd_engine_set_scan_paths(_handle, ptrs, (uint)ptrs.Length);
+            ThrowOnError(result, "SetScanPaths");
+        }
+        finally { FreeUtf8StringArray(handles); }
     }
 
     public void SetIgnorePatterns(string[] patterns)
     {
         ThrowIfDisposed();
-        var result = sd_engine_set_ignore_patterns(_handle, patterns, (uint)patterns.Length);
-        ThrowOnError(result, "SetIgnorePatterns");
+        var (ptrs, handles) = MarshalUtf8StringArray(patterns);
+        try
+        {
+            var result = sd_engine_set_ignore_patterns(_handle, ptrs, (uint)ptrs.Length);
+            ThrowOnError(result, "SetIgnorePatterns");
+        }
+        finally { FreeUtf8StringArray(handles); }
+    }
+
+    private static (IntPtr[] Ptrs, GCHandle[] Handles) MarshalUtf8StringArray(string[] strings)
+    {
+        var ptrs = new IntPtr[strings.Length];
+        var handles = new GCHandle[strings.Length];
+        for (int i = 0; i < strings.Length; i++)
+        {
+            var bytes = Encoding.UTF8.GetBytes(strings[i] + "\0");
+            handles[i] = GCHandle.Alloc(bytes, GCHandleType.Pinned);
+            ptrs[i] = handles[i].AddrOfPinnedObject();
+        }
+        return (ptrs, handles);
+    }
+
+    private static void FreeUtf8StringArray(GCHandle[] handles)
+    {
+        foreach (var h in handles) h.Free();
     }
 
     public void StartScan()

@@ -130,15 +130,13 @@ public static partial class SuperDuperEngine
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern SdResultCode sd_engine_set_scan_paths(
         ulong handle,
-        [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPUTF8Str)]
-        string[] paths,
+        IntPtr[] paths,
         uint count);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern SdResultCode sd_engine_set_ignore_patterns(
         ulong handle,
-        [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPUTF8Str)]
-        string[] patterns,
+        IntPtr[] patterns,
         uint count);
 
     // ── Scan Operations ──────────────────────────────────────────
