@@ -43,6 +43,9 @@
 Thumbs.db
 Desktop.ini
 
+# Git worktrees
+.worktrees/
+
 # Linux-specific
 *~
 
