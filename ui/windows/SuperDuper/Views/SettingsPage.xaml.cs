@@ -24,30 +24,30 @@ public sealed partial class SettingsPage : Page
             ViewModel.Initialize(eng, null);
     }
 
-    private async void ClearHistoryButton_Click(object sender, RoutedEventArgs e)
+    private async void ResetAllSessionsButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new ContentDialog
         {
-            Title = "Clear Scan History?",
-            Content = "This will permanently delete all sessions, file records, and duplicate groups.\n\n" +
-                      "The hash cache is preserved — the next scan will be fast.\n\n" +
+            Title = "Reset All Sessions?",
+            Content = "This will permanently delete all sessions, duplicate groups, and directory analysis.\n\n" +
+                      "The file index and hash cache are preserved — the next scan will be fast.\n\n" +
                       "This cannot be undone.",
-            PrimaryButtonText = "Clear History",
+            PrimaryButtonText = "Reset All Sessions",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = this.XamlRoot,
         };
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-            await ViewModel.ClearScanHistoryAsync();
+            await ViewModel.ResetAllSessionsAsync();
     }
 
-    private async void FullResetButton_Click(object sender, RoutedEventArgs e)
+    private async void ResetEverythingButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new ContentDialog
         {
-            Title = "Full Reset?",
+            Title = "Reset Everything?",
             Content = "This will permanently delete ALL database records AND the hash cache.\n\n" +
-                      "The next scan will re-hash every file from scratch.\n\n" +
+                      "Every file will be re-hashed from scratch on the next scan.\n\n" +
                       "This cannot be undone.",
             PrimaryButtonText = "Reset Everything",
             CloseButtonText = "Cancel",
@@ -55,6 +55,6 @@ public sealed partial class SettingsPage : Page
             XamlRoot = this.XamlRoot,
         };
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-            await ViewModel.FullResetAsync();
+            await ViewModel.ResetEverythingAsync();
     }
 }

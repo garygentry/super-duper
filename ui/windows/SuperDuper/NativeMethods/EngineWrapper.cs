@@ -349,6 +349,13 @@ public sealed class EngineWrapper : IDisposable
         ThrowOnError(result, "TruncateDatabase");
     }
 
+    public void DeleteAllSessions()
+    {
+        ThrowIfDisposed();
+        var result = sd_delete_all_sessions(_handle);
+        ThrowOnError(result, "DeleteAllSessions");
+    }
+
     public void ClearHashCache()
     {
         var result = sd_clear_hash_cache();

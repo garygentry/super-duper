@@ -430,6 +430,30 @@ pub extern "C" fn sd_truncate_database(handle: u64) -> SdResultCode {
     result.unwrap_or(SdResultCode::InvalidHandle)
 }
 
+/// Delete all session history and derived analysis results.
+/// The scanned_file global index and hash cache are preserved.
+/// Clears the engine's active_session_id.
+#[no_mangle]
+pub extern "C" fn sd_delete_all_sessions(handle: u64) -> SdResultCode {
+    let result = with_handle(handle, |state| {
+        if state.is_scanning {
+            return SdResultCode::ScanInProgress;
+        }
+        match state.db.as_ref().map(|db| db.delete_all_sessions()) {
+            Some(Ok(())) => {
+                state.active_session_id = None;
+                SdResultCode::Ok
+            }
+            Some(Err(e)) => {
+                set_last_error(e.to_string());
+                SdResultCode::DatabaseError
+            }
+            None => SdResultCode::InternalError,
+        }
+    });
+    result.unwrap_or(SdResultCode::InvalidHandle)
+}
+
 /// Clear all entries from the RocksDB hash cache.
 /// Does not affect the SQLite database.
 #[no_mangle]

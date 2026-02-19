@@ -168,6 +168,13 @@ enum SdResultCode sd_clear_hash_cache(void);
 enum SdResultCode sd_clear_progress_callback(uint64_t handle);
 
 /**
+ * Delete all session history and derived analysis results.
+ * The scanned_file global index and hash cache are preserved.
+ * Clears the engine's active_session_id.
+ */
+enum SdResultCode sd_delete_all_sessions(uint64_t handle);
+
+/**
  * Delete a scan session and its duplicate groups.
  * scanned_file rows are preserved (they are the global file index).
  * If the deleted session was the active one, the active session is updated to the

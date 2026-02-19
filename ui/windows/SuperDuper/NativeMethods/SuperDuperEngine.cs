@@ -291,6 +291,9 @@ public static partial class SuperDuperEngine
     public static extern SdResultCode sd_truncate_database(ulong handle);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern SdResultCode sd_delete_all_sessions(ulong handle);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern SdResultCode sd_clear_hash_cache();
 
     // ── Helpers ──────────────────────────────────────────────────

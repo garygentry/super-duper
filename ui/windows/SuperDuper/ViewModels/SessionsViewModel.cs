@@ -41,15 +41,15 @@ public partial class SessionsViewModel : ObservableObject
         _ = LoadSessionsAsync();
     }
 
-    public async Task ClearScanHistoryAsync()
+    public async Task ResetAllSessionsAsync()
     {
         if (_engine is null) return;
-        await Task.Run(() => _engine.TruncateDatabase());
+        await Task.Run(() => _engine.DeleteAllSessions());
         _mainViewModel?.OnDatabaseCleared();
         await LoadSessionsAsync();
     }
 
-    public async Task FullResetAsync()
+    public async Task ResetEverythingAsync()
     {
         if (_engine is null) return;
         await Task.Run(() =>

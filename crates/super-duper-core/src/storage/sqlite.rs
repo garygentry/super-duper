@@ -82,4 +82,20 @@ impl Database {
         debug!("All tables truncated");
         Ok(())
     }
+
+    /// Delete all session history and derived analysis results.
+    /// The scanned_file global index and hash cache are preserved so the next scan is fast.
+    pub fn delete_all_sessions(&self) -> Result<()> {
+        self.conn.execute_batch(
+            "DELETE FROM deletion_plan;
+             DELETE FROM directory_similarity;
+             DELETE FROM directory_fingerprint;
+             DELETE FROM directory_node;
+             DELETE FROM duplicate_group_member;
+             DELETE FROM duplicate_group;
+             DELETE FROM scan_session;",
+        )?;
+        debug!("All sessions and derived data deleted (scanned_file preserved)");
+        Ok(())
+    }
 }
