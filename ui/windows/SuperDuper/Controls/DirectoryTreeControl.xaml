@@ -1,0 +1,28 @@
+<UserControl
+    x:Class="SuperDuper.Controls.DirectoryTreeControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <TreeView x:Name="DirTree"
+              SelectionMode="Single"
+              ItemInvoked="DirTree_ItemInvoked"
+              AutomationProperties.Name="Directory tree">
+        <TreeView.ItemTemplate>
+            <DataTemplate>
+                <TreeViewItem ItemsSource="{Binding Children}">
+                    <TreeViewItem.Content>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE8B7;" FontSize="14" />
+                            <TextBlock Text="{Binding Name}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding DensityBadgeText}"
+                                       FontSize="11"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </TreeViewItem.Content>
+                </TreeViewItem>
+            </DataTemplate>
+        </TreeView.ItemTemplate>
+    </TreeView>
+</UserControl>

@@ -1,0 +1,62 @@
+<UserControl
+    x:Class="SuperDuper.Controls.FileListControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:SuperDuper.Models">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Mode toggle -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Padding="8,4"
+                    Background="{ThemeResource ControlAltFillColorSecondaryBrush}">
+            <RadioButton Content="All Files"
+                         IsChecked="True"
+                         GroupName="FileMode"
+                         Checked="AllFiles_Checked" />
+            <RadioButton Content="Duplicates Only"
+                         GroupName="FileMode"
+                         Checked="DupesOnly_Checked" />
+        </StackPanel>
+
+        <!-- File list -->
+        <ScrollViewer Grid.Row="1">
+            <ItemsRepeater x:Name="FileRepeater"
+                           ItemsSource="{x:Bind Files}">
+                <ItemsRepeater.Layout>
+                    <StackLayout Spacing="1" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="models:DbFileInfo">
+                        <Grid Padding="8,6" ColumnSpacing="8"
+                              Background="{ThemeResource ControlAltFillColorDefaultBrush}"
+                              Opacity="{x:Bind IsDuplicateOpacity}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="{x:Bind FileName}"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{x:Bind FormattedSize}"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2"
+                                       Text="{x:Bind Extension}"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

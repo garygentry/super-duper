@@ -1,0 +1,27 @@
+<UserControl
+    x:Class="SuperDuper.Controls.StorageTreemap"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Height="300">
+
+    <!--
+        StorageTreemap: squarified treemap of directories colored by dupe density.
+        Rendered as a Canvas with Border children added from code-behind.
+        Click raises NodeClicked event with the TreemapNode.
+    -->
+    <Grid>
+        <Canvas x:Name="TreemapCanvas"
+                SizeChanged="TreemapCanvas_SizeChanged"
+                AutomationProperties.Name="Storage treemap showing directories by size and duplicate density" />
+
+        <TextBlock x:Name="EmptyText"
+                   Text="No data — run a scan first"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                   Visibility="Collapsed" />
+    </Grid>
+</UserControl>

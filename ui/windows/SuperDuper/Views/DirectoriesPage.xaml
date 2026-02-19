@@ -1,0 +1,157 @@
+<Page
+    x:Class="SuperDuper.Views.DirectoriesPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:SuperDuper.Views"
+    xmlns:vm="using:SuperDuper.ViewModels">
+
+    <Grid Padding="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header with nesting roll-up toggle -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0"
+                       Text="Directory Comparison"
+                       Style="{StaticResource TitleLargeTextBlockStyle}"
+                       VerticalAlignment="Center" />
+            <ToggleSwitch Grid.Column="1"
+                          Header="Collapse nested pairs"
+                          IsOn="{x:Bind ViewModel.IsNestingRolledUp, Mode=TwoWay}"
+                          VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- TabView with Exact / Subset / Overlap tabs -->
+        <TabView Grid.Row="1"
+                 TabWidthMode="SizeToContent"
+                 IsAddTabButtonVisible="False">
+
+            <!-- Exact Matches tab -->
+            <TabViewItem Header="{x:Bind ViewModel.ExactTabHeader, Mode=OneWay}">
+                <ScrollViewer>
+                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.ExactPairs}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="8" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:DirectoryPairViewModel">
+                                <Border Style="{StaticResource CardBorderStyle}">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="{x:Bind DirADisplayPath}"
+                                                   Style="{StaticResource PathTextStyle}" />
+                                        <TextBlock Text="↔" HorizontalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="{x:Bind DirBDisplayPath}"
+                                                   Style="{StaticResource PathTextStyle}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{x:Bind Summary}"
+                                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Button Content="Delete Left"
+                                                    Command="{x:Bind DeleteLeftCommand}"
+                                                    FontSize="12"
+                                                    AutomationProperties.Name="{x:Bind DeleteLeftAccessibleName}" />
+                                            <Button Content="Delete Right"
+                                                    Command="{x:Bind DeleteRightCommand}"
+                                                    FontSize="12"
+                                                    AutomationProperties.Name="{x:Bind DeleteRightAccessibleName}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </ScrollViewer>
+            </TabViewItem>
+
+            <!-- Subsets tab -->
+            <TabViewItem Header="{x:Bind ViewModel.SubsetTabHeader, Mode=OneWay}">
+                <ScrollViewer>
+                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.SubsetPairs}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="8" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:DirectoryPairViewModel">
+                                <Border Style="{StaticResource CardBorderStyle}">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="{x:Bind DirADisplayPath}"
+                                                   Style="{StaticResource PathTextStyle}" />
+                                        <TextBlock Text="⊂" HorizontalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="{x:Bind DirBDisplayPath}"
+                                                   Style="{StaticResource PathTextStyle}" />
+                                        <TextBlock Text="{x:Bind Summary}"
+                                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Button Content="Delete Left"
+                                                    Command="{x:Bind DeleteLeftCommand}"
+                                                    FontSize="12"
+                                                    AutomationProperties.Name="{x:Bind DeleteLeftAccessibleName}" />
+                                            <Button Content="Delete Right"
+                                                    Command="{x:Bind DeleteRightCommand}"
+                                                    FontSize="12"
+                                                    AutomationProperties.Name="{x:Bind DeleteRightAccessibleName}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </ScrollViewer>
+            </TabViewItem>
+
+            <!-- Overlaps tab -->
+            <TabViewItem Header="{x:Bind ViewModel.OverlapTabHeader, Mode=OneWay}">
+                <ScrollViewer>
+                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.OverlapPairs}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="8" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:DirectoryPairViewModel">
+                                <Border Style="{StaticResource CardBorderStyle}">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="{x:Bind DirADisplayPath}"
+                                                   Style="{StaticResource PathTextStyle}" />
+                                        <TextBlock Text="≈" HorizontalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="{x:Bind DirBDisplayPath}"
+                                                   Style="{StaticResource PathTextStyle}" />
+                                        <TextBlock Text="{x:Bind Summary}"
+                                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Button Content="Delete Left"
+                                                    Command="{x:Bind DeleteLeftCommand}"
+                                                    FontSize="12"
+                                                    AutomationProperties.Name="{x:Bind DeleteLeftAccessibleName}" />
+                                            <Button Content="Delete Right"
+                                                    Command="{x:Bind DeleteRightCommand}"
+                                                    FontSize="12"
+                                                    AutomationProperties.Name="{x:Bind DeleteRightAccessibleName}" />
+                                            <Button Content="Review Differences →"
+                                                    Command="{x:Bind ReviewDifferencesCommand}"
+                                                    FontSize="12"
+                                                    AutomationProperties.Name="{x:Bind ReviewDiffAccessibleName}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </ScrollViewer>
+            </TabViewItem>
+
+        </TabView>
+    </Grid>
+</Page>

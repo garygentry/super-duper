@@ -1,4 +1,4 @@
-<!-- SettingsPage: Scan history and application configuration -->
+<!-- SettingsPage: Application configuration and scan history -->
 <Page
     x:Class="SuperDuper.Views.SettingsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -6,121 +6,366 @@
     xmlns:vm="using:SuperDuper.ViewModels">
 
     <ScrollViewer Padding="24">
-        <StackPanel Spacing="24" MaxWidth="800">
-            <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" />
+        <StackPanel Spacing="12" MaxWidth="800">
+            <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" Margin="0,0,0,12" />
 
-            <!-- Scan History -->
-            <StackPanel Spacing="12">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Scan History"
-                               Style="{StaticResource BodyStrongTextBlockStyle}"
-                               VerticalAlignment="Center" />
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                        <Button Content="Delete All"
-                                x:Name="DeleteAllSessionsButton"
-                                Click="DeleteAllSessionsButton_Click" />
-                        <Button Content="Refresh"
-                                Command="{x:Bind ViewModel.LoadSessionsCommand}" />
+            <!-- ══ General ══════════════════════════════════════════════════════ -->
+            <Expander IsExpanded="True" HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Stretch">
+                <Expander.Header>
+                    <TextBlock Text="General" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                </Expander.Header>
+                <StackPanel Spacing="16" Padding="0,8,0,8">
+
+                    <!-- Theme -->
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="160" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock Text="App Theme" FontWeight="SemiBold" />
+                            <TextBlock Text="Choose between system, light, or dark theme."
+                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1" x:Name="ThemeComboBox"
+                                  AutomationProperties.Name="App theme"
+                                  SelectionChanged="ThemeComboBox_SelectionChanged">
+                            <ComboBoxItem Content="System (default)" />
+                            <ComboBoxItem Content="Light" />
+                            <ComboBoxItem Content="Dark" />
+                        </ComboBox>
+                    </Grid>
+
+                    <!-- Smart Suggestions -->
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Smart Suggestions" FontWeight="SemiBold" />
+                            <TextBlock Text="Automatically suggest which copy to keep based on path heuristics (backup roots, active workspaces, file age)."
+                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" x:Name="SmartSuggestionsToggle"
+                                      OnContent="" OffContent="" VerticalAlignment="Center"
+                                      AutomationProperties.Name="Enable smart suggestions"
+                                      Toggled="SmartSuggestionsToggle_Toggled" />
+                    </Grid>
+
+                    <!-- Context menu -->
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Windows Explorer Context Menu" FontWeight="SemiBold" />
+                            <TextBlock Text="Adds &quot;Scan for duplicates with Super Duper&quot; to the right-click menu on folders."
+                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" x:Name="ContextMenuToggle"
+                                      OnContent="" OffContent="" VerticalAlignment="Center"
+                                      AutomationProperties.Name="Register Explorer context menu"
+                                      Toggled="ContextMenuToggle_Toggled" />
+                    </Grid>
+
+                    <!-- Deletion log location -->
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Deletion Log Location" FontWeight="SemiBold" />
+                        <TextBlock Text="CSV log is written here after each deletion operation."
+                                   FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" x:Name="DeletionLogPathBox"
+                                     PlaceholderText="%USERPROFILE%\Documents"
+                                     AutomationProperties.Name="Deletion log folder path" />
+                            <Button Grid.Column="1" Content="Browse..."
+                                    Click="DeletionLogBrowse_Click"
+                                    AutomationProperties.Name="Browse for deletion log folder" />
+                        </Grid>
                     </StackPanel>
-                </Grid>
+                </StackPanel>
+            </Expander>
 
-                <TextBlock Text="Select a previous scan to restore its duplicate groups as the active view."
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <!-- ══ Scanning ═════════════════════════════════════════════════════ -->
+            <Expander HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Stretch">
+                <Expander.Header>
+                    <TextBlock Text="Scanning" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                </Expander.Header>
+                <StackPanel Spacing="16" Padding="0,8,0,8">
+                    <TextBlock Text="These are default values for new scans. Individual scan options can override them."
+                               FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap" />
 
-                <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
-                              Visibility="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
-                              Width="24" Height="24" HorizontalAlignment="Left" />
+                    <!-- Saved profiles placeholder -->
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            CornerRadius="8" Padding="12">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Saved Scan Profiles" FontWeight="SemiBold" />
+                            <TextBlock Text="Create and manage scan configurations. Profiles are available in the New Scan dialog."
+                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap" />
+                            <Button Content="Manage Profiles…" IsEnabled="False"
+                                    AutomationProperties.Name="Manage saved scan profiles (coming soon)" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Expander>
 
-                <ListView ItemsSource="{x:Bind ViewModel.Sessions}"
-                          SelectionMode="None"
-                          MaxHeight="400">
-                    <ListView.ItemContainerStyle>
-                        <Style TargetType="ListViewItem">
-                            <Setter Property="Padding" Value="0" />
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                        </Style>
-                    </ListView.ItemContainerStyle>
-                    <ListView.ItemTemplate>
-                        <DataTemplate x:DataType="vm:SessionItemViewModel">
-                            <Border Margin="0,3"
-                                    Padding="16,12"
-                                    CornerRadius="8"
-                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                                <Grid ColumnSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="20" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
+            <!-- ══ Display ══════════════════════════════════════════════════════ -->
+            <Expander HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Stretch">
+                <Expander.Header>
+                    <TextBlock Text="Display" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                </Expander.Header>
+                <StackPanel Spacing="16" Padding="0,8,0,8">
 
-                                    <!-- Active indicator (checkmark) -->
-                                    <FontIcon Grid.Column="0"
-                                              Glyph="&#xE73E;"
-                                              FontSize="14"
-                                              Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                                              Visibility="{x:Bind IsActive, Mode=OneWay}"
-                                              VerticalAlignment="Center" />
+                    <!-- Date format -->
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="160" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Date Format" FontWeight="SemiBold" />
+                            <TextBlock Text="How file modification dates are shown."
+                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1" x:Name="DateFormatComboBox"
+                                  AutomationProperties.Name="Date format"
+                                  SelectionChanged="DateFormatComboBox_SelectionChanged">
+                            <ComboBoxItem Content="Short date" />
+                            <ComboBoxItem Content="Relative (2 days ago)" />
+                            <ComboBoxItem Content="ISO 8601" />
+                        </ComboBox>
+                    </Grid>
 
-                                    <!-- Session info -->
-                                    <StackPanel Grid.Column="1" Spacing="3">
-                                        <TextBlock Text="{x:Bind DisplayDate}"
-                                                   Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                        <TextBlock Text="{x:Bind RootPaths}"
-                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                   TextWrapping="Wrap"
-                                                   FontFamily="Consolas"
-                                                   FontSize="11" />
-                                        <StackPanel Orientation="Horizontal" Spacing="16">
-                                            <TextBlock FontSize="12"
-                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}">
-                                                <Run Text="{x:Bind FilesScanned}" /><Run Text=" files" />
-                                            </TextBlock>
-                                            <TextBlock FontSize="12"
-                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}">
-                                                <Run Text="{x:Bind GroupCount}" /><Run Text=" duplicate groups" />
-                                            </TextBlock>
+                    <!-- Size display -->
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="160" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Size Units" FontWeight="SemiBold" />
+                            <TextBlock Text="Decimal (1 GB = 1,000 MB) or binary (1 GiB = 1,024 MiB)."
+                                       FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1" x:Name="SizeDisplayComboBox"
+                                  AutomationProperties.Name="Size units"
+                                  SelectionChanged="SizeDisplayComboBox_SelectionChanged">
+                            <ComboBoxItem Content="Decimal (GB)" />
+                            <ComboBoxItem Content="Binary (GiB)" />
+                        </ComboBox>
+                    </Grid>
+
+                    <!-- Tree annotations -->
+                    <TextBlock Text="Directory Tree Annotations" FontWeight="SemiBold" />
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Density badges (show duplicate count per folder)" VerticalAlignment="Center" />
+                        <ToggleSwitch Grid.Column="1" x:Name="DensityBadgesToggle"
+                                      OnContent="" OffContent=""
+                                      AutomationProperties.Name="Show density badges in directory tree"
+                                      Toggled="DensityBadgesToggle_Toggled" />
+                    </Grid>
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Review progress rings" VerticalAlignment="Center" />
+                        <ToggleSwitch Grid.Column="1" x:Name="ReviewRingsToggle"
+                                      OnContent="" OffContent=""
+                                      AutomationProperties.Name="Show review progress rings in directory tree"
+                                      Toggled="ReviewRingsToggle_Toggled" />
+                    </Grid>
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Drive color stripes" VerticalAlignment="Center" />
+                        <ToggleSwitch Grid.Column="1" x:Name="DriveStripesToggle"
+                                      OnContent="" OffContent=""
+                                      AutomationProperties.Name="Show drive color stripes in directory tree"
+                                      Toggled="DriveStripesToggle_Toggled" />
+                    </Grid>
+                </StackPanel>
+            </Expander>
+
+            <!-- ══ Keyboard Shortcuts ═══════════════════════════════════════════ -->
+            <Expander HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Stretch">
+                <Expander.Header>
+                    <TextBlock Text="Keyboard Shortcuts" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                </Expander.Header>
+                <StackPanel Spacing="0" Padding="0,8,0,8">
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            CornerRadius="8" Padding="0">
+                        <!-- Header row -->
+                        <StackPanel>
+                            <Grid Padding="16,10" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="120" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Action" FontWeight="SemiBold" FontSize="12" />
+                                <TextBlock Grid.Column="1" Text="Shortcut" FontWeight="SemiBold" FontSize="12" />
+                            </Grid>
+                            <!-- Shortcut rows -->
+                            <ItemsRepeater>
+                                <ItemsRepeater.ItemsSource>
+                                    <x:Array Type="x:String">
+                                        <x:String>Undo|Ctrl+Z</x:String>
+                                        <x:String>Redo|Ctrl+Y / Ctrl+Shift+Z</x:String>
+                                        <x:String>Open deletion dialog|Ctrl+D</x:String>
+                                        <x:String>Focus search|Ctrl+F</x:String>
+                                        <x:String>Refresh current view|F5</x:String>
+                                        <x:String>Navigate file list|↑ / ↓</x:String>
+                                        <x:String>Keep selected copy|K</x:String>
+                                        <x:String>Delete selected copy|D</x:String>
+                                        <x:String>Skip selected copy|S</x:String>
+                                        <x:String>Select copy by ordinal|1–9</x:String>
+                                        <x:String>Reveal in Explorer|Ctrl+E</x:String>
+                                        <x:String>Open file|Ctrl+O</x:String>
+                                        <x:String>Mark for deletion|Del</x:String>
+                                    </x:Array>
+                                </ItemsRepeater.ItemsSource>
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="x:String">
+                                        <Grid Padding="16,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="120" />
+                                            </Grid.ColumnDefinitions>
+                                            <!-- Split on | separator in code isn't possible in DataTemplate directly;
+                                                 using TextBlock with full string for now -->
+                                            <TextBlock Grid.Column="0" Text="{x:Bind}"
+                                                       FontSize="12" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Expander>
+
+            <!-- ══ Scan History ═════════════════════════════════════════════════ -->
+            <Expander IsExpanded="True" HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Stretch">
+                <Expander.Header>
+                    <Grid HorizontalAlignment="Stretch">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="Scan History"
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"
+                                   VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                            <Button Content="Delete All"
+                                    x:Name="DeleteAllSessionsButton"
+                                    Click="DeleteAllSessionsButton_Click" />
+                            <Button Content="Refresh"
+                                    Command="{x:Bind ViewModel.LoadSessionsCommand}" />
+                        </StackPanel>
+                    </Grid>
+                </Expander.Header>
+
+                <StackPanel Spacing="12" Padding="0,8,0,8">
+                    <TextBlock Text="Select a previous scan to restore its duplicate groups as the active view."
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                    <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
+                                  Visibility="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
+                                  Width="24" Height="24" HorizontalAlignment="Left" />
+
+                    <ListView ItemsSource="{x:Bind ViewModel.Sessions}"
+                              SelectionMode="None"
+                              MaxHeight="400">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SessionItemViewModel">
+                                <Border Margin="0,3" Padding="16,12" CornerRadius="8"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="20" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Grid.Column="0" Glyph="&#xE73E;" FontSize="14"
+                                                  Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                                  Visibility="{x:Bind IsActive, Mode=OneWay}"
+                                                  VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Spacing="3">
+                                            <TextBlock Text="{x:Bind DisplayDate}"
+                                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                            <TextBlock Text="{x:Bind RootPaths}"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                       TextWrapping="Wrap"
+                                                       FontFamily="Consolas" FontSize="11" />
+                                            <StackPanel Orientation="Horizontal" Spacing="16">
+                                                <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                                                    <Run Text="{x:Bind FilesScanned}" /><Run Text=" files" />
+                                                </TextBlock>
+                                                <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                                                    <Run Text="{x:Bind GroupCount}" /><Run Text=" duplicate groups" />
+                                                </TextBlock>
+                                            </StackPanel>
                                         </StackPanel>
-                                    </StackPanel>
+                                        <Button Grid.Column="2" Content="Set Active"
+                                                Command="{x:Bind SetActiveCommand}"
+                                                Visibility="{x:Bind IsNotActive, Mode=OneWay}"
+                                                VerticalAlignment="Center" />
+                                        <Button Grid.Column="3"
+                                                Content="&#xE74D;"
+                                                FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                                Command="{x:Bind DeleteCommand}"
+                                                Background="Transparent" BorderThickness="0"
+                                                Padding="8" VerticalAlignment="Center"
+                                                ToolTipService.ToolTip="Delete session"
+                                                AutomationProperties.Name="Delete this session" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
 
-                                    <!-- Set Active button (hidden when already active) -->
-                                    <Button Grid.Column="2"
-                                            Content="Set Active"
-                                            Command="{x:Bind SetActiveCommand}"
-                                            Visibility="{x:Bind IsNotActive, Mode=OneWay}"
-                                            VerticalAlignment="Center" />
+                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12">
+                        <Run Text="{x:Bind ViewModel.TotalSessions, Mode=OneWay}" />
+                        <Run Text="sessions in history" />
+                    </TextBlock>
+                </StackPanel>
+            </Expander>
 
-                                    <!-- Delete button -->
-                                    <Button Grid.Column="3"
-                                            Content="&#xE74D;"
-                                            FontFamily="{StaticResource SymbolThemeFontFamily}"
-                                            Command="{x:Bind DeleteCommand}"
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            Padding="8"
-                                            VerticalAlignment="Center"
-                                            ToolTipService.ToolTip="Delete session" />
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ListView.ItemTemplate>
-                </ListView>
-
-                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12">
-                    <Run Text="{x:Bind ViewModel.TotalSessions, Mode=OneWay}" />
-                    <Run Text="sessions in history" />
-                </TextBlock>
-            </StackPanel>
-
-            <!-- Deletion -->
-            <StackPanel Spacing="12">
-                <TextBlock Text="Deletion" Style="{StaticResource BodyStrongTextBlockStyle}" />
+            <!-- ══ Deletion ══════════════════════════════════════════════════════ -->
+            <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <Expander.Header>
+                    <TextBlock Text="Deletion" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                </Expander.Header>
                 <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        CornerRadius="8" Padding="16">
+                        CornerRadius="8" Padding="16" Margin="0,8,0,8">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -129,78 +374,86 @@
                         <StackPanel Grid.Column="0" Spacing="4">
                             <TextBlock Text="Move to Recycle Bin"
                                        Style="{StaticResource BodyStrongTextBlockStyle}" />
-                            <TextBlock Text="When enabled, deleted files are moved to the Recycle Bin and can be restored. When disabled, files are permanently deleted immediately."
+                            <TextBlock Text="When enabled, deleted files are moved to the Recycle Bin and can be restored."
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                        TextWrapping="Wrap" FontSize="12" />
                         </StackPanel>
                         <ToggleSwitch Grid.Column="1"
                                       IsOn="{x:Bind ViewModel.UseTrash, Mode=TwoWay}"
                                       OnContent="" OffContent=""
-                                      VerticalAlignment="Center" />
+                                      VerticalAlignment="Center"
+                                      AutomationProperties.Name="Move deleted files to Recycle Bin" />
                     </Grid>
                 </Border>
-            </StackPanel>
+            </Expander>
 
-            <!-- Database -->
-            <StackPanel Spacing="12">
-                <TextBlock Text="Database" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                           FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"
-                           Text="{x:Bind ViewModel.DatabasePath, Mode=OneWay}" />
+            <!-- ══ Database ══════════════════════════════════════════════════════ -->
+            <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <Expander.Header>
+                    <TextBlock Text="Database" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                </Expander.Header>
+                <StackPanel Spacing="12" Padding="0,8,0,8">
+                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"
+                               Text="{x:Bind ViewModel.DatabasePath, Mode=OneWay}" />
 
-                <!-- Reset All Sessions -->
-                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        CornerRadius="8" Padding="16">
-                    <Grid ColumnSpacing="16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Spacing="4">
-                            <TextBlock Text="Reset All Sessions"
-                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
-                            <TextBlock Text="Deletes all sessions, duplicate groups, and directory analysis. The file index and hash cache are preserved — the next scan will be fast."
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       TextWrapping="Wrap" FontSize="12" />
-                        </StackPanel>
-                        <Button Grid.Column="1" x:Name="ResetAllSessionsButton"
-                                Content="Reset All Sessions"
-                                VerticalAlignment="Center"
-                                Click="ResetAllSessionsButton_Click" />
-                    </Grid>
-                </Border>
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            CornerRadius="8" Padding="16">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="4">
+                                <TextBlock Text="Reset All Sessions"
+                                           Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock Text="Deletes all sessions and analysis. File index and hash cache are preserved."
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap" FontSize="12" />
+                            </StackPanel>
+                            <Button Grid.Column="1" x:Name="ResetAllSessionsButton"
+                                    Content="Reset All Sessions" VerticalAlignment="Center"
+                                    Click="ResetAllSessionsButton_Click" />
+                        </Grid>
+                    </Border>
 
-                <!-- Reset Everything -->
-                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        CornerRadius="8" Padding="16">
-                    <Grid ColumnSpacing="16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Spacing="4">
-                            <TextBlock Text="Reset Everything"
-                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
-                            <TextBlock Text="Deletes all database records AND the hash cache. Every file will be re-hashed from scratch on the next scan. Use to recover from corruption or ensure a clean environment."
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       TextWrapping="Wrap" FontSize="12" />
-                        </StackPanel>
-                        <Button Grid.Column="1" x:Name="ResetEverythingButton"
-                                Content="Reset Everything"
-                                VerticalAlignment="Center"
-                                Click="ResetEverythingButton_Click" />
-                    </Grid>
-                </Border>
-            </StackPanel>
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            CornerRadius="8" Padding="16">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="4">
+                                <TextBlock Text="Reset Everything"
+                                           Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock Text="Deletes all database records AND the hash cache. Every file re-hashed on next scan."
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap" FontSize="12" />
+                            </StackPanel>
+                            <Button Grid.Column="1" x:Name="ResetEverythingButton"
+                                    Content="Reset Everything" VerticalAlignment="Center"
+                                    Click="ResetEverythingButton_Click" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Expander>
 
-            <!-- About -->
-            <StackPanel Spacing="8">
-                <TextBlock Text="About" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                <TextBlock Text="Super Duper — Multi-platform duplicate file detection"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                <TextBlock Text="Powered by Rust core library with XxHash64 two-tier hashing"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-            </StackPanel>
+            <!-- ══ About ═════════════════════════════════════════════════════════ -->
+            <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <Expander.Header>
+                    <TextBlock Text="About" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                </Expander.Header>
+                <StackPanel Spacing="8" Padding="0,8,0,8">
+                    <TextBlock Text="Super Duper — Multi-platform duplicate file detection"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="Powered by Rust core library with XxHash64 two-tier hashing"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="UI: WinUI 3 / Windows App SDK 1.8"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </Expander>
+
         </StackPanel>
     </ScrollViewer>
 </Page>

@@ -1,0 +1,56 @@
+<ContentDialog
+    x:Class="SuperDuper.Views.DeletionConfirmationDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:SuperDuper.Views"
+    Title="Review &amp; Delete"
+    PrimaryButtonText="Delete"
+    CloseButtonText="Cancel"
+    DefaultButton="Close"
+    MinWidth="680">
+
+    <ScrollViewer MaxHeight="520">
+        <StackPanel Spacing="16" Padding="0,8">
+
+            <!-- Summary -->
+            <TextBlock x:Name="SummaryText"
+                       Style="{StaticResource BodyStrongTextBlockStyle}" />
+
+            <!-- Deletion mode -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Deletion method:"
+                           Style="{StaticResource BodyTextBlockStyle}" />
+                <RadioButtons x:Name="DeletionModeRadio">
+                    <RadioButton Content="Move to Recycle Bin (recommended)" IsChecked="True" Tag="trash" />
+                    <RadioButton Content="Permanently delete ⚠" Tag="permanent" />
+                </RadioButtons>
+            </StackPanel>
+
+            <!-- Network drive warning -->
+            <InfoBar x:Name="NetworkDriveWarning"
+                     IsOpen="False"
+                     Severity="Warning"
+                     Title="Network paths detected"
+                     Message="Files on network shares will be permanently deleted (Recycle Bin not available)." />
+
+            <!-- File groups by drive/directory -->
+            <ItemsRepeater x:Name="GroupedFilesRepeater">
+                <ItemsRepeater.Layout>
+                    <StackLayout Spacing="8" />
+                </ItemsRepeater.Layout>
+            </ItemsRepeater>
+
+            <!-- Progress (shown during deletion) -->
+            <ProgressBar x:Name="DeletionProgress"
+                         Visibility="Collapsed"
+                         IsIndeterminate="False"
+                         Maximum="100" />
+
+            <!-- Success InfoBar -->
+            <InfoBar x:Name="SuccessBar"
+                     IsOpen="False"
+                     Severity="Success"
+                     Title="Deletion complete" />
+        </StackPanel>
+    </ScrollViewer>
+</ContentDialog>
