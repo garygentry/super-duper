@@ -24,6 +24,23 @@ public sealed partial class SettingsPage : Page
             ViewModel.Initialize(eng, null);
     }
 
+    private async void DeleteAllSessionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = "Delete All Sessions?",
+            Content = "This will permanently delete all sessions, duplicate groups, and directory analysis.\n\n" +
+                      "The file index and hash cache are preserved — the next scan will be fast.\n\n" +
+                      "This cannot be undone.",
+            PrimaryButtonText = "Delete All",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = this.XamlRoot,
+        };
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            await ViewModel.ResetAllSessionsAsync();
+    }
+
     private async void ResetAllSessionsButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new ContentDialog
