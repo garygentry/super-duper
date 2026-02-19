@@ -1,3 +1,4 @@
+using System;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
@@ -38,7 +39,16 @@ public sealed partial class SettingsPage : Page
             XamlRoot = this.XamlRoot,
         };
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-            await ViewModel.ResetAllSessionsAsync();
+        {
+            try
+            {
+                await ViewModel.ResetAllSessionsAsync();
+            }
+            catch (Exception ex)
+            {
+                await ShowErrorDialog("Delete All Sessions failed", ex.Message);
+            }
+        }
     }
 
     private async void ResetAllSessionsButton_Click(object sender, RoutedEventArgs e)
@@ -55,7 +65,16 @@ public sealed partial class SettingsPage : Page
             XamlRoot = this.XamlRoot,
         };
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-            await ViewModel.ResetAllSessionsAsync();
+        {
+            try
+            {
+                await ViewModel.ResetAllSessionsAsync();
+            }
+            catch (Exception ex)
+            {
+                await ShowErrorDialog("Reset All Sessions failed", ex.Message);
+            }
+        }
     }
 
     private async void ResetEverythingButton_Click(object sender, RoutedEventArgs e)
@@ -72,6 +91,27 @@ public sealed partial class SettingsPage : Page
             XamlRoot = this.XamlRoot,
         };
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-            await ViewModel.ResetEverythingAsync();
+        {
+            try
+            {
+                await ViewModel.ResetEverythingAsync();
+            }
+            catch (Exception ex)
+            {
+                await ShowErrorDialog("Reset Everything failed", ex.Message);
+            }
+        }
+    }
+
+    private async System.Threading.Tasks.Task ShowErrorDialog(string title, string message)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = title,
+            Content = message,
+            CloseButtonText = "OK",
+            XamlRoot = this.XamlRoot,
+        };
+        await dialog.ShowAsync();
     }
 }

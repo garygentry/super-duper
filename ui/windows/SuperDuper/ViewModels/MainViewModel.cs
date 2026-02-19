@@ -154,6 +154,10 @@ public partial class MainViewModel : ObservableObject
 
         _dispatcherQueue?.TryEnqueue(() =>
         {
+            // Suppress BEFORE Clear — otherwise Clear triggers ComboBox to set
+            // SelectedSession=null, firing OnSelectedSessionChanged which zeros metrics.
+            _suppressPickerSideEffects = true;
+
             SessionPickerItems.Clear();
             SessionPickerItems.Add(SessionPickerItem.NewScan);
 
@@ -166,8 +170,6 @@ public partial class MainViewModel : ObservableObject
                     activeItem = item;
             }
 
-            // Set without triggering side effects (engine already has the right active session)
-            _suppressPickerSideEffects = true;
             SelectedSession = activeItem
                 ?? (SessionPickerItems.Count > 1 ? SessionPickerItems[1] : SessionPickerItem.NewScan);
             _suppressPickerSideEffects = false;

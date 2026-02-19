@@ -70,14 +70,16 @@ impl Database {
 
     pub fn truncate_all(&self) -> Result<()> {
         self.conn.execute_batch(
-            "DELETE FROM deletion_plan;
+            "BEGIN;
+             DELETE FROM deletion_plan;
              DELETE FROM directory_similarity;
              DELETE FROM directory_fingerprint;
              DELETE FROM directory_node;
              DELETE FROM duplicate_group_member;
              DELETE FROM duplicate_group;
              DELETE FROM scanned_file;
-             DELETE FROM scan_session;",
+             DELETE FROM scan_session;
+             COMMIT;",
         )?;
         debug!("All tables truncated");
         Ok(())
@@ -87,13 +89,16 @@ impl Database {
     /// The scanned_file global index and hash cache are preserved so the next scan is fast.
     pub fn delete_all_sessions(&self) -> Result<()> {
         self.conn.execute_batch(
-            "DELETE FROM deletion_plan;
+            "BEGIN;
+             DELETE FROM deletion_plan;
              DELETE FROM directory_similarity;
              DELETE FROM directory_fingerprint;
              DELETE FROM directory_node;
              DELETE FROM duplicate_group_member;
              DELETE FROM duplicate_group;
-             DELETE FROM scan_session;",
+             UPDATE scanned_file SET last_seen_session_id = NULL;
+             DELETE FROM scan_session;
+             COMMIT;",
         )?;
         debug!("All sessions and derived data deleted (scanned_file preserved)");
         Ok(())
