@@ -337,7 +337,7 @@ fn test_execute_deletion_plan_real_files() {
     db.mark_file_for_deletion(id_a, None).unwrap();
     db.mark_file_for_deletion(id_b, None).unwrap();
 
-    let (success, errors) = deletion_plan::execute_deletion_plan(&db).unwrap();
+    let (success, errors) = deletion_plan::execute_deletion_plan(&db, false).unwrap();
     assert_eq!(success, 2);
     assert_eq!(errors, 0);
 
