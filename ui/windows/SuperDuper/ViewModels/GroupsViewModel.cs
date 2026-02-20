@@ -152,13 +152,19 @@ public partial class GroupViewModel : ObservableObject
         _ => ""
     };
 
-    public string ReviewStatusBackground => ReviewStatus switch
+    public SolidColorBrush ReviewStatusBackground => LookupBrush(ReviewStatus switch
     {
         ReviewStatus.Unreviewed => "SkipBgBrush",
         ReviewStatus.Partial => "WarningBrush",
         ReviewStatus.Decided => "KeepBgBrush",
         _ => "SkipBgBrush"
-    };
+    });
+
+    private static SolidColorBrush LookupBrush(string key)
+    {
+        try { return Microsoft.UI.Xaml.Application.Current.Resources[key] as SolidColorBrush ?? new SolidColorBrush(); }
+        catch { return new SolidColorBrush(); }
+    }
 
     public GroupViewModel(DbGroupInfo group, IDatabaseService db, IUndoService undo, IShellIntegrationService shell, EngineWrapper engine)
     {
@@ -217,13 +223,19 @@ public partial class GroupFileViewModel : ObservableObject
         _ => ""
     };
 
-    public string DecisionBrush => CurrentDecision switch
+    public SolidColorBrush DecisionBrush => LookupBrush(CurrentDecision switch
     {
         ReviewAction.Keep => "KeepBrush",
         ReviewAction.Delete => "DeleteBrush",
         ReviewAction.Skip => "SkipBrush",
         _ => "SkipBrush"
-    };
+    });
+
+    private static SolidColorBrush LookupBrush(string key)
+    {
+        try { return Microsoft.UI.Xaml.Application.Current.Resources[key] as SolidColorBrush ?? new SolidColorBrush(); }
+        catch { return new SolidColorBrush(); }
+    }
 
     // Drive color stripe — simplified: use a neutral brush
     public SolidColorBrush DriveColorBrush { get; } = new(Microsoft.UI.Colors.Gray);

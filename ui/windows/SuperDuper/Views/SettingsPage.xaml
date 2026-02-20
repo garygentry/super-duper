@@ -379,10 +379,11 @@
                                        TextWrapping="Wrap" FontSize="12" />
                         </StackPanel>
                         <ToggleSwitch Grid.Column="1"
-                                      IsOn="{x:Bind ViewModel.UseTrash, Mode=TwoWay}"
+                                      x:Name="UseTrashToggle"
                                       OnContent="" OffContent=""
                                       VerticalAlignment="Center"
-                                      AutomationProperties.Name="Move deleted files to Recycle Bin" />
+                                      AutomationProperties.Name="Move deleted files to Recycle Bin"
+                                      Toggled="UseTrashToggle_Toggled" />
                     </Grid>
                 </Border>
             </Expander>

@@ -49,6 +49,7 @@ public sealed partial class SettingsPage : Page
         ReviewRingsToggle.IsOn = _settings.ShowReviewRings;
         DriveStripesToggle.IsOn = _settings.ShowDriveStripes;
         ContextMenuToggle.IsOn = _settings.ContextMenuRegistered;
+        UseTrashToggle.IsOn = _settings.UseTrashForDeletion;
     }
 
     private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -103,6 +104,11 @@ public sealed partial class SettingsPage : Page
     private void DriveStripesToggle_Toggled(object sender, RoutedEventArgs e)
     {
         _settings.ShowDriveStripes = DriveStripesToggle.IsOn;
+    }
+
+    private void UseTrashToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        _settings.UseTrashForDeletion = UseTrashToggle.IsOn;
     }
 
     private void ContextMenuToggle_Toggled(object sender, RoutedEventArgs e)
