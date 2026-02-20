@@ -35,6 +35,18 @@ public class DbFileInfo
     public double IsDuplicateOpacity => IsDuplicate ? 1.0 : 0.5;
 }
 
+/// <summary>A high-impact duplicate group surfaced as a suggested quick action on the dashboard.</summary>
+public record QuickWinItem(
+    string Category,
+    string Description,
+    long TotalBytes,
+    int ItemCount,
+    object? Payload
+)
+{
+    public string FormattedSize => Converters.FileSizeConverter.FormatBytes(TotalBytes);
+}
+
 /// <summary>Treemap node for dashboard storage visualization.</summary>
 public class TreemapNode
 {

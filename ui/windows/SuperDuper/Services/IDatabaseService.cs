@@ -1,4 +1,3 @@
-using SuperDuper.Converters;
 using SuperDuper.Models;
 
 namespace SuperDuper.Services;
@@ -13,17 +12,6 @@ public record FileForDeletion(
     long ContentHash,
     string? RetainedCopyPath
 );
-
-public record QuickWinItem(
-    string Category,
-    string Description,
-    long TotalBytes,
-    int ItemCount,
-    object? Payload
-)
-{
-    public string FormattedSize => Converters.FileSizeConverter.FormatBytes(TotalBytes);
-}
 
 public record SiblingInfo(
     int TotalSiblings,
