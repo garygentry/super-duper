@@ -47,7 +47,6 @@
                        Style="{ThemeResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             <TextBlock Grid.Column="1"
-                       x:Name="SpeedLabel"
                        Text="{x:Bind SpeedLabel, Mode=OneWay}"
                        Style="{ThemeResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
