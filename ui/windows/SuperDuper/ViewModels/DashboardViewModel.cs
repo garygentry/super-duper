@@ -93,7 +93,10 @@ public partial class DashboardViewModel : ObservableObject
     private int _totalReviewable;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ReviewProgressAccessibleName))]
     private double _reviewProgressPercent;
+
+    public string ReviewProgressAccessibleName => $"{(int)ReviewProgressPercent}% reviewed";
 
     // ── Quick Wins ────────────────────────────────────────────────────
 
