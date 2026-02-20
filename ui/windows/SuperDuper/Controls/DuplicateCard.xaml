@@ -1,0 +1,138 @@
+<UserControl
+    x:Class="SuperDuper.Controls.DuplicateCard"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="using:SuperDuper.ViewModels"
+    mc:Ignorable="d">
+
+    <Border CornerRadius="8"
+            BorderThickness="1"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            Margin="0,0,0,8">
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />  <!-- drive color header -->
+                <RowDefinition Height="*" />       <!-- body -->
+            </Grid.RowDefinitions>
+
+            <!-- Drive color header bar (8px) -->
+            <Border Grid.Row="0"
+                    Height="8"
+                    CornerRadius="8,8,0,0"
+                    x:Name="DriveColorBar" />
+
+            <!-- Card body -->
+            <StackPanel Grid.Row="1" Padding="12,10">
+
+                <!-- Path breadcrumbs (TextBlock for now; full HyperlinkButton implementation needs TreeView nav) -->
+                <TextBlock x:Name="PathText"
+                           TextWrapping="Wrap"
+                           FontSize="12"
+                           Foreground="{ThemeResource HyperlinkButtonForeground}"
+                           AutomationProperties.Name="File path" />
+
+                <!-- Age badges row -->
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,6,0,0">
+                    <Border x:Name="NewestBadge"
+                            CornerRadius="4" Padding="6,2"
+                            Background="{ThemeResource KeepBgBrush}"
+                            Visibility="Collapsed">
+                        <TextBlock Text="NEWEST" FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource KeepBrush}" />
+                    </Border>
+                    <Border x:Name="OldestBadge"
+                            CornerRadius="4" Padding="6,2"
+                            Background="{ThemeResource DeleteBgBrush}"
+                            Visibility="Collapsed">
+                        <TextBlock Text="OLDEST" FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource DeleteBrush}" />
+                    </Border>
+                </StackPanel>
+
+                <!-- Date grid -->
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Modified" Style="{ThemeResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        <TextBlock x:Name="ModifiedText" FontSize="11" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="Created" Style="{ThemeResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        <TextBlock x:Name="CreatedText" FontSize="11" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Accessed" Style="{ThemeResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        <TextBlock x:Name="AccessedText" FontSize="11" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Heuristic label from SuggestionEngine -->
+                <TextBlock x:Name="HeuristicText"
+                           Margin="0,8,0,0"
+                           FontSize="11"
+                           FontStyle="Italic"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                <!-- Siblings info -->
+                <TextBlock x:Name="SiblingsText"
+                           Margin="0,4,0,0"
+                           FontSize="11"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+
+                <!-- Action buttons -->
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,12,0,2">
+                    <Button x:Name="KeepButton"
+                            MinWidth="56" MinHeight="32"
+                            Click="KeepButton_Click"
+                            AutomationProperties.Name="Keep this copy">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE73E;" FontSize="12" />
+                            <TextBlock Text="Keep" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="DeleteButton"
+                            MinWidth="56" MinHeight="32"
+                            Click="DeleteButton_Click"
+                            AutomationProperties.Name="Delete this copy">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE711;" FontSize="12" />
+                            <TextBlock Text="Delete" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="SkipButton"
+                            MinWidth="56" MinHeight="32"
+                            Click="SkipButton_Click"
+                            AutomationProperties.Name="Skip this copy">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE73A;" FontSize="12" />
+                            <TextBlock Text="Skip" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="RevealButton"
+                            MinHeight="32"
+                            Click="RevealButton_Click"
+                            AutomationProperties.Name="Reveal in Explorer">
+                        <FontIcon Glyph="&#xEC50;" FontSize="12" />
+                    </Button>
+                    <Button x:Name="OpenButton"
+                            MinHeight="32"
+                            Click="OpenButton_Click"
+                            AutomationProperties.Name="Open file">
+                        <FontIcon Glyph="&#xE8E5;" FontSize="12" />
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

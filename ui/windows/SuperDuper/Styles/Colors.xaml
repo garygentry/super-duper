@@ -1,0 +1,107 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ResourceDictionary.ThemeDictionaries>
+
+        <!-- ── Light Theme ────────────────────────────────────────── -->
+        <ResourceDictionary x:Key="Light">
+            <!-- Decision action colors -->
+            <SolidColorBrush x:Key="KeepBrush" Color="#1E8A44" />
+            <SolidColorBrush x:Key="DeleteBrush" Color="#C42B1C" />
+            <SolidColorBrush x:Key="SkipBrush" Color="#767676" />
+            <SolidColorBrush x:Key="WarningBrush" Color="#986F0B" />
+            <SolidColorBrush x:Key="InfoBrush" Color="#0067C0" />
+            <SolidColorBrush x:Key="DirMatchBrush" Color="#6B2F87" />
+
+            <!-- Density level backgrounds and foregrounds -->
+            <SolidColorBrush x:Key="DensityLowBg" Color="#E6F9F0" />
+            <SolidColorBrush x:Key="DensityLowFg" Color="#1E5C38" />
+            <SolidColorBrush x:Key="DensityMedBg" Color="#FFF5CC" />
+            <SolidColorBrush x:Key="DensityMedFg" Color="#986F0B" />
+            <SolidColorBrush x:Key="DensityHighBg" Color="#FDECEA" />
+            <SolidColorBrush x:Key="DensityHighFg" Color="#C42B1C" />
+
+            <!-- Drive palette (8 colors, stable per drive letter) -->
+            <SolidColorBrush x:Key="DriveColor0" Color="#0078D4" />
+            <SolidColorBrush x:Key="DriveColor1" Color="#00995C" />
+            <SolidColorBrush x:Key="DriveColor2" Color="#8944AB" />
+            <SolidColorBrush x:Key="DriveColor3" Color="#CA5010" />
+            <SolidColorBrush x:Key="DriveColor4" Color="#E81123" />
+            <SolidColorBrush x:Key="DriveColor5" Color="#00B294" />
+            <SolidColorBrush x:Key="DriveColor6" Color="#C30052" />
+            <SolidColorBrush x:Key="DriveColor7" Color="#4D4D4D" />
+
+            <!-- Subtle backgrounds for decision badges -->
+            <SolidColorBrush x:Key="KeepBgBrush" Color="#E6F9F0" />
+            <SolidColorBrush x:Key="DeleteBgBrush" Color="#FDECEA" />
+            <SolidColorBrush x:Key="SkipBgBrush" Color="#F0F0F0" />
+        </ResourceDictionary>
+
+        <!-- ── Dark Theme ─────────────────────────────────────────── -->
+        <ResourceDictionary x:Key="Dark">
+            <!-- Decision action colors -->
+            <SolidColorBrush x:Key="KeepBrush" Color="#54C87E" />
+            <SolidColorBrush x:Key="DeleteBrush" Color="#FF6B6B" />
+            <SolidColorBrush x:Key="SkipBrush" Color="#ABABAB" />
+            <SolidColorBrush x:Key="WarningBrush" Color="#FCC200" />
+            <SolidColorBrush x:Key="InfoBrush" Color="#60CDFF" />
+            <SolidColorBrush x:Key="DirMatchBrush" Color="#C49DDD" />
+
+            <!-- Density level backgrounds and foregrounds -->
+            <SolidColorBrush x:Key="DensityLowBg" Color="#1A3D2B" />
+            <SolidColorBrush x:Key="DensityLowFg" Color="#54C87E" />
+            <SolidColorBrush x:Key="DensityMedBg" Color="#3D3210" />
+            <SolidColorBrush x:Key="DensityMedFg" Color="#FCC200" />
+            <SolidColorBrush x:Key="DensityHighBg" Color="#3D1A19" />
+            <SolidColorBrush x:Key="DensityHighFg" Color="#FF6B6B" />
+
+            <!-- Drive palette (8 colors, stable per drive letter) -->
+            <SolidColorBrush x:Key="DriveColor0" Color="#60CDFF" />
+            <SolidColorBrush x:Key="DriveColor1" Color="#54C87E" />
+            <SolidColorBrush x:Key="DriveColor2" Color="#C49DDD" />
+            <SolidColorBrush x:Key="DriveColor3" Color="#F7830E" />
+            <SolidColorBrush x:Key="DriveColor4" Color="#FF6B6B" />
+            <SolidColorBrush x:Key="DriveColor5" Color="#00D4A4" />
+            <SolidColorBrush x:Key="DriveColor6" Color="#FF5C8A" />
+            <SolidColorBrush x:Key="DriveColor7" Color="#8C8C8C" />
+
+            <!-- Subtle backgrounds for decision badges -->
+            <SolidColorBrush x:Key="KeepBgBrush" Color="#1A3D2B" />
+            <SolidColorBrush x:Key="DeleteBgBrush" Color="#3D1A19" />
+            <SolidColorBrush x:Key="SkipBgBrush" Color="#2A2A2A" />
+        </ResourceDictionary>
+
+        <!-- ── High Contrast Theme ────────────────────────────────── -->
+        <ResourceDictionary x:Key="HighContrast">
+            <SolidColorBrush x:Key="KeepBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DeleteBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="SkipBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="WarningBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="InfoBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DirMatchBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+
+            <SolidColorBrush x:Key="DensityLowBg" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="DensityLowFg" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DensityMedBg" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="DensityMedFg" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DensityHighBg" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="DensityHighFg" Color="{ThemeResource SystemColorHighlightTextColor}" />
+
+            <SolidColorBrush x:Key="DriveColor0" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DriveColor1" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DriveColor2" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DriveColor3" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DriveColor4" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="DriveColor5" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="DriveColor6" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="DriveColor7" Color="{ThemeResource SystemColorGrayTextColor}" />
+
+            <SolidColorBrush x:Key="KeepBgBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="DeleteBgBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="SkipBgBrush" Color="{ThemeResource SystemColorWindowColor}" />
+        </ResourceDictionary>
+
+    </ResourceDictionary.ThemeDictionaries>
+
+</ResourceDictionary>

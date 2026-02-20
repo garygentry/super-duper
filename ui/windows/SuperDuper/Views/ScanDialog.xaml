@@ -1,0 +1,167 @@
+<ContentDialog
+    x:Class="SuperDuper.Views.ScanDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:SuperDuper.ViewModels"
+    xmlns:controls="using:SuperDuper.Controls"
+    Title="New Scan"
+    PrimaryButtonText="Start Scan"
+    CloseButtonText="Cancel"
+    DefaultButton="Primary"
+    MinWidth="560">
+
+    <!-- Grid lets ScanProgressOverlay stack on top of the Pivot -->
+    <Grid>
+        <Pivot x:Name="StepPivot"
+               SelectionChanged="StepPivot_SelectionChanged"
+               Visibility="{x:Bind ViewModel.IsNotScanning, Mode=OneWay}">
+
+        <!-- Step 1: Select Targets -->
+        <PivotItem Header="1 · Targets">
+            <ScrollViewer Padding="0,8">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Select drives or folders to scan."
+                               Style="{StaticResource BodyTextBlockStyle}" />
+
+                    <!-- Drive list -->
+                    <ItemsRepeater x:Name="DrivesRepeater"
+                                   ItemsSource="{x:Bind ViewModel.AvailableDrives}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="4" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:DrivePickerItem">
+                                <Grid ColumnSpacing="12" Padding="4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="80" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox Grid.Column="0"
+                                              IsChecked="{x:Bind IsChecked, Mode=TwoWay}"
+                                              AutomationProperties.Name="{x:Bind Name}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{x:Bind Name}"
+                                                   Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                        <TextBlock Text="{x:Bind Label}"
+                                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <ProgressBar Grid.Column="2"
+                                                 Value="{x:Bind UsedPercent}"
+                                                 Maximum="1"
+                                                 VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+
+                    <!-- Add folder -->
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBox x:Name="FolderInput"
+                                 PlaceholderText="Or enter a folder path..."
+                                 MinWidth="280"
+                                 Text="{x:Bind ViewModel.NewScanPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Content="Add" Command="{x:Bind ViewModel.AddScanPathCommand}" />
+                        <Button Content="Browse…" Command="{x:Bind ViewModel.AddFolderCommand}" />
+                    </StackPanel>
+
+                    <!-- Selected paths -->
+                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.ScanPaths}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="4" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE8B7;" FontSize="14" VerticalAlignment="Center" />
+                                    <TextBlock Text="{x:Bind}"
+                                               Style="{StaticResource PathTextStyle}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </StackPanel>
+            </ScrollViewer>
+        </PivotItem>
+
+        <!-- Step 2: Options -->
+        <PivotItem Header="2 · Options">
+            <ScrollViewer Padding="0,8">
+                <StackPanel Spacing="16">
+                    <NumberBox Header="Minimum file size (bytes)"
+                               Value="{x:Bind ViewModel.MinFileSize, Mode=TwoWay}"
+                               Minimum="0"
+                               SpinButtonPlacementMode="Inline" />
+
+                    <ComboBox Header="Hash algorithm"
+                              SelectedItem="{x:Bind ViewModel.SelectedHashAlgorithm, Mode=TwoWay}">
+                        <ComboBoxItem Content="xxHash64" />
+                        <ComboBoxItem Content="SHA-256" />
+                    </ComboBox>
+
+                    <ToggleSwitch Header="Include hidden files"
+                                  IsOn="{x:Bind ViewModel.IncludeHiddenFiles, Mode=TwoWay}" />
+
+                    <Slider Header="CPU threads"
+                            Value="{x:Bind ViewModel.CpuThreads, Mode=TwoWay}"
+                            Minimum="1"
+                            Maximum="32"
+                            StepFrequency="1"
+                            TickFrequency="4"
+                            TickPlacement="Outside" />
+
+                    <TextBlock Text="Exclusion patterns:"
+                               Style="{StaticResource BodyTextBlockStyle}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBox Text="{x:Bind ViewModel.NewIgnorePattern, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 PlaceholderText="e.g. **/node_modules/**"
+                                 MinWidth="280" />
+                        <Button Content="Add" Command="{x:Bind ViewModel.AddIgnorePatternCommand}" />
+                    </StackPanel>
+                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.IgnorePatterns}">
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <TextBlock Text="{x:Bind}" FontFamily="Consolas" FontSize="12" />
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </StackPanel>
+            </ScrollViewer>
+        </PivotItem>
+
+        <!-- Step 3: Confirm -->
+        <PivotItem Header="3 · Confirm">
+            <ScrollViewer Padding="0,8">
+                <StackPanel Spacing="16">
+                    <TextBlock x:Name="ConfirmSummaryText"
+                               Style="{StaticResource BodyTextBlockStyle}"
+                               TextWrapping="Wrap" />
+
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Save as profile (optional):"
+                                   Style="{StaticResource BodyTextBlockStyle}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBox Text="{x:Bind ViewModel.ProfileName, Mode=TwoWay}"
+                                     PlaceholderText="Profile name..."
+                                     MinWidth="200" />
+                            <Button Content="Save profile"
+                                    Click="SaveProfile_Click"
+                                    IsEnabled="{x:Bind ViewModel.CanSaveProfile, Mode=OneWay}" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </PivotItem>
+        </Pivot>
+
+        <!-- Scan progress overlay — shown when IsScanning=true -->
+        <controls:ScanProgressOverlay
+            x:Name="ProgressOverlay"
+            Visibility="{x:Bind ViewModel.IsScanning, Mode=OneWay}"
+            VerticalAlignment="Stretch"
+            HorizontalAlignment="Stretch"
+            Panel.ZIndex="10" />
+    </Grid>
+</ContentDialog>

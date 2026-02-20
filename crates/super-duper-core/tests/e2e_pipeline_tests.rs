@@ -272,7 +272,7 @@ fn test_full_pipeline_with_deletion() {
     assert!(bytes > 0, "Expected wasted bytes > 0");
 
     // Execute deletion
-    let (deleted, errors) = deletion_plan::execute_deletion_plan(&db).unwrap();
+    let (deleted, errors) = deletion_plan::execute_deletion_plan(&db, false).unwrap();
     assert_eq!(deleted, 2);
     assert_eq!(errors, 0);
 

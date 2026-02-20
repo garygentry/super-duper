@@ -536,7 +536,7 @@ fn test_deletion_execute_null_result() {
     let db_path = dir.path().join("test.db");
     let handle = create_engine(db_path.to_str().unwrap());
 
-    let result = unsafe { sd_deletion_execute(handle, ptr::null_mut()) };
+    let result = unsafe { sd_deletion_execute(handle, 1, ptr::null_mut()) };
     assert_eq!(result, SdResultCode::InvalidArgument);
 
     sd_engine_destroy(handle);
@@ -571,7 +571,7 @@ fn test_auto_mark_and_execute_deletion() {
         success_count: 0,
         error_count: 0,
     };
-    let result = unsafe { sd_deletion_execute(handle, &mut result_out) };
+    let result = unsafe { sd_deletion_execute(handle, 1, &mut result_out) };
     assert_eq!(result, SdResultCode::Ok);
     assert!(result_out.success_count > 0, "should have deleted files");
 
