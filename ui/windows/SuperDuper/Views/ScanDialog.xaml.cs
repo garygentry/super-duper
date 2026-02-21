@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using SuperDuper.NativeMethods;
 using SuperDuper.Services.Platform;
 using SuperDuper.ViewModels;
+using Button = Microsoft.UI.Xaml.Controls.Button;
 
 namespace SuperDuper.Views;
 
@@ -16,13 +17,17 @@ public sealed partial class ScanDialog : ContentDialog
     public ScanDialog()
     {
         this.InitializeComponent();
+        XamlHelper.ConnectNamedElements(this, this);
         ViewModel = App.Services.GetRequiredService<ScanDialogViewModel>();
+        this.DataContext = this;
         _notifications = App.Services.GetRequiredService<INotificationService>();
         _engine = App.Services.GetRequiredService<EngineWrapper>();
         ViewModel.SetDispatcherQueue(DispatcherQueue.GetForCurrentThread());
-        ViewModel.LoadAvailableDrives();
         ViewModel.ScanCompleted += OnScanCompleted;
         ViewModel.ErrorOccurred += OnErrorOccurred;
+
+        // Wire events (XAML compiler pass 2 doesn't generate IComponentConnector)
+        StepPivot.SelectionChanged += StepPivot_SelectionChanged;
 
         // Bind the progress overlay so it can read scan phase/progress properties
         Loaded += (_, _) => ProgressOverlay.Bind(ViewModel);
@@ -48,8 +53,16 @@ public sealed partial class ScanDialog : ContentDialog
         if (StepPivot.SelectedIndex == 2)
         {
             var pathCount = ViewModel.ScanPaths.Count;
-            ConfirmSummaryText.Text = $"Ready to scan {pathCount} location(s) with the selected options.";
+            ConfirmSummaryText.Text = pathCount > 0
+                ? $"Ready to scan {pathCount} location(s) with the selected options."
+                : "No locations configured. Close this dialog and add scan targets on the Dashboard.";
         }
+    }
+
+    private void RemoveIgnorePattern_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.DataContext is string pattern)
+            ViewModel.RemoveIgnorePatternCommand.Execute(pattern);
     }
 
     private void SaveProfile_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)

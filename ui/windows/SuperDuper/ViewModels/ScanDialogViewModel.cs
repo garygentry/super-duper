@@ -10,14 +10,13 @@ using System.Runtime.InteropServices;
 namespace SuperDuper.ViewModels;
 
 /// <summary>
-/// Drives the 3-step scan dialog. Owns scan path selection, options, and scan execution.
-/// Scan initiation logic moved here from the original MainViewModel.
+/// Drives the scan dialog. Owns scan paths (read-only from settings), options, and scan execution.
+/// Scan target editing is now on the Dashboard; this dialog confirms and starts.
 /// </summary>
 public partial class ScanDialogViewModel : ObservableObject
 {
     private readonly EngineWrapper _engine;
     private readonly IDatabaseService _db;
-    private readonly IFilePickerService _filePicker;
     private readonly INotificationService _notifications;
     private readonly SettingsService _settings;
     private DispatcherQueue? _dispatcherQueue;
@@ -25,13 +24,11 @@ public partial class ScanDialogViewModel : ObservableObject
     public ScanDialogViewModel(
         EngineWrapper engine,
         IDatabaseService db,
-        IFilePickerService filePicker,
         INotificationService notifications,
         SettingsService settings)
     {
         _engine = engine;
         _db = db;
-        _filePicker = filePicker;
         _notifications = notifications;
         _settings = settings;
 
@@ -44,13 +41,9 @@ public partial class ScanDialogViewModel : ObservableObject
 
     public void SetDispatcherQueue(DispatcherQueue queue) => _dispatcherQueue = queue;
 
-    // ── Step 1: Target selection ──────────────────────────────────────
+    // ── Step 1: Scan paths (read-only, loaded from settings) ─────────
 
-    public ObservableCollection<DrivePickerItem> AvailableDrives { get; } = new();
     public ObservableCollection<string> ScanPaths { get; } = new();
-
-    [ObservableProperty]
-    private string _newScanPath = "";
 
     // ── Step 2: Options ───────────────────────────────────────────────
 
@@ -109,28 +102,6 @@ public partial class ScanDialogViewModel : ObservableObject
     public event EventHandler<string>? ErrorOccurred;
 
     // ── Commands ──────────────────────────────────────────────────────
-
-    [RelayCommand]
-    private async Task AddFolderAsync()
-    {
-        var path = await _filePicker.PickFolderAsync();
-        if (path != null && !ScanPaths.Contains(path))
-            ScanPaths.Add(path);
-    }
-
-    [RelayCommand]
-    private void AddScanPath()
-    {
-        var path = NewScanPath.Trim();
-        if (!string.IsNullOrEmpty(path) && !ScanPaths.Contains(path))
-        {
-            ScanPaths.Add(path);
-            NewScanPath = "";
-        }
-    }
-
-    [RelayCommand]
-    private void RemoveScanPath(string path) => ScanPaths.Remove(path);
 
     [RelayCommand]
     private void AddIgnorePattern()
@@ -242,42 +213,4 @@ public partial class ScanDialogViewModel : ObservableObject
         }
     }
 
-    public void LoadAvailableDrives()
-    {
-        AvailableDrives.Clear();
-        try
-        {
-            foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
-            {
-                AvailableDrives.Add(new DrivePickerItem
-                {
-                    Name = drive.Name,
-                    Label = string.IsNullOrEmpty(drive.VolumeLabel) ? drive.DriveType.ToString() : drive.VolumeLabel,
-                    DriveType = drive.DriveType.ToString(),
-                    TotalBytes = drive.TotalSize,
-                    FreeBytes = drive.AvailableFreeSpace,
-                    IsChecked = false
-                });
-            }
-        }
-        catch { /* Drive enumeration can fail on some configurations */ }
-    }
-}
-
-public class DrivePickerItem : ObservableObject
-{
-    public string Name { get; set; } = "";
-    public string Label { get; set; } = "";
-    public string DriveType { get; set; } = "";
-    public long TotalBytes { get; set; }
-    public long FreeBytes { get; set; }
-
-    private bool _isChecked;
-    public bool IsChecked
-    {
-        get => _isChecked;
-        set => SetProperty(ref _isChecked, value);
-    }
-
-    public double UsedPercent => TotalBytes > 0 ? (double)(TotalBytes - FreeBytes) / TotalBytes : 0;
 }

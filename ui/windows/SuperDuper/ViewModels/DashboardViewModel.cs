@@ -5,26 +5,38 @@ using Microsoft.UI.Dispatching;
 using SuperDuper.Models;
 using SuperDuper.NativeMethods;
 using SuperDuper.Services;
+using SuperDuper.Services.Platform;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Text.Json;
 
 namespace SuperDuper.ViewModels;
 
 /// <summary>
 /// Drives the Dashboard page. Owns session selection, metrics display,
-/// review progress, and quick wins. Scan initiation delegates to ScanDialogViewModel.
+/// review progress, quick wins, and scan target management.
+/// Scan initiation delegates to ScanDialogViewModel.
 /// </summary>
 public partial class DashboardViewModel : ObservableObject
 {
     private readonly EngineWrapper _engine;
     private readonly IDatabaseService _db;
+    private readonly SettingsService _settings;
+    private readonly IFilePickerService _filePicker;
     private bool _suppressPickerSideEffects;
     private DispatcherQueue? _dispatcherQueue;
 
-    public DashboardViewModel(EngineWrapper engine, IDatabaseService db)
+    public DashboardViewModel(EngineWrapper engine, IDatabaseService db, SettingsService settings, IFilePickerService filePicker)
     {
         _engine = engine;
         _db = db;
+        _settings = settings;
+        _filePicker = filePicker;
+
+        // Load saved scan paths
+        foreach (var p in settings.ScanPaths) ScanPaths.Add(p);
+        ScanPaths.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasScanPaths));
+
         _ = LoadSessionPickerAsync();
     }
 
@@ -107,6 +119,53 @@ public partial class DashboardViewModel : ObservableObject
 
     public ObservableCollection<TreemapNode> TreemapNodes { get; } = new();
 
+    // ── Scan Targets ─────────────────────────────────────────────────
+
+    public ObservableCollection<string> ScanPaths { get; } = new();
+
+    [ObservableProperty]
+    private string _newScanPath = "";
+
+    public bool HasScanPaths => ScanPaths.Count > 0;
+
+    [RelayCommand]
+    private void AddScanPath()
+    {
+        var path = NewScanPath.Trim();
+        if (!string.IsNullOrEmpty(path) && !ScanPaths.Contains(path))
+        {
+            ScanPaths.Add(path);
+            NewScanPath = "";
+            SaveScanPaths();
+        }
+    }
+
+    [RelayCommand]
+    private async Task BrowseFolderAsync()
+    {
+        var path = await _filePicker.PickFolderAsync();
+        if (path != null && !ScanPaths.Contains(path))
+        {
+            ScanPaths.Add(path);
+            SaveScanPaths();
+        }
+    }
+
+    [RelayCommand]
+    private void RemoveScanPath(string path)
+    {
+        ScanPaths.Remove(path);
+        SaveScanPaths();
+    }
+
+    private void SaveScanPaths() => _settings.ScanPaths = ScanPaths.ToList();
+
+    public void ReloadScanPaths()
+    {
+        ScanPaths.Clear();
+        foreach (var p in _settings.ScanPaths) ScanPaths.Add(p);
+    }
+
     // ── Commands ──────────────────────────────────────────────────────
 
     [RelayCommand]
@@ -172,5 +231,12 @@ public partial class DashboardViewModel : ObservableObject
         QuickWins.Clear();
         foreach (var w in wins)
             QuickWins.Add(w);
+        OnPropertyChanged(nameof(HasQuickWins));
+
+        // Treemap nodes
+        var nodes = await _db.GetTreemapNodesAsync(sessionId);
+        TreemapNodes.Clear();
+        foreach (var n in nodes)
+            TreemapNodes.Add(n);
     }
 }

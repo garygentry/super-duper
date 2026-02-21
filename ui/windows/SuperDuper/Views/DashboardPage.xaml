@@ -4,7 +4,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:SuperDuper.Views"
     xmlns:vm="using:SuperDuper.ViewModels"
-    xmlns:models="using:SuperDuper.Models">
+    xmlns:models="using:SuperDuper.Models"
+    xmlns:controls="using:SuperDuper.Controls">
 
     <ScrollViewer Padding="24">
         <StackPanel Spacing="20" MaxWidth="1200">
@@ -22,17 +23,90 @@
                 <Button Grid.Column="1"
                         Content="New Scan"
                         Style="{StaticResource AccentButtonStyle}"
-                        Command="{x:Bind ViewModel.OpenNewScanDialogCommand}"
+                        Command="{Binding ViewModel.OpenNewScanDialogCommand, Mode=OneTime}"
+                        IsEnabled="{Binding ViewModel.HasScanPaths, Mode=OneWay}"
                         AutomationProperties.Name="Open new scan dialog" />
             </Grid>
+
+            <!-- Scan Targets -->
+            <Border Style="{StaticResource CardBorderStyle}"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel Spacing="10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Scan Targets"
+                                       Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="Add directories or drives to scan for duplicates."
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <FontIcon Grid.Column="1" Glyph="&#xE8B7;" FontSize="24"
+                                  VerticalAlignment="Center"
+                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </Grid>
+
+                    <!-- Input row -->
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBox x:Name="ScanPathInput"
+                                 PlaceholderText="Enter a folder path..."
+                                 MinWidth="340"
+                                 Text="{Binding ViewModel.NewScanPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Content="Add"
+                                Command="{Binding ViewModel.AddScanPathCommand, Mode=OneTime}" />
+                        <Button Content="Browse&#x2026;"
+                                Command="{Binding ViewModel.BrowseFolderCommand, Mode=OneTime}" />
+                    </StackPanel>
+
+                    <!-- Path list -->
+                    <ItemsRepeater ItemsSource="{Binding ViewModel.ScanPaths, Mode=OneTime}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="4" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnSpacing="4" Padding="4,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Grid.Column="0" Glyph="&#xE8B7;" FontSize="14"
+                                              VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding}"
+                                               Style="{StaticResource PathTextStyle}"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    <Button Grid.Column="2"
+                                            Click="RemoveScanPath_Click"
+                                            Background="Transparent" BorderThickness="0"
+                                            Padding="4" VerticalAlignment="Center"
+                                            ToolTipService.ToolTip="Remove">
+                                        <FontIcon Glyph="&#xE711;" FontSize="12" />
+                                    </Button>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+
+                    <!-- Empty state -->
+                    <TextBlock Text="No scan targets configured. Add a folder or drive above to get started."
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               FontStyle="Italic"
+                               Visibility="{Binding ViewModel.HasScanPaths, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                </StackPanel>
+            </Border>
 
             <!-- Session picker -->
             <StackPanel Orientation="Horizontal" Spacing="10">
                 <TextBlock Text="Session:"
                            Style="{StaticResource BodyStrongTextBlockStyle}"
                            VerticalAlignment="Center" />
-                <ComboBox ItemsSource="{x:Bind ViewModel.SessionPickerItems}"
-                          SelectedItem="{x:Bind ViewModel.SelectedSession, Mode=TwoWay}"
+                <ComboBox ItemsSource="{Binding ViewModel.SessionPickerItems, Mode=OneTime}"
+                          SelectedItem="{Binding ViewModel.SelectedSession, Mode=TwoWay}"
                           DisplayMemberPath="DisplayLabel"
                           MinWidth="380" />
             </StackPanel>
@@ -50,7 +124,7 @@
                     <StackPanel>
                         <TextBlock Text="Files Scanned"
                                    Style="{StaticResource CaptionTextBlockStyle}" />
-                        <TextBlock Text="{x:Bind ViewModel.TotalFilesScanned, Mode=OneWay}"
+                        <TextBlock Text="{Binding ViewModel.TotalFilesScanned, Mode=OneWay}"
                                    Style="{StaticResource TitleLargeTextBlockStyle}" />
                     </StackPanel>
                 </Border>
@@ -59,7 +133,7 @@
                     <StackPanel>
                         <TextBlock Text="Duplicate Groups"
                                    Style="{StaticResource CaptionTextBlockStyle}" />
-                        <TextBlock Text="{x:Bind ViewModel.TotalDuplicateGroups, Mode=OneWay}"
+                        <TextBlock Text="{Binding ViewModel.TotalDuplicateGroups, Mode=OneWay}"
                                    Style="{StaticResource TitleLargeTextBlockStyle}" />
                     </StackPanel>
                 </Border>
@@ -68,7 +142,7 @@
                     <StackPanel>
                         <TextBlock Text="Wasted Space"
                                    Style="{StaticResource CaptionTextBlockStyle}" />
-                        <TextBlock Text="{x:Bind ViewModel.FormattedWastedBytes, Mode=OneWay}"
+                        <TextBlock Text="{Binding ViewModel.FormattedWastedBytes, Mode=OneWay}"
                                    Style="{StaticResource TitleLargeTextBlockStyle}" />
                     </StackPanel>
                 </Border>
@@ -78,16 +152,16 @@
                     <StackPanel Spacing="8">
                         <TextBlock Text="Review Progress"
                                    Style="{StaticResource CaptionTextBlockStyle}" />
-                        <ProgressRing IsActive="True"
-                                      Value="{x:Bind ViewModel.ReviewProgressPercent, Mode=OneWay}"
+                        <ProgressRing IsIndeterminate="False"
+                                      Value="{Binding ViewModel.ReviewProgressPercent, Mode=OneWay}"
                                       Maximum="100"
                                       Width="40" Height="40"
-                                      AutomationProperties.Name="{x:Bind ViewModel.ReviewProgressAccessibleName, Mode=OneWay}" />
+                                      AutomationProperties.Name="{Binding ViewModel.ReviewProgressAccessibleName, Mode=OneWay}" />
                         <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}">
-                            <Run Text="{x:Bind ViewModel.ReviewedCount, Mode=OneWay}" />
+                            <Run Text="{Binding ViewModel.ReviewedCount, Mode=OneWay}" />
                             <Run Text=" of " />
-                            <Run Text="{x:Bind ViewModel.TotalReviewable, Mode=OneWay}" />
+                            <Run Text="{Binding ViewModel.TotalReviewable, Mode=OneWay}" />
                             <Run Text=" reviewed" />
                         </TextBlock>
                     </StackPanel>
@@ -95,48 +169,70 @@
             </Grid>
 
             <!-- Status message -->
-            <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
+            <TextBlock Text="{Binding ViewModel.StatusMessage, Mode=OneWay}"
                        Style="{StaticResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
             <!-- Quick Wins Panel -->
             <StackPanel Spacing="8"
-                        Visibility="{x:Bind ViewModel.HasQuickWins, Mode=OneWay}">
+                        Visibility="{Binding ViewModel.HasQuickWins, Mode=OneWay}">
                 <TextBlock Text="Quick Wins"
                            Style="{StaticResource SubtitleTextBlockStyle}" />
                 <TextBlock Text="High-impact duplicates to review first."
                            Style="{StaticResource CaptionTextBlockStyle}"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
-                <ItemsRepeater ItemsSource="{x:Bind ViewModel.QuickWins}">
+                <ItemsRepeater ItemsSource="{Binding ViewModel.QuickWins, Mode=OneTime}">
                     <ItemsRepeater.Layout>
                         <StackLayout Spacing="6" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
-                        <DataTemplate x:DataType="models:QuickWinItem">
+                        <DataTemplate>
                             <Border Style="{StaticResource CardBorderStyle}" Padding="12">
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{x:Bind Category}"
+                                        <TextBlock Text="{Binding Category, Mode=OneTime}"
                                                    Style="{StaticResource CaptionTextBlockStyle}"
                                                    Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                                        <TextBlock Text="{x:Bind Description}"
+                                        <TextBlock Text="{Binding Description, Mode=OneTime}"
                                                    Style="{StaticResource BodyTextBlockStyle}"
                                                    TextWrapping="Wrap" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="1"
-                                               Text="{x:Bind FormattedSize}"
+                                               Text="{Binding FormattedSize, Mode=OneTime}"
                                                Style="{StaticResource BodyStrongTextBlockStyle}"
                                                VerticalAlignment="Center" />
+                                    <Button Grid.Column="2"
+                                            Content="{Binding ActionLabel, Mode=OneTime}"
+                                            Tag="{Binding}"
+                                            Click="QuickWinAction_Click"
+                                            Style="{StaticResource AccentButtonStyle}"
+                                            FontSize="12"
+                                            VerticalAlignment="Center"
+                                            Padding="12,6" />
                                 </Grid>
                             </Border>
                         </DataTemplate>
                     </ItemsRepeater.ItemTemplate>
                 </ItemsRepeater>
+            </StackPanel>
+
+            <!-- Storage Treemap -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Storage Overview"
+                           Style="{StaticResource SubtitleTextBlockStyle}" />
+                <TextBlock Text="Directories sized by duplicate content. Deeper red = higher duplicate density."
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <controls:StorageTreemap
+                    x:Name="StorageTreemapControl"
+                    ItemsSource="{Binding ViewModel.TreemapNodes, Mode=OneTime}"
+                    Height="300" />
             </StackPanel>
 
         </StackPanel>
