@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
 using SuperDuper.Models;
 using SuperDuper.Services;
 using System.Collections.ObjectModel;
@@ -29,8 +28,8 @@ public sealed partial class FileListControl : UserControl
         // Wire events (XAML compiler pass 2 doesn't generate IComponentConnector)
         SortCombo.SelectionChanged += SortCombo_SelectionChanged;
         FileRepeater.ElementPrepared += FileRepeater_ElementPrepared;
-        // RadioButtons don't have x:Name — wire via Loaded to find them
-        this.Loaded += (_, _) => WireRadioButtons();
+        AllFilesButton.Checked += AllFiles_Checked;
+        DupesOnlyButton.Checked += DupesOnly_Checked;
 
         // React to session changes while this control is alive
         var scanService = App.Services.GetRequiredService<ScanService>();
@@ -54,32 +53,6 @@ public sealed partial class FileListControl : UserControl
     {
         if (sender is FrameworkElement el && el.DataContext is DbFileInfo file)
             SelectedFileChanged?.Invoke(this, file);
-    }
-
-    private void WireRadioButtons()
-    {
-        // Walk the visual tree to find RadioButtons by GroupName
-        foreach (var rb in FindChildren<RadioButton>(this))
-        {
-            if (rb.GroupName == "FileMode")
-            {
-                if (rb.Content?.ToString() == "All Files")
-                    rb.Checked += AllFiles_Checked;
-                else if (rb.Content?.ToString() == "Duplicates Only")
-                    rb.Checked += DupesOnly_Checked;
-            }
-        }
-    }
-
-    private static IEnumerable<T> FindChildren<T>(DependencyObject parent) where T : DependencyObject
-    {
-        var count = VisualTreeHelper.GetChildrenCount(parent);
-        for (int i = 0; i < count; i++)
-        {
-            var child = VisualTreeHelper.GetChild(parent, i);
-            if (child is T t) yield return t;
-            foreach (var sub in FindChildren<T>(child)) yield return sub;
-        }
     }
 
     private string? _directoryPath;

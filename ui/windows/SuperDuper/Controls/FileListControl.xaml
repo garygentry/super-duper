@@ -13,11 +13,13 @@
         <!-- Mode toggle + sort -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Padding="8,4"
                     Background="{ThemeResource ControlAltFillColorSecondaryBrush}">
-            <RadioButton Content="All Files"
+            <RadioButton x:Name="AllFilesButton"
+                         Content="All Files"
                          IsChecked="True"
                          GroupName="FileMode"
                          />
-            <RadioButton Content="Duplicates Only"
+            <RadioButton x:Name="DupesOnlyButton"
+                         Content="Duplicates Only"
                          GroupName="FileMode"
                          />
             <ComboBox x:Name="SortCombo"
