@@ -1,1 +1,1 @@
-PAUSED — Human needed: Cannot run dotnet build or verify UI behavior on Linux. Please verify on Windows: (1) dotnet build succeeds, (2) Debug Output shows "EngineWrapper.Dispose: calling sd_engine_destroy" on window close, (3) no live super_duper_ffi handles remain after exit.
+Ralph hit iteration limit — Max iterations (20) reached. Done: 20 / 23 | Blocked: 0 | Time: 51m

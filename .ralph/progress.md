@@ -166,3 +166,10 @@
 - `SettingsPage.LoadShortcutData()` now builds display strings from `ShortcutDefinitions.All` via LINQ Select
 - 13 shortcuts total: 4 global accelerator entries (Undo, Redo, OpenDeletionDialog, Refresh) + 9 display-only contextual entries
 - Three files changed (1 new, 2 modified). `dotnet build` unavailable on Linux
+
+### 021 — Remove UpdateJumpList() no-op from IShellIntegrationService
+- `UpdateJumpList(IReadOnlyList<SessionInfo>)` was defined on `IShellIntegrationService` and implemented as a no-op in `WindowsShellService` with a TODO about needing packaged mode
+- Zero call sites in the entire codebase — method was never invoked
+- Removed from interface and implementation; also removed `using SuperDuper.NativeMethods` from interface (only needed for `SessionInfo` parameter type)
+- Updated class doc comment to remove "WinRT JumpList" reference
+- Two files changed, -16 net lines. `dotnet build` unavailable on Linux

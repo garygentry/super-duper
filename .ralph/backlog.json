@@ -356,8 +356,8 @@
         "A clear inline comment documents the planned release/phase for JumpList support",
         "No compilation errors after any removal"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T15:40:39+00:00",
       "dependsOn": [],
       "notes": "File: Services/Platform/Windows/WindowsShellService.cs. Effort: XS."
     },
