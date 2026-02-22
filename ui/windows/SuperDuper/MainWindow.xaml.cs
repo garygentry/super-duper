@@ -29,6 +29,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         this.InitializeComponent();
+        this.Closed += MainWindow_Closed;
         XamlHelper.ConnectNamedElements(this, (FrameworkElement)Content);
         Title = "Super Duper";
 
@@ -265,6 +266,11 @@ public sealed partial class MainWindow : Window
         var accel = new KeyboardAccelerator { Key = key, Modifiers = modifiers };
         accel.Invoked += handler;
         target.KeyboardAccelerators.Add(accel);
+    }
+
+    private void MainWindow_Closed(object sender, WindowEventArgs args)
+    {
+        (App.Services as IDisposable)?.Dispose();
     }
 
     private void SearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)

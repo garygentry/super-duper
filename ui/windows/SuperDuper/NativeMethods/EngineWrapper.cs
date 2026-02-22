@@ -391,6 +391,7 @@ public sealed class EngineWrapper : IDisposable
         {
             if (_handle != 0)
             {
+                System.Diagnostics.Debug.WriteLine($"EngineWrapper.Dispose: calling sd_engine_destroy(handle={_handle})");
                 sd_engine_destroy(_handle);
                 _handle = 0;
             }
