@@ -1,12 +1,11 @@
 using Microsoft.Win32;
-using SuperDuper.NativeMethods;
 using System.Diagnostics;
 using System.Reflection;
 
 namespace SuperDuper.Services.Platform.Windows;
 
 /// <summary>
-/// Windows implementation of shell integration using Process.Start, registry, and WinRT JumpList.
+/// Windows implementation of shell integration using Process.Start and registry.
 /// </summary>
 public class WindowsShellService : IShellIntegrationService
 {
@@ -64,14 +63,5 @@ public class WindowsShellService : IShellIntegrationService
             Registry.CurrentUser.DeleteSubKeyTree(ContextMenuKeyPath, throwOnMissingSubKey: false);
         }
         catch (Exception ex) { Debug.WriteLine($"[WindowsShellService.UnregisterContextMenu] {ex}"); }
-    }
-
-    public void UpdateJumpList(IReadOnlyList<SessionInfo> recentSessions)
-    {
-        // JumpList update requires Windows packaging context for full WinRT support.
-        // In unpackaged mode (WindowsPackageType=None), we use the Windows Shell API via
-        // ICustomDestinationList COM interface. For now, this is a no-op placeholder
-        // to keep ViewModels decoupled from platform capabilities.
-        // TODO: Implement via SHAddToRecentDocs or ICustomDestinationList when targeting packaged mode.
     }
 }

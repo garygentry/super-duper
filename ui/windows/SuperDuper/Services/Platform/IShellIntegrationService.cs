@@ -1,5 +1,3 @@
-using SuperDuper.NativeMethods;
-
 namespace SuperDuper.Services.Platform;
 
 public interface IShellIntegrationService
@@ -15,7 +13,4 @@ public interface IShellIntegrationService
 
     /// <summary>Removes the context menu registry entry.</summary>
     void UnregisterContextMenu();
-
-    /// <summary>Updates the taskbar jump list with recent sessions.</summary>
-    void UpdateJumpList(IReadOnlyList<SessionInfo> recentSessions);
 }
