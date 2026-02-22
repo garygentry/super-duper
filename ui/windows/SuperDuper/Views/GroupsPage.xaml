@@ -61,11 +61,11 @@
                 <DropDownButton.Flyout>
                     <MenuFlyout x:Name="FilterMenuFlyout">
                         <MenuFlyoutSubItem Text="File Type">
-                            <MenuFlyoutItem x:Name="FilterImages" Text="Images" Tag="images" />
-                            <MenuFlyoutItem x:Name="FilterDocuments" Text="Documents" Tag="documents" />
-                            <MenuFlyoutItem x:Name="FilterVideo" Text="Video" Tag="video" />
-                            <MenuFlyoutItem x:Name="FilterAudio" Text="Audio" Tag="audio" />
-                            <MenuFlyoutItem x:Name="FilterArchives" Text="Archives" Tag="archives" />
+                            <MenuFlyoutItem x:Name="FilterImages" Text="Images" />
+                            <MenuFlyoutItem x:Name="FilterDocuments" Text="Documents" />
+                            <MenuFlyoutItem x:Name="FilterVideo" Text="Video" />
+                            <MenuFlyoutItem x:Name="FilterAudio" Text="Audio" />
+                            <MenuFlyoutItem x:Name="FilterArchives" Text="Archives" />
                         </MenuFlyoutSubItem>
                         <MenuFlyoutSubItem Text="Review Status">
                             <MenuFlyoutItem x:Name="FilterUnreviewed" Text="Unreviewed" Tag="unreviewed" />

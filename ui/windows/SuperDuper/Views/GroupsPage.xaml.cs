@@ -47,15 +47,22 @@ public sealed partial class GroupsPage : Page
         if (FindName("AutoSelectShortest") is MenuFlyoutItem shortest)
             shortest.Click += AutoSelectKeepShortest_Click;
 
-        // Filter flyout items
-        var filterNames = new[]
-        {
-            "FilterImages", "FilterDocuments", "FilterVideo", "FilterAudio", "FilterArchives"
-        };
-        foreach (var name in filterNames)
+        // Filter flyout items — set Tags from constants so they stay in sync with DatabaseService
+        (string Name, string Tag)[] filterItems =
+        [
+            ("FilterImages", FileTypeFilters.Images),
+            ("FilterDocuments", FileTypeFilters.Documents),
+            ("FilterVideo", FileTypeFilters.Video),
+            ("FilterAudio", FileTypeFilters.Audio),
+            ("FilterArchives", FileTypeFilters.Archives),
+        ];
+        foreach (var (name, tag) in filterItems)
         {
             if (FindName(name) is MenuFlyoutItem item)
+            {
+                item.Tag = tag;
                 item.Click += AddFileTypeFilter_Click;
+            }
         }
 
         var statusNames = new[] { "FilterUnreviewed", "FilterPartial", "FilterDecided" };

@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using SuperDuper.Models;
 using System.Text.Json;
+using static SuperDuper.Models.FileTypeFilters;
 
 namespace SuperDuper.Services;
 
@@ -639,11 +640,11 @@ public class DatabaseService : IDatabaseService, IDisposable
             {
                 var extensions = filter.FileTypeFilter switch
                 {
-                    "images" => "('jpg','jpeg','png','gif','bmp','webp','svg','tiff')",
-                    "documents" => "('pdf','doc','docx','txt','rtf','odt','xls','xlsx','csv','pptx')",
-                    "video" => "('mp4','avi','mkv','mov','wmv','flv','webm')",
-                    "audio" => "('mp3','flac','wav','aac','ogg','wma','m4a')",
-                    "archives" => "('zip','rar','7z','gz','tar','bz2')",
+                    Images => "('jpg','jpeg','png','gif','bmp','webp','svg','tiff')",
+                    Documents => "('pdf','doc','docx','txt','rtf','odt','xls','xlsx','csv','pptx')",
+                    Video => "('mp4','avi','mkv','mov','wmv','flv','webm')",
+                    Audio => "('mp3','flac','wav','aac','ogg','wma','m4a')",
+                    Archives => "('zip','rar','7z','gz','tar','bz2')",
                     _ => "('')"
                 };
                 whereClauses.Add($"EXISTS (SELECT 1 FROM duplicate_group_member m JOIN scanned_file f ON f.id = m.file_id WHERE m.group_id = dg.id AND LOWER(REPLACE(f.file_name, RTRIM(f.file_name, REPLACE(f.file_name, '.', '')), '')) IN {extensions})");
