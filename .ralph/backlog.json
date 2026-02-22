@@ -138,8 +138,8 @@
         "SessionsViewModel.LoadSessionsAsync catch logs exception",
         "All failures visible in VS Debug Output without changing observable app behavior"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T07:00:00+00:00",
       "dependsOn": [],
       "notes": "Files: Services/ScanService.cs:49; ViewModels/DeletionReviewViewModel.cs:192; Services/SettingsService.cs; Services/Platform/Windows/WindowsShellService.cs; ViewModels/SessionsViewModel.cs. Effort: S."
     },

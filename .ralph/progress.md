@@ -58,3 +58,13 @@
 - Deleted `WireRadioButtons()` method and `FindChildren<T>()` VisualTreeHelper traversal helper (25 lines removed)
 - Removed unused `using Microsoft.UI.Xaml.Media` import
 - Net result: -25 lines, eliminates fragile visual-tree traversal that could break on XAML nesting changes
+
+### 008 — Add Debug.WriteLine to all silent catch blocks
+- Added `Debug.WriteLine` with `[ClassName.MethodName]` prefix to all bare catch blocks across 5 files
+- ScanService: `TrySetActiveSession` catch + `CancelAndWaitAsync` catch (added `using System.Diagnostics`)
+- MarkedFileViewModel: `RevealInExplorer` catch (already had `using System.Diagnostics` via parent file)
+- SettingsService: `Load()` + `Save()` catches (added `using System.Diagnostics`). No ILogger — project has no `Microsoft.Extensions.Logging` infrastructure
+- WindowsShellService: `RevealInExplorer`, `OpenFile`, `RegisterContextMenu`, `UnregisterContextMenu` catches (already had `using System.Diagnostics`)
+- SessionsViewModel: `LoadSessionsAsync` catch (added `using System.Diagnostics`)
+- All catches changed from bare `catch` / `catch { }` to `catch (Exception ex)` with `Debug.WriteLine($"[Context] {ex}")`
+- No behavioral changes — all exceptions still swallowed, just now visible in VS Debug Output
