@@ -173,3 +173,10 @@
 - Removed from interface and implementation; also removed `using SuperDuper.NativeMethods` from interface (only needed for `SessionInfo` parameter type)
 - Updated class doc comment to remove "WinRT JumpList" reference
 - Two files changed, -16 net lines. `dotnet build` unavailable on Linux
+
+### 022 — Implement or remove ScanProgressOverlay SpeedLabel and Pause button
+- Chose Option B (remove/collapse) — SpeedLabel was never updated and Pause button was always disabled
+- Removed `SpeedLabel` public property from code-behind and its `PropertyChanged` forwarding in bulk refresh path
+- Removed SpeedLabel XAML `TextBlock` and simplified the count+speed `Grid` (2-column) to a single `TextBlock` at Grid.Row="4"
+- Added `Visibility="Collapsed"` to `PauseButton` — kept the element for future implementation but hidden from users
+- Net result: -12 lines across 2 files. No Rust changes. `dotnet build` unavailable on Linux

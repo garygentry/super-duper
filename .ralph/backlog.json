@@ -372,8 +372,8 @@
         "Option B: SpeedLabel XAML element is removed; Pause button has Visibility=Collapsed",
         "No permanently blank labels or persistently disabled buttons mislead users about available functionality"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T15:41:46+00:00",
       "dependsOn": [],
       "notes": "Files: Controls/ScanProgressOverlay.xaml.cs:21; Controls/ScanProgressOverlay.xaml. Effort: S. Option B (remove/collapse) is acceptable as a first step."
     },
