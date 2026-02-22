@@ -340,8 +340,8 @@
         "SettingsPage.LoadShortcutData() builds its display table from ShortcutDefinitions",
         "Changing a shortcut in ShortcutDefinitions automatically updates both the registered accelerator and the settings display"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T07:33:02+00:00",
       "dependsOn": [],
       "notes": "Files: Views/SettingsPage.xaml.cs LoadShortcutData(); MainWindow.xaml.cs. Effort: S."
     },

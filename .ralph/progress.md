@@ -158,3 +158,11 @@
 - Removed `Tag="..."` attributes from the five filter `MenuFlyoutItem`s in `GroupsPage.xaml` — Tags are set in code-behind
 - Task notes referenced `GroupsViewModel ~line 106` but that line is the ReviewStatus switch; GroupsViewModel has no file type string literals — the actual UI source was `GroupsPage.xaml` Tag attributes
 - Four files changed (1 new, 3 modified). `dotnet build` unavailable on Linux
+
+### 020 — Link SettingsPage shortcut table to actual KeyboardAccelerator definitions
+- Created `Models/ShortcutDefinitions.cs` with `ShortcutEntry` records mapping action names to display keys and optional `KeyBinding[]` for accelerator registration
+- Each entry has `ActionName`, `DisplayKeys` (for SettingsPage), and `Bindings` array of `(VirtualKey, VirtualKeyModifiers)` (empty for display-only contextual shortcuts)
+- `MainWindow.RegisterAccelerators()` iterates `entry.Bindings` — handles multi-binding shortcuts (Redo has both Ctrl+Y and Ctrl+Shift+Z) automatically
+- `SettingsPage.LoadShortcutData()` now builds display strings from `ShortcutDefinitions.All` via LINQ Select
+- 13 shortcuts total: 4 global accelerator entries (Undo, Redo, OpenDeletionDialog, Refresh) + 9 display-only contextual entries
+- Three files changed (1 new, 2 modified). `dotnet build` unavailable on Linux
