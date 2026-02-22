@@ -11,8 +11,8 @@ namespace SuperDuper.ViewModels;
 
 public partial class DeletionReviewViewModel : ObservableObject
 {
-    private EngineWrapper? _engine;
-    private Services.SettingsService? _settings;
+    private readonly EngineWrapper _engine;
+    private readonly Services.SettingsService _settings;
 
     [ObservableProperty]
     public partial long FileCount { get; set; }
@@ -45,21 +45,19 @@ public partial class DeletionReviewViewModel : ObservableObject
 
     public event EventHandler<(string Title, string Detail)>? ErrorOccurred;
 
-    public bool UseTrash => _settings?.UseTrashForDeletion ?? true;
+    public bool UseTrash => _settings.UseTrashForDeletion;
 
-    public void Initialize(EngineWrapper engine, Services.SettingsService? settings = null)
+    public DeletionReviewViewModel(EngineWrapper engine, Services.SettingsService settings)
     {
         _engine = engine;
         _settings = settings;
         RefreshSummary();
-        LoadMarkedFilesAsync().FireAndForget(nameof(DeletionReviewViewModel) + "." + nameof(Initialize));
+        LoadMarkedFilesAsync().FireAndForget(nameof(DeletionReviewViewModel) + ".ctor");
     }
 
     [RelayCommand]
     private void RefreshSummary()
     {
-        if (_engine == null) return;
-
         var (count, bytes) = _engine.GetDeletionPlanSummary();
         FileCount = count;
         TotalBytes = bytes;
@@ -72,8 +70,6 @@ public partial class DeletionReviewViewModel : ObservableObject
     [RelayCommand]
     private void AutoMark()
     {
-        if (_engine == null) return;
-
         _engine.AutoMarkForDeletion();
         RefreshSummary();
         StatusMessage = $"Auto-marked duplicates. {FileCount} files ({FormattedTotalBytes}) ready for deletion.";
@@ -83,7 +79,7 @@ public partial class DeletionReviewViewModel : ObservableObject
     // Called by DeletionReviewPage code-behind after confirmation dialog.
     internal async Task ExecuteDeletionAsync()
     {
-        if (_engine == null || IsExecuting || FileCount == 0) return;
+        if (IsExecuting || FileCount == 0) return;
 
         IsExecuting = true;
         try
@@ -112,8 +108,6 @@ public partial class DeletionReviewViewModel : ObservableObject
 
     private async Task LoadMarkedFilesAsync()
     {
-        if (_engine == null) return;
-
         IsLoadingFiles = true;
         try
         {

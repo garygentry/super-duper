@@ -41,3 +41,13 @@
 - `ScanService.StartScanAsync` now catches `OperationCanceledException` separately (silent, no toast) before the general `Exception` catch
 - Removed the brittle `ex.Message.Contains("Cancelled")` string guard — typed exception is immune to Rust error message wording changes
 - Two files changed, no Rust changes needed
+
+### 006 — Register DeletionReviewViewModel and SessionsViewModel in DI container
+- Both ViewModels now accept required dependencies via constructor (`EngineWrapper` + `SettingsService` for DeletionReviewViewModel, `EngineWrapper` for SessionsViewModel)
+- `Initialize()` methods removed from both — constructor performs initialization (RefreshSummary + LoadMarkedFilesAsync for deletion, DatabasePath + LoadSessionsAsync for sessions)
+- All `if (_engine == null) return` / `if (_engine is null) return` null guards removed (6 total: 4 in DeletionReviewViewModel, 2 in SessionsViewModel)
+- Both registered as `AddTransient<T>()` in `App.ConfigureServices()` — consistent with existing ViewModel registrations
+- Pages resolve via `App.Services.GetRequiredService<T>()` in constructor (matching existing page patterns like DashboardPage, ExplorerPage)
+- `DeletionReviewPage.OnNavigatedTo` removed entirely — no longer needed since ViewModel is fully initialized by DI
+- `SettingsPage.OnNavigatedTo` retained — it triggers `LoadSessionsCommand.Execute(null)` to refresh sessions on each navigation
+- `_ = LoadSessionsAsync()` in `SessionsViewModel` constructor replaced with `FireAndForget()` for fault observability (consistent with item 004 pattern)

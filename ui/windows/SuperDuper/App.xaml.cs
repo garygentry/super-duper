@@ -67,6 +67,8 @@ public partial class App : Application
         services.AddTransient<ExplorerViewModel>();
         services.AddTransient<GroupsViewModel>();
         services.AddTransient<DirectoriesViewModel>();
+        services.AddTransient<DeletionReviewViewModel>();
+        services.AddTransient<SessionsViewModel>();
 
         return services.BuildServiceProvider();
     }

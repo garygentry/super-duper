@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
-using SuperDuper.NativeMethods;
 using SuperDuper.Services;
 using SuperDuper.Services.Platform;
 using SuperDuper.ViewModels;
@@ -19,12 +18,10 @@ public sealed partial class SettingsPage : Page
     {
         this.InitializeComponent();
         XamlHelper.ConnectNamedElements(this, this);
-        ViewModel = new SessionsViewModel();
+        ViewModel = App.Services.GetRequiredService<SessionsViewModel>();
         this.DataContext = this;
         _settings = App.Services.GetRequiredService<SettingsService>();
         _shell = App.Services.GetRequiredService<IShellIntegrationService>();
-        var engine = App.Services.GetRequiredService<EngineWrapper>();
-        ViewModel.Initialize(engine);
 
         // Wire events (XAML compiler pass 2 doesn't generate IComponentConnector)
         ThemeComboBox.SelectionChanged += ThemeComboBox_SelectionChanged;

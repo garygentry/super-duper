@@ -10,7 +10,7 @@ namespace SuperDuper.ViewModels;
 
 public partial class SessionsViewModel : ObservableObject
 {
-    private EngineWrapper? _engine;
+    private readonly EngineWrapper _engine;
 
     [ObservableProperty]
     public partial bool IsLoading { get; set; }
@@ -23,23 +23,21 @@ public partial class SessionsViewModel : ObservableObject
 
     public ObservableCollection<SessionItemViewModel> Sessions { get; } = new();
 
-    public void Initialize(EngineWrapper engine)
+    public SessionsViewModel(EngineWrapper engine)
     {
         _engine = engine;
         DatabasePath = System.IO.Path.GetFullPath("super_duper.db");
-        _ = LoadSessionsAsync();
+        LoadSessionsAsync().FireAndForget(nameof(SessionsViewModel) + ".ctor");
     }
 
     public async Task ResetAllSessionsAsync()
     {
-        if (_engine is null) return;
         await Task.Run(() => _engine.DeleteAllSessions());
         await LoadSessionsAsync();
     }
 
     public async Task ResetEverythingAsync()
     {
-        if (_engine is null) return;
         await Task.Run(() =>
         {
             _engine.TruncateDatabase();
@@ -51,8 +49,6 @@ public partial class SessionsViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadSessionsAsync()
     {
-        if (_engine is null) return;
-
         IsLoading = true;
         Sessions.Clear();
         try
