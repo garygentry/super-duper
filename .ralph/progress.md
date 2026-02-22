@@ -76,3 +76,11 @@
 - Net effect: each progress tick fires 1 PropertyChanged instead of 7 (~7x reduction)
 - Removed unused `using System.Runtime.CompilerServices`
 - One file changed, no Rust changes
+
+### 010 — Replace FFI page query in RefreshMetricsAsync with a SQL aggregate query
+- Added `GetSessionMetricsAsync(long sessionId)` to `IDatabaseService` returning `(int GroupCount, long WastedBytes)`
+- `DatabaseService` implements with `SELECT COUNT(*), COALESCE(SUM(wasted_bytes), 0) FROM duplicate_group WHERE session_id = $sessionId`
+- `DashboardViewModel.RefreshMetricsAsync` now calls `_db.GetSessionMetricsAsync(sessionId)` instead of `_engine.QueryDuplicateGroups(0, 500)`
+- Eliminates marshalling up to 500 `DuplicateGroupInfo` structs across FFI boundary just to sum two scalars
+- `QueryDuplicateGroups` reference fully removed from `DashboardViewModel` — no remaining uses in that file
+- Three files changed, no Rust changes. `dotnet build` unavailable on Linux — changes are minimal and follow existing `DatabaseService` patterns exactly

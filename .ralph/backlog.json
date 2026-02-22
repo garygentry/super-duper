@@ -171,8 +171,8 @@
         "DashboardViewModel.RefreshMetricsAsync calls the new DB method instead of QueryDuplicateGroups(0, 500)",
         "Dashboard metrics display correctly after the change"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T07:02:12+00:00",
       "dependsOn": [],
       "notes": "Files: ViewModels/DashboardViewModel.cs:270; Services/IDatabaseService.cs; Services/DatabaseService.cs. Effort: S."
     },
