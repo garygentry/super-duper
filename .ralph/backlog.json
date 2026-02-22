@@ -13,8 +13,8 @@
         "sd_engine_destroy() is confirmed called on window close (visible via debug output or native debugger)",
         "No live super_duper_ffi handles remain after process exit (verified with handles.exe or WinDbg)"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T06:41:46+00:00",
       "dependsOn": [],
       "notes": "Files: App.xaml.cs:71; NativeMethods/EngineWrapper.cs:388-399. Effort: XS. Must be fixed before 002 since both modify the same Closed handler."
     },
@@ -31,7 +31,9 @@
       ],
       "status": "pending",
       "completedAt": null,
-      "dependsOn": ["001"],
+      "dependsOn": [
+        "001"
+      ],
       "notes": "Files: NativeMethods/EngineWrapper.cs:388-399; Services/ScanService.cs:156. Effort: M."
     },
     {

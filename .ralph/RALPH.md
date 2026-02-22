@@ -46,7 +46,7 @@ cd ui/windows/SuperDuper && dotnet build
 
 WinUI 3 cannot run headlessly. Any acceptance criterion that requires observing UI behavior
 (rendering, responsiveness, visual state) **cannot be verified automatically** in this loop.
-Mark these as `RALPH_NEEDS_HUMAN:<criterion>` and describe what to look for.
+Mark these as `RALPH_BLOCKED:<reason>` and describe what to look for.
 
 <!-- ralph:managed:end -->
 
