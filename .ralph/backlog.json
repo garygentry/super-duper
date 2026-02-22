@@ -306,8 +306,8 @@
         "All former call sites reference FileSizeConverter.FormatBytes(long) or an equivalent shared static",
         "File sizes display correctly in all four locations after the change"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T07:27:32+00:00",
       "dependsOn": [],
       "notes": "Files: ViewModels/DeletionReviewViewModel.cs:150 and :192 (inner class); NativeMethods/EngineWrapper.cs:464; Controls/StorageTreemap.xaml.cs:145. Effort: XS."
     },

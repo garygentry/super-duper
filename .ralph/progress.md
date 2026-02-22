@@ -142,3 +142,11 @@
 - All 8 reference unique system color resources; in typical HC themes (HC Black, HC White) at least 4-5 are visually distinct (e.g. cyan, yellow, green, white in HC Black)
 - `DriveColorService.cs` uses hardcoded Color values not XAML resources — no code-behind changes needed
 - XAML-only change in `Styles/Colors.xaml` HighContrast dictionary, one file. `dotnet build` unavailable on Linux
+
+### 018 — Consolidate duplicate FormatBytes() helpers to FileSizeConverter.FormatBytes()
+- Four private `FormatBytes()` copies found: DeletionReviewViewModel (line 145), MarkedFileViewModel inner class (line 190), DirectorySimilarityInfo in EngineWrapper.cs (line 472), WindowsNotificationService (line 42)
+- Task notes mentioned StorageTreemap but it has `FileSizeLabel` (different name/logic) — not a `FormatBytes` copy
+- Canonical `FileSizeConverter.FormatBytes(long)` uses decimal mode by default (1000-based: KB, MB, GB); copies used 1024-based — minor formatting change accepted per task design
+- DirectorySimilarityInfo appended " shared" suffix — handled at call site: `$"{FileSizeConverter.FormatBytes(SharedBytes)} shared"`
+- Added `using SuperDuper.Converters;` to all three changed files
+- Three files changed, -30 net lines. `dotnet build` unavailable on Linux
