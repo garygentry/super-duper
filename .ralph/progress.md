@@ -180,3 +180,14 @@
 - Removed SpeedLabel XAML `TextBlock` and simplified the count+speed `Grid` (2-column) to a single `TextBlock` at Grid.Row="4"
 - Added `Visibility="Collapsed"` to `PauseButton` — kept the element for future implementation but hidden from users
 - Net result: -12 lines across 2 files. No Rust changes. `dotnet build` unavailable on Linux
+
+### 023 — Move DbPath to LocalApplicationData for per-user data isolation
+- Changed `DbPath` from `const string "super_duper.db"` to `static readonly string` computed by `InitDbPath()`
+- Path resolves to `%LOCALAPPDATA%\SuperDuper\super_duper.db` via `Environment.GetFolderPath(SpecialFolder.LocalApplicationData)`
+- `Directory.CreateDirectory(dir)` ensures the `SuperDuper` folder exists on first run (no-op if already present)
+- Migration: if target doesn't exist but legacy `super_duper.db` exists in working directory, moves main db + WAL/SHM sidecar files
+- Fixed `SessionsViewModel.DatabasePath` — was hardcoded `Path.GetFullPath("super_duper.db")`, now uses `App.DbPath`
+- Error log `super_duper_nav_errors.log` also moved to the same `LocalApplicationData\SuperDuper` directory
+- `EngineWrapper` default parameter `"super_duper.db"` left unchanged — it's never used (App always passes `DbPath` explicitly)
+- `DbPath` changed from `private const` to `internal static readonly` so `SessionsViewModel` can reference it
+- Two files changed, no Rust changes. `dotnet build` unavailable on Linux

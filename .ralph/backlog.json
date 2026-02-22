@@ -388,8 +388,8 @@
         "Directory is created on first run if it does not exist",
         "Migration path for existing working-directory databases is documented or handled"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T15:44:03+00:00",
       "dependsOn": [],
       "notes": "File: App.xaml.cs:18. Effort: S. Deferred — only action when per-user data isolation becomes a requirement."
     }
