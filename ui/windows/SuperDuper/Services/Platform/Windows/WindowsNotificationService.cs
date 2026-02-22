@@ -1,5 +1,6 @@
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
+using SuperDuper.Converters;
 
 namespace SuperDuper.Services.Platform.Windows;
 
@@ -13,7 +14,7 @@ public class WindowsNotificationService : INotificationService
     {
         try
         {
-            var wastedStr = FormatBytes(wastedBytes);
+            var wastedStr = FileSizeConverter.FormatBytes(wastedBytes);
             var builder = new AppNotificationBuilder()
                 .AddText("Super Duper — Scan Complete")
                 .AddText($"Found {groupCount:N0} duplicate groups ({wastedStr} wasted).")
@@ -29,7 +30,7 @@ public class WindowsNotificationService : INotificationService
     {
         try
         {
-            var freedStr = FormatBytes(bytesFreed);
+            var freedStr = FileSizeConverter.FormatBytes(bytesFreed);
             var builder = new AppNotificationBuilder()
                 .AddText("Super Duper — Deletion Complete")
                 .AddText($"Deleted {fileCount:N0} files ({freedStr} recovered).");
@@ -39,12 +40,4 @@ public class WindowsNotificationService : INotificationService
         catch { }
     }
 
-    private static string FormatBytes(long bytes)
-    {
-        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
-        double len = bytes;
-        int order = 0;
-        while (len >= 1024 && order < sizes.Length - 1) { order++; len /= 1024; }
-        return $"{len:0.#} {sizes[order]}";
-    }
 }

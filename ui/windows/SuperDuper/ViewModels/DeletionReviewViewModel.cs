@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using SuperDuper.Converters;
 using SuperDuper.NativeMethods;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -61,7 +62,7 @@ public partial class DeletionReviewViewModel : ObservableObject
         var (count, bytes) = _engine.GetDeletionPlanSummary();
         FileCount = count;
         TotalBytes = bytes;
-        FormattedTotalBytes = FormatBytes(bytes);
+        FormattedTotalBytes = FileSizeConverter.FormatBytes(bytes);
         StatusMessage = count > 0
             ? $"{count} files marked for deletion ({FormattedTotalBytes})"
             : "No files marked for deletion.";
@@ -142,14 +143,6 @@ public partial class DeletionReviewViewModel : ObservableObject
         RefreshSummary();
     }
 
-    private static string FormatBytes(long bytes)
-    {
-        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
-        double len = bytes;
-        int order = 0;
-        while (len >= 1024 && order < sizes.Length - 1) { order++; len /= 1024; }
-        return $"{len:0.##} {sizes[order]}";
-    }
 }
 
 public partial class MarkedFileViewModel : ObservableObject
@@ -170,7 +163,7 @@ public partial class MarkedFileViewModel : ObservableObject
         Id = file.Id;
         CanonicalPath = file.CanonicalPath;
         FileName = file.FileName;
-        FormattedSize = FormatBytes(file.FileSize);
+        FormattedSize = FileSizeConverter.FormatBytes(file.FileSize);
     }
 
     [RelayCommand]
@@ -187,12 +180,4 @@ public partial class MarkedFileViewModel : ObservableObject
         catch (Exception ex) { Debug.WriteLine($"[MarkedFileViewModel.RevealInExplorer] {ex}"); }
     }
 
-    private static string FormatBytes(long bytes)
-    {
-        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
-        double len = bytes;
-        int order = 0;
-        while (len >= 1024 && order < sizes.Length - 1) { order++; len /= 1024; }
-        return $"{len:0.##} {sizes[order]}";
-    }
 }

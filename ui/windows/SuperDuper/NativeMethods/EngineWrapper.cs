@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using SuperDuper.Converters;
 using static SuperDuper.NativeMethods.SuperDuperEngine;
 
 namespace SuperDuper.NativeMethods;
@@ -465,16 +466,7 @@ public class DirectorySimilarityInfo
     public long SharedBytes { get; set; }
     public string MatchType { get; set; } = "";
     public string FormattedScore => $"{SimilarityScore:P0}";
-    public string FormattedSharedBytes => FormatBytes(SharedBytes);
+    public string FormattedSharedBytes => $"{FileSizeConverter.FormatBytes(SharedBytes)} shared";
     public string DirADisplayPath => DirAPath.StartsWith(@"\\?\") ? DirAPath[4..] : DirAPath;
     public string DirBDisplayPath => DirBPath.StartsWith(@"\\?\") ? DirBPath[4..] : DirBPath;
-
-    private static string FormatBytes(long bytes)
-    {
-        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
-        double len = bytes;
-        int order = 0;
-        while (len >= 1024 && order < sizes.Length - 1) { order++; len /= 1024; }
-        return $"{len:0.##} {sizes[order]} shared";
-    }
 }
