@@ -66,8 +66,8 @@
         "DispatcherQueue lambda in DashboardViewModel.cs:263 has explicit try/catch or the async call is extracted outside the lambda",
         "Simulating an exception inside any of these methods causes it to appear in VS Debug Output"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T06:50:06+00:00",
       "dependsOn": [],
       "notes": "Files: ViewModels/DashboardViewModel.cs:58,82,263; ViewModels/DeletionReviewViewModel.cs:55,80,104; Controls/StorageTreemap.xaml.cs:55,66,73. Effort: S."
     },

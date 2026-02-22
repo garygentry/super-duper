@@ -27,3 +27,10 @@
 - `IsExecuting` set `true` before `Task.Run`, `false` in `finally` — both on UI thread thanks to `await`
 - `DeletionReviewPage.ExecuteButton_Click` (already `async void`) now `await`s the method
 - All post-deletion UI updates (StatusMessage, ErrorOccurred, RefreshSummary, LoadMarkedFilesAsync) execute on UI thread after the `await` returns
+
+### 004 — Add fault logging to all fire-and-forget task discards
+- Created `TaskExtensions.FireAndForget(this Task, string)` as an extension method in `TaskExtensions.cs` at project root
+- Uses `ContinueWith(OnlyOnFaulted)` + `Debug.WriteLine` — faults appear in VS Debug Output with caller context
+- Replaced 9 bare `_ =` discards across 3 files: DashboardViewModel (3), DeletionReviewViewModel (3), StorageTreemap (3)
+- DispatcherQueue lambda (DashboardViewModel line 263): the `TryEnqueue` lambda is non-async (`Action` delegate), so `FireAndForget()` is the correct pattern — it observes the returned Task's fault via ContinueWith without needing the lambda to be async
+- Additional `_ =` sites exist in other files (FileListControl, DirectoryTreeControl, GroupsPage, MainWindow, SessionsViewModel) — not in scope for this item per acceptance criteria
