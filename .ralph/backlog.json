@@ -323,8 +323,8 @@
         "DatabaseService uses FileTypeFilters constants instead of inline string literals",
         "All filter categories function correctly end-to-end after the change"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T07:30:25+00:00",
       "dependsOn": [],
       "notes": "Files: Services/DatabaseService.cs ~line 586; ViewModels/GroupsViewModel.cs ~line 106. Effort: XS."
     },

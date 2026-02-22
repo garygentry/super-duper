@@ -150,3 +150,11 @@
 - DirectorySimilarityInfo appended " shared" suffix — handled at call site: `$"{FileSizeConverter.FormatBytes(SharedBytes)} shared"`
 - Added `using SuperDuper.Converters;` to all three changed files
 - Three files changed, -30 net lines. `dotnet build` unavailable on Linux
+
+### 019 — Centralize magic file type filter strings into FileTypeFilters constants class
+- Created `Models/FileTypeFilters.cs` with `const string` fields: Images, Documents, Video, Audio, Archives
+- `DatabaseService.QueryGroupsFilteredAsync` switch cases now use `FileTypeFilters.Images` etc. via `using static`
+- `GroupsPage.xaml.cs` `WireNonVisualTreeEvents()` sets `MenuFlyoutItem.Tag` from `FileTypeFilters` constants instead of relying on XAML `Tag` attributes
+- Removed `Tag="..."` attributes from the five filter `MenuFlyoutItem`s in `GroupsPage.xaml` — Tags are set in code-behind
+- Task notes referenced `GroupsViewModel ~line 106` but that line is the ReviewStatus switch; GroupsViewModel has no file type string literals — the actual UI source was `GroupsPage.xaml` Tag attributes
+- Four files changed (1 new, 3 modified). `dotnet build` unavailable on Linux
