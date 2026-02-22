@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using SuperDuper.Models;
 using SuperDuper.Services;
 using SuperDuper.Services.Platform;
 using SuperDuper.ViewModels;
@@ -49,22 +50,9 @@ public sealed partial class SettingsPage : Page
 
     private void LoadShortcutData()
     {
-        ShortcutRepeater.ItemsSource = new[]
-        {
-            "Undo|Ctrl+Z",
-            "Redo|Ctrl+Y / Ctrl+Shift+Z",
-            "Open deletion dialog|Ctrl+D",
-            "Focus search|Ctrl+F",
-            "Refresh current view|F5",
-            "Navigate file list|\u2191 / \u2193",
-            "Keep selected copy|K",
-            "Delete selected copy|D",
-            "Skip selected copy|S",
-            "Select copy by ordinal|1\u20139",
-            "Reveal in Explorer|Ctrl+E",
-            "Open file|Ctrl+O",
-            "Mark for deletion|Del",
-        };
+        ShortcutRepeater.ItemsSource = ShortcutDefinitions.All
+            .Select(s => $"{s.ActionName}|{s.DisplayKeys}")
+            .ToArray();
     }
 
     private void LoadSettingsToUI()

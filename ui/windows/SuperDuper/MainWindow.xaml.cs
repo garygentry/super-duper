@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using SuperDuper.Models;
 using SuperDuper.Services;
 using SuperDuper.ViewModels;
 using SuperDuper.Views;
@@ -43,11 +44,10 @@ public sealed partial class MainWindow : Window
         if (Content is FrameworkElement root)
         {
             root.DataContext = this;
-            AddAccelerator(root, Windows.System.VirtualKey.Z, Windows.System.VirtualKeyModifiers.Control, OnUndoAccelerator);
-            AddAccelerator(root, Windows.System.VirtualKey.Y, Windows.System.VirtualKeyModifiers.Control, OnRedoAccelerator);
-            AddAccelerator(root, Windows.System.VirtualKey.Z, Windows.System.VirtualKeyModifiers.Control | Windows.System.VirtualKeyModifiers.Shift, OnRedoAccelerator);
-            AddAccelerator(root, Windows.System.VirtualKey.D, Windows.System.VirtualKeyModifiers.Control, OnOpenDeletionDialogAccelerator);
-            AddAccelerator(root, Windows.System.VirtualKey.F5, Windows.System.VirtualKeyModifiers.None, OnRefreshAccelerator);
+            RegisterAccelerators(root, ShortcutDefinitions.Undo, OnUndoAccelerator);
+            RegisterAccelerators(root, ShortcutDefinitions.Redo, OnRedoAccelerator);
+            RegisterAccelerators(root, ShortcutDefinitions.OpenDeletionDialog, OnOpenDeletionDialogAccelerator);
+            RegisterAccelerators(root, ShortcutDefinitions.RefreshCurrentView, OnRefreshAccelerator);
         }
 
         // Wire status bar button events (XAML elements wired by XamlHelper)
@@ -260,13 +260,15 @@ public sealed partial class MainWindow : Window
         _searchDebounce.Start();
     }
 
-    private static void AddAccelerator(UIElement target, Windows.System.VirtualKey key,
-        Windows.System.VirtualKeyModifiers modifiers,
+    private static void RegisterAccelerators(UIElement target, ShortcutDefinitions.ShortcutEntry entry,
         Windows.Foundation.TypedEventHandler<KeyboardAccelerator, KeyboardAcceleratorInvokedEventArgs> handler)
     {
-        var accel = new KeyboardAccelerator { Key = key, Modifiers = modifiers };
-        accel.Invoked += handler;
-        target.KeyboardAccelerators.Add(accel);
+        foreach (var binding in entry.Bindings)
+        {
+            var accel = new KeyboardAccelerator { Key = binding.Key, Modifiers = binding.Modifiers };
+            accel.Invoked += handler;
+            target.KeyboardAccelerators.Add(accel);
+        }
     }
 
     private async void MainWindow_Closed(object sender, WindowEventArgs args)
