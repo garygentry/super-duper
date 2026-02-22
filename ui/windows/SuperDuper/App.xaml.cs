@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -19,6 +21,21 @@ public partial class App : Application
 
     public App()
     {
+        // Pin DLL load path to prevent DLL planting attacks.
+        // Without this, DllImport("super_duper_ffi") uses the standard Windows
+        // search order, which checks the working directory before the app directory.
+        NativeLibrary.SetDllImportResolver(
+            typeof(SuperDuperEngine).Assembly,
+            static (libraryName, _, _) =>
+            {
+                if (libraryName == "super_duper_ffi")
+                {
+                    var path = Path.Combine(AppContext.BaseDirectory, "super_duper_ffi.dll");
+                    return NativeLibrary.Load(path);
+                }
+                return IntPtr.Zero;
+            });
+
         // InitializeComponent → LoadComponent processes App.xaml which declares
         // all resources: XamlControlsResources, Colors.xaml, SharedStyles.xaml,
         // and converter instances. Our XamlTypeInfo.cs provides IXamlMetadataProvider
