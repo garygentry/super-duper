@@ -84,8 +84,8 @@
         "String-matching guard ex.Message.Contains(\"Cancelled\") is removed",
         "Cancelling a scan mid-run shows no error toast"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T06:51:23+00:00",
       "dependsOn": [],
       "notes": "Files: Services/ScanService.cs:174; NativeMethods/EngineWrapper.cs ThrowOnError. Effort: XS. First verify SdResultCode.Cancelled in NativeMethods/SuperDuperEngine.cs."
     },

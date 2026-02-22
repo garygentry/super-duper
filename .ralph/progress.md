@@ -34,3 +34,10 @@
 - Replaced 9 bare `_ =` discards across 3 files: DashboardViewModel (3), DeletionReviewViewModel (3), StorageTreemap (3)
 - DispatcherQueue lambda (DashboardViewModel line 263): the `TryEnqueue` lambda is non-async (`Action` delegate), so `FireAndForget()` is the correct pattern — it observes the returned Task's fault via ContinueWith without needing the lambda to be async
 - Additional `_ =` sites exist in other files (FileListControl, DirectoryTreeControl, GroupsPage, MainWindow, SessionsViewModel) — not in scope for this item per acceptance criteria
+
+### 005 — Replace brittle string-matching cancellation check with typed OperationCanceledException
+- `SdResultCode.Cancelled = 7` already existed in `SuperDuperEngine.cs` — no enum changes needed
+- `EngineWrapper.ThrowOnError` now checks `code == SdResultCode.Cancelled` before the general `!= Ok` check, throwing `OperationCanceledException` instead of `InvalidOperationException`
+- `ScanService.StartScanAsync` now catches `OperationCanceledException` separately (silent, no toast) before the general `Exception` catch
+- Removed the brittle `ex.Message.Contains("Cancelled")` string guard — typed exception is immune to Rust error message wording changes
+- Two files changed, no Rust changes needed
