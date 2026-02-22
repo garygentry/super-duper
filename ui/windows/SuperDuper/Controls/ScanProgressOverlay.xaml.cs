@@ -17,8 +17,6 @@ public sealed partial class ScanProgressOverlay : UserControl, INotifyPropertyCh
     public string ScanCountLabel => _service?.ScanCountLabel ?? "";
     public string CurrentFilePath => _service?.CurrentFilePath ?? "";
 
-    public string SpeedLabel { get; private set; } = "";
-
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ScanProgressOverlay()
@@ -48,7 +46,6 @@ public sealed partial class ScanProgressOverlay : UserControl, INotifyPropertyCh
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ScanProgressValue)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ScanCountLabel)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CurrentFilePath)));
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SpeedLabel)));
         }
         else
         {
