@@ -189,8 +189,8 @@
         "InfoBar suggestion message from SuggestionEngine is still displayed above the cards",
         "Pane shows a placeholder/empty state when no file is selected"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T07:08:47+00:00",
       "dependsOn": [],
       "notes": "File: Controls/ComparisonPane.xaml.cs LoadCopiesAsync(). Effort: L. Highest-value medium-priority item — restores the core duplicate review workflow."
     },

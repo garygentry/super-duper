@@ -84,3 +84,13 @@
 - Eliminates marshalling up to 500 `DuplicateGroupInfo` structs across FFI boundary just to sum two scalars
 - `QueryDuplicateGroups` reference fully removed from `DashboardViewModel` — no remaining uses in that file
 - Three files changed, no Rust changes. `dotnet build` unavailable on Linux — changes are minimal and follow existing `DatabaseService` patterns exactly
+
+### 011 — Implement ComparisonPane.LoadCopiesAsync to populate DuplicateCard ItemsRepeater
+- Added `QueryFilesInGroupAsync(long groupId)` to `IDatabaseService` / `DatabaseService` — SQL joins `duplicate_group_member` → `scanned_file` with copy count subquery, returns `IReadOnlyList<DbFileInfo>`
+- `ComparisonPane` now resolves `DriveColorService`, `IUndoService`, `IShellIntegrationService` from DI alongside existing `IDatabaseService` and `SuggestionEngine`
+- `LoadCopiesAsync` flow: query group files → determine newest/oldest by modified date → run `SuggestionEngine.Suggest()` for InfoBar → fetch existing decisions per file → create `DuplicateCardViewModel` instances → set `CardsRepeater.ItemsSource`
+- Added `ItemTemplate` with `<controls:DuplicateCard />` DataTemplate to XAML; wired `ElementPrepared` event to call `card.Bind(vm)` — consistent with `FileListControl.FileRepeater_ElementPrepared` pattern
+- Created/Accessed dates passed as empty strings — `scanned_file` table only has `last_modified`
+- Non-duplicate files (`GroupId == 0`) show "This file has no duplicates." in InfoBar; null selection clears cards and hides InfoBar
+- Replaced bare `_ =` with `FireAndForget()` for consistency with item 004 pattern
+- Four files changed, no Rust changes. `dotnet build` unavailable on Linux
