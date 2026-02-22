@@ -29,8 +29,8 @@
         "MainWindow.Closed handler awaits CancelAndWaitAsync() before calling (App.Services as IDisposable)?.Dispose()",
         "Starting a large scan and immediately closing the window produces no heap corruption or access violation under AppVerifier"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T06:46:24+00:00",
       "dependsOn": [
         "001"
       ],
