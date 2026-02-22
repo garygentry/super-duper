@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <WindowsSdkPackageVersion>10.0.22621.38</WindowsSdkPackageVersion>
+    <RootNamespace>SuperDuper</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x64;ARM64</Platforms>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <!-- Rust native DLL configuration -->
+  <PropertyGroup>
+    <CargoWorkspaceRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\..'))</CargoWorkspaceRoot>
+    <CargoProfile Condition="'$(Configuration)' == 'Release'">release</CargoProfile>
+    <CargoProfile Condition="'$(CargoProfile)' == ''">debug</CargoProfile>
+    <CargoProfileFlag Condition="'$(Configuration)' == 'Release'">--release</CargoProfileFlag>
+    <NativeDllPath>$(CargoWorkspaceRoot)\target\$(CargoProfile)\super_duper_ffi.dll</NativeDllPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260209005" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.*" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Copy AppIcon.ico next to the .exe so AppWindow.SetIcon() can find it at runtime -->
+    <Content Include="Assets\AppIcon.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <Target Name="BuildNativeDll" BeforeTargets="Build">
+    <Message Importance="high" Text="Building Rust FFI library ($(CargoProfile))..." />
+    <Exec Command="cargo build -p super-duper-ffi $(CargoProfileFlag)"
+          WorkingDirectory="$(CargoWorkspaceRoot)" />
+    <Error Condition="!Exists('$(NativeDllPath)')"
+           Text="Native DLL not found at $(NativeDllPath). Rust build may have failed." />
+  </Target>
+
+  <ItemGroup>
+    <None Include="$(NativeDllPath)"
+          Link="super_duper_ffi.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Condition="Exists('$(NativeDllPath)')" />
+  </ItemGroup>
+</Project>

@@ -56,10 +56,16 @@ public interface IDatabaseService
     // Quick wins
     Task<IReadOnlyList<QuickWinItem>> GetQuickWinsAsync(long sessionId);
 
+    // Treemap
+    Task<IReadOnlyList<TreemapNode>> GetTreemapNodesAsync(long sessionId);
+
     // Group queries
     Task<PagedResult<DbGroupInfo>> QueryGroupsFilteredAsync(
         long sessionId, GroupFilterOptions filter, string sortColumn = "wasted_bytes",
         bool ascending = false, int offset = 0, int limit = 50);
+
+    // Search
+    Task<IReadOnlyList<DbFileInfo>> SearchFilesAsync(long sessionId, string query, int limit = 20);
 
     // Scan profiles
     Task<IReadOnlyList<ScanProfile>> GetSavedProfilesAsync();

@@ -1,0 +1,16 @@
+D:\dev\super-duper\ui\windows\TestHarness\bin\x64\Debug\net10.0\super_duper_ffi.dll
+D:\dev\super-duper\ui\windows\TestHarness\bin\x64\Debug\net10.0\TestHarness.exe
+D:\dev\super-duper\ui\windows\TestHarness\bin\x64\Debug\net10.0\TestHarness.deps.json
+D:\dev\super-duper\ui\windows\TestHarness\bin\x64\Debug\net10.0\TestHarness.runtimeconfig.json
+D:\dev\super-duper\ui\windows\TestHarness\bin\x64\Debug\net10.0\TestHarness.dll
+D:\dev\super-duper\ui\windows\TestHarness\bin\x64\Debug\net10.0\TestHarness.pdb
+D:\dev\super-duper\ui\windows\TestHarness\obj\x64\Debug\net10.0\TestHarness.GeneratedMSBuildEditorConfig.editorconfig
+D:\dev\super-duper\ui\windows\TestHarness\obj\x64\Debug\net10.0\TestHarness.AssemblyInfoInputs.cache
+D:\dev\super-duper\ui\windows\TestHarness\obj\x64\Debug\net10.0\TestHarness.AssemblyInfo.cs
+D:\dev\super-duper\ui\windows\TestHarness\obj\x64\Debug\net10.0\TestHarness.csproj.CoreCompileInputs.cache
+D:\dev\super-duper\ui\windows\TestHarness\obj\x64\Debug\net10.0\TestHarness.sourcelink.json
+D:\dev\super-duper\ui\windows\TestHarness\obj\x64\Debug\net10.0\TestHarness.dll
+D:\dev\super-duper\ui\windows\TestHarness\obj\x64\Debug\net10.0\refint\TestHarness.dll
+D:\dev\super-duper\ui\windows\TestHarness\obj\x64\Debug\net10.0\TestHarness.pdb
+D:\dev\super-duper\ui\windows\TestHarness\obj\x64\Debug\net10.0\TestHarness.genruntimeconfig.cache
+D:\dev\super-duper\ui\windows\TestHarness\obj\x64\Debug\net10.0\ref\TestHarness.dll

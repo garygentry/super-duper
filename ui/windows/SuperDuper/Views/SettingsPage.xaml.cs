@@ -18,19 +18,56 @@ public sealed partial class SettingsPage : Page
     public SettingsPage()
     {
         this.InitializeComponent();
+        XamlHelper.ConnectNamedElements(this, this);
         ViewModel = new SessionsViewModel();
+        this.DataContext = this;
         _settings = App.Services.GetRequiredService<SettingsService>();
         _shell = App.Services.GetRequiredService<IShellIntegrationService>();
         var engine = App.Services.GetRequiredService<EngineWrapper>();
-        ViewModel.Initialize(engine, null);
+        ViewModel.Initialize(engine);
+
+        // Wire events (XAML compiler pass 2 doesn't generate IComponentConnector)
+        ThemeComboBox.SelectionChanged += ThemeComboBox_SelectionChanged;
+        SmartSuggestionsToggle.Toggled += SmartSuggestionsToggle_Toggled;
+        ContextMenuToggle.Toggled += ContextMenuToggle_Toggled;
+        DateFormatComboBox.SelectionChanged += DateFormatComboBox_SelectionChanged;
+        SizeDisplayComboBox.SelectionChanged += SizeDisplayComboBox_SelectionChanged;
+        DensityBadgesToggle.Toggled += DensityBadgesToggle_Toggled;
+        ReviewRingsToggle.Toggled += ReviewRingsToggle_Toggled;
+        DriveStripesToggle.Toggled += DriveStripesToggle_Toggled;
+        UseTrashToggle.Toggled += UseTrashToggle_Toggled;
+        DeleteAllSessionsButton.Click += DeleteAllSessionsButton_Click;
+        ResetAllSessionsButton.Click += ResetAllSessionsButton_Click;
+        ResetEverythingButton.Click += ResetEverythingButton_Click;
 
         LoadSettingsToUI();
+        LoadShortcutData();
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        _ = ViewModel.LoadSessionsAsync();
+        ViewModel.LoadSessionsCommand.Execute(null);
+    }
+
+    private void LoadShortcutData()
+    {
+        ShortcutRepeater.ItemsSource = new[]
+        {
+            "Undo|Ctrl+Z",
+            "Redo|Ctrl+Y / Ctrl+Shift+Z",
+            "Open deletion dialog|Ctrl+D",
+            "Focus search|Ctrl+F",
+            "Refresh current view|F5",
+            "Navigate file list|\u2191 / \u2193",
+            "Keep selected copy|K",
+            "Delete selected copy|D",
+            "Skip selected copy|S",
+            "Select copy by ordinal|1\u20139",
+            "Reveal in Explorer|Ctrl+E",
+            "Open file|Ctrl+O",
+            "Mark for deletion|Del",
+        };
     }
 
     private void LoadSettingsToUI()

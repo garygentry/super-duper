@@ -10,10 +10,10 @@ public partial class ExplorerViewModel : ObservableObject
     private readonly IUndoService _undo;
 
     [ObservableProperty]
-    private string? _selectedDirectory;
+    public partial string? SelectedDirectory { get; set; }
 
     [ObservableProperty]
-    private DbFileInfo? _selectedFile;
+    public partial DbFileInfo? SelectedFile { get; set; }
 
     public ExplorerViewModel(IDatabaseService db, IUndoService undo)
     {

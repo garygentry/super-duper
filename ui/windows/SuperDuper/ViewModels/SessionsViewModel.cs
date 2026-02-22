@@ -11,32 +11,21 @@ namespace SuperDuper.ViewModels;
 public partial class SessionsViewModel : ObservableObject
 {
     private EngineWrapper? _engine;
-    private MainViewModel? _mainViewModel;
 
     [ObservableProperty]
-    private bool _isLoading;
+    public partial bool IsLoading { get; set; }
 
     [ObservableProperty]
-    private int _totalSessions;
+    public partial int TotalSessions { get; set; }
 
     [ObservableProperty]
-    private string _databasePath = string.Empty;
+    public partial string DatabasePath { get; set; } = string.Empty;
 
     public ObservableCollection<SessionItemViewModel> Sessions { get; } = new();
 
-    /// <summary>
-    /// Pass-through so SettingsPage can bind a toggle to the persisted MainViewModel setting.
-    /// </summary>
-    public bool UseTrash
-    {
-        get => _mainViewModel?.UseTrash ?? true;
-        set { if (_mainViewModel != null) _mainViewModel.UseTrash = value; }
-    }
-
-    public void Initialize(EngineWrapper engine, MainViewModel? mainViewModel = null)
+    public void Initialize(EngineWrapper engine)
     {
         _engine = engine;
-        _mainViewModel = mainViewModel;
         DatabasePath = System.IO.Path.GetFullPath("super_duper.db");
         _ = LoadSessionsAsync();
     }
@@ -45,7 +34,6 @@ public partial class SessionsViewModel : ObservableObject
     {
         if (_engine is null) return;
         await Task.Run(() => _engine.DeleteAllSessions());
-        _mainViewModel?.OnDatabaseCleared();
         await LoadSessionsAsync();
     }
 
@@ -57,7 +45,6 @@ public partial class SessionsViewModel : ObservableObject
             _engine.TruncateDatabase();
             _engine.ClearHashCache();
         });
-        _mainViewModel?.OnDatabaseCleared();
         await LoadSessionsAsync();
     }
 
@@ -102,7 +89,7 @@ public partial class SessionItemViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNotActive))]
-    private bool _isActive;
+    public partial bool IsActive { get; set; }
 
     public bool IsNotActive => !IsActive;
 
@@ -116,7 +103,7 @@ public partial class SessionItemViewModel : ObservableObject
         FilesScanned = info.FilesScanned;
         GroupCount = info.GroupCount;
         Status = info.Status;
-        _isActive = info.IsActive;
+        IsActive = info.IsActive;
     }
 
     [RelayCommand]

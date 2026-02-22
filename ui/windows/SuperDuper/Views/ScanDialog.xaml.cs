@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Controls;
 using SuperDuper.NativeMethods;
+using SuperDuper.Services;
 using SuperDuper.Services.Platform;
 using SuperDuper.ViewModels;
 using Button = Microsoft.UI.Xaml.Controls.Button;
@@ -22,15 +22,16 @@ public sealed partial class ScanDialog : ContentDialog
         this.DataContext = this;
         _notifications = App.Services.GetRequiredService<INotificationService>();
         _engine = App.Services.GetRequiredService<EngineWrapper>();
-        ViewModel.SetDispatcherQueue(DispatcherQueue.GetForCurrentThread());
-        ViewModel.ScanCompleted += OnScanCompleted;
-        ViewModel.ErrorOccurred += OnErrorOccurred;
+
+        // ScanService events replace direct ViewModel events
+        ViewModel.ScanService.ScanCompleted += OnScanCompleted;
+        ViewModel.ScanService.ScanError += OnErrorOccurred;
 
         // Wire events (XAML compiler pass 2 doesn't generate IComponentConnector)
         StepPivot.SelectionChanged += StepPivot_SelectionChanged;
 
-        // Bind the progress overlay so it can read scan phase/progress properties
-        Loaded += (_, _) => ProgressOverlay.Bind(ViewModel);
+        // Bind the progress overlay to ScanService
+        Loaded += (_, _) => ProgressOverlay.Bind(ViewModel.ScanService);
 
         PrimaryButtonClick += OnPrimaryButtonClick;
     }

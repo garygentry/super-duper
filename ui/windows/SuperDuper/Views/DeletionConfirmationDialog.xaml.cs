@@ -22,6 +22,7 @@ public sealed partial class DeletionConfirmationDialog : ContentDialog
     public DeletionConfirmationDialog()
     {
         this.InitializeComponent();
+        XamlHelper.ConnectNamedElements(this, this);
         _db = App.Services.GetRequiredService<IDatabaseService>();
         _engine = App.Services.GetRequiredService<EngineWrapper>();
         _dispatcher = DispatcherQueue.GetForCurrentThread();

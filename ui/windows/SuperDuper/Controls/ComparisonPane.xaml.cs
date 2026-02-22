@@ -14,6 +14,7 @@ public sealed partial class ComparisonPane : UserControl
     public ComparisonPane()
     {
         this.InitializeComponent();
+        XamlHelper.ConnectNamedElements(this, this);
         _db = App.Services.GetRequiredService<IDatabaseService>();
         _suggestions = App.Services.GetRequiredService<SuggestionEngine>();
     }

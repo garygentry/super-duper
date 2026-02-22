@@ -22,10 +22,10 @@ public partial class ComparisonPaneViewModel : ObservableObject
     public ObservableCollection<DuplicateCardViewModel> Cards { get; } = new();
 
     [ObservableProperty]
-    private bool _isEmpty = true;
+    public partial bool IsEmpty { get; set; } = true;
 
     [ObservableProperty]
-    private string? _suggestionMessage;
+    public partial string? SuggestionMessage { get; set; }
 
     public ComparisonPaneViewModel(
         IDatabaseService db, IUndoService undo, IShellIntegrationService shell,
@@ -65,7 +65,7 @@ public partial class ComparisonPaneViewModel : ObservableObject
 
             // Extract drive letter from path (e.g. C:\... → 'C')
             var driveLetter = f.CanonicalPath.Length >= 2 && f.CanonicalPath[1] == ':' ?
-                f.CanonicalPath[0] : 'C';
+                f.CanonicalPath[0].ToString() : "C";
             var driveColor = new Microsoft.UI.Xaml.Media.SolidColorBrush(
                 _driveColors.GetColor(driveLetter));
 
@@ -78,8 +78,8 @@ public partial class ComparisonPaneViewModel : ObservableObject
                     heuristicLabel = $"Suggested: Delete — {suggestion.HeuristicLabel}";
             }
 
-            var siblingsText = siblings.SiblingDupeCount > 0
-                ? $"{siblings.SiblingDupeCount} of {siblings.SiblingTotalCount} siblings also duplicated"
+            var siblingsText = siblings.DuplicatedSiblings > 0
+                ? $"{siblings.DuplicatedSiblings} of {siblings.TotalSiblings} siblings also duplicated"
                 : null;
 
             var card = new DuplicateCardViewModel(

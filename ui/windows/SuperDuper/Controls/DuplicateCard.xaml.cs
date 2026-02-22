@@ -13,6 +13,14 @@ public sealed partial class DuplicateCard : UserControl
     public DuplicateCard()
     {
         this.InitializeComponent();
+        XamlHelper.ConnectNamedElements(this, this);
+
+        // Wire events (XAML compiler pass 2 doesn't generate IComponentConnector)
+        KeepButton.Click += KeepButton_Click;
+        DeleteButton.Click += DeleteButton_Click;
+        SkipButton.Click += SkipButton_Click;
+        RevealButton.Click += RevealButton_Click;
+        OpenButton.Click += OpenButton_Click;
     }
 
     public void Bind(DuplicateCardViewModel vm)

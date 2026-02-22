@@ -12,45 +12,45 @@ namespace SuperDuper.ViewModels;
 public partial class DeletionReviewViewModel : ObservableObject
 {
     private EngineWrapper? _engine;
-    private MainViewModel? _mainViewModel;
+    private Services.SettingsService? _settings;
 
     [ObservableProperty]
-    private long _fileCount;
+    public partial long FileCount { get; set; }
 
     [ObservableProperty]
-    private long _totalBytes;
+    public partial long TotalBytes { get; set; }
 
     [ObservableProperty]
-    private string _formattedTotalBytes = "0 B";
+    public partial string FormattedTotalBytes { get; set; } = "0 B";
 
     [ObservableProperty]
-    private string _statusMessage = "Review files marked for deletion before executing.";
+    public partial string StatusMessage { get; set; } = "Review files marked for deletion before executing.";
 
     [ObservableProperty]
-    private bool _isExecuting;
+    public partial bool IsExecuting { get; set; }
 
     [ObservableProperty]
-    private bool _isLoadingFiles;
+    public partial bool IsLoadingFiles { get; set; }
 
     [ObservableProperty]
-    private bool _hasNoFiles;
+    public partial bool HasNoFiles { get; set; }
 
     [ObservableProperty]
-    private uint _lastSuccessCount;
+    public partial uint LastSuccessCount { get; set; }
 
     [ObservableProperty]
-    private uint _lastErrorCount;
+    public partial uint LastErrorCount { get; set; }
 
     public ObservableCollection<MarkedFileViewModel> MarkedFiles { get; } = new();
 
     public event EventHandler<(string Title, string Detail)>? ErrorOccurred;
 
-    public bool UseTrash => _mainViewModel?.UseTrash ?? true;
+    public bool UseTrash => _settings?.UseTrashForDeletion ?? true;
 
-    public void Initialize(EngineWrapper engine, MainViewModel? mainViewModel = null)
+    public void Initialize(EngineWrapper engine, Services.SettingsService? settings = null)
     {
         _engine = engine;
-        _mainViewModel = mainViewModel;
+        _settings = settings;
         RefreshSummary();
         _ = LoadMarkedFilesAsync();
     }

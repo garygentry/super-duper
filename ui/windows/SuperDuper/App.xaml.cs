@@ -19,8 +19,23 @@ public partial class App : Application
 
     public App()
     {
+        // InitializeComponent → LoadComponent processes App.xaml which declares
+        // all resources: XamlControlsResources, Colors.xaml, SharedStyles.xaml,
+        // and converter instances. Our XamlTypeInfo.cs provides IXamlMetadataProvider
+        // so the runtime parser can resolve all types (WinUI + app-local).
+        // NOTE: Application.Resources getter/setter throw COMException (E_UNEXPECTED)
+        // on .NET 10 when accessed from code-behind, so ALL resources must be in XAML.
         this.InitializeComponent();
+
         Services = ConfigureServices();
+
+        this.UnhandledException += (_, e) =>
+        {
+            System.Diagnostics.Debug.WriteLine($"UNHANDLED: {e.Exception}");
+            System.IO.File.AppendAllText("super_duper_nav_errors.log",
+                $"[{DateTime.Now:HH:mm:ss}] UNHANDLED: {e.Exception}\n---\n");
+            e.Handled = true;
+        };
 
         // Register for toast notification activation
         AppNotificationManager.Default.NotificationInvoked += OnNotificationInvoked;
@@ -38,6 +53,7 @@ public partial class App : Application
         services.AddSingleton<SettingsService>();
         services.AddSingleton<SuggestionEngine>();
         services.AddSingleton<DriveColorService>();
+        services.AddSingleton<ScanService>();
 
         // Platform services (Windows implementations)
         services.AddSingleton<IShellIntegrationService, WindowsShellService>();
@@ -59,6 +75,10 @@ public partial class App : Application
     {
         MainWindow = new MainWindow();
         MainWindow.Activate();
+
+        // Set DispatcherQueue on ScanService so progress callbacks marshal to UI thread
+        var scanService = Services.GetRequiredService<ScanService>();
+        scanService.SetDispatcherQueue(MainWindow.DispatcherQueue);
 
         var error = EngineWrapper.ValidateNativeLibrary();
         if (error != null)

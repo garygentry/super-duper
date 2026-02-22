@@ -17,6 +17,7 @@ public partial class GroupsViewModel : ObservableObject
     private readonly IUndoService _undo;
     private readonly IShellIntegrationService _shell;
     private readonly EngineWrapper _engine;
+    private readonly ScanService _scanService;
     private int _offset;
     private const int PageSize = 50;
     private string _sortColumn = "wasted_bytes";
@@ -25,17 +26,18 @@ public partial class GroupsViewModel : ObservableObject
     public ObservableCollection<FilterChip> ActiveFilters { get; } = new();
 
     [ObservableProperty]
-    private bool _hasMore;
+    public partial bool HasMore { get; set; }
 
     [ObservableProperty]
-    private string? _autoSelectMessage;
+    public partial string? AutoSelectMessage { get; set; }
 
-    public GroupsViewModel(IDatabaseService db, IUndoService undo, IShellIntegrationService shell, EngineWrapper engine)
+    public GroupsViewModel(IDatabaseService db, IUndoService undo, IShellIntegrationService shell, EngineWrapper engine, ScanService scanService)
     {
         _db = db;
         _undo = undo;
         _shell = shell;
         _engine = engine;
+        _scanService = scanService;
     }
 
     public async Task LoadInitialAsync(long sessionId)
@@ -54,9 +56,7 @@ public partial class GroupsViewModel : ObservableObject
 
     private long GetCurrentSessionId()
     {
-        // Get session from EngineWrapper active session
-        try { return 0; /* placeholder — caller should pass session */ }
-        catch { return 0; }
+        return _scanService.ActiveSessionId ?? 0;
     }
 
     private async Task LoadPageAsync(long sessionId)
@@ -74,10 +74,47 @@ public partial class GroupsViewModel : ObservableObject
         HasMore = _offset < result.TotalCount;
     }
 
+    public async Task ApplyFiltersAsync()
+    {
+        _offset = 0;
+        Groups.Clear();
+        await LoadPageAsync(GetCurrentSessionId());
+    }
+
     private GroupFilterOptions BuildFilter()
     {
-        var text = ActiveFilters.FirstOrDefault(f => f.FilterType == FilterType.TextSearch)?.Value as string;
-        return new GroupFilterOptions(text, null, null, null, null, null);
+        string? text = null;
+        string? fileType = null;
+        string? drive = null;
+        ReviewStatus? status = null;
+
+        foreach (var chip in ActiveFilters)
+        {
+            switch (chip.FilterType)
+            {
+                case FilterType.TextSearch:
+                    text = chip.Value as string;
+                    break;
+                case FilterType.FileType:
+                    fileType = chip.Value as string;
+                    break;
+                case FilterType.Drive:
+                    drive = chip.Value as string;
+                    break;
+                case FilterType.ReviewStatus:
+                    var statusStr = chip.Value as string;
+                    status = statusStr switch
+                    {
+                        "unreviewed" => Models.ReviewStatus.Unreviewed,
+                        "partial" => Models.ReviewStatus.Partial,
+                        "decided" => Models.ReviewStatus.Decided,
+                        _ => null
+                    };
+                    break;
+            }
+        }
+
+        return new GroupFilterOptions(text, fileType, drive, status, null, null);
     }
 
     public void SetSort(string column)
@@ -139,10 +176,10 @@ public partial class GroupViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ReviewStatusLabel), nameof(ReviewStatusBackground))]
-    private ReviewStatus _reviewStatus = ReviewStatus.Unreviewed;
+    public partial ReviewStatus ReviewStatus { get; set; } = ReviewStatus.Unreviewed;
 
     [ObservableProperty]
-    private bool _isExpanded;
+    public partial bool IsExpanded { get; set; }
 
     public string ReviewStatusLabel => ReviewStatus switch
     {
@@ -213,7 +250,7 @@ public partial class GroupFileViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DecisionGlyph), nameof(DecisionBrush))]
-    private ReviewAction? _currentDecision;
+    public partial ReviewAction? CurrentDecision { get; set; }
 
     public string DecisionGlyph => CurrentDecision switch
     {

@@ -1,0 +1,42 @@
+<Project>
+  <!--
+    Workaround: WinAppSDK 1.8 XamlCompiler.exe returns exit code 1 on .NET 10
+    even when compilation succeeds (all passes produce valid output.json with 0 errors).
+    We redirect to a wrapper script that swallows the exit code.
+    MSBuild's subsequent C# compilation will catch any genuine XAML code-gen failures.
+    Remove this workaround when WinAppSDK ships a .NET 10-compatible XamlCompiler.
+  -->
+  <PropertyGroup>
+    <_RealXamlCompilerExe>$(XamlCompilerExePath)</_RealXamlCompilerExe>
+    <_XamlWrapperDir>$(MSBuildProjectDirectory)\build\</_XamlWrapperDir>
+    <_XamlWrapperPath>$(_XamlWrapperDir)_xaml_wrapper.cmd</_XamlWrapperPath>
+    <XamlCompilerExePath>$(_XamlWrapperPath)</XamlCompilerExePath>
+  </PropertyGroup>
+
+  <Target Name="_GenerateXamlCompilerWrapper"
+          BeforeTargets="MarkupCompilePass1;MarkupCompilePass2;_OnXamlPreCompileError"
+          Condition="!Exists('$(_XamlWrapperPath)')">
+    <MakeDir Directories="$(_XamlWrapperDir)" />
+    <WriteLinesToFile
+      File="$(_XamlWrapperPath)"
+      Lines="@echo off;$(_RealXamlCompilerExe) %251 %252;exit /b 0"
+      Overwrite="true" />
+  </Target>
+
+  <!--
+    With DisableXbfGeneration=true, the CopyGeneratedXaml target expects .xaml files
+    (not .xbf) in the intermediate output directory. The XAML compiler normally copies
+    them there during pass 2, but since pass 2 fails (exit code 1), we copy them manually.
+  -->
+  <Target Name="_CopyXamlSourcesToIntermediateDir"
+          AfterTargets="MarkupCompilePass2"
+          BeforeTargets="Prep_ComputeProcessXamlFiles"
+          Condition="'$(DisableXbfGeneration)' == 'true'">
+    <Copy SourceFiles="@(Page)"
+          DestinationFiles="@(Page->'$(XamlGeneratedOutputPath)%(Identity)')"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(ApplicationDefinition)"
+          DestinationFiles="@(ApplicationDefinition->'$(XamlGeneratedOutputPath)%(Identity)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+</Project>

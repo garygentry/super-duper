@@ -15,24 +15,24 @@ public partial class ShellViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsDeletionQueueNonEmpty))]
-    private int _deletionQueueCount;
+    public partial int DeletionQueueCount { get; set; }
 
     [ObservableProperty]
-    private string _deletionQueueSummary = "No files marked for deletion";
+    public partial string DeletionQueueSummary { get; set; } = "No files marked for deletion";
 
     public bool IsDeletionQueueNonEmpty => DeletionQueueCount > 0;
 
     [ObservableProperty]
-    private bool _canUndo;
+    public partial bool CanUndo { get; set; }
 
     [ObservableProperty]
-    private bool _canRedo;
+    public partial bool CanRedo { get; set; }
 
     [ObservableProperty]
-    private string? _undoDescription;
+    public partial string? UndoDescription { get; set; }
 
     [ObservableProperty]
-    private string? _redoDescription;
+    public partial string? RedoDescription { get; set; }
 
     public ShellViewModel(IDatabaseService db, IUndoService undo)
     {

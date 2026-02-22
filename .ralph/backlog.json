@@ -1,0 +1,395 @@
+{
+  "project": "super-duper",
+  "description": "a super deduper utility",
+  "items": [
+    {
+      "id": "001",
+      "type": "bug",
+      "priority": 1,
+      "title": "[FFI] Dispose ServiceProvider on window close to prevent native handle leak",
+      "description": "EngineWrapper is registered as a singleton IDisposable but the ServiceProvider is never disposed at app exit. sd_engine_destroy() is never called and the native _handle leaks on every shutdown. Add a MainWindow.Closed handler that calls (App.Services as IDisposable)?.Dispose() to propagate Dispose() to all singleton disposables including EngineWrapper and DatabaseService.",
+      "acceptanceCriteria": [
+        "MainWindow.Closed handler calls (App.Services as IDisposable)?.Dispose()",
+        "sd_engine_destroy() is confirmed called on window close (visible via debug output or native debugger)",
+        "No live super_duper_ffi handles remain after process exit (verified with handles.exe or WinDbg)"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "Files: App.xaml.cs:71; NativeMethods/EngineWrapper.cs:388-399. Effort: XS. Must be fixed before 002 since both modify the same Closed handler."
+    },
+    {
+      "id": "002",
+      "type": "bug",
+      "priority": 1,
+      "title": "[FFI] Add CancellationToken + await to prevent Dispose race during active scan",
+      "description": "If the user closes the window mid-scan, MainWindow.Closed calls Dispose() on the UI thread while the scan thread holds a live _handle. The _disposed check is not inside a lock, so sd_engine_destroy() can execute while the scan thread is mid-call into native code — undefined behavior with potential heap corruption. Add CancelAndWaitAsync() to ScanService and update the Closed handler to cancel + await the scan before disposing services.",
+      "acceptanceCriteria": [
+        "ScanService exposes CancelAndWaitAsync() that cancels the scan and awaits the running scan Task",
+        "MainWindow.Closed handler awaits CancelAndWaitAsync() before calling (App.Services as IDisposable)?.Dispose()",
+        "Starting a large scan and immediately closing the window produces no heap corruption or access violation under AppVerifier"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": ["001"],
+      "notes": "Files: NativeMethods/EngineWrapper.cs:388-399; Services/ScanService.cs:156. Effort: M."
+    },
+    {
+      "id": "003",
+      "type": "bug",
+      "priority": 1,
+      "title": "[ASYNC] Offload ExecuteDeletion() to background thread to unblock UI",
+      "description": "DeletionReviewViewModel.ExecuteDeletion() calls _engine.ExecuteDeletionPlan(UseTrash) synchronously on the UI thread. For large deletion lists this produces a visible freeze. Rename to ExecuteDeletionAsync(), wrap the FFI call in Task.Run(), set IsExecuting flag, and update the caller in DeletionReviewPage.xaml.cs to await it.",
+      "acceptanceCriteria": [
+        "ExecuteDeletion() is renamed to ExecuteDeletionAsync() returning Task",
+        "FFI call _engine.ExecuteDeletionPlan(UseTrash) is wrapped in Task.Run()",
+        "IsExecuting is set to true before and false in finally",
+        "DeletionReviewPage.xaml.cs caller awaits ExecuteDeletionAsync()",
+        "Window remains movable and responsive while deleting a large file list"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "Files: ViewModels/DeletionReviewViewModel.cs:84-110; Views/DeletionReviewPage.xaml.cs. Effort: S."
+    },
+    {
+      "id": "004",
+      "type": "bug",
+      "priority": 2,
+      "title": "[ASYNC] Add fault logging to all fire-and-forget task discards",
+      "description": "Nine sites use `_ =` to discard Tasks, silently swallowing any exceptions. Add a static FireAndForget(Task, string) helper using ContinueWith(OnlyOnFaulted) with Debug.WriteLine. Replace all `_ =` call sites. Special attention needed for the DispatcherQueue.TryEnqueue lambda in DashboardViewModel:263 which has no app-level fallback for exceptions.",
+      "acceptanceCriteria": [
+        "A FireAndForget(Task, string) static helper method is added",
+        "All _ = LoadSessionPickerAsync(), _ = ActivateSelectedSessionAsync(), _ = LoadMarkedFilesAsync(), _ = RenderAsync() sites replaced with FireAndForget()",
+        "DispatcherQueue lambda in DashboardViewModel.cs:263 has explicit try/catch or the async call is extracted outside the lambda",
+        "Simulating an exception inside any of these methods causes it to appear in VS Debug Output"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "Files: ViewModels/DashboardViewModel.cs:58,82,263; ViewModels/DeletionReviewViewModel.cs:55,80,104; Controls/StorageTreemap.xaml.cs:55,66,73. Effort: S."
+    },
+    {
+      "id": "005",
+      "type": "bug",
+      "priority": 2,
+      "title": "[ASYNC] Replace brittle string-matching cancellation check with typed OperationCanceledException",
+      "description": "ScanService.cs:174 detects cancellation via ex.Message.Contains(\"Cancelled\") — if Rust changes its error message wording, cancellation silently becomes a user-visible error toast. Update EngineWrapper.ThrowOnError to throw OperationCanceledException for SdResultCode.Cancelled, and catch that specific type in ScanService.StartScanAsync.",
+      "acceptanceCriteria": [
+        "SdResultCode.Cancelled enum value confirmed to exist in NativeMethods/SuperDuperEngine.cs",
+        "EngineWrapper.ThrowOnError throws OperationCanceledException when code == SdResultCode.Cancelled",
+        "ScanService.StartScanAsync catches OperationCanceledException separately and does not surface to user",
+        "String-matching guard ex.Message.Contains(\"Cancelled\") is removed",
+        "Cancelling a scan mid-run shows no error toast"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "Files: Services/ScanService.cs:174; NativeMethods/EngineWrapper.cs ThrowOnError. Effort: XS. First verify SdResultCode.Cancelled in NativeMethods/SuperDuperEngine.cs."
+    },
+    {
+      "id": "006",
+      "type": "chore",
+      "priority": 2,
+      "title": "[ARCH] Register DeletionReviewViewModel and SessionsViewModel in DI container",
+      "description": "Both ViewModels are constructed with `new` in page code-behind and require explicit Initialize() calls, bypassing DI. If Initialize() is skipped, all operations silently no-op due to if (_engine == null) guards. Add EngineWrapper as required constructor parameter to both, remove Initialize(), register as Transient in App.ConfigureServices(), and resolve via DI in page OnNavigatedTo.",
+      "acceptanceCriteria": [
+        "DeletionReviewViewModel constructor accepts EngineWrapper parameter; Initialize() method removed",
+        "SessionsViewModel constructor accepts EngineWrapper parameter; Initialize() method removed",
+        "Both registered as Transient in App.ConfigureServices()",
+        "Pages resolve ViewModels via App.Services.GetRequiredService<T>() in OnNavigatedTo",
+        "All null-guard `if (_engine == null) return` checks removed"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "Files: Views/DeletionReviewPage.xaml.cs; Views/SettingsPage.xaml.cs; ViewModels/DeletionReviewViewModel.cs:14; ViewModels/SessionsViewModel.cs. Effort: M."
+    },
+    {
+      "id": "007",
+      "type": "chore",
+      "priority": 2,
+      "title": "[ARCH] Replace visual-tree traversal in FileListControl.WireRadioButtons() with x:Name wiring",
+      "description": "WireRadioButtons() traverses the visual tree using VisualTreeHelper to locate RadioButtons by GroupName. This breaks silently on XAML nesting depth changes. Assign x:Name to both RadioButtons and wire Checked events in the constructor — consistent with all other event wiring in this codebase.",
+      "acceptanceCriteria": [
+        "AllFilesButton and DupesOnlyButton have x:Name attributes in FileListControl.xaml",
+        "WireRadioButtons() is replaced by direct Checked event subscriptions in the constructor after InitializeComponent()",
+        "VisualTreeHelper traversal code is deleted",
+        "Both radio buttons correctly toggle between all-files and dupes-only view"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "File: Controls/FileListControl.xaml.cs WireRadioButtons(). Effort: S."
+    },
+    {
+      "id": "008",
+      "type": "chore",
+      "priority": 2,
+      "title": "[ERRORS] Add Debug.WriteLine to all silent catch blocks",
+      "description": "Multiple catch blocks swallow exceptions without any logging: ScanService.TrySetActiveSession bare catch, MarkedFileViewModel.RevealInExplorer bare catch, SettingsService.Load() and Save() bare catches, all three WindowsShellService shell-invoke methods, and SessionsViewModel.LoadSessionsAsync. Add Debug.WriteLine with context to each; consider ILogger<SettingsService> injection for SettingsService.",
+      "acceptanceCriteria": [
+        "ScanService.cs:49 catch logs exception with method context via Debug.WriteLine",
+        "MarkedFileViewModel.RevealInExplorer catch logs exception",
+        "SettingsService.Load() and Save() catches log exceptions (ideally via ILogger<SettingsService>)",
+        "All three WindowsShellService shell-invoke method catches log exceptions",
+        "SessionsViewModel.LoadSessionsAsync catch logs exception",
+        "All failures visible in VS Debug Output without changing observable app behavior"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "Files: Services/ScanService.cs:49; ViewModels/DeletionReviewViewModel.cs:192; Services/SettingsService.cs; Services/Platform/Windows/WindowsShellService.cs; ViewModels/SessionsViewModel.cs. Effort: S."
+    },
+    {
+      "id": "009",
+      "type": "chore",
+      "priority": 2,
+      "title": "[PERF] Forward PropertyName in ScanProgressOverlay instead of broadcasting all 7 properties",
+      "description": "ScanProgressOverlay's PropertyChanged handler ignores the PropertyName argument and raises all 7 PropertyChanged events on every tick. During Phase 2 (checksumming), the Rust core fires a progress callback per file — potentially hundreds per second — each triggering 7 binding re-evaluations. Forward the specific PropertyName instead, only broadcasting all when PropertyName is null.",
+      "acceptanceCriteria": [
+        "PropertyChanged handler in ScanProgressOverlay.xaml.cs uses e.PropertyName to forward the specific change",
+        "All-properties broadcast only fires when e.PropertyName is null (ObservableObject convention for bulk refresh)",
+        "During an active scan, debug output or profiler shows ~7x fewer PropertyChanged events per tick"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "File: Controls/ScanProgressOverlay.xaml.cs:38-50. Effort: XS."
+    },
+    {
+      "id": "010",
+      "type": "chore",
+      "priority": 2,
+      "title": "[PERF] Replace FFI page query in RefreshMetricsAsync with a SQL aggregate query",
+      "description": "DashboardViewModel.RefreshMetricsAsync marshals up to 500 DuplicateGroupInfo structs across the FFI boundary purely to sum WastedBytes — orders of magnitude more expensive than a single SQL aggregate. Add GetSessionMetricsAsync(long sessionId) to IDatabaseService using COUNT(*)/SUM(wasted_bytes) and replace the FFI call.",
+      "acceptanceCriteria": [
+        "IDatabaseService gains GetSessionMetricsAsync(long sessionId) returning (int groupCount, long wastedBytes)",
+        "DatabaseService implements it with a single SQL SELECT COUNT(*), COALESCE(SUM(wasted_bytes),0) WHERE session_id = @sessionId",
+        "DashboardViewModel.RefreshMetricsAsync calls the new DB method instead of QueryDuplicateGroups(0, 500)",
+        "Dashboard metrics display correctly after the change"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "Files: ViewModels/DashboardViewModel.cs:270; Services/IDatabaseService.cs; Services/DatabaseService.cs. Effort: S."
+    },
+    {
+      "id": "011",
+      "type": "feature",
+      "priority": 3,
+      "title": "[UX] Implement ComparisonPane.LoadCopiesAsync to populate DuplicateCard ItemsRepeater",
+      "description": "ComparisonPane.LoadCopiesAsync is a non-functional stub — the DuplicateCard ItemsRepeater is never populated. Users who click a file in ExplorerPage see an empty pane. DuplicateCardViewModel and DuplicateCard UserControl are fully implemented and ready to use. Inject EngineWrapper and IDatabaseService, query QueryFilesInGroup(groupId), create DuplicateCardViewModel instances, populate the ItemsRepeater, and wire Keep/Delete/Skip decisions back to the ViewModel.",
+      "acceptanceCriteria": [
+        "Clicking a file in ExplorerPage populates ComparisonPane with DuplicateCard instances",
+        "Each DuplicateCard displays correct file metadata (name, size, path, modified date)",
+        "Keep/Delete/Skip buttons update ViewModel decision state",
+        "InfoBar suggestion message from SuggestionEngine is still displayed above the cards",
+        "Pane shows a placeholder/empty state when no file is selected"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "File: Controls/ComparisonPane.xaml.cs LoadCopiesAsync(). Effort: L. Highest-value medium-priority item — restores the core duplicate review workflow."
+    },
+    {
+      "id": "012",
+      "type": "feature",
+      "priority": 3,
+      "title": "[UX] Implement DirectoryDiffDialog.LoadAsync left/right file list population",
+      "description": "DirectoryDiffDialog.LoadAsync sets the dialog title and summary bar but both side-by-side ItemsRepeater file lists contain only a TODO comment. Query files filtered by DirAPath/DirBPath to build left-only, shared, and right-only lists, then populate the ItemsRepeater controls.",
+      "acceptanceCriteria": [
+        "Opening a directory diff dialog shows file entries on both left and right sides",
+        "Left-only, shared, and right-only files are correctly categorized and labeled",
+        "ItemsRepeater controls are populated with file path/name entries",
+        "Empty state handled gracefully when a directory has no files"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "File: Views/DirectoryDiffDialog.xaml.cs LoadAsync(). Effort: M."
+    },
+    {
+      "id": "013",
+      "type": "chore",
+      "priority": 3,
+      "title": "[UX] Disable ScanDialog advanced options that are silently ignored",
+      "description": "MinFileSize, SelectedHashAlgorithm, and CpuThreads controls in ScanDialog are visible and interactive but their values are never passed to the engine (confirmed by TODO in ScanDialogViewModel.StartScanAsync). Users who configure these options receive no feedback that settings have no effect. Disable controls and add '(coming soon)' to labels.",
+      "acceptanceCriteria": [
+        "MinFileSize control has IsEnabled=False and label includes '(coming soon)'",
+        "SelectedHashAlgorithm control has IsEnabled=False and label includes '(coming soon)'",
+        "CpuThreads control has IsEnabled=False and label includes '(coming soon)'",
+        "Users cannot interact with these controls, preventing false configuration expectations"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "Files: ViewModels/ScanDialogViewModel.cs StartScanAsync() TODO; Views/ScanDialog.xaml (or ScanDialog.xaml.cs). Effort: XS."
+    },
+    {
+      "id": "014",
+      "type": "chore",
+      "priority": 3,
+      "title": "[PERF] Apply debounce guard to StorageTreemap SizeChanged to prevent concurrent renders",
+      "description": "TreemapCanvas_SizeChanged fires _ = RenderAsync() on every pixel of resize without the _renderPending guard that exists for the collection-changed path. Multiple Task.Run squarify computations race to write to TreemapCanvas.Children, causing visual tearing. Apply the same debounce pattern used in the collection-changed path to SizeChanged.",
+      "acceptanceCriteria": [
+        "TreemapCanvas_SizeChanged checks _renderPending before firing RenderAsync()",
+        "Rapid window resize does not spawn multiple concurrent RenderAsync() tasks",
+        "No visual tearing or stale renders during resize",
+        "_renderPending is correctly reset after each render cycle"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "File: Controls/StorageTreemap.xaml.cs:71-74. Effort: XS."
+    },
+    {
+      "id": "015",
+      "type": "chore",
+      "priority": 3,
+      "title": "[PERF] Replace outer ItemsRepeater in GroupsPage with a virtualizing control",
+      "description": "GroupsPage uses a non-virtualizing ItemsRepeater for the outer group list. With 1000+ groups or many simultaneously expanded groups, all UI elements are instantiated and held live, consuming significant memory and render time. The paged LoadMore partially mitigates but does not eliminate the problem once many pages load. Replace with ListView or configure RecyclingElementFactory.",
+      "acceptanceCriteria": [
+        "Outer group list uses a virtualizing control (ListView or ItemsRepeater with RecyclingElementFactory + StackLayout)",
+        "Memory usage with 1000+ groups is measurably lower than the non-virtualizing baseline",
+        "Group expand/collapse behavior is preserved",
+        "Paged LoadMore command continues to work correctly"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "File: Views/GroupsPage.xaml. Effort: L. Inner per-file ItemsRepeater is bounded by group size and is lower priority."
+    },
+    {
+      "id": "016",
+      "type": "bug",
+      "priority": 3,
+      "title": "[SECURITY] Pin DLL load path with NativeLibrary.SetDllImportResolver to prevent DLL planting",
+      "description": "DllImport(\"super_duper_ffi\") without an explicit path uses the standard Windows DLL search order. If the app is run from a user-writable directory, a local DLL planting attack could substitute a malicious super_duper_ffi.dll. Register a DllImportResolver in the App constructor that pins loading to AppContext.BaseDirectory.",
+      "acceptanceCriteria": [
+        "NativeLibrary.SetDllImportResolver registered in App() constructor for typeof(SuperDuperEngine).Assembly",
+        "Resolver loads exclusively from Path.Combine(AppContext.BaseDirectory, \"super_duper_ffi.dll\")",
+        "App starts correctly with the pinned resolver active",
+        "A DLL placed in the working directory is not loaded in place of the one in the app directory"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "Files: NativeMethods/SuperDuperEngine.cs:12; App.xaml.cs constructor. Effort: S."
+    },
+    {
+      "id": "017",
+      "type": "chore",
+      "priority": 4,
+      "title": "[A11Y] Map drive color stripes to distinct High Contrast system colors",
+      "description": "DriveColor0-DriveColor5 all map to SystemColorHighlightColor in High Contrast mode, making drive stripes visually indistinguishable. DriveColor4/DriveColor6 both map to SystemColorHighlightTextColor. Map the 8 drive colors to distinct High Contrast system colors (ButtonText, GrayText, WindowText, Highlight, ButtonFace, etc.) or replace stripes with short drive-letter text labels in High Contrast mode.",
+      "acceptanceCriteria": [
+        "In any Windows High Contrast theme, drive stripes (or drive labels) remain visually distinguishable",
+        "At least 4 visually distinct representations exist across the 8 drive color slots",
+        "Colors.xaml HighContrast dictionary uses distinct system color resources per drive color key"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "File: Styles/Colors.xaml:99-106. Effort: S."
+    },
+    {
+      "id": "018",
+      "type": "chore",
+      "priority": 4,
+      "title": "[CODE] Consolidate duplicate FormatBytes() helpers to FileSizeConverter.FormatBytes()",
+      "description": "FormatBytes() is copy-pasted with identical logic in four classes: DeletionReviewViewModel, MarkedFileViewModel (inner class), DirectorySimilarityInfo, and StorageTreemap. The canonical implementation already exists as Converters.FileSizeConverter.FormatBytes(long). Delete the four private copies and reference the converter.",
+      "acceptanceCriteria": [
+        "Four private FormatBytes() method copies are deleted",
+        "All former call sites reference FileSizeConverter.FormatBytes(long) or an equivalent shared static",
+        "File sizes display correctly in all four locations after the change"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "Files: ViewModels/DeletionReviewViewModel.cs:150 and :192 (inner class); NativeMethods/EngineWrapper.cs:464; Controls/StorageTreemap.xaml.cs:145. Effort: XS."
+    },
+    {
+      "id": "019",
+      "type": "chore",
+      "priority": 4,
+      "title": "[CODE] Centralize magic file type filter strings into a static FileTypeFilters constants class",
+      "description": "Filter category strings (\"images\", \"documents\", \"video\", etc.) are duplicated between GroupsViewModel (constructs filter objects) and DatabaseService (maps them to SQL). A typo or rename in one place silently breaks the other. Extract to a static FileTypeFilters class with named string constants.",
+      "acceptanceCriteria": [
+        "FileTypeFilters static class with constants for Images, Documents, Video, Audio, Archives is created",
+        "GroupsViewModel uses FileTypeFilters constants instead of inline string literals",
+        "DatabaseService uses FileTypeFilters constants instead of inline string literals",
+        "All filter categories function correctly end-to-end after the change"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "Files: Services/DatabaseService.cs ~line 586; ViewModels/GroupsViewModel.cs ~line 106. Effort: XS."
+    },
+    {
+      "id": "020",
+      "type": "chore",
+      "priority": 4,
+      "title": "[CODE] Link SettingsPage shortcut table to actual KeyboardAccelerator definitions",
+      "description": "LoadShortcutData() in SettingsPage uses hardcoded string literals for keyboard shortcuts with no link to the KeyboardAccelerator objects in MainWindow.xaml.cs. If shortcuts change in MainWindow, the Settings page silently shows stale data. Define a central static ShortcutDefinitions class; MainWindow creates accelerators from it and SettingsPage reads the same definitions.",
+      "acceptanceCriteria": [
+        "ShortcutDefinitions static class maps action names to key combos",
+        "MainWindow.xaml.cs creates KeyboardAccelerator instances from ShortcutDefinitions",
+        "SettingsPage.LoadShortcutData() builds its display table from ShortcutDefinitions",
+        "Changing a shortcut in ShortcutDefinitions automatically updates both the registered accelerator and the settings display"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "Files: Views/SettingsPage.xaml.cs LoadShortcutData(); MainWindow.xaml.cs. Effort: S."
+    },
+    {
+      "id": "021",
+      "type": "chore",
+      "priority": 4,
+      "title": "[CODE] Remove UpdateJumpList() no-op from IShellIntegrationService or document intent",
+      "description": "WindowsShellService.UpdateJumpList() exists on IShellIntegrationService with only a TODO comment and no implementation, adding dead code to every platform implementation of the interface. Remove from the interface and all implementations if JumpList support is not planned; otherwise add a comment documenting the target phase.",
+      "acceptanceCriteria": [
+        "UpdateJumpList() removed from IShellIntegrationService and all platform implementations, OR",
+        "A clear inline comment documents the planned release/phase for JumpList support",
+        "No compilation errors after any removal"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "File: Services/Platform/Windows/WindowsShellService.cs. Effort: XS."
+    },
+    {
+      "id": "022",
+      "type": "chore",
+      "priority": 4,
+      "title": "[CODE] Implement or remove ScanProgressOverlay SpeedLabel and Pause button",
+      "description": "SpeedLabel is declared as a public property but never updated, rendering permanently blank. The Pause button is always IsEnabled=False and visible. Either implement scan speed tracking (MB/s or files/s using Stopwatch + delta counter) and a pause mechanism, or remove the blank property/XAML element and collapse the Pause button until the features are implemented.",
+      "acceptanceCriteria": [
+        "Option A: SpeedLabel shows a live rate (MB/s or files/s) during an active scan; Pause button is functional",
+        "Option B: SpeedLabel XAML element is removed; Pause button has Visibility=Collapsed",
+        "No permanently blank labels or persistently disabled buttons mislead users about available functionality"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "Files: Controls/ScanProgressOverlay.xaml.cs:21; Controls/ScanProgressOverlay.xaml. Effort: S. Option B (remove/collapse) is acceptable as a first step."
+    },
+    {
+      "id": "023",
+      "type": "chore",
+      "priority": 4,
+      "title": "[CODE] Move DbPath to LocalApplicationData for per-user data isolation (deferred)",
+      "description": "DbPath is hardcoded as the working-directory-relative constant \"super_duper.db\". This is sufficient for now but will need to move to Path.Combine(Environment.GetFolderPath(SpecialFolder.LocalApplicationData), \"SuperDuper\", \"super_duper.db\") when per-user data isolation is required. Deferred until that requirement is active.",
+      "acceptanceCriteria": [
+        "DbPath resolves to a user-specific application data directory under LocalApplicationData",
+        "Directory is created on first run if it does not exist",
+        "Migration path for existing working-directory databases is documented or handled"
+      ],
+      "status": "pending",
+      "completedAt": null,
+      "dependsOn": [],
+      "notes": "File: App.xaml.cs:18. Effort: S. Deferred — only action when per-user data isolation becomes a requirement."
+    }
+  ]
+}

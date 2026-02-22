@@ -12,18 +12,18 @@ public partial class DirectoryComparisonViewModel : ObservableObject
     private int _currentOffset;
 
     [ObservableProperty]
-    private bool _isLoading;
+    public partial bool IsLoading { get; set; }
 
     [ObservableProperty]
-    private double _minScore = 0.5;
+    public partial double MinScore { get; set; } = 0.5;
 
     public string FormattedMinScore => $"{MinScore:P0}";
 
     [ObservableProperty]
-    private bool _hasNoPairs;
+    public partial bool HasNoPairs { get; set; }
 
     [ObservableProperty]
-    private bool _hasMoreResults;
+    public partial bool HasMoreResults { get; set; }
 
     public ObservableCollection<SimilarPairViewModel> SimilarPairs { get; } = new();
 
@@ -87,11 +87,11 @@ public partial class SimilarPairViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsDirANotMarked))]
-    private bool _dirAMarked;
+    public partial bool DirAMarked { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsDirBNotMarked))]
-    private bool _dirBMarked;
+    public partial bool DirBMarked { get; set; }
 
     public bool IsDirANotMarked => !DirAMarked;
     public bool IsDirBNotMarked => !DirBMarked;

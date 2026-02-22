@@ -11,9 +11,16 @@
     <UseWinUI>true</UseWinUI>
     <WindowsPackageType>None</WindowsPackageType>
     <Nullable>enable</Nullable>
+    <!-- Workaround: CommunityToolkit.Mvvm 8.4.0 source generator needs preview LangVersion
+         on .NET 10 to generate partial property implementations.
+         See https://github.com/CommunityToolkit/dotnet/issues/1139 -->
+    <LangVersion>preview</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
+    <!-- WinAppSDK 1.8 XamlCompiler.exe returns exit code 1 during XBF generation on .NET 10.
+         Disable XBF to let the app load raw XAML at runtime instead. -->
+    <DisableXbfGeneration>true</DisableXbfGeneration>
   </PropertyGroup>
 
   <!-- Rust native DLL configuration -->

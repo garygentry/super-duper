@@ -1,7 +1,9 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using SuperDuper.NativeMethods;
+using SuperDuper.Services;
 using SuperDuper.ViewModels;
 
 namespace SuperDuper.Views;
@@ -13,16 +15,21 @@ public sealed partial class DeletionReviewPage : Page
     public DeletionReviewPage()
     {
         this.InitializeComponent();
+        XamlHelper.ConnectNamedElements(this, this);
+        this.DataContext = this;
         ViewModel.ErrorOccurred += OnErrorOccurred;
+
+        // Wire events (XAML compiler pass 2 doesn't generate IComponentConnector)
+        ExecuteButton.Click += ExecuteButton_Click;
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        if (e.Parameter is (EngineWrapper engine, MainViewModel mainVm))
-            ViewModel.Initialize(engine, mainVm);
-        else if (e.Parameter is EngineWrapper eng)
-            ViewModel.Initialize(eng, null);
+        var engine = e.Parameter as EngineWrapper
+            ?? App.Services.GetRequiredService<EngineWrapper>();
+        var settings = App.Services.GetRequiredService<SettingsService>();
+        ViewModel.Initialize(engine, settings);
     }
 
     private async void ExecuteButton_Click(object sender, RoutedEventArgs e)

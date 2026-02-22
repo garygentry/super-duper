@@ -32,6 +32,7 @@ public sealed partial class DensityBadge : UserControl
     public DensityBadge()
     {
         this.InitializeComponent();
+        XamlHelper.ConnectNamedElements(this, this);
     }
 
     private static void OnPropsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

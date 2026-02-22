@@ -457,6 +457,110 @@ public class DatabaseService : IDatabaseService, IDisposable
         }
     }
 
+    public async Task<IReadOnlyList<DbFileInfo>> SearchFilesAsync(long sessionId, string query, int limit = 20)
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            var items = new List<DbFileInfo>();
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT
+                    sf.id, sf.canonical_path, sf.file_name, sf.parent_dir,
+                    sf.drive_letter, sf.file_size, sf.last_modified,
+                    sf.partial_hash, sf.content_hash,
+                    CASE WHEN dgm.file_id IS NOT NULL THEN 1 ELSE 0 END AS is_duplicate,
+                    COALESCE(cnt.copy_count, 0) AS copy_count,
+                    COALESCE(dgm.group_id, 0) AS group_id
+                FROM scanned_file sf
+                LEFT JOIN duplicate_group_member dgm ON dgm.file_id = sf.id
+                LEFT JOIN (
+                    SELECT dgm2.group_id, COUNT(*) AS copy_count
+                    FROM duplicate_group_member dgm2
+                    GROUP BY dgm2.group_id
+                ) cnt ON cnt.group_id = dgm.group_id
+                WHERE (sf.file_name LIKE $query OR sf.canonical_path LIKE $query)
+                ORDER BY sf.file_name
+                LIMIT $limit
+                """;
+            cmd.Parameters.AddWithValue("$query", $"%{query}%");
+            cmd.Parameters.AddWithValue("$limit", limit);
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                items.Add(new DbFileInfo
+                {
+                    FileId = reader.GetInt64(0),
+                    CanonicalPath = reader.GetString(1),
+                    FileName = reader.GetString(2),
+                    ParentDir = reader.GetString(3),
+                    DriveLetter = reader.IsDBNull(4) ? "" : reader.GetString(4),
+                    FileSize = reader.GetInt64(5),
+                    LastModified = reader.IsDBNull(6) ? "" : reader.GetString(6),
+                    PartialHash = reader.IsDBNull(7) ? 0 : reader.GetInt64(7),
+                    ContentHash = reader.IsDBNull(8) ? 0 : reader.GetInt64(8),
+                    IsDuplicate = reader.GetInt32(9) == 1,
+                    CopyCount = reader.GetInt32(10),
+                    GroupId = reader.GetInt64(11)
+                });
+            }
+            return items;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task<IReadOnlyList<TreemapNode>> GetTreemapNodesAsync(long sessionId)
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            var nodes = new List<TreemapNode>();
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT
+                    sf.parent_dir,
+                    COUNT(sf.id) AS total_files,
+                    COUNT(dgm.file_id) AS dupe_files,
+                    SUM(sf.file_size) AS total_bytes
+                FROM scanned_file sf
+                LEFT JOIN duplicate_group_member dgm ON dgm.file_id = sf.id
+                WHERE sf.last_seen_session_id = $sessionId
+                GROUP BY sf.parent_dir
+                HAVING total_bytes > 0
+                ORDER BY total_bytes DESC
+                LIMIT 30
+                """;
+            cmd.Parameters.AddWithValue("$sessionId", sessionId);
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var path = reader.GetString(0);
+                var totalFiles = reader.GetInt32(1);
+                var dupeFiles = reader.GetInt32(2);
+                var totalBytes = reader.GetInt64(3);
+                nodes.Add(new TreemapNode
+                {
+                    Path = path,
+                    DisplayName = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+                                  is { Length: > 0 } name ? name : path,
+                    TotalBytes = totalBytes,
+                    DupeDensity = totalFiles > 0 ? (double)dupeFiles / totalFiles : 0,
+                    DupeCount = dupeFiles,
+                    TotalCount = totalFiles
+                });
+            }
+            return nodes;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     public async Task<PagedResult<DbGroupInfo>> QueryGroupsFilteredAsync(
         long sessionId, GroupFilterOptions filter, string sortColumn = "wasted_bytes",
         bool ascending = false, int offset = 0, int limit = 50)
@@ -477,6 +581,31 @@ public class DatabaseService : IDatabaseService, IDisposable
             var whereClauses = new List<string> { "dg.session_id = $sessionId" };
             if (filter.TextSearch is { Length: > 0 })
                 whereClauses.Add("EXISTS (SELECT 1 FROM duplicate_group_member m JOIN scanned_file f ON f.id = m.file_id WHERE m.group_id = dg.id AND f.file_name LIKE $textSearch)");
+            if (filter.FileTypeFilter is { Length: > 0 })
+            {
+                var extensions = filter.FileTypeFilter switch
+                {
+                    "images" => "('jpg','jpeg','png','gif','bmp','webp','svg','tiff')",
+                    "documents" => "('pdf','doc','docx','txt','rtf','odt','xls','xlsx','csv','pptx')",
+                    "video" => "('mp4','avi','mkv','mov','wmv','flv','webm')",
+                    "audio" => "('mp3','flac','wav','aac','ogg','wma','m4a')",
+                    "archives" => "('zip','rar','7z','gz','tar','bz2')",
+                    _ => "('')"
+                };
+                whereClauses.Add($"EXISTS (SELECT 1 FROM duplicate_group_member m JOIN scanned_file f ON f.id = m.file_id WHERE m.group_id = dg.id AND LOWER(REPLACE(f.file_name, RTRIM(f.file_name, REPLACE(f.file_name, '.', '')), '')) IN {extensions})");
+            }
+            if (filter.DriveFilter is { Length: > 0 })
+                whereClauses.Add("EXISTS (SELECT 1 FROM duplicate_group_member m JOIN scanned_file f ON f.id = m.file_id WHERE m.group_id = dg.id AND f.drive_letter = $driveFilter)");
+            if (filter.ReviewStatusFilter.HasValue)
+            {
+                var statusSql = filter.ReviewStatusFilter.Value switch
+                {
+                    ReviewStatus.Unreviewed => "NOT EXISTS (SELECT 1 FROM duplicate_group_member m LEFT JOIN review_decisions rd ON rd.file_id = m.file_id WHERE m.group_id = dg.id AND rd.file_id IS NOT NULL)",
+                    ReviewStatus.Decided => "NOT EXISTS (SELECT 1 FROM duplicate_group_member m LEFT JOIN review_decisions rd ON rd.file_id = m.file_id WHERE m.group_id = dg.id AND rd.file_id IS NULL)",
+                    _ => "(SELECT COUNT(rd.file_id) FROM duplicate_group_member m LEFT JOIN review_decisions rd ON rd.file_id = m.file_id WHERE m.group_id = dg.id AND rd.file_id IS NOT NULL) > 0 AND EXISTS (SELECT 1 FROM duplicate_group_member m LEFT JOIN review_decisions rd ON rd.file_id = m.file_id WHERE m.group_id = dg.id AND rd.file_id IS NULL)"
+                };
+                whereClauses.Add(statusSql);
+            }
             if (filter.MinWastedBytes.HasValue)
                 whereClauses.Add("dg.wasted_bytes >= $minWaste");
             if (filter.MaxWastedBytes.HasValue)
@@ -489,6 +618,8 @@ public class DatabaseService : IDatabaseService, IDisposable
             countCmd.Parameters.AddWithValue("$sessionId", sessionId);
             if (filter.TextSearch is { Length: > 0 })
                 countCmd.Parameters.AddWithValue("$textSearch", $"%{filter.TextSearch}%");
+            if (filter.DriveFilter is { Length: > 0 })
+                countCmd.Parameters.AddWithValue("$driveFilter", filter.DriveFilter);
             if (filter.MinWastedBytes.HasValue)
                 countCmd.Parameters.AddWithValue("$minWaste", filter.MinWastedBytes.Value);
             if (filter.MaxWastedBytes.HasValue)
@@ -515,6 +646,8 @@ public class DatabaseService : IDatabaseService, IDisposable
             cmd.Parameters.AddWithValue("$offset", offset);
             if (filter.TextSearch is { Length: > 0 })
                 cmd.Parameters.AddWithValue("$textSearch", $"%{filter.TextSearch}%");
+            if (filter.DriveFilter is { Length: > 0 })
+                cmd.Parameters.AddWithValue("$driveFilter", filter.DriveFilter);
             if (filter.MinWastedBytes.HasValue)
                 cmd.Parameters.AddWithValue("$minWaste", filter.MinWastedBytes.Value);
             if (filter.MaxWastedBytes.HasValue)

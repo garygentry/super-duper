@@ -15,6 +15,8 @@ public sealed partial class DirectoryDiffDialog : ContentDialog
     public DirectoryDiffDialog()
     {
         this.InitializeComponent();
+        XamlHelper.ConnectNamedElements(this, this);
+        this.DataContext = this;
     }
 
     public async Task LoadAsync(EngineWrapper engine, DirectorySimilarityInfo pair)

@@ -32,7 +32,7 @@ public partial class DuplicateCardViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DecisionGlyph))]
-    private ReviewAction? _currentDecision;
+    public partial ReviewAction? CurrentDecision { get; set; }
 
     public string DecisionGlyph => CurrentDecision switch
     {
