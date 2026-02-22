@@ -257,8 +257,8 @@
         "Group expand/collapse behavior is preserved",
         "Paged LoadMore command continues to work correctly"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T07:20:11+00:00",
       "dependsOn": [],
       "notes": "File: Views/GroupsPage.xaml. Effort: L. Inner per-file ItemsRepeater is bounded by group size and is lower priority."
     },
