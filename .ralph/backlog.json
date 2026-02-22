@@ -206,8 +206,8 @@
         "ItemsRepeater controls are populated with file path/name entries",
         "Empty state handled gracefully when a directory has no files"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T07:14:00+00:00",
       "dependsOn": [],
       "notes": "File: Views/DirectoryDiffDialog.xaml.cs LoadAsync(). Effort: M."
     },

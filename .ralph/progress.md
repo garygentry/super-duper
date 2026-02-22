@@ -94,3 +94,12 @@
 - Non-duplicate files (`GroupId == 0`) show "This file has no duplicates." in InfoBar; null selection clears cards and hides InfoBar
 - Replaced bare `_ =` with `FireAndForget()` for consistency with item 004 pattern
 - Four files changed, no Rust changes. `dotnet build` unavailable on Linux
+
+### 012 — Implement DirectoryDiffDialog.LoadAsync left/right file list population
+- Reused `ComparisonFileItem` and `MatchStatus` from `DirectoriesViewModel` — same hash-based comparison logic
+- `LoadAsync` resolves `IDatabaseService` and `ScanService` from DI via `App.Services.GetRequiredService<T>()`
+- Queries files from both DirAPath/DirBPath using `QueryFilesInDirectoryAsync`, compares by `ContentHash` (excluding 0 = unhashed)
+- Updated XAML DataTemplates: each file entry shows a 3px colored status bar (via `StatusBrush`), file name (Consolas), and formatted size
+- Added `LeftEmptyText`/`RightEmptyText` TextBlocks (Collapsed by default) for empty directory state
+- Summary bar updated with counts: "N shared · N left-only · N right-only"
+- Two files changed, no Rust changes. `dotnet build` unavailable on Linux
