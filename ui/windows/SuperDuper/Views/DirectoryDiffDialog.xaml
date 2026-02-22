@@ -72,21 +72,44 @@
                            Margin="0,0,0,6" />
                 <ScrollViewer Grid.Row="1"
                               VerticalScrollBarVisibility="Auto">
-                    <ItemsRepeater x:Name="LeftRepeater">
-                        <ItemsRepeater.Layout>
-                            <StackLayout Spacing="2" />
-                        </ItemsRepeater.Layout>
-                        <ItemsRepeater.ItemTemplate>
-                            <DataTemplate>
-                                <Border CornerRadius="4" Padding="8,4">
-                                    <TextBlock Text="{Binding}"
-                                               FontSize="12"
-                                               FontFamily="Consolas"
-                                               TextTrimming="CharacterEllipsis" />
-                                </Border>
-                            </DataTemplate>
-                        </ItemsRepeater.ItemTemplate>
-                    </ItemsRepeater>
+                    <Grid>
+                        <ItemsRepeater x:Name="LeftRepeater">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Spacing="2" />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnSpacing="6" Padding="6,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="3" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" CornerRadius="1.5"
+                                                Background="{Binding StatusBrush}" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding FileName}"
+                                                   FontSize="12"
+                                                   FontFamily="Consolas"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding FormattedSize}"
+                                                   FontSize="11"
+                                                   Opacity="0.6"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                        <TextBlock x:Name="LeftEmptyText"
+                                   Text="No files in this directory"
+                                   FontSize="12" FontStyle="Italic"
+                                   Opacity="0.5"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,24,0,0"
+                                   Visibility="Collapsed" />
+                    </Grid>
                 </ScrollViewer>
             </Grid>
 
@@ -107,21 +130,44 @@
                            Margin="0,0,0,6" />
                 <ScrollViewer Grid.Row="1"
                               VerticalScrollBarVisibility="Auto">
-                    <ItemsRepeater x:Name="RightRepeater">
-                        <ItemsRepeater.Layout>
-                            <StackLayout Spacing="2" />
-                        </ItemsRepeater.Layout>
-                        <ItemsRepeater.ItemTemplate>
-                            <DataTemplate>
-                                <Border CornerRadius="4" Padding="8,4">
-                                    <TextBlock Text="{Binding}"
-                                               FontSize="12"
-                                               FontFamily="Consolas"
-                                               TextTrimming="CharacterEllipsis" />
-                                </Border>
-                            </DataTemplate>
-                        </ItemsRepeater.ItemTemplate>
-                    </ItemsRepeater>
+                    <Grid>
+                        <ItemsRepeater x:Name="RightRepeater">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Spacing="2" />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnSpacing="6" Padding="6,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="3" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" CornerRadius="1.5"
+                                                Background="{Binding StatusBrush}" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding FileName}"
+                                                   FontSize="12"
+                                                   FontFamily="Consolas"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding FormattedSize}"
+                                                   FontSize="11"
+                                                   Opacity="0.6"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                        <TextBlock x:Name="RightEmptyText"
+                                   Text="No files in this directory"
+                                   FontSize="12" FontStyle="Italic"
+                                   Opacity="0.5"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,24,0,0"
+                                   Visibility="Collapsed" />
+                    </Grid>
                 </ScrollViewer>
             </Grid>
         </Grid>
