@@ -57,13 +57,15 @@
         <PivotItem Header="2 · Options">
             <ScrollViewer Padding="0,8">
                 <StackPanel Spacing="16">
-                    <NumberBox Header="Minimum file size (bytes)"
+                    <NumberBox Header="Minimum file size (coming soon)"
                                Value="{Binding ViewModel.MinFileSize, Mode=TwoWay}"
                                Minimum="0"
-                               SpinButtonPlacementMode="Inline" />
+                               SpinButtonPlacementMode="Inline"
+                               IsEnabled="False" />
 
-                    <ComboBox Header="Hash algorithm"
-                              SelectedItem="{Binding ViewModel.SelectedHashAlgorithm, Mode=TwoWay}">
+                    <ComboBox Header="Hash algorithm (coming soon)"
+                              SelectedItem="{Binding ViewModel.SelectedHashAlgorithm, Mode=TwoWay}"
+                              IsEnabled="False">
                         <ComboBoxItem Content="xxHash64" />
                         <ComboBoxItem Content="SHA-256" />
                     </ComboBox>
@@ -71,13 +73,14 @@
                     <ToggleSwitch Header="Include hidden files"
                                   IsOn="{Binding ViewModel.IncludeHiddenFiles, Mode=TwoWay}" />
 
-                    <Slider Header="CPU threads"
+                    <Slider Header="CPU threads (coming soon)"
                             Value="{Binding ViewModel.CpuThreads, Mode=TwoWay}"
                             Minimum="1"
                             Maximum="32"
                             StepFrequency="1"
                             TickFrequency="4"
-                            TickPlacement="Outside" />
+                            TickPlacement="Outside"
+                            IsEnabled="False" />
 
                     <TextBlock Text="Exclusion patterns:"
                                Style="{StaticResource BodyTextBlockStyle}" />
