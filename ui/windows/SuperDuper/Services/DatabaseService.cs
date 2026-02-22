@@ -254,6 +254,60 @@ public class DatabaseService : IDatabaseService, IDisposable
         }
     }
 
+    public async Task<IReadOnlyList<DbFileInfo>> QueryFilesInGroupAsync(long groupId)
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            var items = new List<DbFileInfo>();
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT
+                    sf.id, sf.canonical_path, sf.file_name, sf.parent_dir,
+                    sf.drive_letter, sf.file_size, sf.last_modified,
+                    sf.partial_hash, sf.content_hash,
+                    1 AS is_duplicate,
+                    cnt.copy_count,
+                    dgm.group_id
+                FROM duplicate_group_member dgm
+                JOIN scanned_file sf ON sf.id = dgm.file_id
+                JOIN (
+                    SELECT group_id, COUNT(*) AS copy_count
+                    FROM duplicate_group_member
+                    WHERE group_id = $groupId
+                ) cnt ON cnt.group_id = dgm.group_id
+                WHERE dgm.group_id = $groupId
+                ORDER BY sf.last_modified DESC, sf.canonical_path
+                """;
+            cmd.Parameters.AddWithValue("$groupId", groupId);
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                items.Add(new DbFileInfo
+                {
+                    FileId = reader.GetInt64(0),
+                    CanonicalPath = reader.GetString(1),
+                    FileName = reader.GetString(2),
+                    ParentDir = reader.GetString(3),
+                    DriveLetter = reader.IsDBNull(4) ? "" : reader.GetString(4),
+                    FileSize = reader.GetInt64(5),
+                    LastModified = reader.IsDBNull(6) ? "" : reader.GetString(6),
+                    PartialHash = reader.IsDBNull(7) ? 0 : reader.GetInt64(7),
+                    ContentHash = reader.IsDBNull(8) ? 0 : reader.GetInt64(8),
+                    IsDuplicate = true,
+                    CopyCount = reader.GetInt32(10),
+                    GroupId = reader.GetInt64(11)
+                });
+            }
+            return items;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     public async Task<PagedResult<DbFileInfo>> QueryFilesInDirectoryAsync(
         string dirPath, long sessionId, int offset, int limit,
         string sortColumn = "file_name", bool ascending = true)

@@ -47,6 +47,7 @@ public interface IDatabaseService
     Task<int> GetDeletionQueueCountAsync();
 
     // File queries
+    Task<IReadOnlyList<DbFileInfo>> QueryFilesInGroupAsync(long groupId);
     Task<PagedResult<DbFileInfo>> QueryFilesInDirectoryAsync(
         string dirPath, long sessionId, int offset, int limit,
         string sortColumn = "file_name", bool ascending = true);
