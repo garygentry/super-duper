@@ -154,8 +154,8 @@
         "All-properties broadcast only fires when e.PropertyName is null (ObservableObject convention for bulk refresh)",
         "During an active scan, debug output or profiler shows ~7x fewer PropertyChanged events per tick"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T07:00:59+00:00",
       "dependsOn": [],
       "notes": "File: Controls/ScanProgressOverlay.xaml.cs:38-50. Effort: XS."
     },
