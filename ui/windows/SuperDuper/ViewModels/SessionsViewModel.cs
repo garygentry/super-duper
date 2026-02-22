@@ -27,7 +27,7 @@ public partial class SessionsViewModel : ObservableObject
     public SessionsViewModel(EngineWrapper engine)
     {
         _engine = engine;
-        DatabasePath = System.IO.Path.GetFullPath("super_duper.db");
+        DatabasePath = App.DbPath;
         LoadSessionsAsync().FireAndForget(nameof(SessionsViewModel) + ".ctor");
     }
 

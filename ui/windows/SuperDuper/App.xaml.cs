@@ -17,7 +17,41 @@ public partial class App : Application
     public static Window? MainWindow { get; private set; }
     public static IServiceProvider Services { get; private set; } = null!;
 
-    private const string DbPath = "super_duper.db";
+    /// <summary>
+    /// Resolved database path under LocalApplicationData for per-user isolation.
+    /// e.g. C:\Users\{user}\AppData\Local\SuperDuper\super_duper.db
+    /// </summary>
+    internal static readonly string DbPath = InitDbPath();
+
+    private static string InitDbPath()
+    {
+        var dir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "SuperDuper");
+        Directory.CreateDirectory(dir); // no-op if already exists
+
+        var targetPath = Path.Combine(dir, "super_duper.db");
+
+        // Migrate: if the database exists in the working directory but not yet
+        // in LocalApplicationData, move it so users don't lose existing data.
+        if (!File.Exists(targetPath))
+        {
+            var legacyPath = Path.GetFullPath("super_duper.db");
+            if (File.Exists(legacyPath))
+            {
+                // Move main db and any WAL/SHM sidecar files
+                File.Move(legacyPath, targetPath);
+                var walPath = legacyPath + "-wal";
+                if (File.Exists(walPath))
+                    File.Move(walPath, targetPath + "-wal");
+                var shmPath = legacyPath + "-shm";
+                if (File.Exists(shmPath))
+                    File.Move(shmPath, targetPath + "-shm");
+            }
+        }
+
+        return targetPath;
+    }
 
     public App()
     {
@@ -49,7 +83,8 @@ public partial class App : Application
         this.UnhandledException += (_, e) =>
         {
             System.Diagnostics.Debug.WriteLine($"UNHANDLED: {e.Exception}");
-            System.IO.File.AppendAllText("super_duper_nav_errors.log",
+            System.IO.File.AppendAllText(
+                Path.Combine(Path.GetDirectoryName(DbPath)!, "super_duper_nav_errors.log"),
                 $"[{DateTime.Now:HH:mm:ss}] UNHANDLED: {e.Exception}\n---\n");
             e.Handled = true;
         };
