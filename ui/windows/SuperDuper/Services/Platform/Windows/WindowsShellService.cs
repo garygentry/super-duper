@@ -20,7 +20,7 @@ public class WindowsShellService : IShellIntegrationService
         {
             Process.Start("explorer.exe", $"/select,\"{path}\"");
         }
-        catch { /* swallow — not critical */ }
+        catch (Exception ex) { Debug.WriteLine($"[WindowsShellService.RevealInExplorer] {ex}"); }
     }
 
     public void OpenFile(string path)
@@ -30,7 +30,7 @@ public class WindowsShellService : IShellIntegrationService
         {
             Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
         }
-        catch { /* swallow */ }
+        catch (Exception ex) { Debug.WriteLine($"[WindowsShellService.OpenFile] {ex}"); }
     }
 
     public bool RegisterContextMenu()
@@ -50,8 +50,9 @@ public class WindowsShellService : IShellIntegrationService
 
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"[WindowsShellService.RegisterContextMenu] {ex}");
             return false;
         }
     }
@@ -62,7 +63,7 @@ public class WindowsShellService : IShellIntegrationService
         {
             Registry.CurrentUser.DeleteSubKeyTree(ContextMenuKeyPath, throwOnMissingSubKey: false);
         }
-        catch { /* swallow */ }
+        catch (Exception ex) { Debug.WriteLine($"[WindowsShellService.UnregisterContextMenu] {ex}"); }
     }
 
     public void UpdateJumpList(IReadOnlyList<SessionInfo> recentSessions)

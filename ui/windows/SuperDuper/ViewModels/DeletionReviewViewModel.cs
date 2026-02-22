@@ -184,7 +184,7 @@ public partial class MarkedFileViewModel : ObservableObject
     private void RevealInExplorer()
     {
         try { Process.Start("explorer.exe", $"/select,\"{CanonicalPath}\""); }
-        catch { }
+        catch (Exception ex) { Debug.WriteLine($"[MarkedFileViewModel.RevealInExplorer] {ex}"); }
     }
 
     private static string FormatBytes(long bytes)

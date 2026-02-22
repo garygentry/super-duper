@@ -1,4 +1,5 @@
 using SuperDuper.Models;
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace SuperDuper.Services;
@@ -147,8 +148,9 @@ public class SettingsService
                 _settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
             }
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"[SettingsService.Load] {ex}");
             _settings = new AppSettings();
         }
     }
@@ -160,7 +162,7 @@ public class SettingsService
             var json = JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(_settingsPath, json);
         }
-        catch { /* swallow — don't crash the app on a settings write failure */ }
+        catch (Exception ex) { Debug.WriteLine($"[SettingsService.Save] {ex}"); }
     }
 
     private class AppSettings

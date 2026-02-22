@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Dispatching;
 using SuperDuper.NativeMethods;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace SuperDuper.Services;
@@ -47,7 +48,7 @@ public partial class ScanService : ObservableObject
             ActiveSessionId = sessionId;
             return true;
         }
-        catch { return false; }
+        catch (Exception ex) { Debug.WriteLine($"[ScanService.TrySetActiveSession] {ex}"); return false; }
     }
 
     // Overload accepting engine for backwards compat (callers that already have it)
@@ -201,7 +202,7 @@ public partial class ScanService : ObservableObject
     /// </summary>
     public async Task CancelAndWaitAsync()
     {
-        try { _engine.CancelScan(); } catch { }
+        try { _engine.CancelScan(); } catch (Exception ex) { Debug.WriteLine($"[ScanService.CancelAndWaitAsync] {ex}"); }
         await _activeScanTask;
     }
 

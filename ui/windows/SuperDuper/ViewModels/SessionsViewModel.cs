@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using SuperDuper.NativeMethods;
 using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -58,9 +59,9 @@ public partial class SessionsViewModel : ObservableObject
             foreach (var s in sessions)
                 Sessions.Add(new SessionItemViewModel(s, _engine, this));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Sessions list is informational — silently ignore errors
+            Debug.WriteLine($"[SessionsViewModel.LoadSessionsAsync] {ex}");
         }
         finally
         {
