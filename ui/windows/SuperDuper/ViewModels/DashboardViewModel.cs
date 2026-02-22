@@ -55,7 +55,7 @@ public partial class DashboardViewModel : ObservableObject
             await LoadSessionPickerAsync();
         };
 
-        _ = LoadSessionPickerAsync();
+        LoadSessionPickerAsync().FireAndForget(nameof(DashboardViewModel) + ".ctor");
     }
 
     private void OnScanPathsChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -79,7 +79,7 @@ public partial class DashboardViewModel : ObservableObject
     partial void OnSelectedSessionChanged(SessionPickerItem? value)
     {
         if (_suppressPickerSideEffects) return;
-        _ = ActivateSelectedSessionAsync();
+        ActivateSelectedSessionAsync().FireAndForget(nameof(DashboardViewModel) + "." + nameof(OnSelectedSessionChanged));
     }
 
     private void ClearAllMetrics()
@@ -260,7 +260,7 @@ public partial class DashboardViewModel : ObservableObject
             OnPropertyChanged(nameof(IsNewScanSelected));
 
             // Manually activate since OnSelectedSessionChanged was suppressed
-            _ = ActivateSelectedSessionAsync();
+            ActivateSelectedSessionAsync().FireAndForget(nameof(DashboardViewModel) + "." + nameof(LoadSessionPickerAsync));
         });
     }
 

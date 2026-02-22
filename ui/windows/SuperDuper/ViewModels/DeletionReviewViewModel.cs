@@ -52,7 +52,7 @@ public partial class DeletionReviewViewModel : ObservableObject
         _engine = engine;
         _settings = settings;
         RefreshSummary();
-        _ = LoadMarkedFilesAsync();
+        LoadMarkedFilesAsync().FireAndForget(nameof(DeletionReviewViewModel) + "." + nameof(Initialize));
     }
 
     [RelayCommand]
@@ -77,7 +77,7 @@ public partial class DeletionReviewViewModel : ObservableObject
         _engine.AutoMarkForDeletion();
         RefreshSummary();
         StatusMessage = $"Auto-marked duplicates. {FileCount} files ({FormattedTotalBytes}) ready for deletion.";
-        _ = LoadMarkedFilesAsync();
+        LoadMarkedFilesAsync().FireAndForget(nameof(DeletionReviewViewModel) + "." + nameof(AutoMark));
     }
 
     // Called by DeletionReviewPage code-behind after confirmation dialog.
@@ -102,7 +102,7 @@ public partial class DeletionReviewViewModel : ObservableObject
                 StatusMessage = $"Successfully deleted {success} files.";
             }
             RefreshSummary();
-            _ = LoadMarkedFilesAsync();
+            LoadMarkedFilesAsync().FireAndForget(nameof(DeletionReviewViewModel) + "." + nameof(ExecuteDeletionAsync));
         }
         finally
         {

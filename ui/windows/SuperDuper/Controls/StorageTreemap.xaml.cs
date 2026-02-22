@@ -52,7 +52,7 @@ public sealed partial class StorageTreemap : UserControl
         if (e.NewValue is INotifyCollectionChanged newCollection)
             newCollection.CollectionChanged += tm.OnItemsCollectionChanged;
 
-        _ = tm.RenderAsync();
+        tm.RenderAsync().FireAndForget(nameof(StorageTreemap) + "." + nameof(OnItemsSourceChanged));
     }
 
     private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -63,14 +63,14 @@ public sealed partial class StorageTreemap : UserControl
             DispatcherQueue.TryEnqueue(() =>
             {
                 _renderPending = false;
-                _ = RenderAsync();
+                RenderAsync().FireAndForget(nameof(StorageTreemap) + "." + nameof(OnItemsCollectionChanged));
             });
         }
     }
 
     private void TreemapCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        _ = RenderAsync();
+        RenderAsync().FireAndForget(nameof(StorageTreemap) + "." + nameof(TreemapCanvas_SizeChanged));
     }
 
     private async Task RenderAsync()
