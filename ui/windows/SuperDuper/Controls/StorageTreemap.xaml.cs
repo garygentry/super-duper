@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using SuperDuper.Models;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using Windows.Foundation;
 
 namespace SuperDuper.Controls;
@@ -33,11 +34,38 @@ public sealed partial class StorageTreemap : UserControl
     public StorageTreemap()
     {
         this.InitializeComponent();
+        XamlHelper.ConnectNamedElements(this, this);
+
+        // Wire events (XAML compiler pass 2 doesn't generate IComponentConnector)
+        TreemapCanvas.SizeChanged += TreemapCanvas_SizeChanged;
     }
+
+    private bool _renderPending;
 
     private static void OnItemsSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is StorageTreemap tm) _ = tm.RenderAsync();
+        if (d is not StorageTreemap tm) return;
+
+        if (e.OldValue is INotifyCollectionChanged oldCollection)
+            oldCollection.CollectionChanged -= tm.OnItemsCollectionChanged;
+
+        if (e.NewValue is INotifyCollectionChanged newCollection)
+            newCollection.CollectionChanged += tm.OnItemsCollectionChanged;
+
+        _ = tm.RenderAsync();
+    }
+
+    private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (!_renderPending)
+        {
+            _renderPending = true;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                _renderPending = false;
+                _ = RenderAsync();
+            });
+        }
     }
 
     private void TreemapCanvas_SizeChanged(object sender, SizeChangedEventArgs e)

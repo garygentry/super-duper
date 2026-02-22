@@ -1,7 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.UI.Dispatching;
 using SuperDuper.Models;
 using SuperDuper.NativeMethods;
 using SuperDuper.Services;
@@ -14,8 +13,8 @@ namespace SuperDuper.ViewModels;
 
 /// <summary>
 /// Drives the Dashboard page. Owns session selection, metrics display,
-/// review progress, quick wins, and scan target management.
-/// Scan initiation delegates to ScanDialogViewModel.
+/// review progress, quick wins, scan target management, and inline scan initiation.
+/// Scan execution delegates to ScanService (centralized singleton).
 /// </summary>
 public partial class DashboardViewModel : ObservableObject
 {
@@ -24,25 +23,47 @@ public partial class DashboardViewModel : ObservableObject
     private readonly SettingsService _settings;
     private readonly IFilePickerService _filePicker;
     private bool _suppressPickerSideEffects;
-    private DispatcherQueue? _dispatcherQueue;
 
-    public DashboardViewModel(EngineWrapper engine, IDatabaseService db, SettingsService settings, IFilePickerService filePicker)
+    public ScanService ScanService { get; }
+
+    public DashboardViewModel(EngineWrapper engine, IDatabaseService db, SettingsService settings, IFilePickerService filePicker, ScanService scanService)
     {
         _engine = engine;
         _db = db;
         _settings = settings;
         _filePicker = filePicker;
+        ScanService = scanService;
 
         // Load saved scan paths
         foreach (var p in settings.ScanPaths) ScanPaths.Add(p);
-        ScanPaths.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasScanPaths));
+        ScanPaths.CollectionChanged += OnScanPathsChanged;
+        ScanService.UpdateCanScan(ScanPaths.Count > 0);
+
+        // When ScanService.IsScanning changes, update our CanScan binding
+        ScanService.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(Services.ScanService.IsScanning))
+            {
+                ScanCommand.NotifyCanExecuteChanged();
+                OnPropertyChanged(nameof(CanScan));
+            }
+        };
+
+        // When scan completes, refresh session picker + metrics
+        ScanService.ScanCompleted += async (_, _) =>
+        {
+            await LoadSessionPickerAsync();
+        };
 
         _ = LoadSessionPickerAsync();
     }
 
-    public void SetDispatcherQueue(DispatcherQueue queue)
+    private void OnScanPathsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        _dispatcherQueue = queue;
+        OnPropertyChanged(nameof(HasScanPaths));
+        ScanService.UpdateCanScan(ScanPaths.Count > 0);
+        ScanCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanScan));
     }
 
     // ── Session picker ────────────────────────────────────────────────
@@ -51,62 +72,86 @@ public partial class DashboardViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNewScanSelected))]
-    private SessionPickerItem? _selectedSession;
+    public partial SessionPickerItem? SelectedSession { get; set; }
 
     public bool IsNewScanSelected => SelectedSession?.IsNewScan ?? true;
 
     partial void OnSelectedSessionChanged(SessionPickerItem? value)
     {
         if (_suppressPickerSideEffects) return;
+        _ = ActivateSelectedSessionAsync();
+    }
+
+    private void ClearAllMetrics()
+    {
+        TotalFilesScanned = 0;
+        TotalDuplicateGroups = 0;
+        TotalWastedBytes = 0;
+        ReviewedCount = 0;
+        TotalReviewable = 0;
+        ReviewProgressPercent = 0;
+        QuickWins.Clear();
+        OnPropertyChanged(nameof(HasQuickWins));
+        TreemapNodes.Clear();
+    }
+
+    private async Task ActivateSelectedSessionAsync()
+    {
+        var value = SelectedSession;
         if (value is null || value.IsNewScan)
         {
-            TotalFilesScanned = 0;
-            TotalDuplicateGroups = 0;
-            TotalWastedBytes = 0;
-            StatusMessage = "Click \"New Scan\" to scan for duplicates.";
+            ScanService.ClearActiveSession();
+            ClearAllMetrics();
+            StatusMessage = "Add scan targets and click Scan to find duplicates.";
             return;
         }
         if (value.IsAborted)
         {
+            ScanService.ClearActiveSession();
+            ClearAllMetrics();
             StatusMessage = "This scan was aborted. Re-run to get results.";
             return;
         }
-        try { _engine.SetActiveSession(value.SessionId!.Value); }
-        catch (Exception ex) { StatusMessage = $"Could not activate session: {ex.Message}"; return; }
+        if (!ScanService.TrySetActiveSession(value.SessionId!.Value))
+        {
+            ClearAllMetrics();
+            StatusMessage = "Could not activate session.";
+            return;
+        }
 
         TotalFilesScanned = (int)value.FilesScanned;
         TotalDuplicateGroups = (int)value.GroupCount;
-        _ = RefreshMetricsAsync(value.SessionId!.Value);
+        await RefreshMetricsAsync(value.SessionId!.Value);
     }
 
     // ── Metrics ───────────────────────────────────────────────────────
 
     [ObservableProperty]
-    private string _statusMessage = "Ready";
+    public partial string StatusMessage { get; set; } = "Ready";
 
     [ObservableProperty]
-    private int _totalFilesScanned;
+    public partial int TotalFilesScanned { get; set; }
 
     [ObservableProperty]
-    private int _totalDuplicateGroups;
+    public partial int TotalDuplicateGroups { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FormattedWastedBytes))]
-    private long _totalWastedBytes;
+    public partial long TotalWastedBytes { get; set; }
 
     public string FormattedWastedBytes => Converters.FileSizeConverter.FormatBytes(TotalWastedBytes);
 
     // ── Review Progress ───────────────────────────────────────────────
 
     [ObservableProperty]
-    private int _reviewedCount;
+    public partial int ReviewedCount { get; set; }
 
     [ObservableProperty]
-    private int _totalReviewable;
+    public partial int TotalReviewable { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ReviewProgressAccessibleName))]
-    private double _reviewProgressPercent;
+    public partial double ReviewProgressPercent { get; set; }
 
     public string ReviewProgressAccessibleName => $"{(int)ReviewProgressPercent}% reviewed";
 
@@ -124,7 +169,7 @@ public partial class DashboardViewModel : ObservableObject
     public ObservableCollection<string> ScanPaths { get; } = new();
 
     [ObservableProperty]
-    private string _newScanPath = "";
+    public partial string NewScanPath { get; set; } = "";
 
     public bool HasScanPaths => ScanPaths.Count > 0;
 
@@ -166,15 +211,19 @@ public partial class DashboardViewModel : ObservableObject
         foreach (var p in _settings.ScanPaths) ScanPaths.Add(p);
     }
 
-    // ── Commands ──────────────────────────────────────────────────────
+    // ── Scan command ───────────────────────────────────────────────────
 
-    [RelayCommand]
-    private void OpenNewScanDialog()
+    public bool CanScan => ScanService.CanScan;
+
+    [RelayCommand(CanExecute = nameof(CanScan))]
+    private async Task ScanAsync()
     {
-        NewScanDialogRequested?.Invoke(this, EventArgs.Empty);
+        var paths = ScanPaths.ToArray();
+        var patterns = _settings.IgnorePatterns.ToArray();
+        await ScanService.StartScanAsync(paths, patterns);
     }
 
-    public event EventHandler? NewScanDialogRequested;
+    // ── Commands ──────────────────────────────────────────────────────
 
     [RelayCommand]
     private async Task RefreshAsync()
@@ -190,7 +239,7 @@ public partial class DashboardViewModel : ObservableObject
     {
         var (sessions, _) = await Task.Run(() => _engine.ListSessions(0, 50));
 
-        _dispatcherQueue?.TryEnqueue(() =>
+        ScanService.DispatcherQueue?.TryEnqueue(() =>
         {
             _suppressPickerSideEffects = true;
             SessionPickerItems.Clear();
@@ -209,6 +258,9 @@ public partial class DashboardViewModel : ObservableObject
                 ?? (SessionPickerItems.Count > 1 ? SessionPickerItems[1] : SessionPickerItem.NewScan);
             _suppressPickerSideEffects = false;
             OnPropertyChanged(nameof(IsNewScanSelected));
+
+            // Manually activate since OnSelectedSessionChanged was suppressed
+            _ = ActivateSelectedSessionAsync();
         });
     }
 
