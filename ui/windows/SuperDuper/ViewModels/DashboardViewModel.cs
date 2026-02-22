@@ -266,11 +266,11 @@ public partial class DashboardViewModel : ObservableObject
 
     private async Task RefreshMetricsAsync(long sessionId)
     {
-        // Wasted bytes from duplicate groups
-        var (groups, total) = await Task.Run(() => _engine.QueryDuplicateGroups(0, 500));
-        TotalWastedBytes = groups.Sum(g => g.WastedBytes);
-        TotalDuplicateGroups = total;
-        StatusMessage = $"{total:N0} duplicate groups, {FormattedWastedBytes} wasted";
+        // Wasted bytes from duplicate groups (SQL aggregate — no FFI marshalling)
+        var (groupCount, wastedBytes) = await _db.GetSessionMetricsAsync(sessionId);
+        TotalWastedBytes = wastedBytes;
+        TotalDuplicateGroups = groupCount;
+        StatusMessage = $"{groupCount:N0} duplicate groups, {FormattedWastedBytes} wasted";
 
         // Review progress
         var (reviewed, reviewTotal) = await _db.GetReviewProgressAsync(sessionId);

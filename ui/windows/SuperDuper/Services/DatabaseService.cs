@@ -675,6 +675,29 @@ public class DatabaseService : IDatabaseService, IDisposable
         }
     }
 
+    public async Task<(int GroupCount, long WastedBytes)> GetSessionMetricsAsync(long sessionId)
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT COUNT(*), COALESCE(SUM(wasted_bytes), 0)
+                FROM duplicate_group
+                WHERE session_id = $sessionId
+                """;
+            cmd.Parameters.AddWithValue("$sessionId", sessionId);
+            using var reader = await cmd.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+                return (reader.GetInt32(0), reader.GetInt64(1));
+            return (0, 0);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     public async Task<IReadOnlyList<ScanProfile>> GetSavedProfilesAsync()
     {
         await _lock.WaitAsync();

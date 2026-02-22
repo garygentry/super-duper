@@ -67,6 +67,9 @@ public interface IDatabaseService
     // Search
     Task<IReadOnlyList<DbFileInfo>> SearchFilesAsync(long sessionId, string query, int limit = 20);
 
+    // Session metrics (aggregate)
+    Task<(int GroupCount, long WastedBytes)> GetSessionMetricsAsync(long sessionId);
+
     // Scan profiles
     Task<IReadOnlyList<ScanProfile>> GetSavedProfilesAsync();
     Task UpsertProfileAsync(ScanProfile profile);
