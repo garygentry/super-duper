@@ -274,8 +274,8 @@
         "App starts correctly with the pinned resolver active",
         "A DLL placed in the working directory is not loaded in place of the one in the app directory"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T07:21:56+00:00",
       "dependsOn": [],
       "notes": "Files: NativeMethods/SuperDuperEngine.cs:12; App.xaml.cs constructor. Effort: S."
     },

@@ -127,3 +127,11 @@
 - Inner per-file `ItemsRepeater` (inside each Expander) left unchanged — bounded by group size and lower priority
 - `GroupsRepeater` x:Name not referenced in code-behind — no C# changes needed
 - XAML-only change, one file. `dotnet build` unavailable on Linux
+
+### 016 — Pin DLL load path with NativeLibrary.SetDllImportResolver
+- Registered `NativeLibrary.SetDllImportResolver` in `App()` constructor for `typeof(SuperDuperEngine).Assembly`
+- Resolver checks `libraryName == "super_duper_ffi"` and loads from `Path.Combine(AppContext.BaseDirectory, "super_duper_ffi.dll")`
+- Returns `IntPtr.Zero` for any other library name (falls back to default resolution)
+- Placed before `InitializeComponent()` to ensure resolver is active before any P/Invoke could trigger
+- Used `static` lambda since no captured state — avoids unnecessary closure allocation
+- One file changed (`App.xaml.cs`), no Rust changes. `dotnet build` unavailable on Linux
