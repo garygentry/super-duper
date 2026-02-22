@@ -103,3 +103,10 @@
 - Added `LeftEmptyText`/`RightEmptyText` TextBlocks (Collapsed by default) for empty directory state
 - Summary bar updated with counts: "N shared · N left-only · N right-only"
 - Two files changed, no Rust changes. `dotnet build` unavailable on Linux
+
+### 013 — Disable ScanDialog advanced options that are silently ignored
+- Three controls in `ScanDialog.xaml` Step 2 (Options pivot): `NumberBox` (MinFileSize), `ComboBox` (HashAlgorithm), `Slider` (CpuThreads)
+- Added `IsEnabled="False"` and appended `(coming soon)` to each `Header` attribute
+- `IncludeHiddenFiles` ToggleSwitch left enabled — not in scope (it may actually be passed through)
+- Pure XAML-only change, no code-behind or ViewModel modifications needed
+- One file changed, no Rust changes. `dotnet build` unavailable on Linux

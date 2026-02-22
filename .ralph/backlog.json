@@ -223,8 +223,8 @@
         "CpuThreads control has IsEnabled=False and label includes '(coming soon)'",
         "Users cannot interact with these controls, preventing false configuration expectations"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T07:15:30+00:00",
       "dependsOn": [],
       "notes": "Files: ViewModels/ScanDialogViewModel.cs StartScanAsync() TODO; Views/ScanDialog.xaml (or ScanDialog.xaml.cs). Effort: XS."
     },
