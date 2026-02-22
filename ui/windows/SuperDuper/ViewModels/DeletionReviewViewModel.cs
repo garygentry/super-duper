@@ -81,14 +81,15 @@ public partial class DeletionReviewViewModel : ObservableObject
     }
 
     // Called by DeletionReviewPage code-behind after confirmation dialog.
-    internal void ExecuteDeletion()
+    internal async Task ExecuteDeletionAsync()
     {
         if (_engine == null || IsExecuting || FileCount == 0) return;
 
         IsExecuting = true;
         try
         {
-            var (success, errors) = _engine.ExecuteDeletionPlan(UseTrash);
+            bool useTrash = UseTrash;
+            var (success, errors) = await Task.Run(() => _engine.ExecuteDeletionPlan(useTrash));
             LastSuccessCount = success;
             LastErrorCount = errors;
             if (errors > 0)

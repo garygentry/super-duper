@@ -50,7 +50,7 @@ public sealed partial class DeletionReviewPage : Page
         };
 
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-            ViewModel.ExecuteDeletion();
+            await ViewModel.ExecuteDeletionAsync();
     }
 
     private async void OnErrorOccurred(object? sender, (string Title, string Detail) error)
