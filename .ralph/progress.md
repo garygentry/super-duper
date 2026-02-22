@@ -51,3 +51,10 @@
 - `DeletionReviewPage.OnNavigatedTo` removed entirely — no longer needed since ViewModel is fully initialized by DI
 - `SettingsPage.OnNavigatedTo` retained — it triggers `LoadSessionsCommand.Execute(null)` to refresh sessions on each navigation
 - `_ = LoadSessionsAsync()` in `SessionsViewModel` constructor replaced with `FireAndForget()` for fault observability (consistent with item 004 pattern)
+
+### 007 — Replace visual-tree traversal in FileListControl.WireRadioButtons() with x:Name wiring
+- Added `x:Name="AllFilesButton"` and `x:Name="DupesOnlyButton"` to the two RadioButtons in FileListControl.xaml
+- Replaced `this.Loaded += (_, _) => WireRadioButtons()` with direct `AllFilesButton.Checked += AllFiles_Checked` / `DupesOnlyButton.Checked += DupesOnly_Checked` in constructor after `InitializeComponent()`
+- Deleted `WireRadioButtons()` method and `FindChildren<T>()` VisualTreeHelper traversal helper (25 lines removed)
+- Removed unused `using Microsoft.UI.Xaml.Media` import
+- Net result: -25 lines, eliminates fragile visual-tree traversal that could break on XAML nesting changes

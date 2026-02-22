@@ -119,8 +119,8 @@
         "VisualTreeHelper traversal code is deleted",
         "Both radio buttons correctly toggle between all-files and dupes-only view"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T06:57:45+00:00",
       "dependsOn": [],
       "notes": "File: Controls/FileListControl.xaml.cs WireRadioButtons(). Effort: S."
     },
