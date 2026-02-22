@@ -97,13 +97,13 @@
             <SolidColorBrush x:Key="DensityHighFg" Color="{ThemeResource SystemColorHighlightTextColor}" />
 
             <SolidColorBrush x:Key="DriveColor0" Color="{ThemeResource SystemColorHighlightColor}" />
-            <SolidColorBrush x:Key="DriveColor1" Color="{ThemeResource SystemColorHighlightColor}" />
-            <SolidColorBrush x:Key="DriveColor2" Color="{ThemeResource SystemColorHighlightColor}" />
-            <SolidColorBrush x:Key="DriveColor3" Color="{ThemeResource SystemColorHighlightColor}" />
-            <SolidColorBrush x:Key="DriveColor4" Color="{ThemeResource SystemColorHighlightTextColor}" />
-            <SolidColorBrush x:Key="DriveColor5" Color="{ThemeResource SystemColorHighlightColor}" />
-            <SolidColorBrush x:Key="DriveColor6" Color="{ThemeResource SystemColorHighlightTextColor}" />
-            <SolidColorBrush x:Key="DriveColor7" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="DriveColor1" Color="{ThemeResource SystemColorHotlightColor}" />
+            <SolidColorBrush x:Key="DriveColor2" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="DriveColor3" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="DriveColor4" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="DriveColor5" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="DriveColor6" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="DriveColor7" Color="{ThemeResource SystemColorWindowColor}" />
 
             <SolidColorBrush x:Key="KeepBgBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="DeleteBgBrush" Color="{ThemeResource SystemColorWindowColor}" />

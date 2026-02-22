@@ -135,3 +135,10 @@
 - Placed before `InitializeComponent()` to ensure resolver is active before any P/Invoke could trigger
 - Used `static` lambda since no captured state — avoids unnecessary closure allocation
 - One file changed (`App.xaml.cs`), no Rust changes. `dotnet build` unavailable on Linux
+
+### 017 — Map drive color stripes to distinct High Contrast system colors
+- Previously DriveColor0-3,5 all mapped to `SystemColorHighlightColor` and DriveColor4,6 to `SystemColorHighlightTextColor` — only 3 distinct values across 8 slots
+- Mapped each DriveColor to a distinct system color resource: HighlightColor, HotlightColor, GrayTextColor, WindowTextColor, ButtonTextColor, HighlightTextColor, ButtonFaceColor, WindowColor
+- All 8 reference unique system color resources; in typical HC themes (HC Black, HC White) at least 4-5 are visually distinct (e.g. cyan, yellow, green, white in HC Black)
+- `DriveColorService.cs` uses hardcoded Color values not XAML resources — no code-behind changes needed
+- XAML-only change in `Styles/Colors.xaml` HighContrast dictionary, one file. `dotnet build` unavailable on Linux
