@@ -17,6 +17,7 @@ public sealed partial class MainWindow : Window
     public ShellViewModel ViewModel { get; }
     private readonly IDatabaseService _db;
     private DispatcherTimer? _searchDebounce;
+    private bool _isClosing;
 
     // NavigationView and children are built in code-behind because the raw XAML
     // parser (DisableXbfGeneration=true) doesn't wire NavigationView's internal
@@ -268,9 +269,19 @@ public sealed partial class MainWindow : Window
         target.KeyboardAccelerators.Add(accel);
     }
 
-    private void MainWindow_Closed(object sender, WindowEventArgs args)
+    private async void MainWindow_Closed(object sender, WindowEventArgs args)
     {
+        if (_isClosing) return;
+        _isClosing = true;
+
+        // Defer the close so we can await scan cancellation before disposing
+        args.Handled = true;
+
+        var scanService = App.Services.GetRequiredService<ScanService>();
+        await scanService.CancelAndWaitAsync();
+
         (App.Services as IDisposable)?.Dispose();
+        this.Close();
     }
 
     private void SearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)

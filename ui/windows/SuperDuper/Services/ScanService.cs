@@ -15,6 +15,7 @@ public partial class ScanService : ObservableObject
     private readonly EngineWrapper _engine;
     private readonly SettingsService _settings;
     private bool _hasScanPaths;
+    private Task _activeScanTask = Task.CompletedTask;
 
     public ScanService(EngineWrapper engine, SettingsService settings)
     {
@@ -102,6 +103,9 @@ public partial class ScanService : ObservableObject
     {
         if (IsScanning || paths.Length == 0) return;
 
+        var scanDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _activeScanTask = scanDone.Task;
+
         try
         {
             IsScanning = true;
@@ -184,7 +188,18 @@ public partial class ScanService : ObservableObject
             ScanProgressMax = 1;
             ScanProgressValue = 0;
             CurrentFilePath = "";
+            scanDone.TrySetResult();
         }
+    }
+
+    /// <summary>
+    /// Cancels any running scan and waits for it to fully complete (including cleanup).
+    /// Safe to call when no scan is running — returns immediately.
+    /// </summary>
+    public async Task CancelAndWaitAsync()
+    {
+        try { _engine.CancelScan(); } catch { }
+        await _activeScanTask;
     }
 
     public void CancelScan() => _engine.CancelScan();
