@@ -20,3 +20,10 @@
 - `MainWindow.Closed` uses `args.Handled = true` pattern to defer window close, await `CancelAndWaitAsync()`, Dispose services, then call `this.Close()` — `_isClosing` flag prevents re-entry on the second close
 - `TaskCreationOptions.RunContinuationsAsynchronously` prevents continuations from running inline on the `finally` thread
 - `clippy` and `fmt` not installed on this Linux machine — only `cargo build` + `cargo test` verified (no Rust changes anyway)
+
+### 003 — Offload ExecuteDeletion() to background thread
+- Renamed `ExecuteDeletion()` → `ExecuteDeletionAsync()` returning `Task`
+- Wrapped `_engine.ExecuteDeletionPlan(useTrash)` in `Task.Run()` — captured `UseTrash` into a local before entering `Task.Run()` to avoid reading UI-bound `_settings` from background thread
+- `IsExecuting` set `true` before `Task.Run`, `false` in `finally` — both on UI thread thanks to `await`
+- `DeletionReviewPage.ExecuteButton_Click` (already `async void`) now `await`s the method
+- All post-deletion UI updates (StatusMessage, ErrorOccurred, RefreshSummary, LoadMarkedFilesAsync) execute on UI thread after the `await` returns

@@ -49,8 +49,8 @@
         "DeletionReviewPage.xaml.cs caller awaits ExecuteDeletionAsync()",
         "Window remains movable and responsive while deleting a large file list"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T06:47:29+00:00",
       "dependsOn": [],
       "notes": "Files: ViewModels/DeletionReviewViewModel.cs:84-110; Views/DeletionReviewPage.xaml.cs. Effort: S."
     },
