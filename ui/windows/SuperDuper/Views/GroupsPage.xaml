@@ -92,165 +92,167 @@
             </ItemsRepeater>
         </StackPanel>
 
-        <!-- Group list with ItemsRepeater for virtualization -->
-        <ScrollViewer Grid.Row="2">
-            <StackPanel Spacing="1">
-                <ItemsRepeater x:Name="GroupsRepeater"
-                               ItemsSource="{Binding ViewModel.Groups, Mode=OneTime}">
-                    <ItemsRepeater.Layout>
-                        <StackLayout Spacing="4" />
-                    </ItemsRepeater.Layout>
-                    <ItemsRepeater.ItemTemplate>
-                        <DataTemplate>
-                            <Expander IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
-                                      HorizontalAlignment="Stretch"
-                                      HorizontalContentAlignment="Stretch">
-                                <Expander.Header>
-                                    <Grid ColumnSpacing="12">
+        <!-- Group list with ListView for virtualization -->
+        <ListView Grid.Row="2"
+                  x:Name="GroupsListView"
+                  ItemsSource="{Binding ViewModel.Groups, Mode=OneTime}"
+                  SelectionMode="None">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Margin" Value="0,2,0,2" />
+                </Style>
+            </ListView.ItemContainerStyle>
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <Expander IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                              HorizontalAlignment="Stretch"
+                              HorizontalContentAlignment="Stretch">
+                        <Expander.Header>
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="64" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- File type icon -->
+                                <FontIcon Grid.Column="0"
+                                          Glyph="&#xE7C3;"
+                                          FontSize="16"
+                                          VerticalAlignment="Center" />
+
+                                <!-- Filename -->
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding SampleFileName, Mode=OneTime}"
+                                           Style="{StaticResource BodyStrongTextBlockStyle}"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" />
+
+                                <!-- Copy count badge -->
+                                <Border Grid.Column="2"
+                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                        CornerRadius="10" Padding="6,2"
+                                        VerticalAlignment="Center">
+                                    <TextBlock Foreground="White" FontSize="11">
+                                        <Run Text="&#x00d7;" /><Run Text="{Binding FileCount, Mode=OneTime}" />
+                                    </TextBlock>
+                                </Border>
+
+                                <!-- File size -->
+                                <TextBlock Grid.Column="3"
+                                           Text="{Binding FormattedFileSize, Mode=OneTime}"
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           VerticalAlignment="Center" />
+
+                                <!-- Wasted space -->
+                                <TextBlock Grid.Column="4"
+                                           Text="{Binding FormattedWastedBytes, Mode=OneTime}"
+                                           Foreground="{ThemeResource DeleteBrush}"
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           VerticalAlignment="Center" />
+
+                                <!-- Review status badge -->
+                                <Border Grid.Column="5"
+                                        CornerRadius="4" Padding="6,2"
+                                        Background="{Binding ReviewStatusBackground, Mode=OneTime}"
+                                        VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding ReviewStatusLabel, Mode=OneTime}"
+                                               FontSize="11" />
+                                </Border>
+                            </Grid>
+                        </Expander.Header>
+
+                        <!-- Expanded: per-copy rows -->
+                        <ItemsRepeater ItemsSource="{Binding Files, Mode=OneTime}">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Spacing="2" />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnSpacing="8" Padding="8,4"
+                                          Background="{ThemeResource ControlAltFillColorSecondaryBrush}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="8" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="64" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="24" />
                                         </Grid.ColumnDefinitions>
 
-                                        <!-- File type icon -->
-                                        <FontIcon Grid.Column="0"
-                                                  Glyph="&#xE7C3;"
-                                                  FontSize="16"
-                                                  VerticalAlignment="Center" />
+                                        <!-- Drive color stripe -->
+                                        <Rectangle Grid.Column="0"
+                                                   Fill="{Binding DriveColorBrush, Mode=OneTime}"
+                                                   RadiusX="2" RadiusY="2" />
 
-                                        <!-- Filename -->
+                                        <!-- Full path -->
                                         <TextBlock Grid.Column="1"
-                                                   Text="{Binding SampleFileName, Mode=OneTime}"
-                                                   Style="{StaticResource BodyStrongTextBlockStyle}"
-                                                   VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis" />
-
-                                        <!-- Copy count badge -->
-                                        <Border Grid.Column="2"
-                                                Background="{ThemeResource AccentFillColorDefaultBrush}"
-                                                CornerRadius="10" Padding="6,2"
-                                                VerticalAlignment="Center">
-                                            <TextBlock Foreground="White" FontSize="11">
-                                                <Run Text="&#x00d7;" /><Run Text="{Binding FileCount, Mode=OneTime}" />
-                                            </TextBlock>
-                                        </Border>
-
-                                        <!-- File size -->
-                                        <TextBlock Grid.Column="3"
-                                                   Text="{Binding FormattedFileSize, Mode=OneTime}"
-                                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Text="{Binding CanonicalPath, Mode=OneTime}"
+                                                   Style="{StaticResource PathTextStyle}"
+                                                   TextTrimming="CharacterEllipsis"
                                                    VerticalAlignment="Center" />
 
-                                        <!-- Wasted space -->
-                                        <TextBlock Grid.Column="4"
-                                                   Text="{Binding FormattedWastedBytes, Mode=OneTime}"
-                                                   Foreground="{ThemeResource DeleteBrush}"
+                                        <!-- Modified date -->
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding LastModified, Mode=OneTime}"
                                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                    VerticalAlignment="Center" />
 
-                                        <!-- Review status badge -->
-                                        <Border Grid.Column="5"
-                                                CornerRadius="4" Padding="6,2"
-                                                Background="{Binding ReviewStatusBackground, Mode=OneTime}"
-                                                VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding ReviewStatusLabel, Mode=OneTime}"
-                                                       FontSize="11" />
-                                        </Border>
+                                        <!-- K/D/S buttons -->
+                                        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2">
+                                            <Button Content="Keep"
+                                                    FontSize="11" Padding="8,4"
+                                                    Foreground="{ThemeResource KeepBrush}"
+                                                    Command="{Binding SetKeepCommand, Mode=OneTime}"
+                                                    AutomationProperties.Name="{Binding KeepAccessibleName, Mode=OneTime}" />
+                                            <Button Content="Delete"
+                                                    FontSize="11" Padding="8,4"
+                                                    Foreground="{ThemeResource DeleteBrush}"
+                                                    Command="{Binding SetDeleteCommand, Mode=OneTime}"
+                                                    AutomationProperties.Name="{Binding DeleteAccessibleName, Mode=OneTime}" />
+                                            <Button Content="Skip"
+                                                    FontSize="11" Padding="8,4"
+                                                    Foreground="{ThemeResource SkipBrush}"
+                                                    Command="{Binding SetSkipCommand, Mode=OneTime}"
+                                                    AutomationProperties.Name="{Binding SkipAccessibleName, Mode=OneTime}" />
+                                        </StackPanel>
+
+                                        <!-- Reveal button -->
+                                        <Button Grid.Column="4"
+                                                Command="{Binding RevealCommand, Mode=OneTime}"
+                                                ToolTipService.ToolTip="Reveal in Explorer"
+                                                Background="Transparent" BorderThickness="0"
+                                                AutomationProperties.Name="Reveal in File Explorer">
+                                            <FontIcon Glyph="&#xEC50;" FontSize="14" />
+                                        </Button>
+
+                                        <!-- Decision indicator -->
+                                        <FontIcon Grid.Column="6"
+                                                  Glyph="{Binding DecisionGlyph, Mode=OneTime}"
+                                                  FontSize="14"
+                                                  Foreground="{Binding DecisionBrush, Mode=OneTime}"
+                                                  VerticalAlignment="Center" />
                                     </Grid>
-                                </Expander.Header>
-
-                                <!-- Expanded: per-copy rows -->
-                                <ItemsRepeater ItemsSource="{Binding Files, Mode=OneTime}">
-                                    <ItemsRepeater.Layout>
-                                        <StackLayout Spacing="2" />
-                                    </ItemsRepeater.Layout>
-                                    <ItemsRepeater.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid ColumnSpacing="8" Padding="8,4"
-                                                  Background="{ThemeResource ControlAltFillColorSecondaryBrush}">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="8" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="24" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <!-- Drive color stripe -->
-                                                <Rectangle Grid.Column="0"
-                                                           Fill="{Binding DriveColorBrush, Mode=OneTime}"
-                                                           RadiusX="2" RadiusY="2" />
-
-                                                <!-- Full path -->
-                                                <TextBlock Grid.Column="1"
-                                                           Text="{Binding CanonicalPath, Mode=OneTime}"
-                                                           Style="{StaticResource PathTextStyle}"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           VerticalAlignment="Center" />
-
-                                                <!-- Modified date -->
-                                                <TextBlock Grid.Column="2"
-                                                           Text="{Binding LastModified, Mode=OneTime}"
-                                                           Style="{StaticResource CaptionTextBlockStyle}"
-                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                           VerticalAlignment="Center" />
-
-                                                <!-- K/D/S buttons -->
-                                                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2">
-                                                    <Button Content="Keep"
-                                                            FontSize="11" Padding="8,4"
-                                                            Foreground="{ThemeResource KeepBrush}"
-                                                            Command="{Binding SetKeepCommand, Mode=OneTime}"
-                                                            AutomationProperties.Name="{Binding KeepAccessibleName, Mode=OneTime}" />
-                                                    <Button Content="Delete"
-                                                            FontSize="11" Padding="8,4"
-                                                            Foreground="{ThemeResource DeleteBrush}"
-                                                            Command="{Binding SetDeleteCommand, Mode=OneTime}"
-                                                            AutomationProperties.Name="{Binding DeleteAccessibleName, Mode=OneTime}" />
-                                                    <Button Content="Skip"
-                                                            FontSize="11" Padding="8,4"
-                                                            Foreground="{ThemeResource SkipBrush}"
-                                                            Command="{Binding SetSkipCommand, Mode=OneTime}"
-                                                            AutomationProperties.Name="{Binding SkipAccessibleName, Mode=OneTime}" />
-                                                </StackPanel>
-
-                                                <!-- Reveal button -->
-                                                <Button Grid.Column="4"
-                                                        Command="{Binding RevealCommand, Mode=OneTime}"
-                                                        ToolTipService.ToolTip="Reveal in Explorer"
-                                                        Background="Transparent" BorderThickness="0"
-                                                        AutomationProperties.Name="Reveal in File Explorer">
-                                                    <FontIcon Glyph="&#xEC50;" FontSize="14" />
-                                                </Button>
-
-                                                <!-- Decision indicator -->
-                                                <FontIcon Grid.Column="6"
-                                                          Glyph="{Binding DecisionGlyph, Mode=OneTime}"
-                                                          FontSize="14"
-                                                          Foreground="{Binding DecisionBrush, Mode=OneTime}"
-                                                          VerticalAlignment="Center" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ItemsRepeater.ItemTemplate>
-                                </ItemsRepeater>
-                            </Expander>
-                        </DataTemplate>
-                    </ItemsRepeater.ItemTemplate>
-                </ItemsRepeater>
-
-                <!-- Load more -->
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </Expander>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+            <ListView.Footer>
                 <Button Content="Load More"
                         HorizontalAlignment="Center"
                         Margin="0,12"
                         Command="{Binding ViewModel.LoadMoreCommand, Mode=OneTime}"
                         Visibility="{Binding ViewModel.HasMore, Mode=OneWay}" />
-            </StackPanel>
-        </ScrollViewer>
+            </ListView.Footer>
+        </ListView>
     </Grid>
 </Page>

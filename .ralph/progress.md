@@ -117,3 +117,13 @@
 - `_renderPending` is set `true` immediately on first SizeChanged, reset `false` inside the dispatched callback before calling `RenderAsync()`
 - Prevents multiple concurrent `Task.Run` squarify computations racing to write `TreemapCanvas.Children`
 - One file changed (+9 lines, -1 line), no Rust changes. `dotnet build` unavailable on Linux
+
+### 015 — Replace outer ItemsRepeater in GroupsPage with a virtualizing ListView
+- Root cause: `ItemsRepeater` inside `StackPanel` inside `ScrollViewer` — the `StackPanel` gives unconstrained height, defeating virtualization (all items realized regardless of viewport)
+- Replaced `ScrollViewer` > `StackPanel` > `ItemsRepeater` with `ListView` (built-in virtualization via `VirtualizingStackPanel`)
+- `SelectionMode="None"` disables selection behavior since groups aren't selectable
+- `ItemContainerStyle` sets `HorizontalContentAlignment="Stretch"`, `Padding="0"`, `Margin="0,2,0,2"` (2+2=4px gap, matching old `StackLayout Spacing="4"`)
+- "Load More" button moved to `ListView.Footer` — scrolls into view after last item, same UX as before
+- Inner per-file `ItemsRepeater` (inside each Expander) left unchanged — bounded by group size and lower priority
+- `GroupsRepeater` x:Name not referenced in code-behind — no C# changes needed
+- XAML-only change, one file. `dotnet build` unavailable on Linux
