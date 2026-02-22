@@ -102,8 +102,8 @@
         "Pages resolve ViewModels via App.Services.GetRequiredService<T>() in OnNavigatedTo",
         "All null-guard `if (_engine == null) return` checks removed"
       ],
-      "status": "pending",
-      "completedAt": null,
+      "status": "done",
+      "completedAt": "2026-02-22T06:56:43+00:00",
       "dependsOn": [],
       "notes": "Files: Views/DeletionReviewPage.xaml.cs; Views/SettingsPage.xaml.cs; ViewModels/DeletionReviewViewModel.cs:14; ViewModels/SessionsViewModel.cs. Effort: M."
     },
