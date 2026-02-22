@@ -68,3 +68,11 @@
 - SessionsViewModel: `LoadSessionsAsync` catch (added `using System.Diagnostics`)
 - All catches changed from bare `catch` / `catch { }` to `catch (Exception ex)` with `Debug.WriteLine($"[Context] {ex}")`
 - No behavioral changes — all exceptions still swallowed, just now visible in VS Debug Output
+
+### 009 — Forward PropertyName in ScanProgressOverlay instead of broadcasting all 7 properties
+- Replaced anonymous lambda `(_, _) => NotifyAllProperties()` with named handler `Service_PropertyChanged`
+- Handler checks `e.PropertyName`: if null (bulk refresh convention), fires all 7 PropertyChanged events; otherwise forwards the single `PropertyChangedEventArgs` directly
+- ScanService uses CommunityToolkit.Mvvm `[ObservableProperty]` which always sets a specific PropertyName — so the else branch (single forward) is the hot path during scanning
+- Net effect: each progress tick fires 1 PropertyChanged instead of 7 (~7x reduction)
+- Removed unused `using System.Runtime.CompilerServices`
+- One file changed, no Rust changes

@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using SuperDuper.Services;
@@ -35,18 +34,27 @@ public sealed partial class ScanProgressOverlay : UserControl, INotifyPropertyCh
     public void Bind(ScanService service)
     {
         _service = service;
-        _service.PropertyChanged += (_, _) => NotifyAllProperties();
+        _service.PropertyChanged += Service_PropertyChanged;
     }
 
-    private void NotifyAllProperties()
+    private void Service_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ScanPhaseLabel)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ScanProgressIndeterminate)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ScanProgressMax)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ScanProgressValue)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ScanCountLabel)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CurrentFilePath)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SpeedLabel)));
+        if (e.PropertyName is null)
+        {
+            // Bulk refresh — forward all properties
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ScanPhaseLabel)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ScanProgressIndeterminate)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ScanProgressMax)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ScanProgressValue)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ScanCountLabel)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CurrentFilePath)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SpeedLabel)));
+        }
+        else
+        {
+            // Forward the specific property change
+            PropertyChanged?.Invoke(this, e);
+        }
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
