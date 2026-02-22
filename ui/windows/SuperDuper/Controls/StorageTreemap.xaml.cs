@@ -70,7 +70,15 @@ public sealed partial class StorageTreemap : UserControl
 
     private void TreemapCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        RenderAsync().FireAndForget(nameof(StorageTreemap) + "." + nameof(TreemapCanvas_SizeChanged));
+        if (!_renderPending)
+        {
+            _renderPending = true;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                _renderPending = false;
+                RenderAsync().FireAndForget(nameof(StorageTreemap) + "." + nameof(TreemapCanvas_SizeChanged));
+            });
+        }
     }
 
     private async Task RenderAsync()
