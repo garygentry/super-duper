@@ -110,3 +110,10 @@
 - `IncludeHiddenFiles` ToggleSwitch left enabled — not in scope (it may actually be passed through)
 - Pure XAML-only change, no code-behind or ViewModel modifications needed
 - One file changed, no Rust changes. `dotnet build` unavailable on Linux
+
+### 014 — Apply debounce guard to StorageTreemap SizeChanged to prevent concurrent renders
+- `TreemapCanvas_SizeChanged` now checks `_renderPending` before scheduling a render — same pattern as `OnItemsCollectionChanged`
+- Uses `DispatcherQueue.TryEnqueue` to coalesce rapid resize events into a single render at the end of the message pump batch
+- `_renderPending` is set `true` immediately on first SizeChanged, reset `false` inside the dispatched callback before calling `RenderAsync()`
+- Prevents multiple concurrent `Task.Run` squarify computations racing to write `TreemapCanvas.Children`
+- One file changed (+9 lines, -1 line), no Rust changes. `dotnet build` unavailable on Linux
