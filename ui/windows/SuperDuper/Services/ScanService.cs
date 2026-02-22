@@ -173,10 +173,13 @@ public partial class ScanService : ObservableObject
 
             ScanCompleted?.Invoke(this, EventArgs.Empty);
         }
+        catch (OperationCanceledException)
+        {
+            // Scan was cancelled by the user — not an error, no toast
+        }
         catch (Exception ex)
         {
-            if (!ex.Message.Contains("Cancelled"))
-                ScanError?.Invoke(this, ex.Message);
+            ScanError?.Invoke(this, ex.Message);
         }
         finally
         {

@@ -372,6 +372,13 @@ public sealed class EngineWrapper : IDisposable
 
     private void ThrowOnError(SdResultCode code, string operation)
     {
+        if (code == SdResultCode.Cancelled)
+        {
+            var msg = GetLastError();
+            throw new OperationCanceledException(
+                $"{operation} failed with {code}: {msg}");
+        }
+
         if (code != SdResultCode.Ok)
         {
             var msg = GetLastError();
