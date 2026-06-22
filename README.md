@@ -49,23 +49,7 @@ super-duper/
 
 ### How the pieces fit together
 
-```
-┌─────────────────────────────────┐
-│  WinUI 3 (C# / .NET 10)         │   ← experimental, optional
-│  P/Invoke via EngineWrapper.cs  │
-└──────────────┬──────────────────┘
-               │  C ABI (u64 handles)
-┌──────────────▼──────────────────┐
-│  super-duper-ffi  (cdylib)      │   ← optional FFI boundary
-│  Handle table · Callbacks       │
-└──────────────┬──────────────────┘
-               │  Rust function calls
-┌──────────────▼──────────────────┐
-│  super-duper-core  (rlib)       │   ← the engine; also driven directly by the CLI
-│  Scanner · Hasher · Engine      │
-│  SQLite · RocksDB · Analysis    │
-└─────────────────────────────────┘
-```
+![Super Duper architecture: the super-duper-core engine is driven directly by the headless CLI, or through the optional super-duper-ffi boundary and an experimental WinUI 3 app.](docs/architecture.svg)
 
 The CLI links the core crate directly and is the recommended way to run the pipeline.
 
