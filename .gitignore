@@ -49,9 +49,6 @@ Desktop.ini
 # Plans
 plans/
 
-# Generated XAML compiler wrapper (machine-specific NuGet path)
-ui/windows/SuperDuper/build/_xaml_wrapper.cmd
-
 # Linux-specific
 *~
 

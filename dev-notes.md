@@ -1,19 +1,23 @@
 # Dev Notes
 
-## Diesel Cheat Sheet
-Setting up Diesel in clean environment
+## Storage
 
-Create database and empty migrations directory
-```bash
-diesel setup
-```
-Create a new migration (with incremental DDL).  Only run this when modifying database schema
-```bash
-# Creates new up and down scripts in ./migrations/<migration_name>
-diesel migration generate _<migration name>_
-```
+The current engine uses embedded SQLite through `rusqlite`. The schema lives in
+`crates/super-duper-core/src/storage/schema.sql` and is applied automatically when the engine opens
+the database.
 
-Apply the migrations to the database.  This will also update the schema.rs file.
-```bash
-diesel migration run
-```
+Useful places to start:
+
+- `crates/super-duper-core/src/storage/sqlite.rs` - connection setup, pragmas, schema application
+- `crates/super-duper-core/src/storage/queries.rs` - insert and query helpers
+- `crates/super-duper-core/src/storage/models.rs` - plain Rust data models
+
+## Local Runtime Files
+
+The CLI writes runtime files in the current working directory by default:
+
+- `super_duper.db`
+- `content_hash_cache.db`
+- `logs/sd.log`
+
+These are local artifacts and should stay out of source control.
