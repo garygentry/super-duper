@@ -3,6 +3,7 @@ use std::env;
 use std::fs;
 use std::io::{self, ErrorKind};
 use std::path::Path;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, error, info, trace};
@@ -10,29 +11,39 @@ use tracing::{debug, error, info, trace};
 static DEFAULT_HASH_CACHE_PATH: &str = "content_hash_cache.db";
 
 lazy_static::lazy_static! {
-    pub static ref DB_INSTANCE: Arc<Mutex<DB>> = {
+    pub static ref DB_INSTANCE: Arc<Mutex<Result<DB, String>>> = {
         let db_path = env::var("HASH_CACHE_PATH")
             .unwrap_or_else(|_| String::from(DEFAULT_HASH_CACHE_PATH));
         debug!("Using '{}' for hash cache", db_path);
 
         let mut db_options = Options::default();
         db_options.create_if_missing(true);
-        let db_instance = DB::open(&db_options, db_path)
-            .expect("Failed to open RocksDB hash cache");
+        let db_instance = DB::open(&db_options, db_path).map_err(|error| error.to_string());
         Arc::new(Mutex::new(db_instance))
     };
 }
 
-/// Look up a file's content hash in the RocksDB cache.
-/// Cache key includes subsecond timestamp precision to avoid stale entries.
-/// On cache miss, reads the full file, hashes it, and stores the result.
-pub fn get_content_hash(file: &Path) -> io::Result<u64> {
-    let db = DB_INSTANCE
-        .lock()
-        .map_err(|e| io::Error::new(ErrorKind::Other, format!("Failed to lock cache: {}", e)))?;
+#[derive(Debug)]
+pub struct CachedHash {
+    pub hash: u64,
+    pub warning: Option<String>,
+}
 
+/// Compatibility entry point for callers that do not need cancellation or cache warnings.
+pub fn get_content_hash(file: &Path) -> io::Result<u64> {
+    let cancel = AtomicBool::new(false);
+    Ok(get_content_hash_cancellable(file, &cancel)?.hash)
+}
+
+/// Look up a file hash with short cache critical sections. Cache failures are returned as a
+/// warning after the file is hashed so callers can safely continue the scan.
+pub fn get_content_hash_cancellable(
+    file: &Path,
+    cancel_token: &AtomicBool,
+) -> io::Result<CachedHash> {
     let canonical_path = fs::canonicalize(file)?.to_string_lossy().into_owned();
     let metadata = fs::metadata(file)?;
+    let size = metadata.len();
     let modified: SystemTime = metadata.modified()?;
     let modified_timestamp = modified
         .duration_since(UNIX_EPOCH)
@@ -40,44 +51,82 @@ pub fn get_content_hash(file: &Path) -> io::Result<u64> {
 
     // Include subsec_nanos for precision (fixes second-granularity cache key issue)
     let key = format!(
-        "{}|{}.{}",
+        "{}|{}|{}.{}",
         canonical_path,
+        size,
         modified_timestamp.as_secs(),
         modified_timestamp.subsec_nanos()
     );
     let db_key = key.into_bytes();
 
-    match db.get(&db_key) {
-        Ok(Some(value)) => {
-            let hash: u64 = bincode::deserialize(&value)
-                .map_err(|e| {
-                    io::Error::new(ErrorKind::Other, format!("Deserialize error: {}", e))
-                })?;
-            trace!("Found hash for {} in cache", file.display());
-            Ok(hash)
+    let lookup = DB_INSTANCE
+        .lock()
+        .map_err(|e| io::Error::new(ErrorKind::Other, format!("Failed to lock cache: {e}")))
+        .and_then(|db| match db.as_ref() {
+            Ok(db) => db
+                .get(&db_key)
+                .map_err(|e| io::Error::new(ErrorKind::Other, e)),
+            Err(error) => Err(io::Error::new(ErrorKind::Other, error.clone())),
+        });
+
+    let mut warning = None;
+    match lookup {
+        Ok(Some(value)) => match bincode::deserialize::<u64>(&value) {
+            Ok(hash) => {
+                trace!("Found hash for {} in cache", file.display());
+                return Ok(CachedHash {
+                    hash,
+                    warning: None,
+                });
+            }
+            Err(error) => {
+                warning = Some(format!("Hash cache entry could not be decoded: {error}"));
+            }
+        },
+        Ok(None) => {}
+        Err(error) => {
+            warning = Some(format!("Hash cache lookup failed: {error}"));
         }
-        Ok(None) => {
-            let data = super::xxhash::read_full_file(file)?;
-            let hash = super::xxhash::hash_data(&data);
-            trace!("No hash found for {} in cache, adding", file.display());
-            let serialized = bincode::serialize(&hash)
-                .map_err(|e| {
-                    io::Error::new(ErrorKind::Other, format!("Serialize error: {}", e))
-                })?;
-            let _ = db.put(&db_key, serialized);
-            Ok(hash)
-        }
-        Err(e) => Err(io::Error::new(ErrorKind::Other, e)),
     }
+
+    let hash = super::xxhash::hash_file_streaming(file, cancel_token)?;
+    trace!(
+        "No usable hash found for {} in cache, adding",
+        file.display()
+    );
+    let store = bincode::serialize(&hash)
+        .map_err(|e| io::Error::new(ErrorKind::Other, format!("Serialize error: {e}")))
+        .and_then(|serialized| {
+            DB_INSTANCE
+                .lock()
+                .map_err(|e| io::Error::new(ErrorKind::Other, format!("Failed to lock cache: {e}")))
+                .and_then(|db| match db.as_ref() {
+                    Ok(db) => db
+                        .put(&db_key, serialized)
+                        .map_err(|e| io::Error::new(ErrorKind::Other, e)),
+                    Err(error) => Err(io::Error::new(ErrorKind::Other, error.clone())),
+                })
+        });
+    if let Err(error) = store {
+        let message = format!("Hash cache store failed: {error}");
+        warning = Some(match warning {
+            Some(previous) => format!("{previous}; {message}"),
+            None => message,
+        });
+    }
+    Ok(CachedHash { hash, warning })
 }
 
 pub fn count_keys() -> Result<usize, io::Error> {
     let db = DB_INSTANCE
         .lock()
         .map_err(|e| io::Error::new(ErrorKind::Other, format!("Failed to lock cache: {}", e)))?;
+    let db = db
+        .as_ref()
+        .map_err(|error| io::Error::new(ErrorKind::Other, error.clone()))?;
 
     let mut count = 0usize;
-    let iterator = DB::iterator(&db, IteratorMode::Start);
+    let iterator = DB::iterator(db, IteratorMode::Start);
     for _ in iterator {
         count += 1;
     }
@@ -88,6 +137,9 @@ pub fn clear_all() -> io::Result<()> {
     let db = DB_INSTANCE
         .lock()
         .map_err(|e| io::Error::new(ErrorKind::Other, format!("Failed to lock cache: {}", e)))?;
+    let db = db
+        .as_ref()
+        .map_err(|error| io::Error::new(ErrorKind::Other, error.clone()))?;
 
     let mut batch = rocksdb::WriteBatch::default();
     for item in db.iterator(IteratorMode::Start) {

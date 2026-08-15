@@ -5,33 +5,39 @@ use crate::hasher;
 use crate::platform;
 use crate::progress::ProgressReporter;
 use crate::scanner;
-use crate::storage::models::ScannedFile;
+use crate::storage::models::{RunParameters, ScannedFile};
 use crate::storage::Database;
 use dashmap::DashMap;
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant, UNIX_EPOCH};
-use tracing::{debug, info};
+use std::time::{Duration, Instant};
+use tracing::info;
 
 pub struct ScanEngine {
     config: AppConfig,
     db_path: String,
+    session_id: Option<i64>,
     cancel_token: Arc<AtomicBool>,
 }
 
 #[derive(Debug)]
 pub struct ScanResult {
     pub session_id: i64,
+    pub run_id: i64,
     pub scan_duration: Duration,
     pub hash_duration: Duration,
     pub db_write_duration: Duration,
     pub dir_analysis_duration: Duration,
     pub total_files_scanned: usize,
+    pub total_bytes_discovered: u64,
+    pub files_hashed: usize,
     pub duplicate_groups: usize,
     pub duplicate_files: usize,
     pub wasted_bytes: u64,
+    pub warning_count: usize,
     pub dir_fingerprints: usize,
     pub dir_similarity_pairs: usize,
 }
@@ -43,11 +49,19 @@ pub struct ScanStats {
     pub total_size: u64,
 }
 
+struct PersistedResults {
+    groups: usize,
+    duplicate_files: usize,
+    wasted_bytes: u64,
+    warnings: usize,
+}
+
 impl ScanEngine {
     pub fn new(config: AppConfig) -> Self {
         Self {
             config,
             db_path: "super_duper.db".to_string(),
+            session_id: None,
             cancel_token: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -57,122 +71,263 @@ impl ScanEngine {
         self
     }
 
-    /// Request cancellation of the current scan.
+    /// Bind execution to an existing reusable session definition.
+    pub fn with_session_id(mut self, session_id: i64) -> Self {
+        self.session_id = Some(session_id);
+        self
+    }
+
     pub fn cancel(&self) {
         self.cancel_token.store(true, Ordering::Relaxed);
     }
 
-    /// Get a clone of the cancel token (for FFI layer to store).
     pub fn cancel_token(&self) -> Arc<AtomicBool> {
         self.cancel_token.clone()
     }
 
-    /// Run the full duplicate detection pipeline:
-    /// 1. Parallel directory scan (build file_size → paths map)
-    /// 2. Two-tier content hashing (partial 1KB, then full on matches)
-    /// 3. Write results to SQLite
+    /// Creates a durable run before traversal, then persists exactly one terminal outcome.
     pub fn scan(&self, progress: &dyn ProgressReporter) -> Result<ScanResult, Error> {
-        // Reset cancel token for new scan
         self.cancel_token.store(false, Ordering::Relaxed);
 
-        let non_overlapping =
-            config::non_overlapping_directories(self.config.root_paths.clone());
-        info!("Processing directories: {:?}", non_overlapping);
+        let roots = config::non_overlapping_directories(self.config.root_paths.clone());
+        let db = Database::open(&self.db_path)?;
+        let session_id = match self.session_id {
+            Some(id) => {
+                db.get_session(id)?;
+                id
+            }
+            None => db.ensure_default_session(&roots, &self.config.ignore_patterns)?,
+        };
+        let parameters = RunParameters {
+            roots: roots.clone(),
+            ignore_patterns: self.config.ignore_patterns.clone(),
+            directory_similarity_threshold_millis: 500,
+        };
+        let run_id = db.create_scan_run(session_id, &parameters, crate::ENGINE_VERSION)?;
+        if let Err(error) = db.start_scan_run(run_id) {
+            let _ = db.fail_scan_run(run_id, &error.to_string());
+            return Err(error.into());
+        }
 
-        let root_path_slices: Vec<&str> = non_overlapping.iter().map(|s| s.as_str()).collect();
-        let ignore_pattern_slices: Vec<&str> =
-            self.config.ignore_patterns.iter().map(|s| s.as_str()).collect();
+        self.finish_started_run(&db, session_id, run_id, &parameters, progress)
+    }
 
-        // Phase 1: Scan
-        info!("Scanning files...");
+    /// Executes a run that a coordinator has already transitioned to `running`.
+    ///
+    /// Unlike [`scan`](Self::scan), this does not reset the cancellation token. That lets a
+    /// process coordinator publish the run ID and accept cancellation before the scan thread has
+    /// entered traversal.
+    pub fn execute_started_run(
+        &self,
+        run_id: i64,
+        progress: &dyn ProgressReporter,
+    ) -> Result<ScanResult, Error> {
+        let db = Database::open_connection(&self.db_path)?;
+        let run = db.get_scan_run(run_id)?;
+        if run.status == "cancelling" && self.cancel_token.load(Ordering::Acquire) {
+            db.cancel_scan_run(run_id)?;
+            return Err(Error::Cancelled);
+        }
+        if run.status != "running" {
+            return Err(Error::Other(format!(
+                "run {run_id} is not in the running state"
+            )));
+        }
+        let parameters = RunParameters::from_json(&run.parameters_json)
+            .ok_or_else(|| Error::Other(format!("run {run_id} has invalid parameters")))?;
+        self.finish_started_run(&db, run.session_id, run_id, &parameters, progress)
+    }
+
+    fn finish_started_run(
+        &self,
+        db: &Database,
+        session_id: i64,
+        run_id: i64,
+        parameters: &RunParameters,
+        progress: &dyn ProgressReporter,
+    ) -> Result<ScanResult, Error> {
+        let roots = &parameters.roots;
+
+        info!(
+            "Processing run {} for session {}: {:?}",
+            run_id, session_id, roots
+        );
+        let result = self.execute_run(
+            db,
+            session_id,
+            run_id,
+            roots,
+            &parameters.ignore_patterns,
+            progress,
+        );
+        match result {
+            Ok(result) => Ok(result),
+            Err(Error::Cancelled) => {
+                let _ = db.mark_run_cancelling(run_id);
+                db.cancel_scan_run(run_id)?;
+                Err(Error::Cancelled)
+            }
+            Err(_) if self.cancel_token.load(Ordering::Acquire) => {
+                let _ = db.mark_run_cancelling(run_id);
+                db.cancel_scan_run(run_id)?;
+                Err(Error::Cancelled)
+            }
+            Err(error) => {
+                db.fail_scan_run(run_id, &error.to_string())?;
+                Err(error)
+            }
+        }
+    }
+
+    fn execute_run(
+        &self,
+        db: &Database,
+        session_id: i64,
+        run_id: i64,
+        roots: &[String],
+        ignore_patterns: &[String],
+        progress: &dyn ProgressReporter,
+    ) -> Result<ScanResult, Error> {
+        let root_slices: Vec<&str> = roots.iter().map(String::as_str).collect();
+        let ignore_slices: Vec<&str> = ignore_patterns.iter().map(String::as_str).collect();
+
         progress.on_scan_start();
         let scan_start = Instant::now();
-        let size_to_files_map = scanner::build_size_to_files_map(
-            &root_path_slices,
-            &ignore_pattern_slices,
+        let traversal =
+            scanner::discover_files(&root_slices, &ignore_slices, &self.cancel_token, progress)?;
+        let scan_duration = scan_start.elapsed();
+        if self.cancel_token.load(Ordering::Relaxed) {
+            return Err(Error::Cancelled);
+        }
+        let stats = compute_scan_stats(&traversal.size_to_files);
+        debug_assert_eq!(stats.total_files, traversal.files_discovered);
+        debug_assert_eq!(stats.total_size, traversal.bytes_discovered);
+        progress.on_scan_complete(traversal.files_discovered, scan_duration.as_secs_f64());
+        db.update_run_progress(
+            run_id,
+            "hashing",
+            traversal.files_discovered as i64,
+            traversal.bytes_discovered as i64,
+            0,
+            traversal.warning_count as i64,
+        )?;
+        if self.cancel_token.load(Ordering::Relaxed) {
+            return Err(Error::Cancelled);
+        }
+
+        progress.on_hash_start();
+        let hash_start = Instant::now();
+        let hash_outcome = match hasher::build_content_hash_map_with_stats(
+            traversal.size_to_files,
+            &self.cancel_token,
+            progress,
+        ) {
+            Ok(outcome) => outcome,
+            Err(_) if self.cancel_token.load(Ordering::Relaxed) => return Err(Error::Cancelled),
+            Err(error) => return Err(error.into()),
+        };
+        let hash_duration = hash_start.elapsed();
+        let warning_count = traversal.warning_count + hash_outcome.warning_count;
+        progress.on_hash_complete(
+            hash_outcome.confirmed_duplicates.len(),
+            hash_duration.as_secs_f64(),
+        );
+        db.update_run_progress(
+            run_id,
+            "persisting",
+            traversal.files_discovered as i64,
+            traversal.bytes_discovered as i64,
+            hash_outcome.files_hashed as i64,
+            warning_count as i64,
+        )?;
+        if self.cancel_token.load(Ordering::Relaxed) {
+            return Err(Error::Cancelled);
+        }
+
+        progress.on_db_write_start();
+        let db_start = Instant::now();
+        let persisted = persist_run_results(
+            db,
+            run_id,
+            traversal.files,
+            &hash_outcome.confirmed_duplicates,
             &self.cancel_token,
             progress,
         )?;
-        let scan_duration = scan_start.elapsed();
-
-        if self.cancel_token.load(Ordering::Relaxed) {
-            return Err(Error::Cancelled);
-        }
-
-        let stats = compute_scan_stats(&size_to_files_map);
-        progress.on_scan_complete(stats.total_files, scan_duration.as_secs_f64());
-        debug!(
-            "Scan completed in {:.2}s — {} distinct sizes, {} files, {} bytes total",
-            scan_duration.as_secs_f64(),
-            stats.distinct_sizes,
-            stats.total_files,
-            stats.total_size,
-        );
-
-        // Phase 2: Hash
-        info!("Building content hash for possible dupes...");
-        progress.on_hash_start();
-        let hash_start = Instant::now();
-        let content_hash_map =
-            hasher::build_content_hash_map(size_to_files_map, &self.cancel_token, progress)?;
-        let hash_duration = hash_start.elapsed();
-
-        if self.cancel_token.load(Ordering::Relaxed) {
-            return Err(Error::Cancelled);
-        }
-
-        let dupe_group_count = content_hash_map.len();
-        progress.on_hash_complete(dupe_group_count, hash_duration.as_secs_f64());
-        debug!(
-            "Hash completed in {:.2}s — {} duplicate groups",
-            hash_duration.as_secs_f64(),
-            dupe_group_count,
-        );
-
-        // Phase 3: Write to SQLite
-        info!("Writing to database...");
-        progress.on_db_write_start();
-        let db_start = Instant::now();
-        let db = Database::open(&self.db_path)?;
-        let (groups_written, files_written, wasted_bytes, session_id) =
-            write_to_database(&db, &content_hash_map, &non_overlapping)?;
         let db_duration = db_start.elapsed();
-        progress.on_db_write_complete(files_written, db_duration.as_secs_f64());
-        debug!(
-            "Database write completed in {:.2}s — {} groups, {} files (session {})",
-            db_duration.as_secs_f64(),
-            groups_written,
-            files_written,
-            session_id,
-        );
+        let warning_count = warning_count + persisted.warnings;
+        progress.on_db_write_complete(traversal.files_discovered, db_duration.as_secs_f64());
+        db.update_run_progress(
+            run_id,
+            "analyzing_folders",
+            traversal.files_discovered as i64,
+            traversal.bytes_discovered as i64,
+            hash_outcome.files_hashed as i64,
+            warning_count as i64,
+        )?;
+        if self.cancel_token.load(Ordering::Relaxed) {
+            return Err(Error::Cancelled);
+        }
 
-        // Phase 4: Directory fingerprints + similarity
-        info!("Analyzing directory structure...");
         progress.on_dir_analysis_start();
         let dir_start = Instant::now();
-        let dir_fingerprints = dir_fingerprint::build_directory_fingerprints(&db)
-            .unwrap_or_else(|e| { tracing::warn!("Directory fingerprint failed: {}", e); 0 });
-        let dir_similarity_pairs = dir_similarity::compute_directory_similarity(&db, 0.5)
-            .unwrap_or_else(|e| { tracing::warn!("Directory similarity failed: {}", e); 0 });
+        let dir_fingerprints = dir_fingerprint::build_directory_fingerprints_cancellable(
+            db,
+            run_id,
+            &self.cancel_token,
+            progress,
+        )?;
+        let dir_similarity_pairs = dir_similarity::compute_directory_similarity_cancellable(
+            db,
+            run_id,
+            0.5,
+            &self.cancel_token,
+            progress,
+        )?;
         let dir_duration = dir_start.elapsed();
-        progress.on_dir_analysis_complete(dir_fingerprints, dir_similarity_pairs, dir_duration.as_secs_f64());
-        debug!(
-            "Directory analysis completed in {:.2}s — {} fingerprints, {} similar pairs",
-            dir_duration.as_secs_f64(),
+        progress.on_dir_analysis_complete(
             dir_fingerprints,
             dir_similarity_pairs,
+            dir_duration.as_secs_f64(),
         );
+        db.update_run_progress(
+            run_id,
+            "finalizing",
+            traversal.files_discovered as i64,
+            traversal.bytes_discovered as i64,
+            hash_outcome.files_hashed as i64,
+            warning_count as i64,
+        )?;
+        progress.on_finalizing();
+        if self.cancel_token.load(Ordering::Relaxed) {
+            return Err(Error::Cancelled);
+        }
+
+        db.complete_scan_run(
+            run_id,
+            traversal.files_discovered as i64,
+            traversal.bytes_discovered as i64,
+            hash_outcome.files_hashed as i64,
+            persisted.groups as i64,
+            0,
+            persisted.wasted_bytes as i64,
+            warning_count as i64,
+        )?;
 
         Ok(ScanResult {
             session_id,
+            run_id,
             scan_duration,
             hash_duration,
             db_write_duration: db_duration,
             dir_analysis_duration: dir_duration,
-            total_files_scanned: stats.total_files,
-            duplicate_groups: groups_written,
-            duplicate_files: files_written,
-            wasted_bytes,
+            total_files_scanned: traversal.files_discovered,
+            total_bytes_discovered: traversal.bytes_discovered,
+            files_hashed: hash_outcome.files_hashed,
+            duplicate_groups: persisted.groups,
+            duplicate_files: persisted.duplicate_files,
+            wasted_bytes: persisted.wasted_bytes,
+            warning_count,
             dir_fingerprints,
             dir_similarity_pairs,
         })
@@ -180,120 +335,117 @@ impl ScanEngine {
 }
 
 fn compute_scan_stats(map: &DashMap<u64, Vec<PathBuf>>) -> ScanStats {
-    let mut distinct_sizes = 0u64;
-    let mut total_files = 0usize;
-    let mut total_size = 0u64;
-
-    for entry in map.iter() {
-        distinct_sizes += 1;
-        total_files += entry.value().len();
-        total_size += entry.key() * entry.value().len() as u64;
+    let mut stats = ScanStats {
+        distinct_sizes: 0,
+        total_files: 0,
+        total_size: 0,
+    };
+    for entry in map {
+        stats.distinct_sizes += 1;
+        stats.total_files += entry.value().len();
+        stats.total_size += entry.key() * entry.value().len() as u64;
     }
-
-    ScanStats {
-        distinct_sizes,
-        total_files,
-        total_size,
-    }
+    stats
 }
 
-fn write_to_database(
+fn persist_run_results(
     db: &Database,
+    run_id: i64,
+    discovered: Vec<scanner::DiscoveredFile>,
     content_hash_map: &DashMap<u64, Vec<PathBuf>>,
-    root_paths: &[String],
-) -> Result<(usize, usize, u64, i64), Error> {
-    // Find or create session (idempotent: reuses existing session for same paths)
-    let session_id = db.find_or_create_session(root_paths)?;
+    cancel_token: &AtomicBool,
+    progress: &dyn ProgressReporter,
+) -> Result<PersistedResults, Error> {
+    let mut hashes_by_path = HashMap::new();
+    let mut groups = Vec::new();
+    let mut warnings = 0;
+    let mut wasted_bytes = 0u64;
+    let mut duplicate_files = 0usize;
 
-    // Build file records and duplicate group info
-    let mut all_files: Vec<ScannedFile> = Vec::new();
-    let mut dupe_groups: Vec<(i64, i64, Vec<String>)> = Vec::new();
-    let mut total_wasted: u64 = 0;
-
-    for entry in content_hash_map.iter() {
-        let content_hash = *entry.key();
-        let paths = entry.value();
-
-        let mut group_paths: Vec<String> = Vec::new();
-        let mut file_size_for_group: i64 = 0;
-
-        for path in paths.iter() {
-            let metadata = match fs::metadata(path) {
-                Ok(m) => m,
-                Err(e) => {
-                    tracing::error!("Error reading metadata for {}: {}", path.display(), e);
-                    continue;
-                }
-            };
-
-            let canonical_path = match fs::canonicalize(path) {
-                Ok(p) => p,
-                Err(e) => {
-                    tracing::error!("Error canonicalizing {}: {}", path.display(), e);
-                    continue;
-                }
-            };
-
-            let canonical_str = canonical_path.to_string_lossy().into_owned();
-
-            let drive_letter = match platform::get_drive_letter(&canonical_path) {
-                Some(drive) => drive.to_string_lossy().into_owned(),
-                None => String::new(),
-            };
-
-            let parent_dir = canonical_path
-                .parent()
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_default();
-
-            let file_name = canonical_path
-                .file_name()
-                .map(|f| f.to_string_lossy().into_owned())
-                .unwrap_or_default();
-
-            let last_modified = metadata
-                .modified()
-                .ok()
-                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                .map(|d| d.as_secs() as i64)
-                .unwrap_or(0);
-
-            let file_size = metadata.len() as i64;
-            file_size_for_group = file_size;
-
-            group_paths.push(canonical_str.clone());
-
-            all_files.push(ScannedFile {
-                id: 0,
-                canonical_path: canonical_str,
-                file_name,
-                parent_dir,
-                drive_letter,
-                file_size,
-                last_modified,
-                partial_hash: None,
-                content_hash: Some(content_hash as i64),
-                last_seen_session_id: Some(session_id),
-                marked_deleted: false,
-            });
+    for entry in content_hash_map {
+        if cancel_token.load(Ordering::Relaxed) {
+            return Err(Error::Cancelled);
         }
-
-        if group_paths.len() > 1 {
-            let wasted = file_size_for_group as u64 * (group_paths.len() as u64 - 1);
-            total_wasted += wasted;
-            dupe_groups.push((content_hash as i64, file_size_for_group, group_paths));
+        let hash = *entry.key() as i64;
+        let mut paths = Vec::new();
+        let mut file_size = 0i64;
+        for path in entry.value() {
+            if cancel_token.load(Ordering::Relaxed) {
+                return Err(Error::Cancelled);
+            }
+            let canonicalized = fs::canonicalize(path).and_then(|canonical| {
+                file_size = fs::metadata(&canonical)?.len() as i64;
+                Ok(canonical.to_string_lossy().into_owned())
+            });
+            match canonicalized {
+                Ok(path) => {
+                    hashes_by_path.insert(path.clone(), hash);
+                    paths.push(path);
+                }
+                Err(error) => {
+                    warnings += 1;
+                    tracing::warn!(
+                        "Duplicate candidate disappeared before persistence: {}",
+                        error
+                    );
+                }
+            }
+        }
+        if paths.len() > 1 {
+            duplicate_files += paths.len();
+            wasted_bytes += file_size as u64 * (paths.len() as u64 - 1);
+            groups.push((hash, file_size, paths));
         }
     }
 
-    // Upsert files into the global file index
-    let files_written = db.insert_scanned_files(&all_files)?;
+    let total_files = discovered.len();
+    let mut files = Vec::with_capacity(total_files);
+    for file in discovered {
+        if cancel_token.load(Ordering::Relaxed) {
+            return Err(Error::Cancelled);
+        }
+        let canonical = PathBuf::from(&file.canonical_path);
+        files.push(ScannedFile {
+            id: 0,
+            run_id,
+            root_path: file.root_path,
+            relative_path: file.relative_path,
+            file_name: file.file_name,
+            parent_dir: file.parent_dir,
+            drive_letter: platform::get_drive_letter(&canonical)
+                .map(|drive| drive.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            file_size: file.file_size as i64,
+            last_modified: file.last_modified,
+            partial_hash: None,
+            content_hash: hashes_by_path.get(&file.canonical_path).copied(),
+            file_identity: None,
+            warning_message: file.warning_message,
+            marked_deleted: false,
+            canonical_path: file.canonical_path,
+        });
+    }
 
-    // Insert duplicate groups for this session (old groups were pre-deleted by find_or_create_session)
-    let groups_written = db.insert_duplicate_groups(session_id, &dupe_groups)?;
+    let mut persisted_rows = 0;
+    for batch in files.chunks(256) {
+        if cancel_token.load(Ordering::Relaxed) {
+            return Err(Error::Cancelled);
+        }
+        persisted_rows += db.insert_scanned_files(batch)?;
+        progress.on_db_write_progress(persisted_rows, total_files);
+    }
 
-    // Complete session
-    let total_bytes: i64 = all_files.iter().map(|f| f.file_size).sum();
-    db.complete_scan_session(session_id, files_written as i64, total_bytes)?;
-
-    Ok((groups_written, files_written, total_wasted, session_id))
+    let mut group_count = 0;
+    for batch in groups.chunks(64) {
+        if cancel_token.load(Ordering::Relaxed) {
+            return Err(Error::Cancelled);
+        }
+        group_count += db.insert_duplicate_groups_cancellable(run_id, batch, cancel_token)?;
+    }
+    Ok(PersistedResults {
+        groups: group_count,
+        duplicate_files,
+        wasted_bytes,
+        warnings,
+    })
 }

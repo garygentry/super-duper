@@ -1,5 +1,8 @@
-use rusqlite::{Connection, Result};
-use tracing::debug;
+use chrono::Utc;
+use rusqlite::{params, Connection, Error, Result};
+use tracing::{debug, info};
+
+pub const CURRENT_SCHEMA_VERSION: i64 = 3;
 
 pub struct Database {
     conn: Connection,
@@ -7,6 +10,14 @@ pub struct Database {
 
 impl Database {
     pub fn open(path: &str) -> Result<Self> {
+        let db = Self::open_connection(path)?;
+        db.reconcile_interrupted_runs()?;
+        Ok(db)
+    }
+
+    /// Opens an additional connection after process startup without treating currently active
+    /// runs as abandoned. Long-lived worker commands and scan threads must use this entry point.
+    pub fn open_connection(path: &str) -> Result<Self> {
         let conn = Connection::open(path)?;
         let db = Database { conn };
         db.configure_pragmas()?;
@@ -19,6 +30,7 @@ impl Database {
         let db = Database { conn };
         db.configure_pragmas()?;
         db.migrate_schema()?;
+        db.reconcile_interrupted_runs()?;
         Ok(db)
     }
 
@@ -31,37 +43,245 @@ impl Database {
              PRAGMA mmap_size = 268435456;
              PRAGMA busy_timeout = 5000;",
         )?;
-        debug!("SQLite pragmas configured (WAL mode, 64MB cache, 256MB mmap)");
         Ok(())
     }
 
-    /// Check schema version and migrate if needed.
-    /// Version < 2: drop all tables and recreate (data is derived/recomputable).
+    pub fn schema_version(&self) -> Result<i64> {
+        self.conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+    }
+
+    fn has_user_tables(&self) -> Result<bool> {
+        self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%')",
+            [],
+            |row| row.get(0),
+        )
+    }
+
     fn migrate_schema(&self) -> Result<()> {
-        let version: i64 = self
-            .conn
-            .query_row("PRAGMA user_version", [], |row| row.get(0))?;
-
-        if version < 2 {
-            debug!("Schema version {} < 2, dropping all tables and recreating", version);
-            // Disable FK enforcement for the drop batch so table order doesn't matter.
-            self.conn.execute_batch(
-                "PRAGMA foreign_keys = OFF;
-                 DROP TABLE IF EXISTS deletion_plan;
-                 DROP TABLE IF EXISTS directory_similarity;
-                 DROP TABLE IF EXISTS directory_fingerprint;
-                 DROP TABLE IF EXISTS directory_node;
-                 DROP TABLE IF EXISTS duplicate_group_member;
-                 DROP TABLE IF EXISTS duplicate_group;
-                 DROP TABLE IF EXISTS scanned_file;
-                 DROP TABLE IF EXISTS scan_session;
-                 PRAGMA foreign_keys = ON;",
-            )?;
+        let version = self.schema_version()?;
+        match version {
+            CURRENT_SCHEMA_VERSION => self.conn.execute_batch(include_str!("schema.sql"))?,
+            2 => self.migrate_v2_to_v3()?,
+            0 if !self.has_user_tables()? => self.conn.execute_batch(include_str!("schema.sql"))?,
+            0 | 1 => {
+                return Err(Error::InvalidParameterName(format!(
+                    "unsupported legacy schema version {version}; database was not modified"
+                )))
+            }
+            newer if newer > CURRENT_SCHEMA_VERSION => {
+                return Err(Error::InvalidParameterName(format!(
+                    "database schema version {newer} is newer than supported version {CURRENT_SCHEMA_VERSION}"
+                )))
+            }
+            _ => return Err(Error::InvalidQuery),
         }
-
-        self.conn.execute_batch(include_str!("schema.sql"))?;
-        debug!("SQLite schema initialized (version 2)");
+        debug!("SQLite schema ready at version {}", CURRENT_SCHEMA_VERSION);
         Ok(())
+    }
+
+    fn migrate_v2_to_v3(&self) -> Result<()> {
+        info!("Migrating SQLite schema from version 2 to 3");
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute_batch("PRAGMA foreign_keys = OFF;")?;
+
+        let migration = (|| -> Result<()> {
+            self.conn.execute_batch(
+                "BEGIN IMMEDIATE;
+                 ALTER TABLE scan_session RENAME TO legacy_scan_session;
+                 ALTER TABLE scanned_file RENAME TO legacy_scanned_file;
+                 ALTER TABLE duplicate_group RENAME TO legacy_duplicate_group;
+                 ALTER TABLE duplicate_group_member RENAME TO legacy_duplicate_group_member;
+                 ALTER TABLE directory_node RENAME TO legacy_directory_node;
+                 ALTER TABLE directory_fingerprint RENAME TO legacy_directory_fingerprint;
+                 ALTER TABLE directory_similarity RENAME TO legacy_directory_similarity;
+                 ALTER TABLE deletion_plan RENAME TO legacy_deletion_plan;",
+            )?;
+
+            self.conn.execute_batch(include_str!("schema.sql"))?;
+
+            self.conn.execute(
+                "INSERT INTO scan_session
+                    (id, name, roots_json, ignore_patterns_json, created_at, updated_at)
+                 SELECT id, 'Imported scan ' || id, root_paths, '[]', started_at,
+                        COALESCE(completed_at, started_at)
+                 FROM legacy_scan_session ORDER BY id",
+                [],
+            )?;
+
+            self.conn.execute(
+                "INSERT INTO scan_run
+                    (id, session_id, parameters_json, status, phase, created_at, started_at,
+                     completed_at, files_discovered, bytes_discovered, files_hashed,
+                     duplicate_file_groups, duplicate_folder_groups, wasted_bytes,
+                     warning_count, error_message, engine_version)
+                 SELECT ss.id, ss.id,
+                        '{\"roots\":' || ss.root_paths ||
+                        ',\"ignore_patterns\":[],\"directory_similarity_threshold_millis\":500}',
+                        CASE
+                            WHEN ss.status = 'completed' THEN 'completed'
+                            WHEN ss.status = 'cancelled' THEN 'cancelled'
+                            WHEN ss.status = 'failed' THEN 'failed'
+                            ELSE 'interrupted'
+                        END,
+                        'finalizing', ss.started_at, ss.started_at,
+                        COALESCE(ss.completed_at, ?1),
+                        COALESCE(ss.files_scanned, 0), COALESCE(ss.total_bytes, 0),
+                        (SELECT COUNT(DISTINCT dgm.file_id)
+                         FROM legacy_duplicate_group dg
+                         JOIN legacy_duplicate_group_member dgm ON dgm.group_id = dg.id
+                         WHERE dg.session_id = ss.id),
+                        (SELECT COUNT(*) FROM legacy_duplicate_group dg WHERE dg.session_id = ss.id),
+                        0,
+                        (SELECT COALESCE(SUM(dg.wasted_bytes), 0)
+                         FROM legacy_duplicate_group dg WHERE dg.session_id = ss.id),
+                        0,
+                        CASE WHEN ss.status IN ('completed', 'cancelled', 'failed') THEN NULL
+                             ELSE 'Interrupted while upgrading legacy scan state' END,
+                        'legacy-v2'
+                 FROM legacy_scan_session ss ORDER BY ss.id",
+                params![now],
+            )?;
+
+            // Reconstruct one immutable file snapshot per run/group membership. The v2 path row
+            // was mutable, so this is the most history that can be recovered without invention.
+            self.conn.execute(
+                "INSERT OR IGNORE INTO scanned_file
+                    (run_id, root_path, canonical_path, relative_path, file_name, parent_dir,
+                     drive_letter, file_size, last_modified, partial_hash, content_hash,
+                     file_identity, warning_message, marked_deleted)
+                 SELECT DISTINCT dg.session_id, '', sf.canonical_path, '', sf.file_name,
+                        sf.parent_dir, COALESCE(sf.drive_letter, ''), sf.file_size,
+                        sf.last_modified, sf.partial_hash, sf.content_hash, NULL,
+                        'Migrated from mutable v2 path index', sf.marked_deleted
+                 FROM legacy_duplicate_group_member dgm
+                 JOIN legacy_duplicate_group dg ON dg.id = dgm.group_id
+                 JOIN legacy_scanned_file sf ON sf.id = dgm.file_id",
+                [],
+            )?;
+            self.conn.execute(
+                "INSERT OR IGNORE INTO scanned_file
+                    (run_id, root_path, canonical_path, relative_path, file_name, parent_dir,
+                     drive_letter, file_size, last_modified, partial_hash, content_hash,
+                     file_identity, warning_message, marked_deleted)
+                 SELECT sf.last_seen_session_id, '', sf.canonical_path, '', sf.file_name,
+                        sf.parent_dir, COALESCE(sf.drive_letter, ''), sf.file_size,
+                        sf.last_modified, sf.partial_hash, sf.content_hash, NULL,
+                        'Migrated from mutable v2 path index', sf.marked_deleted
+                 FROM legacy_scanned_file sf
+                 WHERE sf.last_seen_session_id IS NOT NULL
+                   AND EXISTS(SELECT 1 FROM scan_run r WHERE r.id = sf.last_seen_session_id)",
+                [],
+            )?;
+
+            self.conn.execute(
+                "INSERT INTO duplicate_group
+                    (id, run_id, content_hash, file_size, file_count, wasted_bytes)
+                 SELECT id, session_id, content_hash, file_size, file_count, wasted_bytes
+                 FROM legacy_duplicate_group",
+                [],
+            )?;
+            self.conn.execute(
+                "INSERT INTO duplicate_group_member (group_id, file_id)
+                 SELECT dgm.group_id, sf3.id
+                 FROM legacy_duplicate_group_member dgm
+                 JOIN legacy_duplicate_group dg ON dg.id = dgm.group_id
+                 JOIN legacy_scanned_file sf2 ON sf2.id = dgm.file_id
+                 JOIN scanned_file sf3 ON sf3.run_id = dg.session_id
+                                      AND sf3.canonical_path = sf2.canonical_path",
+                [],
+            )?;
+
+            // v2 directory data represented only the most recently analyzed global index.
+            self.conn.execute(
+                "INSERT INTO directory_node
+                    (id, run_id, path, name, parent_id, total_size, file_count, depth)
+                 SELECT id, (SELECT id FROM scan_run ORDER BY id DESC LIMIT 1), path, name,
+                        parent_id, total_size, file_count, depth
+                 FROM legacy_directory_node
+                 WHERE EXISTS(SELECT 1 FROM scan_run)",
+                [],
+            )?;
+            self.conn.execute(
+                "INSERT INTO directory_fingerprint
+                    (id, directory_id, content_fingerprint, file_hash_set)
+                 SELECT id, directory_id, content_fingerprint, file_hash_set
+                 FROM legacy_directory_fingerprint ldf
+                 WHERE EXISTS(SELECT 1 FROM directory_node dn WHERE dn.id = ldf.directory_id)",
+                [],
+            )?;
+            self.conn.execute(
+                "INSERT INTO directory_similarity
+                    (id, run_id, dir_a_id, dir_b_id, similarity_score, shared_bytes, match_type)
+                 SELECT id, (SELECT id FROM scan_run ORDER BY id DESC LIMIT 1), dir_a_id,
+                        dir_b_id, similarity_score, shared_bytes, match_type
+                 FROM legacy_directory_similarity lds
+                 WHERE EXISTS(SELECT 1 FROM scan_run)
+                   AND EXISTS(SELECT 1 FROM directory_node dn WHERE dn.id = lds.dir_a_id)
+                   AND EXISTS(SELECT 1 FROM directory_node dn WHERE dn.id = lds.dir_b_id)",
+                [],
+            )?;
+
+            self.conn.execute(
+                "INSERT OR IGNORE INTO deletion_plan
+                    (id, file_id, marked_at, strategy, executed_at, execution_result)
+                 SELECT dp.id, sf3.id, dp.marked_at, dp.strategy, dp.executed_at,
+                        dp.execution_result
+                 FROM legacy_deletion_plan dp
+                 JOIN legacy_scanned_file sf2 ON sf2.id = dp.file_id
+                 JOIN scanned_file sf3 ON sf3.canonical_path = sf2.canonical_path
+                 WHERE sf3.id = (SELECT MAX(sf4.id) FROM scanned_file sf4
+                                 WHERE sf4.canonical_path = sf2.canonical_path)",
+                [],
+            )?;
+
+            self.conn.execute_batch(
+                "DROP TABLE legacy_deletion_plan;
+                 DROP TABLE legacy_directory_similarity;
+                 DROP TABLE legacy_directory_fingerprint;
+                 DROP TABLE legacy_directory_node;
+                 DROP TABLE legacy_duplicate_group_member;
+                 DROP TABLE legacy_duplicate_group;
+                 DROP TABLE legacy_scanned_file;
+                 DROP TABLE legacy_scan_session;",
+            )?;
+            // Reapply indexes after the legacy indexes with the same names have been dropped.
+            self.conn.execute_batch(include_str!("schema.sql"))?;
+            let violations: i64 = self.conn.query_row(
+                "SELECT COUNT(*) FROM pragma_foreign_key_check",
+                [],
+                |row| row.get(0),
+            )?;
+            if violations != 0 {
+                return Err(Error::InvalidQuery);
+            }
+            self.conn.execute_batch("COMMIT;")?;
+            Ok(())
+        })();
+
+        if migration.is_err() {
+            let _ = self.conn.execute_batch("ROLLBACK;");
+        }
+        self.conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+        migration?;
+
+        Ok(())
+    }
+
+    pub fn reconcile_interrupted_runs(&self) -> Result<usize> {
+        let now = Utc::now().to_rfc3339();
+        let count = self.conn.execute(
+            "UPDATE scan_run
+             SET status = 'interrupted', phase = 'finalizing', completed_at = ?1,
+                 error_message = COALESCE(error_message, 'Run interrupted before a terminal state was persisted')
+             WHERE status IN ('running', 'cancelling')",
+            params![now],
+        )?;
+        if count > 0 {
+            info!("Reconciled {} abandoned scan run(s) to interrupted", count);
+        }
+        Ok(count)
     }
 
     pub fn connection(&self) -> &Connection {
@@ -78,29 +298,15 @@ impl Database {
              DELETE FROM duplicate_group_member;
              DELETE FROM duplicate_group;
              DELETE FROM scanned_file;
+             DELETE FROM scan_run;
              DELETE FROM scan_session;
              COMMIT;",
         )?;
-        debug!("All tables truncated");
         Ok(())
     }
 
-    /// Delete all session history and derived analysis results.
-    /// The scanned_file global index and hash cache are preserved so the next scan is fast.
     pub fn delete_all_sessions(&self) -> Result<()> {
-        self.conn.execute_batch(
-            "BEGIN;
-             DELETE FROM deletion_plan;
-             DELETE FROM directory_similarity;
-             DELETE FROM directory_fingerprint;
-             DELETE FROM directory_node;
-             DELETE FROM duplicate_group_member;
-             DELETE FROM duplicate_group;
-             UPDATE scanned_file SET last_seen_session_id = NULL;
-             DELETE FROM scan_session;
-             COMMIT;",
-        )?;
-        debug!("All sessions and derived data deleted (scanned_file preserved)");
+        self.conn.execute("DELETE FROM scan_session", [])?;
         Ok(())
     }
 }

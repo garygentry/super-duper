@@ -4,8 +4,8 @@ use crate::handle::{allocate_handle, destroy_handle, with_handle, EngineState};
 use crate::types::*;
 use std::ffi::c_char;
 use std::sync::atomic::Ordering;
-use super_duper_core::{AppConfig, ScanEngine, SilentReporter};
 use super_duper_core::storage::Database;
+use super_duper_core::{AppConfig, ScanEngine, SilentReporter};
 
 /// Create a new engine instance. Returns a handle (u64) or 0 on failure.
 ///
@@ -34,8 +34,8 @@ pub unsafe extern "C" fn sd_engine_create(db_path: *const c_char) -> u64 {
         }
     };
 
-    // Initialise active_session_id from the most recent completed session in the DB.
-    let active_session_id = db.get_latest_session_id().unwrap_or(None);
+    // Preserve the legacy FFI selector semantics by selecting the latest completed run.
+    let active_session_id = db.get_latest_completed_run_id().unwrap_or(None);
 
     let state = EngineState {
         engine,
@@ -189,7 +189,7 @@ pub extern "C" fn sd_scan_start(handle: u64) -> SdResultCode {
 
         match scan_result {
             Ok(result) => {
-                state.active_session_id = Some(result.session_id);
+                state.active_session_id = Some(result.run_id);
                 SdResultCode::Ok
             }
             Err(e) => map_core_error(e),
@@ -356,7 +356,9 @@ pub extern "C" fn sd_auto_mark_for_deletion(handle: u64) -> SdResultCode {
             }
         };
         match super_duper_core::analysis::deletion_plan::auto_mark_duplicates(
-            db, session_id, Some("auto"),
+            db,
+            session_id,
+            Some("auto"),
         ) {
             Ok(_) => SdResultCode::Ok,
             Err(e) => map_core_error(e),
@@ -390,10 +392,10 @@ pub extern "C" fn sd_delete_session(handle: u64, session_id: i64) -> SdResultCod
                 return SdResultCode::DatabaseError;
             }
         };
-        match db.delete_session(session_id) {
+        match db.delete_run(session_id) {
             Ok(()) => {
                 if state.active_session_id == Some(session_id) {
-                    state.active_session_id = db.get_latest_session_id().unwrap_or(None);
+                    state.active_session_id = db.get_latest_completed_run_id().unwrap_or(None);
                 }
                 SdResultCode::Ok
             }

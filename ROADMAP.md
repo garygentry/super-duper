@@ -8,8 +8,8 @@ app implementation has been removed from this branch so a new Windows app can st
 - Core duplicate detection pipeline is functional
 - CLI supports processing, directory analysis, hash-cache inspection, config printing, and database
   truncation
-- SQLite stores scan sessions, duplicate groups, directory fingerprints, directory similarity, and
-  deletion plans
+- SQLite schema v3 separates editable named sessions from immutable runs, owns file/group/directory
+  results by run, and persists lifecycle outcomes and scan counters
 - FFI exposes handles, progress callbacks, paginated queries, and deletion actions for future native
   clients
 
@@ -94,7 +94,15 @@ Files: `crates/super-duper-ffi/src/actions.rs`, `crates/super-duper-ffi/src/call
 
 ### 11. New Windows App
 
-Design and build a new Windows app against the Rust core and FFI contracts. Treat this as a new
-product surface rather than a continuation of the deleted app.
+Design and build a new Windows app against the Rust core through an explicit client boundary. Treat
+this as a new product surface rather than a continuation of the deleted app.
 
-Files: new app directory, to be chosen when implementation starts
+Files: `apps/windows/`, `crates/super-duper-worker/`
+
+The approved WPF/.NET 10 MVP architecture, scope, milestones, and acceptance criteria are documented
+in [`docs/windows-mvp-plan.md`](docs/windows-mvp-plan.md). The MVP uses a Rust worker-process boundary
+rather than consuming the current synchronous FFI scan API.
+
+Milestones 0 (worker/WPF shell), 1 (session/run persistence repair), and 2 (worker scan lifecycle)
+are implemented. The next Windows slice is Milestone 3: session navigation, session editing, run
+history, and progress/cancellation UI integration over the typed worker client.

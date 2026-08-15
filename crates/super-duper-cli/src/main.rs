@@ -51,18 +51,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "Are you SURE you want to COMPLETELY DELETE the Database?",
                 Some(false),
             ) {
-                Ok(true) => {
-                    match super_duper_core::storage::Database::open("super_duper.db") {
-                        Ok(db) => {
-                            if let Err(e) = db.truncate_all() {
-                                error!("Error truncating database: {}", e);
-                            } else {
-                                println!("All tables truncated");
-                            }
+                Ok(true) => match super_duper_core::storage::Database::open("super_duper.db") {
+                    Ok(db) => {
+                        if let Err(e) = db.truncate_all() {
+                            error!("Error truncating database: {}", e);
+                        } else {
+                            println!("All tables truncated");
                         }
-                        Err(e) => error!("Error opening database: {}", e),
                     }
-                }
+                    Err(e) => error!("Error opening database: {}", e),
+                },
                 _ => {
                     process::exit(0);
                 }
@@ -76,14 +74,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn run_process(
-    config: &super_duper_core::AppConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn run_process(config: &super_duper_core::AppConfig) -> Result<(), Box<dyn std::error::Error>> {
     let engine = ScanEngine::new(config.clone());
     let reporter = CliReporter::new();
     let result = engine.scan(&reporter)?;
 
     println!();
+    info!(
+        "Session {}, immutable run {}",
+        result.session_id, result.run_id
+    );
     info!(
         "Scan: {}, Hash: {}, DB: {}, Dir: {}",
         format!("{:.2}s", result.scan_duration.as_secs_f64()).green(),
@@ -98,6 +98,13 @@ fn run_process(
         format!("{}", result.wasted_bytes).red(),
     );
     info!(
+        "{} files / {} bytes discovered, {} files hashed, {} warnings",
+        result.total_files_scanned,
+        result.total_bytes_discovered,
+        result.files_hashed,
+        result.warning_count,
+    );
+    info!(
         "{} directory fingerprints, {} similar directory pairs",
         format!("{}", result.dir_fingerprints).cyan(),
         format!("{}", result.dir_similarity_pairs).cyan(),
@@ -108,15 +115,18 @@ fn run_process(
 
 fn run_analyze_directories() -> Result<(), Box<dyn std::error::Error>> {
     let db = super_duper_core::storage::Database::open("super_duper.db")?;
+    let run_id = db
+        .get_latest_completed_run_id()?
+        .ok_or("No completed run is available for directory analysis")?;
 
     info!("Building directory fingerprints...");
     let fingerprint_count =
-        super_duper_core::analysis::dir_fingerprint::build_directory_fingerprints(&db)?;
+        super_duper_core::analysis::dir_fingerprint::build_directory_fingerprints(&db, run_id)?;
     info!("{} directory fingerprints computed", fingerprint_count);
 
     info!("Computing directory similarity...");
     let similarity_count =
-        super_duper_core::analysis::dir_similarity::compute_directory_similarity(&db, 0.5)?;
+        super_duper_core::analysis::dir_similarity::compute_directory_similarity(&db, run_id, 0.5)?;
     info!("{} similar directory pairs found", similarity_count);
 
     Ok(())

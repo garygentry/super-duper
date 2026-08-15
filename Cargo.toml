@@ -3,5 +3,6 @@ members = [
     "crates/super-duper-core",
     "crates/super-duper-cli",
     "crates/super-duper-ffi",
+    "crates/super-duper-worker",
 ]
 resolver = "2"

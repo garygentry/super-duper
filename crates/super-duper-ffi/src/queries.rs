@@ -123,9 +123,7 @@ pub unsafe extern "C" fn sd_query_files_in_group(
                 let c_files: Vec<SdFileRecord> = files
                     .iter()
                     .map(|f| {
-                        let marked = db
-                            .is_file_marked_for_deletion(f.id)
-                            .unwrap_or(false);
+                        let marked = db.is_file_marked_for_deletion(f.id).unwrap_or(false);
                         SdFileRecord {
                             id: f.id,
                             canonical_path: rust_string_to_c(&f.canonical_path),
@@ -141,10 +139,7 @@ pub unsafe extern "C" fn sd_query_files_in_group(
                 let boxed = c_files.into_boxed_slice();
                 let ptr = Box::into_raw(boxed) as *mut SdFileRecord;
 
-                *out_page = SdFileRecordPage {
-                    files: ptr,
-                    count,
-                };
+                *out_page = SdFileRecordPage { files: ptr, count };
 
                 SdResultCode::Ok
             }
@@ -207,7 +202,8 @@ pub unsafe extern "C" fn sd_query_directory_children(
             }
         };
 
-        match db.get_directory_children(parent, offset, limit) {
+        let run_id = state.active_session_id.unwrap_or(0);
+        match db.get_directory_children(run_id, parent, offset, limit) {
             Ok(nodes) => {
                 let count = nodes.len() as u32;
                 let c_nodes: Vec<SdDirectoryNode> = nodes
@@ -226,10 +222,7 @@ pub unsafe extern "C" fn sd_query_directory_children(
                 let boxed = c_nodes.into_boxed_slice();
                 let ptr = Box::into_raw(boxed) as *mut SdDirectoryNode;
 
-                *out_page = SdDirectoryNodePage {
-                    nodes: ptr,
-                    count,
-                };
+                *out_page = SdDirectoryNodePage { nodes: ptr, count };
 
                 SdResultCode::Ok
             }
@@ -289,7 +282,8 @@ pub unsafe extern "C" fn sd_query_similar_directories(
             }
         };
 
-        match db.get_similar_directories(min_score, offset, limit) {
+        let run_id = state.active_session_id.unwrap_or(0);
+        match db.get_similar_directories(run_id, min_score, offset, limit) {
             Ok(pairs) => {
                 let count = pairs.len() as u32;
                 let c_pairs: Vec<SdDirectorySimilarity> = pairs
@@ -309,10 +303,7 @@ pub unsafe extern "C" fn sd_query_similar_directories(
                 let boxed = c_pairs.into_boxed_slice();
                 let ptr = Box::into_raw(boxed) as *mut SdDirectorySimilarity;
 
-                *out_page = SdDirectorySimilarityPage {
-                    pairs: ptr,
-                    count,
-                };
+                *out_page = SdDirectorySimilarityPage { pairs: ptr, count };
 
                 SdResultCode::Ok
             }
@@ -374,26 +365,35 @@ pub unsafe extern "C" fn sd_list_sessions(
         };
         let active_id = state.active_session_id;
 
-        match db.list_sessions(offset, limit) {
-            Ok((sessions, total)) => {
-                let count = sessions.len() as u32;
+        match db.list_runs(offset, limit) {
+            Ok((runs, total)) => {
+                let count = runs.len() as u32;
 
-                let c_sessions: Vec<SdSessionInfo> = sessions
+                let c_sessions: Vec<SdSessionInfo> = runs
                     .iter()
-                    .map(|(s, group_count)| SdSessionInfo {
-                        id: s.id,
-                        started_at: rust_string_to_c(&s.started_at),
-                        completed_at: s
-                            .completed_at
-                            .as_deref()
-                            .map(rust_string_to_c)
-                            .unwrap_or(std::ptr::null_mut()),
-                        status: rust_string_to_c(&s.status),
-                        root_paths: rust_string_to_c(&s.root_paths),
-                        files_scanned: s.files_scanned,
-                        total_bytes: s.total_bytes,
-                        group_count: *group_count,
-                        is_active: if active_id == Some(s.id) { 1 } else { 0 },
+                    .map(|run| {
+                        let roots = super_duper_core::storage::models::RunParameters::from_json(
+                            &run.parameters_json,
+                        )
+                        .map(|parameters| parameters.roots_json())
+                        .unwrap_or_else(|| "[]".to_string());
+                        SdSessionInfo {
+                            id: run.id,
+                            started_at: rust_string_to_c(
+                                run.started_at.as_deref().unwrap_or(&run.created_at),
+                            ),
+                            completed_at: run
+                                .completed_at
+                                .as_deref()
+                                .map(rust_string_to_c)
+                                .unwrap_or(std::ptr::null_mut()),
+                            status: rust_string_to_c(&run.status),
+                            root_paths: rust_string_to_c(&roots),
+                            files_scanned: run.files_discovered,
+                            total_bytes: run.bytes_discovered,
+                            group_count: run.duplicate_file_groups,
+                            is_active: if active_id == Some(run.id) { 1 } else { 0 },
+                        }
                     })
                     .collect();
 

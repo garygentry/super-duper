@@ -1,11 +1,14 @@
 use super_duper_core::analysis::{deletion_plan, dir_fingerprint, dir_similarity};
-use super_duper_core::storage::models::ScannedFile;
+use super_duper_core::storage::models::{RunParameters, ScannedFile};
 use super_duper_core::storage::Database;
 
-fn make_test_scanned_file(path: &str, size: i64, hash: i64, session_id: i64) -> ScannedFile {
+fn make_test_scanned_file(path: &str, size: i64, hash: i64, run_id: i64) -> ScannedFile {
     ScannedFile {
         id: 0,
+        run_id,
+        root_path: "/".to_string(),
         canonical_path: path.to_string(),
+        relative_path: path.trim_start_matches('/').to_string(),
         file_name: path.rsplit('/').next().unwrap_or(path).to_string(),
         parent_dir: path
             .rsplit_once('/')
@@ -16,14 +19,33 @@ fn make_test_scanned_file(path: &str, size: i64, hash: i64, session_id: i64) -> 
         last_modified: 1700000000,
         partial_hash: None,
         content_hash: Some(hash),
-        last_seen_session_id: Some(session_id),
+        file_identity: None,
+        warning_message: None,
         marked_deleted: false,
     }
 }
 
+fn create_run(db: &Database) -> i64 {
+    let roots = vec!["root".to_string()];
+    let session_id = db.create_session("Test", &roots, &[]).unwrap();
+    let run_id = db
+        .create_scan_run(
+            session_id,
+            &RunParameters {
+                roots,
+                ignore_patterns: vec![],
+                directory_similarity_threshold_millis: 500,
+            },
+            "test",
+        )
+        .unwrap();
+    db.start_scan_run(run_id).unwrap();
+    run_id
+}
+
 fn setup_db_with_files(dirs_and_files: &[(&str, i64, i64)]) -> (Database, i64) {
     let db = Database::open_in_memory().unwrap();
-    let session_id = db.create_scan_session(&["root".to_string()]).unwrap();
+    let session_id = create_run(&db);
 
     let files: Vec<ScannedFile> = dirs_and_files
         .iter()
@@ -36,46 +58,45 @@ fn setup_db_with_files(dirs_and_files: &[(&str, i64, i64)]) -> (Database, i64) {
 #[test]
 fn test_build_directory_fingerprints_empty_db() {
     let db = Database::open_in_memory().unwrap();
-    let count = dir_fingerprint::build_directory_fingerprints(&db).unwrap();
+    let run_id = create_run(&db);
+    let count = dir_fingerprint::build_directory_fingerprints(&db, run_id).unwrap();
     assert_eq!(count, 0);
 }
 
 #[test]
 fn test_build_directory_fingerprints_single_dir() {
-    let (db, _) = setup_db_with_files(&[
+    let (db, run_id) = setup_db_with_files(&[
         ("/dir/a.txt", 100, 111),
         ("/dir/b.txt", 200, 222),
         ("/dir/c.txt", 300, 333),
     ]);
 
-    let count = dir_fingerprint::build_directory_fingerprints(&db).unwrap();
+    let count = dir_fingerprint::build_directory_fingerprints(&db, run_id).unwrap();
     assert!(count > 0);
 
     // Verify directory node exists
-    let nodes = db.get_directory_children(None, 0, 100).unwrap();
+    let nodes = db.get_directory_children(run_id, None, 0, 100).unwrap();
     assert!(!nodes.is_empty());
 
     // Verify fingerprint stored
     let fp_count: i64 = db
         .connection()
-        .query_row(
-            "SELECT COUNT(*) FROM directory_fingerprint",
-            [],
-            |row| row.get(0),
-        )
+        .query_row("SELECT COUNT(*) FROM directory_fingerprint", [], |row| {
+            row.get(0)
+        })
         .unwrap();
     assert!(fp_count > 0);
 }
 
 #[test]
 fn test_build_directory_fingerprints_nested_dirs() {
-    let (db, _) = setup_db_with_files(&[
+    let (db, run_id) = setup_db_with_files(&[
         ("/root/sub1/a.txt", 100, 111),
         ("/root/sub1/b.txt", 200, 222),
         ("/root/sub2/c.txt", 300, 333),
     ]);
 
-    let count = dir_fingerprint::build_directory_fingerprints(&db).unwrap();
+    let count = dir_fingerprint::build_directory_fingerprints(&db, run_id).unwrap();
     assert!(count > 0);
 
     // Verify hierarchy: /root should be parent of /root/sub1 and /root/sub2
@@ -89,7 +110,9 @@ fn test_build_directory_fingerprints_nested_dirs() {
         .ok();
 
     if let Some(root_id) = root_node {
-        let children = db.get_directory_children(Some(root_id), 0, 10).unwrap();
+        let children = db
+            .get_directory_children(run_id, Some(root_id), 0, 10)
+            .unwrap();
         assert!(children.len() >= 2);
     }
 
@@ -116,24 +139,24 @@ fn test_build_directory_fingerprints_nested_dirs() {
 fn test_fingerprint_determinism() {
     // Same hashes in different insertion order should produce the same fingerprint
     let db1 = Database::open_in_memory().unwrap();
-    let s1 = db1.create_scan_session(&["root".to_string()]).unwrap();
+    let s1 = create_run(&db1);
     db1.insert_scanned_files(&[
         make_test_scanned_file("/d/z.txt", 100, 333, s1),
         make_test_scanned_file("/d/a.txt", 100, 111, s1),
         make_test_scanned_file("/d/m.txt", 100, 222, s1),
     ])
     .unwrap();
-    dir_fingerprint::build_directory_fingerprints(&db1).unwrap();
+    dir_fingerprint::build_directory_fingerprints(&db1, s1).unwrap();
 
     let db2 = Database::open_in_memory().unwrap();
-    let s2 = db2.create_scan_session(&["root".to_string()]).unwrap();
+    let s2 = create_run(&db2);
     db2.insert_scanned_files(&[
         make_test_scanned_file("/d/a.txt", 100, 111, s2),
         make_test_scanned_file("/d/m.txt", 100, 222, s2),
         make_test_scanned_file("/d/z.txt", 100, 333, s2),
     ])
     .unwrap();
-    dir_fingerprint::build_directory_fingerprints(&db2).unwrap();
+    dir_fingerprint::build_directory_fingerprints(&db2, s2).unwrap();
 
     let fp1: String = db1
         .connection()
@@ -162,18 +185,18 @@ fn test_fingerprint_determinism() {
 
 #[test]
 fn test_compute_similarity_exact_match() {
-    let (db, _) = setup_db_with_files(&[
+    let (db, run_id) = setup_db_with_files(&[
         ("/dir_a/x.txt", 100, 111),
         ("/dir_a/y.txt", 200, 222),
         ("/dir_b/x.txt", 100, 111),
         ("/dir_b/y.txt", 200, 222),
     ]);
 
-    dir_fingerprint::build_directory_fingerprints(&db).unwrap();
-    let count = dir_similarity::compute_directory_similarity(&db, 0.5).unwrap();
+    dir_fingerprint::build_directory_fingerprints(&db, run_id).unwrap();
+    let count = dir_similarity::compute_directory_similarity(&db, run_id, 0.5).unwrap();
     assert!(count > 0);
 
-    let pairs = db.get_similar_directories(1.0, 0, 10).unwrap();
+    let pairs = db.get_similar_directories(run_id, 1.0, 0, 10).unwrap();
     // dir_a and dir_b should be exact matches
     let exact_pair = pairs
         .iter()
@@ -183,27 +206,31 @@ fn test_compute_similarity_exact_match() {
 
 #[test]
 fn test_compute_similarity_partial_overlap() {
-    let (db, _) = setup_db_with_files(&[
+    let (db, run_id) = setup_db_with_files(&[
         ("/dir_a/shared.txt", 100, 111),
         ("/dir_a/unique_a.txt", 200, 222),
         ("/dir_b/shared.txt", 100, 111),
         ("/dir_b/unique_b.txt", 200, 333),
     ]);
 
-    dir_fingerprint::build_directory_fingerprints(&db).unwrap();
-    dir_similarity::compute_directory_similarity(&db, 0.1).unwrap();
+    dir_fingerprint::build_directory_fingerprints(&db, run_id).unwrap();
+    dir_similarity::compute_directory_similarity(&db, run_id, 0.1).unwrap();
 
-    let pairs = db.get_similar_directories(0.1, 0, 10).unwrap();
+    let pairs = db.get_similar_directories(run_id, 0.1, 0, 10).unwrap();
     // Should find dir_a vs dir_b with Jaccard ~0.33 (1 shared / 3 total unique hashes)
-    let dir_pair = pairs.iter().find(|p| {
-        p.similarity_score > 0.2 && p.similarity_score < 0.9
-    });
-    assert!(dir_pair.is_some(), "Expected partial overlap pair, got: {:?}", pairs);
+    let dir_pair = pairs
+        .iter()
+        .find(|p| p.similarity_score > 0.2 && p.similarity_score < 0.9);
+    assert!(
+        dir_pair.is_some(),
+        "Expected partial overlap pair, got: {:?}",
+        pairs
+    );
 }
 
 #[test]
 fn test_compute_similarity_below_threshold() {
-    let (db, _) = setup_db_with_files(&[
+    let (db, run_id) = setup_db_with_files(&[
         // dir_a has 4 unique hashes, dir_b has 4 unique hashes, 1 shared
         // Jaccard = 1/7 ≈ 0.14
         ("/dir_a/a1.txt", 100, 1),
@@ -216,18 +243,18 @@ fn test_compute_similarity_below_threshold() {
         ("/dir_b/shared.txt", 100, 10),
     ]);
 
-    dir_fingerprint::build_directory_fingerprints(&db).unwrap();
-    dir_similarity::compute_directory_similarity(&db, 0.5).unwrap();
+    dir_fingerprint::build_directory_fingerprints(&db, run_id).unwrap();
+    dir_similarity::compute_directory_similarity(&db, run_id, 0.5).unwrap();
 
     // With threshold 0.5, this pair (Jaccard ≈ 0.14) should NOT be stored
-    let pairs = db.get_similar_directories(0.5, 0, 10).unwrap();
+    let pairs = db.get_similar_directories(run_id, 0.5, 0, 10).unwrap();
     let dir_ab_pair = pairs.iter().find(|p| p.similarity_score < 0.5);
     assert!(dir_ab_pair.is_none());
 }
 
 #[test]
 fn test_compute_similarity_subset() {
-    let (db, _) = setup_db_with_files(&[
+    let (db, run_id) = setup_db_with_files(&[
         ("/big/a.txt", 100, 111),
         ("/big/b.txt", 200, 222),
         ("/big/c.txt", 300, 333),
@@ -235,12 +262,16 @@ fn test_compute_similarity_subset() {
         ("/small/b.txt", 200, 222),
     ]);
 
-    dir_fingerprint::build_directory_fingerprints(&db).unwrap();
-    dir_similarity::compute_directory_similarity(&db, 0.5).unwrap();
+    dir_fingerprint::build_directory_fingerprints(&db, run_id).unwrap();
+    dir_similarity::compute_directory_similarity(&db, run_id, 0.5).unwrap();
 
-    let pairs = db.get_similar_directories(0.5, 0, 10).unwrap();
+    let pairs = db.get_similar_directories(run_id, 0.5, 0, 10).unwrap();
     let subset_pair = pairs.iter().find(|p| p.match_type == "subset");
-    assert!(subset_pair.is_some(), "Expected subset pair, got: {:?}", pairs);
+    assert!(
+        subset_pair.is_some(),
+        "Expected subset pair, got: {:?}",
+        pairs
+    );
 }
 
 #[test]
@@ -260,10 +291,8 @@ fn test_mark_directory_for_deletion() {
 
 #[test]
 fn test_auto_mark_duplicates() {
-    let (db, session_id) = setup_db_with_files(&[
-        ("/z/beta.txt", 100, 111),
-        ("/a/alpha.txt", 100, 111),
-    ]);
+    let (db, session_id) =
+        setup_db_with_files(&[("/z/beta.txt", 100, 111), ("/a/alpha.txt", 100, 111)]);
 
     let groups = vec![(
         111_i64,
@@ -308,7 +337,7 @@ fn test_execute_deletion_plan_real_files() {
         .unwrap();
 
     let db = Database::open_in_memory().unwrap();
-    let session_id = db.create_scan_session(&["root".to_string()]).unwrap();
+    let session_id = create_run(&db);
 
     let files = vec![
         make_test_scanned_file(file_a.to_str().unwrap(), 5, 1, session_id),

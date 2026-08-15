@@ -22,6 +22,12 @@
 # Embedded projects (e.g., using Cargo workspaces)
 **/target/
 
+# .NET build and user state
+**/bin/
+**/obj/
+*.user
+*.suo
+
 # IntelliJ project files
 .idea/
 *.iml

@@ -4,13 +4,12 @@ Guidance for fresh coding-agent sessions in this repository.
 
 ## Current State
 
-This branch is a clean-slate Rust workspace for Super Duper. The previous Windows app implementation
-has been removed, including its `ui/windows` tree, solution files, build outputs, local launch
-scripts, tracked editor state, and runtime artifacts.
+This branch contains the clean-slate Rust workspace and the new WPF/.NET 10 Windows MVP scaffold.
+The previous Windows app implementation remains removed, including its `ui/windows` tree and its
+XAML/C# structure.
 
-The repository now intentionally contains only the Rust engine, CLI, reusable FFI boundary, docs,
-and config. A future Windows app should be treated as a new product surface, not a continuation of
-the deleted app.
+The app under `apps/windows` is a new product surface over the Rust engine's worker-process boundary,
+not a continuation of the deleted app.
 
 ## What Remains
 
@@ -23,6 +22,8 @@ super-duper/
     super-duper-core/     # scanner, hasher, analysis, SQLite storage, deletion plans
     super-duper-cli/      # headless command-line driver
     super-duper-ffi/      # C ABI for future native clients
+    super-duper-worker/   # versioned JSONL worker for the Windows app
+  apps/windows/           # WPF/.NET 10 solution, application layers, and tests
   docs/
     architecture.svg
   README.md
@@ -40,6 +41,13 @@ cargo build --workspace
 cargo test --workspace
 ```
 
+Use the Windows solution commands after building Rust so the worker executable is available:
+
+```bash
+dotnet build apps/windows/SuperDuper.Windows.sln
+dotnet test apps/windows/SuperDuper.Windows.sln
+```
+
 The last verification on this branch was `cargo test --workspace`, which passed.
 
 ## Development Notes
@@ -52,8 +60,8 @@ The last verification on this branch was `cargo test --workspace`, which passed.
 - The generated FFI header is `crates/super-duper-ffi/super_duper.h`; building the FFI crate may
   refresh it.
 
-## Fresh Windows App Work
+## Windows App Work
 
-When Windows app work starts, choose a new app directory and architecture deliberately. The intended
-starting point is the Rust core and FFI API, plus the product behavior described in `README.md` and
-`ROADMAP.md`.
+Follow `docs/windows-mvp-plan.md` and `docs/worker-protocol-v1.md`. Keep WPF views in the executable,
+application contracts/view models in `SuperDuper.Windows.Core`, and process/native concerns in
+`SuperDuper.Windows.Infrastructure`.

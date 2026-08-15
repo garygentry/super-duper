@@ -1,0 +1,365 @@
+# Super Duper Worker Protocol V1
+
+## Status and Scope
+
+This document defines version 1 of the local protocol between `SuperDuper.Windows` and the
+`super-duper-worker` child process. The worker is a single-client, long-lived process launched by
+the Windows application. Milestone 2 implements the session and scan-lifecycle subset of version 1;
+result-browsing commands remain reserved for later milestones.
+
+The transport is UTF-8 newline-delimited JSON (JSONL) over redirected standard input and standard
+output. It is a local process boundary, not a network API.
+
+## Transport and Framing
+
+- The client writes requests to the worker's standard input.
+- The worker writes responses and events to standard output.
+- Each frame is exactly one JSON object followed by LF (`0A`). Receivers may accept CRLF and remove
+  the trailing CR before parsing.
+- JSON strings use normal JSON escaping. A literal line break may not appear inside a frame.
+- UTF-8 is used without a byte-order mark.
+- A frame may contain at most 1,048,576 UTF-8 bytes, excluding the line terminator.
+- Empty lines are invalid frames.
+- Unknown object members are ignored so that fields can be added compatibly within version 1.
+- A malformed, empty, non-object, invalid-UTF-8, or oversized input frame is a fatal transport
+  error. The worker writes a diagnostic to stderr and exits non-zero because no request ID can be
+  correlated reliably.
+- A malformed, empty, non-object, invalid-UTF-8, or oversized stdout frame is a fatal worker error.
+  The client fails all pending requests and stops using that worker process.
+
+Standard output is protocol-only. The worker must never write log prefixes, panic diagnostics,
+progress text, or other human-readable output to stdout. Diagnostics and panic output go to
+standard error. The client continuously drains stderr to prevent a full pipe from blocking the
+worker and retains a bounded diagnostic tail for connection errors.
+
+## Envelopes
+
+All envelope names and fields are case-sensitive. Request IDs are opaque, non-empty strings chosen
+by the client and unique among that client's pending requests.
+
+### Request
+
+```json
+{"type":"request","id":"42","method":"hello","params":{}}
+```
+
+Required fields:
+
+- `type`: `"request"`
+- `id`: opaque string
+- `method`: command name string
+- `params`: JSON object; use `{}` when the command has no parameters
+
+### Successful Response
+
+```json
+{"type":"response","id":"42","ok":true,"result":{}}
+```
+
+Required fields:
+
+- `type`: `"response"`
+- `id`: the corresponding request ID
+- `ok`: `true`
+- `result`: command-specific JSON value
+
+### Error Response
+
+```json
+{"type":"response","id":"42","ok":false,"error":{"code":"invalid_request","message":"protocolVersions must not be empty","retryable":false,"details":{}}}
+```
+
+Required fields:
+
+- `type`: `"response"`
+- `id`: the corresponding request ID
+- `ok`: `false`
+- `error.code`: stable machine-readable snake-case string
+- `error.message`: concise human-readable description suitable for local diagnostics
+- `error.retryable`: whether retrying the same operation without user/configuration changes may work
+- `error.details`: object containing structured, non-contract-breaking context; it may be empty
+
+The V1 base error codes are:
+
+- `invalid_request`: the envelope or command parameters are invalid
+- `method_not_found`: the requested method is not supported
+- `handshake_required`: a command was sent before a successful `hello`
+- `unsupported_protocol`: client and worker have no mutually supported protocol version
+- `invalid_state`: the command is not allowed in the current worker state
+- `internal_error`: the worker could not complete the request because of an unexpected failure
+
+Later commands may define additional stable codes, such as `scan_busy`.
+
+The scan-lifecycle commands additionally use:
+
+- `invalid_session`: a session name, root, ignore pattern, or saved definition is unusable
+- `session_name_conflict`: a case-insensitive session name is already in use
+- `session_not_found`: the requested session ID does not exist
+- `run_not_found`: the requested run ID does not exist
+- `scan_busy`: another run owns the single global scan slot; `details.activeRunId` identifies it
+
+### Event
+
+```json
+{"type":"event","event":"worker.ready","data":{"protocolVersion":1}}
+```
+
+Required fields:
+
+- `type`: `"event"`
+- `event`: stable event name string
+- `data`: event-specific JSON object
+
+Events have no request ID and require no acknowledgement. Responses may be interleaved with
+events. Clients correlate responses only by `id`. The Milestone 0 worker emits no events; the event
+envelope is reserved now for later lifecycle and progress work.
+
+## Version Negotiation and `hello`
+
+`hello` must be the first successfully processed request on a connection. The client lists every
+major protocol version it can speak, ordered from most to least preferred. The worker selects the
+first client-preferred version it supports. This worker supports version `1`.
+
+Request:
+
+```json
+{"type":"request","id":"1","method":"hello","params":{"protocolVersions":[1],"client":{"name":"SuperDuper.Windows","version":"0.1.0"}}}
+```
+
+`params` fields:
+
+- `protocolVersions`: required, non-empty array of positive integers
+- `client.name`: required, non-empty diagnostic product name
+- `client.version`: required, non-empty diagnostic version string
+
+Successful result:
+
+```json
+{"type":"response","id":"1","ok":true,"result":{"protocolVersion":1,"workerVersion":"0.1.0","engineVersion":"0.1.0"}}
+```
+
+`result` fields:
+
+- `protocolVersion`: selected major protocol version
+- `workerVersion`: semantic version of the worker executable
+- `engineVersion`: semantic version of the linked `super-duper-core` engine
+
+If there is no common version, the worker returns `unsupported_protocol` and remains unnegotiated.
+The client may send a corrected `hello` request. After a successful negotiation, another `hello`
+returns `invalid_state`. Any other request before negotiation returns `handshake_required`.
+
+Both sides must reject a successful `hello` response that selects a version the client did not
+offer. Minor compatible additions use new optional fields rather than a new version. Breaking
+envelope or command changes require a new major protocol version.
+
+## Session Commands
+
+Session and run IDs are positive JSON integers. Session names are trimmed and unique under
+case-insensitive comparison. A session contains 1–64 absolute roots and at most 512 valid glob
+ignore patterns. Reachable roots are canonicalized, duplicates are removed case-insensitively, and
+nested roots are collapsed so a child is not scanned twice. Definitions may retain a temporarily
+unreachable absolute root, but `run.start` requires at least one currently accessible directory.
+
+Session mutations (`session.create`, `session.update`, and `session.delete`) return `invalid_state`
+while a scan is active. This keeps the saved definition and the new run snapshot unambiguous.
+
+### `session.list`
+
+Request params are optional `offset` (default 0) and `limit` (default 100, maximum 500):
+
+```json
+{"type":"request","id":"s1","method":"session.list","params":{"offset":0,"limit":100}}
+```
+
+Result:
+
+```json
+{"sessions":[{"id":7,"name":"Photos","roots":["D:\\Photos"],"ignorePatterns":["**/node_modules/**"],"createdAt":"2026-08-15T12:00:00Z","updatedAt":"2026-08-15T12:00:00Z"}],"total":1}
+```
+
+### `session.get`
+
+Params are `{ "sessionId": 7 }`. The result is `{ "session": <session> }` using the session shape
+above.
+
+### `session.create`
+
+Params contain `name`, `roots`, and `ignorePatterns`:
+
+```json
+{"type":"request","id":"s2","method":"session.create","params":{"name":"Photos","roots":["D:\\Photos"],"ignorePatterns":["**/node_modules/**"]}}
+```
+
+The result is `{ "session": <created-session> }`.
+
+### `session.update`
+
+Params contain `sessionId`, `name`, `roots`, and `ignorePatterns`. All editable fields replace the
+current definition. Existing run snapshots are immutable. The result is
+`{ "session": <updated-session> }`.
+
+### `session.delete`
+
+Params are `{ "sessionId": 7 }`; the result is `{ "sessionId": 7 }`. SQLite cascade semantics
+remove that session's run history and results, so deletion is rejected while any scan is active.
+
+## Run Commands
+
+A run response uses this shape (large byte counters are decimal strings):
+
+```json
+{
+  "id":19,
+  "sessionId":7,
+  "parameters":{"roots":["D:\\Photos"],"ignorePatterns":[],"directorySimilarityThresholdMillis":500},
+  "status":"running",
+  "phase":"discovering",
+  "createdAt":"2026-08-15T12:00:00Z",
+  "startedAt":"2026-08-15T12:00:00Z",
+  "completedAt":null,
+  "filesDiscovered":1200,
+  "bytesDiscovered":"9876543210",
+  "filesHashed":400,
+  "duplicateFileGroups":12,
+  "duplicateFolderGroups":0,
+  "wastedBytes":"1234567",
+  "warningCount":2,
+  "errorMessage":null,
+  "engineVersion":"0.1.0"
+}
+```
+
+`parameters` is the immutable snapshot used by that execution. Durable statuses and phases are the
+values defined in `storage-schema-v3.md`.
+
+### `run.list`
+
+Params contain optional `sessionId`, `offset` (default 0), and `limit` (default 100, maximum 500).
+The result is `{ "runs": [<run>], "total": 1 }`, newest first. Omitting `sessionId` returns global
+history.
+
+### `run.get`
+
+Params are `{ "runId": 19 }`; the result is `{ "run": <run> }` read from durable storage.
+
+### `run.start`
+
+Params are `{ "sessionId": 7 }`. The worker creates and starts the durable run before returning
+`{ "run": <run> }`. At most one run may be active globally. A second start returns `scan_busy`
+without creating a run or changing the active run.
+
+### `run.cancel`
+
+Params are `{ "runId": 19 }`. A successful request atomically signals the scan thread and moves
+the durable state from `running` to `cancelling`; the immediate result is `{ "run": <run> }` with
+status `cancelling`. Cancellation completes asynchronously. `run.cancelled` confirms the durable
+`cancelled` terminal state, and `run.get` is authoritative after reconnecting. Cancelling a
+terminal or non-active run returns `invalid_state`.
+
+## Run Events and Ordering
+
+The implemented lifecycle events are `run.started`, `run.progress`, `run.completed`,
+`run.cancelled`, and `run.failed`. Lifecycle event data is `{ "run": <run> }`.
+
+Progress data is:
+
+```json
+{"runId":19,"sequence":8,"status":"running","phase":"hashing","filesDiscovered":8000,"bytesDiscovered":"45000000000","filesHashed":1200,"warningCount":3,"currentPath":"D:\\Photos\\2025\\image.jpg"}
+```
+
+- `sequence` is strictly increasing within one run and establishes event order.
+- `status` is `running` or `cancelling`; terminal lifecycle events carry the persisted terminal
+  status.
+- `phase` is `discovering`, `hashing`, `persisting`, `analyzing_folders`, or `finalizing`.
+- `currentPath` and `message` are optional and intentionally throttled.
+- High-frequency updates are coalesced to approximately ten events per second. Phase boundaries
+  and terminal lifecycle events are emitted immediately and may form a small burst.
+- Periodic SQLite counter writes occur no more than approximately twice per second. Durable phase
+  boundaries and terminal transitions are written immediately.
+- Events may appear before or after unrelated correlated responses. Clients must use response IDs,
+  event names, run IDs, and progress sequence numbers rather than assuming request/response
+  adjacency.
+
+## Startup
+
+1. The host starts one worker with stdin, stdout, and stderr redirected; shell execution is disabled
+   and no console window is created.
+2. The host immediately and asynchronously drains stdout and stderr.
+3. The host sends `hello` and applies a bounded startup timeout (10 seconds by default).
+4. The connection becomes ready only after a valid correlated successful `hello` response selects
+   protocol version 1.
+5. A launch error, timeout, premature exit, invalid stdout frame, or failed `hello` puts the client
+   in a failed state. The failure includes the attempted executable path and captured stderr tail.
+
+The worker writes nothing to stdout merely because it started. This avoids a race between an
+unsolicited ready event and negotiation. A `worker.ready` event may be introduced after negotiation
+in a later milestone without changing the handshake.
+
+## Shutdown and Process Exit
+
+For V1, graceful shutdown is signalled by the client closing the worker's stdin. On EOF, the worker
+finishes writing the response for every completely received request. If a scan is active, it
+signals cancellation, persists `cancelling`, waits for the scan thread to persist its terminal
+state, flushes remaining protocol frames, and exits with code 0. A partial final frame is a fatal
+framing error and exits non-zero.
+
+The host waits asynchronously for a bounded grace period. If the worker does not exit, the host may
+terminate only that child process tree. Host cancellation of an individual pending request stops
+waiting in the host but does not imply that a future state-changing worker command was cancelled;
+commands that support cancellation define their own protocol behavior.
+
+Unexpected worker exit fails every pending request. Exit code 0 means graceful EOF shutdown only;
+it does not turn incomplete commands or runs into successful operations.
+
+## Path and Data Rules
+
+Paths in future commands are JSON strings containing normal Windows Unicode paths. They are not
+URLs and are not required to use slash normalization. The worker owns canonicalization and all
+filesystem/database access. Numbers that can exceed JavaScript's exact integer range must be
+encoded as decimal strings when those fields are introduced.
+
+Secrets must not be placed in protocol errors. Local stderr diagnostics may contain paths needed
+for troubleshooting; any future telemetry must redact sensitive path data.
+
+## Representative Transcripts
+
+Lines prefixed `C>` are written by the client to worker stdin. Lines prefixed `W>` are written by
+the worker to stdout. The prefixes are explanatory and are not transmitted.
+
+### Successful negotiation
+
+```text
+C> {"type":"request","id":"1","method":"hello","params":{"protocolVersions":[1],"client":{"name":"SuperDuper.Windows","version":"0.1.0"}}}
+W> {"type":"response","id":"1","ok":true,"result":{"protocolVersion":1,"workerVersion":"0.1.0","engineVersion":"0.1.0"}}
+```
+
+### Unsupported protocol, then successful retry
+
+```text
+C> {"type":"request","id":"a","method":"hello","params":{"protocolVersions":[7],"client":{"name":"protocol-test","version":"1.0.0"}}}
+W> {"type":"response","id":"a","ok":false,"error":{"code":"unsupported_protocol","message":"No mutually supported protocol version","retryable":false,"details":{"workerProtocolVersions":[1]}}}
+C> {"type":"request","id":"b","method":"hello","params":{"protocolVersions":[1],"client":{"name":"protocol-test","version":"1.0.0"}}}
+W> {"type":"response","id":"b","ok":true,"result":{"protocolVersion":1,"workerVersion":"0.1.0","engineVersion":"0.1.0"}}
+```
+
+### Command before negotiation
+
+```text
+C> {"type":"request","id":"9","method":"app.status","params":{}}
+W> {"type":"response","id":"9","ok":false,"error":{"code":"handshake_required","message":"hello must succeed before other requests","retryable":false,"details":{}}}
+```
+
+### Unknown command after negotiation
+
+```text
+C> {"type":"request","id":"1","method":"hello","params":{"protocolVersions":[1],"client":{"name":"protocol-test","version":"1.0.0"}}}
+W> {"type":"response","id":"1","ok":true,"result":{"protocolVersion":1,"workerVersion":"0.1.0","engineVersion":"0.1.0"}}
+C> {"type":"request","id":"2","method":"not.a.command","params":{}}
+W> {"type":"response","id":"2","ok":false,"error":{"code":"method_not_found","message":"Unknown method: not.a.command","retryable":false,"details":{}}}
+```
+
+Diagnostics associated with any transcript are separate, for example:
+
+```text
+stderr: worker input ended; shutting down
+```

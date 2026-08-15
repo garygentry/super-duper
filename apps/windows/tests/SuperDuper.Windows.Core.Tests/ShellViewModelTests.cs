@@ -1,0 +1,90 @@
+using SuperDuper.Windows.Core.ViewModels;
+using SuperDuper.Windows.Core.Workers;
+
+namespace SuperDuper.Windows.Core.Tests;
+
+[TestClass]
+public sealed class ShellViewModelTests
+{
+    [TestMethod]
+    public async Task InitializeAsync_ShowsStartingUntilHelloCompletes()
+    {
+        var completion = new TaskCompletionSource<WorkerHelloResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var viewModel = new ShellViewModel(new FakeWorkerClient(_ => completion.Task));
+
+        var initialize = viewModel.InitializeAsync();
+
+        Assert.AreEqual(WorkerConnectionState.Starting, viewModel.ConnectionState);
+        Assert.IsTrue(viewModel.IsStarting);
+
+        completion.SetResult(new WorkerHelloResult(1, "0.1.0", "0.1.0"));
+        await initialize;
+    }
+
+    [TestMethod]
+    public async Task InitializeAsync_ChangesToConnectedAfterHello()
+    {
+        var client = new FakeWorkerClient(
+            _ => Task.FromResult(new WorkerHelloResult(1, "0.2.0", "0.3.0")));
+        var viewModel = new ShellViewModel(client);
+
+        await viewModel.InitializeAsync();
+
+        Assert.AreEqual(WorkerConnectionState.Connected, viewModel.ConnectionState);
+        Assert.IsTrue(viewModel.IsConnected);
+        Assert.AreEqual("0.2.0", viewModel.WorkerVersion);
+        Assert.AreEqual("0.3.0", viewModel.EngineVersion);
+        StringAssert.Contains(viewModel.StatusDetail, "Protocol 1");
+    }
+
+    [TestMethod]
+    public async Task InitializeAsync_ChangesToFailedAndKeepsDiagnostic()
+    {
+        var client = new FakeWorkerClient(
+            _ => Task.FromException<WorkerHelloResult>(new InvalidOperationException("worker unavailable")));
+        var viewModel = new ShellViewModel(client);
+
+        await viewModel.InitializeAsync();
+
+        Assert.AreEqual(WorkerConnectionState.Failed, viewModel.ConnectionState);
+        Assert.IsTrue(viewModel.IsFailed);
+        StringAssert.Contains(viewModel.StatusDetail, "worker unavailable");
+        Assert.AreEqual(FakeWorkerClient.Path, viewModel.WorkerExecutablePath);
+    }
+
+    private sealed class FakeWorkerClient(
+        Func<CancellationToken, Task<WorkerHelloResult>> connect) : IWorkerClient
+    {
+        public const string Path = @"C:\test\super-duper-worker.exe";
+
+        public event EventHandler<WorkerRunProgressEventArgs>? RunProgress;
+
+        public event EventHandler<WorkerRunLifecycleEventArgs>? RunLifecycleChanged;
+
+        public string ExecutablePath => Path;
+
+        public Task<WorkerHelloResult> ConnectAsync(CancellationToken cancellationToken = default) =>
+            connect(cancellationToken);
+
+        public Task<WorkerSessionPage> ListSessionsAsync(long offset = 0, int limit = 100, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerSessionDefinition> GetSessionAsync(long sessionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerSessionDefinition> CreateSessionAsync(string name, IReadOnlyList<string> roots, IReadOnlyList<string> ignorePatterns, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerSessionDefinition> UpdateSessionAsync(long sessionId, string name, IReadOnlyList<string> roots, IReadOnlyList<string> ignorePatterns, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task DeleteSessionAsync(long sessionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerRunPage> ListRunsAsync(long? sessionId = null, long offset = 0, int limit = 100, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerRun> GetRunAsync(long runId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerRun> StartRunAsync(long sessionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerRun> CancelRunAsync(long runId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+}

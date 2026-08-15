@@ -11,9 +11,9 @@ pub fn mark_directory_for_deletion(
     directory_path: &str,
     strategy: Option<&str>,
 ) -> Result<usize, crate::Error> {
-    let mut stmt = db.connection().prepare(
-        "SELECT id FROM scanned_file WHERE parent_dir = ?1 OR parent_dir LIKE ?2",
-    )?;
+    let mut stmt = db
+        .connection()
+        .prepare("SELECT id FROM scanned_file WHERE parent_dir = ?1 OR parent_dir LIKE ?2")?;
     let like_pattern = format!("{}%", directory_path);
     let file_ids: Vec<i64> = stmt
         .query_map(params![directory_path, like_pattern], |row| row.get(0))?
@@ -32,14 +32,14 @@ pub fn mark_directory_for_deletion(
 }
 
 /// Auto-mark duplicates for deletion using a strategy.
-/// For each duplicate group in the given session, keep one file (the first alphabetically)
+/// For each duplicate group in the given run, keep one file (the first alphabetically)
 /// and mark the rest.
 pub fn auto_mark_duplicates(
     db: &Database,
-    session_id: i64,
+    run_id: i64,
     strategy: Option<&str>,
 ) -> Result<usize, crate::Error> {
-    let groups = db.get_duplicate_groups(session_id, 0, i64::MAX)?;
+    let groups = db.get_duplicate_groups(run_id, 0, i64::MAX)?;
     let mut marked_count = 0;
 
     for group in &groups {
@@ -66,7 +66,10 @@ pub fn auto_mark_duplicates(
 ///
 /// When `use_trash` is true, files are moved to the system Recycle Bin / Trash
 /// instead of being permanently deleted.
-pub fn execute_deletion_plan(db: &Database, use_trash: bool) -> Result<(usize, usize), crate::Error> {
+pub fn execute_deletion_plan(
+    db: &Database,
+    use_trash: bool,
+) -> Result<(usize, usize), crate::Error> {
     let plan = db.get_deletion_plan()?;
     let mut success_count = 0;
     let mut error_count = 0;
@@ -76,24 +79,28 @@ pub fn execute_deletion_plan(db: &Database, use_trash: bool) -> Result<(usize, u
         let file: Option<ScannedFile> = db
             .connection()
             .query_row(
-                "SELECT id, canonical_path, file_name, parent_dir, drive_letter, \
-                 file_size, last_modified, partial_hash, content_hash, \
-                 last_seen_session_id, marked_deleted \
+                "SELECT id, run_id, root_path, canonical_path, relative_path, file_name,
+                 parent_dir, drive_letter, file_size, last_modified, partial_hash, content_hash,
+                 file_identity, warning_message, marked_deleted
                  FROM scanned_file WHERE id = ?1",
                 params![entry.file_id],
                 |row| {
                     Ok(ScannedFile {
                         id: row.get(0)?,
-                        canonical_path: row.get(1)?,
-                        file_name: row.get(2)?,
-                        parent_dir: row.get(3)?,
-                        drive_letter: row.get(4)?,
-                        file_size: row.get(5)?,
-                        last_modified: row.get(6)?,
-                        partial_hash: row.get(7)?,
-                        content_hash: row.get(8)?,
-                        last_seen_session_id: row.get(9)?,
-                        marked_deleted: row.get(10)?,
+                        run_id: row.get(1)?,
+                        root_path: row.get(2)?,
+                        canonical_path: row.get(3)?,
+                        relative_path: row.get(4)?,
+                        file_name: row.get(5)?,
+                        parent_dir: row.get(6)?,
+                        drive_letter: row.get(7)?,
+                        file_size: row.get(8)?,
+                        last_modified: row.get(9)?,
+                        partial_hash: row.get(10)?,
+                        content_hash: row.get(11)?,
+                        file_identity: row.get(12)?,
+                        warning_message: row.get(13)?,
+                        marked_deleted: row.get(14)?,
                     })
                 },
             )
@@ -112,7 +119,10 @@ pub fn execute_deletion_plan(db: &Database, use_trash: bool) -> Result<(usize, u
 
         // Verify file still exists
         if !path.exists() {
-            warn!("File '{}' no longer exists, marking as executed", file.canonical_path);
+            warn!(
+                "File '{}' no longer exists, marking as executed",
+                file.canonical_path
+            );
             let now = chrono::Utc::now().to_rfc3339();
             db.connection().execute(
                 "UPDATE deletion_plan SET executed_at = ?1, execution_result = 'file_missing' \

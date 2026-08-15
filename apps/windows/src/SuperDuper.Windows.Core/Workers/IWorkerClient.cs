@@ -1,0 +1,48 @@
+namespace SuperDuper.Windows.Core.Workers;
+
+public interface IWorkerClient : IAsyncDisposable
+{
+    event EventHandler<WorkerRunProgressEventArgs>? RunProgress;
+
+    event EventHandler<WorkerRunLifecycleEventArgs>? RunLifecycleChanged;
+
+    string ExecutablePath { get; }
+
+    Task<WorkerHelloResult> ConnectAsync(CancellationToken cancellationToken = default);
+
+    Task<WorkerSessionPage> ListSessionsAsync(
+        long offset = 0,
+        int limit = 100,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerSessionDefinition> GetSessionAsync(
+        long sessionId,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerSessionDefinition> CreateSessionAsync(
+        string name,
+        IReadOnlyList<string> roots,
+        IReadOnlyList<string> ignorePatterns,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerSessionDefinition> UpdateSessionAsync(
+        long sessionId,
+        string name,
+        IReadOnlyList<string> roots,
+        IReadOnlyList<string> ignorePatterns,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteSessionAsync(long sessionId, CancellationToken cancellationToken = default);
+
+    Task<WorkerRunPage> ListRunsAsync(
+        long? sessionId = null,
+        long offset = 0,
+        int limit = 100,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerRun> GetRunAsync(long runId, CancellationToken cancellationToken = default);
+
+    Task<WorkerRun> StartRunAsync(long sessionId, CancellationToken cancellationToken = default);
+
+    Task<WorkerRun> CancelRunAsync(long runId, CancellationToken cancellationToken = default);
+}

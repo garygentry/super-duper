@@ -4,15 +4,15 @@ A high-performance duplicate file detector written in Rust. Super Duper scans la
 collections, confirms duplicates by content rather than filename, identifies near-duplicate
 directory trees, and stages reviewed deletion plans locally.
 
-The repository is now intentionally focused on the Rust engine, CLI, reusable FFI boundary, and
-docs. No Windows app implementation is present on this branch, so a new Windows app can be designed
-from a clean slate.
+The repository contains the Rust engine, CLI, reusable FFI boundary, a versioned worker process,
+and the new WPF Windows application scaffold.
 
 ## Features
 
 - Two-tier hashing: exact file size, then a 1 KB XxHash64 partial hash, then full-content hashing
   only for candidates
-- Persistent RocksDB hash cache keyed by canonical path and sub-second modified timestamp
+- Streaming full-file hashing with a bounded buffer and a RocksDB cache keyed by canonical path,
+  size, and high-resolution modified timestamp
 - SQLite session storage for scans, duplicate groups, directory analysis, and deletion plans
 - Directory fingerprinting and Jaccard similarity for exact, subset, and near-match folder trees
 - Reviewed deletion workflow: files are staged before execution
@@ -22,7 +22,8 @@ from a clean slate.
 ## Architecture
 
 Super Duper is a Cargo workspace. The Rust core library owns the product logic; the CLI links it
-directly, and the FFI crate exposes a stable boundary for future native interfaces.
+directly, the FFI crate exposes a stable boundary for future native interfaces, and the Windows app
+connects to the Rust engine through a long-lived JSONL worker process.
 
 ```text
 super-duper/
@@ -33,8 +34,13 @@ super-duper/
     super-duper-core/     # scanning, hashing, analysis, storage, deletion plans
     super-duper-cli/      # headless command-line driver
     super-duper-ffi/      # C ABI for future native apps
+    super-duper-worker/   # JSONL process boundary for the Windows app
+  apps/
+    windows/              # WPF/.NET 10 solution, application layers, and tests
   docs/
     architecture.svg
+    windows-mvp-plan.md
+    worker-protocol-v1.md
 ```
 
 ![Super Duper architecture](docs/architecture.svg)
@@ -47,13 +53,36 @@ super-duper/
 |---|---|
 | Rust toolchain | `rustup` recommended, stable channel |
 | `libclang-dev` | Required by RocksDB's bindgen step on Linux |
+| .NET SDK | 10.0.303 or a compatible 10.0 patch; required for the Windows app |
+| Windows | Windows 11 x64 for building and running the WPF application |
 
 ### Build
 
 ```bash
 cargo build --workspace
 cargo build --release --workspace
+
+# Windows application (build the Rust workspace first so the worker is copied beside the app)
+dotnet build apps/windows/SuperDuper.Windows.sln
 ```
+
+### Test
+
+```bash
+cargo test --workspace
+dotnet test apps/windows/SuperDuper.Windows.sln
+```
+
+### Run The Windows Application
+
+```bash
+cargo build -p super-duper-worker
+dotnet run --project apps/windows/src/SuperDuper.Windows/SuperDuper.Windows.csproj
+```
+
+The application looks for `super-duper-worker.exe` beside its executable and then in the
+repository's `target/debug` directory. Set `SUPER_DUPER_WORKER_PATH` to an absolute executable path
+to override discovery during development.
 
 ### Configure Scan Targets
 
@@ -103,18 +132,21 @@ Configured via a `.env` file in the working directory when needed.
 
 ## Database
 
-Super Duper uses embedded SQLite (`super_duper.db` in the working directory). The schema is applied
-automatically on first run.
+Super Duper uses embedded SQLite (`super_duper.db` in the working directory). New databases use
+schema version 3. Version 2 databases are upgraded transactionally and in place; unknown older
+schemas and databases created by a newer engine are rejected without modification. See
+[`docs/storage-schema-v3.md`](docs/storage-schema-v3.md) for lifecycle and migration details.
 
 Key tables:
 
 | Table | Purpose |
 |---|---|
-| `scan_session` | One row per scan run |
-| `scanned_file` | Global file index with metadata and hashes |
-| `duplicate_group` | Confirmed duplicate sets for a session |
+| `scan_session` | Named, editable scan definitions |
+| `scan_run` | Immutable executions, parameter snapshots, lifecycle, and counters |
+| `scanned_file` | Immutable per-run file snapshots with root-relative paths |
+| `duplicate_group` | Confirmed duplicate sets owned by one run |
 | `duplicate_group_member` | Duplicate group membership |
-| `directory_node` | Directory tree aggregates |
+| `directory_node` | Per-run directory tree aggregates |
 | `directory_fingerprint` | Per-directory content fingerprints |
 | `directory_similarity` | Precomputed Jaccard pairs |
 | `deletion_plan` | Files staged for deletion |
@@ -131,6 +163,9 @@ The `super-duper-ffi` crate exposes the core through a C ABI for future native c
 
 ## Project Status
 
-The Rust core and CLI are functional. This branch deliberately removes the previous Windows app
-implementation so the next Windows app can be rebuilt without inheriting its structure, UI choices,
-or workarounds.
+The Rust core and CLI are functional. Milestone 0 of the clean-slate Windows MVP provides the
+WPF/.NET 10 application shell, dependency boundaries, worker protocol contract, and a health
+handshake. Milestone 1 provides named session definitions, immutable run history, forward schema
+migration, durable run outcomes, run-owned results, and corrected scan accounting. Milestone 2
+provides the typed session/run dispatcher, one-scan coordination, ordered progress events,
+concurrent cancellation, graceful worker shutdown, and streaming cache-backed hashing.
