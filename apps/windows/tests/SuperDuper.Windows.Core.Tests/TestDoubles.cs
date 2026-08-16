@@ -3,7 +3,7 @@ using SuperDuper.Windows.Core.Workers;
 
 namespace SuperDuper.Windows.Core.Tests;
 
-internal sealed class TestWorkerClient : IWorkerClient
+internal sealed class TestWorkerClient : IRestartableWorkerClient
 {
     private long _nextSessionId;
     private long _nextRunId;
@@ -11,6 +11,8 @@ internal sealed class TestWorkerClient : IWorkerClient
     public event EventHandler<WorkerRunProgressEventArgs>? RunProgress;
 
     public event EventHandler<WorkerRunLifecycleEventArgs>? RunLifecycleChanged;
+
+    public event EventHandler<WorkerUnexpectedExitEventArgs>? UnexpectedExit;
 
     public string ExecutablePath => @"C:\test\super-duper-worker.exe";
 
@@ -30,8 +32,28 @@ internal sealed class TestWorkerClient : IWorkerClient
 
     public Func<DuplicateFolderMemberQuery, CancellationToken, Task<WorkerDuplicateFolderMemberPage>>? FolderMemberPageHandler { get; set; }
 
+    public int RestartCount { get; private set; }
+
     public Task<WorkerHelloResult> ConnectAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(new WorkerHelloResult(1, "test-worker", "test-engine"));
+
+    public Task<WorkerHelloResult> RestartAsync(CancellationToken cancellationToken = default)
+    {
+        RestartCount++;
+        for (var index = 0; index < Runs.Count; index++)
+        {
+            if (Runs[index].Status is "pending" or "running" or "cancelling")
+            {
+                Runs[index] = Runs[index] with
+                {
+                    Status = "interrupted",
+                    CompletedAt = DateTimeOffset.UtcNow,
+                    ErrorMessage = "The worker exited before this run finished.",
+                };
+            }
+        }
+        return ConnectAsync(cancellationToken);
+    }
 
     public Task<WorkerSessionPage> ListSessionsAsync(long offset = 0, int limit = 100, CancellationToken cancellationToken = default) =>
         Task.FromResult(new WorkerSessionPage(Sessions.Skip((int)offset).Take(limit).ToArray(), Sessions.Count));
@@ -184,6 +206,16 @@ internal sealed class TestWorkerClient : IWorkerClient
             this,
             new WorkerRunLifecycleEventArgs { EventName = eventName, Run = run });
     }
+
+    public void RaiseUnexpectedExit(int exitCode = -1) => UnexpectedExit?.Invoke(
+        this,
+        new WorkerUnexpectedExitEventArgs
+        {
+            ExitCode = exitCode,
+            Message = $"The worker exited unexpectedly with code {exitCode}.",
+            ExecutablePath = ExecutablePath,
+            DiagnosticLogPath = DiagnosticLogPath,
+        });
 
     internal static WorkerRun CreateRun(
         long id,

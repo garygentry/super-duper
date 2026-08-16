@@ -81,6 +81,47 @@ public sealed class DuplicateFilesViewModelTests
     }
 
     [TestMethod]
+    public async Task ResortKeepsDisplayedResultsUntilReplacementPageArrives()
+    {
+        var replacement = new TaskCompletionSource<WorkerDuplicateFileGroupPage>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var resortObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) =>
+            {
+                if (query.SortDirection == WorkerSortDirection.Ascending)
+                {
+                    resortObserved.TrySetResult();
+                    return replacement.Task;
+                }
+                return Task.FromResult(new WorkerDuplicateFileGroupPage(
+                    [Group(1, query.RunId, "before-sort.bin")], 1, null, null));
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(11, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        var resort = viewModel.ApplySortAsync(
+            DuplicateFileGroupSortField.RecoverableBytes,
+            WorkerSortDirection.Ascending);
+        await resortObserved.Task;
+
+        Assert.IsTrue(viewModel.IsLoading);
+        Assert.IsFalse(viewModel.IsEmpty);
+        Assert.IsFalse(viewModel.IsLoadingOverlayVisible);
+        Assert.AreEqual("before-sort.bin", viewModel.Groups.Single().RepresentativeName);
+
+        replacement.SetResult(new WorkerDuplicateFileGroupPage(
+            [Group(2, 11, "after-sort.bin")], 1, null, null));
+        await resort;
+
+        Assert.IsFalse(viewModel.IsLoading);
+        Assert.AreEqual("after-sort.bin", viewModel.Groups.Single().RepresentativeName);
+    }
+
+    [TestMethod]
     public async Task PageCacheNeverExceedsTwoPagesOnEitherSide()
     {
         var client = new TestWorkerClient

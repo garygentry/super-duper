@@ -89,6 +89,35 @@ public sealed class SessionSetupViewModelTests
         Assert.AreEqual(0, client.Sessions.Count);
     }
 
+    [TestMethod]
+    public void AddRootCommand_KeepsAtMostOneBlankEditor()
+    {
+        var viewModel = CreateViewModel(new TestWorkerClient());
+        viewModel.BeginNew();
+
+        viewModel.AddRootCommand.Execute(null);
+        viewModel.AddRootCommand.Execute(null);
+
+        Assert.AreEqual(1, viewModel.Roots.Count(root => string.IsNullOrWhiteSpace(root.Path)));
+    }
+
+    [TestMethod]
+    public async Task BrowseRootCommand_ReusesExistingBlankEditor()
+    {
+        var selected = Path.GetTempPath();
+        var viewModel = new SessionSetupViewModel(
+            new TestWorkerClient(),
+            new TestFolderPicker(selected),
+            new TestConfirmation(),
+            _ => []);
+        viewModel.BeginNew();
+
+        await viewModel.BrowseRootCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, viewModel.Roots.Count);
+        Assert.AreEqual(selected, viewModel.Roots[0].Path);
+    }
+
     private static SessionSetupViewModel CreateViewModel(TestWorkerClient client) =>
         new(client, new TestFolderPicker(), new TestConfirmation(), _ => []);
 }

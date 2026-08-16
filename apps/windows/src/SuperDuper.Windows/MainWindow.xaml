@@ -61,6 +61,7 @@
 
                     <TabControl x:Name="MainTabs"
                                 AutomationProperties.AutomationId="MainTabs"
+                                AutomationProperties.Name="Session workspace tabs"
                                 SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}"
                                 Visibility="{Binding IsWorkspaceVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <TabItem AutomationProperties.AutomationId="SetupTab" Header="Setup">
@@ -110,7 +111,7 @@
         </Grid>
 
         <Grid Margin="32"
-              Visibility="{Binding IsFailed, Converter={StaticResource BooleanToVisibilityConverter}}">
+              Visibility="{Binding IsRecoveryScreenVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
             <Border Width="680"
                     Padding="28"
                     HorizontalAlignment="Center"
@@ -125,10 +126,18 @@
                     <TextBox IsReadOnly="True" Text="{Binding WorkerExecutablePath, Mode=OneWay}" TextWrapping="Wrap" />
                     <TextBlock Margin="0,12,0,0"
                                Opacity="0.7"
-                               Text="Build the Rust workspace, then restart Super Duper. Set SUPER_DUPER_WORKER_PATH to override this location."
+                               Text="Correct the executable, database, or permissions issue if needed, then restart the worker in place."
                                TextWrapping="Wrap" />
                     <TextBlock Margin="0,18,0,5" FontWeight="SemiBold" Text="Diagnostic log" />
                     <TextBox IsReadOnly="True" Text="{Binding DiagnosticLogPath, Mode=OneWay}" TextWrapping="Wrap" />
+                    <Button Margin="0,22,0,0"
+                            AutomationProperties.AutomationId="RestartWorkerButton"
+                            AutomationProperties.Name="Restart worker and recover"
+                            HorizontalAlignment="Left"
+                            MinWidth="140"
+                            Padding="14,7"
+                            Command="{Binding RestartWorkerCommand}"
+                            Content="Restart worker" />
                 </StackPanel>
             </Border>
         </Grid>

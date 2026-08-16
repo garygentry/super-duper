@@ -92,7 +92,7 @@ blocking their UI thread.
 
 Files: `crates/super-duper-ffi/src/actions.rs`, `crates/super-duper-ffi/src/callbacks.rs`
 
-### 11. New Windows App (MVP Complete)
+### 11. New Windows App (Acceptance Remediation)
 
 The Windows app is implemented against the Rust worker-process boundary as a new product surface,
 not a continuation of the deleted app. Post-MVP work is ordered below rather than tracked as an
@@ -108,5 +108,7 @@ Milestones 0 (worker/WPF shell), 1 (session/run persistence repair), 2 (worker s
 (session navigation, editing, history, and progress/cancellation UI), 4 (server-paged
 duplicate-file results, bounded caching, and Explorer integration), 5 (verified exact-folder
 results), and 6 (filesystem, diagnostics, smoke, Release, and recovery hardening) are implemented.
-The Windows MVP is complete; the ordered post-MVP decisions remain safe deletion review, distinct
-similar-folder presentation, bounded thumbnails, packaging/shell integration, and export.
+Final operator acceptance found bounded release blockers; the code-complete remediation plan is
+[`docs/windows-release-acceptance-remediation-plan.md`](docs/windows-release-acceptance-remediation-plan.md).
+Post-MVP safe deletion review, distinct similar-folder presentation, bounded thumbnails,
+packaging/shell integration, and export remain deferred until that plan passes.

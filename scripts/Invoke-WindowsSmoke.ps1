@@ -186,10 +186,13 @@ function Assert-True([bool]$Condition, [string]$Message) {
 function Invoke-WpfAutomation([long]$RunId) {
     Add-Type -AssemblyName UIAutomationClient
     Add-Type -AssemblyName UIAutomationTypes
+    $knownWorkerIds = @(Get-Process -Name 'super-duper-worker' -ErrorAction SilentlyContinue | ForEach-Object Id)
+    $ownedWorkerId = $null
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $app
     $start.WorkingDirectory = Split-Path $app
     $start.UseShellExecute = $false
+    $start.Environment['SUPER_DUPER_WORKER_PATH'] = $worker
     $start.Environment['SUPER_DUPER_DB_PATH'] = $database
     $start.Environment['HASH_CACHE_PATH'] = $cache
     $process = [Diagnostics.Process]::Start($start)
@@ -200,6 +203,15 @@ function Invoke-WpfAutomation([long]$RunId) {
         }
         Assert-True ($process.MainWindowHandle -ne 0) 'WPF main window did not appear.'
         $window = [Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)
+
+        for ($attempt = 0; $attempt -lt 40 -and $null -eq $ownedWorkerId; $attempt++) {
+            $owned = Get-Process -Name 'super-duper-worker' -ErrorAction SilentlyContinue |
+                Where-Object { $_.Id -notin $knownWorkerIds } |
+                Select-Object -First 1
+            if ($null -ne $owned) { $ownedWorkerId = $owned.Id; break }
+            Start-Sleep -Milliseconds 250
+        }
+        Assert-True ($null -ne $ownedWorkerId) 'The WPF app did not start an owned worker process.'
 
         function Find-Element([string]$Property, [string]$Value, [int]$Attempts = 40) {
             $propertyId = if ($Property -eq 'AutomationId') {
@@ -223,9 +235,62 @@ function Invoke-WpfAutomation([long]$RunId) {
         }
 
         function Invoke-Element($Element) {
-            $pattern = $Element.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
-            $pattern.Invoke()
+            for ($attempt = 0; $attempt -lt 40 -and -not $Element.Current.IsEnabled; $attempt++) {
+                Start-Sleep -Milliseconds 250
+            }
+            if (-not $Element.Current.IsEnabled) {
+                throw "UI Automation element Name=$($Element.Current.Name) AutomationId=$($Element.Current.AutomationId) did not become enabled."
+            }
+            try {
+                $pattern = $Element.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
+                $pattern.Invoke()
+            }
+            catch {
+                throw "UI Automation invoke failed for Name=$($Element.Current.Name) AutomationId=$($Element.Current.AutomationId): $($_.Exception.Message)"
+            }
             Start-Sleep -Milliseconds 400
+        }
+
+
+        function Find-FirstDataItem($Container, [int]$Attempts = 40) {
+            for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+                $row = $Container.FindFirst(
+                    [Windows.Automation.TreeScope]::Descendants,
+                    [Windows.Automation.PropertyCondition]::new(
+                        [Windows.Automation.AutomationElement]::ControlTypeProperty,
+                        [Windows.Automation.ControlType]::DataItem))
+                if ($null -ne $row) { return $row }
+                Start-Sleep -Milliseconds 250
+            }
+            throw "UI Automation data row was not found in $($Container.Current.AutomationId)."
+        }
+
+        function Find-DescendantByName($Container, [string]$Name, [int]$Attempts = 40) {
+            for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+                $element = $Container.FindFirst(
+                    [Windows.Automation.TreeScope]::Descendants,
+                    [Windows.Automation.PropertyCondition]::new(
+                        [Windows.Automation.AutomationElement]::NameProperty,
+                        $Name))
+                if ($null -ne $element) { return $element }
+                Start-Sleep -Milliseconds 250
+            }
+            throw "UI Automation descendant Name=$Name was not found in $($Container.Current.AutomationId)."
+        }
+
+        function Assert-NoVisibleDetailError([string]$AutomationId, [int]$Attempts = 20) {
+            for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+                $condition = [Windows.Automation.PropertyCondition]::new(
+                    [Windows.Automation.AutomationElement]::AutomationIdProperty,
+                    $AutomationId)
+                $errorElement = $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+                if ($null -ne $errorElement -and
+                    -not $errorElement.Current.IsOffscreen -and
+                    -not [string]::IsNullOrWhiteSpace($errorElement.Current.Name)) {
+                    throw "Explorer reveal reported an error: $($errorElement.Current.Name)"
+                }
+                Start-Sleep -Milliseconds 100
+            }
         }
 
         Select-Element (Find-Element Name 'Milestone 6 Smoke')
@@ -233,32 +298,36 @@ function Invoke-WpfAutomation([long]$RunId) {
         Invoke-Element (Find-Element Name 'Group size')
         Invoke-Element (Find-Element Name 'Next')
         $fileGrid = Find-Element AutomationId 'FileGroupsGrid'
-        $fileRow = $fileGrid.FindFirst(
-            [Windows.Automation.TreeScope]::Descendants,
-            [Windows.Automation.PropertyCondition]::new(
-                [Windows.Automation.AutomationElement]::ControlTypeProperty,
-                [Windows.Automation.ControlType]::DataItem))
-        Assert-True ($null -ne $fileRow) 'Duplicate-file grid had no data row.'
+        $fileRow = Find-FirstDataItem $fileGrid
         Select-Element $fileRow
         $search = Find-Element AutomationId 'FileSearch'
         $search.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('group010')
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
-        Invoke-Element (Find-Element Name 'Show in Explorer')
+        $fileMembers = Find-Element AutomationId 'FileMembersGrid'
+        $null = Find-FirstDataItem $fileMembers
+        Invoke-Element (Find-DescendantByName $fileMembers 'Show in Explorer')
+        Assert-NoVisibleDetailError 'FileDetailError'
+
+        $search.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('long-a.txt')
+        Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
+        $fileMembers = Find-Element AutomationId 'FileMembersGrid'
+        $null = Find-FirstDataItem $fileMembers
+        Invoke-Element (Find-DescendantByName $fileMembers 'Show in Explorer')
+        Assert-NoVisibleDetailError 'FileDetailError'
 
         Select-Element (Find-Element AutomationId 'DuplicateFoldersTab')
         Invoke-Element (Find-Element Name 'Representative folder')
         $folderGrid = Find-Element AutomationId 'FolderGroupsGrid'
-        $folderRow = $folderGrid.FindFirst(
-            [Windows.Automation.TreeScope]::Descendants,
-            [Windows.Automation.PropertyCondition]::new(
-                [Windows.Automation.AutomationElement]::ControlTypeProperty,
-                [Windows.Automation.ControlType]::DataItem))
-        Assert-True ($null -ne $folderRow) 'Duplicate-folder grid had no data row.'
+        $folderRow = Find-FirstDataItem $folderGrid
         Select-Element $folderRow
         $folderSearch = Find-Element AutomationId 'FolderSearch'
         $folderSearch.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('original-set')
         Invoke-Element (Find-Element AutomationId 'FolderApplyFilters')
-        Write-Output "WPF automation passed for restored run $RunId, including Explorer reveal invocation."
+        $folderMembers = Find-Element AutomationId 'FolderMembersGrid'
+        $null = Find-FirstDataItem $folderMembers
+        Invoke-Element (Find-DescendantByName $folderMembers 'Show in Explorer')
+        Assert-NoVisibleDetailError 'FolderDetailError'
+        Write-Output "WPF automation passed for restored run $RunId, including completed ordinary, long-path, and folder Explorer reveal commands."
     }
     finally {
         try {
@@ -271,10 +340,75 @@ function Invoke-WpfAutomation([long]$RunId) {
                 }
             }
             Assert-True ($process.ExitCode -eq 0) "WPF app exited with code $($process.ExitCode)."
+            if ($null -ne $ownedWorkerId) {
+                for ($attempt = 0; $attempt -lt 20 -and $null -ne (Get-Process -Id $ownedWorkerId -ErrorAction SilentlyContinue); $attempt++) {
+                    Start-Sleep -Milliseconds 250
+                }
+                Assert-True ($null -eq (Get-Process -Id $ownedWorkerId -ErrorAction SilentlyContinue)) "Owned worker $ownedWorkerId survived WPF shutdown."
+            }
         }
         finally {
             $process.Dispose()
         }
+    }
+}
+
+function Assert-WpfCloseScenario(
+    [string]$Name,
+    [string]$DatabasePath,
+    [string]$WorkerPath,
+    [bool]$ExpectRecovery) {
+    Add-Type -AssemblyName UIAutomationClient
+    Add-Type -AssemblyName UIAutomationTypes
+    $knownWorkerIds = @(Get-Process -Name 'super-duper-worker' -ErrorAction SilentlyContinue | ForEach-Object Id)
+    $start = [Diagnostics.ProcessStartInfo]::new()
+    $start.FileName = $app
+    $start.WorkingDirectory = Split-Path $app
+    $start.UseShellExecute = $false
+    $start.Environment['SUPER_DUPER_WORKER_PATH'] = $WorkerPath
+    $start.Environment['SUPER_DUPER_DB_PATH'] = $DatabasePath
+    $start.Environment['HASH_CACHE_PATH'] = Join-Path $smokeRoot ("close-cache-" + [guid]::NewGuid().ToString('N'))
+    $process = [Diagnostics.Process]::Start($start)
+    try {
+        for ($attempt = 0; $attempt -lt 80 -and $process.MainWindowHandle -eq 0; $attempt++) {
+            Start-Sleep -Milliseconds 250
+            $process.Refresh()
+        }
+        Assert-True ($process.MainWindowHandle -ne 0) "$Name did not show a WPF window."
+        if ($ExpectRecovery) {
+            $window = [Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)
+            $foundRecovery = $false
+            for ($attempt = 0; $attempt -lt 60 -and -not $foundRecovery; $attempt++) {
+                $condition = [Windows.Automation.PropertyCondition]::new(
+                    [Windows.Automation.AutomationElement]::AutomationIdProperty,
+                    'RestartWorkerButton')
+                $foundRecovery = $null -ne $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+                if (-not $foundRecovery) { Start-Sleep -Milliseconds 250 }
+            }
+            Assert-True $foundRecovery "$Name did not reach its recovery screen."
+        }
+
+        $null = $process.CloseMainWindow()
+        Assert-True ($process.WaitForExit(10000)) "$Name did not exit within 10 seconds."
+        Assert-True ($process.ExitCode -eq 0) "$Name exited with code $($process.ExitCode)."
+
+        for ($attempt = 0; $attempt -lt 20; $attempt++) {
+            $survivors = @(Get-Process -Name 'super-duper-worker' -ErrorAction SilentlyContinue |
+                Where-Object { $_.Id -notin $knownWorkerIds })
+            if ($survivors.Count -eq 0) { break }
+            Start-Sleep -Milliseconds 250
+        }
+        $survivors = @(Get-Process -Name 'super-duper-worker' -ErrorAction SilentlyContinue |
+            Where-Object { $_.Id -notin $knownWorkerIds })
+        Assert-True ($survivors.Count -eq 0) "$Name left an owned worker running."
+        Write-Output "WPF shutdown passed: $Name"
+    }
+    finally {
+        if (-not $process.HasExited) {
+            $process.Kill($true)
+            $process.WaitForExit(5000) | Out-Null
+        }
+        $process.Dispose()
     }
 }
 
@@ -389,7 +523,16 @@ try {
         Assert-True ($queryDiagnostics.Contains("kind=result_query method=$method")) "Missing $method timing."
     }
 
-    if (-not $SkipWpf) { Invoke-WpfAutomation $run.id }
+    if (-not $SkipWpf) {
+        Invoke-WpfAutomation $run.id
+        $idleDatabase = Join-Path $smokeRoot 'idle-close.db'
+        Assert-WpfCloseScenario 'idle connected close 1' $idleDatabase $worker $false
+        Assert-WpfCloseScenario 'idle connected close 2' $idleDatabase $worker $false
+        Assert-WpfCloseScenario 'worker startup failure close' (Join-Path $smokeRoot 'startup-failure.db') (Join-Path $smokeRoot 'missing-worker.exe') $true
+        $databaseFailurePath = Join-Path $smokeRoot 'database-path-is-a-directory'
+        [IO.Directory]::CreateDirectory($databaseFailurePath) | Out-Null
+        Assert-WpfCloseScenario 'database failure close' $databaseFailurePath $worker $true
+    }
     Write-Output "Windows smoke passed. Fixture: $smokeRoot"
 }
 finally {

@@ -10,8 +10,29 @@ public sealed class WindowsExplorerService : IExplorerService
     public Task RevealAsync(string path, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        var fullPath = Path.GetFullPath(path);
-        return Task.Run(() => Reveal(fullPath), cancellationToken);
+        var fullPath = Path.GetFullPath(WindowsShellPath.ToParsingPath(path));
+        return RevealWithContextAsync(path, fullPath, cancellationToken);
+    }
+
+    private static async Task RevealWithContextAsync(
+        string requestedPath,
+        string shellPath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Run(() => Reveal(shellPath), cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidOperationException(
+                $"File Explorer could not reveal '{requestedPath}'. {exception.Message}",
+                exception);
+        }
     }
 
     private static unsafe void Reveal(string path)

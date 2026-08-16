@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using SuperDuper.Windows.Core.Workers;
 
 namespace SuperDuper.Windows.Infrastructure.Tests;
@@ -5,6 +6,106 @@ namespace SuperDuper.Windows.Infrastructure.Tests;
 [TestClass]
 public sealed class WorkerClientLifecycleTests
 {
+    [TestMethod]
+    public async Task DisposeAsync_WithConcurrentRequestsStopsOwnedWorker()
+    {
+        var worker = FindWorker();
+        var temp = Path.Combine(Path.GetTempPath(), $"super-duper-concurrent-shutdown-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(temp);
+        var client = new WorkerClient(
+            worker,
+            TimeSpan.FromSeconds(10),
+            Path.Combine(temp, "worker.db"),
+            Path.Combine(temp, "logs", "worker.log"),
+            Path.Combine(temp, "hash-cache"));
+
+        try
+        {
+            _ = await client.ConnectAsync();
+            _ = await client.CreateSessionAsync("Concurrent shutdown", [temp], []);
+            var processId = client.OwnedProcessId;
+            var requests = Enumerable.Range(0, 250)
+                .Select(_ => client.ListSessionsAsync())
+                .ToArray();
+
+            await client.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
+
+            Assert.IsNotNull(processId);
+            Assert.ThrowsException<ArgumentException>(() => Process.GetProcessById(processId.Value));
+            await Task.WhenAll(requests.Select(async request =>
+            {
+                try
+                {
+                    await request;
+                }
+                catch (Exception exception) when (
+                    exception is ObjectDisposedException or IOException
+                    || exception is WorkerProtocolException protocolException
+                        && protocolException.Message.Contains("stdin is unavailable", StringComparison.Ordinal))
+                {
+                }
+            })).WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await client.DisposeAsync();
+            if (Directory.Exists(temp))
+            {
+                await TestDirectoryCleanup.DeleteAsync(temp);
+            }
+        }
+    }
+
+    [TestMethod]
+    public async Task DisposeAsync_DuringActiveRunStopsOwnedWorkerAndPersistsCancellation()
+    {
+        var worker = FindWorker();
+        var temp = Path.Combine(Path.GetTempPath(), $"super-duper-active-shutdown-{Guid.NewGuid():N}");
+        var root = Path.Combine(temp, "root");
+        var database = Path.Combine(temp, "worker.db");
+        Directory.CreateDirectory(root);
+        for (var index = 0; index < 1_500; index++)
+        {
+            await File.WriteAllBytesAsync(Path.Combine(root, $"{index:D4}.bin"), new byte[4096]);
+        }
+
+        try
+        {
+            var client = new WorkerClient(
+                worker,
+                TimeSpan.FromSeconds(10),
+                database,
+                Path.Combine(temp, "logs", "worker.log"),
+                Path.Combine(temp, "hash-cache"));
+            _ = await client.ConnectAsync();
+            var session = await client.CreateSessionAsync("Active shutdown", [root], []);
+            var run = await client.StartRunAsync(session.Id);
+            var processId = client.OwnedProcessId;
+
+            await client.DisposeAsync();
+
+            Assert.IsNotNull(processId);
+            Assert.ThrowsException<ArgumentException>(() => Process.GetProcessById(processId.Value));
+
+            await using var restarted = new WorkerClient(
+                worker,
+                TimeSpan.FromSeconds(10),
+                database,
+                Path.Combine(temp, "logs", "restarted.log"),
+                Path.Combine(temp, "hash-cache"));
+            _ = await restarted.ConnectAsync();
+            var durable = await restarted.GetRunAsync(run.Id);
+            Assert.AreEqual("cancelled", durable.Status);
+        }
+        finally
+        {
+            if (Directory.Exists(temp))
+            {
+                await TestDirectoryCleanup.DeleteAsync(temp);
+            }
+        }
+    }
+
     [TestMethod]
     public async Task TypedClient_CreatesSessionRunsScanAndObservesDurableCompletion()
     {
@@ -26,7 +127,8 @@ public sealed class WorkerClientLifecycleTests
                 worker,
                 TimeSpan.FromSeconds(10),
                 Path.Combine(temp, "worker.db"),
-                diagnostics);
+                diagnostics,
+                Path.Combine(temp, "hash-cache"));
             var terminal = new TaskCompletionSource<string>(
                 TaskCreationOptions.RunContinuationsAsynchronously);
             client.RunLifecycleChanged += (_, eventArgs) =>
@@ -41,7 +143,7 @@ public sealed class WorkerClientLifecycleTests
             var session = await client.CreateSessionAsync("Lifecycle", [root], []);
             var sessions = await client.ListSessionsAsync();
             var started = await client.StartRunAsync(session.Id);
-            var terminalEvent = await terminal.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var terminalEvent = await terminal.Task.WaitAsync(TimeSpan.FromSeconds(30));
             var durable = await client.GetRunAsync(started.Id);
             var groups = await client.GetDuplicateFileGroupsAsync(
                 new DuplicateFileGroupQuery(
@@ -111,7 +213,7 @@ public sealed class WorkerClientLifecycleTests
         {
             if (Directory.Exists(temp))
             {
-                Directory.Delete(temp, recursive: true);
+                await TestDirectoryCleanup.DeleteAsync(temp);
             }
         }
     }

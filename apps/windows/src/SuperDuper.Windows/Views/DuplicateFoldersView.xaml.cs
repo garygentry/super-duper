@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Windows.Controls;
 using SuperDuper.Windows.Core.ViewModels;
 using SuperDuper.Windows.Core.Workers;
@@ -20,15 +19,12 @@ public partial class DuplicateFoldersView : UserControl
             "RepresentativePath" => DuplicateFolderGroupSortField.RepresentativePath,
             _ => DuplicateFolderGroupSortField.TotalBytes,
         };
-        var direction = e.Column.SortDirection == ListSortDirection.Ascending
-            ? ListSortDirection.Descending
-            : ListSortDirection.Ascending;
+        var direction = ServerSortInteraction.NextDirection(
+            viewModel.SortField,
+            viewModel.SortDirection,
+            field);
         foreach (var column in GroupsGrid.Columns) column.SortDirection = null;
-        e.Column.SortDirection = direction;
-        await viewModel.ApplySortAsync(
-            field,
-            direction == ListSortDirection.Ascending
-                ? WorkerSortDirection.Ascending
-                : WorkerSortDirection.Descending);
+        e.Column.SortDirection = ServerSortInteraction.ToListDirection(direction);
+        await viewModel.ApplySortAsync(field, direction);
     }
 }

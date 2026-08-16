@@ -5,4 +5,5 @@ public enum WorkerConnectionState
     Starting,
     Connected,
     Failed,
+    RecoveryRequired,
 }

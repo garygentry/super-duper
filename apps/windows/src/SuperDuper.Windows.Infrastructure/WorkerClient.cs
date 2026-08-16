@@ -6,7 +6,7 @@ using SuperDuper.Windows.Infrastructure.Protocol;
 
 namespace SuperDuper.Windows.Infrastructure;
 
-public sealed class WorkerClient : IWorkerClient, IDisposable
+public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
 {
     private static readonly TimeSpan DefaultStartupTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(2);
@@ -14,12 +14,13 @@ public sealed class WorkerClient : IWorkerClient, IDisposable
 
     private readonly TimeSpan _startupTimeout;
     private readonly string? _databasePath;
+    private readonly string? _hashCachePath;
     private readonly string _diagnosticLogPath;
     private readonly ResponseCorrelator _responses = new();
     private readonly SemaphoreSlim _connectionGate = new(1, 1);
     private readonly SemaphoreSlim _writeGate = new(1, 1);
     private readonly SemaphoreSlim _stopGate = new(1, 1);
-    private readonly CancellationTokenSource _lifetime = new();
+    private CancellationTokenSource _lifetime = new();
     private readonly StringBuilder _standardError = new();
     private readonly object _standardErrorLock = new();
 
@@ -31,6 +32,7 @@ public sealed class WorkerClient : IWorkerClient, IDisposable
     private WorkerHelloResult? _hello;
     private long _nextRequestId;
     private int _disposed;
+    private int _stopping;
 
     public WorkerClient(string executablePath)
         : this(executablePath, DefaultStartupTimeout)
@@ -52,11 +54,22 @@ public sealed class WorkerClient : IWorkerClient, IDisposable
         TimeSpan startupTimeout,
         string? databasePath,
         string? diagnosticLogPath)
+        : this(executablePath, startupTimeout, databasePath, diagnosticLogPath, hashCachePath: null)
+    {
+    }
+
+    internal WorkerClient(
+        string executablePath,
+        TimeSpan startupTimeout,
+        string? databasePath,
+        string? diagnosticLogPath,
+        string? hashCachePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(executablePath);
         ExecutablePath = Path.GetFullPath(executablePath);
         _startupTimeout = startupTimeout;
         _databasePath = databasePath is null ? null : Path.GetFullPath(databasePath);
+        _hashCachePath = hashCachePath is null ? null : Path.GetFullPath(hashCachePath);
         _diagnosticLogPath = Path.GetFullPath(diagnosticLogPath ?? DefaultDiagnosticLogPath());
     }
 
@@ -68,76 +81,101 @@ public sealed class WorkerClient : IWorkerClient, IDisposable
 
     public event EventHandler<WorkerRunLifecycleEventArgs>? RunLifecycleChanged;
 
+    public event EventHandler<WorkerUnexpectedExitEventArgs>? UnexpectedExit;
+
+    internal int? OwnedProcessId => _process?.Id;
+
     public async Task<WorkerHelloResult> ConnectAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 
-        if (_hello is not null)
-        {
-            return _hello;
-        }
-
         await _connectionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_hello is not null)
-            {
-                return _hello;
-            }
-
-            StartWorker();
-
-            using var timeoutSource = new CancellationTokenSource(_startupTimeout);
-            using var startupSource = CancellationTokenSource.CreateLinkedTokenSource(
-                cancellationToken,
-                timeoutSource.Token);
-
-            try
-            {
-                var response = await SendRequestAsync(
-                    "hello",
-                    new
-                    {
-                        protocolVersions = new[] { 1 },
-                        client = new
-                        {
-                            name = "SuperDuper.Windows",
-                            version = typeof(WorkerClient).Assembly.GetName().Version?.ToString(3) ?? "0.1.0",
-                        },
-                    },
-                    startupSource.Token).ConfigureAwait(false);
-
-                var hello = response.Result?.Deserialize<WorkerHelloResult>(JsonLineProtocol.SerializerOptions)
-                    ?? throw new WorkerProtocolException("hello response has no readable result.");
-
-                if (hello.ProtocolVersion != 1)
-                {
-                    throw new WorkerProtocolException(
-                        $"Worker selected unoffered protocol version {hello.ProtocolVersion}.");
-                }
-
-                _hello = hello;
-                return hello;
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                await StopProcessAsync().ConfigureAwait(false);
-                throw;
-            }
-            catch (OperationCanceledException exception) when (timeoutSource.IsCancellationRequested)
-            {
-                await StopProcessAsync().ConfigureAwait(false);
-                throw CreateConnectionException("The hello handshake timed out.", exception);
-            }
-            catch (Exception exception) when (exception is not WorkerConnectionException)
-            {
-                await StopProcessAsync().ConfigureAwait(false);
-                throw CreateConnectionException("The hello handshake failed.", exception);
-            }
+            return await ConnectCoreAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
             _connectionGate.Release();
+        }
+    }
+
+    public async Task<WorkerHelloResult> RestartAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        await _connectionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            _hello = null;
+            await StopProcessAsync().ConfigureAwait(false);
+            ResetConnectionLifetime();
+            return await ConnectCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _connectionGate.Release();
+        }
+    }
+
+    private async Task<WorkerHelloResult> ConnectCoreAsync(CancellationToken cancellationToken)
+    {
+        if (_hello is not null)
+        {
+            return _hello;
+        }
+        if (_process is not null)
+        {
+            throw CreateConnectionException("The previous worker connection ended. Restart is required.");
+        }
+
+        StartWorker();
+
+        using var timeoutSource = new CancellationTokenSource(_startupTimeout);
+        using var startupSource = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            timeoutSource.Token);
+
+        try
+        {
+            var response = await SendRequestAsync(
+                "hello",
+                new
+                {
+                    protocolVersions = new[] { 1 },
+                    client = new
+                    {
+                        name = "SuperDuper.Windows",
+                        version = typeof(WorkerClient).Assembly.GetName().Version?.ToString(3) ?? "0.1.0",
+                    },
+                },
+                startupSource.Token).ConfigureAwait(false);
+
+            var hello = response.Result?.Deserialize<WorkerHelloResult>(JsonLineProtocol.SerializerOptions)
+                ?? throw new WorkerProtocolException("hello response has no readable result.");
+
+            if (hello.ProtocolVersion != 1)
+            {
+                throw new WorkerProtocolException(
+                    $"Worker selected unoffered protocol version {hello.ProtocolVersion}.");
+            }
+
+            _hello = hello;
+            return hello;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await StopProcessAsync().ConfigureAwait(false);
+            throw;
+        }
+        catch (OperationCanceledException exception) when (timeoutSource.IsCancellationRequested)
+        {
+            await StopProcessAsync().ConfigureAwait(false);
+            throw CreateConnectionException("The hello handshake timed out.", exception);
+        }
+        catch (Exception exception) when (exception is not WorkerConnectionException)
+        {
+            await StopProcessAsync().ConfigureAwait(false);
+            throw CreateConnectionException("The hello handshake failed.", exception);
         }
     }
 
@@ -349,6 +387,10 @@ public sealed class WorkerClient : IWorkerClient, IDisposable
         if (_databasePath is not null)
         {
             startInfo.Environment["SUPER_DUPER_DB_PATH"] = _databasePath;
+        }
+        if (_hashCachePath is not null)
+        {
+            startInfo.Environment["HASH_CACHE_PATH"] = _hashCachePath;
         }
 
         try
@@ -568,10 +610,21 @@ public sealed class WorkerClient : IWorkerClient, IDisposable
         try
         {
             await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-            if (Volatile.Read(ref _disposed) == 0)
+            if (Volatile.Read(ref _disposed) == 0 && Volatile.Read(ref _stopping) == 0)
             {
-                _responses.FailAll(CreateConnectionException(
-                    $"The worker exited unexpectedly with code {process.ExitCode}."));
+                var message = $"The worker exited unexpectedly with code {process.ExitCode}.";
+                var exception = CreateConnectionException(message);
+                _hello = null;
+                _responses.FailAll(exception);
+                UnexpectedExit?.Invoke(
+                    this,
+                    new WorkerUnexpectedExitEventArgs
+                    {
+                        ExitCode = process.ExitCode,
+                        Message = message,
+                        ExecutablePath = ExecutablePath,
+                        DiagnosticLogPath = DiagnosticLogPath,
+                    });
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -582,6 +635,7 @@ public sealed class WorkerClient : IWorkerClient, IDisposable
     private async Task StopProcessAsync()
     {
         await _stopGate.WaitAsync().ConfigureAwait(false);
+        Interlocked.Exchange(ref _stopping, 1);
         try
         {
             var process = _process;
@@ -590,14 +644,22 @@ public sealed class WorkerClient : IWorkerClient, IDisposable
                 return;
             }
 
-            if (_standardInput is not null)
+            var standardInput = _standardInput;
+            _standardInput = null;
+            _responses.FailAll(new ObjectDisposedException(nameof(WorkerClient)));
+            if (standardInput is not null)
             {
+                await _writeGate.WaitAsync().ConfigureAwait(false);
                 try
                 {
-                    await _standardInput.DisposeAsync().ConfigureAwait(false);
+                    await standardInput.DisposeAsync().ConfigureAwait(false);
                 }
                 catch (IOException)
                 {
+                }
+                finally
+                {
+                    _writeGate.Release();
                 }
             }
 
@@ -621,11 +683,25 @@ public sealed class WorkerClient : IWorkerClient, IDisposable
             await ObservePumpAsync(_exitMonitor).ConfigureAwait(false);
             process.Dispose();
             _process = null;
-            _standardInput = null;
+            _standardOutputPump = null;
+            _standardErrorPump = null;
+            _exitMonitor = null;
         }
         finally
         {
+            Interlocked.Exchange(ref _stopping, 0);
             _stopGate.Release();
+        }
+    }
+
+    private void ResetConnectionLifetime()
+    {
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+        _lifetime = new CancellationTokenSource();
+        lock (_standardErrorLock)
+        {
+            _standardError.Clear();
         }
     }
 

@@ -105,6 +105,7 @@ public sealed class SessionSetupViewModel : ObservableObject
             if (SetProperty(ref _canMutate, value))
             {
                 OnPropertyChanged(nameof(CanEdit));
+                OnPropertyChanged(nameof(CanStart));
                 RefreshCommands();
             }
         }
@@ -312,6 +313,10 @@ public sealed class SessionSetupViewModel : ObservableObject
 
     private void AddRoot()
     {
+        if (Roots.Any(root => string.IsNullOrWhiteSpace(root.Path)))
+        {
+            return;
+        }
         Roots.Add(new SessionRootViewModel());
     }
 
@@ -320,7 +325,15 @@ public sealed class SessionSetupViewModel : ObservableObject
         var folder = await _folderPicker.PickFolderAsync();
         if (!string.IsNullOrWhiteSpace(folder))
         {
-            Roots.Add(new SessionRootViewModel(folder));
+            var blank = Roots.FirstOrDefault(root => string.IsNullOrWhiteSpace(root.Path));
+            if (blank is null)
+            {
+                Roots.Add(new SessionRootViewModel(folder));
+            }
+            else
+            {
+                blank.Path = folder;
+            }
         }
     }
 

@@ -9,6 +9,7 @@ namespace SuperDuper.Windows.Core.ViewModels;
 public sealed class ShellViewModel : ObservableObject, IDisposable
 {
     private readonly IWorkerClient _workerClient;
+    private readonly IRestartableWorkerClient? _restartableWorkerClient;
     private readonly IUiDispatcher _dispatcher;
     private readonly IUserConfirmationService _confirmation;
     private CancellationTokenSource? _selectionCancellation;
@@ -37,6 +38,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         IExplorerService explorer)
     {
         _workerClient = workerClient;
+        _restartableWorkerClient = workerClient as IRestartableWorkerClient;
         _confirmation = confirmation;
         _dispatcher = dispatcher;
 
@@ -59,8 +61,13 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         History.SelectedRunChanged += OnSelectedRunChanged;
         _workerClient.RunProgress += OnRunProgress;
         _workerClient.RunLifecycleChanged += OnRunLifecycleChanged;
+        if (_restartableWorkerClient is not null)
+        {
+            _restartableWorkerClient.UnexpectedExit += OnUnexpectedWorkerExit;
+        }
 
         StartRunCommand = new AsyncRelayCommand(StartRunAsync, () => CanStartRun);
+        RestartWorkerCommand = new AsyncRelayCommand(RestartWorkerAsync, () => CanRestartWorker);
         ClearContentErrorCommand = new RelayCommand(() => ContentErrorMessage = null);
     }
 
@@ -86,7 +93,13 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsStarting));
                 OnPropertyChanged(nameof(IsConnected));
                 OnPropertyChanged(nameof(IsFailed));
+                OnPropertyChanged(nameof(IsRecoveryRequired));
+                OnPropertyChanged(nameof(IsRecoveryScreenVisible));
                 OnPropertyChanged(nameof(IsEmptyState));
+                OnPropertyChanged(nameof(CanStartRun));
+                OnPropertyChanged(nameof(CanRestartWorker));
+                StartRunCommand.NotifyCanExecuteChanged();
+                RestartWorkerCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -163,6 +176,10 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
     public bool IsFailed => ConnectionState == WorkerConnectionState.Failed;
 
+    public bool IsRecoveryRequired => ConnectionState == WorkerConnectionState.RecoveryRequired;
+
+    public bool IsRecoveryScreenVisible => IsFailed || IsRecoveryRequired;
+
     public bool IsEmptyState => IsConnected && !IsWorkspaceVisible && !Sessions.IsLoading;
 
     public bool HasContentError => !string.IsNullOrWhiteSpace(ContentErrorMessage);
@@ -185,11 +202,17 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
     public bool CanStartRun => IsConnected && IsWorkspaceVisible && !HasActiveRun && Setup.CanStart;
 
+    public bool CanRestartWorker =>
+        _restartableWorkerClient is not null
+        && ConnectionState is WorkerConnectionState.Failed or WorkerConnectionState.RecoveryRequired;
+
     public string WorkerExecutablePath => _workerClient.ExecutablePath;
 
     public string DiagnosticLogPath => _workerClient.DiagnosticLogPath;
 
     public IAsyncRelayCommand StartRunCommand { get; }
+
+    public IAsyncRelayCommand RestartWorkerCommand { get; }
 
     public IRelayCommand ClearContentErrorCommand { get; }
 
@@ -289,6 +312,10 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         History.SelectedRunChanged -= OnSelectedRunChanged;
         _workerClient.RunProgress -= OnRunProgress;
         _workerClient.RunLifecycleChanged -= OnRunLifecycleChanged;
+        if (_restartableWorkerClient is not null)
+        {
+            _restartableWorkerClient.UnexpectedExit -= OnUnexpectedWorkerExit;
+        }
         Progress.Dispose();
         DuplicateFiles.Dispose();
         DuplicateFolders.Dispose();
@@ -393,6 +420,60 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         }
     }
 
+    private async Task RestartWorkerAsync()
+    {
+        if (_restartableWorkerClient is null)
+        {
+            return;
+        }
+
+        var selectedSessionId = Sessions.SelectedSession?.Id;
+        ConnectionState = WorkerConnectionState.Starting;
+        StatusTitle = "Restarting worker";
+        StatusDetail = "Starting a fresh private worker and reconciling interrupted scan state.";
+        ContentErrorMessage = null;
+        try
+        {
+            var hello = await _restartableWorkerClient.RestartAsync();
+            WorkerVersion = hello.WorkerVersion;
+            EngineVersion = hello.EngineVersion;
+            Setup.CanMutate = true;
+            Sessions.CanMutate = true;
+
+            _suppressSelection = true;
+            try
+            {
+                await Sessions.LoadAsync();
+                if (selectedSessionId is long sessionId && Sessions.Find(sessionId) is { } selected)
+                {
+                    Sessions.SelectedSession = selected;
+                }
+            }
+            finally
+            {
+                _suppressSelection = false;
+            }
+
+            ConnectionState = WorkerConnectionState.Connected;
+            StatusTitle = "Worker recovered";
+            StatusDetail = $"Protocol {hello.ProtocolVersion} · Interrupted work reconciled · Ready for a new scan";
+            if (Sessions.SelectedSession is { } session)
+            {
+                await SelectSessionAsync(session);
+            }
+            else
+            {
+                ShowEmptyState();
+            }
+        }
+        catch (Exception exception)
+        {
+            StatusTitle = "Worker restart failed";
+            StatusDetail = exception.Message;
+            ConnectionState = WorkerConnectionState.Failed;
+        }
+    }
+
     private void OnSessionSelectionChanged(object? sender, SessionListItemViewModel? selected)
     {
         if (_suppressSelection)
@@ -467,6 +548,46 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     private void OnRunLifecycleChanged(object? sender, WorkerRunLifecycleEventArgs lifecycle) =>
         _dispatcher.Post(() => HandleLifecycle(lifecycle.Run));
 
+    private void OnUnexpectedWorkerExit(object? sender, WorkerUnexpectedExitEventArgs exit) =>
+        _dispatcher.Post(() => HandleUnexpectedWorkerExit(exit));
+
+    private void HandleUnexpectedWorkerExit(WorkerUnexpectedExitEventArgs exit)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        ConnectionState = WorkerConnectionState.RecoveryRequired;
+        StatusTitle = "Worker exited unexpectedly";
+        StatusDetail = $"{exit.Message} Restart the worker to reconcile interrupted work. Diagnostics: {exit.DiagnosticLogPath}";
+        ContentErrorMessage = null;
+
+        if (Progress.Run is { } run && run.Status is "pending" or "running" or "cancelling")
+        {
+            var unavailable = run with
+            {
+                Status = "interrupted",
+                CompletedAt = DateTimeOffset.UtcNow,
+                ErrorMessage = "The worker exited before this run finished. Restart the worker to reconcile durable state.",
+            };
+            History.Upsert(unavailable, select: true);
+            Progress.ApplyLifecycle(unavailable);
+            DuplicateFiles.ApplyLifecycle(unavailable);
+            DuplicateFolders.ApplyLifecycle(unavailable);
+            var session = Sessions.Find(unavailable.SessionId);
+            if (session is not null)
+            {
+                session.StatusText = "Recovery required";
+            }
+        }
+
+        Setup.CanMutate = false;
+        Sessions.CanMutate = false;
+        ActiveRunId = null;
+        _activeSessionId = null;
+    }
+
     private void HandleProgress(WorkerRunProgressEventArgs progress)
     {
         if (_disposed)
@@ -502,13 +623,15 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         }
         else if (ActiveRunId == run.Id)
         {
-            ActiveRunId = null;
-            _activeSessionId = null;
             Setup.CanMutate = true;
             Sessions.CanMutate = true;
+            ActiveRunId = null;
+            _activeSessionId = null;
             StatusTitle = run.Status == "completed" ? "Scan complete" : DisplayFormatting.Status(run.Status);
             StatusDetail = run.ErrorMessage
                 ?? $"{run.FilesDiscovered:N0} files · {run.DuplicateFileGroups:N0} duplicate groups";
+            OnPropertyChanged(nameof(CanStartRun));
+            StartRunCommand.NotifyCanExecuteChanged();
         }
     }
 

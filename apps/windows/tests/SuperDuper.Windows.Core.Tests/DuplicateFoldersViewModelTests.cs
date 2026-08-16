@@ -69,6 +69,47 @@ public sealed class DuplicateFoldersViewModelTests
     }
 
     [TestMethod]
+    public async Task ResortKeepsDisplayedResultsUntilReplacementPageArrives()
+    {
+        var replacement = new TaskCompletionSource<WorkerDuplicateFolderGroupPage>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var resortObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) =>
+            {
+                if (query.SortDirection == WorkerSortDirection.Ascending)
+                {
+                    resortObserved.TrySetResult();
+                    return replacement.Task;
+                }
+                return Task.FromResult(new WorkerDuplicateFolderGroupPage(
+                    [Group(1, query.RunId, @"C:\before-sort")], 1, null, null));
+            },
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(12, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        var resort = viewModel.ApplySortAsync(
+            DuplicateFolderGroupSortField.TotalBytes,
+            WorkerSortDirection.Ascending);
+        await resortObserved.Task;
+
+        Assert.IsTrue(viewModel.IsLoading);
+        Assert.IsFalse(viewModel.IsEmpty);
+        Assert.IsFalse(viewModel.IsLoadingOverlayVisible);
+        Assert.AreEqual(@"C:\before-sort", viewModel.Groups.Single().RepresentativePath);
+
+        replacement.SetResult(new WorkerDuplicateFolderGroupPage(
+            [Group(2, 12, @"C:\after-sort")], 1, null, null));
+        await resort;
+
+        Assert.IsFalse(viewModel.IsLoading);
+        Assert.AreEqual(@"C:\after-sort", viewModel.Groups.Single().RepresentativePath);
+    }
+
+    [TestMethod]
     public async Task NonCompletedAndEmptyRunsExposeExplicitStates()
     {
         using var viewModel = new DuplicateFoldersViewModel(new TestWorkerClient(), new TestClipboard(), new TestExplorer());

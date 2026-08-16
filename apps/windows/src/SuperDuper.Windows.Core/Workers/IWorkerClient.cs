@@ -64,3 +64,10 @@ public interface IWorkerClient : IAsyncDisposable
         DuplicateFolderMemberQuery query,
         CancellationToken cancellationToken = default);
 }
+
+public interface IRestartableWorkerClient : IWorkerClient
+{
+    event EventHandler<WorkerUnexpectedExitEventArgs>? UnexpectedExit;
+
+    Task<WorkerHelloResult> RestartAsync(CancellationToken cancellationToken = default);
+}

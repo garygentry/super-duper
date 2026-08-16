@@ -15,7 +15,8 @@ uses stable UI Automation IDs to exercise both result surfaces and invoke Explor
 - fixed-drive scanning, a path longer than 260 characters, a locked file, and a skipped junction;
 - all five scan-phase timings and all four result-query timings on stderr;
 - WPF startup/restoration, duplicate-file and exact-folder tabs, grid sorting, paging, filtering,
-  row selection, and Explorer reveal invocation where an interactive shell is available.
+  row selection, completed ordinary/long-path file and folder Explorer reveal commands, and
+  deterministic result-loaded, repeated idle, startup-failure, and database-failure shutdown.
 
 Run Debug or Release:
 
@@ -46,8 +47,9 @@ root become a warning instead of preventing the run.
 ## Expected Result
 
 The script prints `Windows smoke passed`. With WPF enabled it also prints that WPF automation
-passed and may leave an Explorer window showing a selected disposable fixture item. By default the
-fixture is removed after the app closes; `-KeepArtifacts` prints and retains its path.
+passed, fails if either reveal action reports a detail error, verifies that owned workers do not
+survive the app, and may leave an Explorer window showing a selected disposable fixture item. By
+default the fixture is removed after the app closes; `-KeepArtifacts` prints and retains its path.
 
 If UI Automation is blocked by a locked session, elevation boundary, or headless runner, rerun with
 `-SkipWpf`, then perform the WPF portion manually on an interactive Windows 11 desktop:

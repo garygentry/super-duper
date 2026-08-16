@@ -81,7 +81,12 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
 
     public string Status => Run is null ? "No run selected" : DisplayFormatting.Status(Run.Status);
 
-    public string Phase => Run is null ? "—" : DisplayFormatting.Phase(Run.Phase);
+    public string Phase => Run switch
+    {
+        null => "—",
+        { Status: "pending" or "running" or "cancelling" } run => DisplayFormatting.Phase(run.Phase),
+        { } run => $"Last phase: {DisplayFormatting.Phase(run.Phase)}",
+    };
 
     public string FilesDiscovered => (Run?.FilesDiscovered ?? 0).ToString("N0");
 

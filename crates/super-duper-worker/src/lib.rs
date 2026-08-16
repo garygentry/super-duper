@@ -1253,7 +1253,6 @@ impl WorkerSession {
             )
             .with_details(json!({"activeRunId":current.run_id})));
         }
-        current.cancel_token.store(true, Ordering::Release);
         let db = self.state.database()?;
         match db.mark_run_cancelling(parameters.run_id) {
             Ok(()) => {}
@@ -1269,6 +1268,10 @@ impl WorkerSession {
             }
         }
         let run = run_dto(get_run(&db, parameters.run_id)?)?;
+        // Publish cancellation only after the durable state and response snapshot are
+        // `cancelling`. Otherwise the scan thread can win either race and make this initiating
+        // request fail or return a terminal state even though it caused the cancellation.
+        current.cancel_token.store(true, Ordering::Release);
         Ok(json!({"run":run}))
     }
 }
@@ -2900,8 +2903,10 @@ mod tests {
             .iter()
             .filter_map(|frame| frame["data"]["phase"].as_str())
             .collect();
+        let mut phase_transitions = phases;
+        phase_transitions.dedup();
         assert_eq!(
-            phases,
+            phase_transitions,
             vec![
                 "discovering",
                 "hashing",

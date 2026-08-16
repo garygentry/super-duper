@@ -193,3 +193,14 @@ public sealed class WorkerRunLifecycleEventArgs : EventArgs
 
     public required WorkerRun Run { get; init; }
 }
+
+public sealed class WorkerUnexpectedExitEventArgs : EventArgs
+{
+    public required int ExitCode { get; init; }
+
+    public required string Message { get; init; }
+
+    public required string ExecutablePath { get; init; }
+
+    public required string DiagnosticLogPath { get; init; }
+}

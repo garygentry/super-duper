@@ -66,7 +66,14 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     public IReadOnlyList<DuplicateFileGroupListItemViewModel> Groups
     {
         get => _groups;
-        private set => SetProperty(ref _groups, value);
+        private set
+        {
+            if (SetProperty(ref _groups, value))
+            {
+                OnPropertyChanged(nameof(HasGroups));
+                OnPropertyChanged(nameof(IsLoadingOverlayVisible));
+            }
+        }
     }
 
     public IReadOnlyList<DuplicateFileMemberListItemViewModel> Members
@@ -137,6 +144,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         {
             if (SetProperty(ref _isLoading, value))
             {
+                OnPropertyChanged(nameof(IsEmpty));
+                OnPropertyChanged(nameof(IsLoadingOverlayVisible));
                 RaisePagingProperties();
             }
         }
@@ -197,6 +206,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     public bool IsEmpty => Run?.Status == "completed" && !IsLoading && !HasError && TotalGroups == 0;
 
     public bool HasGroups => Groups.Count > 0;
+
+    public bool IsLoadingOverlayVisible => IsLoading && !HasGroups;
 
     public bool HasSelectedGroup => SelectedGroup is not null;
 
@@ -282,7 +293,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SortDirection));
         if (Run?.Status == "completed")
         {
-            await ResetAndLoadGroupsAsync(cancellationToken);
+            await ResetAndLoadGroupsAsync(cancellationToken, preserveDisplayedResults: true);
         }
     }
 
@@ -323,7 +334,9 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         }
     }
 
-    private async Task ResetAndLoadGroupsAsync(CancellationToken cancellationToken = default)
+    private async Task ResetAndLoadGroupsAsync(
+        CancellationToken cancellationToken = default,
+        bool preserveDisplayedResults = false)
     {
         if (!TryBuildFilter(out var filter))
         {
@@ -333,15 +346,19 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         CancelMemberQuery();
         _groupCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var generation = ++_groupGeneration;
+        IsLoading = true;
         _groupCache.Clear();
         _memberCache.Clear();
         _currentGroupPage = null;
         _currentMemberPage = null;
-        Groups = [];
-        Members = [];
-        SelectedGroup = null;
-        TotalGroups = 0;
-        TotalMembers = 0;
+        if (!preserveDisplayedResults)
+        {
+            Groups = [];
+            Members = [];
+            SelectedGroup = null;
+            TotalGroups = 0;
+            TotalMembers = 0;
+        }
         ErrorMessage = null;
         DetailErrorMessage = null;
         await LoadGroupPageAsync(null, filter, generation, _groupCancellation.Token, display: true);

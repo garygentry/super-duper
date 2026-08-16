@@ -39,6 +39,7 @@
             <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <DataGrid x:Name="GroupsGrid" AutoGenerateColumns="False" CanUserSortColumns="True"
                       automation:AutomationProperties.AutomationId="FolderGroupsGrid"
+                      automation:AutomationProperties.Name="Exact duplicate folder groups"
                       EnableColumnVirtualization="True" EnableRowVirtualization="True" IsReadOnly="True"
                       ItemsSource="{Binding Groups}" SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
                       SelectionMode="Single" Sorting="OnGroupsSorting"
@@ -53,14 +54,14 @@
             <Grid Grid.Row="1" Margin="0,9,0,0">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <TextBlock VerticalAlignment="Center" Opacity="0.68" Text="{Binding GroupCountText}" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate folder group paging" Orientation="Horizontal">
                     <Button Padding="10,4" Command="{Binding PreviousPageCommand}" Content="Previous" />
                     <Button Margin="8,0,0,0" Padding="10,4" Command="{Binding NextPageCommand}" Content="Next" />
                     <Button Margin="8,0,0,0" Padding="10,4" Command="{Binding ClearFiltersCommand}" Content="Clear filters" />
                 </StackPanel>
             </Grid>
             <Border Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" Opacity="0.94"
-                    Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    Visibility="{Binding IsLoadingOverlayVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <ProgressBar Width="150" Height="4" IsIndeterminate="True" />
                     <TextBlock Margin="0,9,0,0" Opacity="0.7" Text="Loading duplicate folder groups…" />
@@ -93,6 +94,7 @@
             </Grid>
             <DataGrid x:Name="MembersGrid" Grid.Row="1" AutoGenerateColumns="False" EnableColumnVirtualization="True" EnableRowVirtualization="True"
                       automation:AutomationProperties.AutomationId="FolderMembersGrid"
+                      automation:AutomationProperties.Name="Folders in selected duplicate group"
                       IsReadOnly="True" ItemsSource="{Binding Members}" SelectionMode="Single"
                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                 <DataGrid.Columns>
@@ -112,8 +114,10 @@
             <Grid Grid.Row="2" Margin="0,8,0,0">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <TextBlock VerticalAlignment="Center" Foreground="#C84B31" Text="{Binding DetailErrorMessage}" TextTrimming="CharacterEllipsis"
+                           automation:AutomationProperties.AutomationId="FolderDetailError"
+                           automation:AutomationProperties.Name="Folder action error"
                            Visibility="{Binding HasDetailError, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate folder member paging" Orientation="Horizontal">
                     <Button Padding="10,4" Command="{Binding PreviousMemberPageCommand}" Content="Previous folders" />
                     <Button Margin="8,0,0,0" Padding="10,4" Command="{Binding NextMemberPageCommand}" Content="Next folders" />
                 </StackPanel>

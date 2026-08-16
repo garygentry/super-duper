@@ -35,7 +35,13 @@ public partial class App : Application
         MainWindow = window;
         window.Show();
 
-        await window.ViewModel.InitializeAsync();
+        try
+        {
+            await window.InitializeAsync();
+        }
+        catch (OperationCanceledException) when (window.IsShutdownRequested)
+        {
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)

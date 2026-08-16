@@ -4,8 +4,11 @@
 
 Approved architecture and implementation plan for the first Super Duper Windows front end.
 
-Implementation status: Milestones 0–6 are complete on the `wpf-poc` line of development. The
-Windows front-end MVP is implemented and in hardening/verification status.
+Implementation status: Milestones 0–6 are implemented on the `wpf-poc` line of development. Final
+operator acceptance on 2026-08-16 found release-blocking rerun, Explorer reveal, shutdown, and
+unexpected-worker recovery defects. The MVP is not code complete until
+[`windows-release-acceptance-remediation-plan.md`](windows-release-acceptance-remediation-plan.md)
+passes in full.
 
 This plan treats the Windows application as a new product surface over the existing Rust engine. It
 does not restore or reuse the deleted Windows application.
@@ -528,7 +531,7 @@ Exit criteria:
 
 ### Milestone 6 - MVP Hardening
 
-Status: Complete.
+Status: Implementation complete; final release acceptance remediation is open.
 
 Deliverables:
 
@@ -544,6 +547,10 @@ Exit criteria:
 - A manual end-to-end scan can be created, monitored, cancelled, rerun, reopened, browsed, sorted,
   filtered, and revealed in Explorer.
 - No destructive filesystem operation is exposed.
+
+The first full operator acceptance run did not satisfy the manual rerun, Explorer reveal, shutdown,
+or unexpected-worker recovery criteria. Remediation is tracked separately so these failures are not
+mistaken for post-MVP feature work.
 
 ## Test Strategy
 

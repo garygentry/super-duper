@@ -57,6 +57,7 @@
             </Grid.RowDefinitions>
             <DataGrid x:Name="GroupsGrid"
                       automation:AutomationProperties.AutomationId="FileGroupsGrid"
+                      automation:AutomationProperties.Name="Duplicate file groups"
                       AutoGenerateColumns="False"
                       CanUserSortColumns="True"
                       EnableColumnVirtualization="True"
@@ -75,8 +76,8 @@
                                         SortMemberPath="RepresentativeName"
                                         Binding="{Binding RepresentativeName}" />
                     <DataGridTextColumn Width="90"
+                                        CanUserSort="False"
                                         Header="Type"
-                                        SortMemberPath="RepresentativeName"
                                         Binding="{Binding RepresentativeType}" />
                     <DataGridTextColumn Width="125"
                                         Header="Group size"
@@ -100,7 +101,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock VerticalAlignment="Center" Opacity="0.68" Text="{Binding GroupCountText}" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate file group paging" Orientation="Horizontal">
                     <Button Padding="10,4" Command="{Binding PreviousPageCommand}" Content="Previous" />
                     <Button Margin="8,0,0,0" Padding="10,4" Command="{Binding NextPageCommand}" Content="Next" />
                     <Button Margin="8,0,0,0" Padding="10,4" Command="{Binding ClearFiltersCommand}" Content="Clear filters" />
@@ -109,7 +110,7 @@
 
             <Border Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
                     Opacity="0.94"
-                    Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    Visibility="{Binding IsLoadingOverlayVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <ProgressBar Width="150" Height="4" IsIndeterminate="True" />
                     <TextBlock Margin="0,9,0,0" Opacity="0.7" Text="Loading duplicate groups…" />
@@ -157,6 +158,7 @@
             <DataGrid x:Name="MembersGrid"
                       Grid.Row="1"
                       automation:AutomationProperties.AutomationId="FileMembersGrid"
+                      automation:AutomationProperties.Name="Files in selected duplicate group"
                       AutoGenerateColumns="False"
                       EnableColumnVirtualization="True"
                       EnableRowVirtualization="True"
@@ -194,11 +196,13 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock VerticalAlignment="Center"
+                           automation:AutomationProperties.AutomationId="FileDetailError"
+                           automation:AutomationProperties.Name="File action error"
                            Foreground="#C84B31"
                            Text="{Binding DetailErrorMessage}"
                            TextTrimming="CharacterEllipsis"
                            Visibility="{Binding HasDetailError, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate file member paging" Orientation="Horizontal">
                     <Button Padding="10,4" Command="{Binding PreviousMemberPageCommand}" Content="Previous copies" />
                     <Button Margin="8,0,0,0" Padding="10,4" Command="{Binding NextMemberPageCommand}" Content="Next copies" />
                 </StackPanel>

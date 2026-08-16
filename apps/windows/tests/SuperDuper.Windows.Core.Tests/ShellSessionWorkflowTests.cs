@@ -49,6 +49,61 @@ public sealed class ShellSessionWorkflowTests
         }
     }
 
+    [DataTestMethod]
+    [DataRow("completed")]
+    [DataRow("cancelled")]
+    [DataRow("failed")]
+    [DataRow("interrupted")]
+    public async Task TerminalLifecycle_ImmediatelyReenablesRerunWithoutSetupEdit(string terminalStatus)
+    {
+        var client = new TestWorkerClient();
+        var session = client.AddSession("Rerun", Path.GetTempPath());
+        using var shell = CreateShell(client);
+        await shell.InitializeAsync();
+
+        await shell.StartRunCommand.ExecuteAsync(null);
+        var active = client.Runs.Single();
+        var terminal = active with
+        {
+            Status = terminalStatus,
+            CompletedAt = DateTimeOffset.UtcNow,
+            ErrorMessage = terminalStatus is "failed" or "interrupted" ? "Run stopped." : null,
+        };
+        client.RaiseLifecycle($"run.{terminalStatus}", terminal);
+
+        Assert.IsFalse(shell.HasActiveRun);
+        Assert.IsTrue(shell.Setup.CanStart);
+        Assert.IsTrue(shell.StartRunCommand.CanExecute(null));
+        Assert.AreEqual(active.Id, shell.History.SelectedRun?.Id);
+    }
+
+    [TestMethod]
+    public async Task UnexpectedExit_OffersRestartReconcilesRunAndPreservesCompletedHistory()
+    {
+        var client = new TestWorkerClient();
+        var session = client.AddSession("Recovery", Path.GetTempPath());
+        var completed = client.AddRun(session.Id, "completed");
+        using var shell = CreateShell(client);
+        await shell.InitializeAsync();
+        await shell.StartRunCommand.ExecuteAsync(null);
+        var abandoned = client.Runs.Single(run => run.Id != completed.Id);
+
+        client.RaiseUnexpectedExit(23);
+
+        Assert.IsTrue(shell.IsRecoveryRequired);
+        Assert.IsFalse(shell.HasActiveRun);
+        Assert.AreEqual("Interrupted", shell.Progress.Status);
+        Assert.IsTrue(shell.RestartWorkerCommand.CanExecute(null));
+
+        await shell.RestartWorkerCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, client.RestartCount);
+        Assert.IsTrue(shell.IsConnected);
+        Assert.AreEqual("interrupted", client.Runs.Single(run => run.Id == abandoned.Id).Status);
+        Assert.AreEqual("completed", client.Runs.Single(run => run.Id == completed.Id).Status);
+        Assert.IsTrue(shell.StartRunCommand.CanExecute(null));
+    }
+
     private static ShellViewModel CreateShell(TestWorkerClient client) =>
         new(
             client,

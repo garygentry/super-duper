@@ -45,10 +45,13 @@ troubleshooting. Set `SUPER_DUPER_LOG` to a Rust tracing filter such as
 
 ## Unexpected Exit Or Interrupted Run
 
-An unexpected worker exit fails pending UI requests but does not alter completed history. On the
-next startup, durable `running` or `cancelling` rows become `interrupted`. Partial results are not
-presented as completed. Restart, inspect the interrupted run and log, then start a new immutable
-run. Do not edit SQLite state manually.
+An unexpected worker exit fails pending UI requests but does not alter completed history. The app
+shows a dedicated recovery screen instead of leaving stale scan progress. Choose **Restart worker**
+to start a fresh owned process, negotiate protocol V1, reload sessions/history, and reconcile
+durable `running` or `cancelling` rows to `interrupted`. Partial results are not presented as
+completed. Inspect the interrupted run and log, then start a new immutable run. If restart fails,
+the recovery screen retains the executable and diagnostic-log paths. Do not edit SQLite state
+manually.
 
 ## Database Failure Or Suspected Corruption
 

@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Windows.Controls;
 using SuperDuper.Windows.Core.ViewModels;
 using SuperDuper.Windows.Core.Workers;
@@ -23,18 +22,15 @@ public partial class DuplicateFilesView : UserControl
             "RepresentativeName" => DuplicateFileGroupSortField.RepresentativeName,
             _ => DuplicateFileGroupSortField.RecoverableBytes,
         };
-        var direction = e.Column.SortDirection == ListSortDirection.Ascending
-            ? ListSortDirection.Descending
-            : ListSortDirection.Ascending;
+        var direction = ServerSortInteraction.NextDirection(
+            viewModel.SortField,
+            viewModel.SortDirection,
+            field);
         foreach (var column in GroupsGrid.Columns)
         {
             column.SortDirection = null;
         }
-        e.Column.SortDirection = direction;
-        await viewModel.ApplySortAsync(
-            field,
-            direction == ListSortDirection.Ascending
-                ? WorkerSortDirection.Ascending
-                : WorkerSortDirection.Descending);
+        e.Column.SortDirection = ServerSortInteraction.ToListDirection(direction);
+        await viewModel.ApplySortAsync(field, direction);
     }
 }

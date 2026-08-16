@@ -20,6 +20,8 @@
 
         <Grid Grid.Row="1">
             <DataGrid AutoGenerateColumns="False"
+                      AutomationProperties.AutomationId="RunHistoryGrid"
+                      AutomationProperties.Name="Run history"
                       EnableColumnVirtualization="True"
                       EnableRowVirtualization="True"
                       IsReadOnly="True"

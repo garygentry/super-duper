@@ -55,7 +55,14 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     }
 
     public WorkerRun? Run { get => _run; private set => SetProperty(ref _run, value); }
-    public IReadOnlyList<DuplicateFolderGroupListItemViewModel> Groups { get => _groups; private set => SetProperty(ref _groups, value); }
+    public IReadOnlyList<DuplicateFolderGroupListItemViewModel> Groups
+    {
+        get => _groups;
+        private set
+        {
+            if (SetProperty(ref _groups, value)) OnPropertyChanged(nameof(IsLoadingOverlayVisible));
+        }
+    }
     public IReadOnlyList<DuplicateFolderMemberListItemViewModel> Members { get => _members; private set => SetProperty(ref _members, value); }
     public DuplicateFolderGroupListItemViewModel? SelectedGroup
     {
@@ -84,7 +91,15 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     public bool IsLoading
     {
         get => _isLoading;
-        private set { if (SetProperty(ref _isLoading, value)) RaiseGroupPaging(); }
+        private set
+        {
+            if (SetProperty(ref _isLoading, value))
+            {
+                OnPropertyChanged(nameof(IsEmpty));
+                OnPropertyChanged(nameof(IsLoadingOverlayVisible));
+                RaiseGroupPaging();
+            }
+        }
     }
     public bool IsDetailLoading
     {
@@ -116,6 +131,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     public bool HasDetailError => !string.IsNullOrWhiteSpace(DetailErrorMessage);
     public bool IsUnavailable => Run is null || Run.Status != "completed";
     public bool IsEmpty => Run?.Status == "completed" && !IsLoading && !HasError && TotalGroups == 0;
+    public bool IsLoadingOverlayVisible => IsLoading && Groups.Count == 0;
     public bool IsDetailEmpty => SelectedGroup is not null && !IsDetailLoading && !HasDetailError && TotalMembers == 0;
     public bool CanMoveNext => !IsLoading && _currentGroupPage?.NextCursor is not null;
     public bool CanMovePrevious => !IsLoading && _currentGroupPage?.PreviousCursor is not null;
@@ -162,7 +178,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         _sortDirection = direction;
         OnPropertyChanged(nameof(SortField));
         OnPropertyChanged(nameof(SortDirection));
-        if (Run?.Status == "completed") await ResetAndLoadGroupsAsync(cancellationToken);
+        if (Run?.Status == "completed") await ResetAndLoadGroupsAsync(cancellationToken, preserveDisplayedResults: true);
     }
 
     public void ApplyLifecycle(WorkerRun run)
@@ -187,10 +203,28 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         if (Run?.Status == "completed") await ResetAndLoadGroupsAsync();
     }
 
-    private async Task ResetAndLoadGroupsAsync(CancellationToken cancellationToken = default)
+    private async Task ResetAndLoadGroupsAsync(
+        CancellationToken cancellationToken = default,
+        bool preserveDisplayedResults = false)
     {
         if (!TryBuildFilter(out var filter)) return;
-        ResetQueries();
+        CancelGroupQuery();
+        CancelMemberQuery();
+        _groupCache.Clear();
+        _memberCache.Clear();
+        _currentGroupPage = null;
+        _currentMemberPage = null;
+        IsLoading = true;
+        if (!preserveDisplayedResults)
+        {
+            Groups = [];
+            Members = [];
+            SelectedGroup = null;
+            TotalGroups = 0;
+            TotalMembers = 0;
+        }
+        ErrorMessage = null;
+        DetailErrorMessage = null;
         _groupCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var generation = ++_groupGeneration;
         await LoadGroupPageAsync(null, filter, generation, _groupCancellation.Token, true);

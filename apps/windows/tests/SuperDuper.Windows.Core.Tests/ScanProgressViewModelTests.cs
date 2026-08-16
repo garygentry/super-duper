@@ -7,6 +7,21 @@ namespace SuperDuper.Windows.Core.Tests;
 public sealed class ScanProgressViewModelTests
 {
     [TestMethod]
+    public void TerminalRun_LabelsPhaseAsLastPhase()
+    {
+        using var viewModel = new ScanProgressViewModel(new TestWorkerClient(), new ImmediateDispatcher());
+        viewModel.ShowRun(TestWorkerClient.CreateRun(
+            1,
+            1,
+            "cancelled",
+            "finalizing",
+            DateTimeOffset.UtcNow));
+
+        Assert.AreEqual("Cancelled", viewModel.Status);
+        Assert.AreEqual("Last phase: Finalizing", viewModel.Phase);
+    }
+
+    [TestMethod]
     public void ApplyProgress_IgnoresOutOfOrderSequence()
     {
         var client = new TestWorkerClient();

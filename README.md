@@ -184,10 +184,9 @@ The `super-duper-ffi` crate exposes the core through a C ABI for future native c
 
 ## Project Status
 
-The Rust core and CLI are functional, and Windows MVP Milestones 0–6 are implemented. The WPF app
-provides named scan sessions, immutable run history, responsive progress/cancellation, restart and
-interrupted-run recovery, bounded/stale-safe cursor paging, separate duplicate-file and verified
-exact-folder surfaces, and native Explorer reveal. MVP hardening adds physical-file identity,
-volatile/access/path/reparse handling, phase/query timing diagnostics, Windows x64 Release
-verification, and a repeatable real worker/WPF smoke workflow. The Windows MVP exposes no scanned
+The Rust core and CLI are functional, and Windows MVP Milestones 0–6 are implemented. Final Windows
+operator acceptance found release-blocking defects in immediate rerun, native Explorer reveal,
+deterministic shutdown, and unexpected-worker recovery. Code-complete work is tracked in
+[`docs/windows-release-acceptance-remediation-plan.md`](docs/windows-release-acceptance-remediation-plan.md).
+The remediation remains within the approved MVP scope, and the Windows surface exposes no scanned
 file deletion operation.
