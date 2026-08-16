@@ -1,0 +1,110 @@
+<UserControl x:Class="SuperDuper.Windows.Views.SessionSetupView"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="28" MaxWidth="880" HorizontalAlignment="Left">
+            <TextBlock FontSize="22" FontWeight="SemiBold" Text="Session setup" />
+            <TextBlock Margin="0,5,0,22"
+                       Opacity="0.68"
+                       Text="Choose what this reusable session scans and what it ignores."
+                       TextWrapping="Wrap" />
+
+            <TextBlock FontWeight="SemiBold" Text="Name" />
+            <TextBox Margin="0,7,0,20"
+                     MinWidth="420"
+                     IsEnabled="{Binding CanEdit}"
+                     Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+
+            <Grid Margin="0,0,0,7">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="Scan roots" />
+                <Button Grid.Column="1" Margin="8,0,0,0" Command="{Binding AddRootCommand}" Content="Add path" />
+                <Button Grid.Column="2" Margin="8,0,0,0" Command="{Binding BrowseRootCommand}" Content="Browse…" />
+            </Grid>
+
+            <ItemsControl ItemsSource="{Binding Roots}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox MinWidth="540"
+                                     IsEnabled="{Binding DataContext.CanEdit, ElementName=Root}"
+                                     Text="{Binding Path, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button Grid.Column="1"
+                                    Margin="8,0,0,0"
+                                    Padding="9,3"
+                                    Command="{Binding DataContext.RemoveRootCommand, ElementName=Root}"
+                                    CommandParameter="{Binding}"
+                                    Content="Remove" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Button Margin="0,2,0,20"
+                    HorizontalAlignment="Left"
+                    Command="{Binding NormalizeRootsCommand}"
+                    Content="Normalize roots" />
+
+            <TextBlock FontWeight="SemiBold" Text="Ignore patterns" />
+            <TextBlock Margin="0,4,0,7"
+                       FontSize="12"
+                       Opacity="0.66"
+                       Text="Enter one glob pattern per line. New sessions start with Windows-safe defaults." />
+            <TextBox MinWidth="620"
+                     MinHeight="130"
+                     AcceptsReturn="True"
+                     IsEnabled="{Binding CanEdit}"
+                     Text="{Binding IgnorePatternsText, UpdateSourceTrigger=PropertyChanged}"
+                     TextWrapping="NoWrap"
+                     VerticalScrollBarVisibility="Auto" />
+
+            <Border Margin="0,18,0,0"
+                    Padding="12"
+                    BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Visibility="{Binding HasWarnings, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock Text="{Binding WarningMessage}" TextWrapping="Wrap" />
+            </Border>
+            <Border Margin="0,12,0,0"
+                    Padding="12"
+                    BorderBrush="#C84B31"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Visibility="{Binding HasValidationErrors, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock Text="{Binding ValidationMessage}" TextWrapping="Wrap" />
+            </Border>
+            <Border Margin="0,12,0,0"
+                    Padding="12"
+                    BorderBrush="#C84B31"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Visibility="{Binding HasOperationError, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock Text="{Binding OperationError}" TextWrapping="Wrap" />
+            </Border>
+
+            <StackPanel Margin="0,22,0,0" Orientation="Horizontal">
+                <Button MinWidth="96" Padding="12,7" Command="{Binding SaveCommand}" Content="Save" />
+                <Button Margin="10,0,0,0"
+                        MinWidth="96"
+                        Padding="12,7"
+                        Command="{Binding DeleteCommand}"
+                        Content="Delete" />
+                <ProgressBar Margin="14,0,0,0"
+                             Width="90"
+                             Height="4"
+                             VerticalAlignment="Center"
+                             IsIndeterminate="True"
+                             Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

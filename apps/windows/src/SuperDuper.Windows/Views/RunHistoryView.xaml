@@ -1,0 +1,64 @@
+<UserControl x:Class="SuperDuper.Windows.Views.RunHistoryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="28">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock FontSize="22" FontWeight="SemiBold" Text="Run history" />
+                <TextBlock Margin="0,5,0,0" Opacity="0.68" Text="Completed, cancelled, failed, and interrupted scans remain available after restart." />
+            </StackPanel>
+            <Button Grid.Column="1" Padding="12,6" Command="{Binding RefreshCommand}" Content="Refresh" />
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <DataGrid AutoGenerateColumns="False"
+                      EnableColumnVirtualization="True"
+                      EnableRowVirtualization="True"
+                      IsReadOnly="True"
+                      ItemsSource="{Binding Runs}"
+                      SelectedItem="{Binding SelectedRun, Mode=TwoWay}"
+                      SelectionMode="Single"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Width="125" Header="Status" Binding="{Binding Status}" />
+                    <DataGridTextColumn Width="160" Header="Started" Binding="{Binding Started}" />
+                    <DataGridTextColumn Width="120" Header="Files" Binding="{Binding FilesDiscovered}" />
+                    <DataGridTextColumn Width="120" Header="Data" Binding="{Binding BytesDiscovered}" />
+                    <DataGridTextColumn Width="120" Header="Groups" Binding="{Binding DuplicateGroups}" />
+                    <DataGridTextColumn Width="120" Header="Recoverable" Binding="{Binding WastedBytes}" />
+                    <DataGridTextColumn Width="100" Header="Warnings" Binding="{Binding WarningCount}" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="No scans yet" />
+                <TextBlock Margin="0,6,0,0" Opacity="0.68" Text="Start this session’s first scan from the header." />
+            </StackPanel>
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <ProgressBar Width="140" Height="4" IsIndeterminate="True" />
+                <TextBlock Margin="0,9,0,0" Opacity="0.68" Text="Loading history…" />
+            </StackPanel>
+            <Border Padding="14"
+                    VerticalAlignment="Top"
+                    BorderBrush="#C84B31"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

@@ -1,4 +1,5 @@
 using SuperDuper.Windows.Core.ViewModels;
+using SuperDuper.Windows.Core.Services;
 using SuperDuper.Windows.Core.Workers;
 
 namespace SuperDuper.Windows.Core.Tests;
@@ -11,7 +12,7 @@ public sealed class ShellViewModelTests
     {
         var completion = new TaskCompletionSource<WorkerHelloResult>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        var viewModel = new ShellViewModel(new FakeWorkerClient(_ => completion.Task));
+        var viewModel = CreateViewModel(new FakeWorkerClient(_ => completion.Task));
 
         var initialize = viewModel.InitializeAsync();
 
@@ -27,7 +28,7 @@ public sealed class ShellViewModelTests
     {
         var client = new FakeWorkerClient(
             _ => Task.FromResult(new WorkerHelloResult(1, "0.2.0", "0.3.0")));
-        var viewModel = new ShellViewModel(client);
+        var viewModel = CreateViewModel(client);
 
         await viewModel.InitializeAsync();
 
@@ -43,7 +44,7 @@ public sealed class ShellViewModelTests
     {
         var client = new FakeWorkerClient(
             _ => Task.FromException<WorkerHelloResult>(new InvalidOperationException("worker unavailable")));
-        var viewModel = new ShellViewModel(client);
+        var viewModel = CreateViewModel(client);
 
         await viewModel.InitializeAsync();
 
@@ -53,14 +54,42 @@ public sealed class ShellViewModelTests
         Assert.AreEqual(FakeWorkerClient.Path, viewModel.WorkerExecutablePath);
     }
 
+    private static ShellViewModel CreateViewModel(IWorkerClient client) =>
+        new(client, new TestFolderPicker(), new TestConfirmation(), new ImmediateDispatcher());
+
+    private sealed class TestFolderPicker : IFolderPickerService
+    {
+        public Task<string?> PickFolderAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<string?>(null);
+    }
+
+    private sealed class TestConfirmation : IUserConfirmationService
+    {
+        public Task<bool> ConfirmAsync(string title, string message, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
+    }
+
+    private sealed class ImmediateDispatcher : IUiDispatcher
+    {
+        public void Post(Action action) => action();
+    }
+
     private sealed class FakeWorkerClient(
         Func<CancellationToken, Task<WorkerHelloResult>> connect) : IWorkerClient
     {
         public const string Path = @"C:\test\super-duper-worker.exe";
 
-        public event EventHandler<WorkerRunProgressEventArgs>? RunProgress;
+        public event EventHandler<WorkerRunProgressEventArgs>? RunProgress
+        {
+            add { }
+            remove { }
+        }
 
-        public event EventHandler<WorkerRunLifecycleEventArgs>? RunLifecycleChanged;
+        public event EventHandler<WorkerRunLifecycleEventArgs>? RunLifecycleChanged
+        {
+            add { }
+            remove { }
+        }
 
         public string ExecutablePath => Path;
 

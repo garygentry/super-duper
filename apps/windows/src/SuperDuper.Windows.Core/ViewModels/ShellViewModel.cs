@@ -1,21 +1,72 @@
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using SuperDuper.Windows.Core.Services;
 using SuperDuper.Windows.Core.Workers;
 
 namespace SuperDuper.Windows.Core.ViewModels;
 
-public sealed class ShellViewModel : ObservableObject
+public sealed class ShellViewModel : ObservableObject, IDisposable
 {
     private readonly IWorkerClient _workerClient;
+    private readonly IUiDispatcher _dispatcher;
+    private readonly IUserConfirmationService _confirmation;
+    private CancellationTokenSource? _selectionCancellation;
     private WorkerConnectionState _connectionState = WorkerConnectionState.Starting;
     private string _statusTitle = "Starting worker";
     private string _statusDetail = "Establishing a private connection to the Super Duper engine.";
     private string? _workerVersion;
     private string? _engineVersion;
+    private bool _isWorkspaceVisible;
+    private bool _isLoadingSession;
+    private string _displaySessionName = "Sessions";
+    private string? _contentErrorMessage;
+    private long? _activeRunId;
+    private long? _activeSessionId;
+    private int _selectedTabIndex;
+    private bool _suppressSelection;
+    private bool _disposed;
+    private Task _savedHistoryLoad = Task.CompletedTask;
 
-    public ShellViewModel(IWorkerClient workerClient)
+    public ShellViewModel(
+        IWorkerClient workerClient,
+        IFolderPickerService folderPicker,
+        IUserConfirmationService confirmation,
+        IUiDispatcher dispatcher)
     {
         _workerClient = workerClient;
+        _confirmation = confirmation;
+        _dispatcher = dispatcher;
+
+        Sessions = new SessionListViewModel(workerClient, BeginNewSessionAsync);
+        Setup = new SessionSetupViewModel(
+            workerClient,
+            folderPicker,
+            confirmation,
+            sessionId => Sessions.NamesExcept(sessionId));
+        Progress = new ScanProgressViewModel(workerClient, dispatcher);
+        History = new RunHistoryViewModel(workerClient);
+
+        Sessions.SelectionChanged += OnSessionSelectionChanged;
+        Setup.SessionSaved += OnSessionSaved;
+        Setup.SessionDeleted += OnSessionDeleted;
+        Setup.PropertyChanged += OnSetupPropertyChanged;
+        Sessions.PropertyChanged += OnSessionsPropertyChanged;
+        History.SelectedRunChanged += OnSelectedRunChanged;
+        _workerClient.RunProgress += OnRunProgress;
+        _workerClient.RunLifecycleChanged += OnRunLifecycleChanged;
+
+        StartRunCommand = new AsyncRelayCommand(StartRunAsync, () => CanStartRun);
+        ClearContentErrorCommand = new RelayCommand(() => ContentErrorMessage = null);
     }
+
+    public SessionListViewModel Sessions { get; }
+
+    public SessionSetupViewModel Setup { get; }
+
+    public ScanProgressViewModel Progress { get; }
+
+    public RunHistoryViewModel History { get; }
 
     public WorkerConnectionState ConnectionState
     {
@@ -27,6 +78,7 @@ public sealed class ShellViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsStarting));
                 OnPropertyChanged(nameof(IsConnected));
                 OnPropertyChanged(nameof(IsFailed));
+                OnPropertyChanged(nameof(IsEmptyState));
             }
         }
     }
@@ -55,13 +107,81 @@ public sealed class ShellViewModel : ObservableObject
         private set => SetProperty(ref _engineVersion, value);
     }
 
-    public string WorkerExecutablePath => _workerClient.ExecutablePath;
+    public bool IsWorkspaceVisible
+    {
+        get => _isWorkspaceVisible;
+        private set
+        {
+            if (SetProperty(ref _isWorkspaceVisible, value))
+            {
+                OnPropertyChanged(nameof(IsEmptyState));
+            }
+        }
+    }
+
+    public bool IsLoadingSession
+    {
+        get => _isLoadingSession;
+        private set => SetProperty(ref _isLoadingSession, value);
+    }
+
+    public string DisplaySessionName
+    {
+        get => _displaySessionName;
+        private set => SetProperty(ref _displaySessionName, value);
+    }
+
+    public string? ContentErrorMessage
+    {
+        get => _contentErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _contentErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasContentError));
+            }
+        }
+    }
+
+    public int SelectedTabIndex
+    {
+        get => _selectedTabIndex;
+        set => SetProperty(ref _selectedTabIndex, value);
+    }
 
     public bool IsStarting => ConnectionState == WorkerConnectionState.Starting;
 
     public bool IsConnected => ConnectionState == WorkerConnectionState.Connected;
 
     public bool IsFailed => ConnectionState == WorkerConnectionState.Failed;
+
+    public bool IsEmptyState => IsConnected && !IsWorkspaceVisible && !Sessions.IsLoading;
+
+    public bool HasContentError => !string.IsNullOrWhiteSpace(ContentErrorMessage);
+
+    public bool HasActiveRun => ActiveRunId is not null;
+
+    public long? ActiveRunId
+    {
+        get => _activeRunId;
+        private set
+        {
+            if (SetProperty(ref _activeRunId, value))
+            {
+                OnPropertyChanged(nameof(HasActiveRun));
+                OnPropertyChanged(nameof(CanStartRun));
+                StartRunCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool CanStartRun => IsConnected && IsWorkspaceVisible && !HasActiveRun && Setup.CanStart;
+
+    public string WorkerExecutablePath => _workerClient.ExecutablePath;
+
+    public IAsyncRelayCommand StartRunCommand { get; }
+
+    public IRelayCommand ClearContentErrorCommand { get; }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -73,13 +193,35 @@ public sealed class ShellViewModel : ObservableObject
 
         try
         {
-            var hello = await _workerClient.ConnectAsync(cancellationToken).ConfigureAwait(true);
-
+            var hello = await _workerClient.ConnectAsync(cancellationToken);
             WorkerVersion = hello.WorkerVersion;
             EngineVersion = hello.EngineVersion;
             StatusTitle = "Worker connected";
             StatusDetail = $"Protocol {hello.ProtocolVersion} · Worker {hello.WorkerVersion} · Engine {hello.EngineVersion}";
             ConnectionState = WorkerConnectionState.Connected;
+
+            _suppressSelection = true;
+            try
+            {
+                await Sessions.LoadAsync(cancellationToken);
+            }
+            finally
+            {
+                _suppressSelection = false;
+            }
+
+            if (Sessions.HasError)
+            {
+                ContentErrorMessage = Sessions.ErrorMessage;
+            }
+            if (Sessions.SelectedSession is { } selected)
+            {
+                await SelectSessionAsync(selected, cancellationToken);
+            }
+            else
+            {
+                ShowEmptyState();
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -90,6 +232,296 @@ public sealed class ShellViewModel : ObservableObject
             StatusTitle = "Worker connection failed";
             StatusDetail = exception.Message;
             ConnectionState = WorkerConnectionState.Failed;
+        }
+    }
+
+    public async Task<bool> ConfirmCancelAndExitAsync(CancellationToken cancellationToken = default)
+    {
+        if (ActiveRunId is not long runId)
+        {
+            return true;
+        }
+        var sessionName = Sessions.Find(_activeSessionId ?? -1)?.Name ?? "the active session";
+        var confirmed = await _confirmation.ConfirmAsync(
+            "Cancel scan and exit?",
+            $"'{sessionName}' is still scanning. Cancel the scan and close Super Duper?",
+            cancellationToken);
+        if (!confirmed)
+        {
+            return false;
+        }
+        try
+        {
+            var cancelling = await _workerClient.CancelRunAsync(runId, cancellationToken);
+            HandleLifecycle(cancelling);
+        }
+        catch
+        {
+            // Closing stdin remains the bounded last-resort cancellation path during disposal.
+        }
+        return true;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+        _selectionCancellation?.Cancel();
+        _selectionCancellation?.Dispose();
+        Sessions.SelectionChanged -= OnSessionSelectionChanged;
+        Setup.SessionSaved -= OnSessionSaved;
+        Setup.SessionDeleted -= OnSessionDeleted;
+        Setup.PropertyChanged -= OnSetupPropertyChanged;
+        Sessions.PropertyChanged -= OnSessionsPropertyChanged;
+        History.SelectedRunChanged -= OnSelectedRunChanged;
+        _workerClient.RunProgress -= OnRunProgress;
+        _workerClient.RunLifecycleChanged -= OnRunLifecycleChanged;
+        Progress.Dispose();
+    }
+
+    private Task BeginNewSessionAsync()
+    {
+        _selectionCancellation?.Cancel();
+        _suppressSelection = true;
+        Sessions.SelectedSession = null;
+        _suppressSelection = false;
+        Setup.BeginNew();
+        History.Clear();
+        Progress.ShowRun(null);
+        DisplaySessionName = "New session";
+        SelectedTabIndex = 0;
+        ContentErrorMessage = null;
+        IsWorkspaceVisible = true;
+        return Task.CompletedTask;
+    }
+
+    private async Task SelectSessionAsync(
+        SessionListItemViewModel selected,
+        CancellationToken cancellationToken = default)
+    {
+        _selectionCancellation?.Cancel();
+        _selectionCancellation?.Dispose();
+        _selectionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var token = _selectionCancellation.Token;
+
+        IsWorkspaceVisible = true;
+        IsLoadingSession = true;
+        DisplaySessionName = selected.Name;
+        ContentErrorMessage = null;
+        try
+        {
+            var sessionTask = _workerClient.GetSessionAsync(selected.Id, token);
+            var historyTask = History.LoadAsync(selected.Id, token);
+            var session = await sessionTask;
+            await historyTask;
+            token.ThrowIfCancellationRequested();
+
+            Setup.Load(session);
+            DisplaySessionName = session.Name;
+            var latest = History.Runs.FirstOrDefault()?.Run;
+            selected.StatusText = latest is null ? "No scans yet" : DisplayFormatting.Status(latest.Status);
+            Progress.ShowRun(History.SelectedRun?.Run);
+            if (latest?.Status is "pending" or "running" or "cancelling")
+            {
+                SetActiveRun(latest);
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            ContentErrorMessage = exception.Message;
+        }
+        finally
+        {
+            if (!token.IsCancellationRequested)
+            {
+                IsLoadingSession = false;
+            }
+        }
+    }
+
+    private async Task StartRunAsync()
+    {
+        ContentErrorMessage = null;
+        var session = await Setup.EnsureSavedAsync(requireReachableRoot: true);
+        if (session is null)
+        {
+            return;
+        }
+        try
+        {
+            await _savedHistoryLoad;
+            if (History.SessionId != session.Id)
+            {
+                await History.LoadAsync(session.Id);
+            }
+            var run = await _workerClient.StartRunAsync(session.Id);
+            SetActiveRun(run);
+            History.Upsert(run, select: true);
+            Progress.ShowRun(run);
+            SelectedTabIndex = 1;
+            StatusTitle = $"Scanning {session.Name}";
+            StatusDetail = "The scan is running in the Rust worker.";
+
+            var durableRun = await _workerClient.GetRunAsync(run.Id);
+            HandleLifecycle(durableRun);
+        }
+        catch (Exception exception)
+        {
+            ContentErrorMessage = exception.Message;
+        }
+    }
+
+    private void OnSessionSelectionChanged(object? sender, SessionListItemViewModel? selected)
+    {
+        if (_suppressSelection)
+        {
+            return;
+        }
+        if (selected is null)
+        {
+            ShowEmptyState();
+            return;
+        }
+        _ = SelectSessionAsync(selected);
+    }
+
+    private void OnSessionSaved(object? sender, WorkerSessionDefinition session)
+    {
+        DisplaySessionName = session.Name;
+        _suppressSelection = true;
+        Sessions.Upsert(session, select: true);
+        _suppressSelection = false;
+        IsWorkspaceVisible = true;
+        if (History.SessionId != session.Id)
+        {
+            _savedHistoryLoad = LoadSavedSessionHistoryAsync(session.Id);
+        }
+        OnPropertyChanged(nameof(CanStartRun));
+        StartRunCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnSessionDeleted(object? sender, long sessionId)
+    {
+        Sessions.Remove(sessionId);
+        if (Sessions.SelectedSession is null)
+        {
+            ShowEmptyState();
+        }
+    }
+
+    private void OnSelectedRunChanged(object? sender, WorkerRun? run) => Progress.ShowRun(run);
+
+    private void OnSetupPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(SessionSetupViewModel.CanStart)
+            or nameof(SessionSetupViewModel.IsBusy)
+            or nameof(SessionSetupViewModel.Name))
+        {
+            if (Setup.IsNew)
+            {
+                DisplaySessionName = string.IsNullOrWhiteSpace(Setup.Name) ? "New session" : Setup.Name.Trim();
+            }
+            OnPropertyChanged(nameof(CanStartRun));
+            StartRunCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private void OnSessionsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(SessionListViewModel.IsLoading) or nameof(SessionListViewModel.IsEmpty))
+        {
+            OnPropertyChanged(nameof(IsEmptyState));
+        }
+    }
+
+    private void OnRunProgress(object? sender, WorkerRunProgressEventArgs progress) =>
+        _dispatcher.Post(() => HandleProgress(progress));
+
+    private void OnRunLifecycleChanged(object? sender, WorkerRunLifecycleEventArgs lifecycle) =>
+        _dispatcher.Post(() => HandleLifecycle(lifecycle.Run));
+
+    private void HandleProgress(WorkerRunProgressEventArgs progress)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        Progress.ApplyProgress(progress);
+        if (progress.RunId == ActiveRunId)
+        {
+            StatusTitle = DisplayFormatting.Phase(progress.Phase);
+            StatusDetail = progress.Message ?? progress.CurrentPath ?? $"{progress.FilesDiscovered:N0} files discovered";
+        }
+    }
+
+    private void HandleLifecycle(WorkerRun run)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        History.Upsert(run, select: run.Id == ActiveRunId || run.Status == "running");
+        Progress.ApplyLifecycle(run);
+        var session = Sessions.Find(run.SessionId);
+        if (session is not null)
+        {
+            session.StatusText = DisplayFormatting.Status(run.Status);
+        }
+        if (run.Status is "pending" or "running" or "cancelling")
+        {
+            SetActiveRun(run);
+        }
+        else if (ActiveRunId == run.Id)
+        {
+            ActiveRunId = null;
+            _activeSessionId = null;
+            Setup.CanMutate = true;
+            Sessions.CanMutate = true;
+            StatusTitle = run.Status == "completed" ? "Scan complete" : DisplayFormatting.Status(run.Status);
+            StatusDetail = run.ErrorMessage
+                ?? $"{run.FilesDiscovered:N0} files · {run.DuplicateFileGroups:N0} duplicate groups";
+        }
+    }
+
+    private void SetActiveRun(WorkerRun run)
+    {
+        ActiveRunId = run.Id;
+        _activeSessionId = run.SessionId;
+        Setup.CanMutate = false;
+        Sessions.CanMutate = false;
+        var session = Sessions.Find(run.SessionId);
+        if (session is not null)
+        {
+            session.StatusText = DisplayFormatting.Status(run.Status);
+        }
+    }
+
+    private void ShowEmptyState()
+    {
+        IsWorkspaceVisible = false;
+        IsLoadingSession = false;
+        DisplaySessionName = "Sessions";
+        History.Clear();
+        Progress.ShowRun(null);
+        OnPropertyChanged(nameof(IsEmptyState));
+    }
+
+    private async Task LoadSavedSessionHistoryAsync(long sessionId)
+    {
+        try
+        {
+            await History.LoadAsync(sessionId);
+            Progress.ShowRun(History.SelectedRun?.Run);
+        }
+        catch (Exception exception)
+        {
+            ContentErrorMessage = exception.Message;
         }
     }
 }

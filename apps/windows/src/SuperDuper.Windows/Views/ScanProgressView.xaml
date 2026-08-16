@@ -1,0 +1,84 @@
+<UserControl x:Class="SuperDuper.Windows.Views.ScanProgressView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="28">
+        <Grid Visibility="{Binding HasRun, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock FontSize="22" FontWeight="SemiBold" Text="{Binding Status}" />
+                    <TextBlock Margin="0,5,0,0" FontSize="15" Opacity="0.7" Text="{Binding Phase}" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Padding="14,7"
+                        Command="{Binding CancelCommand}"
+                        Content="Cancel scan" />
+            </Grid>
+
+            <ProgressBar Grid.Row="1"
+                         Margin="0,22,0,22"
+                         Height="6"
+                         IsIndeterminate="{Binding IsIndeterminate}" />
+
+            <UniformGrid Grid.Row="2" Columns="5">
+                <Border Margin="0,0,8,0" Padding="14" CornerRadius="7" BorderThickness="1" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
+                    <StackPanel><TextBlock Opacity="0.65" Text="Elapsed" /><TextBlock Margin="0,4,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding Elapsed}" /></StackPanel>
+                </Border>
+                <Border Margin="0,0,8,0" Padding="14" CornerRadius="7" BorderThickness="1" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
+                    <StackPanel><TextBlock Opacity="0.65" Text="Files found" /><TextBlock Margin="0,4,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding FilesDiscovered}" /></StackPanel>
+                </Border>
+                <Border Margin="0,0,8,0" Padding="14" CornerRadius="7" BorderThickness="1" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
+                    <StackPanel><TextBlock Opacity="0.65" Text="Data found" /><TextBlock Margin="0,4,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding BytesDiscovered}" /></StackPanel>
+                </Border>
+                <Border Margin="0,0,8,0" Padding="14" CornerRadius="7" BorderThickness="1" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
+                    <StackPanel><TextBlock Opacity="0.65" Text="Files hashed" /><TextBlock Margin="0,4,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding FilesHashed}" /></StackPanel>
+                </Border>
+                <Border Padding="14" CornerRadius="7" BorderThickness="1" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
+                    <StackPanel><TextBlock Opacity="0.65" Text="Warnings" /><TextBlock Margin="0,4,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding WarningCount}" /></StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <StackPanel Grid.Row="3" Margin="0,24,0,0">
+                <TextBlock FontWeight="SemiBold" Text="Current activity" />
+                <TextBlock Margin="0,7,0,0" Text="{Binding Message}" TextWrapping="Wrap" />
+                <TextBox Margin="0,8,0,0"
+                         IsReadOnly="True"
+                         Text="{Binding CurrentPath, Mode=OneWay}"
+                         TextWrapping="Wrap" />
+                <Border Margin="0,14,0,0"
+                        Padding="12"
+                        BorderBrush="#C84B31"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Text="{Binding DisplayErrorMessage}" TextWrapping="Wrap" />
+                </Border>
+            </StackPanel>
+        </Grid>
+
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+            <StackPanel.Style>
+                <Style TargetType="StackPanel">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasRun}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </StackPanel.Style>
+            <TextBlock HorizontalAlignment="Center" FontSize="22" FontWeight="SemiBold" Text="No scan selected" />
+            <TextBlock Margin="0,7,0,0" Opacity="0.68" Text="Start a scan or select one from Run history." />
+        </StackPanel>
+    </Grid>
+</UserControl>

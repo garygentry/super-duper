@@ -1,8 +1,10 @@
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
+using SuperDuper.Windows.Core.Services;
 using SuperDuper.Windows.Core.ViewModels;
 using SuperDuper.Windows.Core.Workers;
 using SuperDuper.Windows.Infrastructure;
+using SuperDuper.Windows.Services;
 
 namespace SuperDuper.Windows;
 
@@ -15,6 +17,9 @@ public partial class App : Application
         var services = new ServiceCollection();
         services.AddSingleton<IWorkerClient>(
             _ => new WorkerClient(WorkerExecutableLocator.Resolve()));
+        services.AddSingleton<IFolderPickerService, FolderPickerService>();
+        services.AddSingleton<IUserConfirmationService, UserConfirmationService>();
+        services.AddSingleton<IUiDispatcher>(_ => new WpfUiDispatcher(Dispatcher));
         services.AddSingleton<ShellViewModel>();
         services.AddSingleton<MainWindow>();
         _services = services.BuildServiceProvider(validateScopes: true);

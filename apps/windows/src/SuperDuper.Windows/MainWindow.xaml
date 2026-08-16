@@ -3,81 +3,137 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="clr-namespace:SuperDuper.Windows.Views"
         mc:Ignorable="d"
         Title="Super Duper"
-        Width="920"
-        Height="580"
-        MinWidth="720"
-        MinHeight="460"
+        Width="1180"
+        Height="760"
+        MinWidth="900"
+        MinHeight="600"
         WindowStartupLocation="CenterScreen">
-    <Grid Margin="32">
+    <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel>
-            <TextBlock FontSize="30" FontWeight="SemiBold" Text="Super Duper" />
-            <TextBlock Margin="0,6,0,0"
-                       FontSize="15"
-                       Opacity="0.72"
-                       Text="Find duplicate files without losing control of your data." />
-        </StackPanel>
+        <Grid Visibility="{Binding IsConnected, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="250" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-        <Border Grid.Row="1"
-                Margin="0,28,0,28"
-                Padding="28"
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Center"
-                BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
-                BorderThickness="1"
-                CornerRadius="10">
-            <Grid>
-                <StackPanel Visibility="{Binding IsStarting, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <TextBlock FontSize="22" FontWeight="SemiBold" Text="{Binding StatusTitle}" />
-                    <TextBlock Margin="0,10,0,20"
-                               FontSize="14"
-                               Opacity="0.72"
-                               Text="{Binding StatusDetail}"
-                               TextWrapping="Wrap" />
-                    <ProgressBar Height="4" IsIndeterminate="True" />
-                </StackPanel>
+            <Border BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                    BorderThickness="0,0,1,0">
+                <views:SessionListView DataContext="{Binding Sessions}" />
+            </Border>
 
-                <StackPanel Visibility="{Binding IsConnected, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <TextBlock FontSize="22" FontWeight="SemiBold" Text="{Binding StatusTitle}" />
-                    <TextBlock Margin="0,10,0,0"
-                               FontSize="14"
-                               Opacity="0.72"
-                               Text="{Binding StatusDetail}"
-                               TextWrapping="Wrap" />
-                    <Border Margin="0,24,0,0" Padding="16" CornerRadius="6">
-                        <TextBlock Text="The Windows shell and Rust engine completed their protocol health handshake. Session setup arrives in Milestone 1."
-                                   TextWrapping="Wrap" />
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Padding="24,16"
+                        BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                        BorderThickness="0,0,0,1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock FontSize="24" FontWeight="SemiBold" Text="{Binding DisplaySessionName}" />
+                            <TextBlock Margin="0,3,0,0" Opacity="0.65" Text="Find exact duplicate files with a durable scan history." />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                MinWidth="112"
+                                Padding="16,8"
+                                Command="{Binding StartRunCommand}"
+                                Content="Start scan" />
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="1">
+                    <views:EmptyStateView Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+                    <TabControl SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}"
+                                Visibility="{Binding IsWorkspaceVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TabItem Header="Setup">
+                            <views:SessionSetupView DataContext="{Binding Setup}" />
+                        </TabItem>
+                        <TabItem Header="Progress">
+                            <views:ScanProgressView DataContext="{Binding Progress}" />
+                        </TabItem>
+                        <TabItem Header="Run history">
+                            <views:RunHistoryView DataContext="{Binding History}" />
+                        </TabItem>
+                        <TabItem Header="Duplicate files" IsEnabled="False">
+                            <TextBlock Margin="32" Text="Duplicate-file results arrive in Milestone 4." />
+                        </TabItem>
+                        <TabItem Header="Duplicate folders" IsEnabled="False">
+                            <TextBlock Margin="32" Text="Exact duplicate-folder results arrive in Milestone 5." />
+                        </TabItem>
+                    </TabControl>
+
+                    <Border Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
+                            Opacity="0.9"
+                            Visibility="{Binding IsLoadingSession, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <ProgressBar Width="160" Height="5" IsIndeterminate="True" />
+                            <TextBlock Margin="0,10,0,0" Opacity="0.7" Text="Loading session…" />
+                        </StackPanel>
                     </Border>
-                </StackPanel>
 
-                <StackPanel Visibility="{Binding IsFailed, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <TextBlock FontSize="22" FontWeight="SemiBold" Text="{Binding StatusTitle}" />
-                    <TextBlock Margin="0,10,0,0"
-                               FontSize="14"
-                               Text="{Binding StatusDetail}"
-                               TextWrapping="Wrap" />
-                    <TextBlock Margin="0,20,0,4" FontWeight="SemiBold" Text="Worker executable" />
-                    <TextBox IsReadOnly="True"
-                             Text="{Binding WorkerExecutablePath, Mode=OneWay}"
-                             TextWrapping="Wrap" />
+                    <views:ErrorStateView Panel.ZIndex="10"
+                                          Visibility="{Binding HasContentError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <Grid Margin="32"
+              Visibility="{Binding IsStarting, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel Width="540" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock HorizontalAlignment="Center" FontSize="28" FontWeight="SemiBold" Text="{Binding StatusTitle}" />
+                <TextBlock Margin="0,9,0,20"
+                           HorizontalAlignment="Center"
+                           Opacity="0.7"
+                           Text="{Binding StatusDetail}"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap" />
+                <ProgressBar Height="5" IsIndeterminate="True" />
+            </StackPanel>
+        </Grid>
+
+        <Grid Margin="32"
+              Visibility="{Binding IsFailed, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Border Width="680"
+                    Padding="28"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    BorderBrush="#C84B31"
+                    BorderThickness="1"
+                    CornerRadius="10">
+                <StackPanel>
+                    <TextBlock FontSize="25" FontWeight="SemiBold" Text="{Binding StatusTitle}" />
+                    <TextBlock Margin="0,10,0,0" Text="{Binding StatusDetail}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,20,0,5" FontWeight="SemiBold" Text="Worker executable" />
+                    <TextBox IsReadOnly="True" Text="{Binding WorkerExecutablePath, Mode=OneWay}" TextWrapping="Wrap" />
                     <TextBlock Margin="0,12,0,0"
-                               Opacity="0.72"
+                               Opacity="0.7"
                                Text="Build the Rust workspace, then restart Super Duper. Set SUPER_DUPER_WORKER_PATH to override this location."
                                TextWrapping="Wrap" />
                 </StackPanel>
-            </Grid>
-        </Border>
+            </Border>
+        </Grid>
 
-        <StatusBar Grid.Row="2">
+        <StatusBar Grid.Row="1">
             <StatusBarItem>
                 <TextBlock Text="{Binding StatusTitle}" />
+            </StatusBarItem>
+            <Separator />
+            <StatusBarItem>
+                <TextBlock MaxWidth="760" Text="{Binding StatusDetail}" TextTrimming="CharacterEllipsis" />
             </StatusBarItem>
         </StatusBar>
     </Grid>

@@ -168,4 +168,6 @@ WPF/.NET 10 application shell, dependency boundaries, worker protocol contract, 
 handshake. Milestone 1 provides named session definitions, immutable run history, forward schema
 migration, durable run outcomes, run-owned results, and corrected scan accounting. Milestone 2
 provides the typed session/run dispatcher, one-scan coordination, ordered progress events,
-concurrent cancellation, graceful worker shutdown, and streaming cache-backed hashing.
+concurrent cancellation, graceful worker shutdown, and streaming cache-backed hashing. Milestone 3
+provides session navigation and editing, Windows folder selection, validated root/ignore settings,
+run history restoration, and responsive progress/cancellation UI integration.

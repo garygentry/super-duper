@@ -36,10 +36,16 @@ public partial class MainWindow : Window
         }
 
         _shutdownStarted = true;
-        IsEnabled = false;
+
+        if (!await ViewModel.ConfirmCancelAndExitAsync())
+        {
+            _shutdownStarted = false;
+            return;
+        }
 
         try
         {
+            IsEnabled = false;
             await _workerClient.DisposeAsync();
         }
         finally
