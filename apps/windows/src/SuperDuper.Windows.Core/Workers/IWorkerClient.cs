@@ -53,4 +53,12 @@ public interface IWorkerClient : IAsyncDisposable
     Task<WorkerDuplicateFileMemberPage> GetDuplicateFileGroupMembersAsync(
         DuplicateFileMemberQuery query,
         CancellationToken cancellationToken = default);
+
+    Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(
+        DuplicateFolderGroupQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerDuplicateFolderMemberPage> GetDuplicateFolderGroupMembersAsync(
+        DuplicateFolderMemberQuery query,
+        CancellationToken cancellationToken = default);
 }

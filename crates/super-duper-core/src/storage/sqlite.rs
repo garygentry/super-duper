@@ -293,6 +293,8 @@ impl Database {
             "BEGIN;
              DELETE FROM deletion_plan;
              DELETE FROM directory_similarity;
+             DELETE FROM duplicate_folder_group_member;
+             DELETE FROM duplicate_folder_group;
              DELETE FROM directory_fingerprint;
              DELETE FROM directory_node;
              DELETE FROM duplicate_group_member;

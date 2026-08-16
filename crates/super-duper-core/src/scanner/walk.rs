@@ -64,9 +64,29 @@ pub fn discover_files(
             warnings.fetch_add(1, Ordering::Relaxed);
             return Ok(());
         }
+        if is_link_or_reparse(root_path).unwrap_or(true) {
+            warn!(
+                "Skipping linked or reparse-point scan root: {}",
+                root_path.display()
+            );
+            warnings.fetch_add(1, Ordering::Relaxed);
+            return Ok(());
+        }
+        let canonical_root = match fs::canonicalize(root_path) {
+            Ok(path) => path,
+            Err(error) => {
+                warn!(
+                    "Unable to canonicalize scan root {}: {}",
+                    root_path.display(),
+                    error
+                );
+                warnings.fetch_add(1, Ordering::Relaxed);
+                return Ok(());
+            }
+        };
         visit_dirs(
-            root_path,
-            root_path,
+            &canonical_root,
+            &canonical_root,
             &map,
             &files,
             &ignore_patterns,
@@ -157,7 +177,7 @@ fn visit_dirs(
                 return Ok(());
             }
         };
-        if file_type.is_symlink() {
+        if file_type.is_symlink() || is_link_or_reparse(&path).unwrap_or(true) {
             return Ok(());
         }
         if file_type.is_dir() {
@@ -250,4 +270,19 @@ fn visit_dirs(
         }
         Ok(())
     })
+}
+
+pub fn is_link_or_reparse(path: &Path) -> io::Result<bool> {
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() {
+        return Ok(true);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0400;
+        return Ok(metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0);
+    }
+    #[cfg(not(windows))]
+    Ok(false)
 }

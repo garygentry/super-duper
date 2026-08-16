@@ -108,6 +108,62 @@ public sealed record WorkerDuplicateFileMemberPage(
     string? NextCursor,
     string? PreviousCursor);
 
+public enum DuplicateFolderGroupSortField
+{
+    TotalBytes,
+    CopyCount,
+    FileCount,
+    RepresentativePath,
+}
+
+public enum DuplicateFolderMemberSortField
+{
+    Path,
+}
+
+public sealed record DuplicateFolderGroupFilter(string Search, string MinimumSize);
+
+public sealed record DuplicateFolderGroupQuery(
+    long RunId,
+    int PageSize,
+    DuplicateFolderGroupSortField SortField,
+    WorkerSortDirection SortDirection,
+    DuplicateFolderGroupFilter Filter,
+    string? Cursor = null);
+
+public sealed record WorkerDuplicateFolderGroup(
+    long Id,
+    long RunId,
+    string TotalBytes,
+    long DescendantFileCount,
+    long CopyCount,
+    string RepresentativePath);
+
+public sealed record WorkerDuplicateFolderGroupPage(
+    IReadOnlyList<WorkerDuplicateFolderGroup> Groups,
+    long Total,
+    string? NextCursor,
+    string? PreviousCursor);
+
+public sealed record DuplicateFolderMemberFilter(string Search);
+
+public sealed record DuplicateFolderMemberQuery(
+    long RunId,
+    long GroupId,
+    int PageSize,
+    DuplicateFolderMemberSortField SortField,
+    WorkerSortDirection SortDirection,
+    DuplicateFolderMemberFilter Filter,
+    string? Cursor = null);
+
+public sealed record WorkerDuplicateFolderMember(long Id, long GroupId, string Path);
+
+public sealed record WorkerDuplicateFolderMemberPage(
+    IReadOnlyList<WorkerDuplicateFolderMember> Members,
+    long Total,
+    string? NextCursor,
+    string? PreviousCursor);
+
 public sealed class WorkerRunProgressEventArgs : EventArgs
 {
     public required long RunId { get; init; }

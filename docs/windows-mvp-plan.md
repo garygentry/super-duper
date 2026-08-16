@@ -4,8 +4,8 @@
 
 Approved architecture and implementation plan for the first Super Duper Windows front end.
 
-Implementation status: Milestones 0–4 are complete on the `wpf-poc` line of development. The next
-slice is Milestone 5, exact duplicate folders.
+Implementation status: Milestones 0–5 are complete on the `wpf-poc` line of development. The next
+slice is Milestone 6, MVP hardening.
 
 This plan treats the Windows application as a new product surface over the existing Rust engine. It
 does not restore or reuse the deleted Windows application.
@@ -509,6 +509,8 @@ Exit criteria:
   bounded by page/cache configuration rather than total row count.
 
 ### Milestone 5 - Exact Duplicate Folders
+
+Status: Complete.
 
 Deliverables:
 

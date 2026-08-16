@@ -104,6 +104,7 @@ in [`docs/windows-mvp-plan.md`](docs/windows-mvp-plan.md). The MVP uses a Rust w
 rather than consuming the current synchronous FFI scan API.
 
 Milestones 0 (worker/WPF shell), 1 (session/run persistence repair), 2 (worker scan lifecycle), 3
-(session navigation, editing, history, and progress/cancellation UI), and 4 (server-paged
-duplicate-file results, bounded caching, and Explorer integration) are implemented. The next
-Windows slice is Milestone 5: exact duplicate folders.
+(session navigation, editing, history, and progress/cancellation UI), 4 (server-paged
+duplicate-file results, bounded caching, and Explorer integration), and 5 (verified exact-folder
+results, nested suppression, run-owned paging, and a separate WPF results surface) are implemented.
+The next Windows slice is Milestone 6: MVP hardening.

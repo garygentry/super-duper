@@ -1,0 +1,128 @@
+<UserControl x:Class="SuperDuper.Windows.Views.DuplicateFoldersView"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="3*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="2*" />
+        </Grid.RowDefinitions>
+
+        <Grid Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="170" />
+                <ColumnDefinition Width="145" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock FontSize="22" FontWeight="SemiBold" Text="Exact duplicate folders" />
+                <TextBlock Margin="0,4,0,0" Opacity="0.68" Text="Root names may differ. Nested matches covered by a larger exact root are suppressed." />
+            </StackPanel>
+            <TextBox Grid.Column="1" Margin="12,0,0,0" VerticalContentAlignment="Center"
+                     automation:AutomationProperties.Name="Folder path search"
+                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search duplicate folder paths" />
+            <TextBox Grid.Column="2" Margin="8,0,0,0" VerticalContentAlignment="Center"
+                     automation:AutomationProperties.Name="Minimum folder size in bytes"
+                     Text="{Binding MinimumSizeText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Minimum folder size in bytes" />
+            <Button Grid.Column="3" Margin="8,0,0,0" Padding="13,7" Command="{Binding ApplyFiltersCommand}" Content="Apply filters" />
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <DataGrid x:Name="GroupsGrid" AutoGenerateColumns="False" CanUserSortColumns="True"
+                      EnableColumnVirtualization="True" EnableRowVirtualization="True" IsReadOnly="True"
+                      ItemsSource="{Binding Groups}" SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
+                      SelectionMode="Single" Sorting="OnGroupsSorting"
+                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Width="*" MinWidth="300" Header="Representative folder" SortMemberPath="RepresentativePath" Binding="{Binding RepresentativePath}" />
+                    <DataGridTextColumn Width="125" Header="Copies" SortMemberPath="CopyCount" Binding="{Binding CopyCount}" />
+                    <DataGridTextColumn Width="155" Header="Descendant files" SortMemberPath="FileCount" Binding="{Binding DescendantFileCount}" />
+                    <DataGridTextColumn Width="140" Header="Total bytes" SortMemberPath="TotalBytes" SortDirection="Descending" Binding="{Binding TotalBytes}" />
+                </DataGrid.Columns>
+            </DataGrid>
+            <Grid Grid.Row="1" Margin="0,9,0,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" Opacity="0.68" Text="{Binding GroupCountText}" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Padding="10,4" Command="{Binding PreviousPageCommand}" Content="Previous" />
+                    <Button Margin="8,0,0,0" Padding="10,4" Command="{Binding NextPageCommand}" Content="Next" />
+                    <Button Margin="8,0,0,0" Padding="10,4" Command="{Binding ClearFiltersCommand}" Content="Clear filters" />
+                </StackPanel>
+            </Grid>
+            <Border Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" Opacity="0.94"
+                    Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <ProgressBar Width="150" Height="4" IsIndeterminate="True" />
+                    <TextBlock Margin="0,9,0,0" Opacity="0.7" Text="Loading duplicate folder groups…" />
+                </StackPanel>
+            </Border>
+            <Border Padding="16" HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="#C84B31" BorderThickness="1" CornerRadius="7"
+                    Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock MaxWidth="620" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+            </Border>
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Visibility="{Binding IsUnavailable, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="Results unavailable" />
+                <TextBlock Margin="0,6,0,0" MaxWidth="560" Opacity="0.68" Text="{Binding StateMessage}" TextAlignment="Center" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="No exact duplicate folders" />
+                <TextBlock Margin="0,6,0,0" Opacity="0.68" Text="{Binding StateMessage}" />
+            </StackPanel>
+        </Grid>
+
+        <GridSplitter Grid.Row="2" Height="8" HorizontalAlignment="Stretch" ResizeDirection="Rows" />
+
+        <Grid Grid.Row="3" Margin="0,10,0,0">
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <TextBlock FontSize="17" FontWeight="SemiBold" Text="Duplicate roots in selected group" />
+                <TextBlock Grid.Column="1" Opacity="0.68" Text="{Binding MemberCountText}" />
+            </Grid>
+            <DataGrid Grid.Row="1" AutoGenerateColumns="False" EnableColumnVirtualization="True" EnableRowVirtualization="True"
+                      IsReadOnly="True" ItemsSource="{Binding Members}" SelectionMode="Single"
+                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Width="*" MinWidth="350" Header="Folder path" Binding="{Binding Path}" />
+                    <DataGridTemplateColumn Width="190" Header="Actions">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Padding="7,2" Command="{Binding DataContext.CopyPathCommand, ElementName=Root}" CommandParameter="{Binding}" Content="Copy path" />
+                                    <Button Margin="6,0,0,0" Padding="7,2" Command="{Binding DataContext.RevealInExplorerCommand, ElementName=Root}" CommandParameter="{Binding}" Content="Show in Explorer" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+            <Grid Grid.Row="2" Margin="0,8,0,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" Foreground="#C84B31" Text="{Binding DetailErrorMessage}" TextTrimming="CharacterEllipsis"
+                           Visibility="{Binding HasDetailError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Padding="10,4" Command="{Binding PreviousMemberPageCommand}" Content="Previous folders" />
+                    <Button Margin="8,0,0,0" Padding="10,4" Command="{Binding NextMemberPageCommand}" Content="Next folders" />
+                </StackPanel>
+            </Grid>
+            <Border Grid.Row="1" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" Opacity="0.94"
+                    Visibility="{Binding IsDetailLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <ProgressBar Width="130" Height="4" IsIndeterminate="True" />
+                    <TextBlock Margin="0,8,0,0" Opacity="0.68" Text="Loading duplicate roots…" />
+                </StackPanel>
+            </Border>
+            <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Visibility="{Binding IsDetailEmpty, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock FontSize="17" FontWeight="SemiBold" Text="No duplicate roots to display" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

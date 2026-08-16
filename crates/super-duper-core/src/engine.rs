@@ -1,4 +1,4 @@
-use crate::analysis::{dir_fingerprint, dir_similarity};
+use crate::analysis::{dir_fingerprint, dir_similarity, exact_folders};
 use crate::config::{self, AppConfig};
 use crate::error::Error;
 use crate::hasher;
@@ -36,6 +36,7 @@ pub struct ScanResult {
     pub files_hashed: usize,
     pub duplicate_groups: usize,
     pub duplicate_files: usize,
+    pub duplicate_folder_groups: usize,
     pub wasted_bytes: u64,
     pub warning_count: usize,
     pub dir_fingerprints: usize,
@@ -255,7 +256,7 @@ impl ScanEngine {
             progress,
         )?;
         let db_duration = db_start.elapsed();
-        let warning_count = warning_count + persisted.warnings;
+        let mut warning_count = warning_count + persisted.warnings;
         progress.on_db_write_complete(traversal.files_discovered, db_duration.as_secs_f64());
         db.update_run_progress(
             run_id,
@@ -277,6 +278,13 @@ impl ScanEngine {
             &self.cancel_token,
             progress,
         )?;
+        let exact_folder_analysis = exact_folders::analyze_exact_folders_cancellable(
+            db,
+            run_id,
+            &self.cancel_token,
+            progress,
+        )?;
+        warning_count += exact_folder_analysis.warning_count;
         let dir_similarity_pairs = dir_similarity::compute_directory_similarity_cancellable(
             db,
             run_id,
@@ -309,7 +317,7 @@ impl ScanEngine {
             traversal.bytes_discovered as i64,
             hash_outcome.files_hashed as i64,
             persisted.groups as i64,
-            0,
+            exact_folder_analysis.visible_groups as i64,
             persisted.wasted_bytes as i64,
             warning_count as i64,
         )?;
@@ -326,6 +334,7 @@ impl ScanEngine {
             files_hashed: hash_outcome.files_hashed,
             duplicate_groups: persisted.groups,
             duplicate_files: persisted.duplicate_files,
+            duplicate_folder_groups: exact_folder_analysis.visible_groups,
             wasted_bytes: persisted.wasted_bytes,
             warning_count,
             dir_fingerprints,

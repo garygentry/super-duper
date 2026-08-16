@@ -124,6 +124,10 @@ public sealed class ShellViewModelTests
 
         public Task<WorkerDuplicateFileMemberPage> GetDuplicateFileGroupMembersAsync(DuplicateFileMemberQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
+        public Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(DuplicateFolderGroupQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerDuplicateFolderMemberPage> GetDuplicateFolderGroupMembersAsync(DuplicateFolderMemberQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

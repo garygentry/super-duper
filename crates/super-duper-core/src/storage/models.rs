@@ -185,6 +185,92 @@ pub struct DuplicateFileMemberPage {
     pub has_more: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DuplicateFolderGroupSortField {
+    TotalBytes,
+    CopyCount,
+    FileCount,
+    RepresentativePath,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DuplicateFolderMemberSortField {
+    Path,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFolderGroupFilter {
+    pub search: Option<String>,
+    pub minimum_size: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFolderGroupPageQuery {
+    pub run_id: i64,
+    pub limit: i64,
+    pub sort_field: DuplicateFolderGroupSortField,
+    pub sort_direction: SortDirection,
+    pub filter: DuplicateFolderGroupFilter,
+    pub cursor: Option<PageCursor>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFolderGroupResult {
+    pub id: i64,
+    pub run_id: i64,
+    pub total_size: i64,
+    pub file_count: i64,
+    pub folder_count: i64,
+    pub representative_path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFolderGroupPage {
+    pub groups: Vec<DuplicateFolderGroupResult>,
+    pub total: i64,
+    pub has_more: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFolderMemberFilter {
+    pub search: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFolderMemberPageQuery {
+    pub run_id: i64,
+    pub group_id: i64,
+    pub limit: i64,
+    pub sort_field: DuplicateFolderMemberSortField,
+    pub sort_direction: SortDirection,
+    pub filter: DuplicateFolderMemberFilter,
+    pub cursor: Option<PageCursor>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFolderMemberResult {
+    pub id: i64,
+    pub group_id: i64,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFolderMemberPage {
+    pub members: Vec<DuplicateFolderMemberResult>,
+    pub total: i64,
+    pub has_more: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExactFolderGroupInsert {
+    pub structural_fingerprint: String,
+    pub verified_fingerprint: String,
+    pub total_size: i64,
+    pub file_count: i64,
+    pub directory_ids: Vec<i64>,
+    pub is_suppressed: bool,
+}
+
 #[derive(Debug, Clone)]
 pub struct DirectoryNode {
     pub id: i64,

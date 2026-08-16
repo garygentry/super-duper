@@ -70,7 +70,20 @@ CREATE TABLE IF NOT EXISTS duplicate_group_member (
     UNIQUE(group_id, file_id)
 );
 
--- Directory analysis remains deferred for the MVP UI, but ownership is run-scoped now.
+-- Verified exact duplicate folders. Suppressed rows are retained so a future UI can expose
+-- nested matches without repeating them in the default result set.
+CREATE TABLE IF NOT EXISTS duplicate_folder_group (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+    structural_fingerprint TEXT NOT NULL,
+    verified_fingerprint TEXT NOT NULL,
+    total_size INTEGER NOT NULL CHECK(total_size >= 0),
+    file_count INTEGER NOT NULL CHECK(file_count > 0),
+    folder_count INTEGER NOT NULL CHECK(folder_count > 1),
+    is_suppressed INTEGER NOT NULL DEFAULT 0 CHECK(is_suppressed IN (0, 1))
+);
+
+-- Run-scoped directory index shared by exact-folder results and deferred similarity UI.
 CREATE TABLE IF NOT EXISTS directory_node (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
@@ -102,6 +115,13 @@ CREATE TABLE IF NOT EXISTS directory_similarity (
     CHECK(dir_a_id < dir_b_id)
 );
 
+CREATE TABLE IF NOT EXISTS duplicate_folder_group_member (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL REFERENCES duplicate_folder_group(id) ON DELETE CASCADE,
+    directory_id INTEGER NOT NULL REFERENCES directory_node(id) ON DELETE CASCADE,
+    UNIQUE(group_id, directory_id)
+);
+
 CREATE TABLE IF NOT EXISTS deletion_plan (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     file_id INTEGER NOT NULL UNIQUE REFERENCES scanned_file(id) ON DELETE CASCADE,
@@ -123,6 +143,9 @@ CREATE INDEX IF NOT EXISTS idx_group_run_wasted ON duplicate_group(run_id, waste
 CREATE INDEX IF NOT EXISTS idx_group_run_size ON duplicate_group(run_id, file_size, id);
 CREATE INDEX IF NOT EXISTS idx_group_run_count ON duplicate_group(run_id, file_count, id);
 CREATE INDEX IF NOT EXISTS idx_group_member_group ON duplicate_group_member(group_id);
+CREATE INDEX IF NOT EXISTS idx_folder_group_run_bytes ON duplicate_folder_group(run_id, is_suppressed, total_size DESC, id);
+CREATE INDEX IF NOT EXISTS idx_folder_group_run_count ON duplicate_folder_group(run_id, is_suppressed, folder_count, id);
 CREATE INDEX IF NOT EXISTS idx_dir_run_parent ON directory_node(run_id, parent_id);
 CREATE INDEX IF NOT EXISTS idx_dir_fingerprint ON directory_fingerprint(content_fingerprint);
 CREATE INDEX IF NOT EXISTS idx_dir_similarity_run_score ON directory_similarity(run_id, similarity_score DESC);
+CREATE INDEX IF NOT EXISTS idx_folder_group_member_group ON duplicate_folder_group_member(group_id, id);

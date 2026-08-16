@@ -4,9 +4,9 @@
 
 This document defines version 1 of the local protocol between `SuperDuper.Windows` and the
 `super-duper-worker` child process. The worker is a single-client, long-lived process launched by
-the Windows application. Milestones 0–4 implement negotiation, session and scan lifecycle, and
-duplicate-file result browsing. Duplicate-folder and warning commands remain reserved for later
-milestones.
+the Windows application. Milestones 0–5 implement negotiation, session and scan lifecycle, and
+separately paged duplicate-file and exact-duplicate-folder result browsing. Warning commands remain
+reserved for a later milestone.
 
 The transport is UTF-8 newline-delimited JSON (JSONL) over redirected standard input and standard
 output. It is a local process boundary, not a network API.
@@ -100,6 +100,8 @@ The scan-lifecycle and result commands additionally use:
 - `scan_busy`: another run owns the single global scan slot; `details.activeRunId` identifies it
 - `invalid_cursor`: a result cursor is malformed or belongs to a different run, sort, or filter
 - `duplicate_group_not_found`: the requested duplicate-file group does not belong to the given run
+- `duplicate_folder_group_not_found`: the requested visible duplicate-folder group does not belong
+  to the given run
 
 ### Event
 
@@ -339,6 +341,44 @@ Result:
 
 Byte sizes and the nanosecond Unix modification timestamp are decimal strings. Member pages verify
 that `groupId` belongs to `runId`; a mismatched pair returns `duplicate_group_not_found`.
+
+## Exact Duplicate Folder Result Commands
+
+Exact-folder results use the same completed-run requirement, immutable run ownership, page-size
+limits, opaque query-bound cursors, and stable ID tie-breaker rules as duplicate-file results.
+Suppressed nested groups are retained in storage but are not returned by these V1 commands.
+
+### `duplicate_folder_group.page`
+
+```json
+{"type":"request","id":"fg1","method":"duplicate_folder_group.page","params":{"runId":19,"pageSize":200,"sort":{"field":"totalBytes","direction":"descending"},"filter":{"search":"archive","minimumSize":"1048576"},"cursor":null}}
+```
+
+Allowed sort fields are `totalBytes`, `copyCount`, `fileCount`, and `representativePath`; the
+default is total bytes descending. `filter.search` is an optional case-insensitive literal
+substring across member folder paths. `filter.minimumSize` is a non-negative decimal byte string.
+
+```json
+{"groups":[{"id":41,"runId":19,"totalBytes":"5242880","descendantFileCount":18,"copyCount":2,"representativePath":"D:\\Archive\\Set A"}],"total":3,"nextCursor":null,"previousCursor":null}
+```
+
+`totalBytes` is the bytes in one folder copy, not the sum across all copies. Root names and
+locations do not participate in exactness.
+
+### `duplicate_folder_group.members`
+
+```json
+{"type":"request","id":"fm1","method":"duplicate_folder_group.members","params":{"runId":19,"groupId":41,"pageSize":200,"sort":{"field":"path","direction":"ascending"},"filter":{"search":"archive"},"cursor":null}}
+```
+
+Path is the only V1 member sort field. The optional search filter has the same 512-character limit.
+
+```json
+{"members":[{"id":101,"groupId":41,"path":"D:\\Archive\\Set A"},{"id":102,"groupId":41,"path":"E:\\Backup\\Renamed Set"}],"total":2,"nextCursor":null,"previousCursor":null}
+```
+
+Member pages verify both group and run ownership; a mismatch returns
+`duplicate_folder_group_not_found`.
 
 ## Startup
 

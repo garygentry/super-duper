@@ -318,6 +318,31 @@ impl Database {
         Ok(count)
     }
 
+    pub fn get_scanned_files(&self, run_id: i64) -> Result<Vec<ScannedFile>> {
+        let mut statement = self.connection().prepare(
+            "SELECT id, run_id, root_path, canonical_path, relative_path, file_name,
+                    parent_dir, drive_letter, file_size, last_modified, partial_hash,
+                    content_hash, file_identity, warning_message, marked_deleted
+             FROM scanned_file WHERE run_id = ?1 ORDER BY id",
+        )?;
+        let files = statement
+            .query_map(params![run_id], map_file)?
+            .collect::<Result<Vec<_>>>()?;
+        Ok(files)
+    }
+
+    pub fn update_scanned_file_content_hash(
+        &self,
+        run_id: i64,
+        file_id: i64,
+        hash: i64,
+    ) -> Result<()> {
+        changed_one(self.connection().execute(
+            "UPDATE scanned_file SET content_hash = ?1 WHERE run_id = ?2 AND id = ?3",
+            params![hash, run_id, file_id],
+        )?)
+    }
+
     pub fn insert_duplicate_groups(
         &self,
         run_id: i64,
@@ -628,6 +653,243 @@ impl Database {
         })
     }
 
+    pub fn replace_exact_folder_groups(
+        &self,
+        run_id: i64,
+        groups: &[ExactFolderGroupInsert],
+        cancel_token: &AtomicBool,
+    ) -> std::result::Result<usize, crate::Error> {
+        let tx = self.connection().unchecked_transaction()?;
+        tx.execute(
+            "DELETE FROM duplicate_folder_group WHERE run_id = ?1",
+            params![run_id],
+        )?;
+        let mut visible_count = 0usize;
+        {
+            let mut group_statement = tx.prepare_cached(
+                "INSERT INTO duplicate_folder_group
+                    (run_id, structural_fingerprint, verified_fingerprint, total_size,
+                     file_count, folder_count, is_suppressed)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            )?;
+            let mut member_statement = tx.prepare_cached(
+                "INSERT INTO duplicate_folder_group_member (group_id, directory_id)
+                 SELECT ?1, id FROM directory_node WHERE run_id = ?2 AND id = ?3",
+            )?;
+            for group in groups {
+                if cancel_token.load(Ordering::Relaxed) {
+                    return Err(crate::Error::Cancelled);
+                }
+                group_statement.execute(params![
+                    run_id,
+                    group.structural_fingerprint,
+                    group.verified_fingerprint,
+                    group.total_size,
+                    group.file_count,
+                    group.directory_ids.len() as i64,
+                    group.is_suppressed,
+                ])?;
+                let group_id = tx.last_insert_rowid();
+                for directory_id in &group.directory_ids {
+                    if member_statement.execute(params![group_id, run_id, directory_id])? != 1 {
+                        return Err(crate::Error::Database(Error::InvalidQuery));
+                    }
+                }
+                if !group.is_suppressed {
+                    visible_count += 1;
+                }
+            }
+        }
+        tx.commit()?;
+        Ok(visible_count)
+    }
+
+    pub fn duplicate_folder_group_exists(&self, run_id: i64, group_id: i64) -> Result<bool> {
+        self.connection().query_row(
+            "SELECT EXISTS(SELECT 1 FROM duplicate_folder_group
+                           WHERE run_id = ?1 AND id = ?2 AND is_suppressed = 0)",
+            params![run_id, group_id],
+            |row| row.get(0),
+        )
+    }
+
+    pub fn page_duplicate_folder_groups(
+        &self,
+        query: &DuplicateFolderGroupPageQuery,
+    ) -> Result<DuplicateFolderGroupPage> {
+        let mut predicates = vec![
+            "dfg.run_id = ?".to_owned(),
+            "dfg.is_suppressed = 0".to_owned(),
+        ];
+        let mut base_parameters = vec![SqlValue::Integer(query.run_id)];
+        predicates.push("dfg.total_size >= ?".to_owned());
+        base_parameters.push(SqlValue::Integer(query.filter.minimum_size));
+        if let Some(search) = query
+            .filter
+            .search
+            .as_deref()
+            .filter(|value| !value.is_empty())
+        {
+            predicates.push(
+                "EXISTS (
+                    SELECT 1 FROM duplicate_folder_group_member search_member
+                    JOIN directory_node search_directory ON search_directory.id = search_member.directory_id
+                    WHERE search_member.group_id = dfg.id
+                      AND search_directory.run_id = dfg.run_id
+                      AND search_directory.path LIKE ? ESCAPE '\\' COLLATE NOCASE
+                )".to_owned(),
+            );
+            base_parameters.push(SqlValue::Text(like_pattern(search)));
+        }
+        let where_sql = predicates.join(" AND ");
+        let total: i64 = self.connection().query_row(
+            &format!("SELECT COUNT(*) FROM duplicate_folder_group dfg WHERE {where_sql}"),
+            params_from_iter(base_parameters.iter()),
+            |row| row.get(0),
+        )?;
+        let sort_expression = match query.sort_field {
+            DuplicateFolderGroupSortField::TotalBytes => "total_size",
+            DuplicateFolderGroupSortField::CopyCount => "folder_count",
+            DuplicateFolderGroupSortField::FileCount => "file_count",
+            DuplicateFolderGroupSortField::RepresentativePath => {
+                "representative_path COLLATE NOCASE"
+            }
+        };
+        let mut page_parameters = base_parameters;
+        let mut cursor_clause = String::new();
+        if let Some(cursor) = &query.cursor {
+            let comparator = cursor_comparator(query.sort_direction, cursor.before);
+            let id_comparator = cursor_comparator(SortDirection::Ascending, cursor.before);
+            cursor_clause = format!(
+                "WHERE ({sort_expression} {comparator} ? OR ({sort_expression} = ? AND id {id_comparator} ?))"
+            );
+            push_cursor_parameters(
+                &mut page_parameters,
+                cursor,
+                query.sort_field == DuplicateFolderGroupSortField::RepresentativePath,
+            )?;
+        }
+        page_parameters.push(SqlValue::Integer(query.limit + 1));
+        let before = query.cursor.as_ref().is_some_and(|cursor| cursor.before);
+        let order = effective_order(query.sort_direction, before);
+        let id_order = effective_order(SortDirection::Ascending, before);
+        let sql = format!(
+            "WITH result_groups AS (
+                SELECT dfg.id, dfg.run_id, dfg.total_size, dfg.file_count, dfg.folder_count,
+                       COALESCE((
+                           SELECT dn.path FROM duplicate_folder_group_member representative_member
+                           JOIN directory_node dn ON dn.id = representative_member.directory_id
+                           WHERE representative_member.group_id = dfg.id AND dn.run_id = dfg.run_id
+                           ORDER BY dn.path COLLATE NOCASE, dn.id LIMIT 1
+                       ), '') AS representative_path
+                FROM duplicate_folder_group dfg WHERE {where_sql}
+             )
+             SELECT id, run_id, total_size, file_count, folder_count, representative_path
+             FROM result_groups {cursor_clause}
+             ORDER BY {sort_expression} {order}, id {id_order} LIMIT ?"
+        );
+        let mut statement = self.connection().prepare(&sql)?;
+        let mapped = statement.query_map(params_from_iter(page_parameters.iter()), |row| {
+            Ok(DuplicateFolderGroupResult {
+                id: row.get(0)?,
+                run_id: row.get(1)?,
+                total_size: row.get(2)?,
+                file_count: row.get(3)?,
+                folder_count: row.get(4)?,
+                representative_path: row.get(5)?,
+            })
+        })?;
+        let mut groups = mapped.collect::<Result<Vec<_>>>()?;
+        let has_more = groups.len() > query.limit as usize;
+        if has_more {
+            groups.pop();
+        }
+        if before {
+            groups.reverse();
+        }
+        Ok(DuplicateFolderGroupPage {
+            groups,
+            total,
+            has_more,
+        })
+    }
+
+    pub fn page_duplicate_folder_members(
+        &self,
+        query: &DuplicateFolderMemberPageQuery,
+    ) -> Result<DuplicateFolderMemberPage> {
+        let mut predicates = vec![
+            "dfg.run_id = ?".to_owned(),
+            "dfg.id = ?".to_owned(),
+            "dfg.is_suppressed = 0".to_owned(),
+        ];
+        let mut base_parameters = vec![
+            SqlValue::Integer(query.run_id),
+            SqlValue::Integer(query.group_id),
+        ];
+        if let Some(search) = query
+            .filter
+            .search
+            .as_deref()
+            .filter(|value| !value.is_empty())
+        {
+            predicates.push("dn.path LIKE ? ESCAPE '\\' COLLATE NOCASE".to_owned());
+            base_parameters.push(SqlValue::Text(like_pattern(search)));
+        }
+        let where_sql = predicates.join(" AND ");
+        let from_sql = "FROM duplicate_folder_group dfg
+                        JOIN duplicate_folder_group_member dfgm ON dfgm.group_id = dfg.id
+                        JOIN directory_node dn ON dn.id = dfgm.directory_id AND dn.run_id = dfg.run_id";
+        let total: i64 = self.connection().query_row(
+            &format!("SELECT COUNT(*) {from_sql} WHERE {where_sql}"),
+            params_from_iter(base_parameters.iter()),
+            |row| row.get(0),
+        )?;
+        let sort_expression = match query.sort_field {
+            DuplicateFolderMemberSortField::Path => "dn.path COLLATE NOCASE",
+        };
+        let mut page_parameters = base_parameters;
+        let mut cursor_clause = String::new();
+        if let Some(cursor) = &query.cursor {
+            let comparator = cursor_comparator(query.sort_direction, cursor.before);
+            let id_comparator = cursor_comparator(SortDirection::Ascending, cursor.before);
+            cursor_clause = format!(
+                "AND ({sort_expression} {comparator} ? OR ({sort_expression} = ? AND dfgm.id {id_comparator} ?))"
+            );
+            push_cursor_parameters(&mut page_parameters, cursor, true)?;
+        }
+        page_parameters.push(SqlValue::Integer(query.limit + 1));
+        let before = query.cursor.as_ref().is_some_and(|cursor| cursor.before);
+        let order = effective_order(query.sort_direction, before);
+        let id_order = effective_order(SortDirection::Ascending, before);
+        let sql = format!(
+            "SELECT dfgm.id, dfg.id, dn.path {from_sql}
+             WHERE {where_sql} {cursor_clause}
+             ORDER BY {sort_expression} {order}, dfgm.id {id_order} LIMIT ?"
+        );
+        let mut statement = self.connection().prepare(&sql)?;
+        let mapped = statement.query_map(params_from_iter(page_parameters.iter()), |row| {
+            Ok(DuplicateFolderMemberResult {
+                id: row.get(0)?,
+                group_id: row.get(1)?,
+                path: row.get(2)?,
+            })
+        })?;
+        let mut members = mapped.collect::<Result<Vec<_>>>()?;
+        let has_more = members.len() > query.limit as usize;
+        if has_more {
+            members.pop();
+        }
+        if before {
+            members.reverse();
+        }
+        Ok(DuplicateFolderMemberPage {
+            members,
+            total,
+            has_more,
+        })
+    }
+
     pub fn get_duplicate_group_count(&self, run_id: i64) -> Result<i64> {
         self.connection().query_row(
             "SELECT COUNT(*) FROM duplicate_group WHERE run_id = ?1",
@@ -663,6 +925,14 @@ impl Database {
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![run_id, path, name, parent_id, total_size, file_count, depth],
         )?;
+        self.connection().query_row(
+            "SELECT id FROM directory_node WHERE run_id = ?1 AND path = ?2",
+            params![run_id, path],
+            |row| row.get(0),
+        )
+    }
+
+    pub fn get_directory_id(&self, run_id: i64, path: &str) -> Result<i64> {
         self.connection().query_row(
             "SELECT id FROM directory_node WHERE run_id = ?1 AND path = ?2",
             params![run_id, path],

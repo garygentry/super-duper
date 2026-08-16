@@ -71,8 +71,8 @@
                         <TabItem Header="Duplicate files">
                             <views:DuplicateFilesView DataContext="{Binding DuplicateFiles}" />
                         </TabItem>
-                        <TabItem Header="Duplicate folders" IsEnabled="False">
-                            <TextBlock Margin="32" Text="Exact duplicate-folder results arrive in Milestone 5." />
+                        <TabItem Header="Duplicate folders">
+                            <views:DuplicateFoldersView DataContext="{Binding DuplicateFolders}" />
                         </TabItem>
                     </TabControl>
 

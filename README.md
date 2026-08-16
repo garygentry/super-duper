@@ -15,6 +15,8 @@ and the new WPF Windows application scaffold.
   size, and high-resolution modified timestamp
 - SQLite session storage for scans, duplicate groups, directory analysis, and deletion plans
 - Directory fingerprinting and Jaccard similarity for exact, subset, and near-match folder trees
+- Exact duplicate-folder verification by relative structure and content, with redundant nested
+  matches suppressed
 - Reviewed deletion workflow: files are staged before execution
 - Headless CLI for repeatable scans, scripting, and verification
 - C-compatible FFI crate for future native clients
@@ -146,6 +148,8 @@ Key tables:
 | `scanned_file` | Immutable per-run file snapshots with root-relative paths |
 | `duplicate_group` | Confirmed duplicate sets owned by one run |
 | `duplicate_group_member` | Duplicate group membership |
+| `duplicate_folder_group` | Verified exact-folder groups, including retained suppression state |
+| `duplicate_folder_group_member` | Run-owned duplicate-folder roots |
 | `directory_node` | Per-run directory tree aggregates |
 | `directory_fingerprint` | Per-directory content fingerprints |
 | `directory_similarity` | Precomputed Jaccard pairs |
@@ -172,4 +176,6 @@ concurrent cancellation, graceful worker shutdown, and streaming cache-backed ha
 provides session navigation and editing, Windows folder selection, validated root/ignore settings,
 run history restoration, and responsive progress/cancellation UI integration. Milestone 4 adds
 run-owned cursor pagination, server-side duplicate-file sorting/filtering, a bounded WPF page cache,
-master/detail results, copy-path actions, and native Explorer reveal.
+master/detail results, copy-path actions, and native Explorer reveal. Milestone 5 adds structurally
+screened and content-verified exact duplicate folders, nested-result suppression, run-owned folder
+pagination, and a separate bounded WPF folder-results experience.

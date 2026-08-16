@@ -13,8 +13,11 @@ use super_duper_core::progress::ProgressReporter;
 use super_duper_core::storage::models::{
     DuplicateFileGroupFilter, DuplicateFileGroupPageQuery, DuplicateFileGroupResult,
     DuplicateFileGroupSortField, DuplicateFileMemberFilter, DuplicateFileMemberPageQuery,
-    DuplicateFileMemberResult, DuplicateFileMemberSortField, PageCursor, PageCursorValue,
-    RunParameters, ScanRun, ScanSession, SortDirection,
+    DuplicateFileMemberResult, DuplicateFileMemberSortField, DuplicateFolderGroupFilter,
+    DuplicateFolderGroupPageQuery, DuplicateFolderGroupResult, DuplicateFolderGroupSortField,
+    DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery, DuplicateFolderMemberResult,
+    DuplicateFolderMemberSortField, PageCursor, PageCursorValue, RunParameters, ScanRun,
+    ScanSession, SortDirection,
 };
 use super_duper_core::storage::Database;
 use super_duper_core::{AppConfig, ScanEngine};
@@ -294,6 +297,96 @@ struct DuplicateFileMemberFilterParameters {
     search: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFolderGroupPageParameters {
+    run_id: i64,
+    #[serde(default = "default_result_page_size")]
+    page_size: i64,
+    #[serde(default)]
+    sort: DuplicateFolderGroupSortParameters,
+    #[serde(default)]
+    filter: DuplicateFolderGroupFilterParameters,
+    #[serde(default)]
+    cursor: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFolderGroupSortParameters {
+    #[serde(default = "default_folder_group_sort_field")]
+    field: String,
+    #[serde(default = "default_descending")]
+    direction: String,
+}
+
+impl Default for DuplicateFolderGroupSortParameters {
+    fn default() -> Self {
+        Self {
+            field: default_folder_group_sort_field(),
+            direction: default_descending(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFolderGroupFilterParameters {
+    #[serde(default)]
+    search: Option<String>,
+    #[serde(default = "default_minimum_size")]
+    minimum_size: String,
+}
+
+impl Default for DuplicateFolderGroupFilterParameters {
+    fn default() -> Self {
+        Self {
+            search: None,
+            minimum_size: default_minimum_size(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFolderMemberPageParameters {
+    run_id: i64,
+    group_id: i64,
+    #[serde(default = "default_result_page_size")]
+    page_size: i64,
+    #[serde(default)]
+    sort: DuplicateFolderMemberSortParameters,
+    #[serde(default)]
+    filter: DuplicateFolderMemberFilterParameters,
+    #[serde(default)]
+    cursor: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFolderMemberSortParameters {
+    #[serde(default = "default_member_sort_field")]
+    field: String,
+    #[serde(default = "default_ascending")]
+    direction: String,
+}
+
+impl Default for DuplicateFolderMemberSortParameters {
+    fn default() -> Self {
+        Self {
+            field: default_member_sort_field(),
+            direction: default_ascending(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFolderMemberFilterParameters {
+    #[serde(default)]
+    search: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CursorPayload {
@@ -375,6 +468,25 @@ struct DuplicateFileMemberDto {
     parent_path: String,
     size: String,
     modified_time_unix_nanos: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFolderGroupDto {
+    id: i64,
+    run_id: i64,
+    total_bytes: String,
+    descendant_file_count: i64,
+    copy_count: i64,
+    representative_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFolderMemberDto {
+    id: i64,
+    group_id: i64,
+    path: String,
 }
 
 struct ActiveRun {
@@ -596,6 +708,8 @@ impl WorkerSession {
             "run.cancel" => self.run_cancel(request),
             "duplicate_file_group.page" => self.duplicate_file_group_page(request),
             "duplicate_file_group.members" => self.duplicate_file_group_members(request),
+            "duplicate_folder_group.page" => self.duplicate_folder_group_page(request),
+            "duplicate_folder_group.members" => self.duplicate_folder_group_members(request),
             _ => Err(ProtocolFailure::new(
                 "method_not_found",
                 format!("Unknown method: {}", request.method),
@@ -862,6 +976,152 @@ impl WorkerSession {
         let members = page.members.into_iter().map(member_dto).collect::<Vec<_>>();
         Ok(json!({
             "members": members,
+            "total": page.total,
+            "nextCursor": next_cursor,
+            "previousCursor": previous_cursor,
+        }))
+    }
+
+    fn duplicate_folder_group_page(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: DuplicateFolderGroupPageParameters = parse_parameters(request)?;
+        validate_result_page_size(parameters.page_size)?;
+        let db = self.state.database()?;
+        ensure_completed_result_run(&db, parameters.run_id)?;
+        let sort_field = parse_folder_group_sort_field(&parameters.sort.field)?;
+        let sort_direction = parse_sort_direction(&parameters.sort.direction)?;
+        let search = validate_search(parameters.filter.search)?;
+        let minimum_size =
+            parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
+        let signature = folder_group_query_signature(
+            parameters.run_id,
+            sort_field,
+            sort_direction,
+            search.as_deref(),
+            minimum_size,
+        );
+        let cursor = decode_cursor(
+            parameters.cursor.as_deref(),
+            "duplicate-folder-groups",
+            &signature,
+        )?;
+        validate_cursor_value(
+            cursor.as_ref(),
+            sort_field == DuplicateFolderGroupSortField::RepresentativePath,
+        )?;
+        let page = db
+            .page_duplicate_folder_groups(&DuplicateFolderGroupPageQuery {
+                run_id: parameters.run_id,
+                limit: parameters.page_size,
+                sort_field,
+                sort_direction,
+                filter: DuplicateFolderGroupFilter {
+                    search,
+                    minimum_size,
+                },
+                cursor: cursor.clone(),
+            })
+            .map_err(internal_database_error)?;
+        let previous_cursor = page
+            .groups
+            .first()
+            .and_then(|group| {
+                let has_previous = cursor
+                    .as_ref()
+                    .is_some_and(|value| !value.before || page.has_more);
+                has_previous
+                    .then(|| encode_folder_group_cursor(group, sort_field, true, &signature))
+            })
+            .transpose()?;
+        let next_cursor = page
+            .groups
+            .last()
+            .and_then(|group| {
+                let has_next = cursor.as_ref().is_some_and(|value| value.before) || page.has_more;
+                has_next.then(|| encode_folder_group_cursor(group, sort_field, false, &signature))
+            })
+            .transpose()?;
+        Ok(json!({
+            "groups": page.groups.into_iter().map(folder_group_dto).collect::<Vec<_>>(),
+            "total": page.total,
+            "nextCursor": next_cursor,
+            "previousCursor": previous_cursor,
+        }))
+    }
+
+    fn duplicate_folder_group_members(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: DuplicateFolderMemberPageParameters = parse_parameters(request)?;
+        validate_result_page_size(parameters.page_size)?;
+        let db = self.state.database()?;
+        ensure_completed_result_run(&db, parameters.run_id)?;
+        if !db
+            .duplicate_folder_group_exists(parameters.run_id, parameters.group_id)
+            .map_err(internal_database_error)?
+        {
+            return Err(ProtocolFailure::new(
+                "duplicate_folder_group_not_found",
+                format!(
+                    "Duplicate folder group {} was not found in run {}",
+                    parameters.group_id, parameters.run_id
+                ),
+            )
+            .with_details(json!({
+                "runId": parameters.run_id,
+                "groupId": parameters.group_id,
+            })));
+        }
+        let sort_field = parse_folder_member_sort_field(&parameters.sort.field)?;
+        let sort_direction = parse_sort_direction(&parameters.sort.direction)?;
+        let search = validate_search(parameters.filter.search)?;
+        let signature = folder_member_query_signature(
+            parameters.run_id,
+            parameters.group_id,
+            sort_field,
+            sort_direction,
+            search.as_deref(),
+        );
+        let cursor = decode_cursor(
+            parameters.cursor.as_deref(),
+            "duplicate-folder-members",
+            &signature,
+        )?;
+        validate_cursor_value(cursor.as_ref(), true)?;
+        let page = db
+            .page_duplicate_folder_members(&DuplicateFolderMemberPageQuery {
+                run_id: parameters.run_id,
+                group_id: parameters.group_id,
+                limit: parameters.page_size,
+                sort_field,
+                sort_direction,
+                filter: DuplicateFolderMemberFilter { search },
+                cursor: cursor.clone(),
+            })
+            .map_err(internal_database_error)?;
+        let previous_cursor = page
+            .members
+            .first()
+            .and_then(|member| {
+                let has_previous = cursor
+                    .as_ref()
+                    .is_some_and(|value| !value.before || page.has_more);
+                has_previous.then(|| encode_folder_member_cursor(member, true, &signature))
+            })
+            .transpose()?;
+        let next_cursor = page
+            .members
+            .last()
+            .and_then(|member| {
+                let has_next = cursor.as_ref().is_some_and(|value| value.before) || page.has_more;
+                has_next.then(|| encode_folder_member_cursor(member, false, &signature))
+            })
+            .transpose()?;
+        Ok(json!({
+            "members": page.members.into_iter().map(folder_member_dto).collect::<Vec<_>>(),
             "total": page.total,
             "nextCursor": next_cursor,
             "previousCursor": previous_cursor,
@@ -1393,6 +1653,38 @@ fn parse_member_sort_field(value: &str) -> Result<DuplicateFileMemberSortField, 
     }
 }
 
+fn parse_folder_group_sort_field(
+    value: &str,
+) -> Result<DuplicateFolderGroupSortField, ProtocolFailure> {
+    match value {
+        "totalBytes" => Ok(DuplicateFolderGroupSortField::TotalBytes),
+        "copyCount" => Ok(DuplicateFolderGroupSortField::CopyCount),
+        "fileCount" => Ok(DuplicateFolderGroupSortField::FileCount),
+        "representativePath" => Ok(DuplicateFolderGroupSortField::RepresentativePath),
+        _ => Err(ProtocolFailure::new(
+            "invalid_request",
+            "sort.field is not allowed for duplicate folder groups",
+        )
+        .with_details(json!({
+            "field":"sort.field",
+            "allowed":["totalBytes","copyCount","fileCount","representativePath"]
+        }))),
+    }
+}
+
+fn parse_folder_member_sort_field(
+    value: &str,
+) -> Result<DuplicateFolderMemberSortField, ProtocolFailure> {
+    match value {
+        "path" => Ok(DuplicateFolderMemberSortField::Path),
+        _ => Err(ProtocolFailure::new(
+            "invalid_request",
+            "sort.field is not allowed for duplicate folder members",
+        )
+        .with_details(json!({"field":"sort.field","allowed":["path"]}))),
+    }
+}
+
 fn parse_sort_direction(value: &str) -> Result<SortDirection, ProtocolFailure> {
     match value {
         "ascending" => Ok(SortDirection::Ascending),
@@ -1467,6 +1759,36 @@ fn member_query_signature(
     )
 }
 
+fn folder_group_query_signature(
+    run_id: i64,
+    sort_field: DuplicateFolderGroupSortField,
+    sort_direction: SortDirection,
+    search: Option<&str>,
+    minimum_size: i64,
+) -> String {
+    format!(
+        "{run_id}|{}|{}|{}|{minimum_size}",
+        folder_group_sort_name(sort_field),
+        direction_name(sort_direction),
+        search.unwrap_or_default()
+    )
+}
+
+fn folder_member_query_signature(
+    run_id: i64,
+    group_id: i64,
+    sort_field: DuplicateFolderMemberSortField,
+    sort_direction: SortDirection,
+    search: Option<&str>,
+) -> String {
+    format!(
+        "{run_id}|{group_id}|{}|{}|{}",
+        folder_member_sort_name(sort_field),
+        direction_name(sort_direction),
+        search.unwrap_or_default()
+    )
+}
+
 fn encode_group_cursor(
     group: &DuplicateFileGroupResult,
     sort_field: DuplicateFileGroupSortField,
@@ -1516,6 +1838,51 @@ fn encode_member_cursor(
         query: signature.to_owned(),
         before,
         value,
+        id: member.id,
+    })
+}
+
+fn encode_folder_group_cursor(
+    group: &DuplicateFolderGroupResult,
+    sort_field: DuplicateFolderGroupSortField,
+    before: bool,
+    signature: &str,
+) -> Result<String, ProtocolFailure> {
+    let value = match sort_field {
+        DuplicateFolderGroupSortField::TotalBytes => {
+            CursorScalar::Integer(group.total_size.to_string())
+        }
+        DuplicateFolderGroupSortField::CopyCount => {
+            CursorScalar::Integer(group.folder_count.to_string())
+        }
+        DuplicateFolderGroupSortField::FileCount => {
+            CursorScalar::Integer(group.file_count.to_string())
+        }
+        DuplicateFolderGroupSortField::RepresentativePath => {
+            CursorScalar::Text(group.representative_path.clone())
+        }
+    };
+    encode_cursor(CursorPayload {
+        version: 1,
+        kind: "duplicate-folder-groups".to_owned(),
+        query: signature.to_owned(),
+        before,
+        value,
+        id: group.id,
+    })
+}
+
+fn encode_folder_member_cursor(
+    member: &DuplicateFolderMemberResult,
+    before: bool,
+    signature: &str,
+) -> Result<String, ProtocolFailure> {
+    encode_cursor(CursorPayload {
+        version: 1,
+        kind: "duplicate-folder-members".to_owned(),
+        query: signature.to_owned(),
+        before,
+        value: CursorScalar::Text(member.path.clone()),
         id: member.id,
     })
 }
@@ -1619,6 +1986,25 @@ fn member_dto(member: DuplicateFileMemberResult) -> DuplicateFileMemberDto {
     }
 }
 
+fn folder_group_dto(group: DuplicateFolderGroupResult) -> DuplicateFolderGroupDto {
+    DuplicateFolderGroupDto {
+        id: group.id,
+        run_id: group.run_id,
+        total_bytes: group.total_size.to_string(),
+        descendant_file_count: group.file_count,
+        copy_count: group.folder_count,
+        representative_path: group.representative_path,
+    }
+}
+
+fn folder_member_dto(member: DuplicateFolderMemberResult) -> DuplicateFolderMemberDto {
+    DuplicateFolderMemberDto {
+        id: member.id,
+        group_id: member.group_id,
+        path: member.path,
+    }
+}
+
 fn group_sort_name(field: DuplicateFileGroupSortField) -> &'static str {
     match field {
         DuplicateFileGroupSortField::RecoverableBytes => "recoverableBytes",
@@ -1633,6 +2019,21 @@ fn member_sort_name(field: DuplicateFileMemberSortField) -> &'static str {
         DuplicateFileMemberSortField::Path => "path",
         DuplicateFileMemberSortField::ModifiedTime => "modifiedTime",
         DuplicateFileMemberSortField::Size => "size",
+    }
+}
+
+fn folder_group_sort_name(field: DuplicateFolderGroupSortField) -> &'static str {
+    match field {
+        DuplicateFolderGroupSortField::TotalBytes => "totalBytes",
+        DuplicateFolderGroupSortField::CopyCount => "copyCount",
+        DuplicateFolderGroupSortField::FileCount => "fileCount",
+        DuplicateFolderGroupSortField::RepresentativePath => "representativePath",
+    }
+}
+
+fn folder_member_sort_name(field: DuplicateFolderMemberSortField) -> &'static str {
+    match field {
+        DuplicateFolderMemberSortField::Path => "path",
     }
 }
 
@@ -1933,6 +2334,10 @@ fn default_group_sort_field() -> String {
     "recoverableBytes".to_owned()
 }
 
+fn default_folder_group_sort_field() -> String {
+    "totalBytes".to_owned()
+}
+
 fn default_member_sort_field() -> String {
     "path".to_owned()
 }
@@ -2205,6 +2610,108 @@ mod tests {
                 .unwrap();
         assert_eq!(members["result"]["members"].as_array().unwrap().len(), 2);
         assert!(members["result"]["members"][0]["modifiedTimeUnixNanos"].is_string());
+    }
+
+    #[test]
+    fn duplicate_folder_pages_are_stable_filtered_and_run_owned() {
+        let temp = TempDir::new().unwrap();
+        let db_path = temp.path().join("folder-worker.db");
+        let db = Database::open(db_path.to_str().unwrap()).unwrap();
+        let session_id = db
+            .create_session("Folders", &["/root".to_owned()], &[])
+            .unwrap();
+        let run_id = db
+            .create_scan_run(
+                session_id,
+                &RunParameters {
+                    roots: vec!["/root".to_owned()],
+                    ignore_patterns: vec![],
+                    directory_similarity_threshold_millis: 500,
+                },
+                "test",
+            )
+            .unwrap();
+        db.start_scan_run(run_id).unwrap();
+        let directories = [
+            "/root/a", "/root/b", "/root/c", "/root/d", "/root/e", "/root/f",
+        ]
+        .into_iter()
+        .map(|path| {
+            db.insert_directory_node(run_id, path, path, None, 100, 1, 1)
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+        db.replace_exact_folder_groups(
+            run_id,
+            &[
+                super_duper_core::storage::models::ExactFolderGroupInsert {
+                    structural_fingerprint: "s1".to_owned(),
+                    verified_fingerprint: "v1".to_owned(),
+                    total_size: 100,
+                    file_count: 1,
+                    directory_ids: directories[0..2].to_vec(),
+                    is_suppressed: false,
+                },
+                super_duper_core::storage::models::ExactFolderGroupInsert {
+                    structural_fingerprint: "s2".to_owned(),
+                    verified_fingerprint: "v2".to_owned(),
+                    total_size: 100,
+                    file_count: 1,
+                    directory_ids: directories[2..4].to_vec(),
+                    is_suppressed: false,
+                },
+                super_duper_core::storage::models::ExactFolderGroupInsert {
+                    structural_fingerprint: "s3".to_owned(),
+                    verified_fingerprint: "v3".to_owned(),
+                    total_size: 100,
+                    file_count: 1,
+                    directory_ids: directories[4..6].to_vec(),
+                    is_suppressed: false,
+                },
+            ],
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        db.complete_scan_run(run_id, 6, 600, 6, 0, 3, 0, 0).unwrap();
+        drop(db);
+
+        let (sender, _receiver) = mpsc::channel();
+        let state = SharedState::new(WorkerOptions::new(&db_path), sender).unwrap();
+        let mut worker = WorkerSession::new(state);
+        worker.handle_line(HELLO).unwrap();
+        let first: Value = serde_json::from_str(&worker.handle_line(
+            r#"{"type":"request","id":"fg1","method":"duplicate_folder_group.page","params":{"runId":1,"pageSize":2,"sort":{"field":"totalBytes","direction":"descending"},"filter":{"search":"","minimumSize":"0"}}}"#,
+        ).unwrap()).unwrap();
+        assert_eq!(first["result"]["groups"].as_array().unwrap().len(), 2);
+        assert_eq!(first["result"]["groups"][0]["id"], 1);
+        assert_eq!(first["result"]["groups"][1]["id"], 2);
+        assert!(first["result"]["previousCursor"].is_null());
+        let cursor = first["result"]["nextCursor"].as_str().unwrap();
+        let second_request = json!({
+            "type":"request", "id":"fg2", "method":"duplicate_folder_group.page",
+            "params":{"runId":1,"pageSize":2,"sort":{"field":"totalBytes","direction":"descending"},
+                      "filter":{"search":"","minimumSize":"0"},"cursor":cursor}
+        });
+        let second: Value =
+            serde_json::from_str(&worker.handle_line(&second_request.to_string()).unwrap())
+                .unwrap();
+        assert_eq!(second["result"]["groups"][0]["id"], 3);
+
+        let invalid_request = json!({
+            "type":"request", "id":"bad", "method":"duplicate_folder_group.page",
+            "params":{"runId":1,"pageSize":2,"sort":{"field":"totalBytes","direction":"descending"},
+                      "filter":{"search":"a","minimumSize":"0"},"cursor":cursor}
+        });
+        let invalid: Value =
+            serde_json::from_str(&worker.handle_line(&invalid_request.to_string()).unwrap())
+                .unwrap();
+        assert_eq!(invalid["error"]["code"], "invalid_cursor");
+
+        let members: Value = serde_json::from_str(&worker.handle_line(
+            r#"{"type":"request","id":"fm","method":"duplicate_folder_group.members","params":{"runId":1,"groupId":1,"pageSize":200}}"#,
+        ).unwrap()).unwrap();
+        assert_eq!(members["result"]["members"].as_array().unwrap().len(), 2);
+        assert!(members["result"]["members"][0]["path"].is_string());
     }
 
     #[test]

@@ -256,6 +256,47 @@ public sealed class WorkerClient : IWorkerClient
             cancellationToken);
     }
 
+    public Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(
+        DuplicateFolderGroupQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        return InvokeAsync<WorkerDuplicateFolderGroupPage>(
+            "duplicate_folder_group.page",
+            new
+            {
+                runId = query.RunId,
+                pageSize = query.PageSize,
+                sort = new
+                {
+                    field = FolderGroupSortField(query.SortField),
+                    direction = SortDirection(query.SortDirection),
+                },
+                filter = new { search = query.Filter.Search, minimumSize = query.Filter.MinimumSize },
+                cursor = query.Cursor,
+            },
+            cancellationToken);
+    }
+
+    public Task<WorkerDuplicateFolderMemberPage> GetDuplicateFolderGroupMembersAsync(
+        DuplicateFolderMemberQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        return InvokeAsync<WorkerDuplicateFolderMemberPage>(
+            "duplicate_folder_group.members",
+            new
+            {
+                runId = query.RunId,
+                groupId = query.GroupId,
+                pageSize = query.PageSize,
+                sort = new { field = "path", direction = SortDirection(query.SortDirection) },
+                filter = new { search = query.Filter.Search },
+                cursor = query.Cursor,
+            },
+            cancellationToken);
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -391,6 +432,15 @@ public sealed class WorkerClient : IWorkerClient
         DuplicateFileMemberSortField.Path => "path",
         DuplicateFileMemberSortField.ModifiedTime => "modifiedTime",
         DuplicateFileMemberSortField.Size => "size",
+        _ => throw new ArgumentOutOfRangeException(nameof(field)),
+    };
+
+    private static string FolderGroupSortField(DuplicateFolderGroupSortField field) => field switch
+    {
+        DuplicateFolderGroupSortField.TotalBytes => "totalBytes",
+        DuplicateFolderGroupSortField.CopyCount => "copyCount",
+        DuplicateFolderGroupSortField.FileCount => "fileCount",
+        DuplicateFolderGroupSortField.RepresentativePath => "representativePath",
         _ => throw new ArgumentOutOfRangeException(nameof(field)),
     };
 

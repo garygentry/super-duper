@@ -24,6 +24,10 @@ internal sealed class TestWorkerClient : IWorkerClient
 
     public Func<DuplicateFileMemberQuery, CancellationToken, Task<WorkerDuplicateFileMemberPage>>? MemberPageHandler { get; set; }
 
+    public Func<DuplicateFolderGroupQuery, CancellationToken, Task<WorkerDuplicateFolderGroupPage>>? FolderGroupPageHandler { get; set; }
+
+    public Func<DuplicateFolderMemberQuery, CancellationToken, Task<WorkerDuplicateFolderMemberPage>>? FolderMemberPageHandler { get; set; }
+
     public Task<WorkerHelloResult> ConnectAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(new WorkerHelloResult(1, "test-worker", "test-engine"));
 
@@ -129,6 +133,18 @@ internal sealed class TestWorkerClient : IWorkerClient
         CancellationToken cancellationToken = default) =>
         MemberPageHandler?.Invoke(query, cancellationToken)
         ?? Task.FromResult(new WorkerDuplicateFileMemberPage([], 0, null, null));
+
+    public Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(
+        DuplicateFolderGroupQuery query,
+        CancellationToken cancellationToken = default) =>
+        FolderGroupPageHandler?.Invoke(query, cancellationToken)
+        ?? Task.FromResult(new WorkerDuplicateFolderGroupPage([], 0, null, null));
+
+    public Task<WorkerDuplicateFolderMemberPage> GetDuplicateFolderGroupMembersAsync(
+        DuplicateFolderMemberQuery query,
+        CancellationToken cancellationToken = default) =>
+        FolderMemberPageHandler?.Invoke(query, cancellationToken)
+        ?? Task.FromResult(new WorkerDuplicateFolderMemberPage([], 0, null, null));
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 

@@ -33,8 +33,10 @@ and an optional warning. `duplicate_group` owns one run and membership can only 
 from that same run.
 
 `directory_node` and `directory_similarity` also carry `run_id`; fingerprints are owned transitively
-through their directory. This prepares folder results for the exact duplicate-folder algorithm,
-which remains deferred.
+through their directory. `duplicate_folder_group` owns one run and records structural and verified
+fingerprints, bytes, descendant-file count, copy count, and nested-suppression state. Its members
+reference run-owned `directory_node` rows. Suppressed nested groups remain durable for a future
+"show nested matches" option but are excluded from default result queries and run counters.
 
 The RocksDB content-hash cache remains global because it is an optimization rather than historical
 result state.
@@ -52,6 +54,21 @@ The default group order is recoverable bytes descending and group ID ascending. 
 cover run plus recoverable bytes, file size, and copy count; member lookup uses the group membership
 index. Representative names are derived deterministically from the first member path rather than
 stored as mutable UI metadata.
+
+## Exact-folder analysis and queries
+
+Folder candidates are built only from directories at or below a selected root. A cheap sorted
+sequence of normalized candidate-relative paths and file sizes selects structural candidates.
+Candidate files are then streaming-hashed through the global cache as needed, and the verified
+sequence retains every relative path/hash occurrence so repeated content is not collapsed.
+Candidates with missing, extra, renamed, resized, changed, vanished, or unreadable files cannot
+enter the same verified group. Root directory names and absolute locations are intentionally absent
+from both signatures.
+
+Visible exact-folder pages use keyset boundaries composed from an allow-listed sort value and group
+ID. Member pages keyset-sort by folder path and member ID. Search is a literal case-insensitive path
+substring, counts are worker-owned, and both queries join through the addressed run so results from
+another run cannot appear.
 
 ## Forward migration
 
