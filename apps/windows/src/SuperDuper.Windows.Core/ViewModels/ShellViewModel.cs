@@ -32,7 +32,9 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         IWorkerClient workerClient,
         IFolderPickerService folderPicker,
         IUserConfirmationService confirmation,
-        IUiDispatcher dispatcher)
+        IUiDispatcher dispatcher,
+        IClipboardService clipboard,
+        IExplorerService explorer)
     {
         _workerClient = workerClient;
         _confirmation = confirmation;
@@ -46,6 +48,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             sessionId => Sessions.NamesExcept(sessionId));
         Progress = new ScanProgressViewModel(workerClient, dispatcher);
         History = new RunHistoryViewModel(workerClient);
+        DuplicateFiles = new DuplicateFilesViewModel(workerClient, clipboard, explorer);
 
         Sessions.SelectionChanged += OnSessionSelectionChanged;
         Setup.SessionSaved += OnSessionSaved;
@@ -67,6 +70,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     public ScanProgressViewModel Progress { get; }
 
     public RunHistoryViewModel History { get; }
+
+    public DuplicateFilesViewModel DuplicateFiles { get; }
 
     public WorkerConnectionState ConnectionState
     {
@@ -280,6 +285,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         _workerClient.RunProgress -= OnRunProgress;
         _workerClient.RunLifecycleChanged -= OnRunLifecycleChanged;
         Progress.Dispose();
+        DuplicateFiles.Dispose();
     }
 
     private Task BeginNewSessionAsync()
@@ -291,6 +297,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         Setup.BeginNew();
         History.Clear();
         Progress.ShowRun(null);
+        _ = DuplicateFiles.ShowRunAsync(null);
         DisplaySessionName = "New session";
         SelectedTabIndex = 0;
         ContentErrorMessage = null;
@@ -324,6 +331,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             var latest = History.Runs.FirstOrDefault()?.Run;
             selected.StatusText = latest is null ? "No scans yet" : DisplayFormatting.Status(latest.Status);
             Progress.ShowRun(History.SelectedRun?.Run);
+            await DuplicateFiles.ShowRunAsync(History.SelectedRun?.Run, token);
             if (latest?.Status is "pending" or "running" or "cancelling")
             {
                 SetActiveRun(latest);
@@ -415,7 +423,11 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void OnSelectedRunChanged(object? sender, WorkerRun? run) => Progress.ShowRun(run);
+    private void OnSelectedRunChanged(object? sender, WorkerRun? run)
+    {
+        Progress.ShowRun(run);
+        _ = DuplicateFiles.ShowRunAsync(run);
+    }
 
     private void OnSetupPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -468,6 +480,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         }
         History.Upsert(run, select: run.Id == ActiveRunId || run.Status == "running");
         Progress.ApplyLifecycle(run);
+        DuplicateFiles.ApplyLifecycle(run);
         var session = Sessions.Find(run.SessionId);
         if (session is not null)
         {
@@ -509,6 +522,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         DisplaySessionName = "Sessions";
         History.Clear();
         Progress.ShowRun(null);
+        _ = DuplicateFiles.ShowRunAsync(null);
         OnPropertyChanged(nameof(IsEmptyState));
     }
 
@@ -518,6 +532,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         {
             await History.LoadAsync(sessionId);
             Progress.ShowRun(History.SelectedRun?.Run);
+            await DuplicateFiles.ShowRunAsync(History.SelectedRun?.Run);
         }
         catch (Exception exception)
         {

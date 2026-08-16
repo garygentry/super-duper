@@ -10,14 +10,22 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 use super_duper_core::progress::ProgressReporter;
-use super_duper_core::storage::models::{RunParameters, ScanRun, ScanSession};
+use super_duper_core::storage::models::{
+    DuplicateFileGroupFilter, DuplicateFileGroupPageQuery, DuplicateFileGroupResult,
+    DuplicateFileGroupSortField, DuplicateFileMemberFilter, DuplicateFileMemberPageQuery,
+    DuplicateFileMemberResult, DuplicateFileMemberSortField, PageCursor, PageCursorValue,
+    RunParameters, ScanRun, ScanSession, SortDirection,
+};
 use super_duper_core::storage::Database;
 use super_duper_core::{AppConfig, ScanEngine};
 
 pub const PROTOCOL_VERSION: u32 = 1;
 pub const MAXIMUM_FRAME_BYTES: usize = 1_048_576;
 const DEFAULT_PAGE_SIZE: i64 = 100;
+const DEFAULT_RESULT_PAGE_SIZE: i64 = 200;
 const MAXIMUM_PAGE_SIZE: i64 = 500;
+const MAXIMUM_FILTER_CHARACTERS: usize = 512;
+const MAXIMUM_CURSOR_CHARACTERS: usize = MAXIMUM_FRAME_BYTES / 2;
 const EVENT_INTERVAL: Duration = Duration::from_millis(100);
 const DATABASE_PROGRESS_INTERVAL: Duration = Duration::from_millis(500);
 
@@ -196,6 +204,114 @@ struct RunListParameters {
     limit: i64,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFileGroupPageParameters {
+    run_id: i64,
+    #[serde(default = "default_result_page_size")]
+    page_size: i64,
+    #[serde(default)]
+    sort: DuplicateFileGroupSortParameters,
+    #[serde(default)]
+    filter: DuplicateFileGroupFilterParameters,
+    #[serde(default)]
+    cursor: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFileGroupSortParameters {
+    #[serde(default = "default_group_sort_field")]
+    field: String,
+    #[serde(default = "default_descending")]
+    direction: String,
+}
+
+impl Default for DuplicateFileGroupSortParameters {
+    fn default() -> Self {
+        Self {
+            field: default_group_sort_field(),
+            direction: default_descending(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFileGroupFilterParameters {
+    #[serde(default)]
+    search: Option<String>,
+    #[serde(default = "default_minimum_size")]
+    minimum_size: String,
+}
+
+impl Default for DuplicateFileGroupFilterParameters {
+    fn default() -> Self {
+        Self {
+            search: None,
+            minimum_size: default_minimum_size(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFileMemberPageParameters {
+    run_id: i64,
+    group_id: i64,
+    #[serde(default = "default_result_page_size")]
+    page_size: i64,
+    #[serde(default)]
+    sort: DuplicateFileMemberSortParameters,
+    #[serde(default)]
+    filter: DuplicateFileMemberFilterParameters,
+    #[serde(default)]
+    cursor: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFileMemberSortParameters {
+    #[serde(default = "default_member_sort_field")]
+    field: String,
+    #[serde(default = "default_ascending")]
+    direction: String,
+}
+
+impl Default for DuplicateFileMemberSortParameters {
+    fn default() -> Self {
+        Self {
+            field: default_member_sort_field(),
+            direction: default_ascending(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFileMemberFilterParameters {
+    #[serde(default)]
+    search: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CursorPayload {
+    version: u8,
+    kind: String,
+    query: String,
+    before: bool,
+    value: CursorScalar,
+    id: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value", rename_all = "camelCase")]
+enum CursorScalar {
+    Integer(String),
+    Text(String),
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SessionDto {
@@ -235,6 +351,30 @@ struct RunParametersDto {
     roots: Vec<String>,
     ignore_patterns: Vec<String>,
     directory_similarity_threshold_millis: u16,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFileGroupDto {
+    id: i64,
+    run_id: i64,
+    group_size: String,
+    copy_count: i64,
+    recoverable_bytes: String,
+    representative_name: String,
+    representative_type: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFileMemberDto {
+    id: i64,
+    group_id: i64,
+    path: String,
+    file_name: String,
+    parent_path: String,
+    size: String,
+    modified_time_unix_nanos: String,
 }
 
 struct ActiveRun {
@@ -454,6 +594,8 @@ impl WorkerSession {
             "run.get" => self.run_get(request),
             "run.start" => self.run_start(request),
             "run.cancel" => self.run_cancel(request),
+            "duplicate_file_group.page" => self.duplicate_file_group_page(request),
+            "duplicate_file_group.members" => self.duplicate_file_group_members(request),
             _ => Err(ProtocolFailure::new(
                 "method_not_found",
                 format!("Unknown method: {}", request.method),
@@ -576,6 +718,154 @@ impl WorkerSession {
         let parameters: RunIdParameters = parse_parameters(request)?;
         let run = get_run(&self.state.database()?, parameters.run_id)?;
         Ok(json!({"run":run_dto(run)?}))
+    }
+
+    fn duplicate_file_group_page(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: DuplicateFileGroupPageParameters = parse_parameters(request)?;
+        validate_result_page_size(parameters.page_size)?;
+        let db = self.state.database()?;
+        ensure_completed_result_run(&db, parameters.run_id)?;
+        let sort_field = parse_group_sort_field(&parameters.sort.field)?;
+        let sort_direction = parse_sort_direction(&parameters.sort.direction)?;
+        let search = validate_search(parameters.filter.search)?;
+        let minimum_size =
+            parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
+        let signature = group_query_signature(
+            parameters.run_id,
+            sort_field,
+            sort_direction,
+            search.as_deref(),
+            minimum_size,
+        );
+        let cursor = decode_cursor(
+            parameters.cursor.as_deref(),
+            "duplicate-file-groups",
+            &signature,
+        )?;
+        validate_cursor_value(
+            cursor.as_ref(),
+            sort_field == DuplicateFileGroupSortField::RepresentativeName,
+        )?;
+        let page = db
+            .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+                run_id: parameters.run_id,
+                limit: parameters.page_size,
+                sort_field,
+                sort_direction,
+                filter: DuplicateFileGroupFilter {
+                    search,
+                    minimum_size,
+                },
+                cursor: cursor.clone(),
+            })
+            .map_err(internal_database_error)?;
+        let previous_cursor = page
+            .groups
+            .first()
+            .and_then(|group| {
+                let has_previous =
+                    cursor.as_ref().map_or(false, |value| !value.before) || page.has_more;
+                has_previous.then(|| encode_group_cursor(group, sort_field, true, &signature))
+            })
+            .transpose()?;
+        let next_cursor = page
+            .groups
+            .last()
+            .and_then(|group| {
+                let has_next = cursor.as_ref().is_some_and(|value| value.before) || page.has_more;
+                has_next.then(|| encode_group_cursor(group, sort_field, false, &signature))
+            })
+            .transpose()?;
+        let groups = page.groups.into_iter().map(group_dto).collect::<Vec<_>>();
+        Ok(json!({
+            "groups": groups,
+            "total": page.total,
+            "nextCursor": next_cursor,
+            "previousCursor": previous_cursor,
+        }))
+    }
+
+    fn duplicate_file_group_members(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: DuplicateFileMemberPageParameters = parse_parameters(request)?;
+        validate_result_page_size(parameters.page_size)?;
+        let db = self.state.database()?;
+        ensure_completed_result_run(&db, parameters.run_id)?;
+        if !db
+            .duplicate_file_group_exists(parameters.run_id, parameters.group_id)
+            .map_err(internal_database_error)?
+        {
+            return Err(ProtocolFailure::new(
+                "duplicate_group_not_found",
+                format!(
+                    "Duplicate file group {} was not found in run {}",
+                    parameters.group_id, parameters.run_id
+                ),
+            )
+            .with_details(json!({
+                "runId": parameters.run_id,
+                "groupId": parameters.group_id,
+            })));
+        }
+        let sort_field = parse_member_sort_field(&parameters.sort.field)?;
+        let sort_direction = parse_sort_direction(&parameters.sort.direction)?;
+        let search = validate_search(parameters.filter.search)?;
+        let signature = member_query_signature(
+            parameters.run_id,
+            parameters.group_id,
+            sort_field,
+            sort_direction,
+            search.as_deref(),
+        );
+        let cursor = decode_cursor(
+            parameters.cursor.as_deref(),
+            "duplicate-file-members",
+            &signature,
+        )?;
+        validate_cursor_value(
+            cursor.as_ref(),
+            sort_field == DuplicateFileMemberSortField::Path,
+        )?;
+        let page = db
+            .page_duplicate_file_members(&DuplicateFileMemberPageQuery {
+                run_id: parameters.run_id,
+                group_id: parameters.group_id,
+                limit: parameters.page_size,
+                sort_field,
+                sort_direction,
+                filter: DuplicateFileMemberFilter { search },
+                cursor: cursor.clone(),
+            })
+            .map_err(internal_database_error)?;
+        let previous_cursor = page
+            .members
+            .first()
+            .and_then(|member| {
+                let has_previous =
+                    cursor.as_ref().map_or(false, |value| !value.before) || page.has_more;
+                has_previous.then(|| encode_member_cursor(member, sort_field, true, &signature))
+            })
+            .transpose()?;
+        let next_cursor = page
+            .members
+            .last()
+            .and_then(|member| {
+                let has_next = cursor.as_ref().is_some_and(|value| value.before) || page.has_more;
+                has_next.then(|| encode_member_cursor(member, sort_field, false, &signature))
+            })
+            .transpose()?;
+        let members = page.members.into_iter().map(member_dto).collect::<Vec<_>>();
+        Ok(json!({
+            "members": members,
+            "total": page.total,
+            "nextCursor": next_cursor,
+            "previousCursor": previous_cursor,
+        }))
     }
 
     fn run_start(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
@@ -1059,6 +1349,300 @@ fn validate_page_values(offset: i64, limit: i64) -> Result<(), ProtocolFailure> 
     }
 }
 
+fn validate_result_page_size(page_size: i64) -> Result<(), ProtocolFailure> {
+    if (1..=MAXIMUM_PAGE_SIZE).contains(&page_size) {
+        Ok(())
+    } else {
+        Err(ProtocolFailure::new(
+            "invalid_request",
+            format!("pageSize must be 1..={MAXIMUM_PAGE_SIZE}"),
+        ))
+    }
+}
+
+fn parse_group_sort_field(value: &str) -> Result<DuplicateFileGroupSortField, ProtocolFailure> {
+    match value {
+        "recoverableBytes" => Ok(DuplicateFileGroupSortField::RecoverableBytes),
+        "groupSize" => Ok(DuplicateFileGroupSortField::GroupSize),
+        "copyCount" => Ok(DuplicateFileGroupSortField::CopyCount),
+        "representativeName" => Ok(DuplicateFileGroupSortField::RepresentativeName),
+        _ => Err(ProtocolFailure::new(
+            "invalid_request",
+            "sort.field is not allowed for duplicate file groups",
+        )
+        .with_details(json!({
+            "field":"sort.field",
+            "allowed":["recoverableBytes","groupSize","copyCount","representativeName"]
+        }))),
+    }
+}
+
+fn parse_member_sort_field(value: &str) -> Result<DuplicateFileMemberSortField, ProtocolFailure> {
+    match value {
+        "path" => Ok(DuplicateFileMemberSortField::Path),
+        "modifiedTime" => Ok(DuplicateFileMemberSortField::ModifiedTime),
+        "size" => Ok(DuplicateFileMemberSortField::Size),
+        _ => Err(ProtocolFailure::new(
+            "invalid_request",
+            "sort.field is not allowed for duplicate file members",
+        )
+        .with_details(json!({
+            "field":"sort.field",
+            "allowed":["path","modifiedTime","size"]
+        }))),
+    }
+}
+
+fn parse_sort_direction(value: &str) -> Result<SortDirection, ProtocolFailure> {
+    match value {
+        "ascending" => Ok(SortDirection::Ascending),
+        "descending" => Ok(SortDirection::Descending),
+        _ => Err(ProtocolFailure::new(
+            "invalid_request",
+            "sort.direction must be ascending or descending",
+        )
+        .with_details(json!({"field":"sort.direction"}))),
+    }
+}
+
+fn validate_search(value: Option<String>) -> Result<Option<String>, ProtocolFailure> {
+    let value = value
+        .map(|search| search.trim().to_owned())
+        .filter(|search| !search.is_empty());
+    if value
+        .as_ref()
+        .is_some_and(|search| search.chars().count() > MAXIMUM_FILTER_CHARACTERS)
+    {
+        Err(ProtocolFailure::new(
+            "invalid_request",
+            format!("filter.search may contain at most {MAXIMUM_FILTER_CHARACTERS} characters"),
+        )
+        .with_details(json!({"field":"filter.search"})))
+    } else {
+        Ok(value)
+    }
+}
+
+fn parse_non_negative_decimal(value: &str, field: &str) -> Result<i64, ProtocolFailure> {
+    value
+        .parse::<i64>()
+        .ok()
+        .filter(|value| *value >= 0)
+        .ok_or_else(|| {
+            ProtocolFailure::new(
+                "invalid_request",
+                format!("{field} must be a non-negative decimal string"),
+            )
+            .with_details(json!({"field":field}))
+        })
+}
+
+fn group_query_signature(
+    run_id: i64,
+    sort_field: DuplicateFileGroupSortField,
+    sort_direction: SortDirection,
+    search: Option<&str>,
+    minimum_size: i64,
+) -> String {
+    format!(
+        "{run_id}|{}|{}|{}|{minimum_size}",
+        group_sort_name(sort_field),
+        direction_name(sort_direction),
+        search.unwrap_or_default()
+    )
+}
+
+fn member_query_signature(
+    run_id: i64,
+    group_id: i64,
+    sort_field: DuplicateFileMemberSortField,
+    sort_direction: SortDirection,
+    search: Option<&str>,
+) -> String {
+    format!(
+        "{run_id}|{group_id}|{}|{}|{}",
+        member_sort_name(sort_field),
+        direction_name(sort_direction),
+        search.unwrap_or_default()
+    )
+}
+
+fn encode_group_cursor(
+    group: &DuplicateFileGroupResult,
+    sort_field: DuplicateFileGroupSortField,
+    before: bool,
+    signature: &str,
+) -> Result<String, ProtocolFailure> {
+    let value = match sort_field {
+        DuplicateFileGroupSortField::RecoverableBytes => {
+            CursorScalar::Integer(group.recoverable_bytes.to_string())
+        }
+        DuplicateFileGroupSortField::GroupSize => {
+            CursorScalar::Integer(group.file_size.to_string())
+        }
+        DuplicateFileGroupSortField::CopyCount => {
+            CursorScalar::Integer(group.file_count.to_string())
+        }
+        DuplicateFileGroupSortField::RepresentativeName => {
+            CursorScalar::Text(group.representative_name.clone())
+        }
+    };
+    encode_cursor(CursorPayload {
+        version: 1,
+        kind: "duplicate-file-groups".to_owned(),
+        query: signature.to_owned(),
+        before,
+        value,
+        id: group.id,
+    })
+}
+
+fn encode_member_cursor(
+    member: &DuplicateFileMemberResult,
+    sort_field: DuplicateFileMemberSortField,
+    before: bool,
+    signature: &str,
+) -> Result<String, ProtocolFailure> {
+    let value = match sort_field {
+        DuplicateFileMemberSortField::Path => CursorScalar::Text(member.canonical_path.clone()),
+        DuplicateFileMemberSortField::ModifiedTime => {
+            CursorScalar::Integer(member.last_modified.to_string())
+        }
+        DuplicateFileMemberSortField::Size => CursorScalar::Integer(member.file_size.to_string()),
+    };
+    encode_cursor(CursorPayload {
+        version: 1,
+        kind: "duplicate-file-members".to_owned(),
+        query: signature.to_owned(),
+        before,
+        value,
+        id: member.id,
+    })
+}
+
+fn encode_cursor(payload: CursorPayload) -> Result<String, ProtocolFailure> {
+    let bytes = serde_json::to_vec(&payload).map_err(|error| {
+        ProtocolFailure::new(
+            "internal_error",
+            format!("Could not encode page cursor: {error}"),
+        )
+    })?;
+    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+fn decode_cursor(
+    encoded: Option<&str>,
+    expected_kind: &str,
+    expected_query: &str,
+) -> Result<Option<PageCursor>, ProtocolFailure> {
+    let Some(encoded) = encoded else {
+        return Ok(None);
+    };
+    if encoded.is_empty() || encoded.len() > MAXIMUM_CURSOR_CHARACTERS || encoded.len() % 2 != 0 {
+        return Err(invalid_cursor());
+    }
+    let bytes = encoded
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            let digits = std::str::from_utf8(pair).map_err(|_| invalid_cursor())?;
+            u8::from_str_radix(digits, 16).map_err(|_| invalid_cursor())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let payload: CursorPayload = serde_json::from_slice(&bytes).map_err(|_| invalid_cursor())?;
+    if payload.version != 1
+        || payload.kind != expected_kind
+        || payload.query != expected_query
+        || payload.id <= 0
+    {
+        return Err(invalid_cursor());
+    }
+    let value = match payload.value {
+        CursorScalar::Integer(value) => {
+            PageCursorValue::Integer(value.parse::<i64>().map_err(|_| invalid_cursor())?)
+        }
+        CursorScalar::Text(value) => PageCursorValue::Text(value),
+    };
+    Ok(Some(PageCursor {
+        value,
+        id: payload.id,
+        before: payload.before,
+    }))
+}
+
+fn invalid_cursor() -> ProtocolFailure {
+    ProtocolFailure::new(
+        "invalid_cursor",
+        "The page cursor is invalid or belongs to a different query",
+    )
+}
+
+fn validate_cursor_value(
+    cursor: Option<&PageCursor>,
+    expects_text: bool,
+) -> Result<(), ProtocolFailure> {
+    match (cursor.map(|cursor| &cursor.value), expects_text) {
+        (None, _)
+        | (Some(PageCursorValue::Text(_)), true)
+        | (Some(PageCursorValue::Integer(_)), false) => Ok(()),
+        _ => Err(invalid_cursor()),
+    }
+}
+
+fn group_dto(group: DuplicateFileGroupResult) -> DuplicateFileGroupDto {
+    let representative_type = Path::new(&group.representative_name)
+        .extension()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty())
+        .map(|value| format!(".{}", value.to_ascii_lowercase()))
+        .unwrap_or_else(|| "File".to_owned());
+    DuplicateFileGroupDto {
+        id: group.id,
+        run_id: group.run_id,
+        group_size: group.file_size.to_string(),
+        copy_count: group.file_count,
+        recoverable_bytes: group.recoverable_bytes.to_string(),
+        representative_name: group.representative_name,
+        representative_type,
+    }
+}
+
+fn member_dto(member: DuplicateFileMemberResult) -> DuplicateFileMemberDto {
+    DuplicateFileMemberDto {
+        id: member.id,
+        group_id: member.group_id,
+        path: member.canonical_path,
+        file_name: member.file_name,
+        parent_path: member.parent_dir,
+        size: member.file_size.to_string(),
+        modified_time_unix_nanos: member.last_modified.to_string(),
+    }
+}
+
+fn group_sort_name(field: DuplicateFileGroupSortField) -> &'static str {
+    match field {
+        DuplicateFileGroupSortField::RecoverableBytes => "recoverableBytes",
+        DuplicateFileGroupSortField::GroupSize => "groupSize",
+        DuplicateFileGroupSortField::CopyCount => "copyCount",
+        DuplicateFileGroupSortField::RepresentativeName => "representativeName",
+    }
+}
+
+fn member_sort_name(field: DuplicateFileMemberSortField) -> &'static str {
+    match field {
+        DuplicateFileMemberSortField::Path => "path",
+        DuplicateFileMemberSortField::ModifiedTime => "modifiedTime",
+        DuplicateFileMemberSortField::Size => "size",
+    }
+}
+
+fn direction_name(direction: SortDirection) -> &'static str {
+    match direction {
+        SortDirection::Ascending => "ascending",
+        SortDirection::Descending => "descending",
+    }
+}
+
 struct ValidatedSession {
     name: String,
     roots: Vec<String>,
@@ -1200,6 +1784,19 @@ fn get_run(db: &Database, run_id: i64) -> Result<ScanRun, ProtocolFailure> {
     })
 }
 
+fn ensure_completed_result_run(db: &Database, run_id: i64) -> Result<(), ProtocolFailure> {
+    let run = get_run(db, run_id)?;
+    if run.status == "completed" {
+        Ok(())
+    } else {
+        Err(ProtocolFailure::new(
+            "invalid_state",
+            "Duplicate-file results are available only for completed runs",
+        )
+        .with_details(json!({"runId":run.id,"status":run.status})))
+    }
+}
+
 fn session_dto(session: ScanSession) -> Result<SessionDto, ProtocolFailure> {
     Ok(SessionDto {
         id: session.id,
@@ -1328,6 +1925,30 @@ fn default_page_size() -> i64 {
     DEFAULT_PAGE_SIZE
 }
 
+fn default_result_page_size() -> i64 {
+    DEFAULT_RESULT_PAGE_SIZE
+}
+
+fn default_group_sort_field() -> String {
+    "recoverableBytes".to_owned()
+}
+
+fn default_member_sort_field() -> String {
+    "path".to_owned()
+}
+
+fn default_descending() -> String {
+    "descending".to_owned()
+}
+
+fn default_ascending() -> String {
+    "ascending".to_owned()
+}
+
+fn default_minimum_size() -> String {
+    "0".to_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1406,6 +2027,184 @@ mod tests {
         );
         assert_eq!(response(&frames, "list")["result"]["total"], 1);
         assert_eq!(response(&frames, "delete")["ok"], true);
+    }
+
+    #[test]
+    fn duplicate_file_pages_use_opaque_query_bound_cursors_and_run_owned_members() {
+        let temp = TempDir::new().unwrap();
+        let db_path = temp.path().join("worker.db");
+        let db = Database::open(db_path.to_str().unwrap()).unwrap();
+        let session_id = db
+            .create_session("Results", &["/root".to_owned()], &[])
+            .unwrap();
+        let run_id = db
+            .create_scan_run(
+                session_id,
+                &RunParameters {
+                    roots: vec!["/root".to_owned()],
+                    ignore_patterns: vec![],
+                    directory_similarity_threshold_millis: 500,
+                },
+                "test",
+            )
+            .unwrap();
+        db.start_scan_run(run_id).unwrap();
+        db.insert_scanned_files(&[
+            super_duper_core::storage::models::ScannedFile {
+                id: 0,
+                run_id,
+                root_path: "/root".to_owned(),
+                canonical_path: "/root/a.txt".to_owned(),
+                relative_path: "a.txt".to_owned(),
+                file_name: "a.txt".to_owned(),
+                parent_dir: "/root".to_owned(),
+                drive_letter: String::new(),
+                file_size: 100,
+                last_modified: 1_700_000_000_000_000_000,
+                partial_hash: None,
+                content_hash: Some(11),
+                file_identity: None,
+                warning_message: None,
+                marked_deleted: false,
+            },
+            super_duper_core::storage::models::ScannedFile {
+                id: 0,
+                run_id,
+                root_path: "/root".to_owned(),
+                canonical_path: "/root/a-copy.txt".to_owned(),
+                relative_path: "a-copy.txt".to_owned(),
+                file_name: "a-copy.txt".to_owned(),
+                parent_dir: "/root".to_owned(),
+                drive_letter: String::new(),
+                file_size: 100,
+                last_modified: 1_700_000_000_000_000_001,
+                partial_hash: None,
+                content_hash: Some(11),
+                file_identity: None,
+                warning_message: None,
+                marked_deleted: false,
+            },
+            super_duper_core::storage::models::ScannedFile {
+                id: 0,
+                run_id,
+                root_path: "/root".to_owned(),
+                canonical_path: "/root/b.bin".to_owned(),
+                relative_path: "b.bin".to_owned(),
+                file_name: "b.bin".to_owned(),
+                parent_dir: "/root".to_owned(),
+                drive_letter: String::new(),
+                file_size: 200,
+                last_modified: 1_700_000_000_000_000_002,
+                partial_hash: None,
+                content_hash: Some(22),
+                file_identity: None,
+                warning_message: None,
+                marked_deleted: false,
+            },
+            super_duper_core::storage::models::ScannedFile {
+                id: 0,
+                run_id,
+                root_path: "/root".to_owned(),
+                canonical_path: "/root/b-copy.bin".to_owned(),
+                relative_path: "b-copy.bin".to_owned(),
+                file_name: "b-copy.bin".to_owned(),
+                parent_dir: "/root".to_owned(),
+                drive_letter: String::new(),
+                file_size: 200,
+                last_modified: 1_700_000_000_000_000_003,
+                partial_hash: None,
+                content_hash: Some(22),
+                file_identity: None,
+                warning_message: None,
+                marked_deleted: false,
+            },
+        ])
+        .unwrap();
+        db.insert_duplicate_groups(
+            run_id,
+            &[
+                (
+                    11,
+                    100,
+                    vec!["/root/a.txt".to_owned(), "/root/a-copy.txt".to_owned()],
+                ),
+                (
+                    22,
+                    200,
+                    vec!["/root/b.bin".to_owned(), "/root/b-copy.bin".to_owned()],
+                ),
+            ],
+        )
+        .unwrap();
+        db.complete_scan_run(run_id, 4, 600, 4, 2, 0, 300, 0)
+            .unwrap();
+        drop(db);
+
+        let (sender, _receiver) = mpsc::channel();
+        let state = SharedState::new(WorkerOptions::new(&db_path), sender).unwrap();
+        let mut worker = WorkerSession::new(state);
+        assert_eq!(
+            serde_json::from_str::<Value>(&worker.handle_line(HELLO).unwrap()).unwrap()["ok"],
+            true
+        );
+        let first: Value = serde_json::from_str(
+            &worker
+                .handle_line(
+                    r#"{"type":"request","id":"first","method":"duplicate_file_group.page","params":{"runId":1,"pageSize":1,"sort":{"field":"recoverableBytes","direction":"descending"},"filter":{"search":"","minimumSize":"0"}}}"#,
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(first["result"]["total"], 2);
+        assert_eq!(first["result"]["groups"][0]["groupSize"], "200");
+        let cursor = first["result"]["nextCursor"].as_str().unwrap();
+        let second_request = json!({
+            "type":"request",
+            "id":"second",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"recoverableBytes","direction":"descending"},
+                "filter":{"search":"","minimumSize":"0"},
+                "cursor":cursor,
+            }
+        });
+        let second: Value =
+            serde_json::from_str(&worker.handle_line(&second_request.to_string()).unwrap())
+                .unwrap();
+        assert_eq!(second["result"]["groups"][0]["groupSize"], "100");
+        assert!(second["result"]["previousCursor"].is_string());
+
+        let invalid_request = json!({
+            "type":"request",
+            "id":"invalid",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"recoverableBytes","direction":"descending"},
+                "filter":{"search":"","minimumSize":"101"},
+                "cursor":cursor,
+            }
+        });
+        let invalid: Value =
+            serde_json::from_str(&worker.handle_line(&invalid_request.to_string()).unwrap())
+                .unwrap();
+        assert_eq!(invalid["error"]["code"], "invalid_cursor");
+
+        let group_id = first["result"]["groups"][0]["id"].as_i64().unwrap();
+        let members_request = json!({
+            "type":"request",
+            "id":"members",
+            "method":"duplicate_file_group.members",
+            "params":{"runId":1,"groupId":group_id,"pageSize":200}
+        });
+        let members: Value =
+            serde_json::from_str(&worker.handle_line(&members_request.to_string()).unwrap())
+                .unwrap();
+        assert_eq!(members["result"]["members"].as_array().unwrap().len(), 2);
+        assert!(members["result"]["members"][0]["modifiedTimeUnixNanos"].is_string());
     }
 
     #[test]

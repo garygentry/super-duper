@@ -170,4 +170,6 @@ migration, durable run outcomes, run-owned results, and corrected scan accountin
 provides the typed session/run dispatcher, one-scan coordination, ordered progress events,
 concurrent cancellation, graceful worker shutdown, and streaming cache-backed hashing. Milestone 3
 provides session navigation and editing, Windows folder selection, validated root/ignore settings,
-run history restoration, and responsive progress/cancellation UI integration.
+run history restoration, and responsive progress/cancellation UI integration. Milestone 4 adds
+run-owned cursor pagination, server-side duplicate-file sorting/filtering, a bounded WPF page cache,
+master/detail results, copy-path actions, and native Explorer reveal.

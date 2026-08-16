@@ -20,6 +20,8 @@ public partial class App : Application
         services.AddSingleton<IFolderPickerService, FolderPickerService>();
         services.AddSingleton<IUserConfirmationService, UserConfirmationService>();
         services.AddSingleton<IUiDispatcher>(_ => new WpfUiDispatcher(Dispatcher));
+        services.AddSingleton<IClipboardService, WpfClipboardService>();
+        services.AddSingleton<IExplorerService, WindowsExplorerService>();
         services.AddSingleton<ShellViewModel>();
         services.AddSingleton<MainWindow>();
         _services = services.BuildServiceProvider(validateScopes: true);

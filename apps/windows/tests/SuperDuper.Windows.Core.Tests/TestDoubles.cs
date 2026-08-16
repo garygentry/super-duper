@@ -20,6 +20,10 @@ internal sealed class TestWorkerClient : IWorkerClient
 
     public Func<long, CancellationToken, Task<WorkerRun>>? CancelHandler { get; set; }
 
+    public Func<DuplicateFileGroupQuery, CancellationToken, Task<WorkerDuplicateFileGroupPage>>? GroupPageHandler { get; set; }
+
+    public Func<DuplicateFileMemberQuery, CancellationToken, Task<WorkerDuplicateFileMemberPage>>? MemberPageHandler { get; set; }
+
     public Task<WorkerHelloResult> ConnectAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(new WorkerHelloResult(1, "test-worker", "test-engine"));
 
@@ -114,6 +118,18 @@ internal sealed class TestWorkerClient : IWorkerClient
         return Task.FromResult(run);
     }
 
+    public Task<WorkerDuplicateFileGroupPage> GetDuplicateFileGroupsAsync(
+        DuplicateFileGroupQuery query,
+        CancellationToken cancellationToken = default) =>
+        GroupPageHandler?.Invoke(query, cancellationToken)
+        ?? Task.FromResult(new WorkerDuplicateFileGroupPage([], 0, null, null));
+
+    public Task<WorkerDuplicateFileMemberPage> GetDuplicateFileGroupMembersAsync(
+        DuplicateFileMemberQuery query,
+        CancellationToken cancellationToken = default) =>
+        MemberPageHandler?.Invoke(query, cancellationToken)
+        ?? Task.FromResult(new WorkerDuplicateFileMemberPage([], 0, null, null));
+
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     public WorkerSessionDefinition AddSession(string name, params string[] roots)
@@ -192,4 +208,28 @@ internal sealed class TestConfirmation(bool answer = true) : IUserConfirmationSe
 internal sealed class ImmediateDispatcher : IUiDispatcher
 {
     public void Post(Action action) => action();
+}
+
+internal sealed class TestClipboard : IClipboardService
+{
+    public string? Text { get; private set; }
+
+    public void CopyText(string text) => Text = text;
+}
+
+internal sealed class TestExplorer : IExplorerService
+{
+    public string? RevealedPath { get; private set; }
+
+    public Exception? Error { get; set; }
+
+    public Task RevealAsync(string path, CancellationToken cancellationToken = default)
+    {
+        if (Error is not null)
+        {
+            return Task.FromException(Error);
+        }
+        RevealedPath = path;
+        return Task.CompletedTask;
+    }
 }

@@ -68,8 +68,8 @@
                         <TabItem Header="Run history">
                             <views:RunHistoryView DataContext="{Binding History}" />
                         </TabItem>
-                        <TabItem Header="Duplicate files" IsEnabled="False">
-                            <TextBlock Margin="32" Text="Duplicate-file results arrive in Milestone 4." />
+                        <TabItem Header="Duplicate files">
+                            <views:DuplicateFilesView DataContext="{Binding DuplicateFiles}" />
                         </TabItem>
                         <TabItem Header="Duplicate folders" IsEnabled="False">
                             <TextBlock Margin="32" Text="Exact duplicate-folder results arrive in Milestone 5." />

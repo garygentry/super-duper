@@ -207,6 +207,55 @@ public sealed class WorkerClient : IWorkerClient
             new { runId },
             cancellationToken).ConfigureAwait(false)).Run;
 
+    public Task<WorkerDuplicateFileGroupPage> GetDuplicateFileGroupsAsync(
+        DuplicateFileGroupQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        return InvokeAsync<WorkerDuplicateFileGroupPage>(
+            "duplicate_file_group.page",
+            new
+            {
+                runId = query.RunId,
+                pageSize = query.PageSize,
+                sort = new
+                {
+                    field = GroupSortField(query.SortField),
+                    direction = SortDirection(query.SortDirection),
+                },
+                filter = new
+                {
+                    search = query.Filter.Search,
+                    minimumSize = query.Filter.MinimumSize,
+                },
+                cursor = query.Cursor,
+            },
+            cancellationToken);
+    }
+
+    public Task<WorkerDuplicateFileMemberPage> GetDuplicateFileGroupMembersAsync(
+        DuplicateFileMemberQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        return InvokeAsync<WorkerDuplicateFileMemberPage>(
+            "duplicate_file_group.members",
+            new
+            {
+                runId = query.RunId,
+                groupId = query.GroupId,
+                pageSize = query.PageSize,
+                sort = new
+                {
+                    field = MemberSortField(query.SortField),
+                    direction = SortDirection(query.SortDirection),
+                },
+                filter = new { search = query.Filter.Search },
+                cursor = query.Cursor,
+            },
+            cancellationToken);
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -327,6 +376,30 @@ public sealed class WorkerClient : IWorkerClient
         return result.Deserialize<TResult>(JsonLineProtocol.SerializerOptions)
             ?? throw new WorkerProtocolException($"{method} response has no readable result.");
     }
+
+    private static string GroupSortField(DuplicateFileGroupSortField field) => field switch
+    {
+        DuplicateFileGroupSortField.RecoverableBytes => "recoverableBytes",
+        DuplicateFileGroupSortField.GroupSize => "groupSize",
+        DuplicateFileGroupSortField.CopyCount => "copyCount",
+        DuplicateFileGroupSortField.RepresentativeName => "representativeName",
+        _ => throw new ArgumentOutOfRangeException(nameof(field)),
+    };
+
+    private static string MemberSortField(DuplicateFileMemberSortField field) => field switch
+    {
+        DuplicateFileMemberSortField.Path => "path",
+        DuplicateFileMemberSortField.ModifiedTime => "modifiedTime",
+        DuplicateFileMemberSortField.Size => "size",
+        _ => throw new ArgumentOutOfRangeException(nameof(field)),
+    };
+
+    private static string SortDirection(WorkerSortDirection direction) => direction switch
+    {
+        WorkerSortDirection.Ascending => "ascending",
+        WorkerSortDirection.Descending => "descending",
+        _ => throw new ArgumentOutOfRangeException(nameof(direction)),
+    };
 
     private async Task PumpStandardOutputAsync(StreamReader output, CancellationToken cancellationToken)
     {

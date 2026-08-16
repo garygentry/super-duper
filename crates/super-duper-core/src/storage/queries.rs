@@ -1,7 +1,8 @@
 use super::models::*;
 use super::sqlite::Database;
 use chrono::Utc;
-use rusqlite::{params, Error, Result};
+use rusqlite::types::Value as SqlValue;
+use rusqlite::{params, params_from_iter, Error, Result};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 impl Database {
@@ -418,6 +419,215 @@ impl Database {
         mapped.collect()
     }
 
+    pub fn page_duplicate_file_groups(
+        &self,
+        query: &DuplicateFileGroupPageQuery,
+    ) -> Result<DuplicateFileGroupPage> {
+        let mut predicates = vec!["dg.run_id = ?".to_owned(), "dg.file_count > 1".to_owned()];
+        let mut base_parameters = vec![SqlValue::Integer(query.run_id)];
+        predicates.push("dg.file_size >= ?".to_owned());
+        base_parameters.push(SqlValue::Integer(query.filter.minimum_size));
+        if let Some(search) = query
+            .filter
+            .search
+            .as_deref()
+            .filter(|value| !value.is_empty())
+        {
+            predicates.push(
+                "EXISTS (
+                    SELECT 1 FROM duplicate_group_member search_member
+                    JOIN scanned_file search_file ON search_file.id = search_member.file_id
+                    WHERE search_member.group_id = dg.id
+                      AND search_file.run_id = dg.run_id
+                      AND search_file.canonical_path LIKE ? ESCAPE '\\' COLLATE NOCASE
+                )"
+                .to_owned(),
+            );
+            base_parameters.push(SqlValue::Text(like_pattern(search)));
+        }
+        let where_sql = predicates.join(" AND ");
+        let total: i64 = self.connection().query_row(
+            &format!("SELECT COUNT(*) FROM duplicate_group dg WHERE {where_sql}"),
+            params_from_iter(base_parameters.iter()),
+            |row| row.get(0),
+        )?;
+
+        let sort_expression = match query.sort_field {
+            DuplicateFileGroupSortField::RecoverableBytes => "recoverable_bytes",
+            DuplicateFileGroupSortField::GroupSize => "file_size",
+            DuplicateFileGroupSortField::CopyCount => "file_count",
+            DuplicateFileGroupSortField::RepresentativeName => "representative_name COLLATE NOCASE",
+        };
+        let mut page_parameters = base_parameters;
+        let mut cursor_clause = String::new();
+        if let Some(cursor) = &query.cursor {
+            let comparator = cursor_comparator(query.sort_direction, cursor.before);
+            let id_comparator = cursor_comparator(SortDirection::Ascending, cursor.before);
+            cursor_clause = format!(
+                "WHERE ({sort_expression} {comparator} ? OR ({sort_expression} = ? AND id {id_comparator} ?))"
+            );
+            push_cursor_parameters(
+                &mut page_parameters,
+                cursor,
+                query.sort_field == DuplicateFileGroupSortField::RepresentativeName,
+            )?;
+        }
+        page_parameters.push(SqlValue::Integer(query.limit + 1));
+        let order = effective_order(
+            query.sort_direction,
+            query.cursor.as_ref().is_some_and(|cursor| cursor.before),
+        );
+        let id_order = effective_order(
+            SortDirection::Ascending,
+            query.cursor.as_ref().is_some_and(|cursor| cursor.before),
+        );
+        let sql = format!(
+            "WITH result_groups AS (
+                SELECT dg.id, dg.run_id, dg.file_size, dg.file_count,
+                       dg.wasted_bytes AS recoverable_bytes,
+                       COALESCE((
+                           SELECT sf.file_name
+                           FROM duplicate_group_member representative_member
+                           JOIN scanned_file sf ON sf.id = representative_member.file_id
+                           WHERE representative_member.group_id = dg.id
+                             AND sf.run_id = dg.run_id
+                           ORDER BY sf.canonical_path COLLATE NOCASE, sf.id
+                           LIMIT 1
+                       ), '') AS representative_name
+                FROM duplicate_group dg
+                WHERE {where_sql}
+             )
+             SELECT id, run_id, file_size, file_count, recoverable_bytes, representative_name
+             FROM result_groups
+             {cursor_clause}
+             ORDER BY {sort_expression} {order}, id {id_order}
+             LIMIT ?"
+        );
+        let mut statement = self.connection().prepare(&sql)?;
+        let mapped = statement.query_map(params_from_iter(page_parameters.iter()), |row| {
+            Ok(DuplicateFileGroupResult {
+                id: row.get(0)?,
+                run_id: row.get(1)?,
+                file_size: row.get(2)?,
+                file_count: row.get(3)?,
+                recoverable_bytes: row.get(4)?,
+                representative_name: row.get(5)?,
+            })
+        })?;
+        let mut groups = mapped.collect::<Result<Vec<_>>>()?;
+        let has_more = groups.len() > query.limit as usize;
+        if has_more {
+            groups.pop();
+        }
+        if query.cursor.as_ref().is_some_and(|cursor| cursor.before) {
+            groups.reverse();
+        }
+        Ok(DuplicateFileGroupPage {
+            groups,
+            total,
+            has_more,
+        })
+    }
+
+    pub fn duplicate_file_group_exists(&self, run_id: i64, group_id: i64) -> Result<bool> {
+        self.connection().query_row(
+            "SELECT EXISTS(SELECT 1 FROM duplicate_group WHERE run_id = ?1 AND id = ?2)",
+            params![run_id, group_id],
+            |row| row.get(0),
+        )
+    }
+
+    pub fn page_duplicate_file_members(
+        &self,
+        query: &DuplicateFileMemberPageQuery,
+    ) -> Result<DuplicateFileMemberPage> {
+        let mut predicates = vec!["dg.run_id = ?".to_owned(), "dg.id = ?".to_owned()];
+        let mut base_parameters = vec![
+            SqlValue::Integer(query.run_id),
+            SqlValue::Integer(query.group_id),
+        ];
+        if let Some(search) = query
+            .filter
+            .search
+            .as_deref()
+            .filter(|value| !value.is_empty())
+        {
+            predicates.push("sf.canonical_path LIKE ? ESCAPE '\\' COLLATE NOCASE".to_owned());
+            base_parameters.push(SqlValue::Text(like_pattern(search)));
+        }
+        let where_sql = predicates.join(" AND ");
+        let from_sql = "FROM duplicate_group dg
+                        JOIN duplicate_group_member dgm ON dgm.group_id = dg.id
+                        JOIN scanned_file sf ON sf.id = dgm.file_id AND sf.run_id = dg.run_id";
+        let total: i64 = self.connection().query_row(
+            &format!("SELECT COUNT(*) {from_sql} WHERE {where_sql}"),
+            params_from_iter(base_parameters.iter()),
+            |row| row.get(0),
+        )?;
+
+        let sort_expression = match query.sort_field {
+            DuplicateFileMemberSortField::Path => "sf.canonical_path COLLATE NOCASE",
+            DuplicateFileMemberSortField::ModifiedTime => "sf.last_modified",
+            DuplicateFileMemberSortField::Size => "sf.file_size",
+        };
+        let mut page_parameters = base_parameters;
+        let mut cursor_clause = String::new();
+        if let Some(cursor) = &query.cursor {
+            let comparator = cursor_comparator(query.sort_direction, cursor.before);
+            let id_comparator = cursor_comparator(SortDirection::Ascending, cursor.before);
+            cursor_clause = format!(
+                "AND ({sort_expression} {comparator} ? OR ({sort_expression} = ? AND sf.id {id_comparator} ?))"
+            );
+            push_cursor_parameters(
+                &mut page_parameters,
+                cursor,
+                query.sort_field == DuplicateFileMemberSortField::Path,
+            )?;
+        }
+        page_parameters.push(SqlValue::Integer(query.limit + 1));
+        let order = effective_order(
+            query.sort_direction,
+            query.cursor.as_ref().is_some_and(|cursor| cursor.before),
+        );
+        let id_order = effective_order(
+            SortDirection::Ascending,
+            query.cursor.as_ref().is_some_and(|cursor| cursor.before),
+        );
+        let sql = format!(
+            "SELECT sf.id, dg.id, sf.canonical_path, sf.file_name, sf.parent_dir,
+                    sf.file_size, sf.last_modified
+             {from_sql}
+             WHERE {where_sql} {cursor_clause}
+             ORDER BY {sort_expression} {order}, sf.id {id_order}
+             LIMIT ?"
+        );
+        let mut statement = self.connection().prepare(&sql)?;
+        let mapped = statement.query_map(params_from_iter(page_parameters.iter()), |row| {
+            Ok(DuplicateFileMemberResult {
+                id: row.get(0)?,
+                group_id: row.get(1)?,
+                canonical_path: row.get(2)?,
+                file_name: row.get(3)?,
+                parent_dir: row.get(4)?,
+                file_size: row.get(5)?,
+                last_modified: row.get(6)?,
+            })
+        })?;
+        let mut members = mapped.collect::<Result<Vec<_>>>()?;
+        let has_more = members.len() > query.limit as usize;
+        if has_more {
+            members.pop();
+        }
+        if query.cursor.as_ref().is_some_and(|cursor| cursor.before) {
+            members.reverse();
+        }
+        Ok(DuplicateFileMemberPage {
+            members,
+            total,
+            has_more,
+        })
+    }
+
     pub fn get_duplicate_group_count(&self, run_id: i64) -> Result<i64> {
         self.connection().query_row(
             "SELECT COUNT(*) FROM duplicate_group WHERE run_id = ?1",
@@ -705,6 +915,46 @@ fn optional_id(result: Result<i64>) -> Result<Option<i64>> {
         Err(Error::QueryReturnedNoRows) => Ok(None),
         Err(error) => Err(error),
     }
+}
+
+fn like_pattern(value: &str) -> String {
+    format!(
+        "%{}%",
+        value
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_")
+    )
+}
+
+fn cursor_comparator(direction: SortDirection, before: bool) -> &'static str {
+    match (direction, before) {
+        (SortDirection::Ascending, false) | (SortDirection::Descending, true) => ">",
+        (SortDirection::Descending, false) | (SortDirection::Ascending, true) => "<",
+    }
+}
+
+fn effective_order(direction: SortDirection, before: bool) -> &'static str {
+    match (direction, before) {
+        (SortDirection::Ascending, false) | (SortDirection::Descending, true) => "ASC",
+        (SortDirection::Descending, false) | (SortDirection::Ascending, true) => "DESC",
+    }
+}
+
+fn push_cursor_parameters(
+    parameters: &mut Vec<SqlValue>,
+    cursor: &PageCursor,
+    expects_text: bool,
+) -> Result<()> {
+    let value = match (&cursor.value, expects_text) {
+        (PageCursorValue::Text(value), true) => SqlValue::Text(value.clone()),
+        (PageCursorValue::Integer(value), false) => SqlValue::Integer(*value),
+        _ => return Err(Error::InvalidQuery),
+    };
+    parameters.push(value.clone());
+    parameters.push(value);
+    parameters.push(SqlValue::Integer(cursor.id));
+    Ok(())
 }
 
 fn changed_one(changed: usize) -> Result<()> {

@@ -1,3 +1,5 @@
+using SuperDuper.Windows.Core.Workers;
+
 namespace SuperDuper.Windows.Infrastructure.Tests;
 
 [TestClass]
@@ -11,6 +13,7 @@ public sealed class WorkerClientLifecycleTests
         var root = Path.Combine(temp, "root");
         Directory.CreateDirectory(root);
         await File.WriteAllTextAsync(Path.Combine(root, "one.txt"), "non-empty");
+        await File.WriteAllTextAsync(Path.Combine(root, "one-copy.txt"), "non-empty");
 
         try
         {
@@ -34,11 +37,31 @@ public sealed class WorkerClientLifecycleTests
             var started = await client.StartRunAsync(session.Id);
             var terminalEvent = await terminal.Task.WaitAsync(TimeSpan.FromSeconds(10));
             var durable = await client.GetRunAsync(started.Id);
+            var groups = await client.GetDuplicateFileGroupsAsync(
+                new DuplicateFileGroupQuery(
+                    started.Id,
+                    200,
+                    DuplicateFileGroupSortField.RecoverableBytes,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileGroupFilter(string.Empty, "0")));
+            var members = await client.GetDuplicateFileGroupMembersAsync(
+                new DuplicateFileMemberQuery(
+                    started.Id,
+                    groups.Groups.Single().Id,
+                    200,
+                    DuplicateFileMemberSortField.Path,
+                    WorkerSortDirection.Ascending,
+                    new DuplicateFileMemberFilter(string.Empty)));
 
             Assert.AreEqual(1, sessions.Total);
             Assert.AreEqual("run.completed", terminalEvent);
             Assert.AreEqual("completed", durable.Status);
             Assert.AreEqual(session.Id, durable.SessionId);
+            Assert.AreEqual(1, groups.Total);
+            Assert.AreEqual(2, members.Total);
+            CollectionAssert.AreEquivalent(
+                new[] { "one.txt", "one-copy.txt" },
+                members.Members.Select(member => member.FileName).ToArray());
         }
         finally
         {

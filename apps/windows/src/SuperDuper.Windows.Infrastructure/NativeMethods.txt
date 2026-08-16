@@ -1,0 +1,3 @@
+ILFindLastID
+SHOpenFolderAndSelectItems
+SHParseDisplayName

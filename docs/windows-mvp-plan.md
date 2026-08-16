@@ -4,6 +4,9 @@
 
 Approved architecture and implementation plan for the first Super Duper Windows front end.
 
+Implementation status: Milestones 0–4 are complete on the `wpf-poc` line of development. The next
+slice is Milestone 5, exact duplicate folders.
+
 This plan treats the Windows application as a new product surface over the existing Rust engine. It
 does not restore or reuse the deleted Windows application.
 

@@ -1,5 +1,9 @@
 use rusqlite::{params, Connection, Error as SqlError};
-use super_duper_core::storage::models::{RunParameters, ScannedFile};
+use super_duper_core::storage::models::{
+    DuplicateFileGroupFilter, DuplicateFileGroupPageQuery, DuplicateFileGroupSortField,
+    DuplicateFileMemberFilter, DuplicateFileMemberPageQuery, DuplicateFileMemberSortField,
+    PageCursor, PageCursorValue, RunParameters, ScannedFile, SortDirection,
+};
 use super_duper_core::storage::sqlite::CURRENT_SCHEMA_VERSION;
 use super_duper_core::storage::Database;
 use tempfile::tempdir;
@@ -162,6 +166,216 @@ fn result_rows_are_strictly_isolated_by_run() {
         )
         .unwrap();
     assert_eq!(first_size, 100);
+}
+
+#[test]
+fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
+    let db = Database::open_in_memory().unwrap();
+    let (session, first_run) = session_and_run(&db, "Paged", &["/root"]);
+    let second_run = db
+        .create_scan_run(session, &parameters(&["/root"], &[]), "test")
+        .unwrap();
+    db.start_scan_run(second_run).unwrap();
+
+    for (run_id, prefix) in [(first_run, "first"), (second_run, "second")] {
+        let files = [
+            file(run_id, &format!("/root/{prefix}-alpha.txt"), 100, 11),
+            file(run_id, &format!("/root/{prefix}-alpha-copy.txt"), 100, 11),
+            file(run_id, &format!("/root/{prefix}-beta.bin"), 200, 22),
+            file(run_id, &format!("/root/{prefix}-beta-copy.bin"), 200, 22),
+            file(run_id, &format!("/root/{prefix}-gamma.bin"), 200, 33),
+            file(run_id, &format!("/root/{prefix}-gamma-copy.bin"), 200, 33),
+        ];
+        db.insert_scanned_files(&files).unwrap();
+        db.insert_duplicate_groups(
+            run_id,
+            &[
+                (
+                    11,
+                    100,
+                    vec![
+                        format!("/root/{prefix}-alpha.txt"),
+                        format!("/root/{prefix}-alpha-copy.txt"),
+                    ],
+                ),
+                (
+                    22,
+                    200,
+                    vec![
+                        format!("/root/{prefix}-beta.bin"),
+                        format!("/root/{prefix}-beta-copy.bin"),
+                    ],
+                ),
+                (
+                    33,
+                    200,
+                    vec![
+                        format!("/root/{prefix}-gamma.bin"),
+                        format!("/root/{prefix}-gamma-copy.bin"),
+                    ],
+                ),
+            ],
+        )
+        .unwrap();
+    }
+
+    let base_query = DuplicateFileGroupPageQuery {
+        run_id: first_run,
+        limit: 2,
+        sort_field: DuplicateFileGroupSortField::RecoverableBytes,
+        sort_direction: SortDirection::Descending,
+        filter: DuplicateFileGroupFilter {
+            search: None,
+            minimum_size: 0,
+        },
+        cursor: None,
+    };
+    let first_page = db.page_duplicate_file_groups(&base_query).unwrap();
+    assert_eq!(first_page.total, 3);
+    assert_eq!(first_page.groups.len(), 2);
+    assert!(first_page.has_more);
+    assert!(first_page
+        .groups
+        .iter()
+        .all(|group| group.run_id == first_run));
+    assert_eq!(first_page.groups[0].recoverable_bytes, 200);
+    assert_eq!(first_page.groups[1].recoverable_bytes, 200);
+    assert!(first_page.groups[0].id < first_page.groups[1].id);
+
+    let boundary = first_page.groups.last().unwrap();
+    let second_page = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            cursor: Some(PageCursor {
+                value: PageCursorValue::Integer(boundary.recoverable_bytes),
+                id: boundary.id,
+                before: false,
+            }),
+            ..base_query.clone()
+        })
+        .unwrap();
+    assert_eq!(second_page.groups.len(), 1);
+    assert_eq!(second_page.groups[0].recoverable_bytes, 100);
+    assert!(!second_page.has_more);
+
+    let backward_boundary = second_page.groups.first().unwrap();
+    let previous_page = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            cursor: Some(PageCursor {
+                value: PageCursorValue::Integer(backward_boundary.recoverable_bytes),
+                id: backward_boundary.id,
+                before: true,
+            }),
+            ..base_query.clone()
+        })
+        .unwrap();
+    assert_eq!(
+        previous_page
+            .groups
+            .iter()
+            .map(|group| group.id)
+            .collect::<Vec<_>>(),
+        first_page
+            .groups
+            .iter()
+            .map(|group| group.id)
+            .collect::<Vec<_>>()
+    );
+
+    let filtered = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            limit: 10,
+            filter: DuplicateFileGroupFilter {
+                search: Some("alpha".to_owned()),
+                minimum_size: 100,
+            },
+            cursor: None,
+            ..base_query
+        })
+        .unwrap();
+    assert_eq!(filtered.total, 1);
+    let group = &filtered.groups[0];
+    let members = db
+        .page_duplicate_file_members(&DuplicateFileMemberPageQuery {
+            run_id: first_run,
+            group_id: group.id,
+            limit: 1,
+            sort_field: DuplicateFileMemberSortField::Path,
+            sort_direction: SortDirection::Ascending,
+            filter: DuplicateFileMemberFilter {
+                search: Some("copy".to_owned()),
+            },
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(members.total, 1);
+    assert!(members.members[0]
+        .canonical_path
+        .contains("first-alpha-copy"));
+    assert!(!db
+        .duplicate_file_group_exists(second_run, group.id)
+        .unwrap());
+}
+
+#[test]
+fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
+    let db = Database::open_in_memory().unwrap();
+    let (_, run_id) = session_and_run(&db, "Scale", &["/root"]);
+    let transaction = db.connection().unchecked_transaction().unwrap();
+    {
+        let mut insert = transaction
+            .prepare_cached(
+                "INSERT INTO duplicate_group
+                    (run_id, content_hash, file_size, file_count, wasted_bytes)
+                 VALUES (?1, ?2, ?3, 2, ?3)",
+            )
+            .unwrap();
+        for index in 0..100_000_i64 {
+            insert
+                .execute(params![run_id, index + 1, (index % 4096) + 1])
+                .unwrap();
+        }
+    }
+    transaction.commit().unwrap();
+
+    let query = DuplicateFileGroupPageQuery {
+        run_id,
+        limit: 200,
+        sort_field: DuplicateFileGroupSortField::RecoverableBytes,
+        sort_direction: SortDirection::Descending,
+        filter: DuplicateFileGroupFilter {
+            search: None,
+            minimum_size: 0,
+        },
+        cursor: None,
+    };
+    let started = std::time::Instant::now();
+    let first = db.page_duplicate_file_groups(&query).unwrap();
+    assert_eq!(first.total, 100_000);
+    assert_eq!(first.groups.len(), 200);
+    assert!(first.has_more);
+    let boundary = first.groups.last().unwrap();
+    let second = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            cursor: Some(PageCursor {
+                value: PageCursorValue::Integer(boundary.recoverable_bytes),
+                id: boundary.id,
+                before: false,
+            }),
+            ..query
+        })
+        .unwrap();
+    assert_eq!(second.groups.len(), 200);
+    assert!(second.groups.iter().all(|group| {
+        !first
+            .groups
+            .iter()
+            .any(|first_group| first_group.id == group.id)
+    }));
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(5),
+        "indexed 100,000-group paging took {:?}",
+        started.elapsed()
+    );
 }
 
 #[test]

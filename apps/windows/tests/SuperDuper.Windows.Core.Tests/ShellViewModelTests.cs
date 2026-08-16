@@ -55,7 +55,13 @@ public sealed class ShellViewModelTests
     }
 
     private static ShellViewModel CreateViewModel(IWorkerClient client) =>
-        new(client, new TestFolderPicker(), new TestConfirmation(), new ImmediateDispatcher());
+        new(
+            client,
+            new TestFolderPicker(),
+            new TestConfirmation(),
+            new ImmediateDispatcher(),
+            new TestClipboard(),
+            new TestExplorer());
 
     private sealed class TestFolderPicker : IFolderPickerService
     {
@@ -113,6 +119,10 @@ public sealed class ShellViewModelTests
         public Task<WorkerRun> StartRunAsync(long sessionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<WorkerRun> CancelRunAsync(long runId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerDuplicateFileGroupPage> GetDuplicateFileGroupsAsync(DuplicateFileGroupQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerDuplicateFileMemberPage> GetDuplicateFileGroupMembersAsync(DuplicateFileMemberQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

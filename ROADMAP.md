@@ -103,6 +103,7 @@ The approved WPF/.NET 10 MVP architecture, scope, milestones, and acceptance cri
 in [`docs/windows-mvp-plan.md`](docs/windows-mvp-plan.md). The MVP uses a Rust worker-process boundary
 rather than consuming the current synchronous FFI scan API.
 
-Milestones 0 (worker/WPF shell), 1 (session/run persistence repair), 2 (worker scan lifecycle), and
-3 (session navigation, editing, history, and progress/cancellation UI) are implemented. The next
-Windows slice is Milestone 4: server-paged duplicate-file results and Explorer integration.
+Milestones 0 (worker/WPF shell), 1 (session/run persistence repair), 2 (worker scan lifecycle), 3
+(session navigation, editing, history, and progress/cancellation UI), and 4 (server-paged
+duplicate-file results, bounded caching, and Explorer integration) are implemented. The next
+Windows slice is Milestone 5: exact duplicate folders.

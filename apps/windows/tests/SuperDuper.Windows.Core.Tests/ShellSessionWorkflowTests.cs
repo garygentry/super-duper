@@ -50,5 +50,11 @@ public sealed class ShellSessionWorkflowTests
     }
 
     private static ShellViewModel CreateShell(TestWorkerClient client) =>
-        new(client, new TestFolderPicker(), new TestConfirmation(), new ImmediateDispatcher());
+        new(
+            client,
+            new TestFolderPicker(),
+            new TestConfirmation(),
+            new ImmediateDispatcher(),
+            new TestClipboard(),
+            new TestExplorer());
 }

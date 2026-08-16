@@ -39,6 +39,20 @@ which remains deferred.
 The RocksDB content-hash cache remains global because it is an optimization rather than historical
 result state.
 
+## Duplicate-file result queries
+
+Milestone 4 exposes `duplicate_group` and its run-owned `scanned_file` members only through the Rust
+worker. Group and member pages use keyset boundaries composed from an allow-listed sort value and a
+stable row ID, never a caller-provided SQL fragment or a large numeric offset. Filtered counts are
+computed by the worker-owned query, and path searches are literal case-insensitive substring
+matches. Completed runs are immutable, so continuation cursors cannot observe rows moving between
+pages.
+
+The default group order is recoverable bytes descending and group ID ascending. Supporting indexes
+cover run plus recoverable bytes, file size, and copy count; member lookup uses the group membership
+index. Representative names are derived deterministically from the first member path rather than
+stored as mutable UI metadata.
+
 ## Forward migration
 
 Opening a version 2 database performs one `BEGIN IMMEDIATE` migration to version 3. The migration

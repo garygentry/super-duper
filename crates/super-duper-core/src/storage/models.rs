@@ -84,6 +84,107 @@ pub struct DuplicateGroupMember {
     pub file_id: i64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortDirection {
+    Ascending,
+    Descending,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DuplicateFileGroupSortField {
+    RecoverableBytes,
+    GroupSize,
+    CopyCount,
+    RepresentativeName,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DuplicateFileMemberSortField {
+    Path,
+    ModifiedTime,
+    Size,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PageCursorValue {
+    Integer(i64),
+    Text(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageCursor {
+    pub value: PageCursorValue,
+    pub id: i64,
+    pub before: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFileGroupFilter {
+    pub search: Option<String>,
+    pub minimum_size: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFileGroupPageQuery {
+    pub run_id: i64,
+    pub limit: i64,
+    pub sort_field: DuplicateFileGroupSortField,
+    pub sort_direction: SortDirection,
+    pub filter: DuplicateFileGroupFilter,
+    pub cursor: Option<PageCursor>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFileGroupResult {
+    pub id: i64,
+    pub run_id: i64,
+    pub file_size: i64,
+    pub file_count: i64,
+    pub recoverable_bytes: i64,
+    pub representative_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFileGroupPage {
+    pub groups: Vec<DuplicateFileGroupResult>,
+    pub total: i64,
+    pub has_more: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFileMemberFilter {
+    pub search: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFileMemberPageQuery {
+    pub run_id: i64,
+    pub group_id: i64,
+    pub limit: i64,
+    pub sort_field: DuplicateFileMemberSortField,
+    pub sort_direction: SortDirection,
+    pub filter: DuplicateFileMemberFilter,
+    pub cursor: Option<PageCursor>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFileMemberResult {
+    pub id: i64,
+    pub group_id: i64,
+    pub canonical_path: String,
+    pub file_name: String,
+    pub parent_dir: String,
+    pub file_size: i64,
+    pub last_modified: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFileMemberPage {
+    pub members: Vec<DuplicateFileMemberResult>,
+    pub total: i64,
+    pub has_more: bool,
+}
+
 #[derive(Debug, Clone)]
 pub struct DirectoryNode {
     pub id: i64,

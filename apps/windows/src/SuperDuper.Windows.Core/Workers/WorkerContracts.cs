@@ -36,6 +36,78 @@ public sealed record WorkerSessionPage(IReadOnlyList<WorkerSessionDefinition> Se
 
 public sealed record WorkerRunPage(IReadOnlyList<WorkerRun> Runs, long Total);
 
+public enum WorkerSortDirection
+{
+    Ascending,
+    Descending,
+}
+
+public enum DuplicateFileGroupSortField
+{
+    RecoverableBytes,
+    GroupSize,
+    CopyCount,
+    RepresentativeName,
+}
+
+public enum DuplicateFileMemberSortField
+{
+    Path,
+    ModifiedTime,
+    Size,
+}
+
+public sealed record DuplicateFileGroupFilter(string Search, string MinimumSize);
+
+public sealed record DuplicateFileGroupQuery(
+    long RunId,
+    int PageSize,
+    DuplicateFileGroupSortField SortField,
+    WorkerSortDirection SortDirection,
+    DuplicateFileGroupFilter Filter,
+    string? Cursor = null);
+
+public sealed record WorkerDuplicateFileGroup(
+    long Id,
+    long RunId,
+    string GroupSize,
+    long CopyCount,
+    string RecoverableBytes,
+    string RepresentativeName,
+    string RepresentativeType);
+
+public sealed record WorkerDuplicateFileGroupPage(
+    IReadOnlyList<WorkerDuplicateFileGroup> Groups,
+    long Total,
+    string? NextCursor,
+    string? PreviousCursor);
+
+public sealed record DuplicateFileMemberFilter(string Search);
+
+public sealed record DuplicateFileMemberQuery(
+    long RunId,
+    long GroupId,
+    int PageSize,
+    DuplicateFileMemberSortField SortField,
+    WorkerSortDirection SortDirection,
+    DuplicateFileMemberFilter Filter,
+    string? Cursor = null);
+
+public sealed record WorkerDuplicateFileMember(
+    long Id,
+    long GroupId,
+    string Path,
+    string FileName,
+    string ParentPath,
+    string Size,
+    string ModifiedTimeUnixNanos);
+
+public sealed record WorkerDuplicateFileMemberPage(
+    IReadOnlyList<WorkerDuplicateFileMember> Members,
+    long Total,
+    string? NextCursor,
+    string? PreviousCursor);
+
 public sealed class WorkerRunProgressEventArgs : EventArgs
 {
     public required long RunId { get; init; }

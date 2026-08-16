@@ -120,6 +120,8 @@ CREATE INDEX IF NOT EXISTS idx_file_run_parent ON scanned_file(run_id, parent_di
 CREATE INDEX IF NOT EXISTS idx_file_run_path ON scanned_file(run_id, canonical_path);
 CREATE INDEX IF NOT EXISTS idx_group_run ON duplicate_group(run_id);
 CREATE INDEX IF NOT EXISTS idx_group_run_wasted ON duplicate_group(run_id, wasted_bytes DESC);
+CREATE INDEX IF NOT EXISTS idx_group_run_size ON duplicate_group(run_id, file_size, id);
+CREATE INDEX IF NOT EXISTS idx_group_run_count ON duplicate_group(run_id, file_count, id);
 CREATE INDEX IF NOT EXISTS idx_group_member_group ON duplicate_group_member(group_id);
 CREATE INDEX IF NOT EXISTS idx_dir_run_parent ON directory_node(run_id, parent_id);
 CREATE INDEX IF NOT EXISTS idx_dir_fingerprint ON directory_fingerprint(content_fingerprint);

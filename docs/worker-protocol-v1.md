@@ -4,8 +4,9 @@
 
 This document defines version 1 of the local protocol between `SuperDuper.Windows` and the
 `super-duper-worker` child process. The worker is a single-client, long-lived process launched by
-the Windows application. Milestone 2 implements the session and scan-lifecycle subset of version 1;
-result-browsing commands remain reserved for later milestones.
+the Windows application. Milestones 0–4 implement negotiation, session and scan lifecycle, and
+duplicate-file result browsing. Duplicate-folder and warning commands remain reserved for later
+milestones.
 
 The transport is UTF-8 newline-delimited JSON (JSONL) over redirected standard input and standard
 output. It is a local process boundary, not a network API.
@@ -90,13 +91,15 @@ The V1 base error codes are:
 
 Later commands may define additional stable codes, such as `scan_busy`.
 
-The scan-lifecycle commands additionally use:
+The scan-lifecycle and result commands additionally use:
 
 - `invalid_session`: a session name, root, ignore pattern, or saved definition is unusable
 - `session_name_conflict`: a case-insensitive session name is already in use
 - `session_not_found`: the requested session ID does not exist
 - `run_not_found`: the requested run ID does not exist
 - `scan_busy`: another run owns the single global scan slot; `details.activeRunId` identifies it
+- `invalid_cursor`: a result cursor is malformed or belongs to a different run, sort, or filter
+- `duplicate_group_not_found`: the requested duplicate-file group does not belong to the given run
 
 ### Event
 
@@ -279,6 +282,63 @@ Progress data is:
 - Events may appear before or after unrelated correlated responses. Clients must use response IDs,
   event names, run IDs, and progress sequence numbers rather than assuming request/response
   adjacency.
+
+## Duplicate File Result Commands
+
+Duplicate-file results are immutable and queryable only when the addressed run has status
+`completed`. Both commands require the run ID, so a group from one historical run cannot leak into
+another run's result view. Querying a non-completed run returns `invalid_state` with the durable
+status in `details.status`.
+
+Result pages use opaque keyset cursors rather than offsets. A cursor is bound to the command, run,
+group when applicable, sort, direction, and normalized filter. Clients must not inspect or modify
+it. Reusing it after any query input changes returns `invalid_cursor`. `nextCursor` and
+`previousCursor` are `null` at their respective boundaries. Sort ties always use group or member ID
+ascending, which makes paging stable. `pageSize` defaults to 200 and must be 1–500.
+
+### `duplicate_file_group.page`
+
+Request:
+
+```json
+{"type":"request","id":"g1","method":"duplicate_file_group.page","params":{"runId":19,"pageSize":200,"sort":{"field":"recoverableBytes","direction":"descending"},"filter":{"search":"photos","minimumSize":"1048576"},"cursor":null}}
+```
+
+Allowed group sort fields are `recoverableBytes`, `groupSize`, `copyCount`, and
+`representativeName`; directions are `ascending` and `descending`. The default is recoverable bytes
+descending. `filter.search` is an optional case-insensitive literal substring search across member
+paths, limited to 512 characters. `filter.minimumSize` is a non-negative decimal byte string and
+defaults to `"0"`.
+
+Result:
+
+```json
+{"groups":[{"id":31,"runId":19,"groupSize":"5242880","copyCount":3,"recoverableBytes":"10485760","representativeName":"photo.jpg","representativeType":".jpg"}],"total":42,"nextCursor":"opaque","previousCursor":null}
+```
+
+The representative is the member with the first path under case-insensitive path ordering, then
+member ID. `groupSize` and `recoverableBytes` are decimal strings.
+
+### `duplicate_file_group.members`
+
+Request:
+
+```json
+{"type":"request","id":"m1","method":"duplicate_file_group.members","params":{"runId":19,"groupId":31,"pageSize":200,"sort":{"field":"path","direction":"ascending"},"filter":{"search":"archive"},"cursor":null}}
+```
+
+Allowed member sort fields are `path`, `modifiedTime`, and `size`; the default is path ascending.
+The optional member `filter.search` applies a case-insensitive literal substring match to the full
+path and is limited to 512 characters.
+
+Result:
+
+```json
+{"members":[{"id":88,"groupId":31,"path":"D:\\Archive\\photo.jpg","fileName":"photo.jpg","parentPath":"D:\\Archive","size":"5242880","modifiedTimeUnixNanos":"1786795200000000000"}],"total":3,"nextCursor":null,"previousCursor":null}
+```
+
+Byte sizes and the nanosecond Unix modification timestamp are decimal strings. Member pages verify
+that `groupId` belongs to `runId`; a mismatched pair returns `duplicate_group_not_found`.
 
 ## Startup
 
