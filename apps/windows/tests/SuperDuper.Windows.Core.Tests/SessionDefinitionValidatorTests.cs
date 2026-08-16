@@ -48,4 +48,42 @@ public sealed class SessionDefinitionValidatorTests
         CollectionAssert.Contains(SessionDefinitionValidator.SafeWindowsIgnorePatterns.ToArray(), "*/$RECYCLE.BIN");
         CollectionAssert.Contains(SessionDefinitionValidator.SafeWindowsIgnorePatterns.ToArray(), "*/System Volume Information");
     }
+
+    [TestMethod]
+    public void LocationWarnings_ExplainRemovableMappedAndUncBestEffortBehavior()
+    {
+        var removable = SessionDefinitionValidator.LocationWarning(
+            @"E:\Archive",
+            ScanRootKind.Removable,
+            reachable: true);
+        var mapped = SessionDefinitionValidator.LocationWarning(
+            @"Z:\Team",
+            ScanRootKind.MappedNetwork,
+            reachable: true);
+        var unc = SessionDefinitionValidator.LocationWarning(
+            @"\\server\share",
+            ScanRootKind.UncNetwork,
+            reachable: false);
+
+        StringAssert.Contains(removable, "disconnects");
+        StringAssert.Contains(mapped, "worker process account");
+        StringAssert.Contains(unc, "credentials");
+        Assert.IsNull(SessionDefinitionValidator.LocationWarning(
+            @"C:\Data",
+            ScanRootKind.Fixed,
+            reachable: true));
+    }
+
+    [TestMethod]
+    public void UncRoot_IsBestEffortAndDefersReachabilityToWorkerStart()
+    {
+        var missing = $@"\\localhost\missing-{Guid.NewGuid():N}";
+
+        var result = SessionDefinitionValidator.Validate("Network", [missing], [], []);
+
+        Assert.IsTrue(result.IsValid);
+        Assert.IsTrue(result.HasReachableRoot);
+        Assert.IsTrue(result.Warnings.Any(warning => warning.Contains("UNC", StringComparison.Ordinal)));
+        Assert.IsFalse(result.Warnings.Any(warning => warning.Contains("unavailable", StringComparison.OrdinalIgnoreCase)));
+    }
 }

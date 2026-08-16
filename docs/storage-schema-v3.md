@@ -32,6 +32,13 @@ selected root, root-relative path, metadata, optional content hash, optional sta
 and an optional warning. `duplicate_group` owns one run and membership can only resolve file rows
 from that same run.
 
+On supported platforms the stable identity is the physical volume/file-index pair (or equivalent).
+Multiple hard-linked directory entries may remain as historical snapshots, but only one entry for
+one physical file participates in recoverable duplicate-file accounting. If a file disappears,
+becomes inaccessible, or changes size/modified time after discovery, its snapshot retains a warning
+and it is excluded from affected duplicate groups. This hardening does not require a schema version
+change because v3 already includes `file_identity` and `warning_message`.
+
 `directory_node` and `directory_similarity` also carry `run_id`; fingerprints are owned transitively
 through their directory. `duplicate_folder_group` owns one run and records structural and verified
 fingerprints, bytes, descendant-file count, copy count, and nested-suppression state. Its members

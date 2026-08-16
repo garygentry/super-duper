@@ -47,6 +47,8 @@
                             <TextBlock Margin="0,3,0,0" Opacity="0.65" Text="Find exact duplicate files with a durable scan history." />
                         </StackPanel>
                         <Button Grid.Column="1"
+                                x:Name="StartScanButton"
+                                AutomationProperties.AutomationId="StartScanButton"
                                 MinWidth="112"
                                 Padding="16,8"
                                 Command="{Binding StartRunCommand}"
@@ -57,21 +59,23 @@
                 <Grid Grid.Row="1">
                     <views:EmptyStateView Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
-                    <TabControl SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}"
+                    <TabControl x:Name="MainTabs"
+                                AutomationProperties.AutomationId="MainTabs"
+                                SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}"
                                 Visibility="{Binding IsWorkspaceVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <TabItem Header="Setup">
+                        <TabItem AutomationProperties.AutomationId="SetupTab" Header="Setup">
                             <views:SessionSetupView DataContext="{Binding Setup}" />
                         </TabItem>
-                        <TabItem Header="Progress">
+                        <TabItem AutomationProperties.AutomationId="ProgressTab" Header="Progress">
                             <views:ScanProgressView DataContext="{Binding Progress}" />
                         </TabItem>
-                        <TabItem Header="Run history">
+                        <TabItem AutomationProperties.AutomationId="RunHistoryTab" Header="Run history">
                             <views:RunHistoryView DataContext="{Binding History}" />
                         </TabItem>
-                        <TabItem Header="Duplicate files">
+                        <TabItem AutomationProperties.AutomationId="DuplicateFilesTab" Header="Duplicate files">
                             <views:DuplicateFilesView DataContext="{Binding DuplicateFiles}" />
                         </TabItem>
-                        <TabItem Header="Duplicate folders">
+                        <TabItem AutomationProperties.AutomationId="DuplicateFoldersTab" Header="Duplicate folders">
                             <views:DuplicateFoldersView DataContext="{Binding DuplicateFolders}" />
                         </TabItem>
                     </TabControl>
@@ -123,6 +127,8 @@
                                Opacity="0.7"
                                Text="Build the Rust workspace, then restart Super Duper. Set SUPER_DUPER_WORKER_PATH to override this location."
                                TextWrapping="Wrap" />
+                    <TextBlock Margin="0,18,0,5" FontWeight="SemiBold" Text="Diagnostic log" />
+                    <TextBox IsReadOnly="True" Text="{Binding DiagnosticLogPath, Mode=OneWay}" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
         </Grid>

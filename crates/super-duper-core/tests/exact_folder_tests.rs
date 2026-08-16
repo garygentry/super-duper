@@ -33,6 +33,8 @@ fn file(run_id: i64, root: &Path, relative: &str, size: i64, hash: i64) -> Scann
     let path = relative
         .split('/')
         .fold(PathBuf::from(root), |path, part| path.join(part));
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, vec![hash as u8; size as usize]).unwrap();
     ScannedFile {
         id: 0,
         run_id,
@@ -43,7 +45,7 @@ fn file(run_id: i64, root: &Path, relative: &str, size: i64, hash: i64) -> Scann
         parent_dir: path.parent().unwrap().to_string_lossy().into_owned(),
         drive_letter: String::new(),
         file_size: size,
-        last_modified: 1,
+        last_modified: 0,
         partial_hash: None,
         content_hash: Some(hash),
         file_identity: None,
@@ -202,4 +204,29 @@ fn scanner_does_not_traverse_directory_links_or_reparse_points() {
     .unwrap();
 
     assert_eq!(result.total_files_scanned, 0);
+}
+
+#[test]
+fn hard_link_aliases_do_not_form_recoverable_file_or_folder_copies() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("root");
+    let first = root.join("first");
+    let second = root.join("second");
+    std::fs::create_dir_all(&first).unwrap();
+    std::fs::create_dir_all(&second).unwrap();
+    let original = first.join("item.bin");
+    std::fs::write(&original, b"one physical file").unwrap();
+    std::fs::hard_link(&original, second.join("item.bin")).unwrap();
+    let db_path = temp.path().join("hard-link-folders.db");
+
+    let result = ScanEngine::new(AppConfig {
+        root_paths: vec![root.to_string_lossy().into_owned()],
+        ignore_patterns: vec![],
+    })
+    .with_db_path(db_path.to_str().unwrap())
+    .scan(&SilentReporter)
+    .unwrap();
+
+    assert_eq!(result.duplicate_groups, 0);
+    assert_eq!(result.duplicate_folder_groups, 0);
 }

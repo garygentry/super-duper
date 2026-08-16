@@ -18,13 +18,15 @@ public sealed class WorkerClientLifecycleTests
         var folderB = Directory.CreateDirectory(Path.Combine(root, "folder-b"));
         await File.WriteAllTextAsync(Path.Combine(folderA.FullName, "same.txt"), "folder content");
         await File.WriteAllTextAsync(Path.Combine(folderB.FullName, "same.txt"), "folder content");
+        var diagnostics = Path.Combine(temp, "logs", "worker.log");
 
         try
         {
             await using var client = new WorkerClient(
                 worker,
                 TimeSpan.FromSeconds(10),
-                Path.Combine(temp, "worker.db"));
+                Path.Combine(temp, "worker.db"),
+                diagnostics);
             var terminal = new TaskCompletionSource<string>(
                 TaskCreationOptions.RunContinuationsAsynchronously);
             client.RunLifecycleChanged += (_, eventArgs) =>
@@ -88,6 +90,22 @@ public sealed class WorkerClientLifecycleTests
                 folderMembers.Members
                     .Select(member => Path.GetFileName(member.Path.TrimEnd(Path.DirectorySeparatorChar)))
                     .ToArray());
+
+            var diagnosticText = await WaitForDiagnosticsAsync(diagnostics);
+            foreach (var phase in new[] { "discovering", "hashing", "persisting", "analyzing_folders", "finalizing" })
+            {
+                StringAssert.Contains(diagnosticText, $"kind=scan_phase run_id={started.Id} phase={phase}");
+            }
+            foreach (var method in new[]
+                     {
+                         "duplicate_file_group.page",
+                         "duplicate_file_group.members",
+                         "duplicate_folder_group.page",
+                         "duplicate_folder_group.members",
+                     })
+            {
+                StringAssert.Contains(diagnosticText, $"kind=result_query method={method}");
+            }
         }
         finally
         {
@@ -98,13 +116,40 @@ public sealed class WorkerClientLifecycleTests
         }
     }
 
+    private static async Task<string> WaitForDiagnosticsAsync(string path)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (File.Exists(path))
+            {
+                await using var stream = new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete,
+                    bufferSize: 4096,
+                    useAsync: true);
+                using var reader = new StreamReader(stream);
+                var text = await reader.ReadToEndAsync();
+                if (text.Contains("duplicate_folder_group.members", StringComparison.Ordinal))
+                {
+                    return text;
+                }
+            }
+            await Task.Delay(50);
+        }
+        Assert.Fail($"Timed out waiting for worker diagnostics at {path}.");
+        return string.Empty;
+    }
+
     private static string FindWorker()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
              directory is not null;
              directory = directory.Parent)
         {
-            var candidate = Path.Combine(directory.FullName, "target", "debug", "super-duper-worker.exe");
+            var candidate = Path.Combine(directory.FullName, "target", BuildProfile, "super-duper-worker.exe");
             if (File.Exists(candidate))
             {
                 return candidate;
@@ -114,4 +159,10 @@ public sealed class WorkerClientLifecycleTests
         Assert.Inconclusive("Build the Rust workspace before running Windows integration tests.");
         return string.Empty;
     }
+
+#if DEBUG
+    private const string BuildProfile = "debug";
+#else
+    private const string BuildProfile = "release";
+#endif
 }

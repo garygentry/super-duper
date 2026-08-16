@@ -14,6 +14,8 @@ internal sealed class TestWorkerClient : IWorkerClient
 
     public string ExecutablePath => @"C:\test\super-duper-worker.exe";
 
+    public string DiagnosticLogPath => @"C:\test\logs\worker.log";
+
     public List<WorkerSessionDefinition> Sessions { get; } = [];
 
     public List<WorkerRun> Runs { get; } = [];

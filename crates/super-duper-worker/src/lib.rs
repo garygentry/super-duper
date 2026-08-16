@@ -863,6 +863,7 @@ impl WorkerSession {
             cursor.as_ref(),
             sort_field == DuplicateFileGroupSortField::RepresentativeName,
         )?;
+        let query_started = Instant::now();
         let page = db
             .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
                 run_id: parameters.run_id,
@@ -876,6 +877,15 @@ impl WorkerSession {
                 cursor: cursor.clone(),
             })
             .map_err(internal_database_error)?;
+        log_result_query(
+            "duplicate_file_group.page",
+            parameters.run_id,
+            None,
+            parameters.page_size,
+            page.groups.len(),
+            page.total,
+            query_started.elapsed(),
+        );
         let previous_cursor = page
             .groups
             .first()
@@ -945,6 +955,7 @@ impl WorkerSession {
             cursor.as_ref(),
             sort_field == DuplicateFileMemberSortField::Path,
         )?;
+        let query_started = Instant::now();
         let page = db
             .page_duplicate_file_members(&DuplicateFileMemberPageQuery {
                 run_id: parameters.run_id,
@@ -956,6 +967,15 @@ impl WorkerSession {
                 cursor: cursor.clone(),
             })
             .map_err(internal_database_error)?;
+        log_result_query(
+            "duplicate_file_group.members",
+            parameters.run_id,
+            Some(parameters.group_id),
+            parameters.page_size,
+            page.members.len(),
+            page.total,
+            query_started.elapsed(),
+        );
         let previous_cursor = page
             .members
             .first()
@@ -1011,6 +1031,7 @@ impl WorkerSession {
             cursor.as_ref(),
             sort_field == DuplicateFolderGroupSortField::RepresentativePath,
         )?;
+        let query_started = Instant::now();
         let page = db
             .page_duplicate_folder_groups(&DuplicateFolderGroupPageQuery {
                 run_id: parameters.run_id,
@@ -1024,6 +1045,15 @@ impl WorkerSession {
                 cursor: cursor.clone(),
             })
             .map_err(internal_database_error)?;
+        log_result_query(
+            "duplicate_folder_group.page",
+            parameters.run_id,
+            None,
+            parameters.page_size,
+            page.groups.len(),
+            page.total,
+            query_started.elapsed(),
+        );
         let previous_cursor = page
             .groups
             .first()
@@ -1091,6 +1121,7 @@ impl WorkerSession {
             &signature,
         )?;
         validate_cursor_value(cursor.as_ref(), true)?;
+        let query_started = Instant::now();
         let page = db
             .page_duplicate_folder_members(&DuplicateFolderMemberPageQuery {
                 run_id: parameters.run_id,
@@ -1102,6 +1133,15 @@ impl WorkerSession {
                 cursor: cursor.clone(),
             })
             .map_err(internal_database_error)?;
+        log_result_query(
+            "duplicate_folder_group.members",
+            parameters.run_id,
+            Some(parameters.group_id),
+            parameters.page_size,
+            page.members.len(),
+            page.total,
+            query_started.elapsed(),
+        );
         let previous_cursor = page
             .members
             .first()
@@ -1298,6 +1338,30 @@ fn run_scan_thread(
     state.finish_active(run_id);
 }
 
+fn log_scan_phase(run_id: i64, phase: &str, duration_secs: f64) {
+    eprintln!(
+        "performance kind=scan_phase run_id={run_id} phase={phase} duration_ms={:.3}",
+        duration_secs * 1_000.0
+    );
+}
+
+fn log_result_query(
+    method: &str,
+    run_id: i64,
+    group_id: Option<i64>,
+    page_size: i64,
+    returned: usize,
+    total: i64,
+    duration: Duration,
+) {
+    let group = group_id.map_or_else(|| "-".to_owned(), |value| value.to_string());
+    eprintln!(
+        "performance kind=result_query method={method} run_id={run_id} group_id={group} \
+         page_size={page_size} returned={returned} total={total} duration_ms={:.3}",
+        duration.as_secs_f64() * 1_000.0
+    );
+}
+
 struct WorkerProgressReporter {
     state: Arc<SharedState>,
     run_id: i64,
@@ -1461,6 +1525,10 @@ impl ProgressReporter for WorkerProgressReporter {
         self.update(None, Some(current_path), false);
     }
 
+    fn on_scan_complete(&self, _total_files: usize, duration_secs: f64) {
+        log_scan_phase(self.run_id, "discovering", duration_secs);
+    }
+
     fn on_hash_start(&self) {
         self.phase("hashing");
     }
@@ -1482,12 +1550,20 @@ impl ProgressReporter for WorkerProgressReporter {
         self.update(None, current_path, false);
     }
 
+    fn on_hash_complete(&self, _total_dupes: usize, duration_secs: f64) {
+        log_scan_phase(self.run_id, "hashing", duration_secs);
+    }
+
     fn on_db_write_start(&self) {
         self.phase("persisting");
     }
 
     fn on_db_write_progress(&self, _rows: usize, _total_rows: usize) {
         self.update(None, None, false);
+    }
+
+    fn on_db_write_complete(&self, _rows: usize, duration_secs: f64) {
+        log_scan_phase(self.run_id, "persisting", duration_secs);
     }
 
     fn on_dir_analysis_start(&self) {
@@ -1498,8 +1574,21 @@ impl ProgressReporter for WorkerProgressReporter {
         self.update(None, None, false);
     }
 
+    fn on_dir_analysis_complete(
+        &self,
+        _fingerprints: usize,
+        _similarity_pairs: usize,
+        duration_secs: f64,
+    ) {
+        log_scan_phase(self.run_id, "analyzing_folders", duration_secs);
+    }
+
     fn on_finalizing(&self) {
         self.phase("finalizing");
+    }
+
+    fn on_finalizing_complete(&self, duration_secs: f64) {
+        log_scan_phase(self.run_id, "finalizing", duration_secs);
     }
 }
 

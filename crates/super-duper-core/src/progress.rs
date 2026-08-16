@@ -40,6 +40,7 @@ pub trait ProgressReporter: Send + Sync {
     ) {
     }
     fn on_finalizing(&self) {}
+    fn on_finalizing_complete(&self, _duration_secs: f64) {}
 }
 
 /// No-op progress reporter for silent operation.

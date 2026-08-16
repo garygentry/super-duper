@@ -1,7 +1,7 @@
 # Roadmap
 
-This roadmap tracks work for the Rust engine, CLI, and reusable FFI surface. The previous Windows
-app implementation has been removed from this branch so a new Windows app can start fresh.
+This roadmap tracks work for the Rust engine, CLI, reusable FFI surface, and clean-slate Windows
+MVP. The previous Windows app implementation was removed before the current WPF app was built.
 
 ## Current State
 
@@ -92,10 +92,11 @@ blocking their UI thread.
 
 Files: `crates/super-duper-ffi/src/actions.rs`, `crates/super-duper-ffi/src/callbacks.rs`
 
-### 11. New Windows App
+### 11. New Windows App (MVP Complete)
 
-Design and build a new Windows app against the Rust core through an explicit client boundary. Treat
-this as a new product surface rather than a continuation of the deleted app.
+The Windows app is implemented against the Rust worker-process boundary as a new product surface,
+not a continuation of the deleted app. Post-MVP work is ordered below rather than tracked as an
+unfinished application build.
 
 Files: `apps/windows/`, `crates/super-duper-worker/`
 
@@ -105,6 +106,7 @@ rather than consuming the current synchronous FFI scan API.
 
 Milestones 0 (worker/WPF shell), 1 (session/run persistence repair), 2 (worker scan lifecycle), 3
 (session navigation, editing, history, and progress/cancellation UI), 4 (server-paged
-duplicate-file results, bounded caching, and Explorer integration), and 5 (verified exact-folder
-results, nested suppression, run-owned paging, and a separate WPF results surface) are implemented.
-The next Windows slice is Milestone 6: MVP hardening.
+duplicate-file results, bounded caching, and Explorer integration), 5 (verified exact-folder
+results), and 6 (filesystem, diagnostics, smoke, Release, and recovery hardening) are implemented.
+The Windows MVP is complete; the ordered post-MVP decisions remain safe deletion review, distinct
+similar-folder presentation, bounded thumbnails, packaging/shell integration, and export.

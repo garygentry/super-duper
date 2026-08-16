@@ -1541,6 +1541,7 @@ dependencies = [
  "serde_json",
  "super-duper-core",
  "tempfile",
+ "tracing-subscriber",
 ]
 
 [[package]]

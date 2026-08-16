@@ -24,20 +24,26 @@
                            Opacity="0.68"
                            Text="Results belong to the selected historical run and stay server-paged." />
             </StackPanel>
-            <TextBox Grid.Column="1"
+            <TextBox x:Name="FileSearch"
+                     Grid.Column="1"
                      Margin="12,0,0,0"
                      VerticalContentAlignment="Center"
                      automation:AutomationProperties.Name="Path search"
+                     automation:AutomationProperties.AutomationId="FileSearch"
                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                      ToolTip="Search duplicate file paths" />
-            <TextBox Grid.Column="2"
+            <TextBox x:Name="FileMinimumSize"
+                     Grid.Column="2"
                      Width="145"
                      Margin="8,0,0,0"
                      VerticalContentAlignment="Center"
                      automation:AutomationProperties.Name="Minimum file size in bytes"
+                     automation:AutomationProperties.AutomationId="FileMinimumSize"
                      Text="{Binding MinimumSizeText, UpdateSourceTrigger=PropertyChanged}"
                      ToolTip="Minimum file size in bytes" />
-            <Button Grid.Column="3"
+            <Button x:Name="FileApplyFilters"
+                    Grid.Column="3"
+                    automation:AutomationProperties.AutomationId="FileApplyFilters"
                     Margin="8,0,0,0"
                     Padding="13,7"
                     Command="{Binding ApplyFiltersCommand}"
@@ -50,6 +56,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <DataGrid x:Name="GroupsGrid"
+                      automation:AutomationProperties.AutomationId="FileGroupsGrid"
                       AutoGenerateColumns="False"
                       CanUserSortColumns="True"
                       EnableColumnVirtualization="True"
@@ -147,7 +154,9 @@
                 <TextBlock FontSize="17" FontWeight="SemiBold" Text="Copies in selected group" />
                 <TextBlock Grid.Column="1" Opacity="0.68" Text="{Binding MemberCountText}" />
             </Grid>
-            <DataGrid Grid.Row="1"
+            <DataGrid x:Name="MembersGrid"
+                      Grid.Row="1"
+                      automation:AutomationProperties.AutomationId="FileMembersGrid"
                       AutoGenerateColumns="False"
                       EnableColumnVirtualization="True"
                       EnableRowVirtualization="True"

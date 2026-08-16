@@ -41,6 +41,7 @@
 
 # Build scripts output files
 /out/
+/artifacts/
 
 # macOS-specific
 .DS_Store

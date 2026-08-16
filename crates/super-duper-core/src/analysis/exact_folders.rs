@@ -7,6 +7,7 @@ use std::fs;
 use std::hash::Hasher as _;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::UNIX_EPOCH;
 use twox_hash::XxHash64;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -22,7 +23,9 @@ struct CandidateFile {
     canonical_path: String,
     relative_path: String,
     size: i64,
+    last_modified: i64,
     content_hash: Option<i64>,
+    file_identity: Option<String>,
 }
 
 #[derive(Debug)]
@@ -85,6 +88,15 @@ pub fn analyze_exact_folders_cancellable(
             let mut valid = true;
             for file in &candidates[candidate_index].files {
                 check_cancelled(cancel_token)?;
+                if let Err(error) = validate_candidate_metadata(file) {
+                    warning_count += 1;
+                    tracing::warn!(
+                        "Unable to verify exact-folder candidate file {}: {error}",
+                        file.canonical_path
+                    );
+                    valid = false;
+                    break;
+                }
                 let hash = if let Some(hash) = known_hashes.get(&file.id).copied() {
                     Some(hash)
                 } else if let Some(hash) = file.content_hash {
@@ -125,10 +137,11 @@ pub fn analyze_exact_folders_cancellable(
             }
         }
 
-        for (verified, indexes) in verified_sets
-            .into_iter()
-            .filter(|(_, indexes)| indexes.len() > 1)
-        {
+        for (verified, indexes) in verified_sets.into_iter() {
+            let indexes = distinct_physical_candidates(&candidates, indexes);
+            if indexes.len() < 2 {
+                continue;
+            }
             verified_groups.push(VerifiedGroup {
                 structural_fingerprint: structural_fingerprint.clone(),
                 verified_fingerprint: fingerprint_verified(&verified),
@@ -207,11 +220,41 @@ fn build_candidates(files: Vec<ScannedFile>) -> Vec<CandidateDirectory> {
                     canonical_path: file.canonical_path.clone(),
                     relative_path: components[prefix_length..].join("/").to_lowercase(),
                     size: file.file_size,
+                    last_modified: file.last_modified,
                     content_hash: file.content_hash,
+                    file_identity: file.file_identity.clone(),
                 });
         }
     }
     by_path.into_values().collect()
+}
+
+fn distinct_physical_candidates(
+    candidates: &[CandidateDirectory],
+    mut indexes: Vec<usize>,
+) -> Vec<usize> {
+    indexes.sort_by(|left, right| {
+        candidates[*left]
+            .path
+            .to_lowercase()
+            .cmp(&candidates[*right].path.to_lowercase())
+    });
+    let mut seen = HashSet::new();
+    indexes
+        .into_iter()
+        .filter(|index| {
+            let identities = candidates[*index]
+                .files
+                .iter()
+                .filter_map(|file| file.file_identity.as_ref())
+                .collect::<Vec<_>>();
+            if identities.iter().any(|identity| seen.contains(*identity)) {
+                return false;
+            }
+            seen.extend(identities.into_iter().cloned());
+            true
+        })
+        .collect()
 }
 
 fn normalized_components(path: &str) -> Vec<String> {
@@ -230,6 +273,13 @@ fn hash_candidate_file(
     file: &CandidateFile,
     cancel_token: &AtomicBool,
 ) -> std::io::Result<(i64, bool)> {
+    validate_candidate_metadata(file)?;
+    let outcome =
+        cache::get_content_hash_cancellable(Path::new(&file.canonical_path), cancel_token)?;
+    Ok((outcome.hash as i64, outcome.warning.is_some()))
+}
+
+fn validate_candidate_metadata(file: &CandidateFile) -> std::io::Result<()> {
     let metadata = fs::metadata(&file.canonical_path)?;
     if metadata.len() != file.size as u64 {
         return Err(std::io::Error::new(
@@ -237,9 +287,19 @@ fn hash_candidate_file(
             "file size changed after discovery",
         ));
     }
-    let outcome =
-        cache::get_content_hash_cancellable(Path::new(&file.canonical_path), cancel_token)?;
-    Ok((outcome.hash as i64, outcome.warning.is_some()))
+    let modified = metadata
+        .modified()?
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?
+        .as_nanos()
+        .min(i64::MAX as u128) as i64;
+    if file.last_modified != 0 && modified != file.last_modified {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "file modified time changed after discovery",
+        ));
+    }
+    Ok(())
 }
 
 fn fingerprint_structure(values: &[(String, i64)]) -> String {

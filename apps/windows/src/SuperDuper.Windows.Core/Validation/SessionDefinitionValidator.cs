@@ -1,5 +1,14 @@
 namespace SuperDuper.Windows.Core.Validation;
 
+public enum ScanRootKind
+{
+    Fixed,
+    Removable,
+    MappedNetwork,
+    UncNetwork,
+    Other,
+}
+
 public sealed record SessionValidationResult(
     IReadOnlyList<string> Roots,
     IReadOnlyList<string> IgnorePatterns,
@@ -52,7 +61,8 @@ public static class SessionDefinitionValidator
         var normalizedRoots = NormalizeRoots(roots, errors, warnings);
         var patterns = NormalizeIgnorePatterns(ignorePatterns, errors);
         var hasPotentiallyReachableRoot = normalizedRoots.Any(path =>
-            path.StartsWith(@"\\", StringComparison.Ordinal) || Directory.Exists(path));
+            ClassifyRoot(path) is ScanRootKind.MappedNetwork or ScanRootKind.UncNetwork
+            || Directory.Exists(path));
         return new SessionValidationResult(
             normalizedRoots,
             patterns,
@@ -107,11 +117,16 @@ public static class SessionDefinitionValidator
                 {
                     warnings?.Add($"{fullPath} scans an entire drive and may take a long time.");
                 }
-                if (fullPath.StartsWith(@"\\", StringComparison.Ordinal))
+                var kind = ClassifyRoot(fullPath);
+                // Network reachability can block the WPF dispatcher and is authoritatively checked
+                // by run.start in the worker instead.
+                var reachable = kind is ScanRootKind.MappedNetwork or ScanRootKind.UncNetwork
+                    || Directory.Exists(fullPath);
+                if (LocationWarning(fullPath, kind, reachable) is { } locationWarning)
                 {
-                    warnings?.Add($"Network root availability will be verified before scanning: {fullPath}");
+                    warnings?.Add(locationWarning);
                 }
-                else if (!Directory.Exists(fullPath))
+                if (!reachable)
                 {
                     warnings?.Add($"Root is currently unavailable: {fullPath}");
                 }
@@ -146,6 +161,48 @@ public static class SessionDefinitionValidator
         }
         return result;
     }
+
+    public static ScanRootKind ClassifyRoot(string fullPath)
+    {
+        if (fullPath.StartsWith(@"\\", StringComparison.Ordinal)
+            && !fullPath.StartsWith(@"\\?\", StringComparison.Ordinal))
+        {
+            return ScanRootKind.UncNetwork;
+        }
+
+        try
+        {
+            var root = Path.GetPathRoot(fullPath);
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                return ScanRootKind.Other;
+            }
+            return new DriveInfo(root).DriveType switch
+            {
+                DriveType.Fixed => ScanRootKind.Fixed,
+                DriveType.Removable => ScanRootKind.Removable,
+                DriveType.Network => ScanRootKind.MappedNetwork,
+                _ => ScanRootKind.Other,
+            };
+        }
+        catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            return ScanRootKind.Other;
+        }
+    }
+
+    public static string? LocationWarning(string path, ScanRootKind kind, bool reachable) => kind switch
+    {
+        ScanRootKind.Removable =>
+            $"Removable root availability may change during a scan; disconnects are reported as warnings: {path}",
+        ScanRootKind.MappedNetwork =>
+            $"Mapped network root is best-effort and uses the worker process account's drive mapping: {path}",
+        ScanRootKind.UncNetwork =>
+            $"UNC network root is best-effort; latency, credentials, and disconnects may produce warnings: {path}",
+        ScanRootKind.Other when reachable =>
+            $"Root uses a filesystem type that has not been classified as fixed, removable, or network: {path}",
+        _ => null,
+    };
 
     public static IReadOnlyList<string> NormalizeIgnorePatterns(
         IEnumerable<string> ignorePatterns,

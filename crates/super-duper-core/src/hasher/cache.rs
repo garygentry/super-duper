@@ -44,10 +44,7 @@ pub fn get_content_hash_cancellable(
     let canonical_path = fs::canonicalize(file)?.to_string_lossy().into_owned();
     let metadata = fs::metadata(file)?;
     let size = metadata.len();
-    let modified: SystemTime = metadata.modified()?;
-    let modified_timestamp = modified
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| io::Error::new(ErrorKind::Other, e))?;
+    let modified_timestamp = metadata_modified_timestamp(&metadata)?;
 
     // Include subsec_nanos for precision (fixes second-granularity cache key issue)
     let key = format!(
@@ -90,6 +87,15 @@ pub fn get_content_hash_cancellable(
     }
 
     let hash = super::xxhash::hash_file_streaming(file, cancel_token)?;
+    let metadata_after_hash = fs::metadata(file)?;
+    if metadata_after_hash.len() != size
+        || metadata_modified_timestamp(&metadata_after_hash)? != modified_timestamp
+    {
+        return Err(io::Error::new(
+            ErrorKind::InvalidData,
+            "file changed while it was being hashed",
+        ));
+    }
     trace!(
         "No usable hash found for {} in cache, adding",
         file.display()
@@ -115,6 +121,13 @@ pub fn get_content_hash_cancellable(
         });
     }
     Ok(CachedHash { hash, warning })
+}
+
+fn metadata_modified_timestamp(metadata: &fs::Metadata) -> io::Result<std::time::Duration> {
+    let modified: SystemTime = metadata.modified()?;
+    modified
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))
 }
 
 pub fn count_keys() -> Result<usize, io::Error> {

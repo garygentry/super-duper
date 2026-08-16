@@ -187,6 +187,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
     public string WorkerExecutablePath => _workerClient.ExecutablePath;
 
+    public string DiagnosticLogPath => _workerClient.DiagnosticLogPath;
+
     public IAsyncRelayCommand StartRunCommand { get; }
 
     public IRelayCommand ClearContentErrorCommand { get; }

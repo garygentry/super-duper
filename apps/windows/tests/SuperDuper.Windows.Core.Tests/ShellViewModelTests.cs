@@ -99,6 +99,8 @@ public sealed class ShellViewModelTests
 
         public string ExecutablePath => Path;
 
+        public string DiagnosticLogPath => @"C:\test\logs\worker.log";
+
         public Task<WorkerHelloResult> ConnectAsync(CancellationToken cancellationToken = default) =>
             connect(cancellationToken);
 

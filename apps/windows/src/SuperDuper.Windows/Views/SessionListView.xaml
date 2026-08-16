@@ -25,10 +25,17 @@
         </Grid>
 
         <Grid Grid.Row="1">
-            <ListBox Margin="8,0"
+            <ListBox x:Name="SessionsList"
+                     AutomationProperties.AutomationId="SessionsList"
+                     Margin="8,0"
                      HorizontalContentAlignment="Stretch"
                      ItemsSource="{Binding Items}"
                      SelectedItem="{Binding SelectedSession, Mode=TwoWay}">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Margin="8,7">

@@ -123,7 +123,7 @@ public sealed class WorkerRecoveryTests
              directory is not null;
              directory = directory.Parent)
         {
-            var candidate = Path.Combine(directory.FullName, "target", "debug", "super-duper-worker.exe");
+            var candidate = Path.Combine(directory.FullName, "target", BuildProfile, "super-duper-worker.exe");
             if (File.Exists(candidate))
             {
                 return candidate;
@@ -133,4 +133,10 @@ public sealed class WorkerRecoveryTests
         Assert.Inconclusive("Build the Rust workspace before running Windows integration tests.");
         return string.Empty;
     }
+
+#if DEBUG
+    private const string BuildProfile = "debug";
+#else
+    private const string BuildProfile = "release";
+#endif
 }

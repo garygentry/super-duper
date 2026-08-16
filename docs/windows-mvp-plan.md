@@ -4,8 +4,8 @@
 
 Approved architecture and implementation plan for the first Super Duper Windows front end.
 
-Implementation status: Milestones 0–5 are complete on the `wpf-poc` line of development. The next
-slice is Milestone 6, MVP hardening.
+Implementation status: Milestones 0–6 are complete on the `wpf-poc` line of development. The
+Windows front-end MVP is implemented and in hardening/verification status.
 
 This plan treats the Windows application as a new product surface over the existing Rust engine. It
 does not restore or reuse the deleted Windows application.
@@ -527,6 +527,8 @@ Exit criteria:
 - Folder results never incorporate data from another run.
 
 ### Milestone 6 - MVP Hardening
+
+Status: Complete.
 
 Deliverables:
 

@@ -1,5 +1,6 @@
+use crate::platform;
 use crate::progress::ProgressReporter;
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use glob::Pattern;
 use rayon::prelude::*;
 use std::fs;
@@ -19,6 +20,7 @@ pub struct DiscoveredFile {
     pub parent_dir: String,
     pub file_size: u64,
     pub last_modified: i64,
+    pub file_identity: Option<String>,
     pub warning_message: Option<String>,
 }
 
@@ -37,6 +39,7 @@ pub fn discover_files(
     progress: &dyn ProgressReporter,
 ) -> io::Result<TraversalResult> {
     let map = DashMap::new();
+    let seen_file_identities = DashSet::new();
     let files = Mutex::new(Vec::new());
     let warnings = AtomicUsize::new(0);
     let file_count = AtomicUsize::new(0);
@@ -64,13 +67,25 @@ pub fn discover_files(
             warnings.fetch_add(1, Ordering::Relaxed);
             return Ok(());
         }
-        if is_link_or_reparse(root_path).unwrap_or(true) {
-            warn!(
-                "Skipping linked or reparse-point scan root: {}",
-                root_path.display()
-            );
-            warnings.fetch_add(1, Ordering::Relaxed);
-            return Ok(());
+        match is_link_or_reparse(root_path) {
+            Ok(true) => {
+                warn!(
+                    "Skipping linked or reparse-point scan root: {}",
+                    root_path.display()
+                );
+                warnings.fetch_add(1, Ordering::Relaxed);
+                return Ok(());
+            }
+            Ok(false) => {}
+            Err(error) => {
+                warn!(
+                    "Unable to inspect scan root {}: {}",
+                    root_path.display(),
+                    error
+                );
+                warnings.fetch_add(1, Ordering::Relaxed);
+                return Ok(());
+            }
         }
         let canonical_root = match fs::canonicalize(root_path) {
             Ok(path) => path,
@@ -88,6 +103,7 @@ pub fn discover_files(
             &canonical_root,
             &canonical_root,
             &map,
+            &seen_file_identities,
             &files,
             &ignore_patterns,
             cancel_token,
@@ -131,6 +147,7 @@ fn visit_dirs(
     root: &Path,
     dir: &Path,
     map: &DashMap<u64, Vec<PathBuf>>,
+    seen_file_identities: &DashSet<String>,
     files: &Mutex<Vec<DiscoveredFile>>,
     ignore_patterns: &[Pattern],
     cancel_token: &AtomicBool,
@@ -177,14 +194,28 @@ fn visit_dirs(
                 return Ok(());
             }
         };
-        if file_type.is_symlink() || is_link_or_reparse(&path).unwrap_or(true) {
+        if file_type.is_symlink() {
             return Ok(());
+        }
+        match is_link_or_reparse(&path) {
+            Ok(true) => return Ok(()),
+            Ok(false) => {}
+            Err(error) => {
+                warn!(
+                    "Unable to inspect {} for reparse metadata: {}",
+                    path.display(),
+                    error
+                );
+                warnings.fetch_add(1, Ordering::Relaxed);
+                return Ok(());
+            }
         }
         if file_type.is_dir() {
             return visit_dirs(
                 root,
                 &path,
                 map,
+                seen_file_identities,
                 files,
                 ignore_patterns,
                 cancel_token,
@@ -213,14 +244,18 @@ fn visit_dirs(
             return Ok(());
         }
 
-        let (canonical, warning_message) = match fs::canonicalize(&path) {
-            Ok(path) => (path, None),
+        let mut warning_messages = Vec::new();
+        let canonical = match fs::canonicalize(&path) {
+            Ok(path) => path,
             Err(error) => {
+                warn!(
+                    "Unable to canonicalize discovered path {}: {}",
+                    path.display(),
+                    error
+                );
                 warnings.fetch_add(1, Ordering::Relaxed);
-                (
-                    path.clone(),
-                    Some(format!("Unable to canonicalize discovered path: {error}")),
-                )
+                warning_messages.push(format!("Unable to canonicalize discovered path: {error}"));
+                path.clone()
             }
         };
         let relative_path = path
@@ -237,14 +272,42 @@ fn visit_dirs(
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let last_modified = metadata
-            .modified()
-            .ok()
-            .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-            .map(|duration| duration.as_nanos().min(i64::MAX as u128) as i64)
-            .unwrap_or(0);
+        let last_modified = match metadata.modified().and_then(|time| {
+            time.duration_since(UNIX_EPOCH)
+                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+        }) {
+            Ok(duration) => duration.as_nanos().min(i64::MAX as u128) as i64,
+            Err(error) => {
+                warn!(
+                    "Unable to read modified time for {}: {}",
+                    path.display(),
+                    error
+                );
+                warnings.fetch_add(1, Ordering::Relaxed);
+                warning_messages.push(format!("Unable to read modified time: {error}"));
+                0
+            }
+        };
+        let file_identity = match platform::file_identity(&canonical) {
+            Ok(identity) => identity,
+            Err(error) => {
+                warn!(
+                    "Unable to read file identity for {}: {}",
+                    path.display(),
+                    error
+                );
+                warnings.fetch_add(1, Ordering::Relaxed);
+                warning_messages.push(format!("Unable to read stable file identity: {error}"));
+                None
+            }
+        };
+        let first_physical_file = file_identity.as_ref().map_or(true, |identity| {
+            seen_file_identities.insert(identity.clone())
+        });
 
-        map.entry(metadata.len()).or_default().push(path);
+        if first_physical_file {
+            map.entry(metadata.len()).or_default().push(path);
+        }
         files
             .lock()
             .map_err(|_| io::Error::new(io::ErrorKind::Other, "discovery result lock poisoned"))?
@@ -256,7 +319,9 @@ fn visit_dirs(
                 parent_dir,
                 file_size: metadata.len(),
                 last_modified,
-                warning_message,
+                file_identity,
+                warning_message: (!warning_messages.is_empty())
+                    .then(|| warning_messages.join("; ")),
             });
         byte_count.fetch_add(metadata.len(), Ordering::Relaxed);
         let count = file_count.fetch_add(1, Ordering::Relaxed) + 1;

@@ -27,4 +27,8 @@
     <Copy SourceFiles="$(WorkerExecutableSource)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
   </Target>
 
+  <Target Name="CopyWorkerExecutableToPublishDirectory" AfterTargets="Publish" Condition="Exists('$(WorkerExecutableSource)')">
+    <Copy SourceFiles="$(WorkerExecutableSource)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

@@ -22,18 +22,23 @@
                 <TextBlock FontSize="22" FontWeight="SemiBold" Text="Exact duplicate folders" />
                 <TextBlock Margin="0,4,0,0" Opacity="0.68" Text="Root names may differ. Nested matches covered by a larger exact root are suppressed." />
             </StackPanel>
-            <TextBox Grid.Column="1" Margin="12,0,0,0" VerticalContentAlignment="Center"
+            <TextBox x:Name="FolderSearch" Grid.Column="1" Margin="12,0,0,0" VerticalContentAlignment="Center"
+                     automation:AutomationProperties.AutomationId="FolderSearch"
                      automation:AutomationProperties.Name="Folder path search"
                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search duplicate folder paths" />
-            <TextBox Grid.Column="2" Margin="8,0,0,0" VerticalContentAlignment="Center"
+            <TextBox x:Name="FolderMinimumSize" Grid.Column="2" Margin="8,0,0,0" VerticalContentAlignment="Center"
+                     automation:AutomationProperties.AutomationId="FolderMinimumSize"
                      automation:AutomationProperties.Name="Minimum folder size in bytes"
                      Text="{Binding MinimumSizeText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Minimum folder size in bytes" />
-            <Button Grid.Column="3" Margin="8,0,0,0" Padding="13,7" Command="{Binding ApplyFiltersCommand}" Content="Apply filters" />
+            <Button x:Name="FolderApplyFilters" Grid.Column="3" Margin="8,0,0,0" Padding="13,7"
+                    automation:AutomationProperties.AutomationId="FolderApplyFilters"
+                    Command="{Binding ApplyFiltersCommand}" Content="Apply filters" />
         </Grid>
 
         <Grid Grid.Row="1">
             <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <DataGrid x:Name="GroupsGrid" AutoGenerateColumns="False" CanUserSortColumns="True"
+                      automation:AutomationProperties.AutomationId="FolderGroupsGrid"
                       EnableColumnVirtualization="True" EnableRowVirtualization="True" IsReadOnly="True"
                       ItemsSource="{Binding Groups}" SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
                       SelectionMode="Single" Sorting="OnGroupsSorting"
@@ -86,7 +91,8 @@
                 <TextBlock FontSize="17" FontWeight="SemiBold" Text="Duplicate roots in selected group" />
                 <TextBlock Grid.Column="1" Opacity="0.68" Text="{Binding MemberCountText}" />
             </Grid>
-            <DataGrid Grid.Row="1" AutoGenerateColumns="False" EnableColumnVirtualization="True" EnableRowVirtualization="True"
+            <DataGrid x:Name="MembersGrid" Grid.Row="1" AutoGenerateColumns="False" EnableColumnVirtualization="True" EnableRowVirtualization="True"
+                      automation:AutomationProperties.AutomationId="FolderMembersGrid"
                       IsReadOnly="True" ItemsSource="{Binding Members}" SelectionMode="Single"
                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                 <DataGrid.Columns>

@@ -4,6 +4,16 @@ namespace SuperDuper.Windows.Infrastructure.Tests;
 public sealed class WorkerClientStartupTests
 {
     [TestMethod]
+    public void WorkerClient_SupportsSynchronousContainerDisposal()
+    {
+        using var client = new WorkerClient(
+            Path.Combine(Path.GetTempPath(), $"unused-worker-{Guid.NewGuid():N}.exe"),
+            TimeSpan.FromSeconds(1));
+
+        Assert.IsInstanceOfType<IDisposable>(client);
+    }
+
+    [TestMethod]
     public async Task ConnectAsync_WhenExecutableIsMissing_ReturnsActionableFailure()
     {
         var missingPath = Path.Combine(

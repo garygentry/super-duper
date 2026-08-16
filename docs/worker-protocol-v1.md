@@ -4,7 +4,7 @@
 
 This document defines version 1 of the local protocol between `SuperDuper.Windows` and the
 `super-duper-worker` child process. The worker is a single-client, long-lived process launched by
-the Windows application. Milestones 0–5 implement negotiation, session and scan lifecycle, and
+the Windows application. Milestones 0–6 implement negotiation, session and scan lifecycle, and
 separately paged duplicate-file and exact-duplicate-folder result browsing. Warning commands remain
 reserved for a later milestone.
 
@@ -32,6 +32,18 @@ Standard output is protocol-only. The worker must never write log prefixes, pani
 progress text, or other human-readable output to stdout. Diagnostics and panic output go to
 standard error. The client continuously drains stderr to prevent a full pipe from blocking the
 worker and retains a bounded diagnostic tail for connection errors.
+
+Milestone 6 performance diagnostics use stderr records such as:
+
+```text
+performance kind=scan_phase run_id=19 phase=hashing duration_ms=842.117
+performance kind=result_query method=duplicate_file_group.page run_id=19 group_id=- page_size=200 returned=42 total=42 duration_ms=3.604
+```
+
+A completed run produces duration records for all five phases (`discovering`, `hashing`,
+`persisting`, `analyzing_folders`, and `finalizing`). Every successful duplicate-file/folder
+group/member page query produces a duration record. Query records exclude path search/filter text.
+These diagnostics are not protocol frames and never appear on stdout.
 
 ## Envelopes
 
@@ -417,6 +429,11 @@ Paths in future commands are JSON strings containing normal Windows Unicode path
 URLs and are not required to use slash normalization. The worker owns canonicalization and all
 filesystem/database access. Numbers that can exceed JavaScript's exact integer range must be
 encoded as decimal strings when those fields are introduced.
+
+Fixed local roots are primary. Explicit removable, mapped-drive, and UNC roots are best-effort.
+Reparse points and links are skipped. Access failures, disconnects, vanished files, and files whose
+size or modified time changes after discovery are recoverable warnings when a consistent run can
+still be persisted; affected entries cannot create false duplicate results.
 
 Secrets must not be placed in protocol errors. Local stderr diagnostics may contain paths needed
 for troubleshooting; any future telemetry must redact sensitive path data.

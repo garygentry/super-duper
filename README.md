@@ -4,8 +4,8 @@ A high-performance duplicate file detector written in Rust. Super Duper scans la
 collections, confirms duplicates by content rather than filename, identifies near-duplicate
 directory trees, and stages reviewed deletion plans locally.
 
-The repository contains the Rust engine, CLI, reusable FFI boundary, a versioned worker process,
-and the new WPF Windows application scaffold.
+The repository contains the Rust engine, CLI, reusable FFI boundary, versioned worker process, and
+the Windows 11 x64 WPF MVP.
 
 ## Features
 
@@ -20,6 +20,8 @@ and the new WPF Windows application scaffold.
 - Reviewed deletion workflow: files are staged before execution
 - Headless CLI for repeatable scans, scripting, and verification
 - C-compatible FFI crate for future native clients
+- Windows 11 WPF front end with durable sessions/runs, cancellation, run-owned cursor paging,
+  duplicate-file and exact-folder browsing, and Explorer reveal
 
 ## Architecture
 
@@ -43,6 +45,9 @@ super-duper/
     architecture.svg
     windows-mvp-plan.md
     worker-protocol-v1.md
+    windows-build.md
+    windows-smoke.md
+    windows-recovery.md
 ```
 
 ![Super Duper architecture](docs/architecture.svg)
@@ -68,11 +73,16 @@ cargo build --release --workspace
 dotnet build apps/windows/SuperDuper.Windows.sln
 ```
 
+For a verified Windows 11 x64 Release publish, run `./scripts/Verify-WindowsRelease.ps1`. See
+[`docs/windows-build.md`](docs/windows-build.md).
+
 ### Test
 
 ```bash
 cargo test --workspace
+cargo test --workspace --release
 dotnet test apps/windows/SuperDuper.Windows.sln
+dotnet test apps/windows/SuperDuper.Windows.sln --configuration Release
 ```
 
 ### Run The Windows Application
@@ -85,6 +95,10 @@ dotnet run --project apps/windows/src/SuperDuper.Windows/SuperDuper.Windows.cspr
 The application looks for `super-duper-worker.exe` beside its executable and then in the
 repository's `target/debug` directory. Set `SUPER_DUPER_WORKER_PATH` to an absolute executable path
 to override discovery during development.
+
+Run `./scripts/Invoke-WindowsSmoke.ps1` for the repeatable worker/WPF smoke fixture. See
+[`docs/windows-smoke.md`](docs/windows-smoke.md) and
+[`docs/windows-recovery.md`](docs/windows-recovery.md) for diagnostics, limitations, and recovery.
 
 ### Configure Scan Targets
 
@@ -131,6 +145,9 @@ Configured via a `.env` file in the working directory when needed.
 | `TRACING_LEVEL` | `info` | Log verbosity: `trace`, `debug`, `info`, `warn`, `error` |
 | `LOG_FILE_PATH` | `./logs/sd.log` | File log output path |
 | `HASH_CACHE_PATH` | `content_hash_cache.db` | RocksDB hash cache location |
+| `SUPER_DUPER_DB_PATH` | `super_duper.db` beside worker | Worker-owned SQLite database override |
+| `SUPER_DUPER_LOG` | `super_duper_core=info,super_duper_worker=info` | Worker stderr tracing filter |
+| `SUPER_DUPER_WORKER_PATH` | Auto-detected | Absolute Windows worker executable override |
 
 ## Database
 
@@ -167,15 +184,10 @@ The `super-duper-ffi` crate exposes the core through a C ABI for future native c
 
 ## Project Status
 
-The Rust core and CLI are functional. Milestone 0 of the clean-slate Windows MVP provides the
-WPF/.NET 10 application shell, dependency boundaries, worker protocol contract, and a health
-handshake. Milestone 1 provides named session definitions, immutable run history, forward schema
-migration, durable run outcomes, run-owned results, and corrected scan accounting. Milestone 2
-provides the typed session/run dispatcher, one-scan coordination, ordered progress events,
-concurrent cancellation, graceful worker shutdown, and streaming cache-backed hashing. Milestone 3
-provides session navigation and editing, Windows folder selection, validated root/ignore settings,
-run history restoration, and responsive progress/cancellation UI integration. Milestone 4 adds
-run-owned cursor pagination, server-side duplicate-file sorting/filtering, a bounded WPF page cache,
-master/detail results, copy-path actions, and native Explorer reveal. Milestone 5 adds structurally
-screened and content-verified exact duplicate folders, nested-result suppression, run-owned folder
-pagination, and a separate bounded WPF folder-results experience.
+The Rust core and CLI are functional, and Windows MVP Milestones 0–6 are implemented. The WPF app
+provides named scan sessions, immutable run history, responsive progress/cancellation, restart and
+interrupted-run recovery, bounded/stale-safe cursor paging, separate duplicate-file and verified
+exact-folder surfaces, and native Explorer reveal. MVP hardening adds physical-file identity,
+volatile/access/path/reparse handling, phase/query timing diagnostics, Windows x64 Release
+verification, and a repeatable real worker/WPF smoke workflow. The Windows MVP exposes no scanned
+file deletion operation.

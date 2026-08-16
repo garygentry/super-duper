@@ -6,7 +6,7 @@ using SuperDuper.Windows.Infrastructure.Protocol;
 
 namespace SuperDuper.Windows.Infrastructure;
 
-public sealed class WorkerClient : IWorkerClient
+public sealed class WorkerClient : IWorkerClient, IDisposable
 {
     private static readonly TimeSpan DefaultStartupTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(2);
@@ -14,6 +14,7 @@ public sealed class WorkerClient : IWorkerClient
 
     private readonly TimeSpan _startupTimeout;
     private readonly string? _databasePath;
+    private readonly string _diagnosticLogPath;
     private readonly ResponseCorrelator _responses = new();
     private readonly SemaphoreSlim _connectionGate = new(1, 1);
     private readonly SemaphoreSlim _writeGate = new(1, 1);
@@ -37,19 +38,31 @@ public sealed class WorkerClient : IWorkerClient
     }
 
     internal WorkerClient(string executablePath, TimeSpan startupTimeout)
-        : this(executablePath, startupTimeout, databasePath: null)
+        : this(executablePath, startupTimeout, databasePath: null, diagnosticLogPath: null)
     {
     }
 
     internal WorkerClient(string executablePath, TimeSpan startupTimeout, string? databasePath)
+        : this(executablePath, startupTimeout, databasePath, diagnosticLogPath: null)
+    {
+    }
+
+    internal WorkerClient(
+        string executablePath,
+        TimeSpan startupTimeout,
+        string? databasePath,
+        string? diagnosticLogPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(executablePath);
         ExecutablePath = Path.GetFullPath(executablePath);
         _startupTimeout = startupTimeout;
         _databasePath = databasePath is null ? null : Path.GetFullPath(databasePath);
+        _diagnosticLogPath = Path.GetFullPath(diagnosticLogPath ?? DefaultDiagnosticLogPath());
     }
 
     public string ExecutablePath { get; }
+
+    public string DiagnosticLogPath => _diagnosticLogPath;
 
     public event EventHandler<WorkerRunProgressEventArgs>? RunProgress;
 
@@ -311,6 +324,8 @@ public sealed class WorkerClient : IWorkerClient
         _stopGate.Dispose();
     }
 
+    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
+
     private void StartWorker()
     {
         if (_process is not null)
@@ -516,6 +531,7 @@ public sealed class WorkerClient : IWorkerClient
 
     private async Task PumpStandardErrorAsync(StreamReader error, CancellationToken cancellationToken)
     {
+        await using var diagnosticLog = BoundedDiagnosticLog.TryOpen(_diagnosticLogPath);
         try
         {
             while (await error.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
@@ -528,12 +544,24 @@ public sealed class WorkerClient : IWorkerClient
                         _standardError.Remove(0, _standardError.Length - MaximumDiagnosticCharacters);
                     }
                 }
+                if (diagnosticLog is not null)
+                {
+                    await diagnosticLog.TryWriteLineAsync(
+                        $"{DateTimeOffset.UtcNow:O} {line}",
+                        cancellationToken).ConfigureAwait(false);
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
     }
+
+    private static string DefaultDiagnosticLogPath() => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "SuperDuper",
+        "logs",
+        "worker.log");
 
     private async Task MonitorExitAsync(Process process, CancellationToken cancellationToken)
     {

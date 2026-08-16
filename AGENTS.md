@@ -48,7 +48,18 @@ dotnet build apps/windows/SuperDuper.Windows.sln
 dotnet test apps/windows/SuperDuper.Windows.sln
 ```
 
-The last verification on this branch was `cargo test --workspace`, which passed.
+Use the repeatable hardening workflows on Windows 11 x64:
+
+```powershell
+./scripts/Invoke-WindowsSmoke.ps1
+./scripts/Verify-WindowsRelease.ps1
+```
+
+Build, smoke, diagnostics, known limitations, and recovery are documented in
+`docs/windows-build.md`, `docs/windows-smoke.md`, and `docs/windows-recovery.md`.
+
+The last Milestone 6 verification ran the Debug/Release Rust and .NET matrix plus the real Release
+worker/WPF smoke workflow on Windows 11 x64; all checks passed.
 
 ## Development Notes
 

@@ -8,12 +8,12 @@ use crate::scanner;
 use crate::storage::models::{RunParameters, ScannedFile};
 use crate::storage::Database;
 use dashmap::DashMap;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, UNIX_EPOCH};
 use tracing::info;
 
 pub struct ScanEngine {
@@ -31,6 +31,7 @@ pub struct ScanResult {
     pub hash_duration: Duration,
     pub db_write_duration: Duration,
     pub dir_analysis_duration: Duration,
+    pub finalizing_duration: Duration,
     pub total_files_scanned: usize,
     pub total_bytes_discovered: u64,
     pub files_hashed: usize,
@@ -201,8 +202,8 @@ impl ScanEngine {
             return Err(Error::Cancelled);
         }
         let stats = compute_scan_stats(&traversal.size_to_files);
-        debug_assert_eq!(stats.total_files, traversal.files_discovered);
-        debug_assert_eq!(stats.total_size, traversal.bytes_discovered);
+        debug_assert!(stats.total_files <= traversal.files_discovered);
+        debug_assert!(stats.total_size <= traversal.bytes_discovered);
         progress.on_scan_complete(traversal.files_discovered, scan_duration.as_secs_f64());
         db.update_run_progress(
             run_id,
@@ -307,6 +308,7 @@ impl ScanEngine {
             warning_count as i64,
         )?;
         progress.on_finalizing();
+        let finalizing_start = Instant::now();
         if self.cancel_token.load(Ordering::Relaxed) {
             return Err(Error::Cancelled);
         }
@@ -321,6 +323,8 @@ impl ScanEngine {
             persisted.wasted_bytes as i64,
             warning_count as i64,
         )?;
+        let finalizing_duration = finalizing_start.elapsed();
+        progress.on_finalizing_complete(finalizing_duration.as_secs_f64());
 
         Ok(ScanResult {
             session_id,
@@ -329,6 +333,7 @@ impl ScanEngine {
             hash_duration,
             db_write_duration: db_duration,
             dir_analysis_duration: dir_duration,
+            finalizing_duration,
             total_files_scanned: traversal.files_discovered,
             total_bytes_discovered: traversal.bytes_discovered,
             files_hashed: hash_outcome.files_hashed,
@@ -360,7 +365,7 @@ fn compute_scan_stats(map: &DashMap<u64, Vec<PathBuf>>) -> ScanStats {
 fn persist_run_results(
     db: &Database,
     run_id: i64,
-    discovered: Vec<scanner::DiscoveredFile>,
+    mut discovered: Vec<scanner::DiscoveredFile>,
     content_hash_map: &DashMap<u64, Vec<PathBuf>>,
     cancel_token: &AtomicBool,
     progress: &dyn ProgressReporter,
@@ -370,6 +375,40 @@ fn persist_run_results(
     let mut warnings = 0;
     let mut wasted_bytes = 0u64;
     let mut duplicate_files = 0usize;
+    let mut invalid_snapshots = HashSet::new();
+    let mut discovered_by_path = HashMap::new();
+    for (index, file) in discovered.iter().enumerate() {
+        discovered_by_path.insert(
+            path_key(PathBuf::from(&file.canonical_path).as_path()),
+            index,
+        );
+        discovered_by_path.insert(
+            path_key(
+                PathBuf::from(&file.root_path)
+                    .join(&file.relative_path)
+                    .as_path(),
+            ),
+            index,
+        );
+    }
+
+    // Reconcile the discovery snapshot before constructing any duplicate groups. A warning must
+    // never coexist with a group that was built from metadata we already know is stale.
+    for (index, file) in discovered.iter_mut().enumerate() {
+        if let Err(error) = validate_discovered_snapshot(file) {
+            warnings += 1;
+            invalid_snapshots.insert(index);
+            append_warning(
+                &mut file.warning_message,
+                format!("File changed or disappeared after discovery: {error}"),
+            );
+            tracing::warn!(
+                "Discovered file {} changed or disappeared before persistence: {}",
+                file.canonical_path,
+                error
+            );
+        }
+    }
 
     for entry in content_hash_map {
         if cancel_token.load(Ordering::Relaxed) {
@@ -382,19 +421,57 @@ fn persist_run_results(
             if cancel_token.load(Ordering::Relaxed) {
                 return Err(Error::Cancelled);
             }
-            let canonicalized = fs::canonicalize(path).and_then(|canonical| {
-                file_size = fs::metadata(&canonical)?.len() as i64;
-                Ok(canonical.to_string_lossy().into_owned())
+            let discovered_index = discovered_by_path.get(&path_key(path)).copied();
+            let validated = fs::canonicalize(path).and_then(|canonical| {
+                let metadata = fs::metadata(&canonical)?;
+                let index = discovered_index
+                    .or_else(|| discovered_by_path.get(&path_key(&canonical)).copied())
+                    .ok_or_else(|| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::NotFound,
+                            "candidate was not present in the discovery snapshot",
+                        )
+                    })?;
+                if invalid_snapshots.contains(&index) {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "candidate no longer matches the discovery snapshot",
+                    ));
+                }
+                let snapshot = &discovered[index];
+                let modified = metadata_modified_nanos(&metadata)?;
+                if metadata.len() != snapshot.file_size
+                    || (snapshot.last_modified != 0 && modified != snapshot.last_modified)
+                {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "file changed after discovery",
+                    ));
+                }
+                Ok((index, canonical.to_string_lossy().into_owned()))
             });
-            match canonicalized {
-                Ok(path) => {
+            match validated {
+                Ok((index, path)) => {
+                    file_size = discovered[index].file_size as i64;
                     hashes_by_path.insert(path.clone(), hash);
                     paths.push(path);
                 }
                 Err(error) => {
-                    warnings += 1;
+                    let already_invalid =
+                        discovered_index.is_some_and(|index| invalid_snapshots.contains(&index));
+                    if !already_invalid {
+                        warnings += 1;
+                    }
+                    if let Some(index) = discovered_index.filter(|_| !already_invalid) {
+                        invalid_snapshots.insert(index);
+                        append_warning(
+                            &mut discovered[index].warning_message,
+                            format!("Excluded from duplicate results: {error}"),
+                        );
+                    }
                     tracing::warn!(
-                        "Duplicate candidate disappeared before persistence: {}",
+                        "Duplicate candidate {} changed or disappeared before persistence: {}",
+                        path.display(),
                         error
                     );
                 }
@@ -428,7 +505,7 @@ fn persist_run_results(
             last_modified: file.last_modified,
             partial_hash: None,
             content_hash: hashes_by_path.get(&file.canonical_path).copied(),
-            file_identity: None,
+            file_identity: file.file_identity,
             warning_message: file.warning_message,
             marked_deleted: false,
             canonical_path: file.canonical_path,
@@ -457,4 +534,46 @@ fn persist_run_results(
         wasted_bytes,
         warnings,
     })
+}
+
+fn validate_discovered_snapshot(file: &scanner::DiscoveredFile) -> std::io::Result<()> {
+    let metadata = fs::metadata(&file.canonical_path)?;
+    let modified = metadata_modified_nanos(&metadata)?;
+    if metadata.len() != file.file_size
+        || (file.last_modified != 0 && modified != file.last_modified)
+    {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "file metadata no longer matches the discovery snapshot",
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn metadata_modified_nanos(metadata: &fs::Metadata) -> std::io::Result<i64> {
+    metadata.modified().and_then(|time| {
+        time.duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos().min(i64::MAX as u128) as i64)
+            .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+    })
+}
+
+fn append_warning(target: &mut Option<String>, warning: String) {
+    *target = Some(match target.take() {
+        Some(previous) => format!("{previous}; {warning}"),
+        None => warning,
+    });
+}
+
+fn path_key(path: &std::path::Path) -> String {
+    let value = path.to_string_lossy().into_owned();
+    #[cfg(windows)]
+    {
+        value.to_lowercase()
+    }
+    #[cfg(not(windows))]
+    {
+        value
+    }
 }

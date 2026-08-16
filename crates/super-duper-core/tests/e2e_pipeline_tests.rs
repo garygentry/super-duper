@@ -1,6 +1,7 @@
 use std::fs;
 use std::io::Write;
 use std::path::Path;
+use std::path::PathBuf;
 use tempfile::tempdir;
 
 use super_duper_core::analysis::{deletion_plan, dir_fingerprint, dir_similarity};
@@ -408,4 +409,151 @@ fn test_idempotent_rescan() {
         .unwrap();
     assert_eq!(run_count, 2);
     assert_ne!(result1.run_id, result2.run_id);
+}
+
+#[test]
+fn hard_links_are_snapshotted_but_not_counted_as_recoverable_copies() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path().join("hard-links");
+    fs::create_dir(&root).unwrap();
+    let original = root.join("original.bin");
+    let linked = root.join("linked.bin");
+    fs::write(&original, b"one physical allocation").unwrap();
+    fs::hard_link(&original, &linked).unwrap();
+    let db_path = tmp.path().join("hard-links.db");
+
+    let result = ScanEngine::new(AppConfig {
+        root_paths: vec![root.to_string_lossy().into_owned()],
+        ignore_patterns: vec![],
+    })
+    .with_db_path(db_path.to_str().unwrap())
+    .scan(&SilentReporter)
+    .unwrap();
+
+    assert_eq!(result.total_files_scanned, 2);
+    assert_eq!(result.duplicate_groups, 0);
+    let db = Database::open_connection(db_path.to_str().unwrap()).unwrap();
+    let identities = db
+        .get_scanned_files(result.run_id)
+        .unwrap()
+        .into_iter()
+        .map(|file| file.file_identity)
+        .collect::<Vec<_>>();
+    assert!(identities.iter().all(Option::is_some));
+    assert_eq!(identities[0], identities[1]);
+}
+
+#[test]
+fn files_changed_or_removed_after_discovery_become_warnings_not_false_results() {
+    struct MutateAfterDiscovery {
+        change: PathBuf,
+        remove: PathBuf,
+    }
+
+    impl ProgressReporter for MutateAfterDiscovery {
+        fn on_scan_complete(&self, _total_files: usize, _duration_secs: f64) {
+            fs::write(&self.change, b"changed-data").unwrap();
+            fs::remove_file(&self.remove).unwrap();
+        }
+    }
+
+    let tmp = tempdir().unwrap();
+    let root = tmp.path().join("volatile");
+    fs::create_dir(&root).unwrap();
+    fs::write(root.join("stable-a.bin"), b"stable").unwrap();
+    fs::write(root.join("stable-b.bin"), b"stable").unwrap();
+    let changed = root.join("changed.bin");
+    let removed = root.join("removed.bin");
+    fs::write(&changed, b"initial-data").unwrap();
+    fs::write(&removed, b"initial-data").unwrap();
+    let db_path = tmp.path().join("volatile.db");
+
+    let result = ScanEngine::new(AppConfig {
+        root_paths: vec![root.to_string_lossy().into_owned()],
+        ignore_patterns: vec![],
+    })
+    .with_db_path(db_path.to_str().unwrap())
+    .scan(&MutateAfterDiscovery {
+        change: changed,
+        remove: removed,
+    })
+    .unwrap();
+
+    assert_eq!(result.duplicate_groups, 1);
+    assert!(result.warning_count >= 2, "result: {result:#?}");
+    let db = Database::open_connection(db_path.to_str().unwrap()).unwrap();
+    let warning_snapshots = db
+        .get_scanned_files(result.run_id)
+        .unwrap()
+        .into_iter()
+        .filter(|file| file.warning_message.is_some())
+        .collect::<Vec<_>>();
+    assert!(warning_snapshots.len() >= 2);
+    assert!(warning_snapshots
+        .iter()
+        .all(|file| file.content_hash.is_none()));
+    let grouped_names = db
+        .get_duplicate_groups(result.run_id, 0, 100)
+        .unwrap()
+        .into_iter()
+        .flat_map(|group| db.get_files_in_group(group.id).unwrap())
+        .map(|file| file.file_name)
+        .collect::<Vec<_>>();
+    assert!(!grouped_names.iter().any(|name| name == "changed.bin"));
+    assert!(!grouped_names.iter().any(|name| name == "removed.bin"));
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_long_paths_scan_without_truncation() {
+    let tmp = tempdir().unwrap();
+    let mut root = tmp.path().join("long-path");
+    while root.as_os_str().len() < 280 {
+        root.push("segment-0123456789abcdef");
+    }
+    fs::create_dir_all(&root).unwrap();
+    fs::write(root.join("copy-a.bin"), b"long path duplicate").unwrap();
+    fs::write(root.join("copy-b.bin"), b"long path duplicate").unwrap();
+    let db_path = tmp.path().join("long-path.db");
+
+    let result = ScanEngine::new(AppConfig {
+        root_paths: vec![root.to_string_lossy().into_owned()],
+        ignore_patterns: vec![],
+    })
+    .with_db_path(db_path.to_str().unwrap())
+    .scan(&SilentReporter)
+    .unwrap();
+
+    assert_eq!(result.total_files_scanned, 2);
+    assert_eq!(result.duplicate_groups, 1);
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_sharing_violations_are_recoverable_scan_warnings() {
+    use std::os::windows::fs::OpenOptionsExt;
+
+    let tmp = tempdir().unwrap();
+    let root = tmp.path().join("locked-file");
+    fs::create_dir(&root).unwrap();
+    let locked_path = root.join("locked.bin");
+    fs::write(&locked_path, b"locked content").unwrap();
+    let _exclusive = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0)
+        .open(&locked_path)
+        .unwrap();
+    let db_path = tmp.path().join("locked-file.db");
+
+    let result = ScanEngine::new(AppConfig {
+        root_paths: vec![root.to_string_lossy().into_owned()],
+        ignore_patterns: vec![],
+    })
+    .with_db_path(db_path.to_str().unwrap())
+    .scan(&SilentReporter)
+    .unwrap();
+
+    assert!(result.warning_count >= 1);
+    let db = Database::open_connection(db_path.to_str().unwrap()).unwrap();
+    assert_eq!(db.get_scan_run(result.run_id).unwrap().status, "completed");
 }

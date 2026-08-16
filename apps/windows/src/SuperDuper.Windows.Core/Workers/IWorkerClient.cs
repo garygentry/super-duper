@@ -8,6 +8,8 @@ public interface IWorkerClient : IAsyncDisposable
 
     string ExecutablePath { get; }
 
+    string DiagnosticLogPath { get; }
+
     Task<WorkerHelloResult> ConnectAsync(CancellationToken cancellationToken = default);
 
     Task<WorkerSessionPage> ListSessionsAsync(
