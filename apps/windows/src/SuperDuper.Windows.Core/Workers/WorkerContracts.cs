@@ -110,7 +110,12 @@ public sealed record WorkerDuplicateFileGroup(
     long CopyCount,
     string RecoverableBytes,
     string RepresentativeName,
-    string RepresentativeType);
+    string RepresentativeType)
+{
+    public long DistinctSelectedRootCount { get; init; }
+
+    public long DistinctDriveCount { get; init; }
+}
 
 public sealed record WorkerDuplicateFileGroupPage(
     IReadOnlyList<WorkerDuplicateFileGroup> Groups,

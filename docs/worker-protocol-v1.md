@@ -5,9 +5,10 @@
 This document defines version 1 of the local protocol between `SuperDuper.Windows` and the
 `super-duper-worker` child process. The worker is a single-client, long-lived process launched by
 the Windows application. Milestones 0–6 implement negotiation, session and scan lifecycle, and
-separately paged duplicate-file and exact-duplicate-folder result browsing. The first read-only
-Milestone 8 addition extends duplicate-file pages with a filtered review summary and immutable
-selected-root/drive context. Warning commands remain reserved for a later milestone.
+separately paged duplicate-file and exact-duplicate-folder result browsing. The read-only
+Milestone 8 additions extend duplicate-file pages with a filtered review summary, immutable
+selected-root/drive member context, and bounded per-group selected-root/drive counts. Warning
+commands remain reserved for a later milestone.
 
 The transport is UTF-8 newline-delimited JSON (JSONL) over redirected standard input and standard
 output. It is a local process boundary, not a network API.
@@ -357,11 +358,17 @@ defaults to `"0"`.
 Result:
 
 ```json
-{"groups":[{"id":31,"runId":19,"groupSize":"5242880","copyCount":3,"recoverableBytes":"10485760","representativeName":"photo.jpg","representativeType":".jpg"}],"total":42,"summary":{"matchingGroupCount":42,"matchingCopyCount":98,"potentialRecoverableBytes":"734003200","largestRecoverableBytes":"104857600"},"nextCursor":"opaque","previousCursor":null}
+{"groups":[{"id":31,"runId":19,"groupSize":"5242880","copyCount":3,"recoverableBytes":"10485760","representativeName":"photo.jpg","representativeType":".jpg","distinctSelectedRootCount":2,"distinctDriveCount":2}],"total":42,"summary":{"matchingGroupCount":42,"matchingCopyCount":98,"potentialRecoverableBytes":"734003200","largestRecoverableBytes":"104857600"},"nextCursor":"opaque","previousCursor":null}
 ```
 
 The representative is the member with the first path under case-insensitive path ordering, then
 member ID. `groupSize` and `recoverableBytes` are decimal strings.
+
+`distinctSelectedRootCount` and `distinctDriveCount` are fixed-width counts computed from the
+immutable members of that group. Blank root or drive labels do not contribute, and labels are
+de-duplicated case-insensitively. A drive count greater than one identifies a cross-drive set;
+zero remains valid for migrated snapshots or path types without a drive label. These fields do not
+change the allowed group sorts or cursor signature.
 
 `summary` uses the same normalized run, search, and minimum-size predicate as `total`. It is
 computed by SQLite in the worker, not by walking client pages. `matchingGroupCount` equals `total`;

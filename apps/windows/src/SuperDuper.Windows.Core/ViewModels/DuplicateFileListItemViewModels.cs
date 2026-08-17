@@ -18,6 +18,26 @@ public sealed class DuplicateFileGroupListItemViewModel(WorkerDuplicateFileGroup
     public string CopyCount => Group.CopyCount.ToString("N0");
 
     public string RecoverableBytes => DisplayFormatting.Bytes(Group.RecoverableBytes);
+
+    public string LocationSpan
+    {
+        get
+        {
+            var roots = Group.DistinctSelectedRootCount switch
+            {
+                0 => "Selected root unavailable",
+                1 => "1 selected root",
+                _ => $"{Group.DistinctSelectedRootCount:N0} selected roots",
+            };
+            var drives = Group.DistinctDriveCount switch
+            {
+                0 => "no drive label",
+                1 => "1 drive",
+                _ => $"across {Group.DistinctDriveCount:N0} drives",
+            };
+            return $"{roots} · {drives}";
+        }
+    }
 }
 
 public sealed class DuplicateFileMemberListItemViewModel(WorkerDuplicateFileMember member)

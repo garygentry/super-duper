@@ -220,6 +220,8 @@ pub struct DuplicateFileGroupResult {
     pub file_count: i64,
     pub recoverable_bytes: i64,
     pub representative_name: String,
+    pub distinct_selected_root_count: i64,
+    pub distinct_drive_count: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

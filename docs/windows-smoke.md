@@ -10,15 +10,15 @@ uses stable UI Automation IDs to exercise both result surfaces and invoke Explor
 - active-run cancellation and durable `cancelled` state;
 - a completed rerun and restoration after worker restart;
 - more than one page of duplicate-file groups, sorting, filtering, forward cursor paging, and
-  member browsing, including the worker-owned filtered review summary and immutable selected-root,
-  relative-path, and drive context;
+  member browsing, including the worker-owned filtered review summary, bounded per-group
+  selected-root/drive span, and immutable selected-root, relative-path, and drive member context;
 - exact duplicate-folder sorting, filtering, and member browsing;
 - fixed-drive scanning, a path longer than 260 characters, a locked file, and a skipped junction;
 - all five scan-phase timings and all four result-query timings on stderr;
 - WPF startup/restoration, duplicate-file and exact-folder tabs, grid sorting, paging, filtering,
-  row selection, accessible review-summary/set-explanation text, completed ordinary/long-path file
-  and folder Explorer reveal commands, and deterministic result-loaded, repeated idle,
-  startup-failure, and database-failure shutdown.
+  row selection, accessible review-summary/set-explanation/location-span text, completed
+  ordinary/long-path file and folder Explorer reveal commands, and deterministic result-loaded,
+  repeated idle, startup-failure, and database-failure shutdown.
 - Cloud locations setup accessibility, responsive registration refresh, Start scan becoming enabled
   after successful discovery, and a separate deterministic provider-unavailable launch where the
   default policy remains fail closed before and after refresh.

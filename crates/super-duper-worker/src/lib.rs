@@ -503,6 +503,8 @@ struct DuplicateFileGroupDto {
     recoverable_bytes: String,
     representative_name: String,
     representative_type: String,
+    distinct_selected_root_count: i64,
+    distinct_drive_count: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -2192,6 +2194,8 @@ fn group_dto(group: DuplicateFileGroupResult) -> DuplicateFileGroupDto {
         recoverable_bytes: group.recoverable_bytes.to_string(),
         representative_name: group.representative_name,
         representative_type,
+        distinct_selected_root_count: group.distinct_selected_root_count,
+        distinct_drive_count: group.distinct_drive_count,
     }
 }
 
@@ -2953,7 +2957,7 @@ mod tests {
                 relative_path: "b.bin".to_owned(),
                 file_name: "b.bin".to_owned(),
                 parent_dir: "/root".to_owned(),
-                drive_letter: String::new(),
+                drive_letter: "D:".to_owned(),
                 file_size: 200,
                 last_modified: 1_700_000_000_000_000_002,
                 partial_hash: None,
@@ -3025,6 +3029,8 @@ mod tests {
         );
         assert_eq!(first["result"]["summary"]["largestRecoverableBytes"], "200");
         assert_eq!(first["result"]["groups"][0]["groupSize"], "200");
+        assert_eq!(first["result"]["groups"][0]["distinctSelectedRootCount"], 2);
+        assert_eq!(first["result"]["groups"][0]["distinctDriveCount"], 2);
         let cursor = first["result"]["nextCursor"].as_str().unwrap();
         let second_request = json!({
             "type":"request",

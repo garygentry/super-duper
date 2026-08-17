@@ -119,6 +119,10 @@
                                         Header="Copies"
                                         SortMemberPath="CopyCount"
                                         Binding="{Binding CopyCount}" />
+                    <DataGridTextColumn Width="205"
+                                        CanUserSort="False"
+                                        Header="Location span"
+                                        Binding="{Binding LocationSpan}" />
                     <DataGridTextColumn Width="145"
                                         Header="Recoverable"
                                         SortDirection="Descending"
@@ -193,6 +197,11 @@
                                automation:AutomationProperties.AutomationId="FileSelectedSetExplanation"
                                Opacity="0.68"
                                Text="Exact content was verified at scan time. The representative label does not identify an original."
+                               TextWrapping="Wrap" />
+                    <TextBlock Margin="0,3,0,0"
+                               automation:AutomationProperties.AutomationId="FileSelectedSetLocations"
+                               Opacity="0.68"
+                               Text="{Binding SelectedGroup.LocationSpan}"
                                TextWrapping="Wrap" />
                 </StackPanel>
                 <TextBlock Grid.Column="1" Opacity="0.68" Text="{Binding MemberCountText}" />

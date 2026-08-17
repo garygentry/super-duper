@@ -64,11 +64,13 @@ public sealed class WpfSurfaceSmokeTests
                 "FileMembersGrid");
             var fileGroups = FindByAutomationId<DataGrid>(files, "FileGroupsGrid");
             Assert.IsFalse(fileGroups.Columns.Single(column => Equals(column.Header, "Type")).CanUserSort);
+            Assert.IsFalse(fileGroups.Columns.Single(column => Equals(column.Header, "Location span")).CanUserSort);
             Assert.AreEqual("Duplicate file review summary", AutomationProperties.GetName(
                 FindByAutomationId<FrameworkElement>(files, "FileReviewSummary")));
             StringAssert.Contains(
                 FindByAutomationId<TextBlock>(files, "FileSelectedSetExplanation").Text,
                 "does not identify an original");
+            _ = FindByAutomationId<TextBlock>(files, "FileSelectedSetLocations");
             var fileMemberHeaders = FindByAutomationId<DataGrid>(files, "FileMembersGrid")
                 .Columns.Select(column => column.Header?.ToString()).ToArray();
             CollectionAssert.IsSubsetOf(

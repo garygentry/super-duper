@@ -428,6 +428,8 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
     assert_eq!(filtered.summary.potential_recoverable_bytes, 100);
     assert_eq!(filtered.summary.largest_recoverable_bytes, 100);
     let group = &filtered.groups[0];
+    assert_eq!(group.distinct_selected_root_count, 2);
+    assert_eq!(group.distinct_drive_count, 1);
     let members = db
         .page_duplicate_file_members(&DuplicateFileMemberPageQuery {
             run_id: first_run,

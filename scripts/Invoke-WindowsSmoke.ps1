@@ -327,9 +327,11 @@ function Invoke-WpfAutomation([long]$RunId) {
         $summarySets = Find-Element AutomationId 'FileSummaryMatchingSets'
         $summaryRecoverable = Find-Element AutomationId 'FileSummaryRecoverable'
         $selectedSetExplanation = Find-Element AutomationId 'FileSelectedSetExplanation'
+        $selectedSetLocations = Find-Element AutomationId 'FileSelectedSetLocations'
         Assert-True ([long]$summarySets.Current.Name -ge 1) 'Filtered review summary did not expose matching sets.'
         Assert-True (-not [string]::IsNullOrWhiteSpace($summaryRecoverable.Current.Name)) 'Filtered review summary did not expose recoverable bytes.'
         Assert-True ($selectedSetExplanation.Current.Name.Contains('not identify an original', [StringComparison]::OrdinalIgnoreCase)) 'Selected-set explanation was not accessible.'
+        Assert-True ($selectedSetLocations.Current.Name.Contains('selected root', [StringComparison]::OrdinalIgnoreCase)) 'Selected-set location span was not accessible.'
         Invoke-Element (Find-DescendantByName $fileMembers 'Show in Explorer')
         Assert-NoVisibleDetailError 'FileDetailError'
 
@@ -634,6 +636,8 @@ try {
     Assert-True ($filteredFiles.summary.matchingGroupCount -eq $filteredFiles.total) 'Filtered summary set count diverged from the result total.'
     Assert-True ($filteredFiles.summary.matchingCopyCount -ge 2) 'Filtered summary did not count duplicate copies.'
     Assert-True ([uint64]$filteredFiles.summary.potentialRecoverableBytes -gt 0) 'Filtered summary did not report recoverable bytes.'
+    Assert-True ($filteredFiles.groups[0].distinctSelectedRootCount -eq 1) 'Duplicate-file group did not report its selected-root span.'
+    Assert-True ($filteredFiles.groups[0].distinctDriveCount -eq 1) 'Duplicate-file group did not report its drive span.'
     $fileMembers = Send-WorkerRequest $restored 'duplicate_file_group.members' @{
         runId = $run.id; groupId = $filteredFiles.groups[0].id; pageSize = 25
         sort = @{ field = 'path'; direction = 'ascending' }

@@ -598,11 +598,28 @@ impl Database {
                              AND sf.run_id = dg.run_id
                            ORDER BY sf.canonical_path COLLATE NOCASE, sf.id
                            LIMIT 1
-                       ), '') AS representative_name
+                       ), '') AS representative_name,
+                       COALESCE((
+                           SELECT COUNT(DISTINCT sf.root_path COLLATE NOCASE)
+                           FROM duplicate_group_member root_member
+                           JOIN scanned_file sf ON sf.id = root_member.file_id
+                           WHERE root_member.group_id = dg.id
+                             AND sf.run_id = dg.run_id
+                             AND sf.root_path <> ''
+                       ), 0) AS distinct_selected_root_count,
+                       COALESCE((
+                           SELECT COUNT(DISTINCT sf.drive_letter COLLATE NOCASE)
+                           FROM duplicate_group_member drive_member
+                           JOIN scanned_file sf ON sf.id = drive_member.file_id
+                           WHERE drive_member.group_id = dg.id
+                             AND sf.run_id = dg.run_id
+                             AND sf.drive_letter <> ''
+                       ), 0) AS distinct_drive_count
                 FROM duplicate_group dg
                 WHERE {where_sql}
              )
-             SELECT id, run_id, file_size, file_count, recoverable_bytes, representative_name
+             SELECT id, run_id, file_size, file_count, recoverable_bytes, representative_name,
+                    distinct_selected_root_count, distinct_drive_count
              FROM result_groups
              {cursor_clause}
              ORDER BY {sort_expression} {order}, id {id_order}
@@ -617,6 +634,8 @@ impl Database {
                 file_count: row.get(3)?,
                 recoverable_bytes: row.get(4)?,
                 representative_name: row.get(5)?,
+                distinct_selected_root_count: row.get(6)?,
+                distinct_drive_count: row.get(7)?,
             })
         })?;
         let mut groups = mapped.collect::<Result<Vec<_>>>()?;

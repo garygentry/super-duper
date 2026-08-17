@@ -40,6 +40,7 @@ public sealed class DuplicateFilesViewModelTests
         Assert.AreEqual("2", viewModel.MatchingCopyCountText);
         Assert.AreEqual("4 KB", viewModel.PotentialRecoverableText);
         Assert.AreEqual("2 KB", viewModel.LargestOpportunityText);
+        Assert.AreEqual("2 selected roots · across 2 drives", viewModel.Groups[0].LocationSpan);
         Assert.AreEqual(@"C:\Photos", viewModel.Members[0].SelectedRoot);
         Assert.AreEqual("photo.jpg", viewModel.Members[0].RelativePath);
         Assert.AreEqual("C:", viewModel.Members[0].Drive);
@@ -192,7 +193,11 @@ public sealed class DuplicateFilesViewModelTests
     }
 
     private static WorkerDuplicateFileGroup Group(long id, long runId, string name) =>
-        new(id, runId, "1024", 2, "1024", name, ".bin");
+        new(id, runId, "1024", 2, "1024", name, ".bin")
+        {
+            DistinctSelectedRootCount = 2,
+            DistinctDriveCount = 2,
+        };
 
     private static WorkerDuplicateFileMember Member(long id, long groupId, string path) =>
         new(id, groupId, path, Path.GetFileName(path), Path.GetDirectoryName(path)!, "1024", "1700000000000000000")
