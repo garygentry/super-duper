@@ -22,10 +22,20 @@ public partial class App : Application
         services.AddSingleton<IUiDispatcher>(_ => new WpfUiDispatcher(Dispatcher));
         services.AddSingleton<IClipboardService, WpfClipboardService>();
         services.AddSingleton<IExplorerService, WindowsExplorerService>();
+        services.AddSingleton<ICloudLocationService>(_ => CreateCloudLocationService());
         services.AddSingleton<ShellViewModel>();
         services.AddSingleton<MainWindow>();
         _services = services.BuildServiceProvider(validateScopes: true);
     }
+
+    internal static ICloudLocationService CreateCloudLocationService() =>
+        string.Equals(
+            Environment.GetEnvironmentVariable("SUPER_DUPER_DISABLE_CLOUD_REGISTRATION_DISCOVERY"),
+            "1",
+            StringComparison.Ordinal)
+            ? new UnavailableCloudLocationService(
+                "Registered cloud location detection is disabled for this diagnostic run.")
+            : new WindowsCloudLocationService();
 
     protected override async void OnStartup(StartupEventArgs e)
     {

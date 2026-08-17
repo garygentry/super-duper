@@ -25,6 +25,10 @@ public interface IWorkerClient : IAsyncDisposable
         string name,
         IReadOnlyList<string> roots,
         IReadOnlyList<string> ignorePatterns,
+        string cloudPolicy,
+        IReadOnlyList<string> manualLocationExclusions,
+        IReadOnlyList<WorkerRegisteredCloudLocation> registeredCloudLocations,
+        string cloudDetectionStatus,
         CancellationToken cancellationToken = default);
 
     Task<WorkerSessionDefinition> UpdateSessionAsync(
@@ -32,6 +36,10 @@ public interface IWorkerClient : IAsyncDisposable
         string name,
         IReadOnlyList<string> roots,
         IReadOnlyList<string> ignorePatterns,
+        string cloudPolicy,
+        IReadOnlyList<string> manualLocationExclusions,
+        IReadOnlyList<WorkerRegisteredCloudLocation> registeredCloudLocations,
+        string cloudDetectionStatus,
         CancellationToken cancellationToken = default);
 
     Task DeleteSessionAsync(long sessionId, CancellationToken cancellationToken = default);
@@ -43,6 +51,12 @@ public interface IWorkerClient : IAsyncDisposable
         CancellationToken cancellationToken = default);
 
     Task<WorkerRun> GetRunAsync(long runId, CancellationToken cancellationToken = default);
+
+    Task<WorkerRunExclusionPage> GetRunExclusionsAsync(
+        long runId,
+        long offset = 0,
+        int limit = 100,
+        CancellationToken cancellationToken = default);
 
     Task<WorkerRun> StartRunAsync(long sessionId, CancellationToken cancellationToken = default);
 

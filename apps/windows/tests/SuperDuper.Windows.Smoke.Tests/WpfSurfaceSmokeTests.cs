@@ -64,6 +64,16 @@ public sealed class WpfSurfaceSmokeTests
                 "FileMembersGrid");
             var fileGroups = FindByAutomationId<DataGrid>(files, "FileGroupsGrid");
             Assert.IsFalse(fileGroups.Columns.Single(column => Equals(column.Header, "Type")).CanUserSort);
+            Assert.AreEqual("Duplicate file review summary", AutomationProperties.GetName(
+                FindByAutomationId<FrameworkElement>(files, "FileReviewSummary")));
+            StringAssert.Contains(
+                FindByAutomationId<TextBlock>(files, "FileSelectedSetExplanation").Text,
+                "does not identify an original");
+            var fileMemberHeaders = FindByAutomationId<DataGrid>(files, "FileMembersGrid")
+                .Columns.Select(column => column.Header?.ToString()).ToArray();
+            CollectionAssert.IsSubsetOf(
+                new[] { "Selected root", "Relative path", "Drive" },
+                fileMemberHeaders);
             AssertSurface(
                 folders,
                 "FolderSearch",
@@ -76,6 +86,18 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual("Session setup", AutomationProperties.GetName(setup));
             Assert.AreEqual("Session name", AutomationProperties.GetName(
                 FindByAutomationId<TextBox>(setup, "SessionName")));
+            Assert.AreEqual("Cloud scan policy", AutomationProperties.GetName(
+                FindByAutomationId<TextBlock>(setup, "CloudPolicyName")));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(AutomationProperties.GetName(
+                FindByAutomationId<TextBlock>(setup, "CloudPolicyDescription"))));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(AutomationProperties.GetName(
+                FindByAutomationId<TextBlock>(setup, "CloudDetectionStatus"))));
+            Assert.AreEqual("Refresh registered cloud locations", AutomationProperties.GetName(
+                FindByAutomationId<Button>(setup, "RefreshCloudLocations")));
+            Assert.AreEqual("Detected excluded cloud locations", AutomationProperties.GetName(
+                FindByAutomationId<ItemsControl>(setup, "DetectedCloudLocations")));
+            Assert.AreEqual("Manual cloud location exclusions", AutomationProperties.GetName(
+                FindByAutomationId<TextBox>(setup, "ManualCloudLocationExclusions")));
             Assert.AreEqual("Ignore patterns", AutomationProperties.GetName(
                 FindByAutomationId<TextBox>(setup, "IgnorePatterns")));
             Assert.AreEqual("Run history", AutomationProperties.GetName(

@@ -21,6 +21,10 @@ fn create_run(db: &Database, root: &Path, name: &str) -> i64 {
                 roots: vec![root],
                 ignore_patterns: vec![],
                 directory_similarity_threshold_millis: 500,
+                cloud_policy: Default::default(),
+                manual_location_exclusions: vec![],
+                registered_cloud_locations: vec![],
+                cloud_detection_status: Default::default(),
             },
             "test",
         )

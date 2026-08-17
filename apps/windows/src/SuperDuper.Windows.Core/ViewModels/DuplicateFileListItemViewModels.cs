@@ -28,6 +28,12 @@ public sealed class DuplicateFileMemberListItemViewModel(WorkerDuplicateFileMemb
 
     public string Path => Member.Path;
 
+    public string SelectedRoot => Member.RootPath;
+
+    public string RelativePath => Member.RelativePath;
+
+    public string Drive => string.IsNullOrWhiteSpace(Member.DriveLetter) ? "Other" : Member.DriveLetter;
+
     public string Size => DisplayFormatting.Bytes(Member.Size);
 
     public string Modified

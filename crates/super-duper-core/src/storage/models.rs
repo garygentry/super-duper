@@ -6,8 +6,58 @@ pub struct ScanSession {
     pub name: String,
     pub roots_json: String,
     pub ignore_patterns_json: String,
+    pub cloud_policy: String,
+    pub manual_location_exclusions_json: String,
+    pub registered_cloud_locations_json: String,
+    pub cloud_detection_status: String,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CloudPolicy {
+    #[default]
+    ExcludeRegisteredRoots,
+    IncludeSyncRootsSkipPlaceholders,
+    AllowCloudAccess,
+}
+
+impl CloudPolicy {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::ExcludeRegisteredRoots => "exclude_registered_roots",
+            Self::IncludeSyncRootsSkipPlaceholders => "include_sync_roots_skip_placeholders",
+            Self::AllowCloudAccess => "allow_cloud_access",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CloudDetectionStatus {
+    Complete,
+    Unsupported,
+    #[default]
+    Unavailable,
+}
+
+impl CloudDetectionStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Complete => "complete",
+            Self::Unsupported => "unsupported",
+            Self::Unavailable => "unavailable",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegisteredCloudLocation {
+    pub path: String,
+    pub provider_id: String,
+    pub display_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -15,6 +65,14 @@ pub struct RunParameters {
     pub roots: Vec<String>,
     pub ignore_patterns: Vec<String>,
     pub directory_similarity_threshold_millis: u16,
+    #[serde(default)]
+    pub cloud_policy: CloudPolicy,
+    #[serde(default)]
+    pub manual_location_exclusions: Vec<String>,
+    #[serde(default)]
+    pub registered_cloud_locations: Vec<RegisteredCloudLocation>,
+    #[serde(default)]
+    pub cloud_detection_status: CloudDetectionStatus,
 }
 
 impl RunParameters {
@@ -44,8 +102,28 @@ pub struct ScanRun {
     pub duplicate_folder_groups: i64,
     pub wasted_bytes: i64,
     pub warning_count: i64,
+    pub excluded_subtree_count: i64,
     pub error_message: Option<String>,
     pub engine_version: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunExclusion {
+    pub id: i64,
+    pub run_id: i64,
+    pub path: String,
+    pub reason_code: String,
+    pub provider_id: Option<String>,
+    pub provider_name: Option<String>,
+    pub occurrence_count: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunExclusionInsert {
+    pub path: String,
+    pub reason_code: String,
+    pub provider_id: Option<String>,
+    pub provider_name: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -145,9 +223,18 @@ pub struct DuplicateFileGroupResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFileReviewSummary {
+    pub matching_group_count: i64,
+    pub matching_copy_count: i64,
+    pub potential_recoverable_bytes: i64,
+    pub largest_recoverable_bytes: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DuplicateFileGroupPage {
     pub groups: Vec<DuplicateFileGroupResult>,
     pub total: i64,
+    pub summary: DuplicateFileReviewSummary,
     pub has_more: bool,
 }
 
@@ -174,6 +261,9 @@ pub struct DuplicateFileMemberResult {
     pub canonical_path: String,
     pub file_name: String,
     pub parent_dir: String,
+    pub root_path: String,
+    pub relative_path: String,
+    pub drive_letter: String,
     pub file_size: i64,
     pub last_modified: i64,
 }

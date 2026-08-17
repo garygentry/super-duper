@@ -1,5 +1,8 @@
 # Storage Schema V3
 
+This document preserves the Windows MVP v3 design. Schema v4 and its cloud-safety migration are
+documented in [`storage-schema-v4.md`](storage-schema-v4.md).
+
 Schema version 3 is the persistence foundation for the Windows MVP. SQLite remains owned by Rust;
 the Windows application will access it only through the worker protocol.
 

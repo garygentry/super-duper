@@ -16,7 +16,10 @@ public sealed class DuplicateFilesViewModelTests
                     [Group(1, query.RunId, "photo.jpg")],
                     1,
                     null,
-                    null)),
+                    null)
+                {
+                    Summary = new WorkerDuplicateFileReviewSummary(1, 2, "4096", "2048"),
+                }),
             MemberPageHandler = (query, _) => Task.FromResult(
                 new WorkerDuplicateFileMemberPage(
                     [Member(1, query.GroupId, @"C:\Photos\photo.jpg")],
@@ -33,6 +36,13 @@ public sealed class DuplicateFilesViewModelTests
         Assert.AreEqual(1, viewModel.Groups.Count);
         Assert.AreEqual(1, viewModel.Members.Count);
         Assert.AreEqual("photo.jpg", viewModel.Groups[0].RepresentativeName);
+        Assert.AreEqual("1", viewModel.MatchingSetCountText);
+        Assert.AreEqual("2", viewModel.MatchingCopyCountText);
+        Assert.AreEqual("4 KB", viewModel.PotentialRecoverableText);
+        Assert.AreEqual("2 KB", viewModel.LargestOpportunityText);
+        Assert.AreEqual(@"C:\Photos", viewModel.Members[0].SelectedRoot);
+        Assert.AreEqual("photo.jpg", viewModel.Members[0].RelativePath);
+        Assert.AreEqual("C:", viewModel.Members[0].Drive);
         viewModel.CopyPathCommand.Execute(viewModel.Members[0]);
         await viewModel.RevealInExplorerCommand.ExecuteAsync(viewModel.Members[0]);
         Assert.AreEqual(@"C:\Photos\photo.jpg", clipboard.Text);
@@ -59,7 +69,10 @@ public sealed class DuplicateFilesViewModelTests
                     [Group(2, query.RunId, "new-result.bin")],
                     1,
                     null,
-                    null));
+                    null)
+                {
+                    Summary = new WorkerDuplicateFileReviewSummary(1, 2, "222", "111"),
+                });
             },
         };
         using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
@@ -71,13 +84,18 @@ public sealed class DuplicateFilesViewModelTests
         await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
         oldResponse.SetResult(new WorkerDuplicateFileGroupPage(
             [Group(1, 8, "stale-result.bin")],
-            1,
+            9,
             null,
-            null));
+            null)
+        {
+            Summary = new WorkerDuplicateFileReviewSummary(9, 18, "999", "999"),
+        });
         await initialLoad;
 
         Assert.AreEqual(1, viewModel.Groups.Count);
         Assert.AreEqual("new-result.bin", viewModel.Groups[0].RepresentativeName);
+        Assert.AreEqual("222 B", viewModel.PotentialRecoverableText);
+        Assert.AreEqual("111 B", viewModel.LargestOpportunityText);
     }
 
     [TestMethod]
@@ -177,5 +195,10 @@ public sealed class DuplicateFilesViewModelTests
         new(id, runId, "1024", 2, "1024", name, ".bin");
 
     private static WorkerDuplicateFileMember Member(long id, long groupId, string path) =>
-        new(id, groupId, path, Path.GetFileName(path), Path.GetDirectoryName(path)!, "1024", "1700000000000000000");
+        new(id, groupId, path, Path.GetFileName(path), Path.GetDirectoryName(path)!, "1024", "1700000000000000000")
+        {
+            RootPath = Path.GetDirectoryName(path)!,
+            RelativePath = Path.GetFileName(path),
+            DriveLetter = Path.GetPathRoot(path)!.TrimEnd(Path.DirectorySeparatorChar),
+        };
 }

@@ -31,6 +31,8 @@ public sealed class RunListItemViewModel : ObservableObject
 
     public string WarningCount => _run.WarningCount.ToString("N0");
 
+    public string ExcludedSubtreeCount => _run.ExcludedSubtreeCount.ToString("N0");
+
     public bool HasError => !string.IsNullOrWhiteSpace(_run.ErrorMessage);
 
     public string? ErrorMessage => _run.ErrorMessage;

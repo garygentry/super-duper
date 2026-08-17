@@ -111,5 +111,6 @@ public sealed class ShellSessionWorkflowTests
             new TestConfirmation(),
             new ImmediateDispatcher(),
             new TestClipboard(),
-            new TestExplorer());
+            new TestExplorer(),
+            new TestCloudLocationService());
 }

@@ -30,7 +30,7 @@
                          Height="6"
                          IsIndeterminate="{Binding IsIndeterminate}" />
 
-            <UniformGrid Grid.Row="2" Columns="5">
+            <UniformGrid Grid.Row="2" Columns="6">
                 <Border Margin="0,0,8,0" Padding="14" CornerRadius="7" BorderThickness="1" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
                     <StackPanel><TextBlock Opacity="0.65" Text="Elapsed" /><TextBlock Margin="0,4,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding Elapsed}" /></StackPanel>
                 </Border>
@@ -43,8 +43,11 @@
                 <Border Margin="0,0,8,0" Padding="14" CornerRadius="7" BorderThickness="1" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
                     <StackPanel><TextBlock Opacity="0.65" Text="Files hashed" /><TextBlock Margin="0,4,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding FilesHashed}" /></StackPanel>
                 </Border>
-                <Border Padding="14" CornerRadius="7" BorderThickness="1" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
+                <Border Margin="0,0,8,0" Padding="14" CornerRadius="7" BorderThickness="1" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
                     <StackPanel><TextBlock Opacity="0.65" Text="Warnings" /><TextBlock Margin="0,4,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding WarningCount}" /></StackPanel>
+                </Border>
+                <Border Padding="14" CornerRadius="7" BorderThickness="1" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
+                    <StackPanel><TextBlock Opacity="0.65" Text="Excluded locations" /><TextBlock Margin="0,4,0,0" FontSize="20" FontWeight="SemiBold" Text="{Binding ExcludedSubtreeCount}" /></StackPanel>
                 </Border>
             </UniformGrid>
 

@@ -57,7 +57,85 @@
                     Command="{Binding NormalizeRootsCommand}"
                     Content="Normalize roots" />
 
-            <TextBlock FontWeight="SemiBold" Text="Ignore patterns" />
+            <Grid Margin="0,0,0,7">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="Cloud locations" />
+                <Button Grid.Column="1"
+                        AutomationProperties.AutomationId="RefreshCloudLocations"
+                        AutomationProperties.Name="Refresh registered cloud locations"
+                        Command="{Binding RefreshCloudLocationsCommand}"
+                        Content="Refresh" />
+            </Grid>
+            <Border Padding="12"
+                    BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                <StackPanel>
+                    <TextBlock AutomationProperties.Name="Cloud scan policy"
+                               AutomationProperties.AutomationId="CloudPolicyName"
+                               FontWeight="SemiBold"
+                               Text="{Binding CloudPolicyDisplayName}" />
+                    <TextBlock Margin="0,4,0,0"
+                               AutomationProperties.AutomationId="CloudPolicyDescription"
+                               AutomationProperties.Name="Registered Cloud Files subtrees are pruned before file metadata, canonicalization, identity, or content access."
+                               Opacity="0.68"
+                               Text="Registered Cloud Files subtrees are pruned before file metadata, canonicalization, identity, or content access."
+                               TextWrapping="Wrap" />
+                    <TextBlock Margin="0,8,0,0"
+                               AutomationProperties.AutomationId="CloudDetectionStatus"
+                               AutomationProperties.Name="{Binding CloudDetectionSummary, FallbackValue=Cloud location detection status}"
+                               Text="{Binding CloudDetectionSummary}"
+                               TextWrapping="Wrap" />
+                    <TextBlock Margin="0,4,0,0"
+                               AutomationProperties.AutomationId="CloudDetectionError"
+                               AutomationProperties.Name="{Binding CloudDetectionMessage}"
+                               Foreground="#C84B31"
+                               Text="{Binding CloudDetectionMessage}"
+                               TextWrapping="Wrap"
+                               Visibility="{Binding HasCloudDetectionMessage, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <ItemsControl Margin="0,8,0,0"
+                                  AutomationProperties.AutomationId="DetectedCloudLocations"
+                                  AutomationProperties.Name="Detected excluded cloud locations"
+                                  ItemsSource="{Binding DetectedCloudLocations}"
+                                  Visibility="{Binding HasDetectedCloudLocations, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,6"
+                                        Padding="9"
+                                        AutomationProperties.Name="{Binding AccessibilityName}"
+                                        Background="#120078D4"
+                                        CornerRadius="5">
+                                    <StackPanel>
+                                        <TextBlock FontWeight="SemiBold" Text="{Binding ProviderName}" />
+                                        <TextBlock Margin="0,2,0,0" Text="{Binding Path}" TextWrapping="Wrap" />
+                                        <TextBlock Margin="0,2,0,0" FontSize="12" Opacity="0.7" Text="{Binding Behavior}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Manual cloud location exclusions" />
+            <TextBlock Margin="0,4,0,7"
+                       FontSize="12"
+                       Opacity="0.66"
+                       Text="Enter one absolute path per line for providers that do not register with Windows Cloud Files." />
+            <TextBox MinWidth="620"
+                     MinHeight="72"
+                     AutomationProperties.AutomationId="ManualCloudLocationExclusions"
+                     AutomationProperties.Name="Manual cloud location exclusions"
+                     AcceptsReturn="True"
+                     IsEnabled="{Binding CanEdit}"
+                     Text="{Binding ManualLocationExclusionsText, UpdateSourceTrigger=PropertyChanged}"
+                     TextWrapping="NoWrap"
+                     VerticalScrollBarVisibility="Auto" />
+
+            <TextBlock Margin="0,20,0,0" FontWeight="SemiBold" Text="Ignore patterns" />
             <TextBlock Margin="0,4,0,7"
                        FontSize="12"
                        Opacity="0.66"

@@ -96,6 +96,8 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
 
     public string WarningCount => (Run?.WarningCount ?? 0).ToString("N0");
 
+    public string ExcludedSubtreeCount => (Run?.ExcludedSubtreeCount ?? 0).ToString("N0");
+
     public string Elapsed
     {
         get
@@ -205,6 +207,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(BytesDiscovered));
         OnPropertyChanged(nameof(FilesHashed));
         OnPropertyChanged(nameof(WarningCount));
+        OnPropertyChanged(nameof(ExcludedSubtreeCount));
         OnPropertyChanged(nameof(Elapsed));
         CancelCommand.NotifyCanExecuteChanged();
     }

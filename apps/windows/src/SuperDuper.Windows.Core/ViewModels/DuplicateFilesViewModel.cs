@@ -24,6 +24,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private DuplicateFileGroupListItemViewModel? _selectedGroup;
     private WorkerDuplicateFileGroupPage? _currentGroupPage;
     private WorkerDuplicateFileMemberPage? _currentMemberPage;
+    private WorkerDuplicateFileReviewSummary _summary = new(0, 0, "0", "0");
     private long _groupGeneration;
     private long _memberGeneration;
     private string _searchText = string.Empty;
@@ -189,6 +190,21 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         }
     }
 
+    public WorkerDuplicateFileReviewSummary Summary
+    {
+        get => _summary;
+        private set
+        {
+            if (SetProperty(ref _summary, value))
+            {
+                OnPropertyChanged(nameof(MatchingSetCountText));
+                OnPropertyChanged(nameof(MatchingCopyCountText));
+                OnPropertyChanged(nameof(PotentialRecoverableText));
+                OnPropertyChanged(nameof(LargestOpportunityText));
+            }
+        }
+    }
+
     public DuplicateFileGroupSortField SortField => _sortField;
 
     public WorkerSortDirection SortDirection => _sortDirection;
@@ -196,6 +212,14 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     public string GroupCountText => $"{TotalGroups:N0} groups";
 
     public string MemberCountText => $"{TotalMembers:N0} copies";
+
+    public string MatchingSetCountText => $"{Summary.MatchingGroupCount:N0}";
+
+    public string MatchingCopyCountText => $"{Summary.MatchingCopyCount:N0}";
+
+    public string PotentialRecoverableText => DisplayFormatting.Bytes(Summary.PotentialRecoverableBytes);
+
+    public string LargestOpportunityText => DisplayFormatting.Bytes(Summary.LargestRecoverableBytes);
 
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
 
@@ -255,6 +279,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         SelectedGroup = null;
         TotalGroups = 0;
         TotalMembers = 0;
+        Summary = new WorkerDuplicateFileReviewSummary(0, 0, "0", "0");
         ErrorMessage = null;
         DetailErrorMessage = null;
         OnPropertyChanged(nameof(IsUnavailable));
@@ -358,6 +383,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             SelectedGroup = null;
             TotalGroups = 0;
             TotalMembers = 0;
+            Summary = new WorkerDuplicateFileReviewSummary(0, 0, "0", "0");
         }
         ErrorMessage = null;
         DetailErrorMessage = null;
@@ -435,6 +461,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     {
         _currentGroupPage = page;
         TotalGroups = page.Total;
+        Summary = page.Summary;
         Groups = page.Groups.Select(group => new DuplicateFileGroupListItemViewModel(group)).ToArray();
         OnPropertyChanged(nameof(HasGroups));
         OnPropertyChanged(nameof(IsEmpty));

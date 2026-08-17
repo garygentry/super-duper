@@ -10,13 +10,18 @@ uses stable UI Automation IDs to exercise both result surfaces and invoke Explor
 - active-run cancellation and durable `cancelled` state;
 - a completed rerun and restoration after worker restart;
 - more than one page of duplicate-file groups, sorting, filtering, forward cursor paging, and
-  member browsing;
+  member browsing, including the worker-owned filtered review summary and immutable selected-root,
+  relative-path, and drive context;
 - exact duplicate-folder sorting, filtering, and member browsing;
 - fixed-drive scanning, a path longer than 260 characters, a locked file, and a skipped junction;
 - all five scan-phase timings and all four result-query timings on stderr;
 - WPF startup/restoration, duplicate-file and exact-folder tabs, grid sorting, paging, filtering,
-  row selection, completed ordinary/long-path file and folder Explorer reveal commands, and
-  deterministic result-loaded, repeated idle, startup-failure, and database-failure shutdown.
+  row selection, accessible review-summary/set-explanation text, completed ordinary/long-path file
+  and folder Explorer reveal commands, and deterministic result-loaded, repeated idle,
+  startup-failure, and database-failure shutdown.
+- Cloud locations setup accessibility, responsive registration refresh, Start scan becoming enabled
+  after successful discovery, and a separate deterministic provider-unavailable launch where the
+  default policy remains fail closed before and after refresh.
 
 Run Debug or Release:
 
@@ -44,6 +49,36 @@ drives, and UNC shares cannot be fabricated portably, so pass real, non-producti
 `-AdditionalRoot`. The fixed fixture root remains available, which lets an unavailable additional
 root become a warning instead of preventing the run.
 
+## Real Cloud Files acceptance
+
+`Invoke-WindowsCloudPolicyAcceptance.ps1` is the separate operator gate for a registered OneDrive
+or other Cloud Files root. It performs metadata-only fixture discovery, validates the root through
+the real Infrastructure registration API, runs the worker against both the cloud root's broad
+parent and the explicit cloud root, and compares logical size, allocated size, last-write time,
+placeholder/pin attributes, and provider-process transfer counters before and after.
+
+Run it while the provider is available and otherwise idle:
+
+```powershell
+./scripts/Invoke-WindowsCloudPolicyAcceptance.ps1 -Configuration Release
+```
+
+The script can auto-select a non-hidden locally available file and an offline placeholder, or the
+operator can pass `-LocallyAvailableFile` and `-OfflinePlaceholder`. It excludes unrelated direct
+children of the broad parent, creates only isolated temporary worker state, never reads fixture
+content, and removes its state unless `-KeepArtifacts` is used.
+
+Then intentionally pause or exit the provider using its supported UI and rerun without asking the
+script to stop any process:
+
+```powershell
+./scripts/Invoke-WindowsCloudPolicyAcceptance.ps1 -Configuration Release -SkipBuild -ExpectProviderUnavailable
+```
+
+The unavailable mode requires all named provider processes to be absent. Restore the provider
+normally after the run. Both modes must report zero discovered files for the broad and explicit
+runs, unchanged file/placeholder state, and `PROVIDER_TRANSFER_COUNTERS_UNCHANGED=true`.
+
 ## Expected Result
 
 The script prints `Windows smoke passed`. With WPF enabled it also prints that WPF automation
@@ -56,7 +91,7 @@ If UI Automation is blocked by a locked session, elevation boundary, or headless
 
 1. Select `Milestone 6 Smoke` and its completed run; confirm the cancelled run is also in history.
 2. Open Duplicate Files, sort Group size, choose Next, filter for `group010`, select a group, and
-   choose Show in Explorer.
+   confirm the filtered summary and selected-root/drive detail, then choose Show in Explorer.
 3. Open Duplicate Folders, sort Representative folder, filter for `original-set`, select the group,
    and reveal a folder in Explorer.
 4. Close and reopen the app and confirm completed/cancelled history and completed results restore.

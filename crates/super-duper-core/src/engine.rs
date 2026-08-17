@@ -5,7 +5,7 @@ use crate::hasher;
 use crate::platform;
 use crate::progress::ProgressReporter;
 use crate::scanner;
-use crate::storage::models::{RunParameters, ScannedFile};
+use crate::storage::models::{CloudPolicy, RunExclusionInsert, RunParameters, ScannedFile};
 use crate::storage::Database;
 use dashmap::DashMap;
 use std::collections::{HashMap, HashSet};
@@ -104,6 +104,10 @@ impl ScanEngine {
             roots: roots.clone(),
             ignore_patterns: self.config.ignore_patterns.clone(),
             directory_similarity_threshold_millis: 500,
+            cloud_policy: CloudPolicy::default(),
+            manual_location_exclusions: Vec::new(),
+            registered_cloud_locations: Vec::new(),
+            cloud_detection_status: Default::default(),
         };
         let run_id = db.create_scan_run(session_id, &parameters, crate::ENGINE_VERSION)?;
         if let Err(error) = db.start_scan_run(run_id) {
@@ -154,14 +158,7 @@ impl ScanEngine {
             "Processing run {} for session {}: {:?}",
             run_id, session_id, roots
         );
-        let result = self.execute_run(
-            db,
-            session_id,
-            run_id,
-            roots,
-            &parameters.ignore_patterns,
-            progress,
-        );
+        let result = self.execute_run(db, session_id, run_id, parameters, progress);
         match result {
             Ok(result) => Ok(result),
             Err(Error::Cancelled) => {
@@ -186,17 +183,56 @@ impl ScanEngine {
         db: &Database,
         session_id: i64,
         run_id: i64,
-        roots: &[String],
-        ignore_patterns: &[String],
+        parameters: &RunParameters,
         progress: &dyn ProgressReporter,
     ) -> Result<ScanResult, Error> {
+        let roots = &parameters.roots;
+        let ignore_patterns = &parameters.ignore_patterns;
         let root_slices: Vec<&str> = roots.iter().map(String::as_str).collect();
         let ignore_slices: Vec<&str> = ignore_patterns.iter().map(String::as_str).collect();
+        let mut location_exclusions = parameters
+            .manual_location_exclusions
+            .iter()
+            .map(|path| scanner::LocationExclusion {
+                path: PathBuf::from(path),
+                reason_code: "manual_location_exclusion".to_owned(),
+                provider_id: None,
+                provider_name: None,
+            })
+            .collect::<Vec<_>>();
+        if parameters.cloud_policy == CloudPolicy::ExcludeRegisteredRoots {
+            location_exclusions.extend(parameters.registered_cloud_locations.iter().map(
+                |location| scanner::LocationExclusion {
+                    path: PathBuf::from(&location.path),
+                    reason_code: "registered_cloud_root_excluded".to_owned(),
+                    provider_id: Some(location.provider_id.clone()),
+                    provider_name: Some(location.display_name.clone()),
+                },
+            ));
+        }
 
         progress.on_scan_start();
         let scan_start = Instant::now();
-        let traversal =
-            scanner::discover_files(&root_slices, &ignore_slices, &self.cancel_token, progress)?;
+        let traversal = scanner::discover_files_with_exclusions(
+            &root_slices,
+            &ignore_slices,
+            &location_exclusions,
+            &self.cancel_token,
+            progress,
+        )?;
+        db.replace_run_exclusions(
+            run_id,
+            &traversal
+                .excluded_subtrees
+                .iter()
+                .map(|exclusion| RunExclusionInsert {
+                    path: exclusion.path.clone(),
+                    reason_code: exclusion.reason_code.clone(),
+                    provider_id: exclusion.provider_id.clone(),
+                    provider_name: exclusion.provider_name.clone(),
+                })
+                .collect::<Vec<_>>(),
+        )?;
         let scan_duration = scan_start.elapsed();
         if self.cancel_token.load(Ordering::Relaxed) {
             return Err(Error::Cancelled);

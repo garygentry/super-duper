@@ -5,8 +5,9 @@
 This document defines version 1 of the local protocol between `SuperDuper.Windows` and the
 `super-duper-worker` child process. The worker is a single-client, long-lived process launched by
 the Windows application. Milestones 0–6 implement negotiation, session and scan lifecycle, and
-separately paged duplicate-file and exact-duplicate-folder result browsing. Warning commands remain
-reserved for a later milestone.
+separately paged duplicate-file and exact-duplicate-folder result browsing. The first read-only
+Milestone 8 addition extends duplicate-file pages with a filtered review summary and immutable
+selected-root/drive context. Warning commands remain reserved for a later milestone.
 
 The transport is UTF-8 newline-delimited JSON (JSONL) over redirected standard input and standard
 output. It is a local process boundary, not a network API.
@@ -173,7 +174,8 @@ envelope or command changes require a new major protocol version.
 
 Session and run IDs are positive JSON integers. Session names are trimmed and unique under
 case-insensitive comparison. A session contains 1–64 absolute roots and at most 512 valid glob
-ignore patterns. Reachable roots are canonicalized, duplicates are removed case-insensitively, and
+ignore patterns. Reachable non-excluded roots are canonicalized; roots already classified inside an
+effective cloud/manual exclusion remain lexical so validation cannot hydrate them. Duplicates are removed case-insensitively, and
 nested roots are collapsed so a child is not scanned twice. Definitions may retain a temporarily
 unreachable absolute root, but `run.start` requires at least one currently accessible directory.
 
@@ -191,7 +193,7 @@ Request params are optional `offset` (default 0) and `limit` (default 100, maxim
 Result:
 
 ```json
-{"sessions":[{"id":7,"name":"Photos","roots":["D:\\Photos"],"ignorePatterns":["**/node_modules/**"],"createdAt":"2026-08-15T12:00:00Z","updatedAt":"2026-08-15T12:00:00Z"}],"total":1}
+{"sessions":[{"id":7,"name":"Photos","roots":["D:\\Photos"],"ignorePatterns":["**/node_modules/**"],"cloudPolicy":"exclude_registered_roots","manualLocationExclusions":[],"registeredCloudLocations":[{"path":"D:\\OneDrive","providerId":"OneDrive!account","displayName":"OneDrive"}],"cloudDetectionStatus":"complete","createdAt":"2026-08-15T12:00:00Z","updatedAt":"2026-08-15T12:00:00Z"}],"total":1}
 ```
 
 ### `session.get`
@@ -201,19 +203,27 @@ above.
 
 ### `session.create`
 
-Params contain `name`, `roots`, and `ignorePatterns`:
+Params contain `name`, `roots`, `ignorePatterns`, and the cloud-safety snapshot supplied by Windows
+Infrastructure:
 
 ```json
-{"type":"request","id":"s2","method":"session.create","params":{"name":"Photos","roots":["D:\\Photos"],"ignorePatterns":["**/node_modules/**"]}}
+{"type":"request","id":"s2","method":"session.create","params":{"name":"Photos","roots":["D:\\Photos"],"ignorePatterns":["**/node_modules/**"],"cloudPolicy":"exclude_registered_roots","manualLocationExclusions":[],"registeredCloudLocations":[{"path":"D:\\OneDrive","providerId":"OneDrive!account","displayName":"OneDrive"}],"cloudDetectionStatus":"complete"}}
 ```
 
 The result is `{ "session": <created-session> }`.
 
 ### `session.update`
 
-Params contain `sessionId`, `name`, `roots`, and `ignorePatterns`. All editable fields replace the
-current definition. Existing run snapshots are immutable. The result is
+Params contain `sessionId`, `name`, `roots`, `ignorePatterns`, `cloudPolicy`,
+`manualLocationExclusions`, `registeredCloudLocations`, and `cloudDetectionStatus`. All editable
+fields replace the current definition. Existing run snapshots are immutable. The result is
 `{ "session": <updated-session> }`.
+
+The registered location shape is `{ "path", "providerId", "displayName" }`. Paths must be
+absolute and provider metadata is bounded. The first Milestone 7 slice executes only
+`exclude_registered_roots`; `include_sync_roots_skip_placeholders` and `allow_cloud_access` are
+reserved until their Windows placeholder/confirmation contracts are implemented. `run.start`
+fails with `invalid_session` unless default-policy detection is `complete`.
 
 ### `session.delete`
 
@@ -228,7 +238,7 @@ A run response uses this shape (large byte counters are decimal strings):
 {
   "id":19,
   "sessionId":7,
-  "parameters":{"roots":["D:\\Photos"],"ignorePatterns":[],"directorySimilarityThresholdMillis":500},
+  "parameters":{"roots":["D:\\Photos"],"ignorePatterns":[],"directorySimilarityThresholdMillis":500,"cloudPolicy":"exclude_registered_roots","manualLocationExclusions":[],"registeredCloudLocations":[],"cloudDetectionStatus":"complete"},
   "status":"running",
   "phase":"discovering",
   "createdAt":"2026-08-15T12:00:00Z",
@@ -241,13 +251,15 @@ A run response uses this shape (large byte counters are decimal strings):
   "duplicateFolderGroups":0,
   "wastedBytes":"1234567",
   "warningCount":2,
+  "excludedSubtreeCount":1,
   "errorMessage":null,
   "engineVersion":"0.1.0"
 }
 ```
 
 `parameters` is the immutable snapshot used by that execution. Durable statuses and phases are the
-values defined in `storage-schema-v3.md`.
+values defined in `storage-schema-v4.md`. `excludedSubtreeCount` is distinct from recoverable
+warnings and counts aggregated subtrees pruned before content access.
 
 ### `run.list`
 
@@ -272,6 +284,24 @@ the durable state from `running` to `cancelling`; the immediate result is `{ "ru
 status `cancelling`. Cancellation completes asynchronously. `run.cancelled` confirms the durable
 `cancelled` terminal state, and `run.get` is authoritative after reconnecting. Cancelling a
 terminal or non-active run returns `invalid_state`.
+
+### `run_exclusion.page`
+
+This is the bounded initial Activity-data hook for cloud/manual subtree exclusions. Params are
+`runId`, optional `offset` (default 0), and optional `limit` (default 100, maximum 500):
+
+```json
+{"type":"request","id":"x1","method":"run_exclusion.page","params":{"runId":19,"offset":0,"limit":100}}
+```
+
+Result:
+
+```json
+{"exclusions":[{"id":4,"runId":19,"path":"D:\\OneDrive","reasonCode":"registered_cloud_root_excluded","providerId":"OneDrive!account","providerName":"OneDrive","occurrenceCount":1}],"total":1}
+```
+
+Rows are run-owned, ordered by path and ID, and never trigger filesystem access. Stable reason codes
+introduced here are `registered_cloud_root_excluded` and `manual_location_exclusion`.
 
 ## Run Events and Ordering
 
@@ -327,11 +357,18 @@ defaults to `"0"`.
 Result:
 
 ```json
-{"groups":[{"id":31,"runId":19,"groupSize":"5242880","copyCount":3,"recoverableBytes":"10485760","representativeName":"photo.jpg","representativeType":".jpg"}],"total":42,"nextCursor":"opaque","previousCursor":null}
+{"groups":[{"id":31,"runId":19,"groupSize":"5242880","copyCount":3,"recoverableBytes":"10485760","representativeName":"photo.jpg","representativeType":".jpg"}],"total":42,"summary":{"matchingGroupCount":42,"matchingCopyCount":98,"potentialRecoverableBytes":"734003200","largestRecoverableBytes":"104857600"},"nextCursor":"opaque","previousCursor":null}
 ```
 
 The representative is the member with the first path under case-insensitive path ordering, then
 member ID. `groupSize` and `recoverableBytes` are decimal strings.
+
+`summary` uses the same normalized run, search, and minimum-size predicate as `total`. It is
+computed by SQLite in the worker, not by walking client pages. `matchingGroupCount` equals `total`;
+`matchingCopyCount` sums copies in the matching sets; `potentialRecoverableBytes` sums recoverable
+bytes; and `largestRecoverableBytes` is the largest matching set's recoverable bytes. Both byte
+fields are decimal strings. The summary is repeated on each bounded page so its rows and summary
+share one cursor-query generation and cannot be mixed by a late client response.
 
 ### `duplicate_file_group.members`
 
@@ -348,11 +385,13 @@ path and is limited to 512 characters.
 Result:
 
 ```json
-{"members":[{"id":88,"groupId":31,"path":"D:\\Archive\\photo.jpg","fileName":"photo.jpg","parentPath":"D:\\Archive","size":"5242880","modifiedTimeUnixNanos":"1786795200000000000"}],"total":3,"nextCursor":null,"previousCursor":null}
+{"members":[{"id":88,"groupId":31,"path":"D:\\Archive\\photo.jpg","fileName":"photo.jpg","parentPath":"D:\\Archive","rootPath":"D:\\Archive","relativePath":"photo.jpg","driveLetter":"D:","size":"5242880","modifiedTimeUnixNanos":"1786795200000000000"}],"total":3,"nextCursor":null,"previousCursor":null}
 ```
 
 Byte sizes and the nanosecond Unix modification timestamp are decimal strings. Member pages verify
 that `groupId` belongs to `runId`; a mismatched pair returns `duplicate_group_not_found`.
+`rootPath`, `relativePath`, and `driveLetter` come from the immutable scanned-file snapshot and do
+not access the current filesystem. A drive label may be empty for a path type without one.
 
 ## Exact Duplicate Folder Result Commands
 
@@ -431,7 +470,10 @@ filesystem/database access. Numbers that can exceed JavaScript's exact integer r
 encoded as decimal strings when those fields are introduced.
 
 Fixed local roots are primary. Explicit removable, mapped-drive, and UNC roots are best-effort.
-Reparse points and links are skipped. Access failures, disconnects, vanished files, and files whose
+Reparse points and links are skipped. Under `exclude_registered_roots`, effective registered/manual
+locations are compared lexically before `is_dir`, directory entry type, metadata, canonicalization,
+stable identity, hashing, or persistence validation. A selected root inside an excluded location is
+handled at the same pre-I/O boundary. Access failures, disconnects, vanished files, and files whose
 size or modified time changes after discovery are recoverable warnings when a consistent run can
 still be persisted; affected entries cannot create false duplicate results.
 

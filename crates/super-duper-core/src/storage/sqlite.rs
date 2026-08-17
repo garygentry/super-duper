@@ -2,7 +2,7 @@ use chrono::Utc;
 use rusqlite::{params, Connection, Error, Result};
 use tracing::{debug, info};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 3;
+pub const CURRENT_SCHEMA_VERSION: i64 = 4;
 
 pub struct Database {
     conn: Connection,
@@ -63,6 +63,7 @@ impl Database {
         let version = self.schema_version()?;
         match version {
             CURRENT_SCHEMA_VERSION => self.conn.execute_batch(include_str!("schema.sql"))?,
+            3 => self.migrate_v3_to_v4()?,
             2 => self.migrate_v2_to_v3()?,
             0 if !self.has_user_tables()? => self.conn.execute_batch(include_str!("schema.sql"))?,
             0 | 1 => {
@@ -269,6 +270,40 @@ impl Database {
         Ok(())
     }
 
+    fn migrate_v3_to_v4(&self) -> Result<()> {
+        info!("Migrating SQLite schema from version 3 to 4");
+        let migration = self.conn.execute_batch(
+            "BEGIN IMMEDIATE;
+             ALTER TABLE scan_session ADD COLUMN cloud_policy TEXT NOT NULL
+                 DEFAULT 'exclude_registered_roots'
+                 CHECK(cloud_policy IN ('exclude_registered_roots', 'include_sync_roots_skip_placeholders', 'allow_cloud_access'));
+             ALTER TABLE scan_session ADD COLUMN manual_location_exclusions_json TEXT NOT NULL DEFAULT '[]';
+             ALTER TABLE scan_session ADD COLUMN registered_cloud_locations_json TEXT NOT NULL DEFAULT '[]';
+             ALTER TABLE scan_session ADD COLUMN cloud_detection_status TEXT NOT NULL DEFAULT 'unavailable'
+                 CHECK(cloud_detection_status IN ('complete', 'unsupported', 'unavailable'));
+             ALTER TABLE scan_run ADD COLUMN excluded_subtree_count INTEGER NOT NULL DEFAULT 0
+                 CHECK(excluded_subtree_count >= 0);
+             CREATE TABLE run_exclusion (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 path TEXT NOT NULL,
+                 reason_code TEXT NOT NULL,
+                 provider_id TEXT,
+                 provider_name TEXT,
+                 occurrence_count INTEGER NOT NULL DEFAULT 1 CHECK(occurrence_count > 0),
+                 UNIQUE(run_id, path, reason_code)
+             );
+             CREATE INDEX idx_run_exclusion_run_path
+                 ON run_exclusion(run_id, path COLLATE NOCASE, id);
+             PRAGMA user_version = 4;
+             COMMIT;",
+        );
+        if migration.is_err() {
+            let _ = self.conn.execute_batch("ROLLBACK;");
+        }
+        migration
+    }
+
     pub fn reconcile_interrupted_runs(&self) -> Result<usize> {
         let now = Utc::now().to_rfc3339();
         let count = self.conn.execute(
@@ -292,6 +327,7 @@ impl Database {
         self.conn.execute_batch(
             "BEGIN;
              DELETE FROM deletion_plan;
+             DELETE FROM run_exclusion;
              DELETE FROM directory_similarity;
              DELETE FROM duplicate_folder_group_member;
              DELETE FROM duplicate_folder_group;

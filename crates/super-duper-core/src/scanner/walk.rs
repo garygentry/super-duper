@@ -24,17 +24,44 @@ pub struct DiscoveredFile {
     pub warning_message: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocationExclusion {
+    pub path: PathBuf,
+    pub reason_code: String,
+    pub provider_id: Option<String>,
+    pub provider_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExcludedSubtree {
+    pub path: String,
+    pub reason_code: String,
+    pub provider_id: Option<String>,
+    pub provider_name: Option<String>,
+}
+
 pub struct TraversalResult {
     pub size_to_files: DashMap<u64, Vec<PathBuf>>,
     pub files: Vec<DiscoveredFile>,
     pub files_discovered: usize,
     pub bytes_discovered: u64,
     pub warning_count: usize,
+    pub excluded_subtrees: Vec<ExcludedSubtree>,
 }
 
 pub fn discover_files(
     root_paths: &[&str],
     ignore_globs: &[&str],
+    cancel_token: &AtomicBool,
+    progress: &dyn ProgressReporter,
+) -> io::Result<TraversalResult> {
+    discover_files_with_exclusions(root_paths, ignore_globs, &[], cancel_token, progress)
+}
+
+pub fn discover_files_with_exclusions(
+    root_paths: &[&str],
+    ignore_globs: &[&str],
+    location_exclusions: &[LocationExclusion],
     cancel_token: &AtomicBool,
     progress: &dyn ProgressReporter,
 ) -> io::Result<TraversalResult> {
@@ -44,6 +71,7 @@ pub fn discover_files(
     let warnings = AtomicUsize::new(0);
     let file_count = AtomicUsize::new(0);
     let byte_count = AtomicU64::new(0);
+    let excluded_subtrees = DashMap::new();
 
     let ignore_patterns: Vec<Pattern> = ignore_globs
         .iter()
@@ -59,6 +87,13 @@ pub fn discover_files(
 
     root_paths.par_iter().try_for_each(|root| {
         let root_path = Path::new(root);
+        if cancel_token.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        if let Some(exclusion) = matching_exclusion(root_path, location_exclusions) {
+            record_exclusion(&excluded_subtrees, root_path, exclusion);
+            return Ok(());
+        }
         if !root_path.is_dir() {
             warn!(
                 "Scan root is not an accessible directory: {}",
@@ -111,6 +146,8 @@ pub fn discover_files(
             &file_count,
             &byte_count,
             &warnings,
+            location_exclusions,
+            &excluded_subtrees,
         )
     })?;
 
@@ -123,12 +160,18 @@ pub fn discover_files(
         warnings.load(Ordering::Relaxed),
         "",
     );
+    let mut excluded_subtrees = excluded_subtrees
+        .into_iter()
+        .map(|(_, exclusion)| exclusion)
+        .collect::<Vec<_>>();
+    excluded_subtrees.sort_by(|left, right| left.path.cmp(&right.path));
     Ok(TraversalResult {
         size_to_files: map,
         files,
         files_discovered: file_count.load(Ordering::Relaxed),
         bytes_discovered: byte_count.load(Ordering::Relaxed),
         warning_count: warnings.load(Ordering::Relaxed),
+        excluded_subtrees,
     })
 }
 
@@ -155,11 +198,19 @@ fn visit_dirs(
     file_count: &AtomicUsize,
     byte_count: &AtomicU64,
     warnings: &AtomicUsize,
+    location_exclusions: &[LocationExclusion],
+    excluded_subtrees: &DashMap<String, ExcludedSubtree>,
 ) -> io::Result<()> {
-    if cancel_token.load(Ordering::Relaxed)
-        || ignore_patterns
-            .iter()
-            .any(|pattern| pattern.matches_path(dir))
+    if cancel_token.load(Ordering::Relaxed) {
+        return Ok(());
+    }
+    if let Some(exclusion) = matching_exclusion(dir, location_exclusions) {
+        record_exclusion(excluded_subtrees, dir, exclusion);
+        return Ok(());
+    }
+    if ignore_patterns
+        .iter()
+        .any(|pattern| pattern.matches_path(dir))
     {
         return Ok(());
     }
@@ -186,6 +237,10 @@ fn visit_dirs(
             }
         };
         let path = entry.path();
+        if let Some(exclusion) = matching_exclusion(&path, location_exclusions) {
+            record_exclusion(excluded_subtrees, &path, exclusion);
+            return Ok(());
+        }
         let file_type = match entry.file_type() {
             Ok(file_type) => file_type,
             Err(error) => {
@@ -223,6 +278,8 @@ fn visit_dirs(
                 file_count,
                 byte_count,
                 warnings,
+                location_exclusions,
+                excluded_subtrees,
             );
         }
         if !file_type.is_file()
@@ -337,6 +394,65 @@ fn visit_dirs(
     })
 }
 
+fn matching_exclusion<'a>(
+    path: &Path,
+    exclusions: &'a [LocationExclusion],
+) -> Option<&'a LocationExclusion> {
+    exclusions
+        .iter()
+        .filter(|exclusion| path_is_within(path, &exclusion.path))
+        .max_by_key(|exclusion| exclusion.path.components().count())
+}
+
+fn record_exclusion(
+    exclusions: &DashMap<String, ExcludedSubtree>,
+    path: &Path,
+    exclusion: &LocationExclusion,
+) {
+    let path = path.to_string_lossy().into_owned();
+    exclusions
+        .entry(path_key(Path::new(&path)))
+        .or_insert_with(|| ExcludedSubtree {
+            path,
+            reason_code: exclusion.reason_code.clone(),
+            provider_id: exclusion.provider_id.clone(),
+            provider_name: exclusion.provider_name.clone(),
+        });
+}
+
+#[cfg(windows)]
+fn path_is_within(path: &Path, ancestor: &Path) -> bool {
+    let path = path_key(path);
+    let ancestor = path_key(ancestor);
+    path == ancestor
+        || path
+            .strip_prefix(&ancestor)
+            .is_some_and(|suffix| suffix.starts_with('\\'))
+}
+
+#[cfg(not(windows))]
+fn path_is_within(path: &Path, ancestor: &Path) -> bool {
+    path.starts_with(ancestor)
+}
+
+#[cfg(windows)]
+fn path_key(path: &Path) -> String {
+    let value = path.to_string_lossy().replace('/', "\\");
+    let value = if let Some(unc) = value.strip_prefix("\\\\?\\UNC\\") {
+        format!("\\\\{unc}")
+    } else if let Some(dos) = value.strip_prefix("\\\\?\\") {
+        dos.to_owned()
+    } else {
+        value
+    };
+    value.trim_end_matches('\\').to_lowercase()
+}
+
+#[cfg(not(windows))]
+fn path_key(path: &Path) -> String {
+    path.to_string_lossy().trim_end_matches('/').to_owned()
+}
+
 pub fn is_link_or_reparse(path: &Path) -> io::Result<bool> {
     let metadata = fs::symlink_metadata(path)?;
     if metadata.file_type().is_symlink() {
@@ -350,4 +466,84 @@ pub fn is_link_or_reparse(path: &Path) -> io::Result<bool> {
     }
     #[cfg(not(windows))]
     Ok(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::progress::SilentReporter;
+    use std::sync::atomic::AtomicBool;
+    use tempfile::tempdir;
+
+    #[test]
+    fn broad_root_prunes_excluded_subtree_before_discovery() {
+        let temp = tempdir().unwrap();
+        let local = temp.path().join("local");
+        let cloud = temp.path().join("cloud");
+        fs::create_dir_all(&local).unwrap();
+        fs::create_dir_all(&cloud).unwrap();
+        fs::write(local.join("kept.bin"), b"local").unwrap();
+        fs::write(cloud.join("placeholder.bin"), b"cloud").unwrap();
+        let root = temp.path().to_string_lossy().into_owned();
+        let result = discover_files_with_exclusions(
+            &[&root],
+            &[],
+            &[LocationExclusion {
+                path: cloud.clone(),
+                reason_code: "registered_cloud_root_excluded".to_owned(),
+                provider_id: Some("provider".to_owned()),
+                provider_name: Some("Test cloud".to_owned()),
+            }],
+            &AtomicBool::new(false),
+            &SilentReporter,
+        )
+        .unwrap();
+
+        assert_eq!(result.files_discovered, 1);
+        assert!(result.files[0].canonical_path.contains("kept.bin"));
+        assert_eq!(result.excluded_subtrees.len(), 1);
+        assert!(paths_equal_for_test(
+            Path::new(&result.excluded_subtrees[0].path),
+            &cloud
+        ));
+    }
+
+    #[test]
+    fn root_inside_exclusion_is_classified_without_touching_filesystem() {
+        let temp = tempdir().unwrap();
+        let cloud = temp.path().join("unavailable-cloud");
+        let selected = cloud.join("selected-root");
+        let selected_text = selected.to_string_lossy().into_owned();
+        let result = discover_files_with_exclusions(
+            &[&selected_text],
+            &[],
+            &[LocationExclusion {
+                path: cloud,
+                reason_code: "registered_cloud_root_excluded".to_owned(),
+                provider_id: None,
+                provider_name: None,
+            }],
+            &AtomicBool::new(false),
+            &SilentReporter,
+        )
+        .unwrap();
+
+        assert_eq!(result.files_discovered, 0);
+        assert_eq!(result.warning_count, 0);
+        assert_eq!(result.excluded_subtrees.len(), 1);
+        assert!(paths_equal_for_test(
+            Path::new(&result.excluded_subtrees[0].path),
+            &selected
+        ));
+    }
+
+    #[cfg(windows)]
+    fn paths_equal_for_test(left: &Path, right: &Path) -> bool {
+        path_key(left) == path_key(right)
+    }
+
+    #[cfg(not(windows))]
+    fn paths_equal_for_test(left: &Path, right: &Path) -> bool {
+        left == right
+    }
 }

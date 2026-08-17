@@ -294,6 +294,25 @@ function Invoke-WpfAutomation([long]$RunId) {
         }
 
         Select-Element (Find-Element Name 'Milestone 6 Smoke')
+        Select-Element (Find-Element AutomationId 'SetupTab')
+        $null = Find-Element AutomationId 'CloudPolicyName'
+        $null = Find-Element AutomationId 'CloudPolicyDescription'
+        $null = Find-Element AutomationId 'ManualCloudLocationExclusions'
+        $cloudStatus = Find-Element AutomationId 'CloudDetectionStatus'
+        $refreshCloud = Find-Element AutomationId 'RefreshCloudLocations'
+        Invoke-Element $refreshCloud
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            $cloudStatus = Find-Element AutomationId 'CloudDetectionStatus' 1
+            $refreshCloud = Find-Element AutomationId 'RefreshCloudLocations' 1
+            if ($refreshCloud.Current.IsEnabled -and
+                -not $cloudStatus.Current.Name.Contains('Checking', [StringComparison]::OrdinalIgnoreCase)) {
+                break
+            }
+            Start-Sleep -Milliseconds 250
+        }
+        Assert-True ($refreshCloud.Current.IsEnabled) 'Cloud registration refresh did not complete responsively.'
+        Assert-True (-not $cloudStatus.Current.Name.Contains('unavailable', [StringComparison]::OrdinalIgnoreCase)) 'Cloud registration discovery remained unavailable in the normal WPF smoke.'
+        Assert-True ((Find-Element AutomationId 'StartScanButton').Current.IsEnabled) 'Start scan did not become enabled after successful cloud registration discovery.'
         Select-Element (Find-Element AutomationId 'DuplicateFilesTab')
         Invoke-Element (Find-Element Name 'Group size')
         Invoke-Element (Find-Element Name 'Next')
@@ -305,6 +324,12 @@ function Invoke-WpfAutomation([long]$RunId) {
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
         $fileMembers = Find-Element AutomationId 'FileMembersGrid'
         $null = Find-FirstDataItem $fileMembers
+        $summarySets = Find-Element AutomationId 'FileSummaryMatchingSets'
+        $summaryRecoverable = Find-Element AutomationId 'FileSummaryRecoverable'
+        $selectedSetExplanation = Find-Element AutomationId 'FileSelectedSetExplanation'
+        Assert-True ([long]$summarySets.Current.Name -ge 1) 'Filtered review summary did not expose matching sets.'
+        Assert-True (-not [string]::IsNullOrWhiteSpace($summaryRecoverable.Current.Name)) 'Filtered review summary did not expose recoverable bytes.'
+        Assert-True ($selectedSetExplanation.Current.Name.Contains('not identify an original', [StringComparison]::OrdinalIgnoreCase)) 'Selected-set explanation was not accessible.'
         Invoke-Element (Find-DescendantByName $fileMembers 'Show in Explorer')
         Assert-NoVisibleDetailError 'FileDetailError'
 
@@ -345,6 +370,111 @@ function Invoke-WpfAutomation([long]$RunId) {
                     Start-Sleep -Milliseconds 250
                 }
                 Assert-True ($null -eq (Get-Process -Id $ownedWorkerId -ErrorAction SilentlyContinue)) "Owned worker $ownedWorkerId survived WPF shutdown."
+            }
+        }
+        finally {
+            $process.Dispose()
+        }
+    }
+}
+
+function Assert-WpfCloudFailClosedScenario([string]$DatabasePath) {
+    Add-Type -AssemblyName UIAutomationClient
+    Add-Type -AssemblyName UIAutomationTypes
+    $knownWorkerIds = @(Get-Process -Name 'super-duper-worker' -ErrorAction SilentlyContinue | ForEach-Object Id)
+    $ownedWorkerId = $null
+    $start = [Diagnostics.ProcessStartInfo]::new()
+    $start.FileName = $app
+    $start.WorkingDirectory = Split-Path $app
+    $start.UseShellExecute = $false
+    $start.Environment['SUPER_DUPER_WORKER_PATH'] = $worker
+    $start.Environment['SUPER_DUPER_DB_PATH'] = $DatabasePath
+    $start.Environment['HASH_CACHE_PATH'] = $cache
+    $start.Environment['SUPER_DUPER_DISABLE_CLOUD_REGISTRATION_DISCOVERY'] = '1'
+    $process = [Diagnostics.Process]::Start($start)
+    try {
+        for ($attempt = 0; $attempt -lt 80 -and $process.MainWindowHandle -eq 0; $attempt++) {
+            Start-Sleep -Milliseconds 250
+            $process.Refresh()
+        }
+        Assert-True ($process.MainWindowHandle -ne 0) 'Fail-closed WPF main window did not appear.'
+        $window = [Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)
+
+        for ($attempt = 0; $attempt -lt 40 -and $null -eq $ownedWorkerId; $attempt++) {
+            $owned = Get-Process -Name 'super-duper-worker' -ErrorAction SilentlyContinue |
+                Where-Object { $_.Id -notin $knownWorkerIds } |
+                Select-Object -First 1
+            if ($null -ne $owned) { $ownedWorkerId = $owned.Id; break }
+            Start-Sleep -Milliseconds 250
+        }
+        Assert-True ($null -ne $ownedWorkerId) 'Fail-closed WPF scenario did not start an owned worker.'
+
+        function Find-CloudElement([string]$Property, [string]$Value, [int]$Attempts = 40) {
+            $propertyId = if ($Property -eq 'AutomationId') {
+                [Windows.Automation.AutomationElement]::AutomationIdProperty
+            } else {
+                [Windows.Automation.AutomationElement]::NameProperty
+            }
+            for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+                $condition = [Windows.Automation.PropertyCondition]::new($propertyId, $Value)
+                $element = $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+                if ($null -ne $element) { return $element }
+                Start-Sleep -Milliseconds 250
+            }
+            throw "Fail-closed UI Automation element $Property=$Value was not found."
+        }
+
+        function Select-CloudElement($Element) {
+            $pattern = $Element.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)
+            $pattern.Select()
+            Start-Sleep -Milliseconds 400
+        }
+
+        Select-CloudElement (Find-CloudElement Name 'Milestone 6 Smoke')
+        Select-CloudElement (Find-CloudElement AutomationId 'SetupTab')
+        $null = Find-CloudElement AutomationId 'CloudPolicyDescription'
+        $null = Find-CloudElement AutomationId 'ManualCloudLocationExclusions'
+        $status = Find-CloudElement AutomationId 'CloudDetectionStatus'
+        for ($attempt = 0; $attempt -lt 40 -and
+            -not $status.Current.Name.Contains('unavailable', [StringComparison]::OrdinalIgnoreCase); $attempt++) {
+            Start-Sleep -Milliseconds 250
+            $status = Find-CloudElement AutomationId 'CloudDetectionStatus' 1
+        }
+        Assert-True ($status.Current.Name.Contains('unavailable', [StringComparison]::OrdinalIgnoreCase)) 'Fail-closed cloud detection status was not visible.'
+        $startScan = Find-CloudElement AutomationId 'StartScanButton'
+        Assert-True (-not $startScan.Current.IsEnabled) 'Start scan was enabled while cloud registration discovery was unavailable.'
+
+        $refresh = Find-CloudElement AutomationId 'RefreshCloudLocations'
+        $refresh.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            Start-Sleep -Milliseconds 250
+            $refresh = Find-CloudElement AutomationId 'RefreshCloudLocations' 1
+            $status = Find-CloudElement AutomationId 'CloudDetectionStatus' 1
+            if ($refresh.Current.IsEnabled -and
+                $status.Current.Name.Contains('unavailable', [StringComparison]::OrdinalIgnoreCase)) {
+                break
+            }
+        }
+        Assert-True ($refresh.Current.IsEnabled) 'Fail-closed cloud refresh did not complete responsively.'
+        Assert-True (-not (Find-CloudElement AutomationId 'StartScanButton').Current.IsEnabled) 'Refresh incorrectly enabled Start scan while discovery remained unavailable.'
+        Write-Output 'WPF cloud setup automation passed, including deterministic provider-unavailable fail-closed start behavior.'
+    }
+    finally {
+        try {
+            if (-not $process.HasExited) {
+                $null = $process.CloseMainWindow()
+                if (-not $process.WaitForExit(10000)) {
+                    $process.Kill($true)
+                    $process.WaitForExit(5000) | Out-Null
+                    throw 'Fail-closed WPF app did not complete graceful shutdown within 10 seconds.'
+                }
+            }
+            Assert-True ($process.ExitCode -eq 0) "Fail-closed WPF app exited with code $($process.ExitCode)."
+            if ($null -ne $ownedWorkerId) {
+                for ($attempt = 0; $attempt -lt 20 -and $null -ne (Get-Process -Id $ownedWorkerId -ErrorAction SilentlyContinue); $attempt++) {
+                    Start-Sleep -Milliseconds 250
+                }
+                Assert-True ($null -eq (Get-Process -Id $ownedWorkerId -ErrorAction SilentlyContinue)) "Fail-closed owned worker $ownedWorkerId survived WPF shutdown."
             }
         }
         finally {
@@ -445,6 +575,10 @@ try {
         name = 'Milestone 6 Cancellation'
         roots = @($fixture.Cancel)
         ignorePatterns = @()
+        cloudPolicy = 'exclude_registered_roots'
+        manualLocationExclusions = @()
+        registeredCloudLocations = @()
+        cloudDetectionStatus = 'complete'
     }).session
     $cancelRun = (Send-WorkerRequest $connection 'run.start' @{ sessionId = $cancelSession.id }).run
     $cancelling = (Send-WorkerRequest $connection 'run.cancel' @{ runId = $cancelRun.id }).run
@@ -457,6 +591,10 @@ try {
         name = 'Milestone 6 Smoke'
         roots = $roots
         ignorePatterns = @('**/*.ignore')
+        cloudPolicy = 'exclude_registered_roots'
+        manualLocationExclusions = @()
+        registeredCloudLocations = @()
+        cloudDetectionStatus = 'complete'
     }).session
     $run = (Send-WorkerRequest $connection 'run.start' @{ sessionId = $session.id }).run
     $completed = Wait-RunTerminal $connection $run.id
@@ -493,11 +631,17 @@ try {
         filter = @{ search = 'group010'; minimumSize = '0' }; cursor = $null
     }
     Assert-True ($filteredFiles.total -ge 1) 'Duplicate-file filtering returned no smoke result.'
-    $null = Send-WorkerRequest $restored 'duplicate_file_group.members' @{
+    Assert-True ($filteredFiles.summary.matchingGroupCount -eq $filteredFiles.total) 'Filtered summary set count diverged from the result total.'
+    Assert-True ($filteredFiles.summary.matchingCopyCount -ge 2) 'Filtered summary did not count duplicate copies.'
+    Assert-True ([uint64]$filteredFiles.summary.potentialRecoverableBytes -gt 0) 'Filtered summary did not report recoverable bytes.'
+    $fileMembers = Send-WorkerRequest $restored 'duplicate_file_group.members' @{
         runId = $run.id; groupId = $filteredFiles.groups[0].id; pageSize = 25
         sort = @{ field = 'path'; direction = 'ascending' }
         filter = @{ search = '' }; cursor = $null
     }
+    Assert-True ($fileMembers.total -ge 2) 'Duplicate-file member browsing did not return the copies.'
+    Assert-True (($fileMembers.members | Where-Object { -not [string]::IsNullOrWhiteSpace($_.rootPath) }).Count -eq $fileMembers.members.Count) 'Duplicate-file members did not include selected-root context.'
+    Assert-True (($fileMembers.members | Where-Object { -not [string]::IsNullOrWhiteSpace($_.relativePath) }).Count -eq $fileMembers.members.Count) 'Duplicate-file members did not include relative-path context.'
 
     $folderPage = Send-WorkerRequest $restored 'duplicate_folder_group.page' @{
         runId = $run.id; pageSize = 25
@@ -525,6 +669,7 @@ try {
 
     if (-not $SkipWpf) {
         Invoke-WpfAutomation $run.id
+        Assert-WpfCloudFailClosedScenario $database
         $idleDatabase = Join-Path $smokeRoot 'idle-close.db'
         Assert-WpfCloseScenario 'idle connected close 1' $idleDatabase $worker $false
         Assert-WpfCloseScenario 'idle connected close 2' $idleDatabase $worker $false

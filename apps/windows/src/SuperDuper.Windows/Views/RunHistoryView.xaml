@@ -38,6 +38,7 @@
                     <DataGridTextColumn Width="120" Header="Groups" Binding="{Binding DuplicateGroups}" />
                     <DataGridTextColumn Width="120" Header="Recoverable" Binding="{Binding WastedBytes}" />
                     <DataGridTextColumn Width="100" Header="Warnings" Binding="{Binding WarningCount}" />
+                    <DataGridTextColumn Width="105" Header="Excluded" Binding="{Binding ExcludedSubtreeCount}" />
                 </DataGrid.Columns>
             </DataGrid>
 

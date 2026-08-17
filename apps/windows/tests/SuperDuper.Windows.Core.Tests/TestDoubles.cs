@@ -65,6 +65,10 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
         string name,
         IReadOnlyList<string> roots,
         IReadOnlyList<string> ignorePatterns,
+        string cloudPolicy,
+        IReadOnlyList<string> manualLocationExclusions,
+        IReadOnlyList<WorkerRegisteredCloudLocation> registeredCloudLocations,
+        string cloudDetectionStatus,
         CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
@@ -73,6 +77,10 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
             name,
             roots.ToArray(),
             ignorePatterns.ToArray(),
+            cloudPolicy,
+            manualLocationExclusions.ToArray(),
+            registeredCloudLocations.ToArray(),
+            cloudDetectionStatus,
             now,
             now);
         Sessions.Add(session);
@@ -84,6 +92,10 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
         string name,
         IReadOnlyList<string> roots,
         IReadOnlyList<string> ignorePatterns,
+        string cloudPolicy,
+        IReadOnlyList<string> manualLocationExclusions,
+        IReadOnlyList<WorkerRegisteredCloudLocation> registeredCloudLocations,
+        string cloudDetectionStatus,
         CancellationToken cancellationToken = default)
     {
         var index = Sessions.FindIndex(session => session.Id == sessionId);
@@ -92,6 +104,10 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
             Name = name,
             Roots = roots.ToArray(),
             IgnorePatterns = ignorePatterns.ToArray(),
+            CloudPolicy = cloudPolicy,
+            ManualLocationExclusions = manualLocationExclusions.ToArray(),
+            RegisteredCloudLocations = registeredCloudLocations.ToArray(),
+            CloudDetectionStatus = cloudDetectionStatus,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
         Sessions[index] = updated;
@@ -121,6 +137,13 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
     public Task<WorkerRun> GetRunAsync(long runId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Runs.Single(run => run.Id == runId));
 
+    public Task<WorkerRunExclusionPage> GetRunExclusionsAsync(
+        long runId,
+        long offset = 0,
+        int limit = 100,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new WorkerRunExclusionPage([], 0));
+
     public Task<WorkerRun> StartRunAsync(long sessionId, CancellationToken cancellationToken = default)
     {
         var session = Sessions.Single(value => value.Id == sessionId);
@@ -128,7 +151,14 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
         var run = CreateRun(++_nextRunId, session.Id, "running", "discovering", now);
         run = run with
         {
-            Parameters = new WorkerRunParameters(session.Roots, session.IgnorePatterns, 500),
+            Parameters = new WorkerRunParameters(
+                session.Roots,
+                session.IgnorePatterns,
+                500,
+                session.CloudPolicy,
+                session.ManualLocationExclusions,
+                session.RegisteredCloudLocations,
+                session.CloudDetectionStatus),
         };
         Runs.Add(run);
         return Task.FromResult(run);
@@ -180,6 +210,10 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
             name,
             roots,
             [],
+            CloudPolicyNames.ExcludeRegisteredRoots,
+            [],
+            [],
+            CloudDetectionStatusNames.Complete,
             now,
             now);
         Sessions.Add(session);
@@ -226,7 +260,14 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
         new(
             id,
             sessionId,
-            new WorkerRunParameters([], [], 500),
+            new WorkerRunParameters(
+                [],
+                [],
+                500,
+                CloudPolicyNames.ExcludeRegisteredRoots,
+                [],
+                [],
+                CloudDetectionStatusNames.Complete),
             status,
             phase,
             startedAt,
@@ -239,6 +280,7 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
             0,
             "1024",
             1,
+            0,
             status is "failed" or "interrupted" ? "Run did not finish." : null,
             "test-engine");
 }
@@ -253,6 +295,22 @@ internal sealed class TestConfirmation(bool answer = true) : IUserConfirmationSe
 {
     public Task<bool> ConfirmAsync(string title, string message, CancellationToken cancellationToken = default) =>
         Task.FromResult(answer);
+}
+
+internal sealed class TestCloudLocationService : ICloudLocationService
+{
+    public TestCloudLocationService(
+        string status = CloudDetectionStatusNames.Complete,
+        IReadOnlyList<WorkerRegisteredCloudLocation>? locations = null,
+        string? errorMessage = null)
+    {
+        Result = new CloudLocationDetectionResult(status, locations ?? [], errorMessage);
+    }
+
+    public CloudLocationDetectionResult Result { get; set; }
+
+    public Task<CloudLocationDetectionResult> DetectAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(Result);
 }
 
 internal sealed class ImmediateDispatcher : IUiDispatcher

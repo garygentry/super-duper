@@ -197,22 +197,81 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
         string name,
         IReadOnlyList<string> roots,
         IReadOnlyList<string> ignorePatterns,
+        string cloudPolicy,
+        IReadOnlyList<string> manualLocationExclusions,
+        IReadOnlyList<WorkerRegisteredCloudLocation> registeredCloudLocations,
+        string cloudDetectionStatus,
         CancellationToken cancellationToken = default) =>
         (await InvokeAsync<SessionResult>(
             "session.create",
-            new { name, roots, ignorePatterns },
+            new
+            {
+                name,
+                roots,
+                ignorePatterns,
+                cloudPolicy,
+                manualLocationExclusions,
+                registeredCloudLocations,
+                cloudDetectionStatus,
+            },
             cancellationToken).ConfigureAwait(false)).Session;
+
+    public Task<WorkerSessionDefinition> CreateSessionAsync(
+        string name,
+        IReadOnlyList<string> roots,
+        IReadOnlyList<string> ignorePatterns,
+        CancellationToken cancellationToken = default) =>
+        CreateSessionAsync(
+            name,
+            roots,
+            ignorePatterns,
+            CloudPolicyNames.ExcludeRegisteredRoots,
+            [],
+            [],
+            CloudDetectionStatusNames.Complete,
+            cancellationToken);
 
     public async Task<WorkerSessionDefinition> UpdateSessionAsync(
         long sessionId,
         string name,
         IReadOnlyList<string> roots,
         IReadOnlyList<string> ignorePatterns,
+        string cloudPolicy,
+        IReadOnlyList<string> manualLocationExclusions,
+        IReadOnlyList<WorkerRegisteredCloudLocation> registeredCloudLocations,
+        string cloudDetectionStatus,
         CancellationToken cancellationToken = default) =>
         (await InvokeAsync<SessionResult>(
             "session.update",
-            new { sessionId, name, roots, ignorePatterns },
+            new
+            {
+                sessionId,
+                name,
+                roots,
+                ignorePatterns,
+                cloudPolicy,
+                manualLocationExclusions,
+                registeredCloudLocations,
+                cloudDetectionStatus,
+            },
             cancellationToken).ConfigureAwait(false)).Session;
+
+    public Task<WorkerSessionDefinition> UpdateSessionAsync(
+        long sessionId,
+        string name,
+        IReadOnlyList<string> roots,
+        IReadOnlyList<string> ignorePatterns,
+        CancellationToken cancellationToken = default) =>
+        UpdateSessionAsync(
+            sessionId,
+            name,
+            roots,
+            ignorePatterns,
+            CloudPolicyNames.ExcludeRegisteredRoots,
+            [],
+            [],
+            CloudDetectionStatusNames.Complete,
+            cancellationToken);
 
     public async Task DeleteSessionAsync(
         long sessionId,
@@ -241,6 +300,16 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
             "run.get",
             new { runId },
             cancellationToken).ConfigureAwait(false)).Run;
+
+    public Task<WorkerRunExclusionPage> GetRunExclusionsAsync(
+        long runId,
+        long offset = 0,
+        int limit = 100,
+        CancellationToken cancellationToken = default) =>
+        InvokeAsync<WorkerRunExclusionPage>(
+            "run_exclusion.page",
+            new { runId, offset, limit },
+            cancellationToken);
 
     public async Task<WorkerRun> StartRunAsync(
         long sessionId,

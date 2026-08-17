@@ -6,6 +6,7 @@
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="3*" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="2*" />
@@ -50,7 +51,38 @@
                     Content="Apply filters" />
         </Grid>
 
-        <Grid Grid.Row="1">
+        <UniformGrid Grid.Row="1"
+                     Margin="0,0,0,14"
+                     automation:AutomationProperties.AutomationId="FileReviewSummary"
+                     automation:AutomationProperties.Name="Duplicate file review summary"
+                     Columns="4">
+            <Border Margin="0,0,6,0" Padding="12,9" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" BorderThickness="1" CornerRadius="6">
+                <StackPanel>
+                    <TextBlock Opacity="0.68" Text="Matching sets" />
+                    <TextBlock automation:AutomationProperties.AutomationId="FileSummaryMatchingSets" FontSize="19" FontWeight="SemiBold" Text="{Binding MatchingSetCountText}" />
+                </StackPanel>
+            </Border>
+            <Border Margin="2,0,4,0" Padding="12,9" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" BorderThickness="1" CornerRadius="6">
+                <StackPanel>
+                    <TextBlock Opacity="0.68" Text="Copies in those sets" />
+                    <TextBlock automation:AutomationProperties.AutomationId="FileSummaryMatchingCopies" FontSize="19" FontWeight="SemiBold" Text="{Binding MatchingCopyCountText}" />
+                </StackPanel>
+            </Border>
+            <Border Margin="4,0,2,0" Padding="12,9" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" BorderThickness="1" CornerRadius="6">
+                <StackPanel>
+                    <TextBlock Opacity="0.68" Text="Potential recoverable" />
+                    <TextBlock automation:AutomationProperties.AutomationId="FileSummaryRecoverable" FontSize="19" FontWeight="SemiBold" Text="{Binding PotentialRecoverableText}" />
+                </StackPanel>
+            </Border>
+            <Border Margin="6,0,0,0" Padding="12,9" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" BorderThickness="1" CornerRadius="6">
+                <StackPanel>
+                    <TextBlock Opacity="0.68" Text="Largest opportunity" />
+                    <TextBlock automation:AutomationProperties.AutomationId="FileSummaryLargestOpportunity" FontSize="19" FontWeight="SemiBold" Text="{Binding LargestOpportunityText}" />
+                </StackPanel>
+            </Border>
+        </UniformGrid>
+
+        <Grid Grid.Row="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
@@ -72,7 +104,7 @@
                 <DataGrid.Columns>
                     <DataGridTextColumn Width="*"
                                         MinWidth="180"
-                                        Header="Representative"
+                                        Header="Representative label"
                                         SortMemberPath="RepresentativeName"
                                         Binding="{Binding RepresentativeName}" />
                     <DataGridTextColumn Width="90"
@@ -139,9 +171,9 @@
             </StackPanel>
         </Grid>
 
-        <GridSplitter Grid.Row="2" Height="8" HorizontalAlignment="Stretch" ResizeDirection="Rows" />
+        <GridSplitter Grid.Row="3" Height="8" HorizontalAlignment="Stretch" ResizeDirection="Rows" />
 
-        <Grid Grid.Row="3" Margin="0,10,0,0">
+        <Grid Grid.Row="4" Margin="0,10,0,0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -152,7 +184,17 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock FontSize="17" FontWeight="SemiBold" Text="Copies in selected group" />
+                <StackPanel>
+                    <TextBlock automation:AutomationProperties.AutomationId="FileSelectedSetName"
+                               FontSize="17"
+                               FontWeight="SemiBold"
+                               Text="{Binding SelectedGroup.RepresentativeName, TargetNullValue=Select a duplicate set}" />
+                    <TextBlock Margin="0,3,0,0"
+                               automation:AutomationProperties.AutomationId="FileSelectedSetExplanation"
+                               Opacity="0.68"
+                               Text="Exact content was verified at scan time. The representative label does not identify an original."
+                               TextWrapping="Wrap" />
+                </StackPanel>
                 <TextBlock Grid.Column="1" Opacity="0.68" Text="{Binding MemberCountText}" />
             </Grid>
             <DataGrid x:Name="MembersGrid"
@@ -168,9 +210,23 @@
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Width="*" MinWidth="300" Header="Path" Binding="{Binding Path}" />
-                    <DataGridTextColumn Width="145" Header="Modified" Binding="{Binding Modified}" />
-                    <DataGridTextColumn Width="110" Header="Size" Binding="{Binding Size}" />
+                    <DataGridTemplateColumn Width="190" Header="Selected root">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding SelectedRoot}" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedRoot}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Width="*" MinWidth="220" Header="Relative path">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock automation:AutomationProperties.Name="{Binding Path}" Text="{Binding RelativePath}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Width="70" Header="Drive" Binding="{Binding Drive}" />
+                    <DataGridTextColumn Width="125" Header="Modified" Binding="{Binding Modified}" />
+                    <DataGridTextColumn Width="95" Header="Size" Binding="{Binding Size}" />
                     <DataGridTemplateColumn Width="190" Header="Actions">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>

@@ -14,14 +14,47 @@ impl Database {
         roots: &[String],
         ignore_patterns: &[String],
     ) -> Result<i64> {
+        self.create_session_with_cloud_settings(
+            name,
+            roots,
+            ignore_patterns,
+            CloudPolicy::ExcludeRegisteredRoots,
+            &[],
+            &[],
+            CloudDetectionStatus::Unavailable,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_session_with_cloud_settings(
+        &self,
+        name: &str,
+        roots: &[String],
+        ignore_patterns: &[String],
+        cloud_policy: CloudPolicy,
+        manual_location_exclusions: &[String],
+        registered_cloud_locations: &[RegisteredCloudLocation],
+        cloud_detection_status: CloudDetectionStatus,
+    ) -> Result<i64> {
         let now = Utc::now().to_rfc3339();
         let roots_json = json(roots)?;
         let ignores_json = json(ignore_patterns)?;
         self.connection().execute(
             "INSERT INTO scan_session
-                (name, roots_json, ignore_patterns_json, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?4)",
-            params![name.trim(), roots_json, ignores_json, now],
+                (name, roots_json, ignore_patterns_json, cloud_policy,
+                 manual_location_exclusions_json, registered_cloud_locations_json,
+                 cloud_detection_status, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
+            params![
+                name.trim(),
+                roots_json,
+                ignores_json,
+                cloud_policy.as_str(),
+                json(manual_location_exclusions)?,
+                json(registered_cloud_locations)?,
+                cloud_detection_status.as_str(),
+                now
+            ],
         )?;
         Ok(self.connection().last_insert_rowid())
     }
@@ -33,14 +66,45 @@ impl Database {
         roots: &[String],
         ignore_patterns: &[String],
     ) -> Result<()> {
+        self.update_session_with_cloud_settings(
+            session_id,
+            name,
+            roots,
+            ignore_patterns,
+            CloudPolicy::ExcludeRegisteredRoots,
+            &[],
+            &[],
+            CloudDetectionStatus::Unavailable,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn update_session_with_cloud_settings(
+        &self,
+        session_id: i64,
+        name: &str,
+        roots: &[String],
+        ignore_patterns: &[String],
+        cloud_policy: CloudPolicy,
+        manual_location_exclusions: &[String],
+        registered_cloud_locations: &[RegisteredCloudLocation],
+        cloud_detection_status: CloudDetectionStatus,
+    ) -> Result<()> {
         let changed = self.connection().execute(
             "UPDATE scan_session SET name = ?1, roots_json = ?2,
-                    ignore_patterns_json = ?3, updated_at = ?4
-             WHERE id = ?5",
+                    ignore_patterns_json = ?3, cloud_policy = ?4,
+                    manual_location_exclusions_json = ?5,
+                    registered_cloud_locations_json = ?6,
+                    cloud_detection_status = ?7, updated_at = ?8
+             WHERE id = ?9",
             params![
                 name.trim(),
                 json(roots)?,
                 json(ignore_patterns)?,
+                cloud_policy.as_str(),
+                json(manual_location_exclusions)?,
+                json(registered_cloud_locations)?,
+                cloud_detection_status.as_str(),
                 Utc::now().to_rfc3339(),
                 session_id
             ],
@@ -50,7 +114,9 @@ impl Database {
 
     pub fn get_session(&self, session_id: i64) -> Result<ScanSession> {
         self.connection().query_row(
-            "SELECT id, name, roots_json, ignore_patterns_json, created_at, updated_at
+            "SELECT id, name, roots_json, ignore_patterns_json, cloud_policy,
+                    manual_location_exclusions_json, registered_cloud_locations_json,
+                    cloud_detection_status, created_at, updated_at
              FROM scan_session WHERE id = ?1",
             params![session_id],
             map_session,
@@ -62,7 +128,9 @@ impl Database {
             self.connection()
                 .query_row("SELECT COUNT(*) FROM scan_session", [], |row| row.get(0))?;
         let mut stmt = self.connection().prepare(
-            "SELECT id, name, roots_json, ignore_patterns_json, created_at, updated_at
+            "SELECT id, name, roots_json, ignore_patterns_json, cloud_policy,
+                    manual_location_exclusions_json, registered_cloud_locations_json,
+                    cloud_detection_status, created_at, updated_at
              FROM scan_session ORDER BY name COLLATE NOCASE, id LIMIT ?1 OFFSET ?2",
         )?;
         let rows = stmt
@@ -471,11 +539,23 @@ impl Database {
             base_parameters.push(SqlValue::Text(like_pattern(search)));
         }
         let where_sql = predicates.join(" AND ");
-        let total: i64 = self.connection().query_row(
-            &format!("SELECT COUNT(*) FROM duplicate_group dg WHERE {where_sql}"),
+        let summary = self.connection().query_row(
+            &format!(
+                "SELECT COUNT(*), COALESCE(SUM(dg.file_count), 0),
+                        COALESCE(SUM(dg.wasted_bytes), 0), COALESCE(MAX(dg.wasted_bytes), 0)
+                 FROM duplicate_group dg WHERE {where_sql}"
+            ),
             params_from_iter(base_parameters.iter()),
-            |row| row.get(0),
+            |row| {
+                Ok(DuplicateFileReviewSummary {
+                    matching_group_count: row.get(0)?,
+                    matching_copy_count: row.get(1)?,
+                    potential_recoverable_bytes: row.get(2)?,
+                    largest_recoverable_bytes: row.get(3)?,
+                })
+            },
         )?;
+        let total = summary.matching_group_count;
 
         let sort_expression = match query.sort_field {
             DuplicateFileGroupSortField::RecoverableBytes => "recoverable_bytes",
@@ -550,6 +630,7 @@ impl Database {
         Ok(DuplicateFileGroupPage {
             groups,
             total,
+            summary,
             has_more,
         })
     }
@@ -620,6 +701,7 @@ impl Database {
         );
         let sql = format!(
             "SELECT sf.id, dg.id, sf.canonical_path, sf.file_name, sf.parent_dir,
+                    sf.root_path, sf.relative_path, sf.drive_letter,
                     sf.file_size, sf.last_modified
              {from_sql}
              WHERE {where_sql} {cursor_clause}
@@ -634,8 +716,11 @@ impl Database {
                 canonical_path: row.get(2)?,
                 file_name: row.get(3)?,
                 parent_dir: row.get(4)?,
-                file_size: row.get(5)?,
-                last_modified: row.get(6)?,
+                root_path: row.get(5)?,
+                relative_path: row.get(6)?,
+                drive_letter: row.get(7)?,
+                file_size: row.get(8)?,
+                last_modified: row.get(9)?,
             })
         })?;
         let mut members = mapped.collect::<Result<Vec<_>>>()?;
@@ -1096,13 +1181,86 @@ impl Database {
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
     }
+
+    pub fn replace_run_exclusions(
+        &self,
+        run_id: i64,
+        exclusions: &[RunExclusionInsert],
+    ) -> Result<()> {
+        self.connection().execute_batch("BEGIN IMMEDIATE;")?;
+        let result = (|| -> Result<()> {
+            self.connection().execute(
+                "DELETE FROM run_exclusion WHERE run_id = ?1",
+                params![run_id],
+            )?;
+            for exclusion in exclusions {
+                self.connection().execute(
+                    "INSERT INTO run_exclusion
+                        (run_id, path, reason_code, provider_id, provider_name, occurrence_count)
+                     VALUES (?1, ?2, ?3, ?4, ?5, 1)
+                     ON CONFLICT(run_id, path, reason_code) DO UPDATE SET
+                        occurrence_count = run_exclusion.occurrence_count + 1",
+                    params![
+                        run_id,
+                        exclusion.path,
+                        exclusion.reason_code,
+                        exclusion.provider_id,
+                        exclusion.provider_name
+                    ],
+                )?;
+            }
+            self.connection().execute(
+                "UPDATE scan_run SET excluded_subtree_count =
+                    (SELECT COUNT(*) FROM run_exclusion WHERE run_id = ?1)
+                 WHERE id = ?1",
+                params![run_id],
+            )?;
+            self.connection().execute_batch("COMMIT;")
+        })();
+        if result.is_err() {
+            let _ = self.connection().execute_batch("ROLLBACK;");
+        }
+        result
+    }
+
+    pub fn page_run_exclusions(
+        &self,
+        run_id: i64,
+        offset: i64,
+        limit: i64,
+    ) -> Result<(Vec<RunExclusion>, i64)> {
+        let total = self.connection().query_row(
+            "SELECT COUNT(*) FROM run_exclusion WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )?;
+        let mut statement = self.connection().prepare(
+            "SELECT id, run_id, path, reason_code, provider_id, provider_name, occurrence_count
+             FROM run_exclusion WHERE run_id = ?1
+             ORDER BY path COLLATE NOCASE, id LIMIT ?2 OFFSET ?3",
+        )?;
+        let exclusions = statement
+            .query_map(params![run_id, limit, offset], |row| {
+                Ok(RunExclusion {
+                    id: row.get(0)?,
+                    run_id: row.get(1)?,
+                    path: row.get(2)?,
+                    reason_code: row.get(3)?,
+                    provider_id: row.get(4)?,
+                    provider_name: row.get(5)?,
+                    occurrence_count: row.get(6)?,
+                })
+            })?
+            .collect::<Result<Vec<_>>>()?;
+        Ok((exclusions, total))
+    }
 }
 
 const RUN_SELECT: &str =
     "SELECT id, session_id, parameters_json, status, phase, created_at, started_at,
             completed_at, files_discovered, bytes_discovered, files_hashed,
             duplicate_file_groups, duplicate_folder_groups, wasted_bytes, warning_count,
-            error_message, engine_version FROM scan_run";
+            excluded_subtree_count, error_message, engine_version FROM scan_run";
 
 fn map_session(row: &rusqlite::Row<'_>) -> Result<ScanSession> {
     Ok(ScanSession {
@@ -1110,8 +1268,12 @@ fn map_session(row: &rusqlite::Row<'_>) -> Result<ScanSession> {
         name: row.get(1)?,
         roots_json: row.get(2)?,
         ignore_patterns_json: row.get(3)?,
-        created_at: row.get(4)?,
-        updated_at: row.get(5)?,
+        cloud_policy: row.get(4)?,
+        manual_location_exclusions_json: row.get(5)?,
+        registered_cloud_locations_json: row.get(6)?,
+        cloud_detection_status: row.get(7)?,
+        created_at: row.get(8)?,
+        updated_at: row.get(9)?,
     })
 }
 
@@ -1132,8 +1294,9 @@ fn map_run(row: &rusqlite::Row<'_>) -> Result<ScanRun> {
         duplicate_folder_groups: row.get(12)?,
         wasted_bytes: row.get(13)?,
         warning_count: row.get(14)?,
-        error_message: row.get(15)?,
-        engine_version: row.get(16)?,
+        excluded_subtree_count: row.get(15)?,
+        error_message: row.get(16)?,
+        engine_version: row.get(17)?,
     })
 }
 

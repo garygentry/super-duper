@@ -1,8 +1,9 @@
 use rusqlite::{params, Connection, Error as SqlError};
 use super_duper_core::storage::models::{
-    DuplicateFileGroupFilter, DuplicateFileGroupPageQuery, DuplicateFileGroupSortField,
-    DuplicateFileMemberFilter, DuplicateFileMemberPageQuery, DuplicateFileMemberSortField,
-    PageCursor, PageCursorValue, RunParameters, ScannedFile, SortDirection,
+    CloudDetectionStatus, CloudPolicy, DuplicateFileGroupFilter, DuplicateFileGroupPageQuery,
+    DuplicateFileGroupSortField, DuplicateFileMemberFilter, DuplicateFileMemberPageQuery,
+    DuplicateFileMemberSortField, PageCursor, PageCursorValue, RegisteredCloudLocation,
+    RunExclusionInsert, RunParameters, ScannedFile, SortDirection,
 };
 use super_duper_core::storage::sqlite::CURRENT_SCHEMA_VERSION;
 use super_duper_core::storage::Database;
@@ -13,6 +14,10 @@ fn parameters(roots: &[&str], ignores: &[&str]) -> RunParameters {
         roots: roots.iter().map(|value| value.to_string()).collect(),
         ignore_patterns: ignores.iter().map(|value| value.to_string()).collect(),
         directory_similarity_threshold_millis: 500,
+        cloud_policy: Default::default(),
+        manual_location_exclusions: Vec::new(),
+        registered_cloud_locations: Vec::new(),
+        cloud_detection_status: Default::default(),
     }
 }
 
@@ -75,6 +80,42 @@ fn newer_schema_is_rejected_without_modification() {
 }
 
 #[test]
+fn version_three_migrates_cloud_defaults_transactionally() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("v3.db");
+    let connection = Connection::open(&path).unwrap();
+    connection
+        .execute_batch(
+            "PRAGMA user_version = 3;
+             CREATE TABLE scan_session (
+                id INTEGER PRIMARY KEY, name TEXT NOT NULL, roots_json TEXT NOT NULL,
+                ignore_patterns_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+             );
+             CREATE TABLE scan_run (
+                id INTEGER PRIMARY KEY, session_id INTEGER NOT NULL REFERENCES scan_session(id),
+                parameters_json TEXT NOT NULL, status TEXT NOT NULL, phase TEXT,
+                created_at TEXT NOT NULL, started_at TEXT, completed_at TEXT,
+                files_discovered INTEGER NOT NULL DEFAULT 0, bytes_discovered INTEGER NOT NULL DEFAULT 0,
+                files_hashed INTEGER NOT NULL DEFAULT 0, duplicate_file_groups INTEGER NOT NULL DEFAULT 0,
+                duplicate_folder_groups INTEGER NOT NULL DEFAULT 0, wasted_bytes INTEGER NOT NULL DEFAULT 0,
+                warning_count INTEGER NOT NULL DEFAULT 0, error_message TEXT, engine_version TEXT NOT NULL
+             );
+             INSERT INTO scan_session VALUES (1, 'Migrated', '[\"C:/Data\"]', '[]', 'now', 'now');",
+        )
+        .unwrap();
+    drop(connection);
+
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    let session = db.get_session(1).unwrap();
+
+    assert_eq!(db.schema_version().unwrap(), 4);
+    assert_eq!(session.cloud_policy, "exclude_registered_roots");
+    assert_eq!(session.manual_location_exclusions_json, "[]");
+    assert_eq!(session.registered_cloud_locations_json, "[]");
+    assert_eq!(session.cloud_detection_status, "unavailable");
+}
+
+#[test]
 fn session_names_are_case_insensitively_unique() {
     let db = Database::open_in_memory().unwrap();
     db.create_session("Photos", &["C:/Photos".into()], &[])
@@ -113,6 +154,88 @@ fn multiple_runs_keep_parameter_snapshots_after_session_edit() {
     assert_eq!(first_snapshot, first_params);
     assert_eq!(second_snapshot, second_params);
     assert_eq!(db.get_session(session).unwrap().roots_json, "[\"D:/Two\"]");
+}
+
+#[test]
+fn cloud_settings_are_immutable_in_run_snapshots() {
+    let db = Database::open_in_memory().unwrap();
+    let first_location = RegisteredCloudLocation {
+        path: "C:/Cloud".to_owned(),
+        provider_id: "provider-one".to_owned(),
+        display_name: "Cloud one".to_owned(),
+    };
+    let session = db
+        .create_session_with_cloud_settings(
+            "Cloud-safe",
+            &["C:/".to_owned()],
+            &[],
+            CloudPolicy::ExcludeRegisteredRoots,
+            &["C:/Manual".to_owned()],
+            std::slice::from_ref(&first_location),
+            CloudDetectionStatus::Complete,
+        )
+        .unwrap();
+    let first = RunParameters {
+        roots: vec!["C:/".to_owned()],
+        ignore_patterns: vec![],
+        directory_similarity_threshold_millis: 500,
+        cloud_policy: CloudPolicy::ExcludeRegisteredRoots,
+        manual_location_exclusions: vec!["C:/Manual".to_owned()],
+        registered_cloud_locations: vec![first_location],
+        cloud_detection_status: CloudDetectionStatus::Complete,
+    };
+    let run = db.create_scan_run(session, &first, "test").unwrap();
+
+    db.update_session_with_cloud_settings(
+        session,
+        "Cloud-safe",
+        &["D:/".to_owned()],
+        &[],
+        CloudPolicy::ExcludeRegisteredRoots,
+        &[],
+        &[],
+        CloudDetectionStatus::Complete,
+    )
+    .unwrap();
+
+    assert_eq!(
+        RunParameters::from_json(&db.get_scan_run(run).unwrap().parameters_json).unwrap(),
+        first
+    );
+}
+
+#[test]
+fn run_exclusion_pages_are_bounded_and_run_owned() {
+    let db = Database::open_in_memory().unwrap();
+    let (_, run) = session_and_run(&db, "Excluded", &["/root"]);
+    let (_, other_run) = session_and_run(&db, "Other", &["/other"]);
+    db.replace_run_exclusions(
+        run,
+        &[
+            RunExclusionInsert {
+                path: "/root/cloud-a".to_owned(),
+                reason_code: "registered_cloud_root_excluded".to_owned(),
+                provider_id: Some("one".to_owned()),
+                provider_name: Some("One".to_owned()),
+            },
+            RunExclusionInsert {
+                path: "/root/cloud-b".to_owned(),
+                reason_code: "registered_cloud_root_excluded".to_owned(),
+                provider_id: Some("two".to_owned()),
+                provider_name: Some("Two".to_owned()),
+            },
+        ],
+    )
+    .unwrap();
+
+    let (first_page, total) = db.page_run_exclusions(run, 0, 1).unwrap();
+    let (other_page, other_total) = db.page_run_exclusions(other_run, 0, 10).unwrap();
+
+    assert_eq!(total, 2);
+    assert_eq!(first_page.len(), 1);
+    assert_eq!(db.get_scan_run(run).unwrap().excluded_subtree_count, 2);
+    assert!(other_page.is_empty());
+    assert_eq!(other_total, 0);
 }
 
 #[test]
@@ -178,7 +301,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
     db.start_scan_run(second_run).unwrap();
 
     for (run_id, prefix) in [(first_run, "first"), (second_run, "second")] {
-        let files = [
+        let mut files = [
             file(run_id, &format!("/root/{prefix}-alpha.txt"), 100, 11),
             file(run_id, &format!("/root/{prefix}-alpha-copy.txt"), 100, 11),
             file(run_id, &format!("/root/{prefix}-beta.bin"), 200, 22),
@@ -186,6 +309,9 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             file(run_id, &format!("/root/{prefix}-gamma.bin"), 200, 33),
             file(run_id, &format!("/root/{prefix}-gamma-copy.bin"), 200, 33),
         ];
+        files[1].root_path = "/selected-root".to_owned();
+        files[1].relative_path = format!("{prefix}-alpha-copy.txt");
+        files[1].drive_letter = "D:".to_owned();
         db.insert_scanned_files(&files).unwrap();
         db.insert_duplicate_groups(
             run_id,
@@ -232,6 +358,10 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
     };
     let first_page = db.page_duplicate_file_groups(&base_query).unwrap();
     assert_eq!(first_page.total, 3);
+    assert_eq!(first_page.summary.matching_group_count, 3);
+    assert_eq!(first_page.summary.matching_copy_count, 6);
+    assert_eq!(first_page.summary.potential_recoverable_bytes, 500);
+    assert_eq!(first_page.summary.largest_recoverable_bytes, 200);
     assert_eq!(first_page.groups.len(), 2);
     assert!(first_page.has_more);
     assert!(first_page
@@ -293,6 +423,10 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
         })
         .unwrap();
     assert_eq!(filtered.total, 1);
+    assert_eq!(filtered.summary.matching_group_count, 1);
+    assert_eq!(filtered.summary.matching_copy_count, 2);
+    assert_eq!(filtered.summary.potential_recoverable_bytes, 100);
+    assert_eq!(filtered.summary.largest_recoverable_bytes, 100);
     let group = &filtered.groups[0];
     let members = db
         .page_duplicate_file_members(&DuplicateFileMemberPageQuery {
@@ -311,6 +445,9 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
     assert!(members.members[0]
         .canonical_path
         .contains("first-alpha-copy"));
+    assert_eq!(members.members[0].root_path, "/selected-root");
+    assert_eq!(members.members[0].relative_path, "first-alpha-copy.txt");
+    assert_eq!(members.members[0].drive_letter, "D:");
     assert!(!db
         .duplicate_file_group_exists(second_run, group.id)
         .unwrap());
@@ -351,6 +488,8 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
     let started = std::time::Instant::now();
     let first = db.page_duplicate_file_groups(&query).unwrap();
     assert_eq!(first.total, 100_000);
+    assert_eq!(first.summary.matching_group_count, 100_000);
+    assert_eq!(first.summary.matching_copy_count, 200_000);
     assert_eq!(first.groups.len(), 200);
     assert!(first.has_more);
     let boundary = first.groups.last().unwrap();

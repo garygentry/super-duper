@@ -112,3 +112,8 @@ Final operator acceptance found bounded release blockers; the code-complete reme
 [`docs/windows-release-acceptance-remediation-plan.md`](docs/windows-release-acceptance-remediation-plan.md).
 Post-MVP safe deletion review, distinct similar-folder presentation, bounded thumbnails,
 packaging/shell integration, and export remain deferred until that plan passes.
+
+The detailed post-MVP duplicate-review, cloud-safety, deletion, live-reconciliation, and Activity
+roadmap is maintained in
+[`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md). Its Milestones 7-14 are
+planning targets and remain gated on completion of the release-acceptance remediation plan.

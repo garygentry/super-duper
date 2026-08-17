@@ -9,6 +9,7 @@
     <SelfContained>false</SelfContained>
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\AppIcon\SuperDuper.ico</ApplicationIcon>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -18,6 +19,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Resource Include="Assets\AppIcon\SuperDuper.ico" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.13" />
     <ProjectReference Include="..\SuperDuper.Windows.Core\SuperDuper.Windows.Core.csproj" />
     <ProjectReference Include="..\SuperDuper.Windows.Infrastructure\SuperDuper.Windows.Infrastructure.csproj" />

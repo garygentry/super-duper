@@ -1,17 +1,41 @@
 namespace SuperDuper.Windows.Core.Workers;
 
+public static class CloudPolicyNames
+{
+    public const string ExcludeRegisteredRoots = "exclude_registered_roots";
+    public const string IncludeSyncRootsSkipPlaceholders = "include_sync_roots_skip_placeholders";
+    public const string AllowCloudAccess = "allow_cloud_access";
+}
+
+public static class CloudDetectionStatusNames
+{
+    public const string Complete = "complete";
+    public const string Unsupported = "unsupported";
+    public const string Unavailable = "unavailable";
+}
+
+public sealed record WorkerRegisteredCloudLocation(string Path, string ProviderId, string DisplayName);
+
 public sealed record WorkerSessionDefinition(
     long Id,
     string Name,
     IReadOnlyList<string> Roots,
     IReadOnlyList<string> IgnorePatterns,
+    string CloudPolicy,
+    IReadOnlyList<string> ManualLocationExclusions,
+    IReadOnlyList<WorkerRegisteredCloudLocation> RegisteredCloudLocations,
+    string CloudDetectionStatus,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
 public sealed record WorkerRunParameters(
     IReadOnlyList<string> Roots,
     IReadOnlyList<string> IgnorePatterns,
-    ushort DirectorySimilarityThresholdMillis);
+    ushort DirectorySimilarityThresholdMillis,
+    string CloudPolicy,
+    IReadOnlyList<string> ManualLocationExclusions,
+    IReadOnlyList<WorkerRegisteredCloudLocation> RegisteredCloudLocations,
+    string CloudDetectionStatus);
 
 public sealed record WorkerRun(
     long Id,
@@ -29,12 +53,24 @@ public sealed record WorkerRun(
     long DuplicateFolderGroups,
     string WastedBytes,
     long WarningCount,
+    long ExcludedSubtreeCount,
     string? ErrorMessage,
     string EngineVersion);
 
 public sealed record WorkerSessionPage(IReadOnlyList<WorkerSessionDefinition> Sessions, long Total);
 
 public sealed record WorkerRunPage(IReadOnlyList<WorkerRun> Runs, long Total);
+
+public sealed record WorkerRunExclusion(
+    long Id,
+    long RunId,
+    string Path,
+    string ReasonCode,
+    string? ProviderId,
+    string? ProviderName,
+    long OccurrenceCount);
+
+public sealed record WorkerRunExclusionPage(IReadOnlyList<WorkerRunExclusion> Exclusions, long Total);
 
 public enum WorkerSortDirection
 {
@@ -80,7 +116,17 @@ public sealed record WorkerDuplicateFileGroupPage(
     IReadOnlyList<WorkerDuplicateFileGroup> Groups,
     long Total,
     string? NextCursor,
-    string? PreviousCursor);
+    string? PreviousCursor)
+{
+    public WorkerDuplicateFileReviewSummary Summary { get; init; } =
+        new(0, 0, "0", "0");
+}
+
+public sealed record WorkerDuplicateFileReviewSummary(
+    long MatchingGroupCount,
+    long MatchingCopyCount,
+    string PotentialRecoverableBytes,
+    string LargestRecoverableBytes);
 
 public sealed record DuplicateFileMemberFilter(string Search);
 
@@ -100,7 +146,14 @@ public sealed record WorkerDuplicateFileMember(
     string FileName,
     string ParentPath,
     string Size,
-    string ModifiedTimeUnixNanos);
+    string ModifiedTimeUnixNanos)
+{
+    public string RootPath { get; init; } = string.Empty;
+
+    public string RelativePath { get; init; } = string.Empty;
+
+    public string DriveLetter { get; init; } = string.Empty;
+}
 
 public sealed record WorkerDuplicateFileMemberPage(
     IReadOnlyList<WorkerDuplicateFileMember> Members,

@@ -35,7 +35,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         IUserConfirmationService confirmation,
         IUiDispatcher dispatcher,
         IClipboardService clipboard,
-        IExplorerService explorer)
+        IExplorerService explorer,
+        ICloudLocationService? cloudLocations = null)
     {
         _workerClient = workerClient;
         _restartableWorkerClient = workerClient as IRestartableWorkerClient;
@@ -47,7 +48,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             workerClient,
             folderPicker,
             confirmation,
-            sessionId => Sessions.NamesExcept(sessionId));
+            sessionId => Sessions.NamesExcept(sessionId),
+            cloudLocations);
         Progress = new ScanProgressViewModel(workerClient, dispatcher);
         History = new RunHistoryViewModel(workerClient);
         DuplicateFiles = new DuplicateFilesViewModel(workerClient, clipboard, explorer);

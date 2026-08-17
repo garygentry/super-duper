@@ -121,7 +121,16 @@ public sealed class WorkerRecoveryTests
                     process,
                     "create",
                     "session.create",
-                    new { name = "Recovery", roots = new[] { root }, ignorePatterns = Array.Empty<string>() });
+                    new
+                    {
+                        name = "Recovery",
+                        roots = new[] { root },
+                        ignorePatterns = Array.Empty<string>(),
+                        cloudPolicy = CloudPolicyNames.ExcludeRegisteredRoots,
+                        manualLocationExclusions = Array.Empty<string>(),
+                        registeredCloudLocations = Array.Empty<object>(),
+                        cloudDetectionStatus = CloudDetectionStatusNames.Complete,
+                    });
                 _ = await ReadResponseAsync(process.StandardOutput, "create");
 
                 await SendAsync(process, "start", "run.start", new { sessionId = 1 });

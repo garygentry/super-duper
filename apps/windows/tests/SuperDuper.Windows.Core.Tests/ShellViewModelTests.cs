@@ -61,7 +61,8 @@ public sealed class ShellViewModelTests
             new TestConfirmation(),
             new ImmediateDispatcher(),
             new TestClipboard(),
-            new TestExplorer());
+            new TestExplorer(),
+            new TestCloudLocationService());
 
     private sealed class TestFolderPicker : IFolderPickerService
     {
@@ -108,15 +109,17 @@ public sealed class ShellViewModelTests
 
         public Task<WorkerSessionDefinition> GetSessionAsync(long sessionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
-        public Task<WorkerSessionDefinition> CreateSessionAsync(string name, IReadOnlyList<string> roots, IReadOnlyList<string> ignorePatterns, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<WorkerSessionDefinition> CreateSessionAsync(string name, IReadOnlyList<string> roots, IReadOnlyList<string> ignorePatterns, string cloudPolicy, IReadOnlyList<string> manualLocationExclusions, IReadOnlyList<WorkerRegisteredCloudLocation> registeredCloudLocations, string cloudDetectionStatus, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
-        public Task<WorkerSessionDefinition> UpdateSessionAsync(long sessionId, string name, IReadOnlyList<string> roots, IReadOnlyList<string> ignorePatterns, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<WorkerSessionDefinition> UpdateSessionAsync(long sessionId, string name, IReadOnlyList<string> roots, IReadOnlyList<string> ignorePatterns, string cloudPolicy, IReadOnlyList<string> manualLocationExclusions, IReadOnlyList<WorkerRegisteredCloudLocation> registeredCloudLocations, string cloudDetectionStatus, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task DeleteSessionAsync(long sessionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<WorkerRunPage> ListRunsAsync(long? sessionId = null, long offset = 0, int limit = 100, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<WorkerRun> GetRunAsync(long runId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerRunExclusionPage> GetRunExclusionsAsync(long runId, long offset = 0, int limit = 100, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<WorkerRun> StartRunAsync(long sessionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 

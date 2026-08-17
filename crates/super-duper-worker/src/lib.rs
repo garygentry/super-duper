@@ -11,13 +11,13 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 use super_duper_core::progress::ProgressReporter;
 use super_duper_core::storage::models::{
-    DuplicateFileGroupFilter, DuplicateFileGroupPageQuery, DuplicateFileGroupResult,
-    DuplicateFileGroupSortField, DuplicateFileMemberFilter, DuplicateFileMemberPageQuery,
-    DuplicateFileMemberResult, DuplicateFileMemberSortField, DuplicateFolderGroupFilter,
-    DuplicateFolderGroupPageQuery, DuplicateFolderGroupResult, DuplicateFolderGroupSortField,
-    DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery, DuplicateFolderMemberResult,
-    DuplicateFolderMemberSortField, PageCursor, PageCursorValue, RunParameters, ScanRun,
-    ScanSession, SortDirection,
+    CloudDetectionStatus, CloudPolicy, DuplicateFileGroupFilter, DuplicateFileGroupPageQuery,
+    DuplicateFileGroupResult, DuplicateFileGroupSortField, DuplicateFileMemberFilter,
+    DuplicateFileMemberPageQuery, DuplicateFileMemberResult, DuplicateFileMemberSortField,
+    DuplicateFolderGroupFilter, DuplicateFolderGroupPageQuery, DuplicateFolderGroupResult,
+    DuplicateFolderGroupSortField, DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery,
+    DuplicateFolderMemberResult, DuplicateFolderMemberSortField, PageCursor, PageCursorValue,
+    RegisteredCloudLocation, RunExclusion, RunParameters, ScanRun, ScanSession, SortDirection,
 };
 use super_duper_core::storage::Database;
 use super_duper_core::{AppConfig, ScanEngine};
@@ -179,11 +179,29 @@ struct RunIdParameters {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct RunExclusionPageParameters {
+    run_id: i64,
+    #[serde(default)]
+    offset: i64,
+    #[serde(default = "default_page_size")]
+    limit: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SessionWriteParameters {
     name: String,
     roots: Vec<String>,
     #[serde(default)]
     ignore_patterns: Vec<String>,
+    #[serde(default)]
+    cloud_policy: CloudPolicy,
+    #[serde(default)]
+    manual_location_exclusions: Vec<String>,
+    #[serde(default)]
+    registered_cloud_locations: Vec<RegisteredCloudLocation>,
+    #[serde(default)]
+    cloud_detection_status: CloudDetectionStatus,
 }
 
 #[derive(Debug, Deserialize)]
@@ -194,6 +212,14 @@ struct SessionUpdateParameters {
     roots: Vec<String>,
     #[serde(default)]
     ignore_patterns: Vec<String>,
+    #[serde(default)]
+    cloud_policy: CloudPolicy,
+    #[serde(default)]
+    manual_location_exclusions: Vec<String>,
+    #[serde(default)]
+    registered_cloud_locations: Vec<RegisteredCloudLocation>,
+    #[serde(default)]
+    cloud_detection_status: CloudDetectionStatus,
 }
 
 #[derive(Debug, Deserialize)]
@@ -412,6 +438,10 @@ struct SessionDto {
     name: String,
     roots: Vec<String>,
     ignore_patterns: Vec<String>,
+    cloud_policy: CloudPolicy,
+    manual_location_exclusions: Vec<String>,
+    registered_cloud_locations: Vec<RegisteredCloudLocation>,
+    cloud_detection_status: CloudDetectionStatus,
     created_at: String,
     updated_at: String,
 }
@@ -434,6 +464,7 @@ struct RunDto {
     duplicate_folder_groups: i64,
     wasted_bytes: String,
     warning_count: i64,
+    excluded_subtree_count: i64,
     error_message: Option<String>,
     engine_version: String,
 }
@@ -444,6 +475,22 @@ struct RunParametersDto {
     roots: Vec<String>,
     ignore_patterns: Vec<String>,
     directory_similarity_threshold_millis: u16,
+    cloud_policy: CloudPolicy,
+    manual_location_exclusions: Vec<String>,
+    registered_cloud_locations: Vec<RegisteredCloudLocation>,
+    cloud_detection_status: CloudDetectionStatus,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RunExclusionDto {
+    id: i64,
+    run_id: i64,
+    path: String,
+    reason_code: String,
+    provider_id: Option<String>,
+    provider_name: Option<String>,
+    occurrence_count: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -460,12 +507,24 @@ struct DuplicateFileGroupDto {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct DuplicateFileReviewSummaryDto {
+    matching_group_count: i64,
+    matching_copy_count: i64,
+    potential_recoverable_bytes: String,
+    largest_recoverable_bytes: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DuplicateFileMemberDto {
     id: i64,
     group_id: i64,
     path: String,
     file_name: String,
     parent_path: String,
+    root_path: String,
+    relative_path: String,
+    drive_letter: String,
     size: String,
     modified_time_unix_nanos: String,
 }
@@ -704,6 +763,7 @@ impl WorkerSession {
             "session.delete" => self.session_delete(request),
             "run.list" => self.run_list(request),
             "run.get" => self.run_get(request),
+            "run_exclusion.page" => self.run_exclusion_page(request),
             "run.start" => self.run_start(request),
             "run.cancel" => self.run_cancel(request),
             "duplicate_file_group.page" => self.duplicate_file_group_page(request),
@@ -744,6 +804,10 @@ impl WorkerSession {
             parameters.name,
             parameters.roots,
             parameters.ignore_patterns,
+            parameters.cloud_policy,
+            parameters.manual_location_exclusions,
+            parameters.registered_cloud_locations,
+            parameters.cloud_detection_status,
         )?;
         let db = self.state.database()?;
         if session_name_exists(&db, &validated.name, None)? {
@@ -753,10 +817,14 @@ impl WorkerSession {
             ));
         }
         let id = db
-            .create_session(
+            .create_session_with_cloud_settings(
                 &validated.name,
                 &validated.roots,
                 &validated.ignore_patterns,
+                validated.cloud_policy,
+                &validated.manual_location_exclusions,
+                &validated.registered_cloud_locations,
+                validated.cloud_detection_status,
             )
             .map_err(internal_database_error)?;
         Ok(json!({"session":session_dto(get_session(&db, id)?)?}))
@@ -769,6 +837,10 @@ impl WorkerSession {
             parameters.name,
             parameters.roots,
             parameters.ignore_patterns,
+            parameters.cloud_policy,
+            parameters.manual_location_exclusions,
+            parameters.registered_cloud_locations,
+            parameters.cloud_detection_status,
         )?;
         let db = self.state.database()?;
         let _ = get_session(&db, parameters.session_id)?;
@@ -778,11 +850,15 @@ impl WorkerSession {
                 "A session with that name already exists",
             ));
         }
-        db.update_session(
+        db.update_session_with_cloud_settings(
             parameters.session_id,
             &validated.name,
             &validated.roots,
             &validated.ignore_patterns,
+            validated.cloud_policy,
+            &validated.manual_location_exclusions,
+            &validated.registered_cloud_locations,
+            validated.cloud_detection_status,
         )
         .map_err(internal_database_error)?;
         Ok(json!({"session":session_dto(get_session(&db, parameters.session_id)?)?}))
@@ -832,6 +908,20 @@ impl WorkerSession {
         let parameters: RunIdParameters = parse_parameters(request)?;
         let run = get_run(&self.state.database()?, parameters.run_id)?;
         Ok(json!({"run":run_dto(run)?}))
+    }
+
+    fn run_exclusion_page(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let parameters: RunExclusionPageParameters = parse_parameters(request)?;
+        validate_page_values(parameters.offset, parameters.limit)?;
+        let db = self.state.database()?;
+        let _ = get_run(&db, parameters.run_id)?;
+        let (exclusions, total) = db
+            .page_run_exclusions(parameters.run_id, parameters.offset, parameters.limit)
+            .map_err(internal_database_error)?;
+        Ok(json!({
+            "exclusions": exclusions.into_iter().map(run_exclusion_dto).collect::<Vec<_>>(),
+            "total": total,
+        }))
     }
 
     fn duplicate_file_group_page(
@@ -903,10 +993,12 @@ impl WorkerSession {
                 has_next.then(|| encode_group_cursor(group, sort_field, false, &signature))
             })
             .transpose()?;
+        let summary = review_summary_dto(&page.summary);
         let groups = page.groups.into_iter().map(group_dto).collect::<Vec<_>>();
         Ok(json!({
             "groups": groups,
             "total": page.total,
+            "summary": summary,
             "nextCursor": next_cursor,
             "previousCursor": previous_cursor,
         }))
@@ -1187,7 +1279,40 @@ impl WorkerSession {
         let db = self.state.database()?;
         let session = get_session(&db, parameters.session_id)?;
         let session = session_dto(session)?;
-        if !session.roots.iter().any(|root| Path::new(root).is_dir()) {
+        if session.cloud_policy != CloudPolicy::ExcludeRegisteredRoots {
+            return Err(ProtocolFailure::new(
+                "invalid_session",
+                "This version enables only the exclude_registered_roots cloud policy",
+            )
+            .with_details(json!({"sessionId":parameters.session_id, "field":"cloudPolicy"})));
+        }
+        if session.cloud_detection_status != CloudDetectionStatus::Complete {
+            return Err(ProtocolFailure::new(
+                "invalid_session",
+                "Registered cloud location detection must complete before starting this scan",
+            )
+            .with_details(json!({
+                "sessionId":parameters.session_id,
+                "field":"cloudDetectionStatus",
+                "status":session.cloud_detection_status.as_str(),
+            })));
+        }
+        let effective_exclusions = session
+            .manual_location_exclusions
+            .iter()
+            .chain(
+                session
+                    .registered_cloud_locations
+                    .iter()
+                    .map(|location| &location.path),
+            )
+            .collect::<Vec<_>>();
+        if !session.roots.iter().any(|root| {
+            effective_exclusions
+                .iter()
+                .any(|exclusion| path_is_within(Path::new(root), Path::new(exclusion)))
+                || Path::new(root).is_dir()
+        }) {
             return Err(ProtocolFailure::new(
                 "invalid_session",
                 "At least one session root must be an accessible directory",
@@ -1198,6 +1323,10 @@ impl WorkerSession {
             roots: session.roots.clone(),
             ignore_patterns: session.ignore_patterns.clone(),
             directory_similarity_threshold_millis: 500,
+            cloud_policy: session.cloud_policy,
+            manual_location_exclusions: session.manual_location_exclusions.clone(),
+            registered_cloud_locations: session.registered_cloud_locations.clone(),
+            cloud_detection_status: session.cloud_detection_status,
         };
         let run_id = db
             .create_scan_run(
@@ -2066,6 +2195,17 @@ fn group_dto(group: DuplicateFileGroupResult) -> DuplicateFileGroupDto {
     }
 }
 
+fn review_summary_dto(
+    summary: &super_duper_core::storage::models::DuplicateFileReviewSummary,
+) -> DuplicateFileReviewSummaryDto {
+    DuplicateFileReviewSummaryDto {
+        matching_group_count: summary.matching_group_count,
+        matching_copy_count: summary.matching_copy_count,
+        potential_recoverable_bytes: summary.potential_recoverable_bytes.to_string(),
+        largest_recoverable_bytes: summary.largest_recoverable_bytes.to_string(),
+    }
+}
+
 fn member_dto(member: DuplicateFileMemberResult) -> DuplicateFileMemberDto {
     DuplicateFileMemberDto {
         id: member.id,
@@ -2073,6 +2213,9 @@ fn member_dto(member: DuplicateFileMemberResult) -> DuplicateFileMemberDto {
         path: member.canonical_path,
         file_name: member.file_name,
         parent_path: member.parent_dir,
+        root_path: member.root_path,
+        relative_path: member.relative_path,
+        drive_letter: member.drive_letter,
         size: member.file_size.to_string(),
         modified_time_unix_nanos: member.last_modified.to_string(),
     }
@@ -2140,12 +2283,21 @@ struct ValidatedSession {
     name: String,
     roots: Vec<String>,
     ignore_patterns: Vec<String>,
+    cloud_policy: CloudPolicy,
+    manual_location_exclusions: Vec<String>,
+    registered_cloud_locations: Vec<RegisteredCloudLocation>,
+    cloud_detection_status: CloudDetectionStatus,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn validate_session(
     name: String,
     roots: Vec<String>,
     ignore_patterns: Vec<String>,
+    cloud_policy: CloudPolicy,
+    manual_location_exclusions: Vec<String>,
+    registered_cloud_locations: Vec<RegisteredCloudLocation>,
+    cloud_detection_status: CloudDetectionStatus,
 ) -> Result<ValidatedSession, ProtocolFailure> {
     let name = name.trim().to_owned();
     if name.is_empty() || name.chars().count() > 200 {
@@ -2163,6 +2315,70 @@ fn validate_session(
         .with_details(json!({"field":"roots"})));
     }
 
+    let manual_location_exclusions =
+        validate_location_paths(manual_location_exclusions, 256, "manualLocationExclusions")?;
+    if registered_cloud_locations.len() > 128 {
+        return Err(ProtocolFailure::new(
+            "invalid_session",
+            "A session may contain at most 128 registered cloud locations",
+        )
+        .with_details(json!({"field":"registeredCloudLocations"})));
+    }
+    let mut validated_cloud_locations = Vec::with_capacity(registered_cloud_locations.len());
+    for (location_index, location) in registered_cloud_locations.into_iter().enumerate() {
+        let path = location.path.trim();
+        let provider_id = location.provider_id.trim();
+        let display_name = location.display_name.trim();
+        if path.is_empty() || !Path::new(path).is_absolute() {
+            return Err(ProtocolFailure::new(
+                "invalid_session",
+                "Every registered cloud location must have an absolute path",
+            )
+            .with_details(
+                json!({"field":"registeredCloudLocations", "locationIndex":location_index}),
+            ));
+        }
+        if provider_id.chars().count() > 200 || display_name.chars().count() > 200 {
+            return Err(ProtocolFailure::new(
+                "invalid_session",
+                "Cloud provider identifiers and display names must not exceed 200 characters",
+            )
+            .with_details(
+                json!({"field":"registeredCloudLocations", "locationIndex":location_index}),
+            ));
+        }
+        let normalized_path = lexical_path(path);
+        if !validated_cloud_locations
+            .iter()
+            .any(|existing: &RegisteredCloudLocation| {
+                paths_equal(Path::new(&existing.path), Path::new(&normalized_path))
+            })
+        {
+            validated_cloud_locations.push(RegisteredCloudLocation {
+                path: normalized_path,
+                provider_id: provider_id.to_owned(),
+                display_name: if display_name.is_empty() {
+                    "Cloud provider".to_owned()
+                } else {
+                    display_name.to_owned()
+                },
+            });
+        }
+    }
+
+    let pre_io_exclusions = manual_location_exclusions
+        .iter()
+        .chain(
+            (cloud_policy == CloudPolicy::ExcludeRegisteredRoots)
+                .then_some(
+                    validated_cloud_locations
+                        .iter()
+                        .map(|location| &location.path),
+                )
+                .into_iter()
+                .flatten(),
+        )
+        .collect::<Vec<_>>();
     let mut normalized = Vec::with_capacity(roots.len());
     for (root_index, root) in roots.into_iter().enumerate() {
         let root = root.trim();
@@ -2173,7 +2389,14 @@ fn validate_session(
             )
             .with_details(json!({"field":"roots", "rootIndex":root_index})));
         }
-        let canonical = fs::canonicalize(root).unwrap_or_else(|_| PathBuf::from(root));
+        let canonical = if pre_io_exclusions
+            .iter()
+            .any(|exclusion| path_is_within(Path::new(root), Path::new(exclusion)))
+        {
+            PathBuf::from(root)
+        } else {
+            fs::canonicalize(root).unwrap_or_else(|_| PathBuf::from(root))
+        };
         let value = canonical.to_string_lossy().into_owned();
         if !normalized
             .iter()
@@ -2218,6 +2441,10 @@ fn validate_session(
     let encoded_size = serde_json::to_vec(&json!({
         "roots": &normalized,
         "ignorePatterns": &validated_patterns,
+        "cloudPolicy": cloud_policy,
+        "manualLocationExclusions": &manual_location_exclusions,
+        "registeredCloudLocations": &validated_cloud_locations,
+        "cloudDetectionStatus": cloud_detection_status,
     }))
     .map_err(|error| {
         ProtocolFailure::new(
@@ -2236,7 +2463,91 @@ fn validate_session(
         name,
         roots: normalized,
         ignore_patterns: validated_patterns,
+        cloud_policy,
+        manual_location_exclusions,
+        registered_cloud_locations: validated_cloud_locations,
+        cloud_detection_status,
     })
+}
+
+fn validate_location_paths(
+    paths: Vec<String>,
+    maximum: usize,
+    field: &'static str,
+) -> Result<Vec<String>, ProtocolFailure> {
+    if paths.len() > maximum {
+        return Err(ProtocolFailure::new(
+            "invalid_session",
+            format!("{field} may contain at most {maximum} paths"),
+        )
+        .with_details(json!({"field":field})));
+    }
+    let mut normalized = Vec::with_capacity(paths.len());
+    for (path_index, path) in paths.into_iter().enumerate() {
+        let path = path.trim();
+        if path.is_empty() || !Path::new(path).is_absolute() {
+            return Err(ProtocolFailure::new(
+                "invalid_session",
+                "Location exclusions must be non-empty absolute filesystem paths",
+            )
+            .with_details(json!({"field":field, "pathIndex":path_index})));
+        }
+        let path = lexical_path(path);
+        if normalized
+            .iter()
+            .any(|existing: &String| path_is_within(Path::new(&path), Path::new(existing)))
+        {
+            continue;
+        }
+        normalized.retain(|existing| !path_is_within(Path::new(existing), Path::new(&path)));
+        normalized.push(path);
+    }
+    Ok(normalized)
+}
+
+fn lexical_path(path: &str) -> String {
+    let value = PathBuf::from(path).to_string_lossy().into_owned();
+    #[cfg(windows)]
+    return value.trim_end_matches(['\\', '/']).to_owned();
+    #[cfg(not(windows))]
+    value.trim_end_matches('/').to_owned()
+}
+
+#[cfg(windows)]
+fn path_compare_key(path: &Path) -> String {
+    let value = path.to_string_lossy().replace('/', "\\");
+    let value = if let Some(unc) = value.strip_prefix("\\\\?\\UNC\\") {
+        format!("\\\\{unc}")
+    } else if let Some(dos) = value.strip_prefix("\\\\?\\") {
+        dos.to_owned()
+    } else {
+        value
+    };
+    value.trim_end_matches('\\').to_lowercase()
+}
+
+#[cfg(not(windows))]
+fn path_compare_key(path: &Path) -> String {
+    path.to_string_lossy().trim_end_matches('/').to_owned()
+}
+
+fn paths_equal(left: &Path, right: &Path) -> bool {
+    path_compare_key(left) == path_compare_key(right)
+}
+
+fn path_is_within(path: &Path, ancestor: &Path) -> bool {
+    let path = path_compare_key(path);
+    let ancestor = path_compare_key(ancestor);
+    if path == ancestor {
+        return true;
+    }
+    #[cfg(windows)]
+    return path
+        .strip_prefix(&ancestor)
+        .is_some_and(|suffix| suffix.starts_with('\\'));
+    #[cfg(not(windows))]
+    path.strip_prefix(&ancestor)
+        .is_some_and(|suffix| suffix.starts_with('/'))
 }
 
 fn session_name_exists(
@@ -2291,6 +2602,22 @@ fn ensure_completed_result_run(db: &Database, run_id: i64) -> Result<(), Protoco
 }
 
 fn session_dto(session: ScanSession) -> Result<SessionDto, ProtocolFailure> {
+    let cloud_policy = serde_json::from_value(Value::String(session.cloud_policy.clone()))
+        .map_err(|error| {
+            ProtocolFailure::new(
+                "internal_error",
+                format!("Stored session cloud policy is invalid: {error}"),
+            )
+        })?;
+    let cloud_detection_status = serde_json::from_value(Value::String(
+        session.cloud_detection_status.clone(),
+    ))
+    .map_err(|error| {
+        ProtocolFailure::new(
+            "internal_error",
+            format!("Stored session cloud detection status is invalid: {error}"),
+        )
+    })?;
     Ok(SessionDto {
         id: session.id,
         name: session.name,
@@ -2306,6 +2633,22 @@ fn session_dto(session: ScanSession) -> Result<SessionDto, ProtocolFailure> {
                 format!("Stored session ignore patterns are invalid: {error}"),
             )
         })?,
+        cloud_policy,
+        manual_location_exclusions: serde_json::from_str(&session.manual_location_exclusions_json)
+            .map_err(|error| {
+                ProtocolFailure::new(
+                    "internal_error",
+                    format!("Stored manual location exclusions are invalid: {error}"),
+                )
+            })?,
+        registered_cloud_locations: serde_json::from_str(&session.registered_cloud_locations_json)
+            .map_err(|error| {
+                ProtocolFailure::new(
+                    "internal_error",
+                    format!("Stored registered cloud locations are invalid: {error}"),
+                )
+            })?,
+        cloud_detection_status,
         created_at: session.created_at,
         updated_at: session.updated_at,
     })
@@ -2325,6 +2668,10 @@ fn run_dto(run: ScanRun) -> Result<RunDto, ProtocolFailure> {
             roots: parameters.roots,
             ignore_patterns: parameters.ignore_patterns,
             directory_similarity_threshold_millis: parameters.directory_similarity_threshold_millis,
+            cloud_policy: parameters.cloud_policy,
+            manual_location_exclusions: parameters.manual_location_exclusions,
+            registered_cloud_locations: parameters.registered_cloud_locations,
+            cloud_detection_status: parameters.cloud_detection_status,
         },
         status: run.status,
         phase: run.phase,
@@ -2338,9 +2685,22 @@ fn run_dto(run: ScanRun) -> Result<RunDto, ProtocolFailure> {
         duplicate_folder_groups: run.duplicate_folder_groups,
         wasted_bytes: run.wasted_bytes.to_string(),
         warning_count: run.warning_count,
+        excluded_subtree_count: run.excluded_subtree_count,
         error_message: run.error_message,
         engine_version: run.engine_version,
     })
+}
+
+fn run_exclusion_dto(exclusion: RunExclusion) -> RunExclusionDto {
+    RunExclusionDto {
+        id: exclusion.id,
+        run_id: exclusion.run_id,
+        path: exclusion.path,
+        reason_code: exclusion.reason_code,
+        provider_id: exclusion.provider_id,
+        provider_name: exclusion.provider_name,
+        occurrence_count: exclusion.occurrence_count,
+    }
 }
 
 fn internal_database_error(error: rusqlite::Error) -> ProtocolFailure {
@@ -2541,6 +2901,10 @@ mod tests {
                     roots: vec!["/root".to_owned()],
                     ignore_patterns: vec![],
                     directory_similarity_threshold_millis: 500,
+                    cloud_policy: Default::default(),
+                    manual_location_exclusions: vec![],
+                    registered_cloud_locations: vec![],
+                    cloud_detection_status: Default::default(),
                 },
                 "test",
             )
@@ -2601,12 +2965,12 @@ mod tests {
             super_duper_core::storage::models::ScannedFile {
                 id: 0,
                 run_id,
-                root_path: "/root".to_owned(),
+                root_path: "/archive".to_owned(),
                 canonical_path: "/root/b-copy.bin".to_owned(),
-                relative_path: "b-copy.bin".to_owned(),
+                relative_path: "copies/b-copy.bin".to_owned(),
                 file_name: "b-copy.bin".to_owned(),
                 parent_dir: "/root".to_owned(),
-                drive_letter: String::new(),
+                drive_letter: "E:".to_owned(),
                 file_size: 200,
                 last_modified: 1_700_000_000_000_000_003,
                 partial_hash: None,
@@ -2653,6 +3017,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(first["result"]["total"], 2);
+        assert_eq!(first["result"]["summary"]["matchingGroupCount"], 2);
+        assert_eq!(first["result"]["summary"]["matchingCopyCount"], 4);
+        assert_eq!(
+            first["result"]["summary"]["potentialRecoverableBytes"],
+            "300"
+        );
+        assert_eq!(first["result"]["summary"]["largestRecoverableBytes"], "200");
         assert_eq!(first["result"]["groups"][0]["groupSize"], "200");
         let cursor = first["result"]["nextCursor"].as_str().unwrap();
         let second_request = json!({
@@ -2702,6 +3073,13 @@ mod tests {
                 .unwrap();
         assert_eq!(members["result"]["members"].as_array().unwrap().len(), 2);
         assert!(members["result"]["members"][0]["modifiedTimeUnixNanos"].is_string());
+        assert!(members["result"]["members"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|member| member["rootPath"] == "/archive"
+                && member["relativePath"] == "copies/b-copy.bin"
+                && member["driveLetter"] == "E:"));
     }
 
     #[test]
@@ -2719,6 +3097,10 @@ mod tests {
                     roots: vec!["/root".to_owned()],
                     ignore_patterns: vec![],
                     directory_similarity_threshold_millis: 500,
+                    cloud_policy: Default::default(),
+                    manual_location_exclusions: vec![],
+                    registered_cloud_locations: vec![],
+                    cloud_detection_status: Default::default(),
                 },
                 "test",
             )
@@ -2816,8 +3198,16 @@ mod tests {
         }
         let db_path = temp.path().join("worker.db");
         let db = Database::open(db_path.to_str().unwrap()).unwrap();
-        db.create_session("Scan", &[root.to_string_lossy().into_owned()], &[])
-            .unwrap();
+        db.create_session_with_cloud_settings(
+            "Scan",
+            &[root.to_string_lossy().into_owned()],
+            &[],
+            CloudPolicy::ExcludeRegisteredRoots,
+            &[],
+            &[],
+            CloudDetectionStatus::Complete,
+        )
+        .unwrap();
         drop(db);
         let frames = execute(
             &temp,
@@ -2865,8 +3255,16 @@ mod tests {
         fs::write(root.join("one.bin"), b"one non-empty file").unwrap();
         let db_path = temp.path().join("worker.db");
         let db = Database::open(db_path.to_str().unwrap()).unwrap();
-        db.create_session("Scan", &[root.to_string_lossy().into_owned()], &[])
-            .unwrap();
+        db.create_session_with_cloud_settings(
+            "Scan",
+            &[root.to_string_lossy().into_owned()],
+            &[],
+            CloudPolicy::ExcludeRegisteredRoots,
+            &[],
+            &[],
+            CloudDetectionStatus::Complete,
+        )
+        .unwrap();
         drop(db);
 
         let (sender, receiver) = mpsc::channel();
@@ -2927,6 +3325,117 @@ mod tests {
     }
 
     #[test]
+    fn default_cloud_policy_fails_closed_when_detection_is_unavailable() {
+        let temp = TempDir::new().unwrap();
+        let db_path = temp.path().join("worker.db");
+        let db = Database::open(db_path.to_str().unwrap()).unwrap();
+        db.create_session(
+            "Unverified",
+            &[temp.path().to_string_lossy().into_owned()],
+            &[],
+        )
+        .unwrap();
+        drop(db);
+        let (sender, _receiver) = mpsc::channel();
+        let state = SharedState::new(WorkerOptions::new(&db_path), sender).unwrap();
+        let mut session = WorkerSession::new(state);
+        session.handle_line(HELLO).unwrap();
+
+        let response: Value = serde_json::from_str(
+            &session
+                .handle_line(
+                    r#"{"type":"request","id":"start","method":"run.start","params":{"sessionId":1}}"#,
+                )
+                .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(response["error"]["code"], "invalid_session");
+        assert_eq!(
+            response["error"]["details"]["field"],
+            "cloudDetectionStatus"
+        );
+    }
+
+    #[test]
+    fn completed_run_snapshots_and_pages_excluded_cloud_subtrees() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("scan");
+        let local = root.join("local");
+        let cloud = root.join("cloud");
+        fs::create_dir_all(&local).unwrap();
+        fs::create_dir_all(&cloud).unwrap();
+        fs::write(local.join("kept.bin"), b"kept").unwrap();
+        fs::write(cloud.join("excluded.bin"), b"excluded").unwrap();
+        let db_path = temp.path().join("worker.db");
+        let (sender, _receiver) = mpsc::channel();
+        let state = SharedState::new(WorkerOptions::new(&db_path), sender).unwrap();
+        let mut session = WorkerSession::new(state.clone());
+        session.handle_line(HELLO).unwrap();
+        let create = json!({
+            "type":"request", "id":"create", "method":"session.create",
+            "params":{
+                "name":"Cloud safe",
+                "roots":[root.to_string_lossy()],
+                "ignorePatterns":[],
+                "cloudPolicy":"exclude_registered_roots",
+                "manualLocationExclusions":[],
+                "registeredCloudLocations":[{
+                    "path":cloud.to_string_lossy(),
+                    "providerId":"TestProvider!account",
+                    "displayName":"TestProvider"
+                }],
+                "cloudDetectionStatus":"complete"
+            }
+        });
+        let created: Value =
+            serde_json::from_str(&session.handle_line(&create.to_string()).unwrap()).unwrap();
+        assert_eq!(created["ok"], true);
+        let started: Value = serde_json::from_str(
+            &session.handle_line(
+                r#"{"type":"request","id":"start","method":"run.start","params":{"sessionId":1}}"#,
+            ).unwrap(),
+        ).unwrap();
+        assert_eq!(started["ok"], true);
+
+        let mut active = state.active.lock().unwrap();
+        while active.is_some() {
+            active = state.idle.wait(active).unwrap();
+        }
+        drop(active);
+
+        let run: Value = serde_json::from_str(
+            &session
+                .handle_line(
+                    r#"{"type":"request","id":"get","method":"run.get","params":{"runId":1}}"#,
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(run["result"]["run"]["filesDiscovered"], 1);
+        assert_eq!(run["result"]["run"]["excludedSubtreeCount"], 1);
+        assert_eq!(
+            run["result"]["run"]["parameters"]["cloudPolicy"],
+            "exclude_registered_roots"
+        );
+
+        let page: Value = serde_json::from_str(
+            &session.handle_line(
+                r#"{"type":"request","id":"excluded","method":"run_exclusion.page","params":{"runId":1,"offset":0,"limit":1}}"#,
+            ).unwrap(),
+        ).unwrap();
+        assert_eq!(page["result"]["total"], 1);
+        assert_eq!(
+            page["result"]["exclusions"][0]["reasonCode"],
+            "registered_cloud_root_excluded"
+        );
+        assert_eq!(
+            page["result"]["exclusions"][0]["providerName"],
+            "TestProvider"
+        );
+    }
+
+    #[test]
     fn startup_reconciles_an_abandoned_run_to_interrupted() {
         let temp = TempDir::new().unwrap();
         let db_path = temp.path().join("worker.db");
@@ -2941,6 +3450,10 @@ mod tests {
                     roots: vec!["/tmp".into()],
                     ignore_patterns: vec![],
                     directory_similarity_threshold_millis: 500,
+                    cloud_policy: Default::default(),
+                    manual_location_exclusions: vec![],
+                    registered_cloud_locations: vec![],
+                    cloud_detection_status: Default::default(),
                 },
                 "test",
             )

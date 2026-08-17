@@ -14,10 +14,17 @@ public sealed class SessionSetupViewModel : ObservableObject
     private readonly IWorkerClient _workerClient;
     private readonly IFolderPickerService _folderPicker;
     private readonly IUserConfirmationService _confirmation;
+    private readonly ICloudLocationService _cloudLocations;
     private readonly Func<long?, IReadOnlyList<string>> _otherSessionNames;
     private long? _sessionId;
     private string _name = "";
     private string _ignorePatternsText = "";
+    private string _manualLocationExclusionsText = "";
+    private string _cloudDetectionStatus = CloudDetectionStatusNames.Unavailable;
+    private string? _cloudDetectionMessage;
+    private bool _isDetectingCloudLocations;
+    private IReadOnlyList<WorkerRegisteredCloudLocation> _registeredCloudLocations = [];
+    private string? _manualExclusionValidationError;
     private bool _isBusy;
     private bool _canMutate = true;
     private bool _isDirty;
@@ -29,11 +36,13 @@ public sealed class SessionSetupViewModel : ObservableObject
         IWorkerClient workerClient,
         IFolderPickerService folderPicker,
         IUserConfirmationService confirmation,
-        Func<long?, IReadOnlyList<string>> otherSessionNames)
+        Func<long?, IReadOnlyList<string>> otherSessionNames,
+        ICloudLocationService? cloudLocations = null)
     {
         _workerClient = workerClient;
         _folderPicker = folderPicker;
         _confirmation = confirmation;
+        _cloudLocations = cloudLocations ?? new UnavailableCloudLocationService();
         _otherSessionNames = otherSessionNames;
         Roots.CollectionChanged += OnRootsChanged;
 
@@ -43,9 +52,14 @@ public sealed class SessionSetupViewModel : ObservableObject
         NormalizeRootsCommand = new RelayCommand(NormalizeRoots, () => CanEdit && Roots.Count > 0);
         SaveCommand = new AsyncRelayCommand(SaveCommandAsync, () => CanSave);
         DeleteCommand = new AsyncRelayCommand(DeleteAsync, () => CanDelete);
+        RefreshCloudLocationsCommand = new AsyncRelayCommand(
+            () => RefreshCloudLocationsAsync(),
+            () => CanEdit);
     }
 
     public ObservableCollection<SessionRootViewModel> Roots { get; } = [];
+
+    public ObservableCollection<CloudLocationListItemViewModel> DetectedCloudLocations { get; } = [];
 
     public long? SessionId
     {
@@ -80,6 +94,64 @@ public sealed class SessionSetupViewModel : ObservableObject
             if (SetProperty(ref _ignorePatternsText, value))
             {
                 MarkChanged();
+            }
+        }
+    }
+
+    public string ManualLocationExclusionsText
+    {
+        get => _manualLocationExclusionsText;
+        set
+        {
+            if (SetProperty(ref _manualLocationExclusionsText, value))
+            {
+                MarkChanged();
+            }
+        }
+    }
+
+    public string CloudPolicy => CloudPolicyNames.ExcludeRegisteredRoots;
+
+    public string CloudPolicyDisplayName => "Exclude registered cloud sync roots";
+
+    public string CloudDetectionStatus
+    {
+        get => _cloudDetectionStatus;
+        private set
+        {
+            if (SetProperty(ref _cloudDetectionStatus, value))
+            {
+                OnPropertyChanged(nameof(IsCloudDetectionReady));
+                OnPropertyChanged(nameof(CloudDetectionSummary));
+                OnPropertyChanged(nameof(CanStart));
+            }
+        }
+    }
+
+    public string? CloudDetectionMessage
+    {
+        get => _cloudDetectionMessage;
+        private set
+        {
+            if (SetProperty(ref _cloudDetectionMessage, value))
+            {
+                OnPropertyChanged(nameof(HasCloudDetectionMessage));
+                OnPropertyChanged(nameof(CloudDetectionSummary));
+            }
+        }
+    }
+
+    public bool IsDetectingCloudLocations
+    {
+        get => _isDetectingCloudLocations;
+        private set
+        {
+            if (SetProperty(ref _isDetectingCloudLocations, value))
+            {
+                OnPropertyChanged(nameof(CanEdit));
+                OnPropertyChanged(nameof(CanStart));
+                OnPropertyChanged(nameof(CloudDetectionSummary));
+                RefreshCommands();
             }
         }
     }
@@ -138,23 +210,46 @@ public sealed class SessionSetupViewModel : ObservableObject
 
     public bool IsNew => SessionId is null;
 
-    public bool CanEdit => CanMutate && !IsBusy;
+    public bool CanEdit => CanMutate && !IsBusy && !IsDetectingCloudLocations;
 
-    public bool CanSave => CanEdit && IsDirty && _validation.IsValid;
+    public bool CanSave => CanEdit && IsDirty && _validation.IsValid && _manualExclusionValidationError is null;
 
     public bool CanDelete => CanEdit && SessionId is not null;
 
-    public bool CanStart => CanEdit && _validation.IsValid && _validation.HasReachableRoot;
+    public bool CanStart => CanEdit && _validation.IsValid && _validation.HasReachableRoot
+        && _manualExclusionValidationError is null && IsCloudDetectionReady;
 
     public bool HasOperationError => !string.IsNullOrWhiteSpace(OperationError);
 
-    public string ValidationMessage => string.Join(Environment.NewLine, _validation.Errors);
+    public string ValidationMessage => string.Join(
+        Environment.NewLine,
+        _validation.Errors.Concat(
+            _manualExclusionValidationError is null ? [] : [_manualExclusionValidationError]));
 
-    public bool HasValidationErrors => _validation.Errors.Count > 0;
+    public bool HasValidationErrors => _validation.Errors.Count > 0 || _manualExclusionValidationError is not null;
 
     public string WarningMessage => string.Join(Environment.NewLine, _validation.Warnings);
 
     public bool HasWarnings => _validation.Warnings.Count > 0;
+
+    public bool IsCloudDetectionReady => CloudDetectionStatus == CloudDetectionStatusNames.Complete;
+
+    public bool HasCloudDetectionMessage => !string.IsNullOrWhiteSpace(CloudDetectionMessage);
+
+    public bool HasDetectedCloudLocations => DetectedCloudLocations.Count > 0;
+
+    public string CloudDetectionSummary => IsDetectingCloudLocations
+        ? "Checking registered cloud locations…"
+        : CloudDetectionStatus switch
+        {
+            CloudDetectionStatusNames.Complete when DetectedCloudLocations.Count == 0 =>
+                "No registered cloud locations intersect the selected scan roots.",
+            CloudDetectionStatusNames.Complete =>
+                $"{DetectedCloudLocations.Count:N0} registered cloud location(s) will be excluded.",
+            CloudDetectionStatusNames.Unsupported =>
+                "Windows Cloud Files registration detection is not supported. Scans fail closed under this policy.",
+            _ => "Registered cloud location detection is unavailable. Refresh before starting a scan.",
+        };
 
     public IRelayCommand AddRootCommand { get; }
 
@@ -167,6 +262,8 @@ public sealed class SessionSetupViewModel : ObservableObject
     public IAsyncRelayCommand SaveCommand { get; }
 
     public IAsyncRelayCommand DeleteCommand { get; }
+
+    public IAsyncRelayCommand RefreshCloudLocationsCommand { get; }
 
     public event EventHandler<WorkerSessionDefinition>? SessionSaved;
 
@@ -181,6 +278,11 @@ public sealed class SessionSetupViewModel : ObservableObject
             Name = "New session";
             ReplaceRoots([""]);
             IgnorePatternsText = string.Join(Environment.NewLine, SessionDefinitionValidator.SafeWindowsIgnorePatterns);
+            ManualLocationExclusionsText = "";
+            _registeredCloudLocations = [];
+            CloudDetectionStatus = CloudDetectionStatusNames.Unavailable;
+            CloudDetectionMessage = null;
+            RefreshDetectedCloudLocations();
             OperationError = null;
             IsDirty = true;
         }
@@ -189,6 +291,7 @@ public sealed class SessionSetupViewModel : ObservableObject
             _suppressChanges = false;
         }
         Validate();
+        _ = RefreshCloudLocationsAsync();
     }
 
     public void Load(WorkerSessionDefinition session)
@@ -200,6 +303,11 @@ public sealed class SessionSetupViewModel : ObservableObject
             Name = session.Name;
             ReplaceRoots(session.Roots);
             IgnorePatternsText = string.Join(Environment.NewLine, session.IgnorePatterns);
+            ManualLocationExclusionsText = string.Join(Environment.NewLine, session.ManualLocationExclusions);
+            _registeredCloudLocations = session.RegisteredCloudLocations;
+            CloudDetectionStatus = session.CloudDetectionStatus;
+            CloudDetectionMessage = null;
+            RefreshDetectedCloudLocations();
             OperationError = null;
             IsDirty = false;
         }
@@ -208,6 +316,7 @@ public sealed class SessionSetupViewModel : ObservableObject
             _suppressChanges = false;
         }
         Validate();
+        _ = RefreshCloudLocationsAsync();
     }
 
     public async Task<WorkerSessionDefinition?> EnsureSavedAsync(
@@ -229,6 +338,12 @@ public sealed class SessionSetupViewModel : ObservableObject
         OperationError = null;
         try
         {
+            await DetectCloudLocationsCoreAsync(cancellationToken);
+            if (requireReachableRoot && !IsCloudDetectionReady)
+            {
+                OperationError = CloudDetectionSummary;
+                return null;
+            }
             if (requireReachableRoot)
             {
                 var hasReachableRoot = await Task.Run(
@@ -252,11 +367,19 @@ public sealed class SessionSetupViewModel : ObservableObject
                     Name.Trim(),
                     _validation.Roots,
                     _validation.IgnorePatterns,
+                    CloudPolicy,
+                    NormalizeManualLocationExclusions(),
+                    _registeredCloudLocations,
+                    CloudDetectionStatus,
                     cancellationToken)
                 : await _workerClient.CreateSessionAsync(
                     Name.Trim(),
                     _validation.Roots,
                     _validation.IgnorePatterns,
+                    CloudPolicy,
+                    NormalizeManualLocationExclusions(),
+                    _registeredCloudLocations,
+                    CloudDetectionStatus,
                     cancellationToken);
             Load(session);
             SessionSaved?.Invoke(this, session);
@@ -334,6 +457,7 @@ public sealed class SessionSetupViewModel : ObservableObject
             {
                 blank.Path = folder;
             }
+            await RefreshCloudLocationsAsync();
         }
     }
 
@@ -410,12 +534,24 @@ public sealed class SessionSetupViewModel : ObservableObject
             Roots.Select(root => root.Path),
             SplitIgnorePatterns(IgnorePatternsText),
             _otherSessionNames(SessionId));
+        try
+        {
+            _ = NormalizeManualLocationExclusions();
+            _manualExclusionValidationError = null;
+        }
+        catch (InvalidOperationException exception)
+        {
+            _manualExclusionValidationError = exception.Message;
+        }
         OnPropertyChanged(nameof(ValidationMessage));
         OnPropertyChanged(nameof(HasValidationErrors));
         OnPropertyChanged(nameof(WarningMessage));
         OnPropertyChanged(nameof(HasWarnings));
         OnPropertyChanged(nameof(CanSave));
         OnPropertyChanged(nameof(CanStart));
+        OnPropertyChanged(nameof(CanSave));
+        OnPropertyChanged(nameof(CloudDetectionSummary));
+        RefreshDetectedCloudLocations();
         RefreshCommands();
     }
 
@@ -427,8 +563,109 @@ public sealed class SessionSetupViewModel : ObservableObject
         NormalizeRootsCommand.NotifyCanExecuteChanged();
         SaveCommand.NotifyCanExecuteChanged();
         DeleteCommand.NotifyCanExecuteChanged();
+        RefreshCloudLocationsCommand.NotifyCanExecuteChanged();
     }
 
     private static IEnumerable<string> SplitIgnorePatterns(string value) =>
         value.Split(["\r\n", "\n", "\r"], StringSplitOptions.None);
+
+    private async Task RefreshCloudLocationsAsync(CancellationToken cancellationToken = default)
+    {
+        IsDetectingCloudLocations = true;
+        OperationError = null;
+        try
+        {
+            await DetectCloudLocationsCoreAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            CloudDetectionStatus = CloudDetectionStatusNames.Unavailable;
+            CloudDetectionMessage = $"Registered cloud location detection failed: {exception.Message}";
+            _registeredCloudLocations = [];
+            RefreshDetectedCloudLocations();
+        }
+        finally
+        {
+            IsDetectingCloudLocations = false;
+        }
+    }
+
+    private async Task DetectCloudLocationsCoreAsync(CancellationToken cancellationToken)
+    {
+        var result = await _cloudLocations.DetectAsync(cancellationToken);
+        var changed = CloudDetectionStatus != result.Status
+            || !_registeredCloudLocations.SequenceEqual(result.Locations);
+        CloudDetectionStatus = result.Status;
+        CloudDetectionMessage = result.ErrorMessage;
+        _registeredCloudLocations = result.Locations;
+        RefreshDetectedCloudLocations();
+        if (changed && !_suppressChanges)
+        {
+            IsDirty = true;
+        }
+    }
+
+    private IReadOnlyList<string> NormalizeManualLocationExclusions()
+    {
+        var normalized = new List<string>();
+        foreach (var raw in SplitIgnorePatterns(ManualLocationExclusionsText))
+        {
+            var path = raw.Trim();
+            if (path.Length == 0)
+            {
+                continue;
+            }
+            if (!Path.IsPathFullyQualified(path))
+            {
+                throw new InvalidOperationException("Manual cloud location exclusions must be absolute paths.");
+            }
+            path = Path.TrimEndingDirectorySeparator(path);
+            if (normalized.Any(existing => IsPathWithin(path, existing)))
+            {
+                continue;
+            }
+            normalized.RemoveAll(existing => IsPathWithin(existing, path));
+            normalized.Add(path);
+        }
+        return normalized;
+    }
+
+    private void RefreshDetectedCloudLocations()
+    {
+        DetectedCloudLocations.Clear();
+        var roots = Roots
+            .Select(root => root.Path.Trim())
+            .Where(path => Path.IsPathFullyQualified(path))
+            .ToArray();
+        foreach (var location in _registeredCloudLocations)
+        {
+            var selectedInside = roots.Any(root => IsPathWithin(root, location.Path));
+            var locationInside = roots.Any(root => IsPathWithin(location.Path, root));
+            if (!selectedInside && !locationInside)
+            {
+                continue;
+            }
+            DetectedCloudLocations.Add(new CloudLocationListItemViewModel(
+                location.DisplayName,
+                location.Path,
+                selectedInside
+                    ? "A selected scan root is inside this location and will be fully excluded."
+                    : "This registered subtree will be excluded from the broader scan root."));
+        }
+        OnPropertyChanged(nameof(HasDetectedCloudLocations));
+        OnPropertyChanged(nameof(CloudDetectionSummary));
+    }
+
+    private static bool IsPathWithin(string path, string ancestor)
+    {
+        var candidate = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        var parent = Path.TrimEndingDirectorySeparator(Path.GetFullPath(ancestor));
+        return candidate.Equals(parent, StringComparison.OrdinalIgnoreCase)
+            || candidate.StartsWith(parent + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            || candidate.StartsWith(parent + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    }
 }

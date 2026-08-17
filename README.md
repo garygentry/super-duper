@@ -62,19 +62,30 @@ super-duper/
 | `libclang-dev` | Required by RocksDB's bindgen step on Linux |
 | .NET SDK | 10.0.303 or a compatible 10.0 patch; required for the Windows app |
 | Windows | Windows 11 x64 for building and running the WPF application |
+| Windows SDK | A Windows 11 SDK capable of targeting `10.0.22000.0` |
 
-### Build
+### Build The Windows Application
 
-```bash
+Open PowerShell in the repository root (the directory containing `Cargo.toml`) and build Rust
+before .NET. The WPF project copies the worker for the selected configuration beside the Windows
+executable.
+
+```powershell
+# Debug engine, worker, Windows application, and tests
 cargo build --workspace
-cargo build --release --workspace
-
-# Windows application (build the Rust workspace first so the worker is copied beside the app)
+cargo test --workspace
 dotnet build apps/windows/SuperDuper.Windows.sln
+dotnet test apps/windows/SuperDuper.Windows.sln
+
+# Release engine, worker, Windows application, and tests
+cargo build --workspace --release
+dotnet build apps/windows/SuperDuper.Windows.sln --configuration Release
+dotnet test apps/windows/SuperDuper.Windows.sln --configuration Release
 ```
 
-For a verified Windows 11 x64 Release publish, run `./scripts/Verify-WindowsRelease.ps1`. See
-[`docs/windows-build.md`](docs/windows-build.md).
+The Debug app uses `target/debug/super-duper-worker.exe`; the Release app uses
+`target/release/super-duper-worker.exe`. If the worker has not been built first, the WPF build or
+startup will report the missing worker rather than silently using a stale binary.
 
 ### Test
 
@@ -85,16 +96,86 @@ dotnet test apps/windows/SuperDuper.Windows.sln
 dotnet test apps/windows/SuperDuper.Windows.sln --configuration Release
 ```
 
-### Run The Windows Application
+### Run A Debug Build
 
-```bash
+From the repository root:
+
+```powershell
 cargo build -p super-duper-worker
 dotnet run --project apps/windows/src/SuperDuper.Windows/SuperDuper.Windows.csproj
 ```
 
-The application looks for `super-duper-worker.exe` beside its executable and then in the
-repository's `target/debug` directory. Set `SUPER_DUPER_WORKER_PATH` to an absolute executable path
-to override discovery during development.
+`dotnet run` builds and starts the Debug WPF application. Keep the terminal open while developing;
+closing the WPF window shuts down its privately owned worker.
+
+After `dotnet build`, the Debug executable can also be started directly:
+
+```powershell
+$debug = Resolve-Path 'apps/windows/src/SuperDuper.Windows/bin/Debug/net10.0-windows10.0.22000.0/win-x64'
+Start-Process -FilePath (Join-Path $debug 'SuperDuper.Windows.exe') -WorkingDirectory $debug
+```
+
+### Build And Run The Verified Release
+
+Run the release verifier on an interactive Windows 11 x64 desktop. Do not use `-SkipWpfSmoke` for
+a release candidate.
+
+```powershell
+./scripts/Verify-WindowsRelease.ps1
+```
+
+The verifier runs the Rust and .NET Release tests, creates a framework-dependent `win-x64`
+publish, places the matching Release worker beside the app, and runs the real worker/WPF smoke
+workflow. After it passes, start the published application with:
+
+```powershell
+$publish = Resolve-Path 'artifacts/windows-x64'
+Start-Process -FilePath (Join-Path $publish 'SuperDuper.Windows.exe') -WorkingDirectory $publish
+```
+
+The machine must have the .NET 10 Desktop Runtime installed because the publish is
+framework-dependent.
+
+### Runtime State And Overrides
+
+By default, the worker stores `super_duper.db` beside the worker and creates
+`content_hash_cache.db` relative to its working directory. The selected locations must be
+writable. The app looks for `super-duper-worker.exe` beside its executable and then in the
+repository's `target/debug` directory during development.
+
+These optional environment variables override those locations:
+
+- `SUPER_DUPER_WORKER_PATH`: absolute path to `super-duper-worker.exe`
+- `SUPER_DUPER_DB_PATH`: absolute path to the worker-owned SQLite database
+- `HASH_CACHE_PATH`: path to the RocksDB content-hash cache directory
+
+PowerShell environment variables are inherited by applications started from that terminal. Clear
+old overrides before a normal launch if they refer to deleted disposable state:
+
+```powershell
+Remove-Item Env:SUPER_DUPER_WORKER_PATH -ErrorAction SilentlyContinue
+Remove-Item Env:SUPER_DUPER_DB_PATH -ErrorAction SilentlyContinue
+Remove-Item Env:HASH_CACHE_PATH -ErrorAction SilentlyContinue
+```
+
+For an isolated disposable run, pass explicit state only to the new process:
+
+```powershell
+$publish = (Resolve-Path 'artifacts/windows-x64').Path
+$state = Join-Path ([IO.Path]::GetTempPath()) ('super-duper-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $state | Out-Null
+
+$start = [Diagnostics.ProcessStartInfo]::new()
+$start.FileName = Join-Path $publish 'SuperDuper.Windows.exe'
+$start.WorkingDirectory = $publish
+$start.UseShellExecute = $false
+$start.Environment['SUPER_DUPER_DB_PATH'] = Join-Path $state 'super_duper.db'
+$start.Environment['HASH_CACHE_PATH'] = Join-Path $state 'hash-cache'
+$start.Environment.Remove('SUPER_DUPER_WORKER_PATH')
+[Diagnostics.Process]::Start($start)
+```
+
+Do not point these overrides at real user data when running smoke or fault-injection workflows.
 
 Run `./scripts/Invoke-WindowsSmoke.ps1` for the repeatable worker/WPF smoke fixture. See
 [`docs/windows-smoke.md`](docs/windows-smoke.md) and
@@ -152,9 +233,9 @@ Configured via a `.env` file in the working directory when needed.
 ## Database
 
 Super Duper uses embedded SQLite (`super_duper.db` in the working directory). New databases use
-schema version 3. Version 2 databases are upgraded transactionally and in place; unknown older
+schema version 4. Version 2 and 3 databases are upgraded transactionally and in place; unknown older
 schemas and databases created by a newer engine are rejected without modification. See
-[`docs/storage-schema-v3.md`](docs/storage-schema-v3.md) for lifecycle and migration details.
+[`docs/storage-schema-v4.md`](docs/storage-schema-v4.md) for lifecycle and migration details.
 
 Key tables:
 
@@ -162,6 +243,7 @@ Key tables:
 |---|---|
 | `scan_session` | Named, editable scan definitions |
 | `scan_run` | Immutable executions, parameter snapshots, lifecycle, and counters |
+| `run_exclusion` | Run-owned cloud/manual subtree exclusions recorded before content access |
 | `scanned_file` | Immutable per-run file snapshots with root-relative paths |
 | `duplicate_group` | Confirmed duplicate sets owned by one run |
 | `duplicate_group_member` | Duplicate group membership |
@@ -184,9 +266,9 @@ The `super-duper-ffi` crate exposes the core through a C ABI for future native c
 
 ## Project Status
 
-The Rust core and CLI are functional, and Windows MVP Milestones 0–6 are implemented. Final Windows
-operator acceptance found release-blocking defects in immediate rerun, native Explorer reveal,
-deterministic shutdown, and unexpected-worker recovery. Code-complete work is tracked in
-[`docs/windows-release-acceptance-remediation-plan.md`](docs/windows-release-acceptance-remediation-plan.md).
-The remediation remains within the approved MVP scope, and the Windows surface exposes no scanned
-file deletion operation.
+The Rust core and CLI are functional, and Windows MVP Milestones 0–6 are implemented. The bounded
+release-acceptance remediation for immediate rerun, native Explorer reveal, deterministic
+shutdown, unexpected-worker recovery, sorting, and accessibility is code complete and verified.
+See
+[`docs/windows-release-acceptance-remediation-plan.md`](docs/windows-release-acceptance-remediation-plan.md)
+for the acceptance scope. The Windows surface exposes no scanned-file deletion operation.
