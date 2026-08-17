@@ -346,10 +346,13 @@ function Invoke-WpfAutomation([long]$RunId) {
         $null = Find-FirstDataItem $fileMembers
         $summarySets = Find-Element AutomationId 'FileSummaryMatchingSets'
         $summaryRecoverable = Find-Element AutomationId 'FileSummaryRecoverable'
+        $locationSummary = Find-Element AutomationId 'FileLocationSummaryText'
         $selectedSetExplanation = Find-Element AutomationId 'FileSelectedSetExplanation'
         $selectedSetLocations = Find-Element AutomationId 'FileSelectedSetLocations'
         Assert-True ([long]$summarySets.Current.Name -ge 1) 'Filtered review summary did not expose matching sets.'
         Assert-True (-not [string]::IsNullOrWhiteSpace($summaryRecoverable.Current.Name)) 'Filtered review summary did not expose recoverable bytes.'
+        Assert-True ($locationSummary.Current.Name.Contains('selected root', [StringComparison]::OrdinalIgnoreCase)) 'Filtered location summary did not expose selected-root coverage.'
+        Assert-True ($locationSummary.Current.Name.Contains('drive', [StringComparison]::OrdinalIgnoreCase)) 'Filtered location summary did not expose drive coverage.'
         Assert-True ($selectedSetExplanation.Current.Name.Contains('not identify an original', [StringComparison]::OrdinalIgnoreCase)) 'Selected-set explanation was not accessible.'
         Assert-True ($selectedSetLocations.Current.Name.Contains('selected root', [StringComparison]::OrdinalIgnoreCase)) 'Selected-set location span was not accessible.'
         Invoke-Element (Find-DescendantByName $fileMembers 'Show in Explorer')
@@ -656,6 +659,9 @@ try {
     Assert-True ($filteredFiles.summary.matchingGroupCount -eq $filteredFiles.total) 'Filtered summary set count diverged from the result total.'
     Assert-True ($filteredFiles.summary.matchingCopyCount -ge 2) 'Filtered summary did not count duplicate copies.'
     Assert-True ([uint64]$filteredFiles.summary.potentialRecoverableBytes -gt 0) 'Filtered summary did not report recoverable bytes.'
+    Assert-True ($filteredFiles.summary.distinctSelectedRootCount -eq 1) 'Filtered summary did not aggregate selected-root coverage.'
+    Assert-True ($filteredFiles.summary.distinctDriveCount -eq 1) 'Filtered summary did not aggregate drive coverage.'
+    Assert-True ($filteredFiles.summary.acrossDriveGroupCount -eq 0) 'Single-drive filtered summary reported a cross-drive set.'
     Assert-True ($filteredFiles.groups[0].distinctSelectedRootCount -eq 1) 'Duplicate-file group did not report its selected-root span.'
     Assert-True ($filteredFiles.groups[0].distinctDriveCount -eq 1) 'Duplicate-file group did not report its drive span.'
     $acrossDriveFiles = Send-WorkerRequest $restored 'duplicate_file_group.page' @{
@@ -664,6 +670,7 @@ try {
         filter = @{ search = ''; minimumSize = '0'; acrossDrives = $true }; cursor = $null
     }
     Assert-True ($acrossDriveFiles.summary.matchingGroupCount -eq $acrossDriveFiles.total) 'Across-drives summary diverged from the filtered result total.'
+    Assert-True ($acrossDriveFiles.summary.acrossDriveGroupCount -eq $acrossDriveFiles.total) 'Across-drives location summary diverged from the filtered result total.'
     Assert-True (@($acrossDriveFiles.groups | Where-Object { $_.distinctDriveCount -le 1 }).Count -eq 0) 'Across-drives filter returned a set confined to one drive.'
     $fileMembers = Send-WorkerRequest $restored 'duplicate_file_group.members' @{
         runId = $run.id; groupId = $filteredFiles.groups[0].id; pageSize = 25

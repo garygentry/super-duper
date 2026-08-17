@@ -134,7 +134,14 @@ public sealed record WorkerDuplicateFileReviewSummary(
     long MatchingGroupCount,
     long MatchingCopyCount,
     string PotentialRecoverableBytes,
-    string LargestRecoverableBytes);
+    string LargestRecoverableBytes)
+{
+    public long DistinctSelectedRootCount { get; init; }
+
+    public long DistinctDriveCount { get; init; }
+
+    public long AcrossDriveGroupCount { get; init; }
+}
 
 public sealed record DuplicateFileMemberFilter(string Search);
 

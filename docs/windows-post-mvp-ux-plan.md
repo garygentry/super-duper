@@ -3,7 +3,7 @@
 ## Status
 
 Active implementation roadmap for the Windows duplicate-review experience. Milestone 6
-release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first three
+release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first four
 read-only Milestone 8 slices are implemented and accepted; the broader milestone remains in
 progress and is gated by the remaining criteria below.
 
@@ -304,11 +304,11 @@ Files library. The user can see what was excluded and can deliberately opt into 
 
 ### Milestone 8 - Duplicate Review Workspace
 
-Status: The first three read-only file-review slices are accepted. They add a worker-owned summary
+Status: The first four read-only file-review slices are accepted. They add a worker-owned summary
 for the current duplicate-file query, immutable member location context, bounded per-set
-selected-root/drive span, and a worker-owned across-drives entry point without introducing review
-decisions, live filesystem state, facets, or deletion behavior. Full Milestone 8 remains in
-progress.
+selected-root/drive span, a worker-owned across-drives entry point, and aggregate location coverage
+without introducing review decisions, live filesystem state, facets, or deletion behavior. Full
+Milestone 8 remains in progress.
 
 #### Refined first vertical slice (2026-08-17)
 
@@ -520,9 +520,63 @@ own bounded paging and query-generation design.
   deterministic shutdown coverage. Targeted Rust formatting, PowerShell parsing, and
   `git diff --check` passed.
 - Remaining Milestone 8 gates are paged selected-root/drive facets and richer server-side filters,
-  aggregate location summaries, next/previous-set keyboard focus restoration, the complete
-  accessibility review, and representative-hardware warm-query/memory profiling. Durable
-  decisions remain Milestone 10 and deletion remains Milestone 11.
+  next/previous-set keyboard focus restoration, the complete accessibility review, and
+  representative-hardware warm-query/memory profiling. Durable decisions remain Milestone 10 and
+  deletion remains Milestone 11.
+
+#### Aggregate location-summary slice (2026-08-17)
+
+##### Audit and scope decision
+
+The accepted group-page path already keeps its normalized search, minimum-size, and across-drives
+predicate aligned across rows, total, summary, opaque cursor signature, five-page Core cache,
+cancellation source, prefetch, and group query generation. Extending that same summary is the
+smallest bounded result-understanding entry point. A selected-root/drive facet still requires a
+separate command, cursor kind, cache, cancellation source, query generation, and WPF paging surface,
+so it remains an explicit later gate.
+
+##### Implemented contract and UX
+
+- `duplicate_file_group.page.summary` now includes the distinct non-empty, case-insensitive selected
+  roots and drive labels represented anywhere in the matching sets, plus the number of matching
+  sets spanning multiple drives. All values use the exact current run/search/minimum-size/
+  across-drives predicate.
+- SQLite computes the aggregates from indexed, run-owned `duplicate_group_member` and
+  `scanned_file` rows. The worker returns counts only; it does not materialize or serialize a
+  complete member or facet collection, and it performs no filesystem access.
+- The fields travel with every bounded group page and therefore reuse the existing cursor, cache,
+  cancellation, stale-response rejection, and query generation. Schema v4, group/member sorts,
+  page limits, and cursor signatures are unchanged.
+- WPF adds one wrapping result-summary strip with stable automation IDs and readable selected-root,
+  drive, and cross-drive-set wording. Filtering updates it atomically with the visible page and
+  existing review summary.
+- The slice adds no preview, thumbnail, validation, Cloud Files access, durable decisions,
+  deletion, unbounded WPF state, or use of `scanned_file.marked_deleted`.
+
+##### Acceptance result
+
+- Focused Debug storage and worker protocol regressions passed predicate agreement, run ownership,
+  case-insensitive/non-empty location counting, serialization, and across-drives behavior. All five
+  focused Core duplicate-file tests, the typed real-worker Infrastructure lifecycle test, and the
+  targeted STA WPF surface test passed under SDK 10.0.400 from `C:\Windows\Temp` with absolute
+  project paths; the unavailable pinned 10.0.303 SDK and `global.json` were unchanged.
+- The 100,000-group ordinary/across-drives regression, including the new aggregate, completed in
+  1.69 seconds Debug and 0.91 seconds optimized Release, within the five-second bounded gate.
+  Representative-hardware profiling against the 100 ms warm-query target and explicit
+  bounded-memory measurement remain full-milestone gates.
+- `cargo test --workspace` and `cargo test --workspace --release` passed, including 15 storage and
+  9 worker tests in each configuration. Debug and Release worker builds passed.
+- Debug and Release solution builds passed with zero warnings and zero errors. Each configuration
+  passed 37 Core, 22 Infrastructure, and 3 WPF tests; the one real-provider Infrastructure test
+  remained intentionally environment-gated. Tests were serialized with `-m:1`.
+- Real Debug and Release `Invoke-WindowsSmoke.ps1 -SkipBuild` runs passed worker-owned filtered
+  aggregate location coverage, accessible WPF location text, existing result summary/location/
+  paging/sorting/Explorer workflows, Cloud setup/fail-closed behavior, and deterministic shutdown.
+  Targeted Rust formatting, PowerShell parsing, and `git diff --check` passed.
+- Remaining Milestone 8 gates are paged selected-root/drive facets and richer server-side filters,
+  next/previous-set keyboard focus restoration, the complete accessibility review, and
+  representative-hardware warm-query/bounded-memory profiling. Durable decisions remain Milestone
+  10 and deletion remains Milestone 11.
 
 #### User outcome
 
@@ -964,3 +1018,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-17 | Accepted the first Milestone 8 slice after focused/optimized tests, the full Debug/Release Rust and .NET matrix, and real Debug/Release WPF smoke passed. | Establish a worker-owned filtered summary and bounded location-aware file detail; keep the broader workspace, facets, decisions, validation, and deletion as explicit later gates. |
 | 2026-08-17 | Refined and accepted the bounded per-set Milestone 8 location-span slice after focused/optimized tests, the full Debug/Release Rust and .NET matrix, and real Debug/Release WPF smoke passed. | Expose immutable selected-root and cross-drive breadth through existing group pages, caches, cancellation, and query generations without adding facets, schema, filesystem access, decisions, validation, or deletion. |
 | 2026-08-17 | Refined and accepted the worker-owned Milestone 8 across-drives filter after focused/optimized coverage, the Debug/Release Rust and .NET matrix, and real Debug/Release WPF smoke passed. | Add the smallest bounded location-based entry point through the existing group predicate, cursor, summary, cache, cancellation, and query generation while leaving facets, aggregate location summaries, decisions, validation, and deletion as later gates. |
+| 2026-08-17 | Refined and accepted the worker-owned Milestone 8 aggregate location summary after focused/optimized coverage, the Debug/Release Rust and .NET matrix, and real Debug/Release WPF smoke passed. | Show selected-root, drive, and cross-drive-set coverage through the existing bounded group summary and stale-response path while leaving paged facets, keyboard focus restoration, complete accessibility review, representative profiling, decisions, validation, and deletion as later gates. |

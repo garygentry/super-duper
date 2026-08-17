@@ -554,10 +554,26 @@ impl Database {
             );
         }
         let where_sql = predicates.join(" AND ");
-        let summary = self.connection().query_row(
+        let across_drive_count_expression = if query.filter.across_drives {
+            "COUNT(*)".to_owned()
+        } else {
+            "COALESCE(SUM(CASE WHEN EXISTS (
+                SELECT 1 FROM duplicate_group_member summary_drive_member
+                JOIN scanned_file summary_drive_file
+                  ON summary_drive_file.id = summary_drive_member.file_id
+                WHERE summary_drive_member.group_id = dg.id
+                  AND summary_drive_file.run_id = dg.run_id
+                  AND summary_drive_file.drive_letter <> ''
+                GROUP BY summary_drive_member.group_id
+                HAVING COUNT(DISTINCT summary_drive_file.drive_letter COLLATE NOCASE) > 1
+            ) THEN 1 ELSE 0 END), 0)"
+                .to_owned()
+        };
+        let mut summary = self.connection().query_row(
             &format!(
                 "SELECT COUNT(*), COALESCE(SUM(dg.file_count), 0),
-                        COALESCE(SUM(dg.wasted_bytes), 0), COALESCE(MAX(dg.wasted_bytes), 0)
+                        COALESCE(SUM(dg.wasted_bytes), 0), COALESCE(MAX(dg.wasted_bytes), 0),
+                        {across_drive_count_expression}
                  FROM duplicate_group dg WHERE {where_sql}"
             ),
             params_from_iter(base_parameters.iter()),
@@ -567,9 +583,30 @@ impl Database {
                     matching_copy_count: row.get(1)?,
                     potential_recoverable_bytes: row.get(2)?,
                     largest_recoverable_bytes: row.get(3)?,
+                    distinct_selected_root_count: 0,
+                    distinct_drive_count: 0,
+                    across_drive_group_count: row.get(4)?,
                 })
             },
         )?;
+        let (distinct_selected_root_count, distinct_drive_count) = self.connection().query_row(
+            &format!(
+                "SELECT
+                    COUNT(DISTINCT CASE WHEN sf.root_path <> ''
+                        THEN sf.root_path COLLATE NOCASE END),
+                    COUNT(DISTINCT CASE WHEN sf.drive_letter <> ''
+                        THEN sf.drive_letter COLLATE NOCASE END)
+                 FROM duplicate_group dg
+                 JOIN duplicate_group_member location_member ON location_member.group_id = dg.id
+                 JOIN scanned_file sf
+                   ON sf.id = location_member.file_id AND sf.run_id = dg.run_id
+                 WHERE {where_sql}"
+            ),
+            params_from_iter(base_parameters.iter()),
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        summary.distinct_selected_root_count = distinct_selected_root_count;
+        summary.distinct_drive_count = distinct_drive_count;
         let total = summary.matching_group_count;
 
         let sort_expression = match query.sort_field {

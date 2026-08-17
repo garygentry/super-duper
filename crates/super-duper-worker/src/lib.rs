@@ -517,6 +517,9 @@ struct DuplicateFileReviewSummaryDto {
     matching_copy_count: i64,
     potential_recoverable_bytes: String,
     largest_recoverable_bytes: String,
+    distinct_selected_root_count: i64,
+    distinct_drive_count: i64,
+    across_drive_group_count: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -2213,6 +2216,9 @@ fn review_summary_dto(
         matching_copy_count: summary.matching_copy_count,
         potential_recoverable_bytes: summary.potential_recoverable_bytes.to_string(),
         largest_recoverable_bytes: summary.largest_recoverable_bytes.to_string(),
+        distinct_selected_root_count: summary.distinct_selected_root_count,
+        distinct_drive_count: summary.distinct_drive_count,
+        across_drive_group_count: summary.across_drive_group_count,
     }
 }
 
@@ -3034,6 +3040,9 @@ mod tests {
             "300"
         );
         assert_eq!(first["result"]["summary"]["largestRecoverableBytes"], "200");
+        assert_eq!(first["result"]["summary"]["distinctSelectedRootCount"], 2);
+        assert_eq!(first["result"]["summary"]["distinctDriveCount"], 2);
+        assert_eq!(first["result"]["summary"]["acrossDriveGroupCount"], 1);
         assert_eq!(first["result"]["groups"][0]["groupSize"], "200");
         assert_eq!(first["result"]["groups"][0]["distinctSelectedRootCount"], 2);
         assert_eq!(first["result"]["groups"][0]["distinctDriveCount"], 2);
@@ -3056,6 +3065,10 @@ mod tests {
         .unwrap();
         assert_eq!(across_drives["result"]["total"], 1);
         assert_eq!(across_drives["result"]["summary"]["matchingGroupCount"], 1);
+        assert_eq!(
+            across_drives["result"]["summary"]["acrossDriveGroupCount"],
+            1
+        );
         assert_eq!(
             across_drives["result"]["groups"][0]["distinctDriveCount"],
             2

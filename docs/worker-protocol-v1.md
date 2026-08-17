@@ -7,8 +7,9 @@ This document defines version 1 of the local protocol between `SuperDuper.Window
 the Windows application. Milestones 0–6 implement negotiation, session and scan lifecycle, and
 separately paged duplicate-file and exact-duplicate-folder result browsing. The read-only
 Milestone 8 additions extend duplicate-file pages with a filtered review summary, immutable
-selected-root/drive member context, bounded per-group selected-root/drive counts, and an optional
-across-drives group filter. Warning commands remain reserved for a later milestone.
+selected-root/drive member context, bounded per-group selected-root/drive counts, an optional
+across-drives group filter, and aggregate location coverage for the current query. Warning commands
+remain reserved for a later milestone.
 
 The transport is UTF-8 newline-delimited JSON (JSONL) over redirected standard input and standard
 output. It is a local process boundary, not a network API.
@@ -360,7 +361,7 @@ are returned. The filter performs no filesystem access.
 Result:
 
 ```json
-{"groups":[{"id":31,"runId":19,"groupSize":"5242880","copyCount":3,"recoverableBytes":"10485760","representativeName":"photo.jpg","representativeType":".jpg","distinctSelectedRootCount":2,"distinctDriveCount":2}],"total":42,"summary":{"matchingGroupCount":42,"matchingCopyCount":98,"potentialRecoverableBytes":"734003200","largestRecoverableBytes":"104857600"},"nextCursor":"opaque","previousCursor":null}
+{"groups":[{"id":31,"runId":19,"groupSize":"5242880","copyCount":3,"recoverableBytes":"10485760","representativeName":"photo.jpg","representativeType":".jpg","distinctSelectedRootCount":2,"distinctDriveCount":2}],"total":42,"summary":{"matchingGroupCount":42,"matchingCopyCount":98,"potentialRecoverableBytes":"734003200","largestRecoverableBytes":"104857600","distinctSelectedRootCount":3,"distinctDriveCount":2,"acrossDriveGroupCount":14},"nextCursor":"opaque","previousCursor":null}
 ```
 
 The representative is the member with the first path under case-insensitive path ordering, then
@@ -377,8 +378,11 @@ change the allowed group sorts or cursor signature.
 value is included in the opaque cursor's query signature. `matchingGroupCount` equals `total`;
 `matchingCopyCount` sums copies in the matching sets; `potentialRecoverableBytes` sums recoverable
 bytes; and `largestRecoverableBytes` is the largest matching set's recoverable bytes. Both byte
-fields are decimal strings. The summary is repeated on each bounded page so its rows and summary
-share one cursor-query generation and cannot be mixed by a late client response.
+fields are decimal strings. `distinctSelectedRootCount` and `distinctDriveCount` count distinct,
+non-empty, case-insensitive immutable labels represented anywhere in the matching sets.
+`acrossDriveGroupCount` counts matching sets that contain more than one such drive label. The
+summary is repeated on each bounded page so its rows and summary share one cursor-query generation
+and cannot be mixed by a late client response.
 
 ### `duplicate_file_group.members`
 

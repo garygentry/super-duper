@@ -67,6 +67,9 @@ public sealed class WpfSurfaceSmokeTests
             Assert.IsFalse(fileGroups.Columns.Single(column => Equals(column.Header, "Location span")).CanUserSort);
             Assert.AreEqual("Duplicate file review summary", AutomationProperties.GetName(
                 FindByAutomationId<FrameworkElement>(files, "FileReviewSummary")));
+            Assert.AreEqual("Duplicate file location coverage", AutomationProperties.GetName(
+                FindByAutomationId<FrameworkElement>(files, "FileLocationSummary")));
+            _ = FindByAutomationId<TextBlock>(files, "FileLocationSummaryText");
             Assert.AreEqual(
                 "Show only duplicate sets across multiple drives",
                 AutomationProperties.GetName(FindByAutomationId<CheckBox>(files, "FileAcrossDrives")));

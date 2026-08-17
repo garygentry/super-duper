@@ -21,7 +21,12 @@ public sealed class DuplicateFilesViewModelTests
                     null,
                     null)
                 {
-                    Summary = new WorkerDuplicateFileReviewSummary(1, 2, "4096", "2048"),
+                    Summary = new WorkerDuplicateFileReviewSummary(1, 2, "4096", "2048")
+                    {
+                        DistinctSelectedRootCount = 2,
+                        DistinctDriveCount = 2,
+                        AcrossDriveGroupCount = 1,
+                    },
                 });
             },
             MemberPageHandler = (query, _) => Task.FromResult(
@@ -44,6 +49,9 @@ public sealed class DuplicateFilesViewModelTests
         Assert.AreEqual("2", viewModel.MatchingCopyCountText);
         Assert.AreEqual("4 KB", viewModel.PotentialRecoverableText);
         Assert.AreEqual("2 KB", viewModel.LargestOpportunityText);
+        Assert.AreEqual(
+            "2 selected roots represented · 2 drives represented · 1 set spans multiple drives",
+            viewModel.LocationCoverageText);
         Assert.AreEqual("2 selected roots · across 2 drives", viewModel.Groups[0].LocationSpan);
         Assert.AreEqual(@"C:\Photos", viewModel.Members[0].SelectedRoot);
         Assert.AreEqual("photo.jpg", viewModel.Members[0].RelativePath);
@@ -84,7 +92,12 @@ public sealed class DuplicateFilesViewModelTests
                     null,
                     null)
                 {
-                    Summary = new WorkerDuplicateFileReviewSummary(1, 2, "222", "111"),
+                    Summary = new WorkerDuplicateFileReviewSummary(1, 2, "222", "111")
+                    {
+                        DistinctSelectedRootCount = 1,
+                        DistinctDriveCount = 1,
+                        AcrossDriveGroupCount = 0,
+                    },
                 });
             },
         };
@@ -101,7 +114,12 @@ public sealed class DuplicateFilesViewModelTests
             null,
             null)
         {
-            Summary = new WorkerDuplicateFileReviewSummary(9, 18, "999", "999"),
+            Summary = new WorkerDuplicateFileReviewSummary(9, 18, "999", "999")
+            {
+                DistinctSelectedRootCount = 9,
+                DistinctDriveCount = 9,
+                AcrossDriveGroupCount = 9,
+            },
         });
         await initialLoad;
 
@@ -109,6 +127,9 @@ public sealed class DuplicateFilesViewModelTests
         Assert.AreEqual("new-result.bin", viewModel.Groups[0].RepresentativeName);
         Assert.AreEqual("222 B", viewModel.PotentialRecoverableText);
         Assert.AreEqual("111 B", viewModel.LargestOpportunityText);
+        Assert.AreEqual(
+            "1 selected root represented · 1 drive represented · no sets span multiple drives",
+            viewModel.LocationCoverageText);
     }
 
     [TestMethod]

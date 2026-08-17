@@ -231,6 +231,9 @@ pub struct DuplicateFileReviewSummary {
     pub matching_copy_count: i64,
     pub potential_recoverable_bytes: i64,
     pub largest_recoverable_bytes: i64,
+    pub distinct_selected_root_count: i64,
+    pub distinct_drive_count: i64,
+    pub across_drive_group_count: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

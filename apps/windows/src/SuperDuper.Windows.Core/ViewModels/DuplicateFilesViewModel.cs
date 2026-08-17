@@ -208,6 +208,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(MatchingCopyCountText));
                 OnPropertyChanged(nameof(PotentialRecoverableText));
                 OnPropertyChanged(nameof(LargestOpportunityText));
+                OnPropertyChanged(nameof(LocationCoverageText));
             }
         }
     }
@@ -227,6 +228,32 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     public string PotentialRecoverableText => DisplayFormatting.Bytes(Summary.PotentialRecoverableBytes);
 
     public string LargestOpportunityText => DisplayFormatting.Bytes(Summary.LargestRecoverableBytes);
+
+    public string LocationCoverageText
+    {
+        get
+        {
+            var roots = Summary.DistinctSelectedRootCount switch
+            {
+                0 => "Selected roots unavailable",
+                1 => "1 selected root represented",
+                _ => $"{Summary.DistinctSelectedRootCount:N0} selected roots represented",
+            };
+            var drives = Summary.DistinctDriveCount switch
+            {
+                0 => "no drive labels",
+                1 => "1 drive represented",
+                _ => $"{Summary.DistinctDriveCount:N0} drives represented",
+            };
+            var acrossDrives = Summary.AcrossDriveGroupCount switch
+            {
+                0 => "no sets span multiple drives",
+                1 => "1 set spans multiple drives",
+                _ => $"{Summary.AcrossDriveGroupCount:N0} sets span multiple drives",
+            };
+            return $"{roots} · {drives} · {acrossDrives}";
+        }
+    }
 
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
 

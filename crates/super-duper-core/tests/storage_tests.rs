@@ -367,6 +367,9 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
     assert_eq!(first_page.summary.matching_copy_count, 6);
     assert_eq!(first_page.summary.potential_recoverable_bytes, 500);
     assert_eq!(first_page.summary.largest_recoverable_bytes, 200);
+    assert_eq!(first_page.summary.distinct_selected_root_count, 2);
+    assert_eq!(first_page.summary.distinct_drive_count, 2);
+    assert_eq!(first_page.summary.across_drive_group_count, 1);
     assert_eq!(first_page.groups.len(), 2);
     assert!(first_page.has_more);
     assert!(first_page
@@ -433,6 +436,9 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
     assert_eq!(filtered.summary.matching_copy_count, 2);
     assert_eq!(filtered.summary.potential_recoverable_bytes, 100);
     assert_eq!(filtered.summary.largest_recoverable_bytes, 100);
+    assert_eq!(filtered.summary.distinct_selected_root_count, 2);
+    assert_eq!(filtered.summary.distinct_drive_count, 1);
+    assert_eq!(filtered.summary.across_drive_group_count, 0);
     let group = &filtered.groups[0];
     assert_eq!(group.distinct_selected_root_count, 2);
     assert_eq!(group.distinct_drive_count, 1);
@@ -453,6 +459,9 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
     assert_eq!(across_drives.summary.matching_group_count, 1);
     assert_eq!(across_drives.summary.matching_copy_count, 2);
     assert_eq!(across_drives.summary.potential_recoverable_bytes, 200);
+    assert_eq!(across_drives.summary.distinct_selected_root_count, 1);
+    assert_eq!(across_drives.summary.distinct_drive_count, 2);
+    assert_eq!(across_drives.summary.across_drive_group_count, 1);
     assert_eq!(across_drives.groups[0].distinct_drive_count, 2);
     let members = db
         .page_duplicate_file_members(&DuplicateFileMemberPageQuery {
@@ -550,6 +559,9 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
     assert_eq!(first.total, 100_000);
     assert_eq!(first.summary.matching_group_count, 100_000);
     assert_eq!(first.summary.matching_copy_count, 200_000);
+    assert_eq!(first.summary.distinct_selected_root_count, 1);
+    assert_eq!(first.summary.distinct_drive_count, 2);
+    assert_eq!(first.summary.across_drive_group_count, 100);
     assert_eq!(first.groups.len(), 200);
     assert!(first.has_more);
     let boundary = first.groups.last().unwrap();
@@ -590,6 +602,9 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
     assert_eq!(across.total, 100);
     assert_eq!(across.summary.matching_group_count, 100);
     assert_eq!(across.summary.matching_copy_count, 200);
+    assert_eq!(across.summary.distinct_selected_root_count, 1);
+    assert_eq!(across.summary.distinct_drive_count, 2);
+    assert_eq!(across.summary.across_drive_group_count, 100);
     assert_eq!(across.groups.len(), 100);
     assert!(!across.has_more);
     assert!(across

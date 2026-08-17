@@ -189,6 +189,9 @@ public sealed class WorkerClientLifecycleTests
             Assert.AreEqual("completed", durable.Status);
             Assert.AreEqual(session.Id, durable.SessionId);
             Assert.AreEqual(2, groups.Total);
+            Assert.AreEqual(1, groups.Summary.DistinctSelectedRootCount);
+            Assert.AreEqual(1, groups.Summary.DistinctDriveCount);
+            Assert.AreEqual(0, groups.Summary.AcrossDriveGroupCount);
             Assert.IsTrue(members.Total >= 2);
             CollectionAssert.IsSubsetOf(
                 new[] { "one.txt", "one-copy.txt" },
