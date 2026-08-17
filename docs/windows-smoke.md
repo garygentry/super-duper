@@ -12,13 +12,14 @@ uses stable UI Automation IDs to exercise both result surfaces and invoke Explor
 - more than one page of duplicate-file groups, sorting, filtering, forward cursor paging, and
   member browsing, including the worker-owned filtered review summary, bounded per-group
   selected-root/drive span, aggregate filtered location coverage, the worker-owned across-drives
-  filter, and immutable selected-root, relative-path, and drive member context;
+  filter, a worker-owned paged selected-root facet and exact-root filter, and immutable
+  selected-root, relative-path, and drive member context;
 - exact duplicate-folder sorting, filtering, and member browsing;
 - fixed-drive scanning, a path longer than 260 characters, a locked file, and a skipped junction;
-- all five scan-phase timings and all four result-query timings on stderr;
+- all five scan-phase timings and all five result-query timings on stderr;
 - WPF startup/restoration, duplicate-file and exact-folder tabs, grid sorting, paging, filtering,
-  row selection, accessible across-drives and review-summary/aggregate-location/set-explanation/
-  location-span text, completed ordinary/long-path file and folder Explorer reveal commands, and
+  row selection, accessible selected-root facet and across-drives/review-summary/aggregate-location/
+  set-explanation/location-span text, completed ordinary/long-path file and folder Explorer reveal commands, and
   deterministic result-loaded, repeated idle, startup-failure, and database-failure shutdown.
 - Cloud locations setup accessibility, responsive registration refresh, Start scan becoming enabled
   after successful discovery, and a separate deterministic provider-unavailable launch where the
@@ -92,7 +93,8 @@ If UI Automation is blocked by a locked session, elevation boundary, or headless
 
 1. Select `Milestone 6 Smoke` and its completed run; confirm the cancelled run is also in history.
 2. Open Duplicate Files, sort Group size, choose Next, filter for `group010`, select a group, and
-   confirm the filtered summary and selected-root/drive detail, then choose Show in Explorer.
+   confirm the filtered summary and selected-root/drive detail. Choose a counted selected-root
+   facet, apply it, clear it, then choose Show in Explorer.
 3. Open Duplicate Folders, sort Representative folder, filter for `original-set`, select the group,
    and reveal a folder in Explorer.
 4. Close and reopen the app and confirm completed/cancelled history and completed results restore.

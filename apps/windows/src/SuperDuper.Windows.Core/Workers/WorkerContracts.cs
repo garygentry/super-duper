@@ -96,7 +96,8 @@ public enum DuplicateFileMemberSortField
 public sealed record DuplicateFileGroupFilter(
     string Search,
     string MinimumSize,
-    bool AcrossDrives = false);
+    bool AcrossDrives = false,
+    string? SelectedRoot = null);
 
 public sealed record DuplicateFileGroupQuery(
     long RunId,
@@ -142,6 +143,35 @@ public sealed record WorkerDuplicateFileReviewSummary(
 
     public long AcrossDriveGroupCount { get; init; }
 }
+
+public enum DuplicateFileSelectedRootFacetSortField
+{
+    MatchingGroupCount,
+    Value,
+}
+
+public sealed record DuplicateFileSelectedRootFacetFilter(
+    string Search,
+    string MinimumSize,
+    bool AcrossDrives = false);
+
+public sealed record DuplicateFileSelectedRootFacetQuery(
+    long RunId,
+    int PageSize,
+    DuplicateFileSelectedRootFacetSortField SortField,
+    WorkerSortDirection SortDirection,
+    DuplicateFileSelectedRootFacetFilter Filter,
+    string? Cursor = null);
+
+public sealed record WorkerDuplicateFileSelectedRootFacet(
+    string Value,
+    long MatchingGroupCount);
+
+public sealed record WorkerDuplicateFileSelectedRootFacetPage(
+    IReadOnlyList<WorkerDuplicateFileSelectedRootFacet> Facets,
+    long Total,
+    string? NextCursor,
+    string? PreviousCursor);
 
 public sealed record DuplicateFileMemberFilter(string Search);
 

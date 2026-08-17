@@ -186,6 +186,7 @@ function Assert-True([bool]$Condition, [string]$Message) {
 function Invoke-WpfAutomation([long]$RunId) {
     Add-Type -AssemblyName UIAutomationClient
     Add-Type -AssemblyName UIAutomationTypes
+    Add-Type -AssemblyName System.Windows.Forms
     $knownWorkerIds = @(Get-Process -Name 'super-duper-worker' -ErrorAction SilentlyContinue | ForEach-Object Id)
     $ownedWorkerId = $null
     $start = [Diagnostics.ProcessStartInfo]::new()
@@ -316,6 +317,33 @@ function Invoke-WpfAutomation([long]$RunId) {
         Select-Element (Find-Element AutomationId 'DuplicateFilesTab')
         $acrossDrives = Find-Element AutomationId 'FileAcrossDrives'
         Assert-True ($acrossDrives.Current.Name -eq 'Show only duplicate sets across multiple drives') 'Across-drives filter was not accessible.'
+        $rootFacet = Find-Element AutomationId 'FileSelectedRootFacet'
+        Assert-True ($rootFacet.Current.Name.Contains('Selected root facet', [StringComparison]::OrdinalIgnoreCase)) 'Selected-root facet was not accessible.'
+        Invoke-Element (Find-Element AutomationId 'FileRootFacetNameSort')
+        try {
+            $rootFacet.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+        }
+        catch {
+            throw "Selected-root facet did not expose the ExpandCollapse pattern: $($_.Exception.Message)"
+        }
+        Start-Sleep -Milliseconds 250
+        $rootOptions = $window.FindAll(
+            [Windows.Automation.TreeScope]::Descendants,
+            [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::ControlTypeProperty,
+                [Windows.Automation.ControlType]::ListItem))
+        $rootOption = $rootOptions |
+            Where-Object { $_.Current.Name -ne 'All selected roots' -and $_.Current.Name.Contains('set', [StringComparison]::OrdinalIgnoreCase) } |
+            Select-Object -First 1
+        $rootOptionNames = @($rootOptions | ForEach-Object { $_.Current.Name }) -join ' | '
+        Assert-True ($null -ne $rootOption) "Selected-root facet did not expose a bounded worker-owned value and count. Visible list items: $rootOptionNames"
+        $rootFacet.SetFocus()
+        [Windows.Forms.SendKeys]::SendWait('{HOME}{DOWN}{ENTER}')
+        Start-Sleep -Milliseconds 400
+        Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
+        $selectedRootFilterText = Find-Element AutomationId 'FileSelectedRootFilterText'
+        Assert-True ($selectedRootFilterText.Current.Name.Contains('Filtering sets represented under', [StringComparison]::OrdinalIgnoreCase)) 'Selected-root facet selection did not become active.'
+        Invoke-Element (Find-Element Name 'Clear filters')
         $acrossDrivesToggle = $acrossDrives.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
         if ($acrossDrivesToggle.Current.ToggleState -ne [Windows.Automation.ToggleState]::Off) {
             $acrossDrivesToggle.Toggle()
@@ -377,7 +405,7 @@ function Invoke-WpfAutomation([long]$RunId) {
         $null = Find-FirstDataItem $folderMembers
         Invoke-Element (Find-DescendantByName $folderMembers 'Show in Explorer')
         Assert-NoVisibleDetailError 'FolderDetailError'
-        Write-Output "WPF automation passed for restored run $RunId, including completed ordinary, long-path, and folder Explorer reveal commands."
+        Write-Output "WPF automation passed for restored run $RunId, including selected-root facet filtering and completed ordinary, long-path, and folder Explorer reveal commands."
     }
     finally {
         try {
@@ -664,6 +692,23 @@ try {
     Assert-True ($filteredFiles.summary.acrossDriveGroupCount -eq 0) 'Single-drive filtered summary reported a cross-drive set.'
     Assert-True ($filteredFiles.groups[0].distinctSelectedRootCount -eq 1) 'Duplicate-file group did not report its selected-root span.'
     Assert-True ($filteredFiles.groups[0].distinctDriveCount -eq 1) 'Duplicate-file group did not report its drive span.'
+    $selectedRootFacets = Send-WorkerRequest $restored 'duplicate_file_selected_root_facet.page' @{
+        runId = $run.id; pageSize = 25
+        sort = @{ field = 'matchingGroupCount'; direction = 'descending' }
+        filter = @{ search = 'group010'; minimumSize = '0'; acrossDrives = $false }; cursor = $null
+    }
+    Assert-True ($selectedRootFacets.total -ge 1) 'Selected-root facet returned no worker-owned values.'
+    Assert-True ($selectedRootFacets.facets[0].matchingGroupCount -ge 1) 'Selected-root facet did not report a matching-set count.'
+    $rootFilteredFiles = Send-WorkerRequest $restored 'duplicate_file_group.page' @{
+        runId = $run.id; pageSize = 25
+        sort = @{ field = 'representativeName'; direction = 'ascending' }
+        filter = @{
+            search = 'group010'; minimumSize = '0'; acrossDrives = $false
+            selectedRoot = $selectedRootFacets.facets[0].value
+        }; cursor = $null
+    }
+    Assert-True ($rootFilteredFiles.total -ge 1) 'Selected-root filter returned no matching smoke result.'
+    Assert-True ($rootFilteredFiles.summary.matchingGroupCount -eq $rootFilteredFiles.total) 'Selected-root filter summary diverged from its result total.'
     $acrossDriveFiles = Send-WorkerRequest $restored 'duplicate_file_group.page' @{
         runId = $run.id; pageSize = 25
         sort = @{ field = 'recoverableBytes'; direction = 'descending' }
@@ -701,6 +746,7 @@ try {
     }
     foreach ($method in @(
         'duplicate_file_group.page', 'duplicate_file_group.members',
+        'duplicate_file_selected_root_facet.page',
         'duplicate_folder_group.page', 'duplicate_folder_group.members')) {
         Assert-True ($queryDiagnostics.Contains("kind=result_query method=$method")) "Missing $method timing."
     }

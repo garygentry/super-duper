@@ -9,6 +9,7 @@ namespace SuperDuper.Windows.Core.ViewModels;
 public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 {
     public const int PageSize = 200;
+    public const int RootFacetPageSize = 25;
     public const int CacheCapacity = 5;
 
     private readonly IWorkerClient _workerClient;
@@ -16,17 +17,24 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private readonly IExplorerService _explorer;
     private readonly BoundedCursorCache<WorkerDuplicateFileGroupPage> _groupCache = new(CacheCapacity);
     private readonly BoundedCursorCache<WorkerDuplicateFileMemberPage> _memberCache = new(CacheCapacity);
+    private readonly BoundedCursorCache<WorkerDuplicateFileSelectedRootFacetPage> _rootFacetCache = new(CacheCapacity);
     private CancellationTokenSource? _groupCancellation;
     private CancellationTokenSource? _memberCancellation;
+    private CancellationTokenSource? _rootFacetCancellation;
     private WorkerRun? _run;
     private IReadOnlyList<DuplicateFileGroupListItemViewModel> _groups = [];
     private IReadOnlyList<DuplicateFileMemberListItemViewModel> _members = [];
+    private IReadOnlyList<DuplicateFileSelectedRootFacetListItemViewModel> _selectedRootFacetOptions =
+        [new()];
     private DuplicateFileGroupListItemViewModel? _selectedGroup;
+    private DuplicateFileSelectedRootFacetListItemViewModel? _selectedRootFacet;
     private WorkerDuplicateFileGroupPage? _currentGroupPage;
     private WorkerDuplicateFileMemberPage? _currentMemberPage;
+    private WorkerDuplicateFileSelectedRootFacetPage? _currentRootFacetPage;
     private WorkerDuplicateFileReviewSummary _summary = new(0, 0, "0", "0");
     private long _groupGeneration;
     private long _memberGeneration;
+    private long _rootFacetGeneration;
     private string _searchText = string.Empty;
     private string _minimumSizeText = string.Empty;
     private bool _acrossDrives;
@@ -35,10 +43,16 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private string _stateMessage = "Select a completed run to browse duplicate files.";
     private bool _isLoading;
     private bool _isDetailLoading;
+    private bool _isRootFacetLoading;
     private DuplicateFileGroupSortField _sortField = DuplicateFileGroupSortField.RecoverableBytes;
     private WorkerSortDirection _sortDirection = WorkerSortDirection.Descending;
+    private DuplicateFileSelectedRootFacetSortField _rootFacetSortField =
+        DuplicateFileSelectedRootFacetSortField.MatchingGroupCount;
+    private WorkerSortDirection _rootFacetSortDirection = WorkerSortDirection.Descending;
     private long _totalGroups;
     private long _totalMembers;
+    private long _totalRootFacets;
+    private string? _rootFacetErrorMessage;
     private bool _disposed;
 
     public DuplicateFilesViewModel(
@@ -53,6 +67,16 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         ClearFiltersCommand = new AsyncRelayCommand(ClearFiltersAsync);
         NextPageCommand = new AsyncRelayCommand(NextPageAsync, () => CanMoveNext);
         PreviousPageCommand = new AsyncRelayCommand(PreviousPageAsync, () => CanMovePrevious);
+        NextRootFacetPageCommand = new AsyncRelayCommand(NextRootFacetPageAsync, () => CanMoveRootFacetsNext);
+        PreviousRootFacetPageCommand = new AsyncRelayCommand(PreviousRootFacetPageAsync, () => CanMoveRootFacetsPrevious);
+        SortRootFacetsByCountCommand = new AsyncRelayCommand(
+            () => ApplyRootFacetSortAsync(
+                DuplicateFileSelectedRootFacetSortField.MatchingGroupCount,
+                WorkerSortDirection.Descending));
+        SortRootFacetsByNameCommand = new AsyncRelayCommand(
+            () => ApplyRootFacetSortAsync(
+                DuplicateFileSelectedRootFacetSortField.Value,
+                WorkerSortDirection.Ascending));
         NextMemberPageCommand = new AsyncRelayCommand(NextMemberPageAsync, () => CanMoveMembersNext);
         PreviousMemberPageCommand = new AsyncRelayCommand(PreviousMemberPageAsync, () => CanMoveMembersPrevious);
         CopyPathCommand = new RelayCommand<DuplicateFileMemberListItemViewModel>(CopyPath);
@@ -82,6 +106,24 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     {
         get => _members;
         private set => SetProperty(ref _members, value);
+    }
+
+    public IReadOnlyList<DuplicateFileSelectedRootFacetListItemViewModel> SelectedRootFacetOptions
+    {
+        get => _selectedRootFacetOptions;
+        private set => SetProperty(ref _selectedRootFacetOptions, value);
+    }
+
+    public DuplicateFileSelectedRootFacetListItemViewModel? SelectedRootFacet
+    {
+        get => _selectedRootFacet;
+        set
+        {
+            if (SetProperty(ref _selectedRootFacet, value))
+            {
+                OnPropertyChanged(nameof(SelectedRootFilterText));
+            }
+        }
     }
 
     public DuplicateFileGroupListItemViewModel? SelectedGroup
@@ -171,6 +213,18 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         }
     }
 
+    public bool IsRootFacetLoading
+    {
+        get => _isRootFacetLoading;
+        private set
+        {
+            if (SetProperty(ref _isRootFacetLoading, value))
+            {
+                RaiseRootFacetPagingProperties();
+            }
+        }
+    }
+
     public long TotalGroups
     {
         get => _totalGroups;
@@ -193,6 +247,30 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             {
                 OnPropertyChanged(nameof(MemberCountText));
                 OnPropertyChanged(nameof(IsDetailEmpty));
+            }
+        }
+    }
+
+    public long TotalRootFacets
+    {
+        get => _totalRootFacets;
+        private set
+        {
+            if (SetProperty(ref _totalRootFacets, value))
+            {
+                OnPropertyChanged(nameof(RootFacetCountText));
+            }
+        }
+    }
+
+    public string? RootFacetErrorMessage
+    {
+        get => _rootFacetErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _rootFacetErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasRootFacetError));
             }
         }
     }
@@ -220,6 +298,14 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     public string GroupCountText => $"{TotalGroups:N0} groups";
 
     public string MemberCountText => $"{TotalMembers:N0} copies";
+
+    public string RootFacetCountText => TotalRootFacets == 1
+        ? "1 selected root"
+        : $"{TotalRootFacets:N0} selected roots";
+
+    public string SelectedRootFilterText => SelectedRootFacet?.Value is { } value
+        ? $"Filtering sets represented under {value}"
+        : "All selected roots";
 
     public string MatchingSetCountText => $"{Summary.MatchingGroupCount:N0}";
 
@@ -259,6 +345,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 
     public bool HasDetailError => !string.IsNullOrWhiteSpace(DetailErrorMessage);
 
+    public bool HasRootFacetError => !string.IsNullOrWhiteSpace(RootFacetErrorMessage);
+
     public bool IsUnavailable => Run is null || Run.Status != "completed";
 
     public bool IsEmpty => Run?.Status == "completed" && !IsLoading && !HasError && TotalGroups == 0;
@@ -279,9 +367,15 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 
     public bool CanMoveMembersPrevious => !IsDetailLoading && _currentMemberPage?.PreviousCursor is not null;
 
+    public bool CanMoveRootFacetsNext => !IsRootFacetLoading && _currentRootFacetPage?.NextCursor is not null;
+
+    public bool CanMoveRootFacetsPrevious => !IsRootFacetLoading && _currentRootFacetPage?.PreviousCursor is not null;
+
     public int CachedGroupPageCount => _groupCache.Count;
 
     public int CachedMemberPageCount => _memberCache.Count;
+
+    public int CachedRootFacetPageCount => _rootFacetCache.Count;
 
     public IAsyncRelayCommand ApplyFiltersCommand { get; }
 
@@ -290,6 +384,14 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     public IAsyncRelayCommand NextPageCommand { get; }
 
     public IAsyncRelayCommand PreviousPageCommand { get; }
+
+    public IAsyncRelayCommand NextRootFacetPageCommand { get; }
+
+    public IAsyncRelayCommand PreviousRootFacetPageCommand { get; }
+
+    public IAsyncRelayCommand SortRootFacetsByCountCommand { get; }
+
+    public IAsyncRelayCommand SortRootFacetsByNameCommand { get; }
 
     public IAsyncRelayCommand NextMemberPageCommand { get; }
 
@@ -304,18 +406,25 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         Run = run;
         CancelGroupQuery();
         CancelMemberQuery();
+        CancelRootFacetQuery();
         _groupCache.Clear();
         _memberCache.Clear();
+        _rootFacetCache.Clear();
         _currentGroupPage = null;
         _currentMemberPage = null;
+        _currentRootFacetPage = null;
         Groups = [];
         Members = [];
+        SelectedRootFacetOptions = [new()];
+        SelectedRootFacet = SelectedRootFacetOptions[0];
         SelectedGroup = null;
         TotalGroups = 0;
         TotalMembers = 0;
+        TotalRootFacets = 0;
         Summary = new WorkerDuplicateFileReviewSummary(0, 0, "0", "0");
         ErrorMessage = null;
         DetailErrorMessage = null;
+        RootFacetErrorMessage = null;
         OnPropertyChanged(nameof(IsUnavailable));
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(HasGroups));
@@ -373,6 +482,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         _disposed = true;
         CancelGroupQuery();
         CancelMemberQuery();
+        CancelRootFacetQuery();
     }
 
     private async Task ApplyFiltersAsync()
@@ -388,6 +498,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         SearchText = string.Empty;
         MinimumSizeText = string.Empty;
         AcrossDrives = false;
+        SelectedRootFacet = SelectedRootFacetOptions.FirstOrDefault(option => option.Value is null)
+            ?? new DuplicateFileSelectedRootFacetListItemViewModel();
         if (Run?.Status == "completed")
         {
             await ResetAndLoadGroupsAsync();
@@ -404,13 +516,16 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         }
         CancelGroupQuery();
         CancelMemberQuery();
+        CancelRootFacetQuery();
         _groupCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var generation = ++_groupGeneration;
         IsLoading = true;
         _groupCache.Clear();
         _memberCache.Clear();
+        _rootFacetCache.Clear();
         _currentGroupPage = null;
         _currentMemberPage = null;
+        _currentRootFacetPage = null;
         if (!preserveDisplayedResults)
         {
             Groups = [];
@@ -422,7 +537,12 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         }
         ErrorMessage = null;
         DetailErrorMessage = null;
+        RootFacetErrorMessage = null;
         await LoadGroupPageAsync(null, filter, generation, _groupCancellation.Token, display: true);
+        if (generation == _groupGeneration && !cancellationToken.IsCancellationRequested)
+        {
+            await ResetAndLoadRootFacetsAsync(filter, cancellationToken);
+        }
     }
 
     private async Task LoadGroupPageAsync(
@@ -556,6 +676,229 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         if (_currentGroupPage?.PreviousCursor is { } cursor && TryBuildFilter(out var filter) && _groupCancellation is not null)
         {
             await LoadGroupPageAsync(cursor, filter, _groupGeneration, _groupCancellation.Token, display: true);
+        }
+    }
+
+    private async Task ApplyRootFacetSortAsync(
+        DuplicateFileSelectedRootFacetSortField field,
+        WorkerSortDirection direction)
+    {
+        if ((_rootFacetSortField == field && _rootFacetSortDirection == direction)
+            || !TryBuildFilter(out var filter)
+            || Run?.Status != "completed")
+        {
+            return;
+        }
+        _rootFacetSortField = field;
+        _rootFacetSortDirection = direction;
+        await ResetAndLoadRootFacetsAsync(filter);
+    }
+
+    private async Task ResetAndLoadRootFacetsAsync(
+        DuplicateFileGroupFilter groupFilter,
+        CancellationToken cancellationToken = default)
+    {
+        CancelRootFacetQuery();
+        _rootFacetCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var generation = ++_rootFacetGeneration;
+        _rootFacetCache.Clear();
+        _currentRootFacetPage = null;
+        RootFacetErrorMessage = null;
+        IsRootFacetLoading = true;
+        var filter = new DuplicateFileSelectedRootFacetFilter(
+            groupFilter.Search,
+            groupFilter.MinimumSize,
+            groupFilter.AcrossDrives);
+        await LoadRootFacetPageAsync(
+            null,
+            filter,
+            generation,
+            _rootFacetCancellation.Token,
+            display: true);
+    }
+
+    private async Task LoadRootFacetPageAsync(
+        string? cursor,
+        DuplicateFileSelectedRootFacetFilter filter,
+        long generation,
+        CancellationToken cancellationToken,
+        bool display)
+    {
+        if (_rootFacetCache.TryGet(cursor, out var cached))
+        {
+            if (display && generation == _rootFacetGeneration)
+            {
+                DisplayRootFacetPage(cached);
+                _ = PrefetchRootFacetNeighborsAsync(cached, filter, generation, cancellationToken);
+            }
+            return;
+        }
+        if (Run is not { Status: "completed" } run)
+        {
+            return;
+        }
+        if (display)
+        {
+            IsRootFacetLoading = true;
+            RootFacetErrorMessage = null;
+        }
+        try
+        {
+            var page = await _workerClient.GetDuplicateFileSelectedRootFacetsAsync(
+                new DuplicateFileSelectedRootFacetQuery(
+                    run.Id,
+                    RootFacetPageSize,
+                    _rootFacetSortField,
+                    _rootFacetSortDirection,
+                    filter,
+                    cursor),
+                cancellationToken);
+            if (generation != _rootFacetGeneration || cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            _rootFacetCache.Set(cursor, page);
+            if (display)
+            {
+                DisplayRootFacetPage(page);
+                _ = PrefetchRootFacetNeighborsAsync(page, filter, generation, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (display && generation == _rootFacetGeneration)
+            {
+                RootFacetErrorMessage = exception.Message;
+            }
+        }
+        finally
+        {
+            if (display && generation == _rootFacetGeneration)
+            {
+                IsRootFacetLoading = false;
+            }
+        }
+    }
+
+    private void DisplayRootFacetPage(WorkerDuplicateFileSelectedRootFacetPage page)
+    {
+        _currentRootFacetPage = page;
+        TotalRootFacets = page.Total;
+        var selectedValue = SelectedRootFacet?.Value;
+        var options = new List<DuplicateFileSelectedRootFacetListItemViewModel>
+        {
+            new(),
+        };
+        options.AddRange(page.Facets.Select(facet =>
+            new DuplicateFileSelectedRootFacetListItemViewModel(facet)));
+        if (selectedValue is not null
+            && options.All(option => !string.Equals(
+                option.Value,
+                selectedValue,
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            options.Add(new DuplicateFileSelectedRootFacetListItemViewModel(selectedValue: selectedValue));
+        }
+        SelectedRootFacetOptions = options;
+        SelectedRootFacet = options.First(option => string.Equals(
+            option.Value,
+            selectedValue,
+            StringComparison.OrdinalIgnoreCase));
+        RaiseRootFacetPagingProperties();
+    }
+
+    private async Task PrefetchRootFacetNeighborsAsync(
+        WorkerDuplicateFileSelectedRootFacetPage page,
+        DuplicateFileSelectedRootFacetFilter filter,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        await PrefetchRootFacetDirectionAsync(
+            page.PreviousCursor,
+            false,
+            2,
+            filter,
+            generation,
+            cancellationToken);
+        await PrefetchRootFacetDirectionAsync(
+            page.NextCursor,
+            true,
+            2,
+            filter,
+            generation,
+            cancellationToken);
+    }
+
+    private async Task PrefetchRootFacetDirectionAsync(
+        string? cursor,
+        bool forward,
+        int remaining,
+        DuplicateFileSelectedRootFacetFilter filter,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        if (cursor is null
+            || remaining == 0
+            || generation != _rootFacetGeneration
+            || cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        if (!_rootFacetCache.TryGet(cursor, out var page))
+        {
+            await LoadRootFacetPageAsync(cursor, filter, generation, cancellationToken, display: false);
+            if (!_rootFacetCache.TryGet(cursor, out page))
+            {
+                return;
+            }
+        }
+        await PrefetchRootFacetDirectionAsync(
+            forward ? page.NextCursor : page.PreviousCursor,
+            forward,
+            remaining - 1,
+            filter,
+            generation,
+            cancellationToken);
+    }
+
+    private async Task NextRootFacetPageAsync()
+    {
+        if (_currentRootFacetPage?.NextCursor is { } cursor
+            && TryBuildFilter(out var groupFilter)
+            && _rootFacetCancellation is not null)
+        {
+            var filter = new DuplicateFileSelectedRootFacetFilter(
+                groupFilter.Search,
+                groupFilter.MinimumSize,
+                groupFilter.AcrossDrives);
+            await LoadRootFacetPageAsync(
+                cursor,
+                filter,
+                _rootFacetGeneration,
+                _rootFacetCancellation.Token,
+                display: true);
+        }
+    }
+
+    private async Task PreviousRootFacetPageAsync()
+    {
+        if (_currentRootFacetPage?.PreviousCursor is { } cursor
+            && TryBuildFilter(out var groupFilter)
+            && _rootFacetCancellation is not null)
+        {
+            var filter = new DuplicateFileSelectedRootFacetFilter(
+                groupFilter.Search,
+                groupFilter.MinimumSize,
+                groupFilter.AcrossDrives);
+            await LoadRootFacetPageAsync(
+                cursor,
+                filter,
+                _rootFacetGeneration,
+                _rootFacetCancellation.Token,
+                display: true);
         }
     }
 
@@ -739,7 +1082,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         filter = new DuplicateFileGroupFilter(
             search,
             value.ToString(CultureInfo.InvariantCulture),
-            AcrossDrives);
+            AcrossDrives,
+            SelectedRootFacet?.Value);
         return true;
     }
 
@@ -793,6 +1137,14 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         _memberGeneration++;
     }
 
+    private void CancelRootFacetQuery()
+    {
+        _rootFacetCancellation?.Cancel();
+        _rootFacetCancellation?.Dispose();
+        _rootFacetCancellation = null;
+        _rootFacetGeneration++;
+    }
+
     private void RaisePagingProperties()
     {
         OnPropertyChanged(nameof(CanMoveNext));
@@ -807,5 +1159,13 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanMoveMembersPrevious));
         NextMemberPageCommand.NotifyCanExecuteChanged();
         PreviousMemberPageCommand.NotifyCanExecuteChanged();
+    }
+
+    private void RaiseRootFacetPagingProperties()
+    {
+        OnPropertyChanged(nameof(CanMoveRootFacetsNext));
+        OnPropertyChanged(nameof(CanMoveRootFacetsPrevious));
+        NextRootFacetPageCommand.NotifyCanExecuteChanged();
+        PreviousRootFacetPageCommand.NotifyCanExecuteChanged();
     }
 }

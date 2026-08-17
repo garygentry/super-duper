@@ -8,8 +8,9 @@ the Windows application. Milestones 0–6 implement negotiation, session and sca
 separately paged duplicate-file and exact-duplicate-folder result browsing. The read-only
 Milestone 8 additions extend duplicate-file pages with a filtered review summary, immutable
 selected-root/drive member context, bounded per-group selected-root/drive counts, an optional
-across-drives group filter, and aggregate location coverage for the current query. Warning commands
-remain reserved for a later milestone.
+across-drives group filter, aggregate location coverage for the current query, and a keyset-paged
+selected-root facet that can filter the group query. Warning commands remain reserved for a later
+milestone.
 
 The transport is UTF-8 newline-delimited JSON (JSONL) over redirected standard input and standard
 output. It is a local process boundary, not a network API.
@@ -45,8 +46,9 @@ performance kind=result_query method=duplicate_file_group.page run_id=19 group_i
 
 A completed run produces duration records for all five phases (`discovering`, `hashing`,
 `persisting`, `analyzing_folders`, and `finalizing`). Every successful duplicate-file/folder
-group/member page query produces a duration record. Query records exclude path search/filter text.
-These diagnostics are not protocol frames and never appear on stdout.
+group/member page query and selected-root facet page query produces a duration record. Query
+records exclude path search/filter text. These diagnostics are not protocol frames and never
+appear on stdout.
 
 ## Envelopes
 
@@ -332,7 +334,7 @@ Progress data is:
 ## Duplicate File Result Commands
 
 Duplicate-file results are immutable and queryable only when the addressed run has status
-`completed`. Both commands require the run ID, so a group from one historical run cannot leak into
+`completed`. All commands require the run ID, so a group from one historical run cannot leak into
 another run's result view. Querying a non-completed run returns `invalid_state` with the durable
 status in `details.status`.
 
@@ -347,7 +349,7 @@ ascending, which makes paging stable. `pageSize` defaults to 200 and must be 1�
 Request:
 
 ```json
-{"type":"request","id":"g1","method":"duplicate_file_group.page","params":{"runId":19,"pageSize":200,"sort":{"field":"recoverableBytes","direction":"descending"},"filter":{"search":"photos","minimumSize":"1048576","acrossDrives":true},"cursor":null}}
+{"type":"request","id":"g1","method":"duplicate_file_group.page","params":{"runId":19,"pageSize":200,"sort":{"field":"recoverableBytes","direction":"descending"},"filter":{"search":"photos","minimumSize":"1048576","acrossDrives":true,"selectedRoot":"D:\\Photos"},"cursor":null}}
 ```
 
 Allowed group sort fields are `recoverableBytes`, `groupSize`, `copyCount`, and
@@ -356,7 +358,9 @@ descending. `filter.search` is an optional case-insensitive literal substring se
 paths, limited to 512 characters. `filter.minimumSize` is a non-negative decimal byte string and
 defaults to `"0"`. `filter.acrossDrives` is an optional boolean that defaults to `false`; when
 `true`, only sets with more than one distinct, non-empty, case-insensitive immutable drive label
-are returned. The filter performs no filesystem access.
+are returned. `filter.selectedRoot` is an optional exact, case-insensitive immutable selected-root
+value; when present, only sets with at least one member under that root are returned. Blank values
+are treated as absent. The filter performs no filesystem access.
 
 Result:
 
@@ -373,9 +377,10 @@ de-duplicated case-insensitively. A drive count greater than one identifies a cr
 zero remains valid for migrated snapshots or path types without a drive label. These fields do not
 change the allowed group sorts or cursor signature.
 
-`summary` uses the same normalized run, search, minimum-size, and across-drives predicate as
-`total`. It is computed by SQLite in the worker, not by walking client pages. The across-drives
-value is included in the opaque cursor's query signature. `matchingGroupCount` equals `total`;
+`summary` uses the same normalized run, search, minimum-size, across-drives, and selected-root
+predicate as `total`. It is computed by SQLite in the worker, not by walking client pages. The
+across-drives and selected-root values are included in the opaque cursor's query signature.
+`matchingGroupCount` equals `total`;
 `matchingCopyCount` sums copies in the matching sets; `potentialRecoverableBytes` sums recoverable
 bytes; and `largestRecoverableBytes` is the largest matching set's recoverable bytes. Both byte
 fields are decimal strings. `distinctSelectedRootCount` and `distinctDriveCount` count distinct,
@@ -383,6 +388,35 @@ non-empty, case-insensitive immutable labels represented anywhere in the matchin
 `acrossDriveGroupCount` counts matching sets that contain more than one such drive label. The
 summary is repeated on each bounded page so its rows and summary share one cursor-query generation
 and cannot be mixed by a late client response.
+
+### `duplicate_file_selected_root_facet.page`
+
+This read-only command returns selected-root values and matching-set counts without materializing
+group or member pages. It applies the current group search, minimum-size, and across-drives
+predicate. It intentionally does not accept or apply `selectedRoot`, so a current root selection
+does not collapse the alternatives and the user can switch roots.
+
+Request:
+
+```json
+{"type":"request","id":"rf1","method":"duplicate_file_selected_root_facet.page","params":{"runId":19,"pageSize":25,"sort":{"field":"matchingGroupCount","direction":"descending"},"filter":{"search":"photos","minimumSize":"1048576","acrossDrives":false},"cursor":null}}
+```
+
+Allowed sort fields are `matchingGroupCount` and `value`; directions are `ascending` and
+`descending`. The default is matching group count descending. `pageSize` defaults to 200 and must
+be 1–500. The response is keyset-paged:
+
+```json
+{"facets":[{"value":"D:\\Photos","matchingGroupCount":31}],"total":3,"nextCursor":"opaque","previousCursor":null}
+```
+
+Values are distinct, non-empty immutable `scanned_file.root_path` labels de-duplicated
+case-insensitively. `matchingGroupCount` counts matching duplicate sets represented under that
+root, not member copies. Values, counts, filtering, sorting, and paging are computed by SQLite in
+the worker. The cursor kind is `duplicate-file-selected-root-facets`; its explicit query signature
+binds the run, facet sort and direction, normalized search, minimum size, and across-drives value.
+A cursor from another facet sort/filter/run or from a group/member channel returns
+`invalid_cursor`.
 
 ### `duplicate_file_group.members`
 

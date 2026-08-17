@@ -159,6 +159,23 @@ public sealed class WorkerClientLifecycleTests
                     DuplicateFileGroupSortField.RecoverableBytes,
                     WorkerSortDirection.Descending,
                     new DuplicateFileGroupFilter(string.Empty, "0", AcrossDrives: true)));
+            var rootFacets = await client.GetDuplicateFileSelectedRootFacetsAsync(
+                new DuplicateFileSelectedRootFacetQuery(
+                    started.Id,
+                    25,
+                    DuplicateFileSelectedRootFacetSortField.MatchingGroupCount,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileSelectedRootFacetFilter(string.Empty, "0")));
+            var selectedRootGroups = await client.GetDuplicateFileGroupsAsync(
+                new DuplicateFileGroupQuery(
+                    started.Id,
+                    200,
+                    DuplicateFileGroupSortField.RecoverableBytes,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileGroupFilter(
+                        string.Empty,
+                        "0",
+                        SelectedRoot: rootFacets.Facets.Single().Value)));
             var members = await client.GetDuplicateFileGroupMembersAsync(
                 new DuplicateFileMemberQuery(
                     started.Id,
@@ -186,6 +203,9 @@ public sealed class WorkerClientLifecycleTests
             Assert.AreEqual(1, sessions.Total);
             Assert.AreEqual("run.completed", terminalEvent);
             Assert.AreEqual(0, acrossDriveGroups.Total);
+            Assert.AreEqual(1, rootFacets.Total);
+            Assert.AreEqual(2, rootFacets.Facets.Single().MatchingGroupCount);
+            Assert.AreEqual(2, selectedRootGroups.Total);
             Assert.AreEqual("completed", durable.Status);
             Assert.AreEqual(session.Id, durable.SessionId);
             Assert.AreEqual(2, groups.Total);
@@ -212,6 +232,7 @@ public sealed class WorkerClientLifecycleTests
             foreach (var method in new[]
                      {
                          "duplicate_file_group.page",
+                         "duplicate_file_selected_root_facet.page",
                          "duplicate_file_group.members",
                          "duplicate_folder_group.page",
                          "duplicate_folder_group.members",

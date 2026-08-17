@@ -348,6 +348,34 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
                     search = query.Filter.Search,
                     minimumSize = query.Filter.MinimumSize,
                     acrossDrives = query.Filter.AcrossDrives,
+                    selectedRoot = query.Filter.SelectedRoot,
+                },
+                cursor = query.Cursor,
+            },
+            cancellationToken);
+    }
+
+    public Task<WorkerDuplicateFileSelectedRootFacetPage> GetDuplicateFileSelectedRootFacetsAsync(
+        DuplicateFileSelectedRootFacetQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        return InvokeAsync<WorkerDuplicateFileSelectedRootFacetPage>(
+            "duplicate_file_selected_root_facet.page",
+            new
+            {
+                runId = query.RunId,
+                pageSize = query.PageSize,
+                sort = new
+                {
+                    field = SelectedRootFacetSortField(query.SortField),
+                    direction = SortDirection(query.SortDirection),
+                },
+                filter = new
+                {
+                    search = query.Filter.Search,
+                    minimumSize = query.Filter.MinimumSize,
+                    acrossDrives = query.Filter.AcrossDrives,
                 },
                 cursor = query.Cursor,
             },
@@ -559,6 +587,14 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
         DuplicateFileMemberSortField.Path => "path",
         DuplicateFileMemberSortField.ModifiedTime => "modifiedTime",
         DuplicateFileMemberSortField.Size => "size",
+        _ => throw new ArgumentOutOfRangeException(nameof(field)),
+    };
+
+    private static string SelectedRootFacetSortField(
+        DuplicateFileSelectedRootFacetSortField field) => field switch
+    {
+        DuplicateFileSelectedRootFacetSortField.MatchingGroupCount => "matchingGroupCount",
+        DuplicateFileSelectedRootFacetSortField.Value => "value",
         _ => throw new ArgumentOutOfRangeException(nameof(field)),
     };
 

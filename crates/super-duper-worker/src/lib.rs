@@ -14,10 +14,12 @@ use super_duper_core::storage::models::{
     CloudDetectionStatus, CloudPolicy, DuplicateFileGroupFilter, DuplicateFileGroupPageQuery,
     DuplicateFileGroupResult, DuplicateFileGroupSortField, DuplicateFileMemberFilter,
     DuplicateFileMemberPageQuery, DuplicateFileMemberResult, DuplicateFileMemberSortField,
-    DuplicateFolderGroupFilter, DuplicateFolderGroupPageQuery, DuplicateFolderGroupResult,
-    DuplicateFolderGroupSortField, DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery,
-    DuplicateFolderMemberResult, DuplicateFolderMemberSortField, PageCursor, PageCursorValue,
-    RegisteredCloudLocation, RunExclusion, RunParameters, ScanRun, ScanSession, SortDirection,
+    DuplicateFileSelectedRootFacetPageQuery, DuplicateFileSelectedRootFacetResult,
+    DuplicateFileSelectedRootFacetSortField, DuplicateFolderGroupFilter,
+    DuplicateFolderGroupPageQuery, DuplicateFolderGroupResult, DuplicateFolderGroupSortField,
+    DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery, DuplicateFolderMemberResult,
+    DuplicateFolderMemberSortField, PageCursor, PageCursorValue, RegisteredCloudLocation,
+    RunExclusion, RunParameters, ScanRun, ScanSession, SortDirection,
 };
 use super_duper_core::storage::Database;
 use super_duper_core::{AppConfig, ScanEngine};
@@ -274,9 +276,65 @@ struct DuplicateFileGroupFilterParameters {
     minimum_size: String,
     #[serde(default)]
     across_drives: bool,
+    #[serde(default)]
+    selected_root: Option<String>,
 }
 
 impl Default for DuplicateFileGroupFilterParameters {
+    fn default() -> Self {
+        Self {
+            search: None,
+            minimum_size: default_minimum_size(),
+            across_drives: false,
+            selected_root: None,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFileSelectedRootFacetPageParameters {
+    run_id: i64,
+    #[serde(default = "default_result_page_size")]
+    page_size: i64,
+    #[serde(default)]
+    sort: DuplicateFileSelectedRootFacetSortParameters,
+    #[serde(default)]
+    filter: DuplicateFileSelectedRootFacetFilterParameters,
+    #[serde(default)]
+    cursor: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFileSelectedRootFacetSortParameters {
+    #[serde(default = "default_selected_root_facet_sort_field")]
+    field: String,
+    #[serde(default = "default_descending")]
+    direction: String,
+}
+
+impl Default for DuplicateFileSelectedRootFacetSortParameters {
+    fn default() -> Self {
+        Self {
+            field: default_selected_root_facet_sort_field(),
+            direction: default_descending(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFileSelectedRootFacetFilterParameters {
+    #[serde(default)]
+    search: Option<String>,
+    #[serde(default = "default_minimum_size")]
+    minimum_size: String,
+    #[serde(default)]
+    across_drives: bool,
+}
+
+impl Default for DuplicateFileSelectedRootFacetFilterParameters {
     fn default() -> Self {
         Self {
             search: None,
@@ -520,6 +578,13 @@ struct DuplicateFileReviewSummaryDto {
     distinct_selected_root_count: i64,
     distinct_drive_count: i64,
     across_drive_group_count: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFileSelectedRootFacetDto {
+    value: String,
+    matching_group_count: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -775,6 +840,9 @@ impl WorkerSession {
             "run.start" => self.run_start(request),
             "run.cancel" => self.run_cancel(request),
             "duplicate_file_group.page" => self.duplicate_file_group_page(request),
+            "duplicate_file_selected_root_facet.page" => {
+                self.duplicate_file_selected_root_facet_page(request)
+            }
             "duplicate_file_group.members" => self.duplicate_file_group_members(request),
             "duplicate_folder_group.page" => self.duplicate_folder_group_page(request),
             "duplicate_folder_group.members" => self.duplicate_folder_group_members(request),
@@ -945,6 +1013,10 @@ impl WorkerSession {
         let search = validate_search(parameters.filter.search)?;
         let minimum_size =
             parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
+        let selected_root = parameters
+            .filter
+            .selected_root
+            .filter(|value| !value.is_empty());
         let signature = group_query_signature(
             parameters.run_id,
             sort_field,
@@ -952,6 +1024,7 @@ impl WorkerSession {
             search.as_deref(),
             minimum_size,
             parameters.filter.across_drives,
+            selected_root.as_deref(),
         );
         let cursor = decode_cursor(
             parameters.cursor.as_deref(),
@@ -973,6 +1046,7 @@ impl WorkerSession {
                     search,
                     minimum_size,
                     across_drives: parameters.filter.across_drives,
+                    selected_root,
                 },
                 cursor: cursor.clone(),
             })
@@ -1009,6 +1083,94 @@ impl WorkerSession {
             "groups": groups,
             "total": page.total,
             "summary": summary,
+            "nextCursor": next_cursor,
+            "previousCursor": previous_cursor,
+        }))
+    }
+
+    fn duplicate_file_selected_root_facet_page(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: DuplicateFileSelectedRootFacetPageParameters = parse_parameters(request)?;
+        validate_result_page_size(parameters.page_size)?;
+        let db = self.state.database()?;
+        ensure_completed_result_run(&db, parameters.run_id)?;
+        let sort_field = parse_selected_root_facet_sort_field(&parameters.sort.field)?;
+        let sort_direction = parse_sort_direction(&parameters.sort.direction)?;
+        let search = validate_search(parameters.filter.search)?;
+        let minimum_size =
+            parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
+        let signature = selected_root_facet_query_signature(
+            parameters.run_id,
+            sort_field,
+            sort_direction,
+            search.as_deref(),
+            minimum_size,
+            parameters.filter.across_drives,
+        );
+        let cursor = decode_cursor(
+            parameters.cursor.as_deref(),
+            "duplicate-file-selected-root-facets",
+            &signature,
+        )?;
+        validate_cursor_value(
+            cursor.as_ref(),
+            sort_field == DuplicateFileSelectedRootFacetSortField::Value,
+        )?;
+        let query_started = Instant::now();
+        let page = db
+            .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
+                run_id: parameters.run_id,
+                limit: parameters.page_size,
+                sort_field,
+                sort_direction,
+                filter: DuplicateFileGroupFilter {
+                    search,
+                    minimum_size,
+                    across_drives: parameters.filter.across_drives,
+                    selected_root: None,
+                },
+                cursor: cursor.clone(),
+            })
+            .map_err(internal_database_error)?;
+        log_result_query(
+            "duplicate_file_selected_root_facet.page",
+            parameters.run_id,
+            None,
+            parameters.page_size,
+            page.facets.len(),
+            page.total,
+            query_started.elapsed(),
+        );
+        let previous_cursor = page
+            .facets
+            .first()
+            .and_then(|facet| {
+                let has_previous =
+                    cursor.as_ref().map_or(false, |value| !value.before) || page.has_more;
+                has_previous
+                    .then(|| encode_selected_root_facet_cursor(facet, sort_field, true, &signature))
+            })
+            .transpose()?;
+        let next_cursor = page
+            .facets
+            .last()
+            .and_then(|facet| {
+                let has_next = cursor.as_ref().is_some_and(|value| value.before) || page.has_more;
+                has_next.then(|| {
+                    encode_selected_root_facet_cursor(facet, sort_field, false, &signature)
+                })
+            })
+            .transpose()?;
+        let facets = page
+            .facets
+            .into_iter()
+            .map(selected_root_facet_dto)
+            .collect::<Vec<_>>();
+        Ok(json!({
+            "facets": facets,
+            "total": page.total,
             "nextCursor": next_cursor,
             "previousCursor": previous_cursor,
         }))
@@ -1868,6 +2030,23 @@ fn parse_group_sort_field(value: &str) -> Result<DuplicateFileGroupSortField, Pr
     }
 }
 
+fn parse_selected_root_facet_sort_field(
+    value: &str,
+) -> Result<DuplicateFileSelectedRootFacetSortField, ProtocolFailure> {
+    match value {
+        "matchingGroupCount" => Ok(DuplicateFileSelectedRootFacetSortField::MatchingGroupCount),
+        "value" => Ok(DuplicateFileSelectedRootFacetSortField::Value),
+        _ => Err(ProtocolFailure::new(
+            "invalid_request",
+            "sort.field is not allowed for duplicate file selected-root facets",
+        )
+        .with_details(json!({
+            "field":"sort.field",
+            "allowed":["matchingGroupCount","value"]
+        }))),
+    }
+}
+
 fn parse_member_sort_field(value: &str) -> Result<DuplicateFileMemberSortField, ProtocolFailure> {
     match value {
         "path" => Ok(DuplicateFileMemberSortField::Path),
@@ -1967,13 +2146,37 @@ fn group_query_signature(
     search: Option<&str>,
     minimum_size: i64,
     across_drives: bool,
+    selected_root: Option<&str>,
 ) -> String {
-    format!(
-        "{run_id}|{}|{}|{}|{minimum_size}|{across_drives}",
-        group_sort_name(sort_field),
-        direction_name(sort_direction),
-        search.unwrap_or_default()
-    )
+    json!({
+        "runId": run_id,
+        "sortField": group_sort_name(sort_field),
+        "sortDirection": direction_name(sort_direction),
+        "search": search.unwrap_or_default(),
+        "minimumSize": minimum_size,
+        "acrossDrives": across_drives,
+        "selectedRoot": selected_root.unwrap_or_default(),
+    })
+    .to_string()
+}
+
+fn selected_root_facet_query_signature(
+    run_id: i64,
+    sort_field: DuplicateFileSelectedRootFacetSortField,
+    sort_direction: SortDirection,
+    search: Option<&str>,
+    minimum_size: i64,
+    across_drives: bool,
+) -> String {
+    json!({
+        "runId": run_id,
+        "sortField": selected_root_facet_sort_name(sort_field),
+        "sortDirection": direction_name(sort_direction),
+        "search": search.unwrap_or_default(),
+        "minimumSize": minimum_size,
+        "acrossDrives": across_drives,
+    })
+    .to_string()
 }
 
 fn member_query_signature(
@@ -2048,6 +2251,28 @@ fn encode_group_cursor(
         before,
         value,
         id: group.id,
+    })
+}
+
+fn encode_selected_root_facet_cursor(
+    facet: &DuplicateFileSelectedRootFacetResult,
+    sort_field: DuplicateFileSelectedRootFacetSortField,
+    before: bool,
+    signature: &str,
+) -> Result<String, ProtocolFailure> {
+    let value = match sort_field {
+        DuplicateFileSelectedRootFacetSortField::MatchingGroupCount => {
+            CursorScalar::Integer(facet.matching_group_count.to_string())
+        }
+        DuplicateFileSelectedRootFacetSortField::Value => CursorScalar::Text(facet.value.clone()),
+    };
+    encode_cursor(CursorPayload {
+        version: 1,
+        kind: "duplicate-file-selected-root-facets".to_owned(),
+        query: signature.to_owned(),
+        before,
+        value,
+        id: facet.cursor_id,
     })
 }
 
@@ -2222,6 +2447,15 @@ fn review_summary_dto(
     }
 }
 
+fn selected_root_facet_dto(
+    facet: DuplicateFileSelectedRootFacetResult,
+) -> DuplicateFileSelectedRootFacetDto {
+    DuplicateFileSelectedRootFacetDto {
+        value: facet.value,
+        matching_group_count: facet.matching_group_count,
+    }
+}
+
 fn member_dto(member: DuplicateFileMemberResult) -> DuplicateFileMemberDto {
     DuplicateFileMemberDto {
         id: member.id,
@@ -2262,6 +2496,13 @@ fn group_sort_name(field: DuplicateFileGroupSortField) -> &'static str {
         DuplicateFileGroupSortField::GroupSize => "groupSize",
         DuplicateFileGroupSortField::CopyCount => "copyCount",
         DuplicateFileGroupSortField::RepresentativeName => "representativeName",
+    }
+}
+
+fn selected_root_facet_sort_name(field: DuplicateFileSelectedRootFacetSortField) -> &'static str {
+    match field {
+        DuplicateFileSelectedRootFacetSortField::MatchingGroupCount => "matchingGroupCount",
+        DuplicateFileSelectedRootFacetSortField::Value => "value",
     }
 }
 
@@ -2802,6 +3043,10 @@ fn default_group_sort_field() -> String {
     "recoverableBytes".to_owned()
 }
 
+fn default_selected_root_facet_sort_field() -> String {
+    "matchingGroupCount".to_owned()
+}
+
 fn default_folder_group_sort_field() -> String {
     "totalBytes".to_owned()
 }
@@ -3073,6 +3318,81 @@ mod tests {
             across_drives["result"]["groups"][0]["distinctDriveCount"],
             2
         );
+        let root_facet_request = json!({
+            "type":"request",
+            "id":"root-facet",
+            "method":"duplicate_file_selected_root_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"matchingGroupCount","direction":"descending"},
+                "filter":{"search":"","minimumSize":"0","acrossDrives":false}
+            }
+        });
+        let root_facet: Value =
+            serde_json::from_str(&worker.handle_line(&root_facet_request.to_string()).unwrap())
+                .unwrap();
+        assert_eq!(root_facet["result"]["total"], 2);
+        assert_eq!(root_facet["result"]["facets"][0]["value"], "/root");
+        assert_eq!(root_facet["result"]["facets"][0]["matchingGroupCount"], 2);
+        let root_facet_cursor = root_facet["result"]["nextCursor"].as_str().unwrap();
+        let next_root_facet_request = json!({
+            "type":"request",
+            "id":"root-facet-next",
+            "method":"duplicate_file_selected_root_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"matchingGroupCount","direction":"descending"},
+                "filter":{"search":"","minimumSize":"0","acrossDrives":false},
+                "cursor":root_facet_cursor
+            }
+        });
+        let next_root_facet: Value = serde_json::from_str(
+            &worker
+                .handle_line(&next_root_facet_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(next_root_facet["result"]["facets"][0]["value"], "/archive");
+        assert!(next_root_facet["result"]["previousCursor"].is_string());
+        let invalid_root_facet_request = json!({
+            "type":"request",
+            "id":"root-facet-invalid",
+            "method":"duplicate_file_selected_root_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"value","direction":"ascending"},
+                "filter":{"search":"","minimumSize":"0","acrossDrives":false},
+                "cursor":root_facet_cursor
+            }
+        });
+        let invalid_root_facet: Value = serde_json::from_str(
+            &worker
+                .handle_line(&invalid_root_facet_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(invalid_root_facet["error"]["code"], "invalid_cursor");
+        let named_root_facet_request = json!({
+            "type":"request",
+            "id":"root-facet-name",
+            "method":"duplicate_file_selected_root_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":25,
+                "sort":{"field":"value","direction":"ascending"},
+                "filter":{"search":"","minimumSize":"0","acrossDrives":false}
+            }
+        });
+        let named_root_facet: Value = serde_json::from_str(
+            &worker
+                .handle_line(&named_root_facet_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(named_root_facet["result"]["facets"][0]["value"], "/archive");
         let cursor = first["result"]["nextCursor"].as_str().unwrap();
         let second_request = json!({
             "type":"request",
@@ -3108,6 +3428,56 @@ mod tests {
             serde_json::from_str(&worker.handle_line(&invalid_request.to_string()).unwrap())
                 .unwrap();
         assert_eq!(invalid["error"]["code"], "invalid_cursor");
+
+        let selected_root_request = json!({
+            "type":"request",
+            "id":"selected-root",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "pageSize":25,
+                "sort":{"field":"recoverableBytes","direction":"descending"},
+                "filter":{
+                    "search":"",
+                    "minimumSize":"0",
+                    "acrossDrives":false,
+                    "selectedRoot":"/ARCHIVE"
+                }
+            }
+        });
+        let selected_root: Value = serde_json::from_str(
+            &worker
+                .handle_line(&selected_root_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(selected_root["result"]["total"], 1);
+        assert_eq!(selected_root["result"]["summary"]["matchingGroupCount"], 1);
+        assert_eq!(selected_root["result"]["groups"][0]["groupSize"], "200");
+
+        let selected_root_cursor_request = json!({
+            "type":"request",
+            "id":"selected-root-cursor",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"recoverableBytes","direction":"descending"},
+                "filter":{
+                    "search":"",
+                    "minimumSize":"0",
+                    "selectedRoot":"/archive"
+                },
+                "cursor":cursor
+            }
+        });
+        let selected_root_cursor: Value = serde_json::from_str(
+            &worker
+                .handle_line(&selected_root_cursor_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(selected_root_cursor["error"]["code"], "invalid_cursor");
 
         let group_id = first["result"]["groups"][0]["id"].as_i64().unwrap();
         let members_request = json!({

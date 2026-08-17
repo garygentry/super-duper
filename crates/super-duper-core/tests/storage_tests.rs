@@ -2,7 +2,8 @@ use rusqlite::{params, Connection, Error as SqlError};
 use super_duper_core::storage::models::{
     CloudDetectionStatus, CloudPolicy, DuplicateFileGroupFilter, DuplicateFileGroupPageQuery,
     DuplicateFileGroupSortField, DuplicateFileMemberFilter, DuplicateFileMemberPageQuery,
-    DuplicateFileMemberSortField, PageCursor, PageCursorValue, RegisteredCloudLocation,
+    DuplicateFileMemberSortField, DuplicateFileSelectedRootFacetPageQuery,
+    DuplicateFileSelectedRootFacetSortField, PageCursor, PageCursorValue, RegisteredCloudLocation,
     RunExclusionInsert, RunParameters, ScannedFile, SortDirection,
 };
 use super_duper_core::storage::sqlite::CURRENT_SCHEMA_VERSION;
@@ -358,6 +359,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             search: None,
             minimum_size: 0,
             across_drives: false,
+            selected_root: None,
         },
         cursor: None,
     };
@@ -426,6 +428,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                 search: Some("alpha".to_owned()),
                 minimum_size: 100,
                 across_drives: false,
+                selected_root: None,
             },
             cursor: None,
             ..base_query
@@ -450,6 +453,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                 search: None,
                 minimum_size: 0,
                 across_drives: true,
+                selected_root: None,
             },
             cursor: None,
             ..base_query.clone()
@@ -463,6 +467,72 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
     assert_eq!(across_drives.summary.distinct_drive_count, 2);
     assert_eq!(across_drives.summary.across_drive_group_count, 1);
     assert_eq!(across_drives.groups[0].distinct_drive_count, 2);
+
+    let root_facets = db
+        .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
+            run_id: first_run,
+            limit: 1,
+            sort_field: DuplicateFileSelectedRootFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: DuplicateFileGroupFilter {
+                search: None,
+                minimum_size: 0,
+                across_drives: false,
+                selected_root: Some("/selected-root".to_owned()),
+            },
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(root_facets.total, 2);
+    assert_eq!(root_facets.facets.len(), 1);
+    assert_eq!(root_facets.facets[0].value, "/root");
+    assert_eq!(root_facets.facets[0].matching_group_count, 3);
+    assert!(root_facets.has_more);
+
+    let root_facet_boundary = &root_facets.facets[0];
+    let next_root_facets = db
+        .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
+            run_id: first_run,
+            limit: 1,
+            sort_field: DuplicateFileSelectedRootFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: DuplicateFileGroupFilter {
+                search: None,
+                minimum_size: 0,
+                across_drives: false,
+                selected_root: None,
+            },
+            cursor: Some(PageCursor {
+                value: PageCursorValue::Integer(root_facet_boundary.matching_group_count),
+                id: root_facet_boundary.cursor_id,
+                before: false,
+            }),
+        })
+        .unwrap();
+    assert_eq!(next_root_facets.facets[0].value, "/selected-root");
+    assert_eq!(next_root_facets.facets[0].matching_group_count, 1);
+
+    let selected_root_groups = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            run_id: first_run,
+            limit: 10,
+            sort_field: DuplicateFileGroupSortField::RecoverableBytes,
+            sort_direction: SortDirection::Descending,
+            filter: DuplicateFileGroupFilter {
+                search: None,
+                minimum_size: 0,
+                across_drives: false,
+                selected_root: Some("/SELECTED-ROOT".to_owned()),
+            },
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(selected_root_groups.total, 1);
+    assert_eq!(selected_root_groups.summary.matching_group_count, 1);
+    assert_eq!(selected_root_groups.summary.matching_copy_count, 2);
+    assert!(selected_root_groups.groups[0]
+        .representative_name
+        .contains("alpha"));
     let members = db
         .page_duplicate_file_members(&DuplicateFileMemberPageQuery {
             run_id: first_run,
@@ -551,6 +621,7 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
             search: None,
             minimum_size: 0,
             across_drives: false,
+            selected_root: None,
         },
         cursor: None,
     };
@@ -595,8 +666,9 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
                 search: None,
                 minimum_size: 0,
                 across_drives: true,
+                selected_root: None,
             },
-            ..query
+            ..query.clone()
         })
         .unwrap();
     assert_eq!(across.total, 100);
@@ -616,6 +688,41 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         "100,000-group across-drives filter took {:?}",
         across_started.elapsed()
     );
+
+    let facet_started = std::time::Instant::now();
+    let root_facets = db
+        .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
+            run_id,
+            limit: 25,
+            sort_field: DuplicateFileSelectedRootFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: query.filter.clone(),
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(root_facets.total, 1);
+    assert_eq!(root_facets.facets[0].value, "/root");
+    assert_eq!(root_facets.facets[0].matching_group_count, 100);
+    assert!(
+        facet_started.elapsed() < std::time::Duration::from_secs(5),
+        "100,000-group selected-root facet took {:?}",
+        facet_started.elapsed()
+    );
+
+    let selected_root = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            filter: DuplicateFileGroupFilter {
+                selected_root: Some("/ROOT".to_owned()),
+                ..query.filter.clone()
+            },
+            ..query
+        })
+        .unwrap();
+    assert_eq!(selected_root.total, 100);
+    assert!(selected_root
+        .groups
+        .iter()
+        .all(|group| group.run_id == run_id));
 }
 
 #[test]

@@ -73,6 +73,18 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 "Show only duplicate sets across multiple drives",
                 AutomationProperties.GetName(FindByAutomationId<CheckBox>(files, "FileAcrossDrives")));
+            Assert.AreEqual(
+                "Selected root facet; choose All selected roots to remove this filter",
+                AutomationProperties.GetName(FindByAutomationId<ComboBox>(files, "FileSelectedRootFacet")));
+            Assert.AreEqual(
+                "Sort selected roots by most matching sets",
+                AutomationProperties.GetName(FindByAutomationId<Button>(files, "FileRootFacetMostSets")));
+            Assert.AreEqual(
+                "Sort selected roots by name",
+                AutomationProperties.GetName(FindByAutomationId<Button>(files, "FileRootFacetNameSort")));
+            _ = FindByAutomationId<Button>(files, "FilePreviousRootFacets");
+            _ = FindByAutomationId<Button>(files, "FileNextRootFacets");
+            _ = FindByAutomationId<TextBlock>(files, "FileSelectedRootFilterText");
             StringAssert.Contains(
                 FindByAutomationId<TextBlock>(files, "FileSelectedSetExplanation").Text,
                 "does not identify an original");

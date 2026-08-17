@@ -516,43 +516,8 @@ impl Database {
         &self,
         query: &DuplicateFileGroupPageQuery,
     ) -> Result<DuplicateFileGroupPage> {
-        let mut predicates = vec!["dg.run_id = ?".to_owned(), "dg.file_count > 1".to_owned()];
-        let mut base_parameters = vec![SqlValue::Integer(query.run_id)];
-        predicates.push("dg.file_size >= ?".to_owned());
-        base_parameters.push(SqlValue::Integer(query.filter.minimum_size));
-        if let Some(search) = query
-            .filter
-            .search
-            .as_deref()
-            .filter(|value| !value.is_empty())
-        {
-            predicates.push(
-                "EXISTS (
-                    SELECT 1 FROM duplicate_group_member search_member
-                    JOIN scanned_file search_file ON search_file.id = search_member.file_id
-                    WHERE search_member.group_id = dg.id
-                      AND search_file.run_id = dg.run_id
-                      AND search_file.canonical_path LIKE ? ESCAPE '\\' COLLATE NOCASE
-                )"
-                .to_owned(),
-            );
-            base_parameters.push(SqlValue::Text(like_pattern(search)));
-        }
-        if query.filter.across_drives {
-            predicates.push(
-                "EXISTS (
-                    SELECT 1 FROM duplicate_group_member filter_drive_member
-                    JOIN scanned_file filter_drive_file
-                      ON filter_drive_file.id = filter_drive_member.file_id
-                    WHERE filter_drive_member.group_id = dg.id
-                      AND filter_drive_file.run_id = dg.run_id
-                      AND filter_drive_file.drive_letter <> ''
-                    GROUP BY filter_drive_member.group_id
-                    HAVING COUNT(DISTINCT filter_drive_file.drive_letter COLLATE NOCASE) > 1
-                )"
-                .to_owned(),
-            );
-        }
+        let (predicates, base_parameters) =
+            duplicate_file_group_predicate(query.run_id, &query.filter, true);
         let where_sql = predicates.join(" AND ");
         let across_drive_count_expression = if query.filter.across_drives {
             "COUNT(*)".to_owned()
@@ -702,6 +667,89 @@ impl Database {
             groups,
             total,
             summary,
+            has_more,
+        })
+    }
+
+    pub fn page_duplicate_file_selected_root_facets(
+        &self,
+        query: &DuplicateFileSelectedRootFacetPageQuery,
+    ) -> Result<DuplicateFileSelectedRootFacetPage> {
+        let (predicates, base_parameters) =
+            duplicate_file_group_predicate(query.run_id, &query.filter, false);
+        let where_sql = predicates.join(" AND ");
+        let facet_cte = format!(
+            "WITH matching_groups AS (
+                SELECT dg.id, dg.run_id
+                FROM duplicate_group dg
+                WHERE {where_sql}
+             ), facet_rows AS (
+                SELECT MIN(sf.id) AS cursor_id,
+                       MIN(sf.root_path) AS value,
+                       COUNT(DISTINCT matching_groups.id) AS matching_group_count
+                FROM matching_groups
+                JOIN duplicate_group_member dgm ON dgm.group_id = matching_groups.id
+                JOIN scanned_file sf
+                  ON sf.id = dgm.file_id AND sf.run_id = matching_groups.run_id
+                WHERE sf.root_path <> ''
+                GROUP BY sf.root_path COLLATE NOCASE
+             )"
+        );
+        let total = self.connection().query_row(
+            &format!("{facet_cte} SELECT COUNT(*) FROM facet_rows"),
+            params_from_iter(base_parameters.iter()),
+            |row| row.get(0),
+        )?;
+        let sort_expression = match query.sort_field {
+            DuplicateFileSelectedRootFacetSortField::MatchingGroupCount => "matching_group_count",
+            DuplicateFileSelectedRootFacetSortField::Value => "value COLLATE NOCASE",
+        };
+        let mut page_parameters = base_parameters;
+        let mut cursor_clause = String::new();
+        if let Some(cursor) = &query.cursor {
+            let comparator = cursor_comparator(query.sort_direction, cursor.before);
+            let id_comparator = cursor_comparator(SortDirection::Ascending, cursor.before);
+            cursor_clause = format!(
+                "WHERE ({sort_expression} {comparator} ? OR
+                        ({sort_expression} = ? AND cursor_id {id_comparator} ?))"
+            );
+            push_cursor_parameters(
+                &mut page_parameters,
+                cursor,
+                query.sort_field == DuplicateFileSelectedRootFacetSortField::Value,
+            )?;
+        }
+        page_parameters.push(SqlValue::Integer(query.limit + 1));
+        let before = query.cursor.as_ref().is_some_and(|cursor| cursor.before);
+        let order = effective_order(query.sort_direction, before);
+        let id_order = effective_order(SortDirection::Ascending, before);
+        let sql = format!(
+            "{facet_cte}
+             SELECT cursor_id, value, matching_group_count
+             FROM facet_rows
+             {cursor_clause}
+             ORDER BY {sort_expression} {order}, cursor_id {id_order}
+             LIMIT ?"
+        );
+        let mut statement = self.connection().prepare(&sql)?;
+        let mapped = statement.query_map(params_from_iter(page_parameters.iter()), |row| {
+            Ok(DuplicateFileSelectedRootFacetResult {
+                cursor_id: row.get(0)?,
+                value: row.get(1)?,
+                matching_group_count: row.get(2)?,
+            })
+        })?;
+        let mut facets = mapped.collect::<Result<Vec<_>>>()?;
+        let has_more = facets.len() > query.limit as usize;
+        if has_more {
+            facets.pop();
+        }
+        if before {
+            facets.reverse();
+        }
+        Ok(DuplicateFileSelectedRootFacetPage {
+            facets,
+            total,
             has_more,
         })
     }
@@ -1429,6 +1477,71 @@ fn like_pattern(value: &str) -> String {
             .replace('%', "\\%")
             .replace('_', "\\_")
     )
+}
+
+fn duplicate_file_group_predicate(
+    run_id: i64,
+    filter: &DuplicateFileGroupFilter,
+    include_selected_root: bool,
+) -> (Vec<String>, Vec<SqlValue>) {
+    let mut predicates = vec![
+        "dg.run_id = ?".to_owned(),
+        "dg.file_count > 1".to_owned(),
+        "dg.file_size >= ?".to_owned(),
+    ];
+    let mut parameters = vec![
+        SqlValue::Integer(run_id),
+        SqlValue::Integer(filter.minimum_size),
+    ];
+    if let Some(search) = filter.search.as_deref().filter(|value| !value.is_empty()) {
+        predicates.push(
+            "EXISTS (
+                SELECT 1 FROM duplicate_group_member search_member
+                JOIN scanned_file search_file ON search_file.id = search_member.file_id
+                WHERE search_member.group_id = dg.id
+                  AND search_file.run_id = dg.run_id
+                  AND search_file.canonical_path LIKE ? ESCAPE '\\' COLLATE NOCASE
+            )"
+            .to_owned(),
+        );
+        parameters.push(SqlValue::Text(like_pattern(search)));
+    }
+    if filter.across_drives {
+        predicates.push(
+            "EXISTS (
+                SELECT 1 FROM duplicate_group_member filter_drive_member
+                JOIN scanned_file filter_drive_file
+                  ON filter_drive_file.id = filter_drive_member.file_id
+                WHERE filter_drive_member.group_id = dg.id
+                  AND filter_drive_file.run_id = dg.run_id
+                  AND filter_drive_file.drive_letter <> ''
+                GROUP BY filter_drive_member.group_id
+                HAVING COUNT(DISTINCT filter_drive_file.drive_letter COLLATE NOCASE) > 1
+            )"
+            .to_owned(),
+        );
+    }
+    if include_selected_root {
+        if let Some(selected_root) = filter
+            .selected_root
+            .as_deref()
+            .filter(|value| !value.is_empty())
+        {
+            predicates.push(
+                "EXISTS (
+                    SELECT 1 FROM duplicate_group_member filter_root_member
+                    JOIN scanned_file filter_root_file
+                      ON filter_root_file.id = filter_root_member.file_id
+                    WHERE filter_root_member.group_id = dg.id
+                      AND filter_root_file.run_id = dg.run_id
+                      AND filter_root_file.root_path = ? COLLATE NOCASE
+                )"
+                .to_owned(),
+            );
+            parameters.push(SqlValue::Text(selected_root.to_owned()));
+        }
+    }
+    (predicates, parameters)
 }
 
 fn cursor_comparator(direction: SortDirection, before: bool) -> &'static str {

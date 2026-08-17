@@ -10,6 +10,7 @@ public sealed class DuplicateFilesViewModelTests
     public async Task CompletedRunLoadsMasterDetailAndExecutesPathActions()
     {
         DuplicateFileGroupQuery? lastGroupQuery = null;
+        DuplicateFileSelectedRootFacetQuery? lastRootFacetQuery = null;
         var client = new TestWorkerClient
         {
             GroupPageHandler = (query, _) =>
@@ -28,6 +29,15 @@ public sealed class DuplicateFilesViewModelTests
                         AcrossDriveGroupCount = 1,
                     },
                 });
+            },
+            RootFacetPageHandler = (query, _) =>
+            {
+                lastRootFacetQuery = query;
+                return Task.FromResult(new WorkerDuplicateFileSelectedRootFacetPage(
+                    [new WorkerDuplicateFileSelectedRootFacet(@"C:\Photos", 1)],
+                    1,
+                    null,
+                    null));
             },
             MemberPageHandler = (query, _) => Task.FromResult(
                 new WorkerDuplicateFileMemberPage(
@@ -56,6 +66,9 @@ public sealed class DuplicateFilesViewModelTests
         Assert.AreEqual(@"C:\Photos", viewModel.Members[0].SelectedRoot);
         Assert.AreEqual("photo.jpg", viewModel.Members[0].RelativePath);
         Assert.AreEqual("C:", viewModel.Members[0].Drive);
+        Assert.AreEqual(2, viewModel.SelectedRootFacetOptions.Count);
+        Assert.AreEqual("1 selected root", viewModel.RootFacetCountText);
+        Assert.AreEqual("C:\\Photos · 1 set", viewModel.SelectedRootFacetOptions[1].DisplayText);
         viewModel.CopyPathCommand.Execute(viewModel.Members[0]);
         await viewModel.RevealInExplorerCommand.ExecuteAsync(viewModel.Members[0]);
         Assert.AreEqual(@"C:\Photos\photo.jpg", clipboard.Text);
@@ -64,10 +77,21 @@ public sealed class DuplicateFilesViewModelTests
         viewModel.AcrossDrives = true;
         await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
         Assert.IsTrue(lastGroupQuery!.Filter.AcrossDrives);
+        Assert.IsTrue(lastRootFacetQuery!.Filter.AcrossDrives);
+
+        viewModel.SelectedRootFacet = viewModel.SelectedRootFacetOptions[1];
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+        Assert.AreEqual(@"C:\Photos", lastGroupQuery.Filter.SelectedRoot);
+        Assert.AreEqual("Filtering sets represented under C:\\Photos", viewModel.SelectedRootFilterText);
+
+        await viewModel.SortRootFacetsByNameCommand.ExecuteAsync(null);
+        Assert.AreEqual(DuplicateFileSelectedRootFacetSortField.Value, lastRootFacetQuery.SortField);
+        Assert.AreEqual(WorkerSortDirection.Ascending, lastRootFacetQuery.SortDirection);
 
         await viewModel.ClearFiltersCommand.ExecuteAsync(null);
         Assert.IsFalse(viewModel.AcrossDrives);
         Assert.IsFalse(lastGroupQuery.Filter.AcrossDrives);
+        Assert.IsNull(lastGroupQuery.Filter.SelectedRoot);
     }
 
     [TestMethod]
@@ -130,6 +154,59 @@ public sealed class DuplicateFilesViewModelTests
         Assert.AreEqual(
             "1 selected root represented · 1 drive represented · no sets span multiple drives",
             viewModel.LocationCoverageText);
+    }
+
+    [TestMethod]
+    public async Task RootFacetGenerationRejectsLateResponseAndCacheStaysBounded()
+    {
+        var oldResponse = new TaskCompletionSource<WorkerDuplicateFileSelectedRootFacetPage>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var oldRequestObserved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileGroupPage(
+                    [Group(1, query.RunId, "item.bin")],
+                    1,
+                    null,
+                    null)),
+            RootFacetPageHandler = (query, _) =>
+            {
+                if (query.Filter.Search.Length == 0)
+                {
+                    oldRequestObserved.TrySetResult();
+                    return oldResponse.Task;
+                }
+                var page = query.Cursor is null ? 0 : int.Parse(query.Cursor);
+                return Task.FromResult(new WorkerDuplicateFileSelectedRootFacetPage(
+                    [new WorkerDuplicateFileSelectedRootFacet($"new-root-{page}", 10 - page)],
+                    10,
+                    page < 9 ? (page + 1).ToString() : null,
+                    page > 0 ? (page - 1).ToString() : null));
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        var initialLoad = viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(12, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        await oldRequestObserved.Task;
+
+        viewModel.SearchText = "new";
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+        oldResponse.SetResult(new WorkerDuplicateFileSelectedRootFacetPage(
+            [new WorkerDuplicateFileSelectedRootFacet("stale-root", 99)],
+            1,
+            null,
+            null));
+        await initialLoad;
+
+        Assert.AreEqual("new-root-0", viewModel.SelectedRootFacetOptions[1].Value);
+        for (var page = 1; page < 9; page++)
+        {
+            await viewModel.NextRootFacetPageCommand.ExecuteAsync(null);
+            Assert.IsTrue(viewModel.CachedRootFacetPageCount <= DuplicateFilesViewModel.CacheCapacity);
+            Assert.AreEqual($"new-root-{page}", viewModel.SelectedRootFacetOptions[1].Value);
+        }
     }
 
     [TestMethod]
