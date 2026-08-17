@@ -18,6 +18,7 @@
                 <ColumnDefinition Width="170" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel>
                 <TextBlock FontSize="22" FontWeight="SemiBold" Text="Duplicate files" />
@@ -42,8 +43,16 @@
                      automation:AutomationProperties.AutomationId="FileMinimumSize"
                      Text="{Binding MinimumSizeText, UpdateSourceTrigger=PropertyChanged}"
                      ToolTip="Minimum file size in bytes" />
+            <CheckBox x:Name="FileAcrossDrives"
+                      Grid.Column="3"
+                      Margin="10,0,2,0"
+                      VerticalAlignment="Center"
+                      automation:AutomationProperties.AutomationId="FileAcrossDrives"
+                      automation:AutomationProperties.Name="Show only duplicate sets across multiple drives"
+                      Content="Across drives"
+                      IsChecked="{Binding AcrossDrives}" />
             <Button x:Name="FileApplyFilters"
-                    Grid.Column="3"
+                    Grid.Column="4"
                     automation:AutomationProperties.AutomationId="FileApplyFilters"
                     Margin="8,0,0,0"
                     Padding="13,7"

@@ -538,6 +538,21 @@ impl Database {
             );
             base_parameters.push(SqlValue::Text(like_pattern(search)));
         }
+        if query.filter.across_drives {
+            predicates.push(
+                "EXISTS (
+                    SELECT 1 FROM duplicate_group_member filter_drive_member
+                    JOIN scanned_file filter_drive_file
+                      ON filter_drive_file.id = filter_drive_member.file_id
+                    WHERE filter_drive_member.group_id = dg.id
+                      AND filter_drive_file.run_id = dg.run_id
+                      AND filter_drive_file.drive_letter <> ''
+                    GROUP BY filter_drive_member.group_id
+                    HAVING COUNT(DISTINCT filter_drive_file.drive_letter COLLATE NOCASE) > 1
+                )"
+                .to_owned(),
+            );
+        }
         let where_sql = predicates.join(" AND ");
         let summary = self.connection().query_row(
             &format!(

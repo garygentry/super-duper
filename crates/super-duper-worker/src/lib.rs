@@ -272,6 +272,8 @@ struct DuplicateFileGroupFilterParameters {
     search: Option<String>,
     #[serde(default = "default_minimum_size")]
     minimum_size: String,
+    #[serde(default)]
+    across_drives: bool,
 }
 
 impl Default for DuplicateFileGroupFilterParameters {
@@ -279,6 +281,7 @@ impl Default for DuplicateFileGroupFilterParameters {
         Self {
             search: None,
             minimum_size: default_minimum_size(),
+            across_drives: false,
         }
     }
 }
@@ -945,6 +948,7 @@ impl WorkerSession {
             sort_direction,
             search.as_deref(),
             minimum_size,
+            parameters.filter.across_drives,
         );
         let cursor = decode_cursor(
             parameters.cursor.as_deref(),
@@ -965,6 +969,7 @@ impl WorkerSession {
                 filter: DuplicateFileGroupFilter {
                     search,
                     minimum_size,
+                    across_drives: parameters.filter.across_drives,
                 },
                 cursor: cursor.clone(),
             })
@@ -1958,9 +1963,10 @@ fn group_query_signature(
     sort_direction: SortDirection,
     search: Option<&str>,
     minimum_size: i64,
+    across_drives: bool,
 ) -> String {
     format!(
-        "{run_id}|{}|{}|{}|{minimum_size}",
+        "{run_id}|{}|{}|{}|{minimum_size}|{across_drives}",
         group_sort_name(sort_field),
         direction_name(sort_direction),
         search.unwrap_or_default()
@@ -3031,6 +3037,29 @@ mod tests {
         assert_eq!(first["result"]["groups"][0]["groupSize"], "200");
         assert_eq!(first["result"]["groups"][0]["distinctSelectedRootCount"], 2);
         assert_eq!(first["result"]["groups"][0]["distinctDriveCount"], 2);
+        let across_drives_request = json!({
+            "type":"request",
+            "id":"across-drives",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "pageSize":25,
+                "sort":{"field":"recoverableBytes","direction":"descending"},
+                "filter":{"search":"","minimumSize":"0","acrossDrives":true}
+            }
+        });
+        let across_drives: Value = serde_json::from_str(
+            &worker
+                .handle_line(&across_drives_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(across_drives["result"]["total"], 1);
+        assert_eq!(across_drives["result"]["summary"]["matchingGroupCount"], 1);
+        assert_eq!(
+            across_drives["result"]["groups"][0]["distinctDriveCount"],
+            2
+        );
         let cursor = first["result"]["nextCursor"].as_str().unwrap();
         let second_request = json!({
             "type":"request",
@@ -3058,7 +3087,7 @@ mod tests {
                 "runId":1,
                 "pageSize":1,
                 "sort":{"field":"recoverableBytes","direction":"descending"},
-                "filter":{"search":"","minimumSize":"101"},
+                "filter":{"search":"","minimumSize":"0","acrossDrives":true},
                 "cursor":cursor,
             }
         });

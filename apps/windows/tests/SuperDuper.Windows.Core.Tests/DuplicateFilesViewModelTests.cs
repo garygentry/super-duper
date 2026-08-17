@@ -9,17 +9,21 @@ public sealed class DuplicateFilesViewModelTests
     [TestMethod]
     public async Task CompletedRunLoadsMasterDetailAndExecutesPathActions()
     {
+        DuplicateFileGroupQuery? lastGroupQuery = null;
         var client = new TestWorkerClient
         {
-            GroupPageHandler = (query, _) => Task.FromResult(
-                new WorkerDuplicateFileGroupPage(
+            GroupPageHandler = (query, _) =>
+            {
+                lastGroupQuery = query;
+                return Task.FromResult(new WorkerDuplicateFileGroupPage(
                     [Group(1, query.RunId, "photo.jpg")],
                     1,
                     null,
                     null)
                 {
                     Summary = new WorkerDuplicateFileReviewSummary(1, 2, "4096", "2048"),
-                }),
+                });
+            },
             MemberPageHandler = (query, _) => Task.FromResult(
                 new WorkerDuplicateFileMemberPage(
                     [Member(1, query.GroupId, @"C:\Photos\photo.jpg")],
@@ -48,6 +52,14 @@ public sealed class DuplicateFilesViewModelTests
         await viewModel.RevealInExplorerCommand.ExecuteAsync(viewModel.Members[0]);
         Assert.AreEqual(@"C:\Photos\photo.jpg", clipboard.Text);
         Assert.AreEqual(@"C:\Photos\photo.jpg", explorer.RevealedPath);
+
+        viewModel.AcrossDrives = true;
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+        Assert.IsTrue(lastGroupQuery!.Filter.AcrossDrives);
+
+        await viewModel.ClearFiltersCommand.ExecuteAsync(null);
+        Assert.IsFalse(viewModel.AcrossDrives);
+        Assert.IsFalse(lastGroupQuery.Filter.AcrossDrives);
     }
 
     [TestMethod]

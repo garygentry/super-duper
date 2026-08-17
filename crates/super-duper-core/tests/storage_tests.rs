@@ -312,6 +312,10 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
         files[1].root_path = "/selected-root".to_owned();
         files[1].relative_path = format!("{prefix}-alpha-copy.txt");
         files[1].drive_letter = "D:".to_owned();
+        files[2].drive_letter = "D:".to_owned();
+        files[3].drive_letter = "E:".to_owned();
+        files[4].drive_letter = "d:".to_owned();
+        files[5].drive_letter = "D:".to_owned();
         db.insert_scanned_files(&files).unwrap();
         db.insert_duplicate_groups(
             run_id,
@@ -353,6 +357,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
         filter: DuplicateFileGroupFilter {
             search: None,
             minimum_size: 0,
+            across_drives: false,
         },
         cursor: None,
     };
@@ -417,6 +422,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             filter: DuplicateFileGroupFilter {
                 search: Some("alpha".to_owned()),
                 minimum_size: 100,
+                across_drives: false,
             },
             cursor: None,
             ..base_query
@@ -430,6 +436,24 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
     let group = &filtered.groups[0];
     assert_eq!(group.distinct_selected_root_count, 2);
     assert_eq!(group.distinct_drive_count, 1);
+
+    let across_drives = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            limit: 10,
+            filter: DuplicateFileGroupFilter {
+                search: None,
+                minimum_size: 0,
+                across_drives: true,
+            },
+            cursor: None,
+            ..base_query.clone()
+        })
+        .unwrap();
+    assert_eq!(across_drives.total, 1);
+    assert_eq!(across_drives.summary.matching_group_count, 1);
+    assert_eq!(across_drives.summary.matching_copy_count, 2);
+    assert_eq!(across_drives.summary.potential_recoverable_bytes, 200);
+    assert_eq!(across_drives.groups[0].distinct_drive_count, 2);
     let members = db
         .page_duplicate_file_members(&DuplicateFileMemberPageQuery {
             run_id: first_run,
@@ -461,17 +485,50 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
     let (_, run_id) = session_and_run(&db, "Scale", &["/root"]);
     let transaction = db.connection().unchecked_transaction().unwrap();
     {
-        let mut insert = transaction
+        let mut insert_group = transaction
             .prepare_cached(
                 "INSERT INTO duplicate_group
                     (run_id, content_hash, file_size, file_count, wasted_bytes)
                  VALUES (?1, ?2, ?3, 2, ?3)",
             )
             .unwrap();
+        let mut insert_file = transaction
+            .prepare_cached(
+                "INSERT INTO scanned_file
+                    (run_id, root_path, canonical_path, relative_path, file_name, parent_dir,
+                     drive_letter, file_size, last_modified)
+                 VALUES (?1, '/root', ?2, ?3, ?3, '/root', ?4, ?5, 0)",
+            )
+            .unwrap();
+        let mut insert_member = transaction
+            .prepare_cached(
+                "INSERT INTO duplicate_group_member (group_id, file_id) VALUES (?1, ?2)",
+            )
+            .unwrap();
         for index in 0..100_000_i64 {
-            insert
-                .execute(params![run_id, index + 1, (index % 4096) + 1])
+            let file_size = (index % 4096) + 1;
+            insert_group
+                .execute(params![run_id, index + 1, file_size])
                 .unwrap();
+            if index % 1000 == 0 {
+                let group_id = transaction.last_insert_rowid();
+                for (copy, drive) in [("a", "D:"), ("b", "E:")] {
+                    let relative_path = format!("cross-{index}-{copy}.bin");
+                    let canonical_path = format!("/root/{relative_path}");
+                    insert_file
+                        .execute(params![
+                            run_id,
+                            canonical_path,
+                            relative_path,
+                            drive,
+                            file_size
+                        ])
+                        .unwrap();
+                    insert_member
+                        .execute(params![group_id, transaction.last_insert_rowid()])
+                        .unwrap();
+                }
+            }
         }
     }
     transaction.commit().unwrap();
@@ -484,6 +541,7 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         filter: DuplicateFileGroupFilter {
             search: None,
             minimum_size: 0,
+            across_drives: false,
         },
         cursor: None,
     };
@@ -502,7 +560,7 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
                 id: boundary.id,
                 before: false,
             }),
-            ..query
+            ..query.clone()
         })
         .unwrap();
     assert_eq!(second.groups.len(), 200);
@@ -516,6 +574,32 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         started.elapsed() < std::time::Duration::from_secs(5),
         "indexed 100,000-group paging took {:?}",
         started.elapsed()
+    );
+
+    let across_started = std::time::Instant::now();
+    let across = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            filter: DuplicateFileGroupFilter {
+                search: None,
+                minimum_size: 0,
+                across_drives: true,
+            },
+            ..query
+        })
+        .unwrap();
+    assert_eq!(across.total, 100);
+    assert_eq!(across.summary.matching_group_count, 100);
+    assert_eq!(across.summary.matching_copy_count, 200);
+    assert_eq!(across.groups.len(), 100);
+    assert!(!across.has_more);
+    assert!(across
+        .groups
+        .iter()
+        .all(|group| group.distinct_drive_count == 2));
+    assert!(
+        across_started.elapsed() < std::time::Duration::from_secs(5),
+        "100,000-group across-drives filter took {:?}",
+        across_started.elapsed()
     );
 }
 

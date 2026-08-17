@@ -314,6 +314,26 @@ function Invoke-WpfAutomation([long]$RunId) {
         Assert-True (-not $cloudStatus.Current.Name.Contains('unavailable', [StringComparison]::OrdinalIgnoreCase)) 'Cloud registration discovery remained unavailable in the normal WPF smoke.'
         Assert-True ((Find-Element AutomationId 'StartScanButton').Current.IsEnabled) 'Start scan did not become enabled after successful cloud registration discovery.'
         Select-Element (Find-Element AutomationId 'DuplicateFilesTab')
+        $acrossDrives = Find-Element AutomationId 'FileAcrossDrives'
+        Assert-True ($acrossDrives.Current.Name -eq 'Show only duplicate sets across multiple drives') 'Across-drives filter was not accessible.'
+        $acrossDrivesToggle = $acrossDrives.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
+        if ($acrossDrivesToggle.Current.ToggleState -ne [Windows.Automation.ToggleState]::Off) {
+            $acrossDrivesToggle.Toggle()
+        }
+        $acrossDrivesToggle.Toggle()
+        Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            if ((Find-Element AutomationId 'FileApplyFilters' 1).Current.IsEnabled) { break }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ((Find-Element AutomationId 'FileApplyFilters').Current.IsEnabled) 'Across-drives filter did not complete responsively.'
+        $acrossDrivesToggle.Toggle()
+        Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            if ((Find-Element AutomationId 'FileApplyFilters' 1).Current.IsEnabled) { break }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ((Find-Element AutomationId 'FileApplyFilters').Current.IsEnabled) 'Clearing the across-drives filter did not complete responsively.'
         Invoke-Element (Find-Element Name 'Group size')
         Invoke-Element (Find-Element Name 'Next')
         $fileGrid = Find-Element AutomationId 'FileGroupsGrid'
@@ -638,6 +658,13 @@ try {
     Assert-True ([uint64]$filteredFiles.summary.potentialRecoverableBytes -gt 0) 'Filtered summary did not report recoverable bytes.'
     Assert-True ($filteredFiles.groups[0].distinctSelectedRootCount -eq 1) 'Duplicate-file group did not report its selected-root span.'
     Assert-True ($filteredFiles.groups[0].distinctDriveCount -eq 1) 'Duplicate-file group did not report its drive span.'
+    $acrossDriveFiles = Send-WorkerRequest $restored 'duplicate_file_group.page' @{
+        runId = $run.id; pageSize = 25
+        sort = @{ field = 'recoverableBytes'; direction = 'descending' }
+        filter = @{ search = ''; minimumSize = '0'; acrossDrives = $true }; cursor = $null
+    }
+    Assert-True ($acrossDriveFiles.summary.matchingGroupCount -eq $acrossDriveFiles.total) 'Across-drives summary diverged from the filtered result total.'
+    Assert-True (@($acrossDriveFiles.groups | Where-Object { $_.distinctDriveCount -le 1 }).Count -eq 0) 'Across-drives filter returned a set confined to one drive.'
     $fileMembers = Send-WorkerRequest $restored 'duplicate_file_group.members' @{
         runId = $run.id; groupId = $filteredFiles.groups[0].id; pageSize = 25
         sort = @{ field = 'path'; direction = 'ascending' }

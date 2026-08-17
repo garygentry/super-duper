@@ -347,6 +347,7 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
                 {
                     search = query.Filter.Search,
                     minimumSize = query.Filter.MinimumSize,
+                    acrossDrives = query.Filter.AcrossDrives,
                 },
                 cursor = query.Cursor,
             },

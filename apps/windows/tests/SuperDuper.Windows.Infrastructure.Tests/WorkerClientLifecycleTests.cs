@@ -152,6 +152,13 @@ public sealed class WorkerClientLifecycleTests
                     DuplicateFileGroupSortField.RecoverableBytes,
                     WorkerSortDirection.Descending,
                     new DuplicateFileGroupFilter(string.Empty, "0")));
+            var acrossDriveGroups = await client.GetDuplicateFileGroupsAsync(
+                new DuplicateFileGroupQuery(
+                    started.Id,
+                    200,
+                    DuplicateFileGroupSortField.RecoverableBytes,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileGroupFilter(string.Empty, "0", AcrossDrives: true)));
             var members = await client.GetDuplicateFileGroupMembersAsync(
                 new DuplicateFileMemberQuery(
                     started.Id,
@@ -178,6 +185,7 @@ public sealed class WorkerClientLifecycleTests
 
             Assert.AreEqual(1, sessions.Total);
             Assert.AreEqual("run.completed", terminalEvent);
+            Assert.AreEqual(0, acrossDriveGroups.Total);
             Assert.AreEqual("completed", durable.Status);
             Assert.AreEqual(session.Id, durable.SessionId);
             Assert.AreEqual(2, groups.Total);

@@ -7,8 +7,8 @@ This document defines version 1 of the local protocol between `SuperDuper.Window
 the Windows application. Milestones 0â€“6 implement negotiation, session and scan lifecycle, and
 separately paged duplicate-file and exact-duplicate-folder result browsing. The read-only
 Milestone 8 additions extend duplicate-file pages with a filtered review summary, immutable
-selected-root/drive member context, and bounded per-group selected-root/drive counts. Warning
-commands remain reserved for a later milestone.
+selected-root/drive member context, bounded per-group selected-root/drive counts, and an optional
+across-drives group filter. Warning commands remain reserved for a later milestone.
 
 The transport is UTF-8 newline-delimited JSON (JSONL) over redirected standard input and standard
 output. It is a local process boundary, not a network API.
@@ -346,14 +346,16 @@ ascending, which makes paging stable. `pageSize` defaults to 200 and must be 1â€
 Request:
 
 ```json
-{"type":"request","id":"g1","method":"duplicate_file_group.page","params":{"runId":19,"pageSize":200,"sort":{"field":"recoverableBytes","direction":"descending"},"filter":{"search":"photos","minimumSize":"1048576"},"cursor":null}}
+{"type":"request","id":"g1","method":"duplicate_file_group.page","params":{"runId":19,"pageSize":200,"sort":{"field":"recoverableBytes","direction":"descending"},"filter":{"search":"photos","minimumSize":"1048576","acrossDrives":true},"cursor":null}}
 ```
 
 Allowed group sort fields are `recoverableBytes`, `groupSize`, `copyCount`, and
 `representativeName`; directions are `ascending` and `descending`. The default is recoverable bytes
 descending. `filter.search` is an optional case-insensitive literal substring search across member
 paths, limited to 512 characters. `filter.minimumSize` is a non-negative decimal byte string and
-defaults to `"0"`.
+defaults to `"0"`. `filter.acrossDrives` is an optional boolean that defaults to `false`; when
+`true`, only sets with more than one distinct, non-empty, case-insensitive immutable drive label
+are returned. The filter performs no filesystem access.
 
 Result:
 
@@ -370,8 +372,9 @@ de-duplicated case-insensitively. A drive count greater than one identifies a cr
 zero remains valid for migrated snapshots or path types without a drive label. These fields do not
 change the allowed group sorts or cursor signature.
 
-`summary` uses the same normalized run, search, and minimum-size predicate as `total`. It is
-computed by SQLite in the worker, not by walking client pages. `matchingGroupCount` equals `total`;
+`summary` uses the same normalized run, search, minimum-size, and across-drives predicate as
+`total`. It is computed by SQLite in the worker, not by walking client pages. The across-drives
+value is included in the opaque cursor's query signature. `matchingGroupCount` equals `total`;
 `matchingCopyCount` sums copies in the matching sets; `potentialRecoverableBytes` sums recoverable
 bytes; and `largestRecoverableBytes` is the largest matching set's recoverable bytes. Both byte
 fields are decimal strings. The summary is repeated on each bounded page so its rows and summary

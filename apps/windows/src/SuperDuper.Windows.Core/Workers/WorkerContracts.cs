@@ -93,7 +93,10 @@ public enum DuplicateFileMemberSortField
     Size,
 }
 
-public sealed record DuplicateFileGroupFilter(string Search, string MinimumSize);
+public sealed record DuplicateFileGroupFilter(
+    string Search,
+    string MinimumSize,
+    bool AcrossDrives = false);
 
 public sealed record DuplicateFileGroupQuery(
     long RunId,

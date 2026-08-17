@@ -200,6 +200,7 @@ pub struct PageCursor {
 pub struct DuplicateFileGroupFilter {
     pub search: Option<String>,
     pub minimum_size: i64,
+    pub across_drives: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -29,6 +29,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private long _memberGeneration;
     private string _searchText = string.Empty;
     private string _minimumSizeText = string.Empty;
+    private bool _acrossDrives;
     private string? _errorMessage;
     private string? _detailErrorMessage;
     private string _stateMessage = "Select a completed run to browse duplicate files.";
@@ -106,6 +107,12 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     {
         get => _minimumSizeText;
         set => SetProperty(ref _minimumSizeText, value);
+    }
+
+    public bool AcrossDrives
+    {
+        get => _acrossDrives;
+        set => SetProperty(ref _acrossDrives, value);
     }
 
     public string? ErrorMessage
@@ -353,6 +360,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     {
         SearchText = string.Empty;
         MinimumSizeText = string.Empty;
+        AcrossDrives = false;
         if (Run?.Status == "completed")
         {
             await ResetAndLoadGroupsAsync();
@@ -686,7 +694,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         if (search.Length > 512)
         {
             ErrorMessage = "Path search may contain at most 512 characters.";
-            filter = new DuplicateFileGroupFilter(string.Empty, "0");
+            filter = new DuplicateFileGroupFilter(string.Empty, "0", false);
             return false;
         }
         var minimum = MinimumSizeText.Trim();
@@ -697,11 +705,14 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         if (!long.TryParse(minimum, NumberStyles.None, CultureInfo.InvariantCulture, out var value) || value < 0)
         {
             ErrorMessage = "Minimum size must be a non-negative whole number of bytes.";
-            filter = new DuplicateFileGroupFilter(string.Empty, "0");
+            filter = new DuplicateFileGroupFilter(string.Empty, "0", false);
             return false;
         }
         ErrorMessage = null;
-        filter = new DuplicateFileGroupFilter(search, value.ToString(CultureInfo.InvariantCulture));
+        filter = new DuplicateFileGroupFilter(
+            search,
+            value.ToString(CultureInfo.InvariantCulture),
+            AcrossDrives);
         return true;
     }
 
