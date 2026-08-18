@@ -349,6 +349,7 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
                     minimumSize = query.Filter.MinimumSize,
                     acrossDrives = query.Filter.AcrossDrives,
                     selectedRoot = query.Filter.SelectedRoot,
+                    selectedDrive = query.Filter.SelectedDrive,
                 },
                 cursor = query.Cursor,
             },
@@ -376,6 +377,35 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
                     search = query.Filter.Search,
                     minimumSize = query.Filter.MinimumSize,
                     acrossDrives = query.Filter.AcrossDrives,
+                    selectedDrive = query.Filter.SelectedDrive,
+                },
+                cursor = query.Cursor,
+            },
+            cancellationToken);
+    }
+
+    public Task<WorkerDuplicateFileDriveFacetPage> GetDuplicateFileDriveFacetsAsync(
+        DuplicateFileDriveFacetQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        return InvokeAsync<WorkerDuplicateFileDriveFacetPage>(
+            "duplicate_file_drive_facet.page",
+            new
+            {
+                runId = query.RunId,
+                pageSize = query.PageSize,
+                sort = new
+                {
+                    field = DriveFacetSortField(query.SortField),
+                    direction = SortDirection(query.SortDirection),
+                },
+                filter = new
+                {
+                    search = query.Filter.Search,
+                    minimumSize = query.Filter.MinimumSize,
+                    acrossDrives = query.Filter.AcrossDrives,
+                    selectedRoot = query.Filter.SelectedRoot,
                 },
                 cursor = query.Cursor,
             },
@@ -595,6 +625,13 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
     {
         DuplicateFileSelectedRootFacetSortField.MatchingGroupCount => "matchingGroupCount",
         DuplicateFileSelectedRootFacetSortField.Value => "value",
+        _ => throw new ArgumentOutOfRangeException(nameof(field)),
+    };
+
+    private static string DriveFacetSortField(DuplicateFileDriveFacetSortField field) => field switch
+    {
+        DuplicateFileDriveFacetSortField.MatchingGroupCount => "matchingGroupCount",
+        DuplicateFileDriveFacetSortField.Value => "value",
         _ => throw new ArgumentOutOfRangeException(nameof(field)),
     };
 

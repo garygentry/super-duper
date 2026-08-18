@@ -16,6 +16,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -130,6 +131,76 @@
                            automation:AutomationProperties.AutomationId="FileSelectedRootFilterText"
                            Opacity="0.68"
                            Text="{Binding SelectedRootFilterText}"
+                           TextTrimming="CharacterEllipsis" />
+            </WrapPanel>
+            <WrapPanel Grid.Row="2"
+                       Grid.ColumnSpan="5"
+                       Margin="0,8,0,0"
+                       VerticalAlignment="Center"
+                       automation:AutomationProperties.Name="Drive facet controls">
+                <TextBlock Margin="0,0,8,0"
+                           VerticalAlignment="Center"
+                           FontWeight="SemiBold"
+                           Text="Drive" />
+                <ComboBox x:Name="FileDriveFacet"
+                          Width="220"
+                          MaxDropDownHeight="280"
+                          VerticalContentAlignment="Center"
+                          automation:AutomationProperties.AutomationId="FileDriveFacet"
+                          automation:AutomationProperties.Name="Drive facet; choose All drives to remove this filter"
+                          DisplayMemberPath="DisplayText"
+                          ItemsSource="{Binding DriveFacetOptions}"
+                          SelectedItem="{Binding SelectedDriveFacet, Mode=TwoWay}">
+                    <ComboBox.ItemContainerStyle>
+                        <Style TargetType="ComboBoxItem">
+                            <Setter Property="automation:AutomationProperties.Name" Value="{Binding DisplayText}" />
+                        </Style>
+                    </ComboBox.ItemContainerStyle>
+                </ComboBox>
+                <Button Margin="8,0,0,0"
+                        Padding="10,4"
+                        automation:AutomationProperties.AutomationId="FileDriveFacetMostSets"
+                        automation:AutomationProperties.Name="Sort drives by most matching sets"
+                        Command="{Binding SortDriveFacetsByCountCommand}"
+                        Content="Most sets" />
+                <Button Margin="6,0,0,0"
+                        Padding="10,4"
+                        automation:AutomationProperties.AutomationId="FileDriveFacetNameSort"
+                        automation:AutomationProperties.Name="Sort drives by name"
+                        Command="{Binding SortDriveFacetsByNameCommand}"
+                        Content="Drive A–Z" />
+                <Button Margin="8,0,0,0"
+                        Padding="10,4"
+                        automation:AutomationProperties.AutomationId="FilePreviousDriveFacets"
+                        Command="{Binding PreviousDriveFacetPageCommand}"
+                        Content="Previous drives" />
+                <Button Margin="6,0,0,0"
+                        Padding="10,4"
+                        automation:AutomationProperties.AutomationId="FileNextDriveFacets"
+                        Command="{Binding NextDriveFacetPageCommand}"
+                        Content="Next drives" />
+                <TextBlock Margin="10,0,0,0"
+                           VerticalAlignment="Center"
+                           Opacity="0.68"
+                           Text="{Binding DriveFacetCountText}" />
+                <ProgressBar Width="70"
+                             Height="4"
+                             Margin="10,0,0,0"
+                             IsIndeterminate="True"
+                             Visibility="{Binding IsDriveFacetLoading, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <TextBlock Margin="10,0,0,0"
+                           VerticalAlignment="Center"
+                           automation:AutomationProperties.AutomationId="FileDriveFacetError"
+                           automation:AutomationProperties.Name="Drive facet error"
+                           Foreground="#C84B31"
+                           Text="{Binding DriveFacetErrorMessage}"
+                           TextTrimming="CharacterEllipsis"
+                           Visibility="{Binding HasDriveFacetError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <TextBlock Margin="10,0,0,0"
+                           VerticalAlignment="Center"
+                           automation:AutomationProperties.AutomationId="FileSelectedDriveFilterText"
+                           Opacity="0.68"
+                           Text="{Binding SelectedDriveFilterText}"
                            TextTrimming="CharacterEllipsis" />
             </WrapPanel>
         </Grid>

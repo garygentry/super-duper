@@ -11,6 +11,7 @@ public sealed class DuplicateFilesViewModelTests
     {
         DuplicateFileGroupQuery? lastGroupQuery = null;
         DuplicateFileSelectedRootFacetQuery? lastRootFacetQuery = null;
+        DuplicateFileDriveFacetQuery? lastDriveFacetQuery = null;
         var client = new TestWorkerClient
         {
             GroupPageHandler = (query, _) =>
@@ -35,6 +36,15 @@ public sealed class DuplicateFilesViewModelTests
                 lastRootFacetQuery = query;
                 return Task.FromResult(new WorkerDuplicateFileSelectedRootFacetPage(
                     [new WorkerDuplicateFileSelectedRootFacet(@"C:\Photos", 1)],
+                    1,
+                    null,
+                    null));
+            },
+            DriveFacetPageHandler = (query, _) =>
+            {
+                lastDriveFacetQuery = query;
+                return Task.FromResult(new WorkerDuplicateFileDriveFacetPage(
+                    [new WorkerDuplicateFileDriveFacet("C:", 1)],
                     1,
                     null,
                     null));
@@ -69,6 +79,9 @@ public sealed class DuplicateFilesViewModelTests
         Assert.AreEqual(2, viewModel.SelectedRootFacetOptions.Count);
         Assert.AreEqual("1 selected root", viewModel.RootFacetCountText);
         Assert.AreEqual("C:\\Photos · 1 set", viewModel.SelectedRootFacetOptions[1].DisplayText);
+        Assert.AreEqual(2, viewModel.DriveFacetOptions.Count);
+        Assert.AreEqual("1 drive", viewModel.DriveFacetCountText);
+        Assert.AreEqual("C: · 1 set", viewModel.DriveFacetOptions[1].DisplayText);
         viewModel.CopyPathCommand.Execute(viewModel.Members[0]);
         await viewModel.RevealInExplorerCommand.ExecuteAsync(viewModel.Members[0]);
         Assert.AreEqual(@"C:\Photos\photo.jpg", clipboard.Text);
@@ -78,20 +91,33 @@ public sealed class DuplicateFilesViewModelTests
         await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
         Assert.IsTrue(lastGroupQuery!.Filter.AcrossDrives);
         Assert.IsTrue(lastRootFacetQuery!.Filter.AcrossDrives);
+        Assert.IsTrue(lastDriveFacetQuery!.Filter.AcrossDrives);
 
         viewModel.SelectedRootFacet = viewModel.SelectedRootFacetOptions[1];
         await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
         Assert.AreEqual(@"C:\Photos", lastGroupQuery.Filter.SelectedRoot);
+        Assert.AreEqual(@"C:\Photos", lastDriveFacetQuery.Filter.SelectedRoot);
         Assert.AreEqual("Filtering sets represented under C:\\Photos", viewModel.SelectedRootFilterText);
+
+        viewModel.SelectedDriveFacet = viewModel.DriveFacetOptions[1];
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+        Assert.AreEqual("C:", lastGroupQuery.Filter.SelectedDrive);
+        Assert.AreEqual("C:", lastRootFacetQuery.Filter.SelectedDrive);
+        Assert.AreEqual("Filtering sets represented on C:", viewModel.SelectedDriveFilterText);
 
         await viewModel.SortRootFacetsByNameCommand.ExecuteAsync(null);
         Assert.AreEqual(DuplicateFileSelectedRootFacetSortField.Value, lastRootFacetQuery.SortField);
         Assert.AreEqual(WorkerSortDirection.Ascending, lastRootFacetQuery.SortDirection);
 
+        await viewModel.SortDriveFacetsByNameCommand.ExecuteAsync(null);
+        Assert.AreEqual(DuplicateFileDriveFacetSortField.Value, lastDriveFacetQuery.SortField);
+        Assert.AreEqual(WorkerSortDirection.Ascending, lastDriveFacetQuery.SortDirection);
+
         await viewModel.ClearFiltersCommand.ExecuteAsync(null);
         Assert.IsFalse(viewModel.AcrossDrives);
         Assert.IsFalse(lastGroupQuery.Filter.AcrossDrives);
         Assert.IsNull(lastGroupQuery.Filter.SelectedRoot);
+        Assert.IsNull(lastGroupQuery.Filter.SelectedDrive);
     }
 
     [TestMethod]
@@ -206,6 +232,59 @@ public sealed class DuplicateFilesViewModelTests
             await viewModel.NextRootFacetPageCommand.ExecuteAsync(null);
             Assert.IsTrue(viewModel.CachedRootFacetPageCount <= DuplicateFilesViewModel.CacheCapacity);
             Assert.AreEqual($"new-root-{page}", viewModel.SelectedRootFacetOptions[1].Value);
+        }
+    }
+
+    [TestMethod]
+    public async Task DriveFacetGenerationRejectsLateResponseAndCacheStaysBounded()
+    {
+        var oldResponse = new TaskCompletionSource<WorkerDuplicateFileDriveFacetPage>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var oldRequestObserved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileGroupPage(
+                    [Group(1, query.RunId, "item.bin")],
+                    1,
+                    null,
+                    null)),
+            DriveFacetPageHandler = (query, _) =>
+            {
+                if (query.Filter.Search.Length == 0)
+                {
+                    oldRequestObserved.TrySetResult();
+                    return oldResponse.Task;
+                }
+                var page = query.Cursor is null ? 0 : int.Parse(query.Cursor);
+                return Task.FromResult(new WorkerDuplicateFileDriveFacetPage(
+                    [new WorkerDuplicateFileDriveFacet($"drive-{page}", 10 - page)],
+                    10,
+                    page < 9 ? (page + 1).ToString() : null,
+                    page > 0 ? (page - 1).ToString() : null));
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        var initialLoad = viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(13, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        await oldRequestObserved.Task;
+
+        viewModel.SearchText = "new";
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+        oldResponse.SetResult(new WorkerDuplicateFileDriveFacetPage(
+            [new WorkerDuplicateFileDriveFacet("stale-drive", 99)],
+            1,
+            null,
+            null));
+        await initialLoad;
+
+        Assert.AreEqual("drive-0", viewModel.DriveFacetOptions[1].Value);
+        for (var page = 1; page < 9; page++)
+        {
+            await viewModel.NextDriveFacetPageCommand.ExecuteAsync(null);
+            Assert.IsTrue(viewModel.CachedDriveFacetPageCount <= DuplicateFilesViewModel.CacheCapacity);
+            Assert.AreEqual($"drive-{page}", viewModel.DriveFacetOptions[1].Value);
         }
     }
 

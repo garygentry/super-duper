@@ -202,6 +202,7 @@ pub struct DuplicateFileGroupFilter {
     pub minimum_size: i64,
     pub across_drives: bool,
     pub selected_root: Option<String>,
+    pub selected_drive: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -271,6 +272,36 @@ pub struct DuplicateFileSelectedRootFacetResult {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DuplicateFileSelectedRootFacetPage {
     pub facets: Vec<DuplicateFileSelectedRootFacetResult>,
+    pub total: i64,
+    pub has_more: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DuplicateFileDriveFacetSortField {
+    MatchingGroupCount,
+    Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFileDriveFacetPageQuery {
+    pub run_id: i64,
+    pub limit: i64,
+    pub sort_field: DuplicateFileDriveFacetSortField,
+    pub sort_direction: SortDirection,
+    pub filter: DuplicateFileGroupFilter,
+    pub cursor: Option<PageCursor>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFileDriveFacetResult {
+    pub cursor_id: i64,
+    pub value: String,
+    pub matching_group_count: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateFileDriveFacetPage {
+    pub facets: Vec<DuplicateFileDriveFacetResult>,
     pub total: i64,
     pub has_more: bool,
 }

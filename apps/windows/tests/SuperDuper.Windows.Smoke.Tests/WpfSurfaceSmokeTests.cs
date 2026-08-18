@@ -85,6 +85,18 @@ public sealed class WpfSurfaceSmokeTests
             _ = FindByAutomationId<Button>(files, "FilePreviousRootFacets");
             _ = FindByAutomationId<Button>(files, "FileNextRootFacets");
             _ = FindByAutomationId<TextBlock>(files, "FileSelectedRootFilterText");
+            Assert.AreEqual(
+                "Drive facet; choose All drives to remove this filter",
+                AutomationProperties.GetName(FindByAutomationId<ComboBox>(files, "FileDriveFacet")));
+            Assert.AreEqual(
+                "Sort drives by most matching sets",
+                AutomationProperties.GetName(FindByAutomationId<Button>(files, "FileDriveFacetMostSets")));
+            Assert.AreEqual(
+                "Sort drives by name",
+                AutomationProperties.GetName(FindByAutomationId<Button>(files, "FileDriveFacetNameSort")));
+            _ = FindByAutomationId<Button>(files, "FilePreviousDriveFacets");
+            _ = FindByAutomationId<Button>(files, "FileNextDriveFacets");
+            _ = FindByAutomationId<TextBlock>(files, "FileSelectedDriveFilterText");
             StringAssert.Contains(
                 FindByAutomationId<TextBlock>(files, "FileSelectedSetExplanation").Text,
                 "does not identify an original");

@@ -1,6 +1,7 @@
 use rusqlite::{params, Connection, Error as SqlError};
 use super_duper_core::storage::models::{
-    CloudDetectionStatus, CloudPolicy, DuplicateFileGroupFilter, DuplicateFileGroupPageQuery,
+    CloudDetectionStatus, CloudPolicy, DuplicateFileDriveFacetPageQuery,
+    DuplicateFileDriveFacetSortField, DuplicateFileGroupFilter, DuplicateFileGroupPageQuery,
     DuplicateFileGroupSortField, DuplicateFileMemberFilter, DuplicateFileMemberPageQuery,
     DuplicateFileMemberSortField, DuplicateFileSelectedRootFacetPageQuery,
     DuplicateFileSelectedRootFacetSortField, PageCursor, PageCursorValue, RegisteredCloudLocation,
@@ -360,6 +361,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             minimum_size: 0,
             across_drives: false,
             selected_root: None,
+            selected_drive: None,
         },
         cursor: None,
     };
@@ -429,6 +431,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                 minimum_size: 100,
                 across_drives: false,
                 selected_root: None,
+                selected_drive: None,
             },
             cursor: None,
             ..base_query
@@ -454,6 +457,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                 minimum_size: 0,
                 across_drives: true,
                 selected_root: None,
+                selected_drive: None,
             },
             cursor: None,
             ..base_query.clone()
@@ -479,6 +483,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                 minimum_size: 0,
                 across_drives: false,
                 selected_root: Some("/selected-root".to_owned()),
+                selected_drive: None,
             },
             cursor: None,
         })
@@ -501,6 +506,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                 minimum_size: 0,
                 across_drives: false,
                 selected_root: None,
+                selected_drive: None,
             },
             cursor: Some(PageCursor {
                 value: PageCursorValue::Integer(root_facet_boundary.matching_group_count),
@@ -511,6 +517,72 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
         .unwrap();
     assert_eq!(next_root_facets.facets[0].value, "/selected-root");
     assert_eq!(next_root_facets.facets[0].matching_group_count, 1);
+
+    let drive_facets = db
+        .page_duplicate_file_drive_facets(&DuplicateFileDriveFacetPageQuery {
+            run_id: first_run,
+            limit: 1,
+            sort_field: DuplicateFileDriveFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: DuplicateFileGroupFilter {
+                search: None,
+                minimum_size: 0,
+                across_drives: false,
+                selected_root: None,
+                selected_drive: Some("E:".to_owned()),
+            },
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(drive_facets.total, 2);
+    assert_eq!(drive_facets.facets.len(), 1);
+    assert_eq!(drive_facets.facets[0].value, "D:");
+    assert_eq!(drive_facets.facets[0].matching_group_count, 3);
+    assert!(drive_facets.has_more);
+
+    let drive_facet_boundary = &drive_facets.facets[0];
+    let next_drive_facets = db
+        .page_duplicate_file_drive_facets(&DuplicateFileDriveFacetPageQuery {
+            run_id: first_run,
+            limit: 1,
+            sort_field: DuplicateFileDriveFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: DuplicateFileGroupFilter {
+                search: None,
+                minimum_size: 0,
+                across_drives: false,
+                selected_root: None,
+                selected_drive: None,
+            },
+            cursor: Some(PageCursor {
+                value: PageCursorValue::Integer(drive_facet_boundary.matching_group_count),
+                id: drive_facet_boundary.cursor_id,
+                before: false,
+            }),
+        })
+        .unwrap();
+    assert_eq!(next_drive_facets.facets[0].value, "E:");
+    assert_eq!(next_drive_facets.facets[0].matching_group_count, 1);
+
+    let root_scoped_drive_facets = db
+        .page_duplicate_file_drive_facets(&DuplicateFileDriveFacetPageQuery {
+            run_id: first_run,
+            limit: 10,
+            sort_field: DuplicateFileDriveFacetSortField::Value,
+            sort_direction: SortDirection::Ascending,
+            filter: DuplicateFileGroupFilter {
+                search: None,
+                minimum_size: 0,
+                across_drives: false,
+                selected_root: Some("/SELECTED-ROOT".to_owned()),
+                selected_drive: None,
+            },
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(root_scoped_drive_facets.total, 1);
+    assert_eq!(root_scoped_drive_facets.facets[0].value, "D:");
+    assert_eq!(root_scoped_drive_facets.facets[0].matching_group_count, 1);
 
     let selected_root_groups = db
         .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
@@ -523,6 +595,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                 minimum_size: 0,
                 across_drives: false,
                 selected_root: Some("/SELECTED-ROOT".to_owned()),
+                selected_drive: None,
             },
             cursor: None,
         })
@@ -533,6 +606,25 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
     assert!(selected_root_groups.groups[0]
         .representative_name
         .contains("alpha"));
+    let selected_drive_groups = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            run_id: first_run,
+            limit: 10,
+            sort_field: DuplicateFileGroupSortField::RecoverableBytes,
+            sort_direction: SortDirection::Descending,
+            filter: DuplicateFileGroupFilter {
+                search: None,
+                minimum_size: 0,
+                across_drives: false,
+                selected_root: None,
+                selected_drive: Some("e:".to_owned()),
+            },
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(selected_drive_groups.total, 1);
+    assert_eq!(selected_drive_groups.summary.matching_group_count, 1);
+    assert_eq!(selected_drive_groups.summary.distinct_drive_count, 2);
     let members = db
         .page_duplicate_file_members(&DuplicateFileMemberPageQuery {
             run_id: first_run,
@@ -622,6 +714,7 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
             minimum_size: 0,
             across_drives: false,
             selected_root: None,
+            selected_drive: None,
         },
         cursor: None,
     };
@@ -667,6 +760,7 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
                 minimum_size: 0,
                 across_drives: true,
                 selected_root: None,
+                selected_drive: None,
             },
             ..query.clone()
         })
@@ -715,7 +809,7 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
                 selected_root: Some("/ROOT".to_owned()),
                 ..query.filter.clone()
             },
-            ..query
+            ..query.clone()
         })
         .unwrap();
     assert_eq!(selected_root.total, 100);
@@ -723,6 +817,36 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         .groups
         .iter()
         .all(|group| group.run_id == run_id));
+
+    let drive_facet_started = std::time::Instant::now();
+    let drive_facets = db
+        .page_duplicate_file_drive_facets(&DuplicateFileDriveFacetPageQuery {
+            run_id,
+            limit: 25,
+            sort_field: DuplicateFileDriveFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: query.filter.clone(),
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(drive_facets.total, 2);
+    assert_eq!(drive_facets.facets[0].matching_group_count, 100);
+    assert!(
+        drive_facet_started.elapsed() < std::time::Duration::from_secs(5),
+        "100,000-group drive facet took {:?}",
+        drive_facet_started.elapsed()
+    );
+
+    let selected_drive = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            filter: DuplicateFileGroupFilter {
+                selected_drive: Some("d:".to_owned()),
+                ..query.filter.clone()
+            },
+            ..query
+        })
+        .unwrap();
+    assert_eq!(selected_drive.total, 100);
 }
 
 #[test]

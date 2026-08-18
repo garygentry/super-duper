@@ -11,15 +11,16 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 use super_duper_core::progress::ProgressReporter;
 use super_duper_core::storage::models::{
-    CloudDetectionStatus, CloudPolicy, DuplicateFileGroupFilter, DuplicateFileGroupPageQuery,
-    DuplicateFileGroupResult, DuplicateFileGroupSortField, DuplicateFileMemberFilter,
-    DuplicateFileMemberPageQuery, DuplicateFileMemberResult, DuplicateFileMemberSortField,
-    DuplicateFileSelectedRootFacetPageQuery, DuplicateFileSelectedRootFacetResult,
-    DuplicateFileSelectedRootFacetSortField, DuplicateFolderGroupFilter,
-    DuplicateFolderGroupPageQuery, DuplicateFolderGroupResult, DuplicateFolderGroupSortField,
-    DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery, DuplicateFolderMemberResult,
-    DuplicateFolderMemberSortField, PageCursor, PageCursorValue, RegisteredCloudLocation,
-    RunExclusion, RunParameters, ScanRun, ScanSession, SortDirection,
+    CloudDetectionStatus, CloudPolicy, DuplicateFileDriveFacetPageQuery,
+    DuplicateFileDriveFacetResult, DuplicateFileDriveFacetSortField, DuplicateFileGroupFilter,
+    DuplicateFileGroupPageQuery, DuplicateFileGroupResult, DuplicateFileGroupSortField,
+    DuplicateFileMemberFilter, DuplicateFileMemberPageQuery, DuplicateFileMemberResult,
+    DuplicateFileMemberSortField, DuplicateFileSelectedRootFacetPageQuery,
+    DuplicateFileSelectedRootFacetResult, DuplicateFileSelectedRootFacetSortField,
+    DuplicateFolderGroupFilter, DuplicateFolderGroupPageQuery, DuplicateFolderGroupResult,
+    DuplicateFolderGroupSortField, DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery,
+    DuplicateFolderMemberResult, DuplicateFolderMemberSortField, PageCursor, PageCursorValue,
+    RegisteredCloudLocation, RunExclusion, RunParameters, ScanRun, ScanSession, SortDirection,
 };
 use super_duper_core::storage::Database;
 use super_duper_core::{AppConfig, ScanEngine};
@@ -278,6 +279,8 @@ struct DuplicateFileGroupFilterParameters {
     across_drives: bool,
     #[serde(default)]
     selected_root: Option<String>,
+    #[serde(default)]
+    selected_drive: Option<String>,
 }
 
 impl Default for DuplicateFileGroupFilterParameters {
@@ -287,6 +290,7 @@ impl Default for DuplicateFileGroupFilterParameters {
             minimum_size: default_minimum_size(),
             across_drives: false,
             selected_root: None,
+            selected_drive: None,
         }
     }
 }
@@ -332,6 +336,8 @@ struct DuplicateFileSelectedRootFacetFilterParameters {
     minimum_size: String,
     #[serde(default)]
     across_drives: bool,
+    #[serde(default)]
+    selected_drive: Option<String>,
 }
 
 impl Default for DuplicateFileSelectedRootFacetFilterParameters {
@@ -340,6 +346,63 @@ impl Default for DuplicateFileSelectedRootFacetFilterParameters {
             search: None,
             minimum_size: default_minimum_size(),
             across_drives: false,
+            selected_drive: None,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFileDriveFacetPageParameters {
+    run_id: i64,
+    #[serde(default = "default_result_page_size")]
+    page_size: i64,
+    #[serde(default)]
+    sort: DuplicateFileDriveFacetSortParameters,
+    #[serde(default)]
+    filter: DuplicateFileDriveFacetFilterParameters,
+    #[serde(default)]
+    cursor: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFileDriveFacetSortParameters {
+    #[serde(default = "default_drive_facet_sort_field")]
+    field: String,
+    #[serde(default = "default_descending")]
+    direction: String,
+}
+
+impl Default for DuplicateFileDriveFacetSortParameters {
+    fn default() -> Self {
+        Self {
+            field: default_drive_facet_sort_field(),
+            direction: default_descending(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFileDriveFacetFilterParameters {
+    #[serde(default)]
+    search: Option<String>,
+    #[serde(default = "default_minimum_size")]
+    minimum_size: String,
+    #[serde(default)]
+    across_drives: bool,
+    #[serde(default)]
+    selected_root: Option<String>,
+}
+
+impl Default for DuplicateFileDriveFacetFilterParameters {
+    fn default() -> Self {
+        Self {
+            search: None,
+            minimum_size: default_minimum_size(),
+            across_drives: false,
+            selected_root: None,
         }
     }
 }
@@ -583,6 +646,13 @@ struct DuplicateFileReviewSummaryDto {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DuplicateFileSelectedRootFacetDto {
+    value: String,
+    matching_group_count: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateFileDriveFacetDto {
     value: String,
     matching_group_count: i64,
 }
@@ -843,6 +913,7 @@ impl WorkerSession {
             "duplicate_file_selected_root_facet.page" => {
                 self.duplicate_file_selected_root_facet_page(request)
             }
+            "duplicate_file_drive_facet.page" => self.duplicate_file_drive_facet_page(request),
             "duplicate_file_group.members" => self.duplicate_file_group_members(request),
             "duplicate_folder_group.page" => self.duplicate_folder_group_page(request),
             "duplicate_folder_group.members" => self.duplicate_folder_group_members(request),
@@ -1017,6 +1088,10 @@ impl WorkerSession {
             .filter
             .selected_root
             .filter(|value| !value.is_empty());
+        let selected_drive = parameters
+            .filter
+            .selected_drive
+            .filter(|value| !value.is_empty());
         let signature = group_query_signature(
             parameters.run_id,
             sort_field,
@@ -1025,6 +1100,7 @@ impl WorkerSession {
             minimum_size,
             parameters.filter.across_drives,
             selected_root.as_deref(),
+            selected_drive.as_deref(),
         );
         let cursor = decode_cursor(
             parameters.cursor.as_deref(),
@@ -1047,6 +1123,7 @@ impl WorkerSession {
                     minimum_size,
                     across_drives: parameters.filter.across_drives,
                     selected_root,
+                    selected_drive,
                 },
                 cursor: cursor.clone(),
             })
@@ -1101,6 +1178,10 @@ impl WorkerSession {
         let search = validate_search(parameters.filter.search)?;
         let minimum_size =
             parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
+        let selected_drive = parameters
+            .filter
+            .selected_drive
+            .filter(|value| !value.is_empty());
         let signature = selected_root_facet_query_signature(
             parameters.run_id,
             sort_field,
@@ -1108,6 +1189,7 @@ impl WorkerSession {
             search.as_deref(),
             minimum_size,
             parameters.filter.across_drives,
+            selected_drive.as_deref(),
         );
         let cursor = decode_cursor(
             parameters.cursor.as_deref(),
@@ -1130,6 +1212,7 @@ impl WorkerSession {
                     minimum_size,
                     across_drives: parameters.filter.across_drives,
                     selected_root: None,
+                    selected_drive,
                 },
                 cursor: cursor.clone(),
             })
@@ -1167,6 +1250,97 @@ impl WorkerSession {
             .facets
             .into_iter()
             .map(selected_root_facet_dto)
+            .collect::<Vec<_>>();
+        Ok(json!({
+            "facets": facets,
+            "total": page.total,
+            "nextCursor": next_cursor,
+            "previousCursor": previous_cursor,
+        }))
+    }
+
+    fn duplicate_file_drive_facet_page(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: DuplicateFileDriveFacetPageParameters = parse_parameters(request)?;
+        validate_result_page_size(parameters.page_size)?;
+        let db = self.state.database()?;
+        ensure_completed_result_run(&db, parameters.run_id)?;
+        let sort_field = parse_drive_facet_sort_field(&parameters.sort.field)?;
+        let sort_direction = parse_sort_direction(&parameters.sort.direction)?;
+        let search = validate_search(parameters.filter.search)?;
+        let minimum_size =
+            parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
+        let selected_root = parameters
+            .filter
+            .selected_root
+            .filter(|value| !value.is_empty());
+        let signature = drive_facet_query_signature(
+            parameters.run_id,
+            sort_field,
+            sort_direction,
+            search.as_deref(),
+            minimum_size,
+            parameters.filter.across_drives,
+            selected_root.as_deref(),
+        );
+        let cursor = decode_cursor(
+            parameters.cursor.as_deref(),
+            "duplicate-file-drive-facets",
+            &signature,
+        )?;
+        validate_cursor_value(
+            cursor.as_ref(),
+            sort_field == DuplicateFileDriveFacetSortField::Value,
+        )?;
+        let query_started = Instant::now();
+        let page = db
+            .page_duplicate_file_drive_facets(&DuplicateFileDriveFacetPageQuery {
+                run_id: parameters.run_id,
+                limit: parameters.page_size,
+                sort_field,
+                sort_direction,
+                filter: DuplicateFileGroupFilter {
+                    search,
+                    minimum_size,
+                    across_drives: parameters.filter.across_drives,
+                    selected_root,
+                    selected_drive: None,
+                },
+                cursor: cursor.clone(),
+            })
+            .map_err(internal_database_error)?;
+        log_result_query(
+            "duplicate_file_drive_facet.page",
+            parameters.run_id,
+            None,
+            parameters.page_size,
+            page.facets.len(),
+            page.total,
+            query_started.elapsed(),
+        );
+        let previous_cursor = page
+            .facets
+            .first()
+            .and_then(|facet| {
+                let has_previous =
+                    cursor.as_ref().map_or(false, |value| !value.before) || page.has_more;
+                has_previous.then(|| encode_drive_facet_cursor(facet, sort_field, true, &signature))
+            })
+            .transpose()?;
+        let next_cursor = page
+            .facets
+            .last()
+            .and_then(|facet| {
+                let has_next = cursor.as_ref().is_some_and(|value| value.before) || page.has_more;
+                has_next.then(|| encode_drive_facet_cursor(facet, sort_field, false, &signature))
+            })
+            .transpose()?;
+        let facets = page
+            .facets
+            .into_iter()
+            .map(drive_facet_dto)
             .collect::<Vec<_>>();
         Ok(json!({
             "facets": facets,
@@ -2047,6 +2221,23 @@ fn parse_selected_root_facet_sort_field(
     }
 }
 
+fn parse_drive_facet_sort_field(
+    value: &str,
+) -> Result<DuplicateFileDriveFacetSortField, ProtocolFailure> {
+    match value {
+        "matchingGroupCount" => Ok(DuplicateFileDriveFacetSortField::MatchingGroupCount),
+        "value" => Ok(DuplicateFileDriveFacetSortField::Value),
+        _ => Err(ProtocolFailure::new(
+            "invalid_request",
+            "sort.field is not allowed for duplicate file drive facets",
+        )
+        .with_details(json!({
+            "field":"sort.field",
+            "allowed":["matchingGroupCount","value"]
+        }))),
+    }
+}
+
 fn parse_member_sort_field(value: &str) -> Result<DuplicateFileMemberSortField, ProtocolFailure> {
     match value {
         "path" => Ok(DuplicateFileMemberSortField::Path),
@@ -2147,6 +2338,7 @@ fn group_query_signature(
     minimum_size: i64,
     across_drives: bool,
     selected_root: Option<&str>,
+    selected_drive: Option<&str>,
 ) -> String {
     json!({
         "runId": run_id,
@@ -2156,6 +2348,7 @@ fn group_query_signature(
         "minimumSize": minimum_size,
         "acrossDrives": across_drives,
         "selectedRoot": selected_root.unwrap_or_default(),
+        "selectedDrive": selected_drive.unwrap_or_default(),
     })
     .to_string()
 }
@@ -2167,6 +2360,7 @@ fn selected_root_facet_query_signature(
     search: Option<&str>,
     minimum_size: i64,
     across_drives: bool,
+    selected_drive: Option<&str>,
 ) -> String {
     json!({
         "runId": run_id,
@@ -2175,6 +2369,28 @@ fn selected_root_facet_query_signature(
         "search": search.unwrap_or_default(),
         "minimumSize": minimum_size,
         "acrossDrives": across_drives,
+        "selectedDrive": selected_drive.unwrap_or_default(),
+    })
+    .to_string()
+}
+
+fn drive_facet_query_signature(
+    run_id: i64,
+    sort_field: DuplicateFileDriveFacetSortField,
+    sort_direction: SortDirection,
+    search: Option<&str>,
+    minimum_size: i64,
+    across_drives: bool,
+    selected_root: Option<&str>,
+) -> String {
+    json!({
+        "runId": run_id,
+        "sortField": drive_facet_sort_name(sort_field),
+        "sortDirection": direction_name(sort_direction),
+        "search": search.unwrap_or_default(),
+        "minimumSize": minimum_size,
+        "acrossDrives": across_drives,
+        "selectedRoot": selected_root.unwrap_or_default(),
     })
     .to_string()
 }
@@ -2269,6 +2485,28 @@ fn encode_selected_root_facet_cursor(
     encode_cursor(CursorPayload {
         version: 1,
         kind: "duplicate-file-selected-root-facets".to_owned(),
+        query: signature.to_owned(),
+        before,
+        value,
+        id: facet.cursor_id,
+    })
+}
+
+fn encode_drive_facet_cursor(
+    facet: &DuplicateFileDriveFacetResult,
+    sort_field: DuplicateFileDriveFacetSortField,
+    before: bool,
+    signature: &str,
+) -> Result<String, ProtocolFailure> {
+    let value = match sort_field {
+        DuplicateFileDriveFacetSortField::MatchingGroupCount => {
+            CursorScalar::Integer(facet.matching_group_count.to_string())
+        }
+        DuplicateFileDriveFacetSortField::Value => CursorScalar::Text(facet.value.clone()),
+    };
+    encode_cursor(CursorPayload {
+        version: 1,
+        kind: "duplicate-file-drive-facets".to_owned(),
         query: signature.to_owned(),
         before,
         value,
@@ -2456,6 +2694,13 @@ fn selected_root_facet_dto(
     }
 }
 
+fn drive_facet_dto(facet: DuplicateFileDriveFacetResult) -> DuplicateFileDriveFacetDto {
+    DuplicateFileDriveFacetDto {
+        value: facet.value,
+        matching_group_count: facet.matching_group_count,
+    }
+}
+
 fn member_dto(member: DuplicateFileMemberResult) -> DuplicateFileMemberDto {
     DuplicateFileMemberDto {
         id: member.id,
@@ -2503,6 +2748,13 @@ fn selected_root_facet_sort_name(field: DuplicateFileSelectedRootFacetSortField)
     match field {
         DuplicateFileSelectedRootFacetSortField::MatchingGroupCount => "matchingGroupCount",
         DuplicateFileSelectedRootFacetSortField::Value => "value",
+    }
+}
+
+fn drive_facet_sort_name(field: DuplicateFileDriveFacetSortField) -> &'static str {
+    match field {
+        DuplicateFileDriveFacetSortField::MatchingGroupCount => "matchingGroupCount",
+        DuplicateFileDriveFacetSortField::Value => "value",
     }
 }
 
@@ -3047,6 +3299,10 @@ fn default_selected_root_facet_sort_field() -> String {
     "matchingGroupCount".to_owned()
 }
 
+fn default_drive_facet_sort_field() -> String {
+    "matchingGroupCount".to_owned()
+}
+
 fn default_folder_group_sort_field() -> String {
     "totalBytes".to_owned()
 }
@@ -3393,6 +3649,95 @@ mod tests {
         )
         .unwrap();
         assert_eq!(named_root_facet["result"]["facets"][0]["value"], "/archive");
+        let drive_facet_request = json!({
+            "type":"request",
+            "id":"drive-facet",
+            "method":"duplicate_file_drive_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"value","direction":"ascending"},
+                "filter":{"search":"","minimumSize":"0","acrossDrives":false}
+            }
+        });
+        let drive_facet: Value = serde_json::from_str(
+            &worker
+                .handle_line(&drive_facet_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(drive_facet["result"]["total"], 2);
+        assert_eq!(drive_facet["result"]["facets"][0]["value"], "D:");
+        assert_eq!(drive_facet["result"]["facets"][0]["matchingGroupCount"], 1);
+        let drive_facet_cursor = drive_facet["result"]["nextCursor"].as_str().unwrap();
+        let next_drive_facet_request = json!({
+            "type":"request",
+            "id":"drive-facet-next",
+            "method":"duplicate_file_drive_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"value","direction":"ascending"},
+                "filter":{"search":"","minimumSize":"0","acrossDrives":false},
+                "cursor":drive_facet_cursor
+            }
+        });
+        let next_drive_facet: Value = serde_json::from_str(
+            &worker
+                .handle_line(&next_drive_facet_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(next_drive_facet["result"]["facets"][0]["value"], "E:");
+        assert!(next_drive_facet["result"]["previousCursor"].is_string());
+        let invalid_drive_facet_request = json!({
+            "type":"request",
+            "id":"drive-facet-invalid",
+            "method":"duplicate_file_drive_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"value","direction":"ascending"},
+                "filter":{
+                    "search":"",
+                    "minimumSize":"0",
+                    "acrossDrives":false,
+                    "selectedRoot":"/archive"
+                },
+                "cursor":drive_facet_cursor
+            }
+        });
+        let invalid_drive_facet: Value = serde_json::from_str(
+            &worker
+                .handle_line(&invalid_drive_facet_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(invalid_drive_facet["error"]["code"], "invalid_cursor");
+        let invalid_root_facet_drive_request = json!({
+            "type":"request",
+            "id":"root-facet-drive-invalid",
+            "method":"duplicate_file_selected_root_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"matchingGroupCount","direction":"descending"},
+                "filter":{
+                    "search":"",
+                    "minimumSize":"0",
+                    "acrossDrives":false,
+                    "selectedDrive":"D:"
+                },
+                "cursor":root_facet_cursor
+            }
+        });
+        let invalid_root_facet_drive: Value = serde_json::from_str(
+            &worker
+                .handle_line(&invalid_root_facet_drive_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(invalid_root_facet_drive["error"]["code"], "invalid_cursor");
         let cursor = first["result"]["nextCursor"].as_str().unwrap();
         let second_request = json!({
             "type":"request",
@@ -3454,6 +3799,32 @@ mod tests {
         assert_eq!(selected_root["result"]["total"], 1);
         assert_eq!(selected_root["result"]["summary"]["matchingGroupCount"], 1);
         assert_eq!(selected_root["result"]["groups"][0]["groupSize"], "200");
+
+        let selected_drive_request = json!({
+            "type":"request",
+            "id":"selected-drive",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "pageSize":25,
+                "sort":{"field":"recoverableBytes","direction":"descending"},
+                "filter":{
+                    "search":"",
+                    "minimumSize":"0",
+                    "acrossDrives":false,
+                    "selectedDrive":"e:"
+                }
+            }
+        });
+        let selected_drive: Value = serde_json::from_str(
+            &worker
+                .handle_line(&selected_drive_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(selected_drive["result"]["total"], 1);
+        assert_eq!(selected_drive["result"]["summary"]["matchingGroupCount"], 1);
+        assert_eq!(selected_drive["result"]["groups"][0]["groupSize"], "200");
 
         let selected_root_cursor_request = json!({
             "type":"request",

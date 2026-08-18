@@ -28,6 +28,8 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
 
     public Func<DuplicateFileSelectedRootFacetQuery, CancellationToken, Task<WorkerDuplicateFileSelectedRootFacetPage>>? RootFacetPageHandler { get; set; }
 
+    public Func<DuplicateFileDriveFacetQuery, CancellationToken, Task<WorkerDuplicateFileDriveFacetPage>>? DriveFacetPageHandler { get; set; }
+
     public Func<DuplicateFileMemberQuery, CancellationToken, Task<WorkerDuplicateFileMemberPage>>? MemberPageHandler { get; set; }
 
     public Func<DuplicateFolderGroupQuery, CancellationToken, Task<WorkerDuplicateFolderGroupPage>>? FolderGroupPageHandler { get; set; }
@@ -195,6 +197,12 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
         CancellationToken cancellationToken = default) =>
         RootFacetPageHandler?.Invoke(query, cancellationToken)
         ?? Task.FromResult(new WorkerDuplicateFileSelectedRootFacetPage([], 0, null, null));
+
+    public Task<WorkerDuplicateFileDriveFacetPage> GetDuplicateFileDriveFacetsAsync(
+        DuplicateFileDriveFacetQuery query,
+        CancellationToken cancellationToken = default) =>
+        DriveFacetPageHandler?.Invoke(query, cancellationToken)
+        ?? Task.FromResult(new WorkerDuplicateFileDriveFacetPage([], 0, null, null));
 
     public Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(
         DuplicateFolderGroupQuery query,

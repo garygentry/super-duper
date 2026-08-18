@@ -166,6 +166,13 @@ public sealed class WorkerClientLifecycleTests
                     DuplicateFileSelectedRootFacetSortField.MatchingGroupCount,
                     WorkerSortDirection.Descending,
                     new DuplicateFileSelectedRootFacetFilter(string.Empty, "0")));
+            var driveFacets = await client.GetDuplicateFileDriveFacetsAsync(
+                new DuplicateFileDriveFacetQuery(
+                    started.Id,
+                    25,
+                    DuplicateFileDriveFacetSortField.MatchingGroupCount,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileDriveFacetFilter(string.Empty, "0")));
             var selectedRootGroups = await client.GetDuplicateFileGroupsAsync(
                 new DuplicateFileGroupQuery(
                     started.Id,
@@ -205,6 +212,8 @@ public sealed class WorkerClientLifecycleTests
             Assert.AreEqual(0, acrossDriveGroups.Total);
             Assert.AreEqual(1, rootFacets.Total);
             Assert.AreEqual(2, rootFacets.Facets.Single().MatchingGroupCount);
+            Assert.AreEqual(1, driveFacets.Total);
+            Assert.AreEqual(2, driveFacets.Facets.Single().MatchingGroupCount);
             Assert.AreEqual(2, selectedRootGroups.Total);
             Assert.AreEqual("completed", durable.Status);
             Assert.AreEqual(session.Id, durable.SessionId);
@@ -233,6 +242,7 @@ public sealed class WorkerClientLifecycleTests
                      {
                          "duplicate_file_group.page",
                          "duplicate_file_selected_root_facet.page",
+                         "duplicate_file_drive_facet.page",
                          "duplicate_file_group.members",
                          "duplicate_folder_group.page",
                          "duplicate_folder_group.members",

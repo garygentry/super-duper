@@ -27,6 +27,30 @@ public sealed class DuplicateFileSelectedRootFacetListItemViewModel
         value == 1 ? singular : plural;
 }
 
+public sealed class DuplicateFileDriveFacetListItemViewModel
+{
+    public DuplicateFileDriveFacetListItemViewModel(
+        WorkerDuplicateFileDriveFacet? facet = null,
+        string? selectedValue = null)
+    {
+        Facet = facet;
+        Value = facet?.Value ?? selectedValue;
+    }
+
+    public WorkerDuplicateFileDriveFacet? Facet { get; }
+
+    public string? Value { get; }
+
+    public string DisplayText => Facet is null
+        ? Value is null
+            ? "All drives"
+            : $"{Value} (selected; outside this page)"
+        : $"{Facet.Value} · {Facet.MatchingGroupCount:N0} {Pluralize(Facet.MatchingGroupCount, "set", "sets")}";
+
+    private static string Pluralize(long value, string singular, string plural) =>
+        value == 1 ? singular : plural;
+}
+
 public sealed class DuplicateFileGroupListItemViewModel(WorkerDuplicateFileGroup group)
 {
     public WorkerDuplicateFileGroup Group { get; } = group;

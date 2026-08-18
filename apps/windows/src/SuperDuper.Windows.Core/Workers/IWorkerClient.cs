@@ -70,6 +70,10 @@ public interface IWorkerClient : IAsyncDisposable
         DuplicateFileSelectedRootFacetQuery query,
         CancellationToken cancellationToken = default);
 
+    Task<WorkerDuplicateFileDriveFacetPage> GetDuplicateFileDriveFacetsAsync(
+        DuplicateFileDriveFacetQuery query,
+        CancellationToken cancellationToken = default);
+
     Task<WorkerDuplicateFileMemberPage> GetDuplicateFileGroupMembersAsync(
         DuplicateFileMemberQuery query,
         CancellationToken cancellationToken = default);

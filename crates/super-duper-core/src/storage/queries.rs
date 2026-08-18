@@ -517,7 +517,7 @@ impl Database {
         query: &DuplicateFileGroupPageQuery,
     ) -> Result<DuplicateFileGroupPage> {
         let (predicates, base_parameters) =
-            duplicate_file_group_predicate(query.run_id, &query.filter, true);
+            duplicate_file_group_predicate(query.run_id, &query.filter, true, true);
         let where_sql = predicates.join(" AND ");
         let across_drive_count_expression = if query.filter.across_drives {
             "COUNT(*)".to_owned()
@@ -676,7 +676,7 @@ impl Database {
         query: &DuplicateFileSelectedRootFacetPageQuery,
     ) -> Result<DuplicateFileSelectedRootFacetPage> {
         let (predicates, base_parameters) =
-            duplicate_file_group_predicate(query.run_id, &query.filter, false);
+            duplicate_file_group_predicate(query.run_id, &query.filter, false, true);
         let where_sql = predicates.join(" AND ");
         let facet_cte = format!(
             "WITH matching_groups AS (
@@ -748,6 +748,89 @@ impl Database {
             facets.reverse();
         }
         Ok(DuplicateFileSelectedRootFacetPage {
+            facets,
+            total,
+            has_more,
+        })
+    }
+
+    pub fn page_duplicate_file_drive_facets(
+        &self,
+        query: &DuplicateFileDriveFacetPageQuery,
+    ) -> Result<DuplicateFileDriveFacetPage> {
+        let (predicates, base_parameters) =
+            duplicate_file_group_predicate(query.run_id, &query.filter, true, false);
+        let where_sql = predicates.join(" AND ");
+        let facet_cte = format!(
+            "WITH matching_groups AS (
+                SELECT dg.id, dg.run_id
+                FROM duplicate_group dg
+                WHERE {where_sql}
+             ), facet_rows AS (
+                SELECT MIN(sf.id) AS cursor_id,
+                       MIN(sf.drive_letter) AS value,
+                       COUNT(DISTINCT matching_groups.id) AS matching_group_count
+                FROM matching_groups
+                JOIN duplicate_group_member dgm ON dgm.group_id = matching_groups.id
+                JOIN scanned_file sf
+                  ON sf.id = dgm.file_id AND sf.run_id = matching_groups.run_id
+                WHERE sf.drive_letter <> ''
+                GROUP BY sf.drive_letter COLLATE NOCASE
+             )"
+        );
+        let total = self.connection().query_row(
+            &format!("{facet_cte} SELECT COUNT(*) FROM facet_rows"),
+            params_from_iter(base_parameters.iter()),
+            |row| row.get(0),
+        )?;
+        let sort_expression = match query.sort_field {
+            DuplicateFileDriveFacetSortField::MatchingGroupCount => "matching_group_count",
+            DuplicateFileDriveFacetSortField::Value => "value COLLATE NOCASE",
+        };
+        let mut page_parameters = base_parameters;
+        let mut cursor_clause = String::new();
+        if let Some(cursor) = &query.cursor {
+            let comparator = cursor_comparator(query.sort_direction, cursor.before);
+            let id_comparator = cursor_comparator(SortDirection::Ascending, cursor.before);
+            cursor_clause = format!(
+                "WHERE ({sort_expression} {comparator} ? OR
+                        ({sort_expression} = ? AND cursor_id {id_comparator} ?))"
+            );
+            push_cursor_parameters(
+                &mut page_parameters,
+                cursor,
+                query.sort_field == DuplicateFileDriveFacetSortField::Value,
+            )?;
+        }
+        page_parameters.push(SqlValue::Integer(query.limit + 1));
+        let before = query.cursor.as_ref().is_some_and(|cursor| cursor.before);
+        let order = effective_order(query.sort_direction, before);
+        let id_order = effective_order(SortDirection::Ascending, before);
+        let sql = format!(
+            "{facet_cte}
+             SELECT cursor_id, value, matching_group_count
+             FROM facet_rows
+             {cursor_clause}
+             ORDER BY {sort_expression} {order}, cursor_id {id_order}
+             LIMIT ?"
+        );
+        let mut statement = self.connection().prepare(&sql)?;
+        let mapped = statement.query_map(params_from_iter(page_parameters.iter()), |row| {
+            Ok(DuplicateFileDriveFacetResult {
+                cursor_id: row.get(0)?,
+                value: row.get(1)?,
+                matching_group_count: row.get(2)?,
+            })
+        })?;
+        let mut facets = mapped.collect::<Result<Vec<_>>>()?;
+        let has_more = facets.len() > query.limit as usize;
+        if has_more {
+            facets.pop();
+        }
+        if before {
+            facets.reverse();
+        }
+        Ok(DuplicateFileDriveFacetPage {
             facets,
             total,
             has_more,
@@ -1483,6 +1566,7 @@ fn duplicate_file_group_predicate(
     run_id: i64,
     filter: &DuplicateFileGroupFilter,
     include_selected_root: bool,
+    include_selected_drive: bool,
 ) -> (Vec<String>, Vec<SqlValue>) {
     let mut predicates = vec![
         "dg.run_id = ?".to_owned(),
@@ -1539,6 +1623,26 @@ fn duplicate_file_group_predicate(
                 .to_owned(),
             );
             parameters.push(SqlValue::Text(selected_root.to_owned()));
+        }
+    }
+    if include_selected_drive {
+        if let Some(selected_drive) = filter
+            .selected_drive
+            .as_deref()
+            .filter(|value| !value.is_empty())
+        {
+            predicates.push(
+                "EXISTS (
+                    SELECT 1 FROM duplicate_group_member filter_selected_drive_member
+                    JOIN scanned_file filter_selected_drive_file
+                      ON filter_selected_drive_file.id = filter_selected_drive_member.file_id
+                    WHERE filter_selected_drive_member.group_id = dg.id
+                      AND filter_selected_drive_file.run_id = dg.run_id
+                      AND filter_selected_drive_file.drive_letter = ? COLLATE NOCASE
+                )"
+                .to_owned(),
+            );
+            parameters.push(SqlValue::Text(selected_drive.to_owned()));
         }
     }
     (predicates, parameters)

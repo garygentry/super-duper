@@ -10,6 +10,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 {
     public const int PageSize = 200;
     public const int RootFacetPageSize = 25;
+    public const int DriveFacetPageSize = 25;
     public const int CacheCapacity = 5;
 
     private readonly IWorkerClient _workerClient;
@@ -18,23 +19,29 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private readonly BoundedCursorCache<WorkerDuplicateFileGroupPage> _groupCache = new(CacheCapacity);
     private readonly BoundedCursorCache<WorkerDuplicateFileMemberPage> _memberCache = new(CacheCapacity);
     private readonly BoundedCursorCache<WorkerDuplicateFileSelectedRootFacetPage> _rootFacetCache = new(CacheCapacity);
+    private readonly BoundedCursorCache<WorkerDuplicateFileDriveFacetPage> _driveFacetCache = new(CacheCapacity);
     private CancellationTokenSource? _groupCancellation;
     private CancellationTokenSource? _memberCancellation;
     private CancellationTokenSource? _rootFacetCancellation;
+    private CancellationTokenSource? _driveFacetCancellation;
     private WorkerRun? _run;
     private IReadOnlyList<DuplicateFileGroupListItemViewModel> _groups = [];
     private IReadOnlyList<DuplicateFileMemberListItemViewModel> _members = [];
     private IReadOnlyList<DuplicateFileSelectedRootFacetListItemViewModel> _selectedRootFacetOptions =
         [new()];
+    private IReadOnlyList<DuplicateFileDriveFacetListItemViewModel> _driveFacetOptions = [new()];
     private DuplicateFileGroupListItemViewModel? _selectedGroup;
     private DuplicateFileSelectedRootFacetListItemViewModel? _selectedRootFacet;
+    private DuplicateFileDriveFacetListItemViewModel? _selectedDriveFacet;
     private WorkerDuplicateFileGroupPage? _currentGroupPage;
     private WorkerDuplicateFileMemberPage? _currentMemberPage;
     private WorkerDuplicateFileSelectedRootFacetPage? _currentRootFacetPage;
+    private WorkerDuplicateFileDriveFacetPage? _currentDriveFacetPage;
     private WorkerDuplicateFileReviewSummary _summary = new(0, 0, "0", "0");
     private long _groupGeneration;
     private long _memberGeneration;
     private long _rootFacetGeneration;
+    private long _driveFacetGeneration;
     private string _searchText = string.Empty;
     private string _minimumSizeText = string.Empty;
     private bool _acrossDrives;
@@ -44,15 +51,21 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private bool _isLoading;
     private bool _isDetailLoading;
     private bool _isRootFacetLoading;
+    private bool _isDriveFacetLoading;
     private DuplicateFileGroupSortField _sortField = DuplicateFileGroupSortField.RecoverableBytes;
     private WorkerSortDirection _sortDirection = WorkerSortDirection.Descending;
     private DuplicateFileSelectedRootFacetSortField _rootFacetSortField =
         DuplicateFileSelectedRootFacetSortField.MatchingGroupCount;
     private WorkerSortDirection _rootFacetSortDirection = WorkerSortDirection.Descending;
+    private DuplicateFileDriveFacetSortField _driveFacetSortField =
+        DuplicateFileDriveFacetSortField.MatchingGroupCount;
+    private WorkerSortDirection _driveFacetSortDirection = WorkerSortDirection.Descending;
     private long _totalGroups;
     private long _totalMembers;
     private long _totalRootFacets;
+    private long _totalDriveFacets;
     private string? _rootFacetErrorMessage;
+    private string? _driveFacetErrorMessage;
     private bool _disposed;
 
     public DuplicateFilesViewModel(
@@ -76,6 +89,16 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         SortRootFacetsByNameCommand = new AsyncRelayCommand(
             () => ApplyRootFacetSortAsync(
                 DuplicateFileSelectedRootFacetSortField.Value,
+                WorkerSortDirection.Ascending));
+        NextDriveFacetPageCommand = new AsyncRelayCommand(NextDriveFacetPageAsync, () => CanMoveDriveFacetsNext);
+        PreviousDriveFacetPageCommand = new AsyncRelayCommand(PreviousDriveFacetPageAsync, () => CanMoveDriveFacetsPrevious);
+        SortDriveFacetsByCountCommand = new AsyncRelayCommand(
+            () => ApplyDriveFacetSortAsync(
+                DuplicateFileDriveFacetSortField.MatchingGroupCount,
+                WorkerSortDirection.Descending));
+        SortDriveFacetsByNameCommand = new AsyncRelayCommand(
+            () => ApplyDriveFacetSortAsync(
+                DuplicateFileDriveFacetSortField.Value,
                 WorkerSortDirection.Ascending));
         NextMemberPageCommand = new AsyncRelayCommand(NextMemberPageAsync, () => CanMoveMembersNext);
         PreviousMemberPageCommand = new AsyncRelayCommand(PreviousMemberPageAsync, () => CanMoveMembersPrevious);
@@ -122,6 +145,24 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _selectedRootFacet, value))
             {
                 OnPropertyChanged(nameof(SelectedRootFilterText));
+            }
+        }
+    }
+
+    public IReadOnlyList<DuplicateFileDriveFacetListItemViewModel> DriveFacetOptions
+    {
+        get => _driveFacetOptions;
+        private set => SetProperty(ref _driveFacetOptions, value);
+    }
+
+    public DuplicateFileDriveFacetListItemViewModel? SelectedDriveFacet
+    {
+        get => _selectedDriveFacet;
+        set
+        {
+            if (SetProperty(ref _selectedDriveFacet, value))
+            {
+                OnPropertyChanged(nameof(SelectedDriveFilterText));
             }
         }
     }
@@ -225,6 +266,18 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         }
     }
 
+    public bool IsDriveFacetLoading
+    {
+        get => _isDriveFacetLoading;
+        private set
+        {
+            if (SetProperty(ref _isDriveFacetLoading, value))
+            {
+                RaiseDriveFacetPagingProperties();
+            }
+        }
+    }
+
     public long TotalGroups
     {
         get => _totalGroups;
@@ -263,6 +316,18 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         }
     }
 
+    public long TotalDriveFacets
+    {
+        get => _totalDriveFacets;
+        private set
+        {
+            if (SetProperty(ref _totalDriveFacets, value))
+            {
+                OnPropertyChanged(nameof(DriveFacetCountText));
+            }
+        }
+    }
+
     public string? RootFacetErrorMessage
     {
         get => _rootFacetErrorMessage;
@@ -271,6 +336,18 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _rootFacetErrorMessage, value))
             {
                 OnPropertyChanged(nameof(HasRootFacetError));
+            }
+        }
+    }
+
+    public string? DriveFacetErrorMessage
+    {
+        get => _driveFacetErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _driveFacetErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasDriveFacetError));
             }
         }
     }
@@ -303,9 +380,17 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         ? "1 selected root"
         : $"{TotalRootFacets:N0} selected roots";
 
+    public string DriveFacetCountText => TotalDriveFacets == 1
+        ? "1 drive"
+        : $"{TotalDriveFacets:N0} drives";
+
     public string SelectedRootFilterText => SelectedRootFacet?.Value is { } value
         ? $"Filtering sets represented under {value}"
         : "All selected roots";
+
+    public string SelectedDriveFilterText => SelectedDriveFacet?.Value is { } value
+        ? $"Filtering sets represented on {value}"
+        : "All drives";
 
     public string MatchingSetCountText => $"{Summary.MatchingGroupCount:N0}";
 
@@ -347,6 +432,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 
     public bool HasRootFacetError => !string.IsNullOrWhiteSpace(RootFacetErrorMessage);
 
+    public bool HasDriveFacetError => !string.IsNullOrWhiteSpace(DriveFacetErrorMessage);
+
     public bool IsUnavailable => Run is null || Run.Status != "completed";
 
     public bool IsEmpty => Run?.Status == "completed" && !IsLoading && !HasError && TotalGroups == 0;
@@ -371,11 +458,17 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 
     public bool CanMoveRootFacetsPrevious => !IsRootFacetLoading && _currentRootFacetPage?.PreviousCursor is not null;
 
+    public bool CanMoveDriveFacetsNext => !IsDriveFacetLoading && _currentDriveFacetPage?.NextCursor is not null;
+
+    public bool CanMoveDriveFacetsPrevious => !IsDriveFacetLoading && _currentDriveFacetPage?.PreviousCursor is not null;
+
     public int CachedGroupPageCount => _groupCache.Count;
 
     public int CachedMemberPageCount => _memberCache.Count;
 
     public int CachedRootFacetPageCount => _rootFacetCache.Count;
+
+    public int CachedDriveFacetPageCount => _driveFacetCache.Count;
 
     public IAsyncRelayCommand ApplyFiltersCommand { get; }
 
@@ -393,6 +486,14 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 
     public IAsyncRelayCommand SortRootFacetsByNameCommand { get; }
 
+    public IAsyncRelayCommand NextDriveFacetPageCommand { get; }
+
+    public IAsyncRelayCommand PreviousDriveFacetPageCommand { get; }
+
+    public IAsyncRelayCommand SortDriveFacetsByCountCommand { get; }
+
+    public IAsyncRelayCommand SortDriveFacetsByNameCommand { get; }
+
     public IAsyncRelayCommand NextMemberPageCommand { get; }
 
     public IAsyncRelayCommand PreviousMemberPageCommand { get; }
@@ -407,24 +508,31 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         CancelGroupQuery();
         CancelMemberQuery();
         CancelRootFacetQuery();
+        CancelDriveFacetQuery();
         _groupCache.Clear();
         _memberCache.Clear();
         _rootFacetCache.Clear();
+        _driveFacetCache.Clear();
         _currentGroupPage = null;
         _currentMemberPage = null;
         _currentRootFacetPage = null;
+        _currentDriveFacetPage = null;
         Groups = [];
         Members = [];
         SelectedRootFacetOptions = [new()];
         SelectedRootFacet = SelectedRootFacetOptions[0];
+        DriveFacetOptions = [new()];
+        SelectedDriveFacet = DriveFacetOptions[0];
         SelectedGroup = null;
         TotalGroups = 0;
         TotalMembers = 0;
         TotalRootFacets = 0;
+        TotalDriveFacets = 0;
         Summary = new WorkerDuplicateFileReviewSummary(0, 0, "0", "0");
         ErrorMessage = null;
         DetailErrorMessage = null;
         RootFacetErrorMessage = null;
+        DriveFacetErrorMessage = null;
         OnPropertyChanged(nameof(IsUnavailable));
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(HasGroups));
@@ -483,6 +591,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         CancelGroupQuery();
         CancelMemberQuery();
         CancelRootFacetQuery();
+        CancelDriveFacetQuery();
     }
 
     private async Task ApplyFiltersAsync()
@@ -500,6 +609,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         AcrossDrives = false;
         SelectedRootFacet = SelectedRootFacetOptions.FirstOrDefault(option => option.Value is null)
             ?? new DuplicateFileSelectedRootFacetListItemViewModel();
+        SelectedDriveFacet = DriveFacetOptions.FirstOrDefault(option => option.Value is null)
+            ?? new DuplicateFileDriveFacetListItemViewModel();
         if (Run?.Status == "completed")
         {
             await ResetAndLoadGroupsAsync();
@@ -517,15 +628,18 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         CancelGroupQuery();
         CancelMemberQuery();
         CancelRootFacetQuery();
+        CancelDriveFacetQuery();
         _groupCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var generation = ++_groupGeneration;
         IsLoading = true;
         _groupCache.Clear();
         _memberCache.Clear();
         _rootFacetCache.Clear();
+        _driveFacetCache.Clear();
         _currentGroupPage = null;
         _currentMemberPage = null;
         _currentRootFacetPage = null;
+        _currentDriveFacetPage = null;
         if (!preserveDisplayedResults)
         {
             Groups = [];
@@ -538,10 +652,13 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         ErrorMessage = null;
         DetailErrorMessage = null;
         RootFacetErrorMessage = null;
+        DriveFacetErrorMessage = null;
         await LoadGroupPageAsync(null, filter, generation, _groupCancellation.Token, display: true);
         if (generation == _groupGeneration && !cancellationToken.IsCancellationRequested)
         {
-            await ResetAndLoadRootFacetsAsync(filter, cancellationToken);
+            await Task.WhenAll(
+                ResetAndLoadRootFacetsAsync(filter, cancellationToken),
+                ResetAndLoadDriveFacetsAsync(filter, cancellationToken));
         }
     }
 
@@ -708,7 +825,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         var filter = new DuplicateFileSelectedRootFacetFilter(
             groupFilter.Search,
             groupFilter.MinimumSize,
-            groupFilter.AcrossDrives);
+            groupFilter.AcrossDrives,
+            groupFilter.SelectedDrive);
         await LoadRootFacetPageAsync(
             null,
             filter,
@@ -873,7 +991,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             var filter = new DuplicateFileSelectedRootFacetFilter(
                 groupFilter.Search,
                 groupFilter.MinimumSize,
-                groupFilter.AcrossDrives);
+                groupFilter.AcrossDrives,
+                groupFilter.SelectedDrive);
             await LoadRootFacetPageAsync(
                 cursor,
                 filter,
@@ -892,12 +1011,238 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             var filter = new DuplicateFileSelectedRootFacetFilter(
                 groupFilter.Search,
                 groupFilter.MinimumSize,
-                groupFilter.AcrossDrives);
+                groupFilter.AcrossDrives,
+                groupFilter.SelectedDrive);
             await LoadRootFacetPageAsync(
                 cursor,
                 filter,
                 _rootFacetGeneration,
                 _rootFacetCancellation.Token,
+                display: true);
+        }
+    }
+
+    private async Task ApplyDriveFacetSortAsync(
+        DuplicateFileDriveFacetSortField field,
+        WorkerSortDirection direction)
+    {
+        if ((_driveFacetSortField == field && _driveFacetSortDirection == direction)
+            || !TryBuildFilter(out var filter)
+            || Run?.Status != "completed")
+        {
+            return;
+        }
+        _driveFacetSortField = field;
+        _driveFacetSortDirection = direction;
+        await ResetAndLoadDriveFacetsAsync(filter);
+    }
+
+    private async Task ResetAndLoadDriveFacetsAsync(
+        DuplicateFileGroupFilter groupFilter,
+        CancellationToken cancellationToken = default)
+    {
+        CancelDriveFacetQuery();
+        _driveFacetCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var generation = ++_driveFacetGeneration;
+        _driveFacetCache.Clear();
+        _currentDriveFacetPage = null;
+        DriveFacetErrorMessage = null;
+        IsDriveFacetLoading = true;
+        var filter = new DuplicateFileDriveFacetFilter(
+            groupFilter.Search,
+            groupFilter.MinimumSize,
+            groupFilter.AcrossDrives,
+            groupFilter.SelectedRoot);
+        await LoadDriveFacetPageAsync(
+            null,
+            filter,
+            generation,
+            _driveFacetCancellation.Token,
+            display: true);
+    }
+
+    private async Task LoadDriveFacetPageAsync(
+        string? cursor,
+        DuplicateFileDriveFacetFilter filter,
+        long generation,
+        CancellationToken cancellationToken,
+        bool display)
+    {
+        if (_driveFacetCache.TryGet(cursor, out var cached))
+        {
+            if (display && generation == _driveFacetGeneration)
+            {
+                DisplayDriveFacetPage(cached);
+                _ = PrefetchDriveFacetNeighborsAsync(cached, filter, generation, cancellationToken);
+            }
+            return;
+        }
+        if (Run is not { Status: "completed" } run)
+        {
+            return;
+        }
+        if (display)
+        {
+            IsDriveFacetLoading = true;
+            DriveFacetErrorMessage = null;
+        }
+        try
+        {
+            var page = await _workerClient.GetDuplicateFileDriveFacetsAsync(
+                new DuplicateFileDriveFacetQuery(
+                    run.Id,
+                    DriveFacetPageSize,
+                    _driveFacetSortField,
+                    _driveFacetSortDirection,
+                    filter,
+                    cursor),
+                cancellationToken);
+            if (generation != _driveFacetGeneration || cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            _driveFacetCache.Set(cursor, page);
+            if (display)
+            {
+                DisplayDriveFacetPage(page);
+                _ = PrefetchDriveFacetNeighborsAsync(page, filter, generation, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (display && generation == _driveFacetGeneration)
+            {
+                DriveFacetErrorMessage = exception.Message;
+            }
+        }
+        finally
+        {
+            if (display && generation == _driveFacetGeneration)
+            {
+                IsDriveFacetLoading = false;
+            }
+        }
+    }
+
+    private void DisplayDriveFacetPage(WorkerDuplicateFileDriveFacetPage page)
+    {
+        _currentDriveFacetPage = page;
+        TotalDriveFacets = page.Total;
+        var selectedValue = SelectedDriveFacet?.Value;
+        var options = new List<DuplicateFileDriveFacetListItemViewModel>
+        {
+            new(),
+        };
+        options.AddRange(page.Facets.Select(facet => new DuplicateFileDriveFacetListItemViewModel(facet)));
+        if (selectedValue is not null
+            && options.All(option => !string.Equals(
+                option.Value,
+                selectedValue,
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            options.Add(new DuplicateFileDriveFacetListItemViewModel(selectedValue: selectedValue));
+        }
+        DriveFacetOptions = options;
+        SelectedDriveFacet = options.First(option => string.Equals(
+            option.Value,
+            selectedValue,
+            StringComparison.OrdinalIgnoreCase));
+        RaiseDriveFacetPagingProperties();
+    }
+
+    private async Task PrefetchDriveFacetNeighborsAsync(
+        WorkerDuplicateFileDriveFacetPage page,
+        DuplicateFileDriveFacetFilter filter,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        await PrefetchDriveFacetDirectionAsync(
+            page.PreviousCursor,
+            false,
+            2,
+            filter,
+            generation,
+            cancellationToken);
+        await PrefetchDriveFacetDirectionAsync(
+            page.NextCursor,
+            true,
+            2,
+            filter,
+            generation,
+            cancellationToken);
+    }
+
+    private async Task PrefetchDriveFacetDirectionAsync(
+        string? cursor,
+        bool forward,
+        int remaining,
+        DuplicateFileDriveFacetFilter filter,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        if (cursor is null
+            || remaining == 0
+            || generation != _driveFacetGeneration
+            || cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        if (!_driveFacetCache.TryGet(cursor, out var page))
+        {
+            await LoadDriveFacetPageAsync(cursor, filter, generation, cancellationToken, display: false);
+            if (!_driveFacetCache.TryGet(cursor, out page))
+            {
+                return;
+            }
+        }
+        await PrefetchDriveFacetDirectionAsync(
+            forward ? page.NextCursor : page.PreviousCursor,
+            forward,
+            remaining - 1,
+            filter,
+            generation,
+            cancellationToken);
+    }
+
+    private async Task NextDriveFacetPageAsync()
+    {
+        if (_currentDriveFacetPage?.NextCursor is { } cursor
+            && TryBuildFilter(out var groupFilter)
+            && _driveFacetCancellation is not null)
+        {
+            var filter = new DuplicateFileDriveFacetFilter(
+                groupFilter.Search,
+                groupFilter.MinimumSize,
+                groupFilter.AcrossDrives,
+                groupFilter.SelectedRoot);
+            await LoadDriveFacetPageAsync(
+                cursor,
+                filter,
+                _driveFacetGeneration,
+                _driveFacetCancellation.Token,
+                display: true);
+        }
+    }
+
+    private async Task PreviousDriveFacetPageAsync()
+    {
+        if (_currentDriveFacetPage?.PreviousCursor is { } cursor
+            && TryBuildFilter(out var groupFilter)
+            && _driveFacetCancellation is not null)
+        {
+            var filter = new DuplicateFileDriveFacetFilter(
+                groupFilter.Search,
+                groupFilter.MinimumSize,
+                groupFilter.AcrossDrives,
+                groupFilter.SelectedRoot);
+            await LoadDriveFacetPageAsync(
+                cursor,
+                filter,
+                _driveFacetGeneration,
+                _driveFacetCancellation.Token,
                 display: true);
         }
     }
@@ -1083,7 +1428,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             search,
             value.ToString(CultureInfo.InvariantCulture),
             AcrossDrives,
-            SelectedRootFacet?.Value);
+            SelectedRootFacet?.Value,
+            SelectedDriveFacet?.Value);
         return true;
     }
 
@@ -1145,6 +1491,14 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         _rootFacetGeneration++;
     }
 
+    private void CancelDriveFacetQuery()
+    {
+        _driveFacetCancellation?.Cancel();
+        _driveFacetCancellation?.Dispose();
+        _driveFacetCancellation = null;
+        _driveFacetGeneration++;
+    }
+
     private void RaisePagingProperties()
     {
         OnPropertyChanged(nameof(CanMoveNext));
@@ -1167,5 +1521,13 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanMoveRootFacetsPrevious));
         NextRootFacetPageCommand.NotifyCanExecuteChanged();
         PreviousRootFacetPageCommand.NotifyCanExecuteChanged();
+    }
+
+    private void RaiseDriveFacetPagingProperties()
+    {
+        OnPropertyChanged(nameof(CanMoveDriveFacetsNext));
+        OnPropertyChanged(nameof(CanMoveDriveFacetsPrevious));
+        NextDriveFacetPageCommand.NotifyCanExecuteChanged();
+        PreviousDriveFacetPageCommand.NotifyCanExecuteChanged();
     }
 }

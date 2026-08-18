@@ -3,7 +3,7 @@
 ## Status
 
 Active implementation roadmap for the Windows duplicate-review experience. Milestone 6
-release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first five
+release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first six
 read-only Milestone 8 slices are implemented and accepted; the broader milestone remains in
 progress and is gated by the remaining criteria below.
 
@@ -304,11 +304,11 @@ Files library. The user can see what was excluded and can deliberately opt into 
 
 ### Milestone 8 - Duplicate Review Workspace
 
-Status: The first five read-only file-review slices are accepted. They add a worker-owned summary
+Status: The first six read-only file-review slices are accepted. They add a worker-owned summary
 for the current duplicate-file query, immutable member location context, bounded per-set
 selected-root/drive span, a worker-owned across-drives entry point, and aggregate location coverage
-plus a bounded selected-root facet and exact-root filter without introducing review decisions,
-live filesystem state, or deletion behavior. Full Milestone 8 remains in progress.
+plus bounded selected-root and drive facets with exact filters without introducing review
+decisions, live filesystem state, or deletion behavior. Full Milestone 8 remains in progress.
 
 #### Refined first vertical slice (2026-08-17)
 
@@ -640,6 +640,68 @@ unbounded. Drive facets and other richer filters remain later slices.
   next/previous-set keyboard focus restoration, the complete accessibility review, and
   representative-hardware warm-query/bounded-memory profiling. Durable decisions remain Milestone
   10 and deletion remains Milestone 11.
+
+#### Paged drive facet slice (2026-08-17)
+
+##### Audit and scope decision
+
+Drive labels are naturally lower-cardinality than selected roots and will usually fit on one page,
+while a copy-count threshold would reuse the existing group channel with less implementation. The
+drive facet is nevertheless the more valuable next result-understanding entry point: it completes
+the accepted location workflow from aggregate drive coverage to a specific drive's sets, composes
+with the selected-root facet, and closes the remaining location-facet gate. It remains keyset-paged
+and bounded so mapped, removable, UNC, migrated, and future label sets do not become an implicit
+client-side cardinality assumption.
+
+##### Implemented contract and UX
+
+- `duplicate_file_drive_facet.page` returns distinct non-empty, case-insensitive immutable drive
+  labels with matching-set counts. It applies search, minimum size, across-drives, and the current
+  exact selected-root predicate while intentionally ignoring the current drive selection so users
+  can switch drives. Count/name sorts and forward/backward pages remain worker-owned.
+- `duplicate_file_group.page.filter.selectedDrive` adds an exact case-insensitive drive predicate
+  to rows, total, summary, and the group cursor signature. The selected-root facet applies that
+  drive predicate; the drive facet applies the selected-root predicate. Each facet ignores only
+  itself so their alternatives remain useful together.
+- The drive cursor uses the separate `duplicate-file-drive-facets` kind and an explicit signature
+  containing run, sort/direction, normalized search, minimum size, across-drives, and selected root.
+  Core uses a separate five-page LRU cache, cancellation source, query generation, prefetch path,
+  error state, and stale-response guard. WPF binds only the current 25-value page.
+- WPF adds an accessible drive ComboBox with explicit item-container names, count/name sorts,
+  previous/next drive paging, and persistent active-filter text. It shares the existing Apply/Clear
+  behavior without materializing group/member pages or deriving counts on the client.
+- Schema v4 is unchanged. All values and counts come from run-owned SQLite rows. The slice adds no
+  filesystem or Cloud Files access, preview, thumbnails, validation, durable decisions, deletion,
+  `scanned_file.marked_deleted` use, or unbounded WPF collection.
+
+##### Acceptance result
+
+- Focused Debug storage and worker protocol tests passed exact-drive filtering, cross-facet
+  composition, case-insensitive/non-empty labels, count/name sorting, forward/backward keyset
+  paging, and cursor rejection across root/drive signatures. Seven focused Core duplicate-file
+  tests passed, including the independent drive-generation stale-response regression and five-page
+  cache bound. The real typed-client lifecycle tests and targeted STA WPF surface test passed. The
+  first typed-client attempt correctly exposed that `cargo check` had left the old worker executable
+  in place; after the actual Debug worker build, the focused and full typed-client runs passed.
+- The expanded 100,000-group ordinary/across-drives/root/drive facet and exact-filter regression
+  completed in 2.15 seconds Debug and 1.59 seconds optimized Release, within the five-second
+  regression gates. Representative-hardware warm-query and explicit bounded-memory profiling
+  remain full-milestone gates.
+- `cargo test --workspace` and `cargo test --workspace --release` passed, including 15 storage and
+  9 worker tests in each configuration. Debug and Release worker builds passed.
+- Debug and Release solution builds passed with zero warnings and zero errors under installed SDK
+  10.0.400 from `C:\Windows\Temp` with absolute solution paths; the unavailable pinned 10.0.303
+  SDK and `global.json` were unchanged. Serialized tests passed 39 Core, 22 Infrastructure, and 3
+  WPF tests in each configuration; the one real-provider Infrastructure test remained
+  intentionally environment-gated.
+- Real Debug and Release `Invoke-WindowsSmoke.ps1 -SkipBuild` runs passed worker-owned drive values,
+  counts, sorting, selected-root composition and exact-drive filtering; accessible keyboard drive
+  selection; existing root/across-drives/summary/location/paging/sorting/Explorer workflows; Cloud
+  setup/fail-closed behavior; and deterministic shutdown.
+- Remaining Milestone 8 gates are richer worker-owned filters, next/previous-set keyboard focus
+  restoration, the complete accessibility review, and representative-hardware warm-query/
+  bounded-memory profiling. Durable decisions remain Milestone 10 and deletion remains Milestone
+  11.
 
 #### User outcome
 
@@ -1083,3 +1145,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-17 | Refined and accepted the worker-owned Milestone 8 across-drives filter after focused/optimized coverage, the Debug/Release Rust and .NET matrix, and real Debug/Release WPF smoke passed. | Add the smallest bounded location-based entry point through the existing group predicate, cursor, summary, cache, cancellation, and query generation while leaving facets, aggregate location summaries, decisions, validation, and deletion as later gates. |
 | 2026-08-17 | Refined and accepted the worker-owned Milestone 8 aggregate location summary after focused/optimized coverage, the Debug/Release Rust and .NET matrix, and real Debug/Release WPF smoke passed. | Show selected-root, drive, and cross-drive-set coverage through the existing bounded group summary and stale-response path while leaving paged facets, keyboard focus restoration, complete accessibility review, representative profiling, decisions, validation, and deletion as later gates. |
 | 2026-08-17 | Refined and accepted the worker-owned paged selected-root facet and exact-root filter after focused/optimized coverage, the Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed. | Add the first bounded facet entry point with an explicit cursor signature, five-page Core cache, independent cancellation/generation, stale-response rejection, and keyboard-accessible WPF interaction while leaving the drive facet, richer filters, focus restoration, complete accessibility review, representative profiling, decisions, validation, and deletion as later gates. |
+| 2026-08-17 | Refined and accepted the worker-owned paged drive facet and exact-drive filter after focused/optimized coverage, the Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed. | Complete the bounded location-facet workflow with cross-facet composition, an explicit drive cursor signature, separate five-page Core cache, independent cancellation/generation, stale-response rejection, and keyboard-accessible WPF interaction while leaving richer filters, focus restoration, complete accessibility review, representative profiling, decisions, validation, and deletion as later gates. |
