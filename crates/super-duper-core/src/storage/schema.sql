@@ -157,11 +157,14 @@ CREATE INDEX IF NOT EXISTS idx_file_run_size ON scanned_file(run_id, file_size);
 CREATE INDEX IF NOT EXISTS idx_file_run_hash ON scanned_file(run_id, content_hash) WHERE content_hash IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_file_run_parent ON scanned_file(run_id, parent_dir);
 CREATE INDEX IF NOT EXISTS idx_file_run_path ON scanned_file(run_id, canonical_path);
+CREATE INDEX IF NOT EXISTS idx_file_run_path_unicode_nocase
+    ON scanned_file(run_id, canonical_path COLLATE UNICODE_NOCASE);
 CREATE INDEX IF NOT EXISTS idx_group_run ON duplicate_group(run_id);
 CREATE INDEX IF NOT EXISTS idx_group_run_wasted ON duplicate_group(run_id, wasted_bytes DESC);
 CREATE INDEX IF NOT EXISTS idx_group_run_size ON duplicate_group(run_id, file_size, id);
 CREATE INDEX IF NOT EXISTS idx_group_run_count ON duplicate_group(run_id, file_count, id);
 CREATE INDEX IF NOT EXISTS idx_group_member_group ON duplicate_group_member(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_member_file ON duplicate_group_member(file_id, group_id);
 CREATE INDEX IF NOT EXISTS idx_folder_group_run_bytes ON duplicate_folder_group(run_id, is_suppressed, total_size DESC, id);
 CREATE INDEX IF NOT EXISTS idx_folder_group_run_count ON duplicate_folder_group(run_id, is_suppressed, folder_count, id);
 CREATE INDEX IF NOT EXISTS idx_dir_run_parent ON directory_node(run_id, parent_id);

@@ -232,6 +232,14 @@ function Invoke-WpfAutomation([long]$RunId) {
             throw "UI Automation element $Property=$Value was not found."
         }
 
+        function Get-AutomationCount($Element) {
+            $digits = $Element.Current.Name -replace '[^0-9]', ''
+            if ([string]::IsNullOrEmpty($digits)) {
+                throw "UI Automation element AutomationId=$($Element.Current.AutomationId) did not expose a count in its accessible name."
+            }
+            return [long]::Parse($digits, [Globalization.CultureInfo]::InvariantCulture)
+        }
+
         function Select-Element($Element) {
             $pattern = $Element.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)
             $pattern.Select()
@@ -280,6 +288,36 @@ function Invoke-WpfAutomation([long]$RunId) {
                 Start-Sleep -Milliseconds 250
             }
             throw "UI Automation descendant Name=$Name was not found in $($Container.Current.AutomationId)."
+        }
+
+        function Find-DescendantButtonByNameFragment($Container, [string]$Fragment, [int]$Attempts = 40) {
+            for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+                $buttons = $Container.FindAll(
+                    [Windows.Automation.TreeScope]::Descendants,
+                    [Windows.Automation.PropertyCondition]::new(
+                        [Windows.Automation.AutomationElement]::ControlTypeProperty,
+                        [Windows.Automation.ControlType]::Button))
+                $button = $buttons | Where-Object {
+                    $_.Current.Name.Contains($Fragment, [StringComparison]::OrdinalIgnoreCase)
+                } | Select-Object -First 1
+                if ($null -ne $button) { return $button }
+                Start-Sleep -Milliseconds 250
+            }
+            throw "UI Automation Button containing Name=$Fragment was not found in $($Container.Current.AutomationId)."
+        }
+
+        function Find-DescendantByHelpTextPrefix($Container, [string]$Prefix, [int]$Attempts = 40) {
+            for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+                $matches = $Container.FindAll(
+                    [Windows.Automation.TreeScope]::Descendants,
+                    [Windows.Automation.Condition]::TrueCondition)
+                $match = $matches | Where-Object {
+                    $_.Current.HelpText.StartsWith($Prefix, [StringComparison]::Ordinal)
+                } | Select-Object -First 1
+                if ($null -ne $match) { return $match }
+                Start-Sleep -Milliseconds 250
+            }
+            throw "UI Automation descendant HelpText prefix=$Prefix was not found in $($Container.Current.AutomationId)."
         }
 
         function Assert-NoVisibleDetailError([string]$AutomationId, [int]$Attempts = 20) {
@@ -338,6 +376,9 @@ function Invoke-WpfAutomation([long]$RunId) {
         Assert-True ($threeOrMoreCopies.Current.Name -eq 'Show only duplicate sets with three or more copies') 'Minimum-copy-count filter was not accessible.'
         $acrossDrives = Find-Element AutomationId 'FileAcrossDrives'
         Assert-True ($acrossDrives.Current.Name -eq 'Show only duplicate sets across multiple drives') 'Across-drives filter was not accessible.'
+        $exactPathMatch = Find-Element AutomationId 'FileExactPathMatch'
+        Assert-True ($exactPathMatch.Current.Name -eq 'Match the complete canonical member path') 'Exact-path filter was not accessible.'
+        Assert-True ($exactPathMatch.Current.HelpText.Contains('Unicode case normalization', [StringComparison]::OrdinalIgnoreCase)) 'Exact-path filter did not explain its case normalization.'
         $rootFacet = Find-Element AutomationId 'FileSelectedRootFacet'
         Assert-True ($rootFacet.Current.Name.Contains('Selected root facet', [StringComparison]::OrdinalIgnoreCase)) 'Selected-root facet was not accessible.'
         $driveFacet = Find-Element AutomationId 'FileDriveFacet'
@@ -362,13 +403,14 @@ function Invoke-WpfAutomation([long]$RunId) {
             Select-Object -First 1
         $rootOptionNames = @($rootOptions | ForEach-Object { $_.Current.Name }) -join ' | '
         Assert-True ($null -ne $rootOption) "Selected-root facet did not expose a bounded worker-owned value and count. Visible list items: $rootOptionNames"
+        Assert-True $rootFacet.Current.IsKeyboardFocusable 'Selected-root facet was not keyboard focusable.'
         $rootFacet.SetFocus()
-        [Windows.Forms.SendKeys]::SendWait('{HOME}{DOWN}{ENTER}')
+        [System.Windows.Forms.SendKeys]::SendWait('{HOME}{DOWN}{ENTER}')
         Start-Sleep -Milliseconds 400
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
         $selectedRootFilterText = Find-Element AutomationId 'FileSelectedRootFilterText'
         Assert-True ($selectedRootFilterText.Current.Name.Contains('Filtering sets represented under', [StringComparison]::OrdinalIgnoreCase)) 'Selected-root facet selection did not become active.'
-        Invoke-Element (Find-Element Name 'Clear filters')
+        Invoke-Element (Find-Element AutomationId 'FileClearFilters')
         Invoke-Element (Find-Element AutomationId 'FileDriveFacetNameSort')
         $driveFacet = Find-Element AutomationId 'FileDriveFacet'
         try {
@@ -388,13 +430,14 @@ function Invoke-WpfAutomation([long]$RunId) {
             Select-Object -First 1
         $driveOptionNames = @($driveOptions | ForEach-Object { $_.Current.Name }) -join ' | '
         Assert-True ($null -ne $driveOption) "Drive facet did not expose a bounded worker-owned value and count. Visible list items: $driveOptionNames"
+        Assert-True $driveFacet.Current.IsKeyboardFocusable 'Drive facet was not keyboard focusable.'
         $driveFacet.SetFocus()
-        [Windows.Forms.SendKeys]::SendWait('{HOME}{DOWN}{ENTER}')
+        [System.Windows.Forms.SendKeys]::SendWait('{HOME}{DOWN}{ENTER}')
         Start-Sleep -Milliseconds 400
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
         $selectedDriveFilterText = Find-Element AutomationId 'FileSelectedDriveFilterText'
         Assert-True ($selectedDriveFilterText.Current.Name.Contains('Filtering sets represented on', [StringComparison]::OrdinalIgnoreCase)) 'Drive facet selection did not become active.'
-        Invoke-Element (Find-Element Name 'Clear filters')
+        Invoke-Element (Find-Element AutomationId 'FileClearFilters')
         $oneGigabyteToggle = $oneGigabyteOrLarger.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
         if ($oneGigabyteToggle.Current.ToggleState -ne [Windows.Automation.ToggleState]::Off) {
             $oneGigabyteToggle.Toggle()
@@ -406,14 +449,14 @@ function Invoke-WpfAutomation([long]$RunId) {
             Start-Sleep -Milliseconds 100
         }
         Assert-True ((Find-Element AutomationId 'FileApplyFilters').Current.IsEnabled) 'One-gigabyte size preset did not complete responsively.'
-        Assert-True ([long](Find-Element AutomationId 'FileSummaryMatchingSets').Current.Name -eq 0) 'One-gigabyte size preset did not exclude the small smoke sets.'
+        Assert-True ((Get-AutomationCount (Find-Element AutomationId 'FileSummaryMatchingSets')) -eq 0) 'One-gigabyte size preset did not exclude the small smoke sets.'
         $oneGigabyteToggle.Toggle()
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
             if ((Find-Element AutomationId 'FileApplyFilters' 1).Current.IsEnabled) { break }
             Start-Sleep -Milliseconds 100
         }
-        Assert-True ([long](Find-Element AutomationId 'FileSummaryMatchingSets').Current.Name -gt 0) 'Clearing the one-gigabyte size preset did not restore the smoke sets.'
+        Assert-True ((Get-AutomationCount (Find-Element AutomationId 'FileSummaryMatchingSets')) -gt 0) 'Clearing the one-gigabyte size preset did not restore the smoke sets.'
         $threeOrMoreCopiesToggle = $threeOrMoreCopies.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
         if ($threeOrMoreCopiesToggle.Current.ToggleState -ne [Windows.Automation.ToggleState]::Off) {
             $threeOrMoreCopiesToggle.Toggle()
@@ -426,7 +469,7 @@ function Invoke-WpfAutomation([long]$RunId) {
         }
         Assert-True ((Find-Element AutomationId 'FileApplyFilters').Current.IsEnabled) 'Minimum-copy-count filter did not complete responsively.'
         $minimumCopySummary = Find-Element AutomationId 'FileSummaryMatchingCopies'
-        Assert-True ([long]$minimumCopySummary.Current.Name -ge 3) 'Minimum-copy-count filter did not return a three-copy set.'
+        Assert-True ((Get-AutomationCount $minimumCopySummary) -ge 3) 'Minimum-copy-count filter did not return a three-copy set.'
         $threeOrMoreCopiesToggle.Toggle()
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
@@ -453,7 +496,7 @@ function Invoke-WpfAutomation([long]$RunId) {
         }
         Assert-True ((Find-Element AutomationId 'FileApplyFilters').Current.IsEnabled) 'Clearing the across-drives filter did not complete responsively.'
         Invoke-Element (Find-Element Name 'Group size')
-        Invoke-Element (Find-Element Name 'Next')
+        Invoke-Element (Find-Element AutomationId 'FileNextGroupPage')
         $fileGrid = Find-Element AutomationId 'FileGroupsGrid'
         $fileRow = Find-FirstDataItem $fileGrid
         Select-Element $fileRow
@@ -474,7 +517,8 @@ function Invoke-WpfAutomation([long]$RunId) {
             Start-Sleep -Milliseconds 100
         }
         Assert-True ($selectedSetName.Current.Name -ne $beforeNextSet) 'Next set did not advance the selected duplicate set.'
-        Assert-True (Test-IsAutomationDescendant $fileGrid ([Windows.Automation.AutomationElement]::FocusedElement)) 'Next set did not restore keyboard focus to the selected group row.'
+        $focusedAfterNextSet = [Windows.Automation.AutomationElement]::FocusedElement
+        Assert-True (Test-IsAutomationDescendant $fileGrid $focusedAfterNextSet) "Next set did not restore keyboard focus to the selected group row. Focus remained on Name=$($focusedAfterNextSet.Current.Name) AutomationId=$($focusedAfterNextSet.Current.AutomationId) ControlType=$($focusedAfterNextSet.Current.ControlType.ProgrammaticName)."
         Invoke-Element $previousSet
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
             $selectedSetName = Find-Element AutomationId 'FileSelectedSetName' 1
@@ -491,26 +535,38 @@ function Invoke-WpfAutomation([long]$RunId) {
         $search.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('group010')
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
         $fileMembers = Find-Element AutomationId 'FileMembersGrid'
-        $null = Find-FirstDataItem $fileMembers
+        $memberRow = Find-FirstDataItem $fileMembers
         $summarySets = Find-Element AutomationId 'FileSummaryMatchingSets'
         $summaryRecoverable = Find-Element AutomationId 'FileSummaryRecoverable'
         $locationSummary = Find-Element AutomationId 'FileLocationSummaryText'
         $selectedSetExplanation = Find-Element AutomationId 'FileSelectedSetExplanation'
         $selectedSetLocations = Find-Element AutomationId 'FileSelectedSetLocations'
-        Assert-True ([long]$summarySets.Current.Name -ge 1) 'Filtered review summary did not expose matching sets.'
+        Assert-True ((Get-AutomationCount $summarySets) -ge 1) 'Filtered review summary did not expose matching sets.'
         Assert-True (-not [string]::IsNullOrWhiteSpace($summaryRecoverable.Current.Name)) 'Filtered review summary did not expose recoverable bytes.'
         Assert-True ($locationSummary.Current.Name.Contains('selected root', [StringComparison]::OrdinalIgnoreCase)) 'Filtered location summary did not expose selected-root coverage.'
         Assert-True ($locationSummary.Current.Name.Contains('drive', [StringComparison]::OrdinalIgnoreCase)) 'Filtered location summary did not expose drive coverage.'
         Assert-True ($selectedSetExplanation.Current.Name.Contains('not identify an original', [StringComparison]::OrdinalIgnoreCase)) 'Selected-set explanation was not accessible.'
         Assert-True ($selectedSetLocations.Current.Name.Contains('selected root', [StringComparison]::OrdinalIgnoreCase)) 'Selected-set location span was not accessible.'
-        Invoke-Element (Find-DescendantByName $fileMembers 'Show in Explorer')
+        Invoke-Element (Find-DescendantButtonByNameFragment $fileMembers 'in Explorer')
         Assert-NoVisibleDetailError 'FileDetailError'
+
+        $pathCell = Find-DescendantByHelpTextPrefix $memberRow 'Complete path: '
+        $exactPath = $pathCell.Current.HelpText.Substring('Complete path: '.Length)
+        $exactPathToggle = $exactPathMatch.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
+        if ($exactPathToggle.Current.ToggleState -ne [Windows.Automation.ToggleState]::Off) {
+            $exactPathToggle.Toggle()
+        }
+        $exactPathToggle.Toggle()
+        $search.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue($exactPath)
+        Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
+        Assert-True ((Get-AutomationCount (Find-Element AutomationId 'FileSummaryMatchingSets')) -eq 1) 'Exact member-path filtering did not isolate one duplicate set.'
+        $exactPathToggle.Toggle()
 
         $search.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('long-a.txt')
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
         $fileMembers = Find-Element AutomationId 'FileMembersGrid'
         $null = Find-FirstDataItem $fileMembers
-        Invoke-Element (Find-DescendantByName $fileMembers 'Show in Explorer')
+        Invoke-Element (Find-DescendantButtonByNameFragment $fileMembers 'in Explorer')
         Assert-NoVisibleDetailError 'FileDetailError'
 
         Select-Element (Find-Element AutomationId 'DuplicateFoldersTab')
@@ -525,7 +581,7 @@ function Invoke-WpfAutomation([long]$RunId) {
         $null = Find-FirstDataItem $folderMembers
         Invoke-Element (Find-DescendantByName $folderMembers 'Show in Explorer')
         Assert-NoVisibleDetailError 'FolderDetailError'
-        Write-Output "WPF automation passed for restored run $RunId, including the 1 GB-or-larger and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
+        Write-Output "WPF automation passed for restored run $RunId, including exact member-path, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
     }
     finally {
         try {
@@ -915,6 +971,26 @@ try {
     Assert-True ($fileMembers.total -ge 2) 'Duplicate-file member browsing did not return the copies.'
     Assert-True (($fileMembers.members | Where-Object { -not [string]::IsNullOrWhiteSpace($_.rootPath) }).Count -eq $fileMembers.members.Count) 'Duplicate-file members did not include selected-root context.'
     Assert-True (($fileMembers.members | Where-Object { -not [string]::IsNullOrWhiteSpace($_.relativePath) }).Count -eq $fileMembers.members.Count) 'Duplicate-file members did not include relative-path context.'
+    $exactMemberPath = $fileMembers.members[0].path.ToUpperInvariant()
+    $exactPathFiles = Send-WorkerRequest $restored 'duplicate_file_group.page' @{
+        runId = $run.id; pageSize = 25
+        sort = @{ field = 'recoverableBytes'; direction = 'descending' }
+        filter = @{ search = $exactMemberPath; pathMatch = 'exact'; minimumSize = '0' }; cursor = $null
+    }
+    Assert-True ($exactPathFiles.total -eq 1) 'Exact member-path filter did not isolate one smoke set.'
+    Assert-True ($exactPathFiles.summary.matchingGroupCount -eq 1) 'Exact member-path summary diverged from its result total.'
+    $exactPathRootFacets = Send-WorkerRequest $restored 'duplicate_file_selected_root_facet.page' @{
+        runId = $run.id; pageSize = 25
+        sort = @{ field = 'matchingGroupCount'; direction = 'descending' }
+        filter = @{ search = $exactMemberPath; pathMatch = 'exact'; minimumSize = '0'; acrossDrives = $false }; cursor = $null
+    }
+    Assert-True ($exactPathRootFacets.facets[0].matchingGroupCount -eq 1) 'Selected-root facet did not apply the exact member-path filter.'
+    $exactPathDriveFacets = Send-WorkerRequest $restored 'duplicate_file_drive_facet.page' @{
+        runId = $run.id; pageSize = 25
+        sort = @{ field = 'matchingGroupCount'; direction = 'descending' }
+        filter = @{ search = $exactMemberPath; pathMatch = 'exact'; minimumSize = '0'; acrossDrives = $false }; cursor = $null
+    }
+    Assert-True ($exactPathDriveFacets.facets[0].matchingGroupCount -eq 1) 'Drive facet did not apply the exact member-path filter.'
 
     $folderPage = Send-WorkerRequest $restored 'duplicate_folder_group.page' @{
         runId = $run.id; pageSize = 25

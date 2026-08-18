@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use chrono::Utc;
 use rusqlite::{params, Connection, Error, Result};
 use tracing::{debug, info};
@@ -35,6 +37,8 @@ impl Database {
     }
 
     fn configure_pragmas(&self) -> Result<()> {
+        self.conn
+            .create_collation("UNICODE_NOCASE", unicode_nocase_compare)?;
         self.conn.execute_batch(
             "PRAGMA journal_mode = WAL;
              PRAGMA synchronous = NORMAL;
@@ -347,4 +351,8 @@ impl Database {
         self.conn.execute("DELETE FROM scan_session", [])?;
         Ok(())
     }
+}
+
+fn unicode_nocase_compare(left: &str, right: &str) -> Ordering {
+    left.to_lowercase().cmp(&right.to_lowercase())
 }

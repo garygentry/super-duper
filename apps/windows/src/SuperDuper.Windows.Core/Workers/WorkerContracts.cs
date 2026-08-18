@@ -93,13 +93,20 @@ public enum DuplicateFileMemberSortField
     Size,
 }
 
+public enum DuplicateFilePathMatchMode
+{
+    Substring,
+    Exact,
+}
+
 public sealed record DuplicateFileGroupFilter(
     string Search,
     string MinimumSize,
     bool AcrossDrives = false,
     string? SelectedRoot = null,
     string? SelectedDrive = null,
-    long MinimumCopyCount = 2);
+    long MinimumCopyCount = 2,
+    DuplicateFilePathMatchMode PathMatch = DuplicateFilePathMatchMode.Substring);
 
 public sealed record DuplicateFileGroupQuery(
     long RunId,
@@ -157,7 +164,8 @@ public sealed record DuplicateFileSelectedRootFacetFilter(
     string MinimumSize,
     bool AcrossDrives = false,
     string? SelectedDrive = null,
-    long MinimumCopyCount = 2);
+    long MinimumCopyCount = 2,
+    DuplicateFilePathMatchMode PathMatch = DuplicateFilePathMatchMode.Substring);
 
 public sealed record DuplicateFileSelectedRootFacetQuery(
     long RunId,
@@ -188,7 +196,8 @@ public sealed record DuplicateFileDriveFacetFilter(
     string MinimumSize,
     bool AcrossDrives = false,
     string? SelectedRoot = null,
-    long MinimumCopyCount = 2);
+    long MinimumCopyCount = 2,
+    DuplicateFilePathMatchMode PathMatch = DuplicateFilePathMatchMode.Substring);
 
 public sealed record DuplicateFileDriveFacetQuery(
     long RunId,

@@ -183,6 +183,13 @@ pub enum DuplicateFileMemberSortField {
     Size,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum DuplicateFilePathMatchMode {
+    #[default]
+    Substring,
+    Exact,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PageCursorValue {
     Integer(i64),
@@ -199,6 +206,7 @@ pub struct PageCursor {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DuplicateFileGroupFilter {
     pub search: Option<String>,
+    pub path_match: DuplicateFilePathMatchMode,
     pub minimum_size: i64,
     pub minimum_copy_count: i64,
     pub across_drives: bool,

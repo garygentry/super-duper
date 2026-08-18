@@ -37,6 +37,23 @@ outside the post-MVP review workflow.
 is small by construction and remains server-owned; later Activity work may generalize the event
 surface without rewriting the immutable exclusion records.
 
+## Read-only exact-path review indexes
+
+Milestone 8 adds no table or column and does not advance `user_version`. Rust registers the
+`UNICODE_NOCASE` SQLite collation before schema reconciliation. It compares locale-independent
+Unicode lowercase strings, without filesystem access, separator rewriting, device-prefix
+rewriting, dot-segment resolution, or Unicode normalization-form conversion.
+
+`idx_file_run_path_unicode_nocase` covers `(run_id, canonical_path COLLATE UNICODE_NOCASE)`, and
+`idx_group_member_file` covers the immutable file-to-group ownership join. Together they serve the
+exact canonical-member-path predicate used by duplicate-file group rows, total, summary,
+selected-root facets, and drive facets. Opening an existing schema-v4 database creates these
+additive indexes idempotently under Rust ownership.
+
+The existing member-path substring predicate is unchanged and is not a prefix index. A future
+boundary-aware prefix/descendant or selected-root-relative filter requires separately specified
+normalized path keys and indexes before it can be exposed.
+
 ## Migration
 
 Opening schema v3 performs one `BEGIN IMMEDIATE` migration that adds the session policy columns,

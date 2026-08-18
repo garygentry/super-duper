@@ -3,9 +3,10 @@ use super_duper_core::storage::models::{
     CloudDetectionStatus, CloudPolicy, DuplicateFileDriveFacetPageQuery,
     DuplicateFileDriveFacetSortField, DuplicateFileGroupFilter, DuplicateFileGroupPageQuery,
     DuplicateFileGroupSortField, DuplicateFileMemberFilter, DuplicateFileMemberPageQuery,
-    DuplicateFileMemberSortField, DuplicateFileSelectedRootFacetPageQuery,
-    DuplicateFileSelectedRootFacetSortField, PageCursor, PageCursorValue, RegisteredCloudLocation,
-    RunExclusionInsert, RunParameters, ScannedFile, SortDirection,
+    DuplicateFileMemberSortField, DuplicateFilePathMatchMode,
+    DuplicateFileSelectedRootFacetPageQuery, DuplicateFileSelectedRootFacetSortField, PageCursor,
+    PageCursorValue, RegisteredCloudLocation, RunExclusionInsert, RunParameters, ScannedFile,
+    SortDirection,
 };
 use super_duper_core::storage::sqlite::CURRENT_SCHEMA_VERSION;
 use super_duper_core::storage::Database;
@@ -361,6 +362,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
         sort_direction: SortDirection::Descending,
         filter: DuplicateFileGroupFilter {
             search: None,
+            path_match: DuplicateFilePathMatchMode::Substring,
             minimum_size: 0,
             minimum_copy_count: 2,
             across_drives: false,
@@ -432,6 +434,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             limit: 10,
             filter: DuplicateFileGroupFilter {
                 search: Some("alpha".to_owned()),
+                path_match: DuplicateFilePathMatchMode::Substring,
                 minimum_size: 100,
                 minimum_copy_count: 2,
                 across_drives: false,
@@ -513,6 +516,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             limit: 10,
             filter: DuplicateFileGroupFilter {
                 search: None,
+                path_match: DuplicateFilePathMatchMode::Substring,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: true,
@@ -592,6 +596,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             sort_direction: SortDirection::Descending,
             filter: DuplicateFileGroupFilter {
                 search: None,
+                path_match: DuplicateFilePathMatchMode::Substring,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: false,
@@ -616,6 +621,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             sort_direction: SortDirection::Descending,
             filter: DuplicateFileGroupFilter {
                 search: None,
+                path_match: DuplicateFilePathMatchMode::Substring,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: false,
@@ -640,6 +646,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             sort_direction: SortDirection::Descending,
             filter: DuplicateFileGroupFilter {
                 search: None,
+                path_match: DuplicateFilePathMatchMode::Substring,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: false,
@@ -664,6 +671,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             sort_direction: SortDirection::Descending,
             filter: DuplicateFileGroupFilter {
                 search: None,
+                path_match: DuplicateFilePathMatchMode::Substring,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: false,
@@ -688,6 +696,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             sort_direction: SortDirection::Ascending,
             filter: DuplicateFileGroupFilter {
                 search: None,
+                path_match: DuplicateFilePathMatchMode::Substring,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: false,
@@ -709,6 +718,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             sort_direction: SortDirection::Descending,
             filter: DuplicateFileGroupFilter {
                 search: None,
+                path_match: DuplicateFilePathMatchMode::Substring,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: false,
@@ -732,6 +742,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             sort_direction: SortDirection::Descending,
             filter: DuplicateFileGroupFilter {
                 search: None,
+                path_match: DuplicateFilePathMatchMode::Substring,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: false,
@@ -767,6 +778,106 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
     assert!(!db
         .duplicate_file_group_exists(second_run, group.id)
         .unwrap());
+}
+
+#[test]
+fn exact_member_path_filter_is_unicode_case_normalized_and_shared_by_facets() {
+    let db = Database::open_in_memory().unwrap();
+    let (_, run_id) = session_and_run(&db, "Exact path", &["/root"]);
+    let mut files = [
+        file(run_id, "/root/Überraschung.TXT", 100, 11),
+        file(run_id, "/root/copy-one.bin", 100, 11),
+        file(run_id, "/root/archive/Überraschung.TXT", 200, 22),
+        file(run_id, "/root/copy-two.bin", 200, 22),
+    ];
+    for file in &mut files {
+        file.drive_letter = "D:".to_owned();
+    }
+    db.insert_scanned_files(&files).unwrap();
+    db.insert_duplicate_groups(
+        run_id,
+        &[
+            (
+                11,
+                100,
+                vec![
+                    "/root/Überraschung.TXT".to_owned(),
+                    "/root/copy-one.bin".to_owned(),
+                ],
+            ),
+            (
+                22,
+                200,
+                vec![
+                    "/root/archive/Überraschung.TXT".to_owned(),
+                    "/root/copy-two.bin".to_owned(),
+                ],
+            ),
+        ],
+    )
+    .unwrap();
+
+    let filter = DuplicateFileGroupFilter {
+        search: Some("/ROOT/überraschung.txt".to_owned()),
+        path_match: DuplicateFilePathMatchMode::Exact,
+        minimum_size: 0,
+        minimum_copy_count: 2,
+        across_drives: false,
+        selected_root: None,
+        selected_drive: None,
+    };
+    let groups = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            run_id,
+            limit: 10,
+            sort_field: DuplicateFileGroupSortField::RecoverableBytes,
+            sort_direction: SortDirection::Descending,
+            filter: filter.clone(),
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(groups.total, 1);
+    assert_eq!(groups.summary.matching_group_count, 1);
+    assert_eq!(groups.summary.matching_copy_count, 2);
+    assert_eq!(groups.summary.potential_recoverable_bytes, 100);
+    assert_eq!(groups.groups[0].file_size, 100);
+
+    let root_facets = db
+        .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
+            run_id,
+            limit: 25,
+            sort_field: DuplicateFileSelectedRootFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: filter.clone(),
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(root_facets.total, 1);
+    assert_eq!(root_facets.facets[0].matching_group_count, 1);
+
+    let drive_facets = db
+        .page_duplicate_file_drive_facets(&DuplicateFileDriveFacetPageQuery {
+            run_id,
+            limit: 25,
+            sort_field: DuplicateFileDriveFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter,
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(drive_facets.total, 1);
+    assert_eq!(drive_facets.facets[0].matching_group_count, 1);
+
+    let exact_path_index: i64 = db
+        .connection()
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'index' AND name = 'idx_file_run_path_unicode_nocase'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(exact_path_index, 1);
 }
 
 #[test]
@@ -837,6 +948,7 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         sort_direction: SortDirection::Descending,
         filter: DuplicateFileGroupFilter {
             search: None,
+            path_match: DuplicateFilePathMatchMode::Substring,
             minimum_size: 0,
             minimum_copy_count: 2,
             across_drives: false,
@@ -935,6 +1047,7 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
             filter: DuplicateFileGroupFilter {
                 search: None,
+                path_match: DuplicateFilePathMatchMode::Substring,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: true,
@@ -1009,6 +1122,52 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         copy_count_started.elapsed() < std::time::Duration::from_secs(5),
         "100,000-group minimum-copy-count group/facet queries took {:?}",
         copy_count_started.elapsed()
+    );
+
+    let exact_path_started = std::time::Instant::now();
+    let exact_path_filter = DuplicateFileGroupFilter {
+        search: Some("/ROOT/CROSS-0-A.BIN".to_owned()),
+        path_match: DuplicateFilePathMatchMode::Exact,
+        ..query.filter.clone()
+    };
+    let exact_path_groups = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            filter: exact_path_filter.clone(),
+            ..query.clone()
+        })
+        .unwrap();
+    assert_eq!(exact_path_groups.total, 1);
+    assert_eq!(exact_path_groups.summary.matching_copy_count, 3);
+    let exact_path_roots = db
+        .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
+            run_id,
+            limit: 25,
+            sort_field: DuplicateFileSelectedRootFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: exact_path_filter.clone(),
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(exact_path_roots.facets[0].matching_group_count, 1);
+    let exact_path_drives = db
+        .page_duplicate_file_drive_facets(&DuplicateFileDriveFacetPageQuery {
+            run_id,
+            limit: 25,
+            sort_field: DuplicateFileDriveFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: exact_path_filter,
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(exact_path_drives.total, 2);
+    assert!(exact_path_drives
+        .facets
+        .iter()
+        .all(|facet| facet.matching_group_count == 1));
+    assert!(
+        exact_path_started.elapsed() < std::time::Duration::from_secs(5),
+        "100,000-group exact-path group/facet queries took {:?}",
+        exact_path_started.elapsed()
     );
 
     let facet_started = std::time::Instant::now();

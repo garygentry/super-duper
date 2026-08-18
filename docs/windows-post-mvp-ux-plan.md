@@ -3,7 +3,7 @@
 ## Status
 
 Active implementation roadmap for the Windows duplicate-review experience. Milestone 6
-release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first nine
+release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first ten
 read-only Milestone 8 slices are implemented and accepted; the broader milestone remains in
 progress and is gated by the remaining criteria below.
 
@@ -304,7 +304,7 @@ Files library. The user can see what was excluded and can deliberately opt into 
 
 ### Milestone 8 - Duplicate Review Workspace
 
-Status: The first nine read-only file-review slices are accepted. They add a worker-owned summary
+Status: The first ten read-only file-review slices are accepted. They add a worker-owned summary
 for the current duplicate-file query, immutable member location context, bounded per-set
 selected-root/drive span, a worker-owned across-drives entry point, and aggregate location coverage
 plus bounded selected-root and drive facets with exact filters without introducing review
@@ -312,7 +312,9 @@ decisions, live filesystem state, or deletion behavior. The seventh slice adds a
 minimum-copy-count filter through the same bounded group and cross-facet query paths. Full
 Milestone 8 remains in progress. The eighth slice adds a precise, accessible 1 GB-or-larger entry
 point over the existing indexed worker-owned one-copy-size predicate. The ninth slice adds bounded
-next/previous-set navigation and returns keyboard focus to the selected virtualized group row.
+next/previous-set navigation and returns keyboard focus to the selected virtualized group row. The
+tenth slice adds indexed exact canonical-member-path matching while retaining the existing literal
+substring path search as a distinct default mode.
 
 #### Refined first vertical slice (2026-08-17)
 
@@ -902,6 +904,93 @@ member request and advance the independent member generation.
   warm-query/bounded-memory profiling. Durable decisions remain Milestone 10 and deletion remains
   Milestone 11.
 
+#### Exact canonical-member-path filter slice (2026-08-18)
+
+##### Audit and scope decision
+
+Extension/type filtering remains broader than one safe slice. Extension is a member attribute, not
+a representative-label attribute. `any-member` means at least one immutable member has the
+requested normalized extension; `all-member` means every immutable member has it. Both modes must
+support an explicit no-extension value. The proposed extraction uses only the final filename
+segment: a terminal dot, a name with no dot, and a dotfile whose only dot is its leading dot map to
+no-extension; `.env.local` maps to `local`; and `archive.tar.gz` maps to `gz`. The stored key must
+exclude the dot and apply locale-independent Unicode normalization plus case folding. A file-type
+classification is a separate, versioned maintained mapping and must never be presented as the
+extension itself. Correct group rows, totals, summaries, and cross-facet counts require a
+Rust-owned run/group/member/extension representation and index; the representative-derived Type
+column and current path index remain insufficient, so neither extension mode is exposed here.
+
+Path filtering has three distinct contracts:
+
+- Exact canonical-path equality compares one complete immutable `canonical_path`. The accepted
+  slice rewrites no separators, device prefixes, dot segments, leading/trailing characters, or
+  Unicode normalization forms; it applies locale-independent Unicode lowercase comparison only.
+- A future canonical prefix mode is boundary aware. `prefix-or-self` matches equality or a path
+  whose next character is a normalized separator; `descendant` requires that separator and at
+  least one following segment. A directory root itself has no file snapshot, while a file equal to
+  the anchor matches only the explicitly named `prefix-or-self` mode. It must normalize `/` and
+  `\`, DOS/UNC device prefixes, root trailing separators, Unicode form, and case into a stored
+  `canonical_path_key`; the existing substring `LIKE` predicate is not this mode.
+- A future selected-root-relative mode requires an exact selected-root value and matches only
+  members owned by that root. Its normalized relative key has no leading separator and uses the
+  same whole-segment equality/prefix/descendant boundaries. An empty relative anchor denotes all
+  file descendants of the selected root; the root directory itself is not a `scanned_file` row.
+  It requires stored/indexed root and relative keys, such as
+  `(run_id, root_path_key, relative_path_key, id)`.
+
+The exact equality mode is the smallest complete result-understanding entry point because the
+immutable canonical path already exists. Rust registers the `UNICODE_NOCASE` collation before
+schema reconciliation and adds additive schema-v4 indexes on
+`(run_id, canonical_path COLLATE UNICODE_NOCASE)` and `(file_id, group_id)`. Prefix/descendant and
+selected-root-relative modes stay deferred until their separate normalized keys and range-query
+indexes exist.
+
+##### Implemented contract and UX
+
+- `filter.pathMatch` is `substring` by default or `exact` on duplicate-file group,
+  selected-root-facet, and drive-facet requests. A blank search normalizes back to `substring`;
+  exact input is bounded to 32,767 Unicode scalar values and is not trimmed.
+- Exact mode uses one indexed immutable member-path equality predicate. Group rows, total, review
+  and location summary, selected-root facet counts, and drive facet counts share it. The group,
+  selected-root-facet, and drive-facet cursor signatures include the normalized mode and reject a
+  cursor from the other mode.
+- Core carries the mode through the existing group and both facet requests. The group, member,
+  selected-root-facet, and drive-facet caches remain independently bounded to five pages, with
+  their existing cancellation sources, query generations, two-page directional prefetch limits,
+  and stale-response rejection. No new facet channel or WPF collection is introduced.
+- WPF keeps `Path search` as the default literal substring behavior and adds an `Exact path`
+  checkbox with a stable automation ID, name, help text, and keyboard position. The complete
+  immutable path remains available from member detail for copying into the filter.
+- Schema version 4, immutable historical runs, and Rust-only SQLite ownership are preserved. The
+  slice adds no filesystem or Cloud Files access, preview, thumbnail, validation, durable
+  decision, deletion, `scanned_file.marked_deleted`, or Milestone 10/11 behavior.
+
+##### Acceptance result
+
+- Focused exact-path storage and worker protocol tests passed, the three typed worker-lifecycle
+  Infrastructure tests passed, the focused Core duplicate-file suite passed 12 tests, and the
+  focused WPF surface suite passed all 3 STA tests. The optimized large-result test covers exact
+  group, selected-root-facet, and drive-facet queries without walking result pages.
+- `cargo test --workspace` and `cargo test --workspace --release` passed with 16 storage and 9
+  worker tests in each configuration. The expanded 100,000-group regression completed in 2.41
+  seconds Debug and 1.03 seconds optimized Release. Explicit Debug and Release worker builds also
+  passed.
+- Debug and Release .NET builds, run from `C:\Windows\Temp` against the absolute solution path,
+  passed with zero warnings and errors. Each configuration passed 44 Core, 22 Infrastructure, and
+  3 WPF tests; the real-provider Infrastructure test remained intentionally skipped.
+- Real Debug and Release `Invoke-WindowsSmoke.ps1 -SkipBuild` passed with exact member-path group,
+  summary, selected-root-facet, and drive-facet protocol coverage plus WPF exact-path interaction.
+  Both retained the accepted next/previous-set focus restoration and covered the existing facet,
+  Explorer, cloud-fail-closed, and shutdown paths. The smoke's facet automation was hardened to
+  use the keyboard contract because WPF combo-box list items do not consistently expose the UI
+  Automation `SelectionItemPattern`.
+- Targeted Rust formatting, PowerShell parsing, and `git diff --check` passed. Repository-wide
+  `cargo fmt` remains intentionally blocked by the accepted pre-existing CLI/FFI formatting drift;
+  those unrelated files were not reformatted.
+- The complete accessibility review remains open. Accessibility refinements present in the
+  worktree were preserved and covered by the current Debug/Release .NET and real WPF smoke runs,
+  but this exact-path slice does not claim that broader gate.
+
 #### User outcome
 
 The results surface answers three questions without requiring repeated Explorer investigation:
@@ -1348,3 +1437,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-18 | Refined and accepted the worker-owned minimum-copy-count filter after focused/optimized coverage, the Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the latest 100,000-group regression completed in 2.21 seconds Debug and 1.39 seconds optimized Release, and each .NET configuration passed 39 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally gated. | Add the smallest indexed `Three or more copies` entry point through the normalized group rows/total/summary and both cross-composed facet predicates/signatures while preserving existing bounded caches, independent facet cancellation/generations, stale-response rejection, and the Milestone 8/10/11 scope boundaries; remaining Milestone 8 gates are additional richer worker-owned filters, next/previous-set keyboard focus restoration, the complete accessibility review, and representative-hardware warm-query/bounded-memory profiling. |
 | 2026-08-18 | Refined and accepted the precise worker-owned one-copy-size entry point after focused/optimized coverage, the Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the expanded 100,000-group regression completed in 2.24 seconds Debug and 0.88 seconds optimized Release, and each .NET configuration passed 40 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally gated. | Add the smallest indexed `1 GB or larger` result-understanding entry point by normalizing the existing `minimumSize` predicate to at least 1,073,741,824 bytes across group rows/total/summary and both facet predicates/signatures, while deferring extension/type and path-prefix filters until member-accurate semantics and indexes are explicit and preserving bounded caches, independent cancellation/generations, stale-response rejection, and the Milestone 8/10/11 boundaries. |
 | 2026-08-18 | Refined and accepted bounded next/previous-set navigation with virtualized-row keyboard focus restoration after focused Core/WPF tests, Debug/Release 100,000-group coverage, the full Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the complete workspace regression completed in 2.04 seconds Debug and 0.88 seconds Release, and each .NET configuration passed 42 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | Close the focus-restoration gate through the existing group cursor/cache/cancellation/generation path and independent member stale-response guard without changing protocol, SQL, indexes, facets, or memory bounds; extension/type remains deferred until any-member/all-member normalization and indexed worker ownership are explicit, and true path filtering remains deferred until exact/prefix/descendant, segment-boundary, case, and selected-root-relative semantics are explicit. |
+| 2026-08-18 | Refined and accepted the exact canonical-member-path entry point after focused exact-path/lifecycle/Core/WPF coverage, the full Debug/Release Rust and serialized .NET matrix, and corrected real Debug/Release WPF smoke passed; the expanded 100,000-group regression completed in 2.41 seconds Debug and 1.03 seconds optimized Release, and each .NET configuration passed 44 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | Add indexed, Unicode-case-normalized any-member exact equality through the shared group rows/total/summary predicate, all three cursor signatures, and both cross-composed facet counts without changing the five-page cache, cancellation, generation, stale-response, or WPF collection bounds. Extension/type remains deferred until explicit any-member/all-member/no-extension semantics and indexed normalized member keys exist; canonical prefix/descendant and selected-root-relative modes remain deferred until separator-boundary semantics and stored range-query keys exist. The remaining Milestone 8 gates are further richer worker-owned filters, the complete accessibility review, and representative-hardware warm-query/bounded-memory profiling. |

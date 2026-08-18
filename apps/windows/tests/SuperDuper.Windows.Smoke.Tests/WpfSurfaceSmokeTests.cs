@@ -3,6 +3,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 using SuperDuper.Windows.Views;
 using SuperDuper.Windows.Core.Workers;
@@ -79,6 +80,18 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 "Show only duplicate sets across multiple drives",
                 AutomationProperties.GetName(FindByAutomationId<CheckBox>(files, "FileAcrossDrives")));
+            StringAssert.Contains(
+                AutomationProperties.GetHelpText(FindByAutomationId<TextBox>(files, "FileSearch")),
+                "complete immutable member path");
+            Assert.AreEqual(
+                "Match the complete canonical member path",
+                AutomationProperties.GetName(FindByAutomationId<CheckBox>(files, "FileExactPathMatch")));
+            StringAssert.Contains(
+                AutomationProperties.GetHelpText(FindByAutomationId<CheckBox>(files, "FileExactPathMatch")),
+                "Unicode case normalization");
+            StringAssert.Contains(
+                AutomationProperties.GetHelpText(FindByAutomationId<TextBox>(files, "FileMinimumSize")),
+                "one-copy file size");
             Assert.AreEqual(
                 "Selected root facet; choose All selected roots to remove this filter",
                 AutomationProperties.GetName(FindByAutomationId<ComboBox>(files, "FileSelectedRootFacet")));
@@ -88,8 +101,12 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 "Sort selected roots by name",
                 AutomationProperties.GetName(FindByAutomationId<Button>(files, "FileRootFacetNameSort")));
-            _ = FindByAutomationId<Button>(files, "FilePreviousRootFacets");
-            _ = FindByAutomationId<Button>(files, "FileNextRootFacets");
+            Assert.AreEqual(
+                "Previous selected-root facet page",
+                AutomationProperties.GetName(FindByAutomationId<Button>(files, "FilePreviousRootFacets")));
+            Assert.AreEqual(
+                "Next selected-root facet page",
+                AutomationProperties.GetName(FindByAutomationId<Button>(files, "FileNextRootFacets")));
             _ = FindByAutomationId<TextBlock>(files, "FileSelectedRootFilterText");
             Assert.AreEqual(
                 "Drive facet; choose All drives to remove this filter",
@@ -100,17 +117,80 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 "Sort drives by name",
                 AutomationProperties.GetName(FindByAutomationId<Button>(files, "FileDriveFacetNameSort")));
-            _ = FindByAutomationId<Button>(files, "FilePreviousDriveFacets");
-            _ = FindByAutomationId<Button>(files, "FileNextDriveFacets");
+            Assert.AreEqual(
+                "Previous drive facet page",
+                AutomationProperties.GetName(FindByAutomationId<Button>(files, "FilePreviousDriveFacets")));
+            Assert.AreEqual(
+                "Next drive facet page",
+                AutomationProperties.GetName(FindByAutomationId<Button>(files, "FileNextDriveFacets")));
             _ = FindByAutomationId<TextBlock>(files, "FileSelectedDriveFilterText");
+            Assert.AreEqual(
+                AutomationLiveSetting.Polite,
+                AutomationProperties.GetLiveSetting(FindByAutomationId<TextBlock>(files, "FileSummaryMatchingSets")));
+            Assert.AreEqual(
+                AutomationLiveSetting.Polite,
+                AutomationProperties.GetLiveSetting(FindByAutomationId<TextBlock>(files, "FileLocationSummaryText")));
+            Assert.AreEqual(
+                AutomationLiveSetting.Assertive,
+                AutomationProperties.GetLiveSetting(FindByAutomationId<Border>(files, "FileGroupError")));
+            Assert.AreEqual(
+                SystemColors.ControlTextBrush,
+                FindByAutomationId<Border>(files, "FileGroupError").BorderBrush);
+            Assert.AreEqual(
+                SystemColors.ControlTextBrush,
+                FindByAutomationId<TextBlock>(files, "FileRootFacetError").Foreground);
+            Assert.AreEqual(
+                SystemColors.ControlTextBrush,
+                FindByAutomationId<TextBlock>(files, "FileDriveFacetError").Foreground);
+            Assert.AreEqual(
+                SystemColors.ControlTextBrush,
+                FindByAutomationId<TextBlock>(files, "FileDetailError").Foreground);
             StringAssert.Contains(
                 FindByAutomationId<TextBlock>(files, "FileSelectedSetExplanation").Text,
                 "does not identify an original");
             _ = FindByAutomationId<TextBlock>(files, "FileSelectedSetLocations");
             var previousSet = FindByAutomationId<Button>(files, "FilePreviousSet");
             var nextSet = FindByAutomationId<Button>(files, "FileNextSet");
+            Assert.AreEqual(DispatcherPriority.Background, DuplicateFilesView.SetNavigationFocusPriority);
+            Assert.AreEqual(TimeSpan.FromMilliseconds(50), DuplicateFilesView.SetNavigationFocusRetryDelay);
             StringAssert.Contains(AutomationProperties.GetName(previousSet), "focus returns");
             StringAssert.Contains(AutomationProperties.GetName(nextSet), "focus returns");
+            Assert.AreEqual(
+                "Resize duplicate group and selected-set areas",
+                AutomationProperties.GetName(FindByAutomationId<GridSplitter>(files, "FileResultsSplitter")));
+            var keyboardOrder = new FrameworkElement[]
+            {
+                FindByAutomationId<TextBox>(files, "FileSearch"),
+                FindByAutomationId<CheckBox>(files, "FileExactPathMatch"),
+                FindByAutomationId<TextBox>(files, "FileMinimumSize"),
+                FindByAutomationId<CheckBox>(files, "FileOneGigabyteOrLarger"),
+                FindByAutomationId<CheckBox>(files, "FileThreeOrMoreCopies"),
+                FindByAutomationId<CheckBox>(files, "FileAcrossDrives"),
+                FindByAutomationId<Button>(files, "FileApplyFilters"),
+                FindByAutomationId<ComboBox>(files, "FileSelectedRootFacet"),
+                FindByAutomationId<Button>(files, "FileRootFacetMostSets"),
+                FindByAutomationId<Button>(files, "FileRootFacetNameSort"),
+                FindByAutomationId<Button>(files, "FilePreviousRootFacets"),
+                FindByAutomationId<Button>(files, "FileNextRootFacets"),
+                FindByAutomationId<ComboBox>(files, "FileDriveFacet"),
+                FindByAutomationId<Button>(files, "FileDriveFacetMostSets"),
+                FindByAutomationId<Button>(files, "FileDriveFacetNameSort"),
+                FindByAutomationId<Button>(files, "FilePreviousDriveFacets"),
+                FindByAutomationId<Button>(files, "FileNextDriveFacets"),
+                FindByAutomationId<DataGrid>(files, "FileGroupsGrid"),
+                FindByAutomationId<Button>(files, "FilePreviousGroupPage"),
+                FindByAutomationId<Button>(files, "FileNextGroupPage"),
+                FindByAutomationId<Button>(files, "FileClearFilters"),
+                FindByAutomationId<GridSplitter>(files, "FileResultsSplitter"),
+                previousSet,
+                nextSet,
+                FindByAutomationId<DataGrid>(files, "FileMembersGrid"),
+                FindByAutomationId<Button>(files, "FilePreviousMemberPage"),
+                FindByAutomationId<Button>(files, "FileNextMemberPage"),
+            };
+            CollectionAssert.AreEqual(
+                Enumerable.Range(0, keyboardOrder.Length).ToArray(),
+                keyboardOrder.Select(KeyboardNavigation.GetTabIndex).ToArray());
             var fileMemberHeaders = FindByAutomationId<DataGrid>(files, "FileMembersGrid")
                 .Columns.Select(column => column.Header?.ToString()).ToArray();
             CollectionAssert.IsSubsetOf(
@@ -156,6 +236,7 @@ public sealed class WpfSurfaceSmokeTests
             Assert.IsTrue(files.RestoreGroupGridFocus());
             DrainDispatcher();
             Assert.IsTrue(fileGroups.IsKeyboardFocusWithin);
+            Assert.IsInstanceOfType<DataGridCell>(Keyboard.FocusedElement);
             focusHost.Close();
 
             app.Shutdown();

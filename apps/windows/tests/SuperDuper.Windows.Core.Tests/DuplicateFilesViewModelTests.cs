@@ -241,6 +241,87 @@ public sealed class DuplicateFilesViewModelTests
     }
 
     [TestMethod]
+    public async Task ExactPathModeFlowsThroughGroupsAndIndependentFacetsAndClearsAtomically()
+    {
+        DuplicateFileGroupQuery? groupQuery = null;
+        DuplicateFileSelectedRootFacetQuery? rootFacetQuery = null;
+        DuplicateFileDriveFacetQuery? driveFacetQuery = null;
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) =>
+            {
+                groupQuery = query;
+                return Task.FromResult(new WorkerDuplicateFileGroupPage([], 0, null, null));
+            },
+            RootFacetPageHandler = (query, _) =>
+            {
+                rootFacetQuery = query;
+                return Task.FromResult(new WorkerDuplicateFileSelectedRootFacetPage([], 0, null, null));
+            },
+            DriveFacetPageHandler = (query, _) =>
+            {
+                driveFacetQuery = query;
+                return Task.FromResult(new WorkerDuplicateFileDriveFacetPage([], 0, null, null));
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(18, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        const string exactPath = @"C:\Data\Überraschung.TXT ";
+        viewModel.SearchText = exactPath;
+        viewModel.ExactPathMatch = true;
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(exactPath, groupQuery!.Filter.Search);
+        Assert.AreEqual(exactPath, rootFacetQuery!.Filter.Search);
+        Assert.AreEqual(exactPath, driveFacetQuery!.Filter.Search);
+        Assert.AreEqual(DuplicateFilePathMatchMode.Exact, groupQuery.Filter.PathMatch);
+        Assert.AreEqual(DuplicateFilePathMatchMode.Exact, rootFacetQuery.Filter.PathMatch);
+        Assert.AreEqual(DuplicateFilePathMatchMode.Exact, driveFacetQuery.Filter.PathMatch);
+
+        await viewModel.ClearFiltersCommand.ExecuteAsync(null);
+
+        Assert.IsFalse(viewModel.ExactPathMatch);
+        Assert.AreEqual(string.Empty, viewModel.SearchText);
+        Assert.AreEqual(DuplicateFilePathMatchMode.Substring, groupQuery.Filter.PathMatch);
+        Assert.AreEqual(DuplicateFilePathMatchMode.Substring, rootFacetQuery.Filter.PathMatch);
+        Assert.AreEqual(DuplicateFilePathMatchMode.Substring, driveFacetQuery.Filter.PathMatch);
+    }
+
+    [TestMethod]
+    public async Task ExactPathLimitCountsUnicodeScalarsRatherThanUtf16CodeUnits()
+    {
+        DuplicateFileGroupQuery? groupQuery = null;
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) =>
+            {
+                groupQuery = query;
+                return Task.FromResult(new WorkerDuplicateFileGroupPage([], 0, null, null));
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(19, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        var maximumScalarPath = string.Concat(Enumerable.Repeat("\U0001F600", DuplicateFilesViewModel.MaximumExactPathCharacters));
+        viewModel.SearchText = maximumScalarPath;
+        viewModel.ExactPathMatch = true;
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(maximumScalarPath, groupQuery!.Filter.Search);
+        Assert.IsFalse(viewModel.HasError);
+
+        groupQuery = null;
+        viewModel.SearchText += "x";
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+
+        Assert.IsNull(groupQuery);
+        StringAssert.Contains(viewModel.ErrorMessage, "32,767");
+    }
+
+    [TestMethod]
     public async Task SetNavigationMovesWithinAndAcrossExistingBoundedGroupPages()
     {
         var client = new TestWorkerClient

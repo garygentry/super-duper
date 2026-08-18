@@ -30,30 +30,49 @@
             <StackPanel>
                 <TextBlock FontSize="22" FontWeight="SemiBold" Text="Duplicate files" />
                 <TextBlock Margin="0,4,0,0"
-                           Opacity="0.68"
                            Text="Results belong to the selected historical run and stay server-paged." />
             </StackPanel>
-            <TextBox x:Name="FileSearch"
-                     Grid.Column="1"
-                     Margin="12,0,0,0"
-                     VerticalContentAlignment="Center"
-                     automation:AutomationProperties.Name="Path search"
-                     automation:AutomationProperties.AutomationId="FileSearch"
-                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="Search duplicate file paths" />
-            <TextBox x:Name="FileMinimumSize"
-                     Grid.Column="2"
-                     Width="145"
-                     Margin="8,0,0,0"
-                     VerticalContentAlignment="Center"
-                     automation:AutomationProperties.Name="Minimum file size in bytes"
-                     automation:AutomationProperties.AutomationId="FileMinimumSize"
-                     Text="{Binding MinimumSizeText, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="Minimum file size in bytes" />
+            <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                <Label Padding="0,0,0,3"
+                       Target="{Binding ElementName=FileSearch}"
+                       Content="Path _search" />
+                <TextBox x:Name="FileSearch"
+                         VerticalContentAlignment="Center"
+                         KeyboardNavigation.TabIndex="0"
+                         automation:AutomationProperties.Name="Path search"
+                         automation:AutomationProperties.HelpText="Enter a complete immutable member path when Exact path is checked; otherwise performs a case-insensitive literal substring search with a 512-character maximum"
+                         automation:AutomationProperties.AutomationId="FileSearch"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="Search duplicate file paths" />
+                <CheckBox x:Name="FileExactPathMatch"
+                          Margin="0,5,0,0"
+                          KeyboardNavigation.TabIndex="1"
+                          automation:AutomationProperties.AutomationId="FileExactPathMatch"
+                          automation:AutomationProperties.Name="Match the complete canonical member path"
+                          automation:AutomationProperties.HelpText="Uses locale-independent Unicode case normalization and the immutable canonical path; clear this option to restore literal substring search"
+                          Content="Exact path"
+                          IsChecked="{Binding ExactPathMatch}"
+                          ToolTip="Match one complete canonical member path" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                <Label Padding="0,0,0,3"
+                       Target="{Binding ElementName=FileMinimumSize}"
+                       Content="_Minimum size" />
+                <TextBox x:Name="FileMinimumSize"
+                         Width="145"
+                         VerticalContentAlignment="Center"
+                         KeyboardNavigation.TabIndex="2"
+                         automation:AutomationProperties.Name="Minimum file size in bytes"
+                         automation:AutomationProperties.HelpText="Non-negative whole number of bytes applied to one-copy file size"
+                         automation:AutomationProperties.AutomationId="FileMinimumSize"
+                         Text="{Binding MinimumSizeText, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="Minimum file size in bytes" />
+            </StackPanel>
             <CheckBox x:Name="FileThreeOrMoreCopies"
                       Grid.Column="4"
                       Margin="10,0,2,0"
                       VerticalAlignment="Center"
+                      KeyboardNavigation.TabIndex="4"
                       automation:AutomationProperties.AutomationId="FileThreeOrMoreCopies"
                       automation:AutomationProperties.Name="Show only duplicate sets with three or more copies"
                       Content="Three or more copies"
@@ -62,6 +81,7 @@
                       Grid.Column="5"
                       Margin="10,0,2,0"
                       VerticalAlignment="Center"
+                      KeyboardNavigation.TabIndex="5"
                       automation:AutomationProperties.AutomationId="FileAcrossDrives"
                       automation:AutomationProperties.Name="Show only duplicate sets across multiple drives"
                       Content="Across drives"
@@ -70,6 +90,7 @@
                       Grid.Column="3"
                       Margin="10,0,2,0"
                       VerticalAlignment="Center"
+                      KeyboardNavigation.TabIndex="3"
                       automation:AutomationProperties.AutomationId="FileOneGigabyteOrLarger"
                       automation:AutomationProperties.Name="Show only duplicate sets whose one-copy size is at least 1 GB, 1,073,741,824 bytes"
                       Content="1 GB or larger"
@@ -80,6 +101,8 @@
                     automation:AutomationProperties.AutomationId="FileApplyFilters"
                     Margin="8,0,0,0"
                     Padding="13,7"
+                    KeyboardNavigation.TabIndex="6"
+                    automation:AutomationProperties.Name="Apply duplicate file filters"
                     Command="{Binding ApplyFiltersCommand}"
                     Content="Apply filters" />
             <WrapPanel Grid.Row="1"
@@ -87,14 +110,17 @@
                        Margin="0,10,0,0"
                        VerticalAlignment="Center"
                        automation:AutomationProperties.Name="Selected-root facet controls">
-                <TextBlock Margin="0,0,8,0"
-                           VerticalAlignment="Center"
-                           FontWeight="SemiBold"
-                           Text="Selected root" />
+                <Label Margin="0,0,8,0"
+                       Padding="0"
+                       VerticalAlignment="Center"
+                       FontWeight="SemiBold"
+                       Target="{Binding ElementName=FileSelectedRootFacet}"
+                       Content="Selected _root" />
                 <ComboBox x:Name="FileSelectedRootFacet"
                           Width="360"
                           MaxDropDownHeight="280"
                           VerticalContentAlignment="Center"
+                          KeyboardNavigation.TabIndex="7"
                           automation:AutomationProperties.AutomationId="FileSelectedRootFacet"
                           automation:AutomationProperties.Name="Selected root facet; choose All selected roots to remove this filter"
                           DisplayMemberPath="DisplayText"
@@ -108,47 +134,58 @@
                 </ComboBox>
                 <Button Margin="8,0,0,0"
                         Padding="10,4"
+                        KeyboardNavigation.TabIndex="8"
                         automation:AutomationProperties.AutomationId="FileRootFacetMostSets"
                         automation:AutomationProperties.Name="Sort selected roots by most matching sets"
                         Command="{Binding SortRootFacetsByCountCommand}"
                         Content="Most sets" />
                 <Button Margin="6,0,0,0"
                         Padding="10,4"
+                        KeyboardNavigation.TabIndex="9"
                         automation:AutomationProperties.AutomationId="FileRootFacetNameSort"
                         automation:AutomationProperties.Name="Sort selected roots by name"
                         Command="{Binding SortRootFacetsByNameCommand}"
                         Content="Root A–Z" />
                 <Button Margin="8,0,0,0"
                         Padding="10,4"
+                        KeyboardNavigation.TabIndex="10"
                         automation:AutomationProperties.AutomationId="FilePreviousRootFacets"
+                        automation:AutomationProperties.Name="Previous selected-root facet page"
                         Command="{Binding PreviousRootFacetPageCommand}"
                         Content="Previous roots" />
                 <Button Margin="6,0,0,0"
                         Padding="10,4"
+                        KeyboardNavigation.TabIndex="11"
                         automation:AutomationProperties.AutomationId="FileNextRootFacets"
+                        automation:AutomationProperties.Name="Next selected-root facet page"
                         Command="{Binding NextRootFacetPageCommand}"
                         Content="Next roots" />
                 <TextBlock Margin="10,0,0,0"
                            VerticalAlignment="Center"
-                           Opacity="0.68"
+                           automation:AutomationProperties.AutomationId="FileRootFacetCount"
+                           automation:AutomationProperties.LiveSetting="Polite"
+                           automation:AutomationProperties.Name="{Binding RootFacetCountText, StringFormat='Selected-root facet status: {0}'}"
                            Text="{Binding RootFacetCountText}" />
                 <ProgressBar Width="70"
                              Height="4"
                              Margin="10,0,0,0"
+                             automation:AutomationProperties.Name="Loading selected-root facets"
                              IsIndeterminate="True"
                              Visibility="{Binding IsRootFacetLoading, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 <TextBlock Margin="10,0,0,0"
                            VerticalAlignment="Center"
                            automation:AutomationProperties.AutomationId="FileRootFacetError"
-                           automation:AutomationProperties.Name="Selected-root facet error"
-                           Foreground="#C84B31"
+                           automation:AutomationProperties.LiveSetting="Assertive"
+                           automation:AutomationProperties.Name="{Binding RootFacetErrorMessage, StringFormat='Selected-root facet error: {0}'}"
+                           Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
                            Text="{Binding RootFacetErrorMessage}"
                            TextTrimming="CharacterEllipsis"
                            Visibility="{Binding HasRootFacetError, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 <TextBlock Margin="10,0,0,0"
                            VerticalAlignment="Center"
                            automation:AutomationProperties.AutomationId="FileSelectedRootFilterText"
-                           Opacity="0.68"
+                           automation:AutomationProperties.LiveSetting="Polite"
+                           automation:AutomationProperties.Name="{Binding SelectedRootFilterText, StringFormat='Selected-root filter status: {0}'}"
                            Text="{Binding SelectedRootFilterText}"
                            TextTrimming="CharacterEllipsis" />
             </WrapPanel>
@@ -157,14 +194,17 @@
                        Margin="0,8,0,0"
                        VerticalAlignment="Center"
                        automation:AutomationProperties.Name="Drive facet controls">
-                <TextBlock Margin="0,0,8,0"
-                           VerticalAlignment="Center"
-                           FontWeight="SemiBold"
-                           Text="Drive" />
+                <Label Margin="0,0,8,0"
+                       Padding="0"
+                       VerticalAlignment="Center"
+                       FontWeight="SemiBold"
+                       Target="{Binding ElementName=FileDriveFacet}"
+                       Content="_Drive" />
                 <ComboBox x:Name="FileDriveFacet"
                           Width="220"
                           MaxDropDownHeight="280"
                           VerticalContentAlignment="Center"
+                          KeyboardNavigation.TabIndex="12"
                           automation:AutomationProperties.AutomationId="FileDriveFacet"
                           automation:AutomationProperties.Name="Drive facet; choose All drives to remove this filter"
                           DisplayMemberPath="DisplayText"
@@ -178,47 +218,58 @@
                 </ComboBox>
                 <Button Margin="8,0,0,0"
                         Padding="10,4"
+                        KeyboardNavigation.TabIndex="13"
                         automation:AutomationProperties.AutomationId="FileDriveFacetMostSets"
                         automation:AutomationProperties.Name="Sort drives by most matching sets"
                         Command="{Binding SortDriveFacetsByCountCommand}"
                         Content="Most sets" />
                 <Button Margin="6,0,0,0"
                         Padding="10,4"
+                        KeyboardNavigation.TabIndex="14"
                         automation:AutomationProperties.AutomationId="FileDriveFacetNameSort"
                         automation:AutomationProperties.Name="Sort drives by name"
                         Command="{Binding SortDriveFacetsByNameCommand}"
                         Content="Drive A–Z" />
                 <Button Margin="8,0,0,0"
                         Padding="10,4"
+                        KeyboardNavigation.TabIndex="15"
                         automation:AutomationProperties.AutomationId="FilePreviousDriveFacets"
+                        automation:AutomationProperties.Name="Previous drive facet page"
                         Command="{Binding PreviousDriveFacetPageCommand}"
                         Content="Previous drives" />
                 <Button Margin="6,0,0,0"
                         Padding="10,4"
+                        KeyboardNavigation.TabIndex="16"
                         automation:AutomationProperties.AutomationId="FileNextDriveFacets"
+                        automation:AutomationProperties.Name="Next drive facet page"
                         Command="{Binding NextDriveFacetPageCommand}"
                         Content="Next drives" />
                 <TextBlock Margin="10,0,0,0"
                            VerticalAlignment="Center"
-                           Opacity="0.68"
+                           automation:AutomationProperties.AutomationId="FileDriveFacetCount"
+                           automation:AutomationProperties.LiveSetting="Polite"
+                           automation:AutomationProperties.Name="{Binding DriveFacetCountText, StringFormat='Drive facet status: {0}'}"
                            Text="{Binding DriveFacetCountText}" />
                 <ProgressBar Width="70"
                              Height="4"
                              Margin="10,0,0,0"
+                             automation:AutomationProperties.Name="Loading drive facets"
                              IsIndeterminate="True"
                              Visibility="{Binding IsDriveFacetLoading, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 <TextBlock Margin="10,0,0,0"
                            VerticalAlignment="Center"
                            automation:AutomationProperties.AutomationId="FileDriveFacetError"
-                           automation:AutomationProperties.Name="Drive facet error"
-                           Foreground="#C84B31"
+                           automation:AutomationProperties.LiveSetting="Assertive"
+                           automation:AutomationProperties.Name="{Binding DriveFacetErrorMessage, StringFormat='Drive facet error: {0}'}"
+                           Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
                            Text="{Binding DriveFacetErrorMessage}"
                            TextTrimming="CharacterEllipsis"
                            Visibility="{Binding HasDriveFacetError, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 <TextBlock Margin="10,0,0,0"
                            VerticalAlignment="Center"
                            automation:AutomationProperties.AutomationId="FileSelectedDriveFilterText"
-                           Opacity="0.68"
+                           automation:AutomationProperties.LiveSetting="Polite"
+                           automation:AutomationProperties.Name="{Binding SelectedDriveFilterText, StringFormat='Drive filter status: {0}'}"
                            Text="{Binding SelectedDriveFilterText}"
                            TextTrimming="CharacterEllipsis" />
             </WrapPanel>
@@ -230,26 +281,46 @@
                          Columns="4">
                 <Border Margin="0,0,6,0" Padding="12,9" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" BorderThickness="1" CornerRadius="6">
                     <StackPanel>
-                        <TextBlock Opacity="0.68" Text="Matching sets" />
-                        <TextBlock automation:AutomationProperties.AutomationId="FileSummaryMatchingSets" FontSize="19" FontWeight="SemiBold" Text="{Binding MatchingSetCountText}" />
+                        <TextBlock Text="Matching sets" />
+                        <TextBlock automation:AutomationProperties.AutomationId="FileSummaryMatchingSets"
+                                   automation:AutomationProperties.LiveSetting="Polite"
+                                   automation:AutomationProperties.Name="{Binding MatchingSetCountText, StringFormat='Matching sets: {0}'}"
+                                   FontSize="19"
+                                   FontWeight="SemiBold"
+                                   Text="{Binding MatchingSetCountText}" />
                     </StackPanel>
                 </Border>
                 <Border Margin="2,0,4,0" Padding="12,9" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" BorderThickness="1" CornerRadius="6">
                     <StackPanel>
-                        <TextBlock Opacity="0.68" Text="Copies in those sets" />
-                        <TextBlock automation:AutomationProperties.AutomationId="FileSummaryMatchingCopies" FontSize="19" FontWeight="SemiBold" Text="{Binding MatchingCopyCountText}" />
+                        <TextBlock Text="Copies in those sets" />
+                        <TextBlock automation:AutomationProperties.AutomationId="FileSummaryMatchingCopies"
+                                   automation:AutomationProperties.LiveSetting="Polite"
+                                   automation:AutomationProperties.Name="{Binding MatchingCopyCountText, StringFormat='Copies in matching sets: {0}'}"
+                                   FontSize="19"
+                                   FontWeight="SemiBold"
+                                   Text="{Binding MatchingCopyCountText}" />
                     </StackPanel>
                 </Border>
                 <Border Margin="4,0,2,0" Padding="12,9" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" BorderThickness="1" CornerRadius="6">
                     <StackPanel>
-                        <TextBlock Opacity="0.68" Text="Potential recoverable" />
-                        <TextBlock automation:AutomationProperties.AutomationId="FileSummaryRecoverable" FontSize="19" FontWeight="SemiBold" Text="{Binding PotentialRecoverableText}" />
+                        <TextBlock Text="Potential recoverable" />
+                        <TextBlock automation:AutomationProperties.AutomationId="FileSummaryRecoverable"
+                                   automation:AutomationProperties.LiveSetting="Polite"
+                                   automation:AutomationProperties.Name="{Binding PotentialRecoverableText, StringFormat='Potential recoverable space: {0}'}"
+                                   FontSize="19"
+                                   FontWeight="SemiBold"
+                                   Text="{Binding PotentialRecoverableText}" />
                     </StackPanel>
                 </Border>
                 <Border Margin="6,0,0,0" Padding="12,9" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" BorderThickness="1" CornerRadius="6">
                     <StackPanel>
-                        <TextBlock Opacity="0.68" Text="Largest opportunity" />
-                        <TextBlock automation:AutomationProperties.AutomationId="FileSummaryLargestOpportunity" FontSize="19" FontWeight="SemiBold" Text="{Binding LargestOpportunityText}" />
+                        <TextBlock Text="Largest opportunity" />
+                        <TextBlock automation:AutomationProperties.AutomationId="FileSummaryLargestOpportunity"
+                                   automation:AutomationProperties.LiveSetting="Polite"
+                                   automation:AutomationProperties.Name="{Binding LargestOpportunityText, StringFormat='Largest recoverable opportunity: {0}'}"
+                                   FontSize="19"
+                                   FontWeight="SemiBold"
+                                   Text="{Binding LargestOpportunityText}" />
                     </StackPanel>
                 </Border>
             </UniformGrid>
@@ -268,6 +339,8 @@
                     <TextBlock Margin="0,0,8,0" FontWeight="SemiBold" Text="Location coverage" />
                     <TextBlock Grid.Column="1"
                                automation:AutomationProperties.AutomationId="FileLocationSummaryText"
+                               automation:AutomationProperties.LiveSetting="Polite"
+                               automation:AutomationProperties.Name="{Binding LocationCoverageText, StringFormat='Location coverage: {0}'}"
                                Text="{Binding LocationCoverageText}"
                                TextWrapping="Wrap" />
                 </Grid>
@@ -287,6 +360,7 @@
                       EnableColumnVirtualization="True"
                       EnableRowVirtualization="True"
                       IsReadOnly="True"
+                      KeyboardNavigation.TabIndex="17"
                       ItemsSource="{Binding Groups}"
                       SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
                       SelectionMode="Single"
@@ -328,46 +402,83 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock VerticalAlignment="Center" Opacity="0.68" Text="{Binding GroupCountText}" />
+                <TextBlock VerticalAlignment="Center"
+                           automation:AutomationProperties.AutomationId="FileGroupCount"
+                           automation:AutomationProperties.LiveSetting="Polite"
+                           automation:AutomationProperties.Name="{Binding GroupCountText, StringFormat='Duplicate group page status: {0}'}"
+                           Text="{Binding GroupCountText}" />
                 <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate file group paging" Orientation="Horizontal">
-                    <Button Padding="10,4" Command="{Binding PreviousPageCommand}" Content="Previous" />
-                    <Button Margin="8,0,0,0" Padding="10,4" Command="{Binding NextPageCommand}" Content="Next" />
-                    <Button Margin="8,0,0,0" Padding="10,4" Command="{Binding ClearFiltersCommand}" Content="Clear filters" />
+                    <Button Padding="10,4"
+                            KeyboardNavigation.TabIndex="18"
+                            automation:AutomationProperties.AutomationId="FilePreviousGroupPage"
+                            automation:AutomationProperties.Name="Previous duplicate group page"
+                            Command="{Binding PreviousPageCommand}"
+                            Content="Previous" />
+                    <Button Margin="8,0,0,0"
+                            Padding="10,4"
+                            KeyboardNavigation.TabIndex="19"
+                            automation:AutomationProperties.AutomationId="FileNextGroupPage"
+                            automation:AutomationProperties.Name="Next duplicate group page"
+                            Command="{Binding NextPageCommand}"
+                            Content="Next" />
+                    <Button Margin="8,0,0,0"
+                            Padding="10,4"
+                            KeyboardNavigation.TabIndex="20"
+                            automation:AutomationProperties.AutomationId="FileClearFilters"
+                            automation:AutomationProperties.Name="Clear all duplicate file filters"
+                            Command="{Binding ClearFiltersCommand}"
+                            Content="Clear filters" />
                 </StackPanel>
             </Grid>
 
             <Border Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
-                    Opacity="0.94"
+                    automation:AutomationProperties.Name="Loading duplicate groups"
+                    automation:AutomationProperties.LiveSetting="Polite"
                     Visibility="{Binding IsLoadingOverlayVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <ProgressBar Width="150" Height="4" IsIndeterminate="True" />
-                    <TextBlock Margin="0,9,0,0" Opacity="0.7" Text="Loading duplicate groups…" />
+                    <TextBlock Margin="0,9,0,0" Text="Loading duplicate groups…" />
                 </StackPanel>
             </Border>
-            <Border Padding="16"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    BorderBrush="#C84B31"
+             <Border Padding="16"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"
+                     automation:AutomationProperties.AutomationId="FileGroupError"
+                     automation:AutomationProperties.LiveSetting="Assertive"
+                     automation:AutomationProperties.Name="{Binding ErrorMessage, StringFormat='Duplicate file result error: {0}'}"
+                     BorderBrush="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
                     BorderThickness="1"
                     CornerRadius="7"
                     Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <TextBlock MaxWidth="620" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
             </Border>
-            <StackPanel HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Visibility="{Binding IsUnavailable, Converter={StaticResource BooleanToVisibilityConverter}}">
+             <StackPanel HorizontalAlignment="Center"
+                         VerticalAlignment="Center"
+                         automation:AutomationProperties.AutomationId="FileUnavailableState"
+                         automation:AutomationProperties.LiveSetting="Polite"
+                         automation:AutomationProperties.Name="{Binding StateMessage, StringFormat='Results unavailable: {0}'}"
+                         Visibility="{Binding IsUnavailable, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="Results unavailable" />
-                <TextBlock Margin="0,6,0,0" MaxWidth="560" Opacity="0.68" Text="{Binding StateMessage}" TextAlignment="Center" TextWrapping="Wrap" />
+                <TextBlock Margin="0,6,0,0" MaxWidth="560" Text="{Binding StateMessage}" TextAlignment="Center" TextWrapping="Wrap" />
             </StackPanel>
-            <StackPanel HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}">
+             <StackPanel HorizontalAlignment="Center"
+                         VerticalAlignment="Center"
+                         automation:AutomationProperties.AutomationId="FileEmptyState"
+                         automation:AutomationProperties.LiveSetting="Polite"
+                         automation:AutomationProperties.Name="{Binding StateMessage, StringFormat='No duplicate files: {0}'}"
+                         Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="No duplicate files" />
-                <TextBlock Margin="0,6,0,0" Opacity="0.68" Text="{Binding StateMessage}" />
+                <TextBlock Margin="0,6,0,0" Text="{Binding StateMessage}" />
             </StackPanel>
         </Grid>
 
-        <GridSplitter Grid.Row="3" Height="8" HorizontalAlignment="Stretch" ResizeDirection="Rows" />
+        <GridSplitter Grid.Row="3"
+                      Height="8"
+                      HorizontalAlignment="Stretch"
+                      KeyboardNavigation.TabIndex="21"
+                      automation:AutomationProperties.AutomationId="FileResultsSplitter"
+                      automation:AutomationProperties.Name="Resize duplicate group and selected-set areas"
+                      ResizeDirection="Rows" />
 
         <Grid Grid.Row="4" Margin="0,10,0,0">
             <Grid.RowDefinitions>
@@ -382,27 +493,35 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock automation:AutomationProperties.AutomationId="FileSelectedSetName"
+                               automation:AutomationProperties.LiveSetting="Polite"
+                               automation:AutomationProperties.Name="{Binding SelectedGroup.RepresentativeName, StringFormat='Selected duplicate set: {0}', TargetNullValue='No duplicate set selected'}"
                                FontSize="17"
                                FontWeight="SemiBold"
                                Text="{Binding SelectedGroup.RepresentativeName, TargetNullValue=Select a duplicate set}" />
                     <TextBlock Margin="0,3,0,0"
                                automation:AutomationProperties.AutomationId="FileSelectedSetExplanation"
-                               Opacity="0.68"
+                               automation:AutomationProperties.Name="Exact content was verified at scan time; the representative label does not identify an original"
                                Text="Exact content was verified at scan time. The representative label does not identify an original."
                                TextWrapping="Wrap" />
                     <TextBlock Margin="0,3,0,0"
                                automation:AutomationProperties.AutomationId="FileSelectedSetLocations"
-                               Opacity="0.68"
+                               automation:AutomationProperties.LiveSetting="Polite"
+                               automation:AutomationProperties.Name="{Binding SelectedGroup.LocationSpan, StringFormat='Selected duplicate set location span: {0}'}"
                                Text="{Binding SelectedGroup.LocationSpan}"
                                TextWrapping="Wrap" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                    <TextBlock HorizontalAlignment="Right" Opacity="0.68" Text="{Binding MemberCountText}" />
+                    <TextBlock HorizontalAlignment="Right"
+                               automation:AutomationProperties.AutomationId="FileMemberCount"
+                               automation:AutomationProperties.LiveSetting="Polite"
+                               automation:AutomationProperties.Name="{Binding MemberCountText, StringFormat='Selected duplicate set member status: {0}'}"
+                               Text="{Binding MemberCountText}" />
                     <StackPanel Margin="0,5,0,0"
                                 automation:AutomationProperties.Name="Duplicate set navigation"
                                 Orientation="Horizontal">
                         <Button x:Name="PreviousSetButton"
-                                Padding="10,4"
+                                 Padding="10,4"
+                                 KeyboardNavigation.TabIndex="22"
                                 automation:AutomationProperties.AutomationId="FilePreviousSet"
                                 automation:AutomationProperties.Name="Previous duplicate set; access key Alt+P; focus returns to the selected group"
                                 Click="OnSetNavigationClick"
@@ -410,8 +529,9 @@
                                 IsEnabled="{Binding CanMoveToPreviousSet}"
                                 ToolTip="Previous duplicate set (Alt+P); returns focus to the selected group" />
                         <Button x:Name="NextSetButton"
-                                Margin="8,0,0,0"
-                                Padding="10,4"
+                                 Margin="8,0,0,0"
+                                 Padding="10,4"
+                                 KeyboardNavigation.TabIndex="23"
                                 automation:AutomationProperties.AutomationId="FileNextSet"
                                 automation:AutomationProperties.Name="Next duplicate set; access key Alt+N; focus returns to the selected group"
                                 Click="OnSetNavigationClick"
@@ -429,6 +549,7 @@
                       EnableColumnVirtualization="True"
                       EnableRowVirtualization="True"
                       IsReadOnly="True"
+                      KeyboardNavigation.TabIndex="24"
                       ItemsSource="{Binding Members}"
                       SelectionMode="Single"
                       VirtualizingPanel.IsVirtualizing="True"
@@ -437,14 +558,21 @@
                     <DataGridTemplateColumn Width="190" Header="Selected root">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding SelectedRoot}" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedRoot}" />
+                                <TextBlock automation:AutomationProperties.Name="{Binding SelectedRoot, StringFormat='Selected root: {0}'}"
+                                           Text="{Binding SelectedRoot}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding SelectedRoot}" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                     <DataGridTemplateColumn Width="*" MinWidth="220" Header="Relative path">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <TextBlock automation:AutomationProperties.Name="{Binding Path}" Text="{Binding RelativePath}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}" />
+                                <TextBlock automation:AutomationProperties.Name="{Binding RelativePath, StringFormat='Relative path: {0}'}"
+                                           automation:AutomationProperties.HelpText="{Binding Path, StringFormat='Complete path: {0}'}"
+                                           Text="{Binding RelativePath}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding Path}" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -456,11 +584,13 @@
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">
                                     <Button Padding="7,2"
+                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Copy complete path for {0}'}"
                                             Command="{Binding DataContext.CopyPathCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
                                             Content="Copy path" />
                                     <Button Margin="6,0,0,0"
                                             Padding="7,2"
+                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Show {0} in Explorer'}"
                                             Command="{Binding DataContext.RevealInExplorerCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
                                             Content="Show in Explorer" />
@@ -477,31 +607,46 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock VerticalAlignment="Center"
                            automation:AutomationProperties.AutomationId="FileDetailError"
-                           automation:AutomationProperties.Name="File action error"
-                           Foreground="#C84B31"
+                           automation:AutomationProperties.LiveSetting="Assertive"
+                           automation:AutomationProperties.Name="{Binding DetailErrorMessage, StringFormat='File action error: {0}'}"
+                           Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
                            Text="{Binding DetailErrorMessage}"
                            TextTrimming="CharacterEllipsis"
                            Visibility="{Binding HasDetailError, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate file member paging" Orientation="Horizontal">
-                    <Button Padding="10,4" Command="{Binding PreviousMemberPageCommand}" Content="Previous copies" />
-                    <Button Margin="8,0,0,0" Padding="10,4" Command="{Binding NextMemberPageCommand}" Content="Next copies" />
+                    <Button Padding="10,4"
+                            KeyboardNavigation.TabIndex="25"
+                            automation:AutomationProperties.AutomationId="FilePreviousMemberPage"
+                            automation:AutomationProperties.Name="Previous selected-set member page"
+                            Command="{Binding PreviousMemberPageCommand}"
+                            Content="Previous copies" />
+                    <Button Margin="8,0,0,0"
+                            Padding="10,4"
+                            KeyboardNavigation.TabIndex="26"
+                            automation:AutomationProperties.AutomationId="FileNextMemberPage"
+                            automation:AutomationProperties.Name="Next selected-set member page"
+                            Command="{Binding NextMemberPageCommand}"
+                            Content="Next copies" />
                 </StackPanel>
             </Grid>
             <Border Grid.Row="1"
                     Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
-                    Opacity="0.94"
+                    automation:AutomationProperties.Name="Loading selected duplicate set members"
+                    automation:AutomationProperties.LiveSetting="Polite"
                     Visibility="{Binding IsDetailLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <ProgressBar Width="130" Height="4" IsIndeterminate="True" />
-                    <TextBlock Margin="0,8,0,0" Opacity="0.68" Text="Loading group members…" />
+                    <TextBlock Margin="0,8,0,0" Text="Loading group members…" />
                 </StackPanel>
             </Border>
             <StackPanel Grid.Row="1"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
+                        automation:AutomationProperties.Name="No copies to display for the selected duplicate set"
+                        automation:AutomationProperties.LiveSetting="Polite"
                         Visibility="{Binding IsDetailEmpty, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <TextBlock HorizontalAlignment="Center" FontSize="17" FontWeight="SemiBold" Text="No copies to display" />
-                <TextBlock Margin="0,5,0,0" Opacity="0.68" Text="This group no longer has visible members." />
+                <TextBlock Margin="0,5,0,0" Text="This group no longer has visible members." />
             </StackPanel>
         </Grid>
     </Grid>

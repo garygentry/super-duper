@@ -218,6 +218,39 @@ public sealed class WorkerClientLifecycleTests
                     DuplicateFileMemberSortField.Path,
                     WorkerSortDirection.Ascending,
                     new DuplicateFileMemberFilter(string.Empty)));
+            var exactPath = members.Members
+                .Single(member => member.FileName == "one.txt")
+                .Path.ToUpperInvariant();
+            var exactPathGroups = await client.GetDuplicateFileGroupsAsync(
+                new DuplicateFileGroupQuery(
+                    started.Id,
+                    200,
+                    DuplicateFileGroupSortField.RecoverableBytes,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileGroupFilter(
+                        exactPath,
+                        "0",
+                        PathMatch: DuplicateFilePathMatchMode.Exact)));
+            var exactPathRootFacets = await client.GetDuplicateFileSelectedRootFacetsAsync(
+                new DuplicateFileSelectedRootFacetQuery(
+                    started.Id,
+                    25,
+                    DuplicateFileSelectedRootFacetSortField.MatchingGroupCount,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileSelectedRootFacetFilter(
+                        exactPath,
+                        "0",
+                        PathMatch: DuplicateFilePathMatchMode.Exact)));
+            var exactPathDriveFacets = await client.GetDuplicateFileDriveFacetsAsync(
+                new DuplicateFileDriveFacetQuery(
+                    started.Id,
+                    25,
+                    DuplicateFileDriveFacetSortField.MatchingGroupCount,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileDriveFacetFilter(
+                        exactPath,
+                        "0",
+                        PathMatch: DuplicateFilePathMatchMode.Exact)));
             var folderGroups = await client.GetDuplicateFolderGroupsAsync(
                 new DuplicateFolderGroupQuery(
                     started.Id,
@@ -252,6 +285,12 @@ public sealed class WorkerClientLifecycleTests
             Assert.AreEqual(1, groups.Summary.DistinctDriveCount);
             Assert.AreEqual(0, groups.Summary.AcrossDriveGroupCount);
             Assert.IsTrue(members.Total >= 2);
+            Assert.AreEqual(1, exactPathGroups.Total);
+            Assert.AreEqual(1, exactPathGroups.Summary.MatchingGroupCount);
+            Assert.AreEqual(1, exactPathRootFacets.Total);
+            Assert.AreEqual(1, exactPathRootFacets.Facets.Single().MatchingGroupCount);
+            Assert.AreEqual(1, exactPathDriveFacets.Total);
+            Assert.AreEqual(1, exactPathDriveFacets.Facets.Single().MatchingGroupCount);
             CollectionAssert.IsSubsetOf(
                 new[] { "one.txt", "one-copy.txt" },
                 members.Members.Select(member => member.FileName).ToArray());

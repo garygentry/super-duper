@@ -15,12 +15,13 @@ use super_duper_core::storage::models::{
     DuplicateFileDriveFacetResult, DuplicateFileDriveFacetSortField, DuplicateFileGroupFilter,
     DuplicateFileGroupPageQuery, DuplicateFileGroupResult, DuplicateFileGroupSortField,
     DuplicateFileMemberFilter, DuplicateFileMemberPageQuery, DuplicateFileMemberResult,
-    DuplicateFileMemberSortField, DuplicateFileSelectedRootFacetPageQuery,
-    DuplicateFileSelectedRootFacetResult, DuplicateFileSelectedRootFacetSortField,
-    DuplicateFolderGroupFilter, DuplicateFolderGroupPageQuery, DuplicateFolderGroupResult,
-    DuplicateFolderGroupSortField, DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery,
-    DuplicateFolderMemberResult, DuplicateFolderMemberSortField, PageCursor, PageCursorValue,
-    RegisteredCloudLocation, RunExclusion, RunParameters, ScanRun, ScanSession, SortDirection,
+    DuplicateFileMemberSortField, DuplicateFilePathMatchMode,
+    DuplicateFileSelectedRootFacetPageQuery, DuplicateFileSelectedRootFacetResult,
+    DuplicateFileSelectedRootFacetSortField, DuplicateFolderGroupFilter,
+    DuplicateFolderGroupPageQuery, DuplicateFolderGroupResult, DuplicateFolderGroupSortField,
+    DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery, DuplicateFolderMemberResult,
+    DuplicateFolderMemberSortField, PageCursor, PageCursorValue, RegisteredCloudLocation,
+    RunExclusion, RunParameters, ScanRun, ScanSession, SortDirection,
 };
 use super_duper_core::storage::Database;
 use super_duper_core::{AppConfig, ScanEngine};
@@ -31,6 +32,7 @@ const DEFAULT_PAGE_SIZE: i64 = 100;
 const DEFAULT_RESULT_PAGE_SIZE: i64 = 200;
 const MAXIMUM_PAGE_SIZE: i64 = 500;
 const MAXIMUM_FILTER_CHARACTERS: usize = 512;
+const MAXIMUM_EXACT_PATH_CHARACTERS: usize = 32_767;
 const MAXIMUM_CURSOR_CHARACTERS: usize = MAXIMUM_FRAME_BYTES / 2;
 const EVENT_INTERVAL: Duration = Duration::from_millis(100);
 const DATABASE_PROGRESS_INTERVAL: Duration = Duration::from_millis(500);
@@ -273,6 +275,8 @@ impl Default for DuplicateFileGroupSortParameters {
 struct DuplicateFileGroupFilterParameters {
     #[serde(default)]
     search: Option<String>,
+    #[serde(default = "default_path_match")]
+    path_match: String,
     #[serde(default = "default_minimum_size")]
     minimum_size: String,
     #[serde(default = "default_minimum_copy_count")]
@@ -289,6 +293,7 @@ impl Default for DuplicateFileGroupFilterParameters {
     fn default() -> Self {
         Self {
             search: None,
+            path_match: default_path_match(),
             minimum_size: default_minimum_size(),
             minimum_copy_count: default_minimum_copy_count(),
             across_drives: false,
@@ -335,6 +340,8 @@ impl Default for DuplicateFileSelectedRootFacetSortParameters {
 struct DuplicateFileSelectedRootFacetFilterParameters {
     #[serde(default)]
     search: Option<String>,
+    #[serde(default = "default_path_match")]
+    path_match: String,
     #[serde(default = "default_minimum_size")]
     minimum_size: String,
     #[serde(default = "default_minimum_copy_count")]
@@ -349,6 +356,7 @@ impl Default for DuplicateFileSelectedRootFacetFilterParameters {
     fn default() -> Self {
         Self {
             search: None,
+            path_match: default_path_match(),
             minimum_size: default_minimum_size(),
             minimum_copy_count: default_minimum_copy_count(),
             across_drives: false,
@@ -394,6 +402,8 @@ impl Default for DuplicateFileDriveFacetSortParameters {
 struct DuplicateFileDriveFacetFilterParameters {
     #[serde(default)]
     search: Option<String>,
+    #[serde(default = "default_path_match")]
+    path_match: String,
     #[serde(default = "default_minimum_size")]
     minimum_size: String,
     #[serde(default = "default_minimum_copy_count")]
@@ -408,6 +418,7 @@ impl Default for DuplicateFileDriveFacetFilterParameters {
     fn default() -> Self {
         Self {
             search: None,
+            path_match: default_path_match(),
             minimum_size: default_minimum_size(),
             minimum_copy_count: default_minimum_copy_count(),
             across_drives: false,
@@ -1090,7 +1101,13 @@ impl WorkerSession {
         ensure_completed_result_run(&db, parameters.run_id)?;
         let sort_field = parse_group_sort_field(&parameters.sort.field)?;
         let sort_direction = parse_sort_direction(&parameters.sort.direction)?;
-        let search = validate_search(parameters.filter.search)?;
+        let requested_path_match = parse_path_match(&parameters.filter.path_match)?;
+        let search = validate_group_path_filter(parameters.filter.search, requested_path_match)?;
+        let path_match = search
+            .as_ref()
+            .map_or(DuplicateFilePathMatchMode::Substring, |_| {
+                requested_path_match
+            });
         let minimum_size =
             parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
         validate_minimum_copy_count(parameters.filter.minimum_copy_count)?;
@@ -1107,6 +1124,7 @@ impl WorkerSession {
             sort_field,
             sort_direction,
             search.as_deref(),
+            path_match,
             minimum_size,
             parameters.filter.minimum_copy_count,
             parameters.filter.across_drives,
@@ -1131,6 +1149,7 @@ impl WorkerSession {
                 sort_direction,
                 filter: DuplicateFileGroupFilter {
                     search,
+                    path_match,
                     minimum_size,
                     minimum_copy_count: parameters.filter.minimum_copy_count,
                     across_drives: parameters.filter.across_drives,
@@ -1187,7 +1206,13 @@ impl WorkerSession {
         ensure_completed_result_run(&db, parameters.run_id)?;
         let sort_field = parse_selected_root_facet_sort_field(&parameters.sort.field)?;
         let sort_direction = parse_sort_direction(&parameters.sort.direction)?;
-        let search = validate_search(parameters.filter.search)?;
+        let requested_path_match = parse_path_match(&parameters.filter.path_match)?;
+        let search = validate_group_path_filter(parameters.filter.search, requested_path_match)?;
+        let path_match = search
+            .as_ref()
+            .map_or(DuplicateFilePathMatchMode::Substring, |_| {
+                requested_path_match
+            });
         let minimum_size =
             parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
         validate_minimum_copy_count(parameters.filter.minimum_copy_count)?;
@@ -1200,6 +1225,7 @@ impl WorkerSession {
             sort_field,
             sort_direction,
             search.as_deref(),
+            path_match,
             minimum_size,
             parameters.filter.minimum_copy_count,
             parameters.filter.across_drives,
@@ -1223,6 +1249,7 @@ impl WorkerSession {
                 sort_direction,
                 filter: DuplicateFileGroupFilter {
                     search,
+                    path_match,
                     minimum_size,
                     minimum_copy_count: parameters.filter.minimum_copy_count,
                     across_drives: parameters.filter.across_drives,
@@ -1284,7 +1311,13 @@ impl WorkerSession {
         ensure_completed_result_run(&db, parameters.run_id)?;
         let sort_field = parse_drive_facet_sort_field(&parameters.sort.field)?;
         let sort_direction = parse_sort_direction(&parameters.sort.direction)?;
-        let search = validate_search(parameters.filter.search)?;
+        let requested_path_match = parse_path_match(&parameters.filter.path_match)?;
+        let search = validate_group_path_filter(parameters.filter.search, requested_path_match)?;
+        let path_match = search
+            .as_ref()
+            .map_or(DuplicateFilePathMatchMode::Substring, |_| {
+                requested_path_match
+            });
         let minimum_size =
             parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
         validate_minimum_copy_count(parameters.filter.minimum_copy_count)?;
@@ -1297,6 +1330,7 @@ impl WorkerSession {
             sort_field,
             sort_direction,
             search.as_deref(),
+            path_match,
             minimum_size,
             parameters.filter.minimum_copy_count,
             parameters.filter.across_drives,
@@ -1320,6 +1354,7 @@ impl WorkerSession {
                 sort_direction,
                 filter: DuplicateFileGroupFilter {
                     search,
+                    path_match,
                     minimum_size,
                     minimum_copy_count: parameters.filter.minimum_copy_count,
                     across_drives: parameters.filter.across_drives,
@@ -2205,6 +2240,21 @@ fn validate_result_page_size(page_size: i64) -> Result<(), ProtocolFailure> {
     }
 }
 
+fn parse_path_match(value: &str) -> Result<DuplicateFilePathMatchMode, ProtocolFailure> {
+    match value {
+        "substring" => Ok(DuplicateFilePathMatchMode::Substring),
+        "exact" => Ok(DuplicateFilePathMatchMode::Exact),
+        _ => Err(ProtocolFailure::new(
+            "invalid_request",
+            "filter.pathMatch must be substring or exact",
+        )
+        .with_details(json!({
+            "field":"filter.pathMatch",
+            "allowed":["substring","exact"]
+        }))),
+    }
+}
+
 fn parse_group_sort_field(value: &str) -> Result<DuplicateFileGroupSortField, ProtocolFailure> {
     match value {
         "recoverableBytes" => Ok(DuplicateFileGroupSortField::RecoverableBytes),
@@ -2334,6 +2384,30 @@ fn validate_search(value: Option<String>) -> Result<Option<String>, ProtocolFail
     }
 }
 
+fn validate_group_path_filter(
+    value: Option<String>,
+    path_match: DuplicateFilePathMatchMode,
+) -> Result<Option<String>, ProtocolFailure> {
+    if path_match == DuplicateFilePathMatchMode::Substring {
+        return validate_search(value);
+    }
+    let value = value.filter(|search| !search.trim().is_empty());
+    if value
+        .as_ref()
+        .is_some_and(|search| search.chars().count() > MAXIMUM_EXACT_PATH_CHARACTERS)
+    {
+        Err(ProtocolFailure::new(
+            "invalid_request",
+            format!(
+                "filter.search may contain at most {MAXIMUM_EXACT_PATH_CHARACTERS} characters for exact path matching"
+            ),
+        )
+        .with_details(json!({"field":"filter.search"})))
+    } else {
+        Ok(value)
+    }
+}
+
 fn parse_non_negative_decimal(value: &str, field: &str) -> Result<i64, ProtocolFailure> {
     value
         .parse::<i64>()
@@ -2365,6 +2439,7 @@ fn group_query_signature(
     sort_field: DuplicateFileGroupSortField,
     sort_direction: SortDirection,
     search: Option<&str>,
+    path_match: DuplicateFilePathMatchMode,
     minimum_size: i64,
     minimum_copy_count: i64,
     across_drives: bool,
@@ -2376,6 +2451,7 @@ fn group_query_signature(
         "sortField": group_sort_name(sort_field),
         "sortDirection": direction_name(sort_direction),
         "search": search.unwrap_or_default(),
+        "pathMatch": path_match_name(path_match),
         "minimumSize": minimum_size,
         "minimumCopyCount": minimum_copy_count,
         "acrossDrives": across_drives,
@@ -2390,6 +2466,7 @@ fn selected_root_facet_query_signature(
     sort_field: DuplicateFileSelectedRootFacetSortField,
     sort_direction: SortDirection,
     search: Option<&str>,
+    path_match: DuplicateFilePathMatchMode,
     minimum_size: i64,
     minimum_copy_count: i64,
     across_drives: bool,
@@ -2400,6 +2477,7 @@ fn selected_root_facet_query_signature(
         "sortField": selected_root_facet_sort_name(sort_field),
         "sortDirection": direction_name(sort_direction),
         "search": search.unwrap_or_default(),
+        "pathMatch": path_match_name(path_match),
         "minimumSize": minimum_size,
         "minimumCopyCount": minimum_copy_count,
         "acrossDrives": across_drives,
@@ -2413,6 +2491,7 @@ fn drive_facet_query_signature(
     sort_field: DuplicateFileDriveFacetSortField,
     sort_direction: SortDirection,
     search: Option<&str>,
+    path_match: DuplicateFilePathMatchMode,
     minimum_size: i64,
     minimum_copy_count: i64,
     across_drives: bool,
@@ -2423,6 +2502,7 @@ fn drive_facet_query_signature(
         "sortField": drive_facet_sort_name(sort_field),
         "sortDirection": direction_name(sort_direction),
         "search": search.unwrap_or_default(),
+        "pathMatch": path_match_name(path_match),
         "minimumSize": minimum_size,
         "minimumCopyCount": minimum_copy_count,
         "acrossDrives": across_drives,
@@ -2777,6 +2857,13 @@ fn group_sort_name(field: DuplicateFileGroupSortField) -> &'static str {
         DuplicateFileGroupSortField::GroupSize => "groupSize",
         DuplicateFileGroupSortField::CopyCount => "copyCount",
         DuplicateFileGroupSortField::RepresentativeName => "representativeName",
+    }
+}
+
+fn path_match_name(path_match: DuplicateFilePathMatchMode) -> &'static str {
+    match path_match {
+        DuplicateFilePathMatchMode::Substring => "substring",
+        DuplicateFilePathMatchMode::Exact => "exact",
     }
 }
 
@@ -3345,6 +3432,10 @@ fn default_folder_group_sort_field() -> String {
 
 fn default_member_sort_field() -> String {
     "path".to_owned()
+}
+
+fn default_path_match() -> String {
+    "substring".to_owned()
 }
 
 fn default_descending() -> String {
@@ -3995,6 +4086,163 @@ mod tests {
         .unwrap();
         assert_eq!(invalid_root_facet_drive["error"]["code"], "invalid_cursor");
         let cursor = first["result"]["nextCursor"].as_str().unwrap();
+        let exact_path_request = json!({
+            "type":"request",
+            "id":"exact-path",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "pageSize":25,
+                "sort":{"field":"recoverableBytes","direction":"descending"},
+                "filter":{"search":"/ROOT/B-COPY.BIN","pathMatch":"exact"}
+            }
+        });
+        let exact_path: Value =
+            serde_json::from_str(&worker.handle_line(&exact_path_request.to_string()).unwrap())
+                .unwrap();
+        assert_eq!(exact_path["result"]["total"], 1);
+        assert_eq!(exact_path["result"]["summary"]["matchingGroupCount"], 1);
+        assert_eq!(exact_path["result"]["groups"][0]["groupSize"], "200");
+
+        let exact_root_facets_request = json!({
+            "type":"request",
+            "id":"exact-path-roots",
+            "method":"duplicate_file_selected_root_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "filter":{"search":"/ROOT/B-COPY.BIN","pathMatch":"exact"}
+            }
+        });
+        let exact_root_facets: Value = serde_json::from_str(
+            &worker
+                .handle_line(&exact_root_facets_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(exact_root_facets["result"]["total"], 2);
+        assert!(exact_root_facets["result"]["facets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|facet| facet["matchingGroupCount"] == 1));
+        let exact_root_cursor = exact_root_facets["result"]["nextCursor"].as_str().unwrap();
+        let wrong_root_path_match_request = json!({
+            "type":"request",
+            "id":"wrong-root-path-match-cursor",
+            "method":"duplicate_file_selected_root_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "filter":{"search":"/ROOT/B-COPY.BIN","pathMatch":"substring"},
+                "cursor":exact_root_cursor
+            }
+        });
+        let wrong_root_path_match: Value = serde_json::from_str(
+            &worker
+                .handle_line(&wrong_root_path_match_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(wrong_root_path_match["error"]["code"], "invalid_cursor");
+
+        let exact_drive_facets_request = json!({
+            "type":"request",
+            "id":"exact-path-drives",
+            "method":"duplicate_file_drive_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "filter":{"search":"/ROOT/B-COPY.BIN","pathMatch":"exact"}
+            }
+        });
+        let exact_drive_facets: Value = serde_json::from_str(
+            &worker
+                .handle_line(&exact_drive_facets_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(exact_drive_facets["result"]["total"], 2);
+        assert!(exact_drive_facets["result"]["facets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|facet| facet["matchingGroupCount"] == 1));
+        let exact_drive_cursor = exact_drive_facets["result"]["nextCursor"].as_str().unwrap();
+        let wrong_drive_path_match_request = json!({
+            "type":"request",
+            "id":"wrong-drive-path-match-cursor",
+            "method":"duplicate_file_drive_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "filter":{"search":"/ROOT/B-COPY.BIN","pathMatch":"substring"},
+                "cursor":exact_drive_cursor
+            }
+        });
+        let wrong_drive_path_match: Value = serde_json::from_str(
+            &worker
+                .handle_line(&wrong_drive_path_match_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(wrong_drive_path_match["error"]["code"], "invalid_cursor");
+
+        let substring_cursor_request = json!({
+            "type":"request",
+            "id":"substring-cursor",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "filter":{"search":"/root","pathMatch":"substring"}
+            }
+        });
+        let substring_cursor_page: Value = serde_json::from_str(
+            &worker
+                .handle_line(&substring_cursor_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        let substring_cursor = substring_cursor_page["result"]["nextCursor"]
+            .as_str()
+            .unwrap();
+        let wrong_path_match_request = json!({
+            "type":"request",
+            "id":"wrong-path-match-cursor",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "filter":{"search":"/root","pathMatch":"exact"},
+                "cursor":substring_cursor
+            }
+        });
+        let wrong_path_match: Value = serde_json::from_str(
+            &worker
+                .handle_line(&wrong_path_match_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(wrong_path_match["error"]["code"], "invalid_cursor");
+
+        let invalid_path_match_request = json!({
+            "type":"request",
+            "id":"invalid-path-match",
+            "method":"duplicate_file_group.page",
+            "params":{"runId":1,"filter":{"pathMatch":"prefix"}}
+        });
+        let invalid_path_match: Value = serde_json::from_str(
+            &worker
+                .handle_line(&invalid_path_match_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(invalid_path_match["error"]["code"], "invalid_request");
+        assert_eq!(
+            invalid_path_match["error"]["details"]["field"],
+            "filter.pathMatch"
+        );
         let second_request = json!({
             "type":"request",
             "id":"second",

@@ -1579,17 +1579,36 @@ fn duplicate_file_group_predicate(
         SqlValue::Integer(filter.minimum_copy_count),
     ];
     if let Some(search) = filter.search.as_deref().filter(|value| !value.is_empty()) {
-        predicates.push(
-            "EXISTS (
-                SELECT 1 FROM duplicate_group_member search_member
-                JOIN scanned_file search_file ON search_file.id = search_member.file_id
-                WHERE search_member.group_id = dg.id
-                  AND search_file.run_id = dg.run_id
-                  AND search_file.canonical_path LIKE ? ESCAPE '\\' COLLATE NOCASE
-            )"
-            .to_owned(),
-        );
-        parameters.push(SqlValue::Text(like_pattern(search)));
+        match filter.path_match {
+            DuplicateFilePathMatchMode::Substring => {
+                predicates.push(
+                    "EXISTS (
+                        SELECT 1 FROM duplicate_group_member search_member
+                        JOIN scanned_file search_file ON search_file.id = search_member.file_id
+                        WHERE search_member.group_id = dg.id
+                          AND search_file.run_id = dg.run_id
+                          AND search_file.canonical_path LIKE ? ESCAPE '\\' COLLATE NOCASE
+                    )"
+                    .to_owned(),
+                );
+                parameters.push(SqlValue::Text(like_pattern(search)));
+            }
+            DuplicateFilePathMatchMode::Exact => {
+                predicates.push(
+                    "dg.id IN (
+                        SELECT exact_member.group_id
+                        FROM scanned_file exact_file INDEXED BY idx_file_run_path_unicode_nocase
+                        JOIN duplicate_group_member exact_member
+                          ON exact_member.file_id = exact_file.id
+                        WHERE exact_file.run_id = ?
+                          AND exact_file.canonical_path = ? COLLATE UNICODE_NOCASE
+                    )"
+                    .to_owned(),
+                );
+                parameters.push(SqlValue::Integer(run_id));
+                parameters.push(SqlValue::Text(search.to_owned()));
+            }
+        }
     }
     if filter.across_drives {
         predicates.push(

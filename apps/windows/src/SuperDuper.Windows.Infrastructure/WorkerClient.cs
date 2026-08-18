@@ -346,6 +346,7 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
                 filter = new
                 {
                     search = query.Filter.Search,
+                    pathMatch = PathMatch(query.Filter.PathMatch),
                     minimumSize = query.Filter.MinimumSize,
                     minimumCopyCount = query.Filter.MinimumCopyCount,
                     acrossDrives = query.Filter.AcrossDrives,
@@ -376,6 +377,7 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
                 filter = new
                 {
                     search = query.Filter.Search,
+                    pathMatch = PathMatch(query.Filter.PathMatch),
                     minimumSize = query.Filter.MinimumSize,
                     minimumCopyCount = query.Filter.MinimumCopyCount,
                     acrossDrives = query.Filter.AcrossDrives,
@@ -405,6 +407,7 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
                 filter = new
                 {
                     search = query.Filter.Search,
+                    pathMatch = PathMatch(query.Filter.PathMatch),
                     minimumSize = query.Filter.MinimumSize,
                     minimumCopyCount = query.Filter.MinimumCopyCount,
                     acrossDrives = query.Filter.AcrossDrives,
@@ -613,6 +616,13 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
         DuplicateFileGroupSortField.CopyCount => "copyCount",
         DuplicateFileGroupSortField.RepresentativeName => "representativeName",
         _ => throw new ArgumentOutOfRangeException(nameof(field)),
+    };
+
+    private static string PathMatch(DuplicateFilePathMatchMode pathMatch) => pathMatch switch
+    {
+        DuplicateFilePathMatchMode.Substring => "substring",
+        DuplicateFilePathMatchMode.Exact => "exact",
+        _ => throw new ArgumentOutOfRangeException(nameof(pathMatch)),
     };
 
     private static string MemberSortField(DuplicateFileMemberSortField field) => field switch
