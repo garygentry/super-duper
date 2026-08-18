@@ -275,6 +275,8 @@ struct DuplicateFileGroupFilterParameters {
     search: Option<String>,
     #[serde(default = "default_minimum_size")]
     minimum_size: String,
+    #[serde(default = "default_minimum_copy_count")]
+    minimum_copy_count: i64,
     #[serde(default)]
     across_drives: bool,
     #[serde(default)]
@@ -288,6 +290,7 @@ impl Default for DuplicateFileGroupFilterParameters {
         Self {
             search: None,
             minimum_size: default_minimum_size(),
+            minimum_copy_count: default_minimum_copy_count(),
             across_drives: false,
             selected_root: None,
             selected_drive: None,
@@ -334,6 +337,8 @@ struct DuplicateFileSelectedRootFacetFilterParameters {
     search: Option<String>,
     #[serde(default = "default_minimum_size")]
     minimum_size: String,
+    #[serde(default = "default_minimum_copy_count")]
+    minimum_copy_count: i64,
     #[serde(default)]
     across_drives: bool,
     #[serde(default)]
@@ -345,6 +350,7 @@ impl Default for DuplicateFileSelectedRootFacetFilterParameters {
         Self {
             search: None,
             minimum_size: default_minimum_size(),
+            minimum_copy_count: default_minimum_copy_count(),
             across_drives: false,
             selected_drive: None,
         }
@@ -390,6 +396,8 @@ struct DuplicateFileDriveFacetFilterParameters {
     search: Option<String>,
     #[serde(default = "default_minimum_size")]
     minimum_size: String,
+    #[serde(default = "default_minimum_copy_count")]
+    minimum_copy_count: i64,
     #[serde(default)]
     across_drives: bool,
     #[serde(default)]
@@ -401,6 +409,7 @@ impl Default for DuplicateFileDriveFacetFilterParameters {
         Self {
             search: None,
             minimum_size: default_minimum_size(),
+            minimum_copy_count: default_minimum_copy_count(),
             across_drives: false,
             selected_root: None,
         }
@@ -1084,6 +1093,7 @@ impl WorkerSession {
         let search = validate_search(parameters.filter.search)?;
         let minimum_size =
             parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
+        validate_minimum_copy_count(parameters.filter.minimum_copy_count)?;
         let selected_root = parameters
             .filter
             .selected_root
@@ -1098,6 +1108,7 @@ impl WorkerSession {
             sort_direction,
             search.as_deref(),
             minimum_size,
+            parameters.filter.minimum_copy_count,
             parameters.filter.across_drives,
             selected_root.as_deref(),
             selected_drive.as_deref(),
@@ -1121,6 +1132,7 @@ impl WorkerSession {
                 filter: DuplicateFileGroupFilter {
                     search,
                     minimum_size,
+                    minimum_copy_count: parameters.filter.minimum_copy_count,
                     across_drives: parameters.filter.across_drives,
                     selected_root,
                     selected_drive,
@@ -1178,6 +1190,7 @@ impl WorkerSession {
         let search = validate_search(parameters.filter.search)?;
         let minimum_size =
             parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
+        validate_minimum_copy_count(parameters.filter.minimum_copy_count)?;
         let selected_drive = parameters
             .filter
             .selected_drive
@@ -1188,6 +1201,7 @@ impl WorkerSession {
             sort_direction,
             search.as_deref(),
             minimum_size,
+            parameters.filter.minimum_copy_count,
             parameters.filter.across_drives,
             selected_drive.as_deref(),
         );
@@ -1210,6 +1224,7 @@ impl WorkerSession {
                 filter: DuplicateFileGroupFilter {
                     search,
                     minimum_size,
+                    minimum_copy_count: parameters.filter.minimum_copy_count,
                     across_drives: parameters.filter.across_drives,
                     selected_root: None,
                     selected_drive,
@@ -1272,6 +1287,7 @@ impl WorkerSession {
         let search = validate_search(parameters.filter.search)?;
         let minimum_size =
             parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
+        validate_minimum_copy_count(parameters.filter.minimum_copy_count)?;
         let selected_root = parameters
             .filter
             .selected_root
@@ -1282,6 +1298,7 @@ impl WorkerSession {
             sort_direction,
             search.as_deref(),
             minimum_size,
+            parameters.filter.minimum_copy_count,
             parameters.filter.across_drives,
             selected_root.as_deref(),
         );
@@ -1304,6 +1321,7 @@ impl WorkerSession {
                 filter: DuplicateFileGroupFilter {
                     search,
                     minimum_size,
+                    minimum_copy_count: parameters.filter.minimum_copy_count,
                     across_drives: parameters.filter.across_drives,
                     selected_root,
                     selected_drive: None,
@@ -2330,12 +2348,25 @@ fn parse_non_negative_decimal(value: &str, field: &str) -> Result<i64, ProtocolF
         })
 }
 
+fn validate_minimum_copy_count(value: i64) -> Result<(), ProtocolFailure> {
+    if value >= 2 {
+        Ok(())
+    } else {
+        Err(ProtocolFailure::new(
+            "invalid_request",
+            "filter.minimumCopyCount must be an integer greater than or equal to 2",
+        )
+        .with_details(json!({"field":"filter.minimumCopyCount"})))
+    }
+}
+
 fn group_query_signature(
     run_id: i64,
     sort_field: DuplicateFileGroupSortField,
     sort_direction: SortDirection,
     search: Option<&str>,
     minimum_size: i64,
+    minimum_copy_count: i64,
     across_drives: bool,
     selected_root: Option<&str>,
     selected_drive: Option<&str>,
@@ -2346,6 +2377,7 @@ fn group_query_signature(
         "sortDirection": direction_name(sort_direction),
         "search": search.unwrap_or_default(),
         "minimumSize": minimum_size,
+        "minimumCopyCount": minimum_copy_count,
         "acrossDrives": across_drives,
         "selectedRoot": selected_root.unwrap_or_default(),
         "selectedDrive": selected_drive.unwrap_or_default(),
@@ -2359,6 +2391,7 @@ fn selected_root_facet_query_signature(
     sort_direction: SortDirection,
     search: Option<&str>,
     minimum_size: i64,
+    minimum_copy_count: i64,
     across_drives: bool,
     selected_drive: Option<&str>,
 ) -> String {
@@ -2368,6 +2401,7 @@ fn selected_root_facet_query_signature(
         "sortDirection": direction_name(sort_direction),
         "search": search.unwrap_or_default(),
         "minimumSize": minimum_size,
+        "minimumCopyCount": minimum_copy_count,
         "acrossDrives": across_drives,
         "selectedDrive": selected_drive.unwrap_or_default(),
     })
@@ -2380,6 +2414,7 @@ fn drive_facet_query_signature(
     sort_direction: SortDirection,
     search: Option<&str>,
     minimum_size: i64,
+    minimum_copy_count: i64,
     across_drives: bool,
     selected_root: Option<&str>,
 ) -> String {
@@ -2389,6 +2424,7 @@ fn drive_facet_query_signature(
         "sortDirection": direction_name(sort_direction),
         "search": search.unwrap_or_default(),
         "minimumSize": minimum_size,
+        "minimumCopyCount": minimum_copy_count,
         "acrossDrives": across_drives,
         "selectedRoot": selected_root.unwrap_or_default(),
     })
@@ -3323,6 +3359,10 @@ fn default_minimum_size() -> String {
     "0".to_owned()
 }
 
+fn default_minimum_copy_count() -> i64 {
+    2
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3496,6 +3536,23 @@ mod tests {
                 warning_message: None,
                 marked_deleted: false,
             },
+            super_duper_core::storage::models::ScannedFile {
+                id: 0,
+                run_id,
+                root_path: "/root".to_owned(),
+                canonical_path: "/root/b-third.bin".to_owned(),
+                relative_path: "b-third.bin".to_owned(),
+                file_name: "b-third.bin".to_owned(),
+                parent_dir: "/root".to_owned(),
+                drive_letter: "D:".to_owned(),
+                file_size: 200,
+                last_modified: 1_700_000_000_000_000_004,
+                partial_hash: None,
+                content_hash: Some(22),
+                file_identity: None,
+                warning_message: None,
+                marked_deleted: false,
+            },
         ])
         .unwrap();
         db.insert_duplicate_groups(
@@ -3509,12 +3566,16 @@ mod tests {
                 (
                     22,
                     200,
-                    vec!["/root/b.bin".to_owned(), "/root/b-copy.bin".to_owned()],
+                    vec![
+                        "/root/b.bin".to_owned(),
+                        "/root/b-copy.bin".to_owned(),
+                        "/root/b-third.bin".to_owned(),
+                    ],
                 ),
             ],
         )
         .unwrap();
-        db.complete_scan_run(run_id, 4, 600, 4, 2, 0, 300, 0)
+        db.complete_scan_run(run_id, 5, 800, 5, 2, 0, 500, 0)
             .unwrap();
         drop(db);
 
@@ -3535,12 +3596,12 @@ mod tests {
         .unwrap();
         assert_eq!(first["result"]["total"], 2);
         assert_eq!(first["result"]["summary"]["matchingGroupCount"], 2);
-        assert_eq!(first["result"]["summary"]["matchingCopyCount"], 4);
+        assert_eq!(first["result"]["summary"]["matchingCopyCount"], 5);
         assert_eq!(
             first["result"]["summary"]["potentialRecoverableBytes"],
-            "300"
+            "500"
         );
-        assert_eq!(first["result"]["summary"]["largestRecoverableBytes"], "200");
+        assert_eq!(first["result"]["summary"]["largestRecoverableBytes"], "400");
         assert_eq!(first["result"]["summary"]["distinctSelectedRootCount"], 2);
         assert_eq!(first["result"]["summary"]["distinctDriveCount"], 2);
         assert_eq!(first["result"]["summary"]["acrossDriveGroupCount"], 1);
@@ -3573,6 +3634,52 @@ mod tests {
         assert_eq!(
             across_drives["result"]["groups"][0]["distinctDriveCount"],
             2
+        );
+        let minimum_copy_count_request = json!({
+            "type":"request",
+            "id":"minimum-copy-count",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "pageSize":25,
+                "sort":{"field":"recoverableBytes","direction":"descending"},
+                "filter":{"search":"","minimumSize":"0","minimumCopyCount":3}
+            }
+        });
+        let minimum_copy_count: Value = serde_json::from_str(
+            &worker
+                .handle_line(&minimum_copy_count_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(minimum_copy_count["result"]["total"], 1);
+        assert_eq!(
+            minimum_copy_count["result"]["summary"]["matchingCopyCount"],
+            3
+        );
+        assert_eq!(minimum_copy_count["result"]["groups"][0]["copyCount"], 3);
+        let invalid_minimum_copy_count_request = json!({
+            "type":"request",
+            "id":"invalid-minimum-copy-count",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "filter":{"minimumCopyCount":1}
+            }
+        });
+        let invalid_minimum_copy_count: Value = serde_json::from_str(
+            &worker
+                .handle_line(&invalid_minimum_copy_count_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            invalid_minimum_copy_count["error"]["code"],
+            "invalid_request"
+        );
+        assert_eq!(
+            invalid_minimum_copy_count["error"]["details"]["field"],
+            "filter.minimumCopyCount"
         );
         let root_facet_request = json!({
             "type":"request",
@@ -3631,6 +3738,28 @@ mod tests {
         )
         .unwrap();
         assert_eq!(invalid_root_facet["error"]["code"], "invalid_cursor");
+        let invalid_root_facet_copy_count_request = json!({
+            "type":"request",
+            "id":"root-facet-copy-count-invalid",
+            "method":"duplicate_file_selected_root_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"matchingGroupCount","direction":"descending"},
+                "filter":{"minimumCopyCount":3},
+                "cursor":root_facet_cursor
+            }
+        });
+        let invalid_root_facet_copy_count: Value = serde_json::from_str(
+            &worker
+                .handle_line(&invalid_root_facet_copy_count_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            invalid_root_facet_copy_count["error"]["code"],
+            "invalid_cursor"
+        );
         let named_root_facet_request = json!({
             "type":"request",
             "id":"root-facet-name",
@@ -3649,6 +3778,29 @@ mod tests {
         )
         .unwrap();
         assert_eq!(named_root_facet["result"]["facets"][0]["value"], "/archive");
+        let minimum_copy_count_root_facet_request = json!({
+            "type":"request",
+            "id":"root-facet-minimum-copy-count",
+            "method":"duplicate_file_selected_root_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":25,
+                "sort":{"field":"matchingGroupCount","direction":"descending"},
+                "filter":{"minimumCopyCount":3}
+            }
+        });
+        let minimum_copy_count_root_facet: Value = serde_json::from_str(
+            &worker
+                .handle_line(&minimum_copy_count_root_facet_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(minimum_copy_count_root_facet["result"]["total"], 2);
+        assert!(minimum_copy_count_root_facet["result"]["facets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|facet| facet["matchingGroupCount"] == 1));
         let drive_facet_request = json!({
             "type":"request",
             "id":"drive-facet",
@@ -3669,6 +3821,29 @@ mod tests {
         assert_eq!(drive_facet["result"]["total"], 2);
         assert_eq!(drive_facet["result"]["facets"][0]["value"], "D:");
         assert_eq!(drive_facet["result"]["facets"][0]["matchingGroupCount"], 1);
+        let minimum_copy_count_drive_facet_request = json!({
+            "type":"request",
+            "id":"drive-facet-minimum-copy-count",
+            "method":"duplicate_file_drive_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":25,
+                "sort":{"field":"matchingGroupCount","direction":"descending"},
+                "filter":{"minimumCopyCount":3}
+            }
+        });
+        let minimum_copy_count_drive_facet: Value = serde_json::from_str(
+            &worker
+                .handle_line(&minimum_copy_count_drive_facet_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(minimum_copy_count_drive_facet["result"]["total"], 2);
+        assert!(minimum_copy_count_drive_facet["result"]["facets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|facet| facet["matchingGroupCount"] == 1));
         let drive_facet_cursor = drive_facet["result"]["nextCursor"].as_str().unwrap();
         let next_drive_facet_request = json!({
             "type":"request",
@@ -3714,6 +3889,28 @@ mod tests {
         )
         .unwrap();
         assert_eq!(invalid_drive_facet["error"]["code"], "invalid_cursor");
+        let invalid_drive_facet_copy_count_request = json!({
+            "type":"request",
+            "id":"drive-facet-copy-count-invalid",
+            "method":"duplicate_file_drive_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"value","direction":"ascending"},
+                "filter":{"minimumCopyCount":3},
+                "cursor":drive_facet_cursor
+            }
+        });
+        let invalid_drive_facet_copy_count: Value = serde_json::from_str(
+            &worker
+                .handle_line(&invalid_drive_facet_copy_count_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            invalid_drive_facet_copy_count["error"]["code"],
+            "invalid_cursor"
+        );
         let invalid_root_facet_drive_request = json!({
             "type":"request",
             "id":"root-facet-drive-invalid",
@@ -3773,6 +3970,25 @@ mod tests {
             serde_json::from_str(&worker.handle_line(&invalid_request.to_string()).unwrap())
                 .unwrap();
         assert_eq!(invalid["error"]["code"], "invalid_cursor");
+        let invalid_copy_count_cursor_request = json!({
+            "type":"request",
+            "id":"invalid-copy-count-cursor",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"recoverableBytes","direction":"descending"},
+                "filter":{"minimumCopyCount":3},
+                "cursor":cursor,
+            }
+        });
+        let invalid_copy_count_cursor: Value = serde_json::from_str(
+            &worker
+                .handle_line(&invalid_copy_count_cursor_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(invalid_copy_count_cursor["error"]["code"], "invalid_cursor");
 
         let selected_root_request = json!({
             "type":"request",
@@ -3860,7 +4076,7 @@ mod tests {
         let members: Value =
             serde_json::from_str(&worker.handle_line(&members_request.to_string()).unwrap())
                 .unwrap();
-        assert_eq!(members["result"]["members"].as_array().unwrap().len(), 2);
+        assert_eq!(members["result"]["members"].as_array().unwrap().len(), 3);
         assert!(members["result"]["members"][0]["modifiedTimeUnixNanos"].is_string());
         assert!(members["result"]["members"]
             .as_array()

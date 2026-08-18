@@ -347,6 +347,7 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
                 {
                     search = query.Filter.Search,
                     minimumSize = query.Filter.MinimumSize,
+                    minimumCopyCount = query.Filter.MinimumCopyCount,
                     acrossDrives = query.Filter.AcrossDrives,
                     selectedRoot = query.Filter.SelectedRoot,
                     selectedDrive = query.Filter.SelectedDrive,
@@ -376,6 +377,7 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
                 {
                     search = query.Filter.Search,
                     minimumSize = query.Filter.MinimumSize,
+                    minimumCopyCount = query.Filter.MinimumCopyCount,
                     acrossDrives = query.Filter.AcrossDrives,
                     selectedDrive = query.Filter.SelectedDrive,
                 },
@@ -404,6 +406,7 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
                 {
                     search = query.Filter.Search,
                     minimumSize = query.Filter.MinimumSize,
+                    minimumCopyCount = query.Filter.MinimumCopyCount,
                     acrossDrives = query.Filter.AcrossDrives,
                     selectedRoot = query.Filter.SelectedRoot,
                 },

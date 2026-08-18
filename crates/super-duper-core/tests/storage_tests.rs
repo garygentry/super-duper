@@ -308,6 +308,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             file(run_id, &format!("/root/{prefix}-alpha-copy.txt"), 100, 11),
             file(run_id, &format!("/root/{prefix}-beta.bin"), 200, 22),
             file(run_id, &format!("/root/{prefix}-beta-copy.bin"), 200, 22),
+            file(run_id, &format!("/root/{prefix}-beta-third.bin"), 200, 22),
             file(run_id, &format!("/root/{prefix}-gamma.bin"), 200, 33),
             file(run_id, &format!("/root/{prefix}-gamma-copy.bin"), 200, 33),
         ];
@@ -316,8 +317,9 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
         files[1].drive_letter = "D:".to_owned();
         files[2].drive_letter = "D:".to_owned();
         files[3].drive_letter = "E:".to_owned();
-        files[4].drive_letter = "d:".to_owned();
-        files[5].drive_letter = "D:".to_owned();
+        files[4].drive_letter = "D:".to_owned();
+        files[5].drive_letter = "d:".to_owned();
+        files[6].drive_letter = "D:".to_owned();
         db.insert_scanned_files(&files).unwrap();
         db.insert_duplicate_groups(
             run_id,
@@ -336,6 +338,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                     vec![
                         format!("/root/{prefix}-beta.bin"),
                         format!("/root/{prefix}-beta-copy.bin"),
+                        format!("/root/{prefix}-beta-third.bin"),
                     ],
                 ),
                 (
@@ -359,6 +362,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
         filter: DuplicateFileGroupFilter {
             search: None,
             minimum_size: 0,
+            minimum_copy_count: 2,
             across_drives: false,
             selected_root: None,
             selected_drive: None,
@@ -368,9 +372,9 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
     let first_page = db.page_duplicate_file_groups(&base_query).unwrap();
     assert_eq!(first_page.total, 3);
     assert_eq!(first_page.summary.matching_group_count, 3);
-    assert_eq!(first_page.summary.matching_copy_count, 6);
-    assert_eq!(first_page.summary.potential_recoverable_bytes, 500);
-    assert_eq!(first_page.summary.largest_recoverable_bytes, 200);
+    assert_eq!(first_page.summary.matching_copy_count, 7);
+    assert_eq!(first_page.summary.potential_recoverable_bytes, 700);
+    assert_eq!(first_page.summary.largest_recoverable_bytes, 400);
     assert_eq!(first_page.summary.distinct_selected_root_count, 2);
     assert_eq!(first_page.summary.distinct_drive_count, 2);
     assert_eq!(first_page.summary.across_drive_group_count, 1);
@@ -380,7 +384,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
         .groups
         .iter()
         .all(|group| group.run_id == first_run));
-    assert_eq!(first_page.groups[0].recoverable_bytes, 200);
+    assert_eq!(first_page.groups[0].recoverable_bytes, 400);
     assert_eq!(first_page.groups[1].recoverable_bytes, 200);
     assert!(first_page.groups[0].id < first_page.groups[1].id);
 
@@ -429,6 +433,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             filter: DuplicateFileGroupFilter {
                 search: Some("alpha".to_owned()),
                 minimum_size: 100,
+                minimum_copy_count: 2,
                 across_drives: false,
                 selected_root: None,
                 selected_drive: None,
@@ -455,6 +460,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             filter: DuplicateFileGroupFilter {
                 search: None,
                 minimum_size: 0,
+                minimum_copy_count: 2,
                 across_drives: true,
                 selected_root: None,
                 selected_drive: None,
@@ -465,12 +471,64 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
         .unwrap();
     assert_eq!(across_drives.total, 1);
     assert_eq!(across_drives.summary.matching_group_count, 1);
-    assert_eq!(across_drives.summary.matching_copy_count, 2);
-    assert_eq!(across_drives.summary.potential_recoverable_bytes, 200);
+    assert_eq!(across_drives.summary.matching_copy_count, 3);
+    assert_eq!(across_drives.summary.potential_recoverable_bytes, 400);
     assert_eq!(across_drives.summary.distinct_selected_root_count, 1);
     assert_eq!(across_drives.summary.distinct_drive_count, 2);
     assert_eq!(across_drives.summary.across_drive_group_count, 1);
     assert_eq!(across_drives.groups[0].distinct_drive_count, 2);
+
+    let three_or_more = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            limit: 10,
+            filter: DuplicateFileGroupFilter {
+                minimum_copy_count: 3,
+                ..base_query.filter.clone()
+            },
+            cursor: None,
+            ..base_query.clone()
+        })
+        .unwrap();
+    assert_eq!(three_or_more.total, 1);
+    assert_eq!(three_or_more.summary.matching_group_count, 1);
+    assert_eq!(three_or_more.summary.matching_copy_count, 3);
+    assert_eq!(three_or_more.summary.potential_recoverable_bytes, 400);
+    assert_eq!(three_or_more.groups[0].file_count, 3);
+
+    let three_or_more_root_facets = db
+        .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
+            run_id: first_run,
+            limit: 10,
+            sort_field: DuplicateFileSelectedRootFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: DuplicateFileGroupFilter {
+                minimum_copy_count: 3,
+                ..base_query.filter.clone()
+            },
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(three_or_more_root_facets.total, 1);
+    assert_eq!(three_or_more_root_facets.facets[0].matching_group_count, 1);
+
+    let three_or_more_drive_facets = db
+        .page_duplicate_file_drive_facets(&DuplicateFileDriveFacetPageQuery {
+            run_id: first_run,
+            limit: 10,
+            sort_field: DuplicateFileDriveFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: DuplicateFileGroupFilter {
+                minimum_copy_count: 3,
+                ..base_query.filter.clone()
+            },
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(three_or_more_drive_facets.total, 2);
+    assert!(three_or_more_drive_facets
+        .facets
+        .iter()
+        .all(|facet| facet.matching_group_count == 1));
 
     let root_facets = db
         .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
@@ -481,6 +539,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             filter: DuplicateFileGroupFilter {
                 search: None,
                 minimum_size: 0,
+                minimum_copy_count: 2,
                 across_drives: false,
                 selected_root: Some("/selected-root".to_owned()),
                 selected_drive: None,
@@ -504,6 +563,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             filter: DuplicateFileGroupFilter {
                 search: None,
                 minimum_size: 0,
+                minimum_copy_count: 2,
                 across_drives: false,
                 selected_root: None,
                 selected_drive: None,
@@ -527,6 +587,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             filter: DuplicateFileGroupFilter {
                 search: None,
                 minimum_size: 0,
+                minimum_copy_count: 2,
                 across_drives: false,
                 selected_root: None,
                 selected_drive: Some("E:".to_owned()),
@@ -550,6 +611,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             filter: DuplicateFileGroupFilter {
                 search: None,
                 minimum_size: 0,
+                minimum_copy_count: 2,
                 across_drives: false,
                 selected_root: None,
                 selected_drive: None,
@@ -573,6 +635,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             filter: DuplicateFileGroupFilter {
                 search: None,
                 minimum_size: 0,
+                minimum_copy_count: 2,
                 across_drives: false,
                 selected_root: Some("/SELECTED-ROOT".to_owned()),
                 selected_drive: None,
@@ -593,6 +656,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             filter: DuplicateFileGroupFilter {
                 search: None,
                 minimum_size: 0,
+                minimum_copy_count: 2,
                 across_drives: false,
                 selected_root: Some("/SELECTED-ROOT".to_owned()),
                 selected_drive: None,
@@ -615,6 +679,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             filter: DuplicateFileGroupFilter {
                 search: None,
                 minimum_size: 0,
+                minimum_copy_count: 2,
                 across_drives: false,
                 selected_root: None,
                 selected_drive: Some("e:".to_owned()),
@@ -660,7 +725,7 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
             .prepare_cached(
                 "INSERT INTO duplicate_group
                     (run_id, content_hash, file_size, file_count, wasted_bytes)
-                 VALUES (?1, ?2, ?3, 2, ?3)",
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
             )
             .unwrap();
         let mut insert_file = transaction
@@ -678,12 +743,19 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
             .unwrap();
         for index in 0..100_000_i64 {
             let file_size = (index % 4096) + 1;
+            let copy_count = if index % 1000 == 0 { 3 } else { 2 };
             insert_group
-                .execute(params![run_id, index + 1, file_size])
+                .execute(params![
+                    run_id,
+                    index + 1,
+                    file_size,
+                    copy_count,
+                    file_size * (copy_count - 1)
+                ])
                 .unwrap();
             if index % 1000 == 0 {
                 let group_id = transaction.last_insert_rowid();
-                for (copy, drive) in [("a", "D:"), ("b", "E:")] {
+                for (copy, drive) in [("a", "D:"), ("b", "E:"), ("c", "D:")] {
                     let relative_path = format!("cross-{index}-{copy}.bin");
                     let canonical_path = format!("/root/{relative_path}");
                     insert_file
@@ -712,6 +784,7 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         filter: DuplicateFileGroupFilter {
             search: None,
             minimum_size: 0,
+            minimum_copy_count: 2,
             across_drives: false,
             selected_root: None,
             selected_drive: None,
@@ -722,7 +795,7 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
     let first = db.page_duplicate_file_groups(&query).unwrap();
     assert_eq!(first.total, 100_000);
     assert_eq!(first.summary.matching_group_count, 100_000);
-    assert_eq!(first.summary.matching_copy_count, 200_000);
+    assert_eq!(first.summary.matching_copy_count, 200_100);
     assert_eq!(first.summary.distinct_selected_root_count, 1);
     assert_eq!(first.summary.distinct_drive_count, 2);
     assert_eq!(first.summary.across_drive_group_count, 100);
@@ -758,6 +831,7 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
             filter: DuplicateFileGroupFilter {
                 search: None,
                 minimum_size: 0,
+                minimum_copy_count: 2,
                 across_drives: true,
                 selected_root: None,
                 selected_drive: None,
@@ -767,7 +841,7 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         .unwrap();
     assert_eq!(across.total, 100);
     assert_eq!(across.summary.matching_group_count, 100);
-    assert_eq!(across.summary.matching_copy_count, 200);
+    assert_eq!(across.summary.matching_copy_count, 300);
     assert_eq!(across.summary.distinct_selected_root_count, 1);
     assert_eq!(across.summary.distinct_drive_count, 2);
     assert_eq!(across.summary.across_drive_group_count, 100);
@@ -781,6 +855,55 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         across_started.elapsed() < std::time::Duration::from_secs(5),
         "100,000-group across-drives filter took {:?}",
         across_started.elapsed()
+    );
+
+    let copy_count_started = std::time::Instant::now();
+    let three_or_more_filter = DuplicateFileGroupFilter {
+        minimum_copy_count: 3,
+        ..query.filter.clone()
+    };
+    let three_or_more = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            filter: three_or_more_filter.clone(),
+            ..query.clone()
+        })
+        .unwrap();
+    assert_eq!(three_or_more.total, 100);
+    assert_eq!(three_or_more.summary.matching_copy_count, 300);
+    assert!(three_or_more
+        .groups
+        .iter()
+        .all(|group| group.file_count >= 3));
+    let three_or_more_roots = db
+        .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
+            run_id,
+            limit: 25,
+            sort_field: DuplicateFileSelectedRootFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: three_or_more_filter.clone(),
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(three_or_more_roots.facets[0].matching_group_count, 100);
+    let three_or_more_drives = db
+        .page_duplicate_file_drive_facets(&DuplicateFileDriveFacetPageQuery {
+            run_id,
+            limit: 25,
+            sort_field: DuplicateFileDriveFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: three_or_more_filter,
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(three_or_more_drives.total, 2);
+    assert!(three_or_more_drives
+        .facets
+        .iter()
+        .all(|facet| facet.matching_group_count == 100));
+    assert!(
+        copy_count_started.elapsed() < std::time::Duration::from_secs(5),
+        "100,000-group minimum-copy-count group/facet queries took {:?}",
+        copy_count_started.elapsed()
     );
 
     let facet_started = std::time::Instant::now();

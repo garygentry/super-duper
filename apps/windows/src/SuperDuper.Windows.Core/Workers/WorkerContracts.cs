@@ -98,7 +98,8 @@ public sealed record DuplicateFileGroupFilter(
     string MinimumSize,
     bool AcrossDrives = false,
     string? SelectedRoot = null,
-    string? SelectedDrive = null);
+    string? SelectedDrive = null,
+    long MinimumCopyCount = 2);
 
 public sealed record DuplicateFileGroupQuery(
     long RunId,
@@ -155,7 +156,8 @@ public sealed record DuplicateFileSelectedRootFacetFilter(
     string Search,
     string MinimumSize,
     bool AcrossDrives = false,
-    string? SelectedDrive = null);
+    string? SelectedDrive = null,
+    long MinimumCopyCount = 2);
 
 public sealed record DuplicateFileSelectedRootFacetQuery(
     long RunId,
@@ -185,7 +187,8 @@ public sealed record DuplicateFileDriveFacetFilter(
     string Search,
     string MinimumSize,
     bool AcrossDrives = false,
-    string? SelectedRoot = null);
+    string? SelectedRoot = null,
+    long MinimumCopyCount = 2);
 
 public sealed record DuplicateFileDriveFacetQuery(
     long RunId,

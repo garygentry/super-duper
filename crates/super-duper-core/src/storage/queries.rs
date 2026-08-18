@@ -1570,12 +1570,13 @@ fn duplicate_file_group_predicate(
 ) -> (Vec<String>, Vec<SqlValue>) {
     let mut predicates = vec![
         "dg.run_id = ?".to_owned(),
-        "dg.file_count > 1".to_owned(),
         "dg.file_size >= ?".to_owned(),
+        "dg.file_count >= ?".to_owned(),
     ];
     let mut parameters = vec![
         SqlValue::Integer(run_id),
         SqlValue::Integer(filter.minimum_size),
+        SqlValue::Integer(filter.minimum_copy_count),
     ];
     if let Some(search) = filter.search.as_deref().filter(|value| !value.is_empty()) {
         predicates.push(

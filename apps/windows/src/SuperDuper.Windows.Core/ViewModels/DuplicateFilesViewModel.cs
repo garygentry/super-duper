@@ -44,6 +44,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private long _driveFacetGeneration;
     private string _searchText = string.Empty;
     private string _minimumSizeText = string.Empty;
+    private bool _threeOrMoreCopies;
     private bool _acrossDrives;
     private string? _errorMessage;
     private string? _detailErrorMessage;
@@ -190,6 +191,12 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     {
         get => _minimumSizeText;
         set => SetProperty(ref _minimumSizeText, value);
+    }
+
+    public bool ThreeOrMoreCopies
+    {
+        get => _threeOrMoreCopies;
+        set => SetProperty(ref _threeOrMoreCopies, value);
     }
 
     public bool AcrossDrives
@@ -606,6 +613,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     {
         SearchText = string.Empty;
         MinimumSizeText = string.Empty;
+        ThreeOrMoreCopies = false;
         AcrossDrives = false;
         SelectedRootFacet = SelectedRootFacetOptions.FirstOrDefault(option => option.Value is null)
             ?? new DuplicateFileSelectedRootFacetListItemViewModel();
@@ -826,7 +834,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             groupFilter.Search,
             groupFilter.MinimumSize,
             groupFilter.AcrossDrives,
-            groupFilter.SelectedDrive);
+            groupFilter.SelectedDrive,
+            groupFilter.MinimumCopyCount);
         await LoadRootFacetPageAsync(
             null,
             filter,
@@ -992,7 +1001,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 groupFilter.Search,
                 groupFilter.MinimumSize,
                 groupFilter.AcrossDrives,
-                groupFilter.SelectedDrive);
+                groupFilter.SelectedDrive,
+                groupFilter.MinimumCopyCount);
             await LoadRootFacetPageAsync(
                 cursor,
                 filter,
@@ -1012,7 +1022,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 groupFilter.Search,
                 groupFilter.MinimumSize,
                 groupFilter.AcrossDrives,
-                groupFilter.SelectedDrive);
+                groupFilter.SelectedDrive,
+                groupFilter.MinimumCopyCount);
             await LoadRootFacetPageAsync(
                 cursor,
                 filter,
@@ -1052,7 +1063,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             groupFilter.Search,
             groupFilter.MinimumSize,
             groupFilter.AcrossDrives,
-            groupFilter.SelectedRoot);
+            groupFilter.SelectedRoot,
+            groupFilter.MinimumCopyCount);
         await LoadDriveFacetPageAsync(
             null,
             filter,
@@ -1217,7 +1229,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 groupFilter.Search,
                 groupFilter.MinimumSize,
                 groupFilter.AcrossDrives,
-                groupFilter.SelectedRoot);
+                groupFilter.SelectedRoot,
+                groupFilter.MinimumCopyCount);
             await LoadDriveFacetPageAsync(
                 cursor,
                 filter,
@@ -1237,7 +1250,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 groupFilter.Search,
                 groupFilter.MinimumSize,
                 groupFilter.AcrossDrives,
-                groupFilter.SelectedRoot);
+                groupFilter.SelectedRoot,
+                groupFilter.MinimumCopyCount);
             await LoadDriveFacetPageAsync(
                 cursor,
                 filter,
@@ -1429,7 +1443,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             value.ToString(CultureInfo.InvariantCulture),
             AcrossDrives,
             SelectedRootFacet?.Value,
-            SelectedDriveFacet?.Value);
+            SelectedDriveFacet?.Value,
+            ThreeOrMoreCopies ? 3 : 2);
         return true;
     }
 

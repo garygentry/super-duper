@@ -88,10 +88,14 @@ public sealed class DuplicateFilesViewModelTests
         Assert.AreEqual(@"C:\Photos\photo.jpg", explorer.RevealedPath);
 
         viewModel.AcrossDrives = true;
+        viewModel.ThreeOrMoreCopies = true;
         await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
         Assert.IsTrue(lastGroupQuery!.Filter.AcrossDrives);
         Assert.IsTrue(lastRootFacetQuery!.Filter.AcrossDrives);
         Assert.IsTrue(lastDriveFacetQuery!.Filter.AcrossDrives);
+        Assert.AreEqual(3, lastGroupQuery.Filter.MinimumCopyCount);
+        Assert.AreEqual(3, lastRootFacetQuery.Filter.MinimumCopyCount);
+        Assert.AreEqual(3, lastDriveFacetQuery.Filter.MinimumCopyCount);
 
         viewModel.SelectedRootFacet = viewModel.SelectedRootFacetOptions[1];
         await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
@@ -115,7 +119,11 @@ public sealed class DuplicateFilesViewModelTests
 
         await viewModel.ClearFiltersCommand.ExecuteAsync(null);
         Assert.IsFalse(viewModel.AcrossDrives);
+        Assert.IsFalse(viewModel.ThreeOrMoreCopies);
         Assert.IsFalse(lastGroupQuery.Filter.AcrossDrives);
+        Assert.AreEqual(2, lastGroupQuery.Filter.MinimumCopyCount);
+        Assert.AreEqual(2, lastRootFacetQuery.Filter.MinimumCopyCount);
+        Assert.AreEqual(2, lastDriveFacetQuery.Filter.MinimumCopyCount);
         Assert.IsNull(lastGroupQuery.Filter.SelectedRoot);
         Assert.IsNull(lastGroupQuery.Filter.SelectedDrive);
     }

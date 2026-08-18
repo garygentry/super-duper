@@ -71,6 +71,9 @@ public sealed class WpfSurfaceSmokeTests
                 FindByAutomationId<FrameworkElement>(files, "FileLocationSummary")));
             _ = FindByAutomationId<TextBlock>(files, "FileLocationSummaryText");
             Assert.AreEqual(
+                "Show only duplicate sets with three or more copies",
+                AutomationProperties.GetName(FindByAutomationId<CheckBox>(files, "FileThreeOrMoreCopies")));
+            Assert.AreEqual(
                 "Show only duplicate sets across multiple drives",
                 AutomationProperties.GetName(FindByAutomationId<CheckBox>(files, "FileAcrossDrives")));
             Assert.AreEqual(

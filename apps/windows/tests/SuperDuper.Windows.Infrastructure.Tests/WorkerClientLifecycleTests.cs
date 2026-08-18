@@ -159,6 +159,13 @@ public sealed class WorkerClientLifecycleTests
                     DuplicateFileGroupSortField.RecoverableBytes,
                     WorkerSortDirection.Descending,
                     new DuplicateFileGroupFilter(string.Empty, "0", AcrossDrives: true)));
+            var threeCopyGroups = await client.GetDuplicateFileGroupsAsync(
+                new DuplicateFileGroupQuery(
+                    started.Id,
+                    200,
+                    DuplicateFileGroupSortField.CopyCount,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileGroupFilter(string.Empty, "0", MinimumCopyCount: 3)));
             var rootFacets = await client.GetDuplicateFileSelectedRootFacetsAsync(
                 new DuplicateFileSelectedRootFacetQuery(
                     started.Id,
@@ -173,6 +180,26 @@ public sealed class WorkerClientLifecycleTests
                     DuplicateFileDriveFacetSortField.MatchingGroupCount,
                     WorkerSortDirection.Descending,
                     new DuplicateFileDriveFacetFilter(string.Empty, "0")));
+            var threeCopyRootFacets = await client.GetDuplicateFileSelectedRootFacetsAsync(
+                new DuplicateFileSelectedRootFacetQuery(
+                    started.Id,
+                    25,
+                    DuplicateFileSelectedRootFacetSortField.MatchingGroupCount,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileSelectedRootFacetFilter(
+                        string.Empty,
+                        "0",
+                        MinimumCopyCount: 3)));
+            var threeCopyDriveFacets = await client.GetDuplicateFileDriveFacetsAsync(
+                new DuplicateFileDriveFacetQuery(
+                    started.Id,
+                    25,
+                    DuplicateFileDriveFacetSortField.MatchingGroupCount,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileDriveFacetFilter(
+                        string.Empty,
+                        "0",
+                        MinimumCopyCount: 3)));
             var selectedRootGroups = await client.GetDuplicateFileGroupsAsync(
                 new DuplicateFileGroupQuery(
                     started.Id,
@@ -210,6 +237,9 @@ public sealed class WorkerClientLifecycleTests
             Assert.AreEqual(1, sessions.Total);
             Assert.AreEqual("run.completed", terminalEvent);
             Assert.AreEqual(0, acrossDriveGroups.Total);
+            Assert.AreEqual(0, threeCopyGroups.Total);
+            Assert.AreEqual(0, threeCopyRootFacets.Total);
+            Assert.AreEqual(0, threeCopyDriveFacets.Total);
             Assert.AreEqual(1, rootFacets.Total);
             Assert.AreEqual(2, rootFacets.Facets.Single().MatchingGroupCount);
             Assert.AreEqual(1, driveFacets.Total);

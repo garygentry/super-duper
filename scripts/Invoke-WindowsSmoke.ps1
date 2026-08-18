@@ -42,6 +42,9 @@ function New-SmokeFixture([string]$Root) {
         [Array]::Fill($bytes, [byte](($index % 251) + 1))
         [IO.File]::WriteAllBytes((Join-Path $results ("group{0:D3}-a.bin" -f $index)), $bytes)
         [IO.File]::WriteAllBytes((Join-Path $results ("group{0:D3}-b.bin" -f $index)), $bytes)
+        if ($index -eq 10) {
+            [IO.File]::WriteAllBytes((Join-Path $results ("group{0:D3}-c.bin" -f $index)), $bytes)
+        }
     }
 
     foreach ($folder in @('original-set', 'renamed-set')) {
@@ -315,6 +318,8 @@ function Invoke-WpfAutomation([long]$RunId) {
         Assert-True (-not $cloudStatus.Current.Name.Contains('unavailable', [StringComparison]::OrdinalIgnoreCase)) 'Cloud registration discovery remained unavailable in the normal WPF smoke.'
         Assert-True ((Find-Element AutomationId 'StartScanButton').Current.IsEnabled) 'Start scan did not become enabled after successful cloud registration discovery.'
         Select-Element (Find-Element AutomationId 'DuplicateFilesTab')
+        $threeOrMoreCopies = Find-Element AutomationId 'FileThreeOrMoreCopies'
+        Assert-True ($threeOrMoreCopies.Current.Name -eq 'Show only duplicate sets with three or more copies') 'Minimum-copy-count filter was not accessible.'
         $acrossDrives = Find-Element AutomationId 'FileAcrossDrives'
         Assert-True ($acrossDrives.Current.Name -eq 'Show only duplicate sets across multiple drives') 'Across-drives filter was not accessible.'
         $rootFacet = Find-Element AutomationId 'FileSelectedRootFacet'
@@ -374,6 +379,26 @@ function Invoke-WpfAutomation([long]$RunId) {
         $selectedDriveFilterText = Find-Element AutomationId 'FileSelectedDriveFilterText'
         Assert-True ($selectedDriveFilterText.Current.Name.Contains('Filtering sets represented on', [StringComparison]::OrdinalIgnoreCase)) 'Drive facet selection did not become active.'
         Invoke-Element (Find-Element Name 'Clear filters')
+        $threeOrMoreCopiesToggle = $threeOrMoreCopies.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
+        if ($threeOrMoreCopiesToggle.Current.ToggleState -ne [Windows.Automation.ToggleState]::Off) {
+            $threeOrMoreCopiesToggle.Toggle()
+        }
+        $threeOrMoreCopiesToggle.Toggle()
+        Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            if ((Find-Element AutomationId 'FileApplyFilters' 1).Current.IsEnabled) { break }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ((Find-Element AutomationId 'FileApplyFilters').Current.IsEnabled) 'Minimum-copy-count filter did not complete responsively.'
+        $minimumCopySummary = Find-Element AutomationId 'FileSummaryMatchingCopies'
+        Assert-True ([long]$minimumCopySummary.Current.Name -ge 3) 'Minimum-copy-count filter did not return a three-copy set.'
+        $threeOrMoreCopiesToggle.Toggle()
+        Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            if ((Find-Element AutomationId 'FileApplyFilters' 1).Current.IsEnabled) { break }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ((Find-Element AutomationId 'FileApplyFilters').Current.IsEnabled) 'Clearing the minimum-copy-count filter did not complete responsively.'
         $acrossDrivesToggle = $acrossDrives.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
         if ($acrossDrivesToggle.Current.ToggleState -ne [Windows.Automation.ToggleState]::Off) {
             $acrossDrivesToggle.Toggle()
@@ -435,7 +460,7 @@ function Invoke-WpfAutomation([long]$RunId) {
         $null = Find-FirstDataItem $folderMembers
         Invoke-Element (Find-DescendantByName $folderMembers 'Show in Explorer')
         Assert-NoVisibleDetailError 'FolderDetailError'
-        Write-Output "WPF automation passed for restored run $RunId, including selected-root and drive facet filtering and completed ordinary, long-path, and folder Explorer reveal commands."
+        Write-Output "WPF automation passed for restored run $RunId, including minimum-copy-count plus selected-root and drive facet filtering and completed ordinary, long-path, and folder Explorer reveal commands."
     }
     finally {
         try {
@@ -776,6 +801,27 @@ try {
     Assert-True ($acrossDriveFiles.summary.matchingGroupCount -eq $acrossDriveFiles.total) 'Across-drives summary diverged from the filtered result total.'
     Assert-True ($acrossDriveFiles.summary.acrossDriveGroupCount -eq $acrossDriveFiles.total) 'Across-drives location summary diverged from the filtered result total.'
     Assert-True (@($acrossDriveFiles.groups | Where-Object { $_.distinctDriveCount -le 1 }).Count -eq 0) 'Across-drives filter returned a set confined to one drive.'
+    $threeCopyFiles = Send-WorkerRequest $restored 'duplicate_file_group.page' @{
+        runId = $run.id; pageSize = 25
+        sort = @{ field = 'copyCount'; direction = 'descending' }
+        filter = @{ search = ''; minimumSize = '0'; minimumCopyCount = 3 }; cursor = $null
+    }
+    Assert-True ($threeCopyFiles.total -eq 1) 'Minimum-copy-count filter did not isolate the three-copy smoke set.'
+    Assert-True ($threeCopyFiles.summary.matchingGroupCount -eq $threeCopyFiles.total) 'Minimum-copy-count summary diverged from its result total.'
+    Assert-True ($threeCopyFiles.summary.matchingCopyCount -eq 3) 'Minimum-copy-count summary did not report the three matching copies.'
+    Assert-True (@($threeCopyFiles.groups | Where-Object { $_.copyCount -lt 3 }).Count -eq 0) 'Minimum-copy-count filter returned a set below its threshold.'
+    $threeCopyRootFacets = Send-WorkerRequest $restored 'duplicate_file_selected_root_facet.page' @{
+        runId = $run.id; pageSize = 25
+        sort = @{ field = 'matchingGroupCount'; direction = 'descending' }
+        filter = @{ search = ''; minimumSize = '0'; minimumCopyCount = 3; acrossDrives = $false }; cursor = $null
+    }
+    Assert-True ($threeCopyRootFacets.facets[0].matchingGroupCount -eq 1) 'Selected-root facet did not apply the minimum-copy-count filter.'
+    $threeCopyDriveFacets = Send-WorkerRequest $restored 'duplicate_file_drive_facet.page' @{
+        runId = $run.id; pageSize = 25
+        sort = @{ field = 'matchingGroupCount'; direction = 'descending' }
+        filter = @{ search = ''; minimumSize = '0'; minimumCopyCount = 3; acrossDrives = $false }; cursor = $null
+    }
+    Assert-True ($threeCopyDriveFacets.facets[0].matchingGroupCount -eq 1) 'Drive facet did not apply the minimum-copy-count filter.'
     $fileMembers = Send-WorkerRequest $restored 'duplicate_file_group.members' @{
         runId = $run.id; groupId = $filteredFiles.groups[0].id; pageSize = 25
         sort = @{ field = 'path'; direction = 'ascending' }
