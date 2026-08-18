@@ -322,7 +322,7 @@ public sealed class DuplicateFilesViewModelTests
     }
 
     [TestMethod]
-    public async Task AnyMemberExtensionAndNoExtensionFlowThroughGroupsAndIndependentFacets()
+    public async Task ExtensionMatchModesAndNoExtensionFlowThroughGroupsAndIndependentFacets()
     {
         DuplicateFileGroupQuery? groupQuery = null;
         DuplicateFileSelectedRootFacetQuery? rootFacetQuery = null;
@@ -355,6 +355,16 @@ public sealed class DuplicateFilesViewModelTests
         Assert.AreEqual("JPG", groupQuery!.Filter.Extension);
         Assert.AreEqual("JPG", rootFacetQuery!.Filter.Extension);
         Assert.AreEqual("JPG", driveFacetQuery!.Filter.Extension);
+        Assert.AreEqual(DuplicateFileExtensionMatchMode.AnyMember, groupQuery.Filter.ExtensionMatch);
+        Assert.AreEqual(DuplicateFileExtensionMatchMode.AnyMember, rootFacetQuery.Filter.ExtensionMatch);
+        Assert.AreEqual(DuplicateFileExtensionMatchMode.AnyMember, driveFacetQuery.Filter.ExtensionMatch);
+
+        viewModel.AllMembersMustMatchExtension = true;
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(DuplicateFileExtensionMatchMode.AllMembers, groupQuery.Filter.ExtensionMatch);
+        Assert.AreEqual(DuplicateFileExtensionMatchMode.AllMembers, rootFacetQuery.Filter.ExtensionMatch);
+        Assert.AreEqual(DuplicateFileExtensionMatchMode.AllMembers, driveFacetQuery.Filter.ExtensionMatch);
 
         viewModel.WithoutExtension = true;
         await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
@@ -362,6 +372,9 @@ public sealed class DuplicateFilesViewModelTests
         Assert.AreEqual(string.Empty, groupQuery.Filter.Extension);
         Assert.AreEqual(string.Empty, rootFacetQuery.Filter.Extension);
         Assert.AreEqual(string.Empty, driveFacetQuery.Filter.Extension);
+        Assert.AreEqual(DuplicateFileExtensionMatchMode.AllMembers, groupQuery.Filter.ExtensionMatch);
+        Assert.AreEqual(DuplicateFileExtensionMatchMode.AllMembers, rootFacetQuery.Filter.ExtensionMatch);
+        Assert.AreEqual(DuplicateFileExtensionMatchMode.AllMembers, driveFacetQuery.Filter.ExtensionMatch);
 
         groupQuery = null;
         viewModel.WithoutExtension = false;
@@ -374,9 +387,11 @@ public sealed class DuplicateFilesViewModelTests
         await viewModel.ClearFiltersCommand.ExecuteAsync(null);
         Assert.AreEqual(string.Empty, viewModel.ExtensionText);
         Assert.IsFalse(viewModel.WithoutExtension);
+        Assert.IsFalse(viewModel.AllMembersMustMatchExtension);
         Assert.IsNull(groupQuery!.Filter.Extension);
         Assert.IsNull(rootFacetQuery.Filter.Extension);
         Assert.IsNull(driveFacetQuery.Filter.Extension);
+        Assert.AreEqual(DuplicateFileExtensionMatchMode.AnyMember, groupQuery.Filter.ExtensionMatch);
     }
 
     [TestMethod]

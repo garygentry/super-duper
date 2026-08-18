@@ -51,6 +51,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private bool _exactPathMatch;
     private string _extensionText = string.Empty;
     private bool _withoutExtension;
+    private bool _allMembersMustMatchExtension;
     private string _minimumSizeText = string.Empty;
     private bool _oneGigabyteOrLarger;
     private bool _threeOrMoreCopies;
@@ -215,6 +216,12 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     {
         get => _withoutExtension;
         set => SetProperty(ref _withoutExtension, value);
+    }
+
+    public bool AllMembersMustMatchExtension
+    {
+        get => _allMembersMustMatchExtension;
+        set => SetProperty(ref _allMembersMustMatchExtension, value);
     }
 
     public string MinimumSizeText
@@ -665,6 +672,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         ExactPathMatch = false;
         ExtensionText = string.Empty;
         WithoutExtension = false;
+        AllMembersMustMatchExtension = false;
         MinimumSizeText = string.Empty;
         OneGigabyteOrLarger = false;
         ThreeOrMoreCopies = false;
@@ -943,7 +951,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             groupFilter.SelectedDrive,
             groupFilter.MinimumCopyCount,
             groupFilter.PathMatch,
-            groupFilter.Extension);
+            groupFilter.Extension,
+            groupFilter.ExtensionMatch);
         await LoadRootFacetPageAsync(
             null,
             filter,
@@ -1112,7 +1121,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 groupFilter.SelectedDrive,
                 groupFilter.MinimumCopyCount,
                 groupFilter.PathMatch,
-                groupFilter.Extension);
+                groupFilter.Extension,
+                groupFilter.ExtensionMatch);
             await LoadRootFacetPageAsync(
                 cursor,
                 filter,
@@ -1135,7 +1145,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 groupFilter.SelectedDrive,
                 groupFilter.MinimumCopyCount,
                 groupFilter.PathMatch,
-                groupFilter.Extension);
+                groupFilter.Extension,
+                groupFilter.ExtensionMatch);
             await LoadRootFacetPageAsync(
                 cursor,
                 filter,
@@ -1178,7 +1189,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             groupFilter.SelectedRoot,
             groupFilter.MinimumCopyCount,
             groupFilter.PathMatch,
-            groupFilter.Extension);
+            groupFilter.Extension,
+            groupFilter.ExtensionMatch);
         await LoadDriveFacetPageAsync(
             null,
             filter,
@@ -1346,7 +1358,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 groupFilter.SelectedRoot,
                 groupFilter.MinimumCopyCount,
                 groupFilter.PathMatch,
-                groupFilter.Extension);
+                groupFilter.Extension,
+                groupFilter.ExtensionMatch);
             await LoadDriveFacetPageAsync(
                 cursor,
                 filter,
@@ -1369,7 +1382,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 groupFilter.SelectedRoot,
                 groupFilter.MinimumCopyCount,
                 groupFilter.PathMatch,
-                groupFilter.Extension);
+                groupFilter.Extension,
+                groupFilter.ExtensionMatch);
             await LoadDriveFacetPageAsync(
                 cursor,
                 filter,
@@ -1595,7 +1609,10 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             SelectedDriveFacet?.Value,
             ThreeOrMoreCopies ? 3 : 2,
             ExactPathMatch ? DuplicateFilePathMatchMode.Exact : DuplicateFilePathMatchMode.Substring,
-            extension);
+            extension,
+            extension is not null && AllMembersMustMatchExtension
+                ? DuplicateFileExtensionMatchMode.AllMembers
+                : DuplicateFileExtensionMatchMode.AnyMember);
         return true;
     }
 

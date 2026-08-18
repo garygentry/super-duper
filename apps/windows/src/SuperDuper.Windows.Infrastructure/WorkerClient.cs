@@ -348,6 +348,7 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
                     search = query.Filter.Search,
                     pathMatch = PathMatch(query.Filter.PathMatch),
                     extension = query.Filter.Extension,
+                    extensionMatch = ExtensionMatch(query.Filter.ExtensionMatch),
                     minimumSize = query.Filter.MinimumSize,
                     minimumCopyCount = query.Filter.MinimumCopyCount,
                     acrossDrives = query.Filter.AcrossDrives,
@@ -380,6 +381,7 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
                     search = query.Filter.Search,
                     pathMatch = PathMatch(query.Filter.PathMatch),
                     extension = query.Filter.Extension,
+                    extensionMatch = ExtensionMatch(query.Filter.ExtensionMatch),
                     minimumSize = query.Filter.MinimumSize,
                     minimumCopyCount = query.Filter.MinimumCopyCount,
                     acrossDrives = query.Filter.AcrossDrives,
@@ -411,6 +413,7 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
                     search = query.Filter.Search,
                     pathMatch = PathMatch(query.Filter.PathMatch),
                     extension = query.Filter.Extension,
+                    extensionMatch = ExtensionMatch(query.Filter.ExtensionMatch),
                     minimumSize = query.Filter.MinimumSize,
                     minimumCopyCount = query.Filter.MinimumCopyCount,
                     acrossDrives = query.Filter.AcrossDrives,
@@ -626,6 +629,13 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
         DuplicateFilePathMatchMode.Substring => "substring",
         DuplicateFilePathMatchMode.Exact => "exact",
         _ => throw new ArgumentOutOfRangeException(nameof(pathMatch)),
+    };
+
+    private static string ExtensionMatch(DuplicateFileExtensionMatchMode extensionMatch) => extensionMatch switch
+    {
+        DuplicateFileExtensionMatchMode.AnyMember => "any",
+        DuplicateFileExtensionMatchMode.AllMembers => "all",
+        _ => throw new ArgumentOutOfRangeException(nameof(extensionMatch)),
     };
 
     private static string MemberSortField(DuplicateFileMemberSortField field) => field switch

@@ -64,13 +64,19 @@ Extension keys use locale-independent Unicode lowercase while preserving the ori
 normalization form. They do not trim characters, infer MIME or file type, inspect the
 representative label, canonicalize a path, or read the filesystem. The optional group filter uses
 `None` for no extension predicate and the empty stored key for an explicit no-extension predicate.
-It has any-member semantics: one matching immutable member is sufficient even when other exact-
-content members use different extensions. All-member matching and maintained file-type
-classification remain separate, unexposed contracts.
+Its match mode is `any` by default: one matching immutable member is sufficient even when other
+exact-content members use different extensions. The optional `all` mode requires the number of
+matching immutable members to equal the group's persisted copy count. With the empty key, `all`
+therefore means every member has no extension. When the extension is absent, the mode is ignored
+and normalized to `any`. Maintained file-type classification remains a separate, unexposed
+contract.
 
-`idx_file_run_extension_key` covers `(run_id, extension_key, id)`. Together with
-`idx_group_member_file`, it serves duplicate-file group rows, total, summary, selected-root facet
-counts, and drive facet counts. Opening an older schema-v4 database adds the column if needed,
+`idx_file_run_extension_key` covers `(run_id, extension_key, id)` and serves the any-member lookup
+through `idx_group_member_file`. All-member matching uses the same stored key plus the indexed
+group membership lookup and compares its matching-member count with `duplicate_group.file_count`;
+it does not infer from the representative. The shared normalized predicate serves duplicate-file
+group rows, total, summary, selected-root facet counts, and drive facet counts. Opening an older
+schema-v4 database adds the column if needed,
 backfills null keys in bounded 500-row SQLite batches, and creates the index transactionally. Once
 the column, index, and keys are present, ordinary worker connections take only the read-only
 reconciliation checks. The backfill uses persisted filenames only and performs no filesystem I/O.

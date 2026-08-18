@@ -3,7 +3,7 @@
 ## Status
 
 Active implementation roadmap for the Windows duplicate-review experience. Milestone 6
-release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first eleven
+release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first twelve
 read-only Milestone 8 slices are implemented and accepted; the broader milestone remains in
 progress and is gated by the remaining criteria below.
 
@@ -304,7 +304,7 @@ Files library. The user can see what was excluded and can deliberately opt into 
 
 ### Milestone 8 - Duplicate Review Workspace
 
-Status: The first eleven read-only file-review slices are accepted. They add a worker-owned summary
+Status: The first twelve read-only file-review slices are accepted. They add a worker-owned summary
 for the current duplicate-file query, immutable member location context, bounded per-set
 selected-root/drive span, a worker-owned across-drives entry point, and aggregate location coverage
 plus bounded selected-root and drive facets with exact filters without introducing review
@@ -317,6 +317,8 @@ tenth slice adds indexed exact canonical-member-path matching while retaining th
 substring path search as a distinct default mode. The eleventh slice adds indexed any-member exact
 filename-extension and explicit no-extension matching without inferring from the representative
 label or introducing file-type classification.
+The twelfth slice adds indexed all-member filename-extension and all-member no-extension matching
+as an explicit opt-in while preserving the accepted any-member default.
 
 #### Refined first vertical slice (2026-08-17)
 
@@ -1076,6 +1078,80 @@ means no extension.
   warm-query/bounded-memory profiling. Durable decisions remain Milestone 10 and deletion remains
   Milestone 11.
 
+#### All-member filename-extension filter slice (2026-08-18)
+
+##### Audit and scope decision
+
+Explicit file-type classification remains broader than one safe slice because it requires a
+versioned Rust-owned mapping, migration/reclassification rules, and product language that cannot be
+confused with filename extension. Boundary-aware canonical prefix/descendant matching still needs
+separator and device-prefix normalization, prefix-or-self versus descendant-only behavior,
+Unicode-form and case rules, root-self handling, and stored range keys. Selected-root-relative
+matching remains a distinct operation requiring an exact selected root and indexed root/relative
+keys. The accepted case-insensitive member-path substring search remains unchanged and is not
+relabeled as prefix matching.
+
+All-member extension matching is the smallest coherent result-understanding entry point because it
+reuses the accepted immutable `extension_key`, `idx_file_run_extension_key`, and indexed
+group/member ownership. `any` remains the default and means at least one member has the requested
+key. `all` means the count of immutable members with that key equals the group's persisted copy
+count. The count equality both defines every-member behavior and prevents incomplete membership
+state from matching vacuously. An empty key retains the accepted no-extension extraction rules, so
+`all` with an empty extension means every immutable member has no extension.
+
+##### Implemented contract and UX
+
+- Group, selected-root-facet, and drive-facet filters add `extensionMatch`, accepting `any` or
+  `all` and defaulting to `any`. When extension is absent or null, the mode contributes no predicate
+  and normalizes to `any`; explicit empty extension remains the no-extension predicate.
+- The shared normalized predicate serves group rows, total, review/location summary, selected-root
+  facet counts, and drive facet counts. All three cursor signatures bind the normalized mode and
+  reject cross-mode cursors. Any-member lookup retains the run/extension index; all-member lookup
+  uses the persisted key and indexed group membership without filesystem access or representative
+  inference.
+- Core and Infrastructure carry the mode through the existing group and both facet requests. The
+  group, member, selected-root-facet, and drive-facet caches remain independently bounded to five
+  pages with their existing cancellation sources, query generations, two-page directional
+  prefetch bounds, stale-response rejection, and bounded WPF collections.
+- WPF adds an explicitly ordered `All copies must match` checkbox. Its automation name/help text
+  explains every-immutable-member behavior, all-member no-extension behavior, and that filename
+  extension remains distinct from file type. Clear filters restores the accepted any-member
+  default. Existing live regions, system high-contrast brushes, full-path help text, virtualization,
+  and bounded DataGridCell focus restoration remain unchanged.
+- Schema version 4, immutable historical runs, Rust-only SQLite ownership, the pre-I/O exclusion
+  boundary, and `scanned_file.marked_deleted` are unchanged. The slice adds no file-type mapping,
+  path mode, filesystem or Cloud Files read, preview, thumbnail, validation, durable decision,
+  deletion, or Milestone 10/11 behavior.
+
+##### Acceptance result
+
+- Focused extension-mode storage and worker cursor tests passed, including mixed-extension
+  exclusion, positive all-extension and all-no-extension behavior, predicate/summary/facet
+  agreement, invalid mode rejection, and group/selected-root-facet/drive-facet cursor separation.
+  The three typed worker-lifecycle tests, the focused Core extension-mode test, and all three STA
+  WPF surface tests passed after rebuilding the actual Debug worker executable.
+- The expanded 100,000-group group/summary/selected-root-facet/drive-facet regression includes both
+  any-member and all-member extension queries. Its latest complete workspace runs finished in 2.80
+  seconds Debug and 1.20 seconds optimized Release, within the five-second gates.
+  Representative-hardware warm-query and explicit bounded-memory profiling remain open.
+- `cargo test --workspace` and `cargo test --workspace --release` passed with 18 storage and 10
+  worker tests in each configuration. Explicit Debug and Release worker builds passed.
+- Debug and Release .NET builds from `C:\Windows\Temp` against the absolute solution path passed
+  with zero warnings and errors under installed SDK 10.0.400; the unavailable pinned 10.0.303 SDK
+  and `global.json` were unchanged. Each configuration passed 45 Core, 22 Infrastructure, and 3 WPF
+  tests, with the real-provider Infrastructure test intentionally skipped.
+- Real Debug and Release `Invoke-WindowsSmoke.ps1 -SkipBuild` passed worker group/summary/root-facet/
+  drive-facet any/all extension and no-extension filtering, accessible WPF interaction, and the
+  accepted exact-path, next/previous-set focus, facet, Explorer, cloud-fail-closed, and shutdown
+  workflows.
+- Targeted Rust formatting, PowerShell parsing, and `git diff --check` passed. Repository-wide
+  `cargo fmt --all -- --check` remains blocked only by the accepted pre-existing formatting drift
+  in unchanged CLI/FFI files; those unrelated files were preserved.
+- Remaining Milestone 8 gates are further richer worker-owned filters only after their mapping or
+  boundary-aware range-key contracts and indexes are explicit; the complete accessibility review;
+  and representative-hardware warm-query/bounded-memory profiling. Durable decisions remain
+  Milestone 10 and deletion remains Milestone 11.
+
 #### User outcome
 
 The results surface answers three questions without requiring repeated Explorer investigation:
@@ -1524,3 +1600,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-18 | Refined and accepted bounded next/previous-set navigation with virtualized-row keyboard focus restoration after focused Core/WPF tests, Debug/Release 100,000-group coverage, the full Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the complete workspace regression completed in 2.04 seconds Debug and 0.88 seconds Release, and each .NET configuration passed 42 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | Close the focus-restoration gate through the existing group cursor/cache/cancellation/generation path and independent member stale-response guard without changing protocol, SQL, indexes, facets, or memory bounds; extension/type remains deferred until any-member/all-member normalization and indexed worker ownership are explicit, and true path filtering remains deferred until exact/prefix/descendant, segment-boundary, case, and selected-root-relative semantics are explicit. |
 | 2026-08-18 | Refined and accepted the exact canonical-member-path entry point after focused exact-path/lifecycle/Core/WPF coverage, the full Debug/Release Rust and serialized .NET matrix, and corrected real Debug/Release WPF smoke passed; the expanded 100,000-group regression completed in 2.41 seconds Debug and 1.03 seconds optimized Release, and each .NET configuration passed 44 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | Add indexed, Unicode-case-normalized any-member exact equality through the shared group rows/total/summary predicate, all three cursor signatures, and both cross-composed facet counts without changing the five-page cache, cancellation, generation, stale-response, or WPF collection bounds. Extension/type remains deferred until explicit any-member/all-member/no-extension semantics and indexed normalized member keys exist; canonical prefix/descendant and selected-root-relative modes remain deferred until separator-boundary semantics and stored range-query keys exist. The remaining Milestone 8 gates are further richer worker-owned filters, the complete accessibility review, and representative-hardware warm-query/bounded-memory profiling. |
 | 2026-08-18 | Refined and accepted indexed any-member filename-extension and explicit no-extension filtering after focused storage/worker/lifecycle/Core/WPF coverage, the full Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the expanded 100,000-group regression completed in 2.39 seconds Debug and 1.05 seconds optimized Release, and each .NET configuration passed 45 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | Define extension from every immutable member's final persisted filename segment, including terminal-dot, dotfile, multiple-suffix, Unicode-lowercase, normalization-form-preserving, and explicit no-extension rules; distinguish it from file-type classification; and serve group rows/total/summary plus both cross-facets and all three signatures from a Rust-owned backfilled key/index while preserving the four independent five-page caches, cancellation/generation/prefetch/stale-response bounds, and Milestone 8/10/11 boundaries. Canonical prefix/descendant and selected-root-relative modes remain deferred pending stored boundary-aware range keys; remaining gates are further explicitly indexed filters, the complete accessibility review, and representative-hardware warm-query/bounded-memory profiling. |
+| 2026-08-18 | Refined and accepted opt-in all-member filename-extension and all-member no-extension filtering after focused storage/worker/lifecycle/Core/WPF coverage, the full Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the expanded 100,000-group regression completed in 2.80 seconds Debug and 1.20 seconds optimized Release, Rust passed 18 storage and 10 worker tests, and each .NET configuration passed 45 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | Keep accepted any-member behavior as the default while defining `all` as matching-member count equal to persisted copy count across group rows/total/summary, both cross-facets, and all three cursor signatures; reuse the Rust-owned extension key and indexed membership path without changing the four five-page caches, independent cancellation/generations, two-page directional prefetch, stale-response rejection, or Milestone 8/10/11 boundaries. Versioned file type and boundary-aware canonical/selected-root-relative path modes remain deferred pending their separate mappings or stored range keys; remaining gates are further explicitly indexed filters, the complete accessibility review, and representative-hardware warm-query/bounded-memory profiling. |

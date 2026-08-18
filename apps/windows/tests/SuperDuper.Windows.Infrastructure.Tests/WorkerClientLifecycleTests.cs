@@ -281,6 +281,39 @@ public sealed class WorkerClientLifecycleTests
                         string.Empty,
                         "0",
                         Extension: "JPG")));
+            var allExtensionGroups = await client.GetDuplicateFileGroupsAsync(
+                new DuplicateFileGroupQuery(
+                    started.Id,
+                    200,
+                    DuplicateFileGroupSortField.RecoverableBytes,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileGroupFilter(
+                        string.Empty,
+                        "0",
+                        Extension: "JPG",
+                        ExtensionMatch: DuplicateFileExtensionMatchMode.AllMembers)));
+            var allExtensionRootFacets = await client.GetDuplicateFileSelectedRootFacetsAsync(
+                new DuplicateFileSelectedRootFacetQuery(
+                    started.Id,
+                    25,
+                    DuplicateFileSelectedRootFacetSortField.MatchingGroupCount,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileSelectedRootFacetFilter(
+                        string.Empty,
+                        "0",
+                        Extension: "JPG",
+                        ExtensionMatch: DuplicateFileExtensionMatchMode.AllMembers)));
+            var allExtensionDriveFacets = await client.GetDuplicateFileDriveFacetsAsync(
+                new DuplicateFileDriveFacetQuery(
+                    started.Id,
+                    25,
+                    DuplicateFileDriveFacetSortField.MatchingGroupCount,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileDriveFacetFilter(
+                        string.Empty,
+                        "0",
+                        Extension: "JPG",
+                        ExtensionMatch: DuplicateFileExtensionMatchMode.AllMembers)));
             var folderGroups = await client.GetDuplicateFolderGroupsAsync(
                 new DuplicateFolderGroupQuery(
                     started.Id,
@@ -327,6 +360,10 @@ public sealed class WorkerClientLifecycleTests
             Assert.AreEqual(1, extensionRootFacets.Facets.Single().MatchingGroupCount);
             Assert.AreEqual(1, extensionDriveFacets.Total);
             Assert.AreEqual(1, extensionDriveFacets.Facets.Single().MatchingGroupCount);
+            Assert.AreEqual(0, allExtensionGroups.Total);
+            Assert.AreEqual(0, allExtensionGroups.Summary.MatchingGroupCount);
+            Assert.AreEqual(0, allExtensionRootFacets.Total);
+            Assert.AreEqual(0, allExtensionDriveFacets.Total);
             CollectionAssert.IsSubsetOf(
                 new[] { "one.txt", "one-copy.JPG" },
                 members.Members.Select(member => member.FileName).ToArray());

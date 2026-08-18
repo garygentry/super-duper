@@ -190,6 +190,13 @@ pub enum DuplicateFilePathMatchMode {
     Exact,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum DuplicateFileExtensionMatchMode {
+    #[default]
+    AnyMember,
+    AllMembers,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PageCursorValue {
     Integer(i64),
@@ -210,6 +217,9 @@ pub struct DuplicateFileGroupFilter {
     /// A locale-independently lowercased final filename suffix. `Some("")` explicitly
     /// selects members without an extension; `None` does not filter by extension.
     pub extension_key: Option<String>,
+    /// Controls whether any immutable member or every immutable member must have
+    /// `extension_key`. Ignored when `extension_key` is `None`.
+    pub extension_match: DuplicateFileExtensionMatchMode,
     pub minimum_size: i64,
     pub minimum_copy_count: i64,
     pub across_drives: bool,

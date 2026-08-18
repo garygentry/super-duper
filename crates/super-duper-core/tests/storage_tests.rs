@@ -1,9 +1,9 @@
 use rusqlite::{params, Connection, Error as SqlError};
 use super_duper_core::storage::models::{
     CloudDetectionStatus, CloudPolicy, DuplicateFileDriveFacetPageQuery,
-    DuplicateFileDriveFacetSortField, DuplicateFileGroupFilter, DuplicateFileGroupPageQuery,
-    DuplicateFileGroupSortField, DuplicateFileMemberFilter, DuplicateFileMemberPageQuery,
-    DuplicateFileMemberSortField, DuplicateFilePathMatchMode,
+    DuplicateFileDriveFacetSortField, DuplicateFileExtensionMatchMode, DuplicateFileGroupFilter,
+    DuplicateFileGroupPageQuery, DuplicateFileGroupSortField, DuplicateFileMemberFilter,
+    DuplicateFileMemberPageQuery, DuplicateFileMemberSortField, DuplicateFilePathMatchMode,
     DuplicateFileSelectedRootFacetPageQuery, DuplicateFileSelectedRootFacetSortField, PageCursor,
     PageCursorValue, RegisteredCloudLocation, RunExclusionInsert, RunParameters, ScannedFile,
     SortDirection,
@@ -364,6 +364,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             search: None,
             path_match: DuplicateFilePathMatchMode::Substring,
             extension_key: None,
+            extension_match: DuplicateFileExtensionMatchMode::AnyMember,
             minimum_size: 0,
             minimum_copy_count: 2,
             across_drives: false,
@@ -437,6 +438,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                 search: Some("alpha".to_owned()),
                 path_match: DuplicateFilePathMatchMode::Substring,
                 extension_key: None,
+                extension_match: DuplicateFileExtensionMatchMode::AnyMember,
                 minimum_size: 100,
                 minimum_copy_count: 2,
                 across_drives: false,
@@ -520,6 +522,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                 search: None,
                 path_match: DuplicateFilePathMatchMode::Substring,
                 extension_key: None,
+                extension_match: DuplicateFileExtensionMatchMode::AnyMember,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: true,
@@ -601,6 +604,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                 search: None,
                 path_match: DuplicateFilePathMatchMode::Substring,
                 extension_key: None,
+                extension_match: DuplicateFileExtensionMatchMode::AnyMember,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: false,
@@ -627,6 +631,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                 search: None,
                 path_match: DuplicateFilePathMatchMode::Substring,
                 extension_key: None,
+                extension_match: DuplicateFileExtensionMatchMode::AnyMember,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: false,
@@ -653,6 +658,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                 search: None,
                 path_match: DuplicateFilePathMatchMode::Substring,
                 extension_key: None,
+                extension_match: DuplicateFileExtensionMatchMode::AnyMember,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: false,
@@ -679,6 +685,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                 search: None,
                 path_match: DuplicateFilePathMatchMode::Substring,
                 extension_key: None,
+                extension_match: DuplicateFileExtensionMatchMode::AnyMember,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: false,
@@ -705,6 +712,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                 search: None,
                 path_match: DuplicateFilePathMatchMode::Substring,
                 extension_key: None,
+                extension_match: DuplicateFileExtensionMatchMode::AnyMember,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: false,
@@ -728,6 +736,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                 search: None,
                 path_match: DuplicateFilePathMatchMode::Substring,
                 extension_key: None,
+                extension_match: DuplicateFileExtensionMatchMode::AnyMember,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: false,
@@ -753,6 +762,7 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
                 search: None,
                 path_match: DuplicateFilePathMatchMode::Substring,
                 extension_key: None,
+                extension_match: DuplicateFileExtensionMatchMode::AnyMember,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: false,
@@ -831,6 +841,7 @@ fn exact_member_path_filter_is_unicode_case_normalized_and_shared_by_facets() {
         search: Some("/ROOT/überraschung.txt".to_owned()),
         path_match: DuplicateFilePathMatchMode::Exact,
         extension_key: None,
+        extension_match: DuplicateFileExtensionMatchMode::AnyMember,
         minimum_size: 0,
         minimum_copy_count: 2,
         across_drives: false,
@@ -892,7 +903,7 @@ fn exact_member_path_filter_is_unicode_case_normalized_and_shared_by_facets() {
 }
 
 #[test]
-fn any_member_extension_filter_uses_persisted_filename_keys_and_shared_facets() {
+fn extension_match_modes_use_persisted_filename_keys_and_shared_facets() {
     let db = Database::open_in_memory().unwrap();
     let (_, run_id) = session_and_run(&db, "Extension", &["/root"]);
     let mut files = [
@@ -904,6 +915,8 @@ fn any_member_extension_filter_uses_persisted_filename_keys_and_shared_facets() 
         file(run_id, "/root/copy.bin", 300, 33),
         file(run_id, "/root/unicode.CAFÉ", 400, 44),
         file(run_id, "/root/unicode-copy.bin", 400, 44),
+        file(run_id, "/root/all-one.JPG", 500, 55),
+        file(run_id, "/root/all-two.jpg", 500, 55),
     ];
     for file in &mut files {
         file.drive_letter = "D:".to_owned();
@@ -941,6 +954,14 @@ fn any_member_extension_filter_uses_persisted_filename_keys_and_shared_facets() 
                     "/root/unicode-copy.bin".to_owned(),
                 ],
             ),
+            (
+                55,
+                500,
+                vec![
+                    "/root/all-one.JPG".to_owned(),
+                    "/root/all-two.jpg".to_owned(),
+                ],
+            ),
         ],
     )
     .unwrap();
@@ -949,6 +970,7 @@ fn any_member_extension_filter_uses_persisted_filename_keys_and_shared_facets() 
         search: None,
         path_match: DuplicateFilePathMatchMode::Substring,
         extension_key: Some("jpg".to_owned()),
+        extension_match: DuplicateFileExtensionMatchMode::AnyMember,
         minimum_size: 0,
         minimum_copy_count: 2,
         across_drives: false,
@@ -965,11 +987,12 @@ fn any_member_extension_filter_uses_persisted_filename_keys_and_shared_facets() 
             cursor: None,
         })
         .unwrap();
-    assert_eq!(groups.total, 1);
-    assert_eq!(groups.summary.matching_group_count, 1);
-    assert_eq!(groups.summary.matching_copy_count, 2);
-    assert_eq!(groups.summary.potential_recoverable_bytes, 100);
-    assert_eq!(groups.groups[0].file_size, 100);
+    assert_eq!(groups.total, 2);
+    assert_eq!(groups.summary.matching_group_count, 2);
+    assert_eq!(groups.summary.matching_copy_count, 4);
+    assert_eq!(groups.summary.potential_recoverable_bytes, 600);
+    assert!(groups.groups.iter().any(|group| group.file_size == 100));
+    assert!(groups.groups.iter().any(|group| group.file_size == 500));
 
     let root_facets = db
         .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
@@ -982,7 +1005,7 @@ fn any_member_extension_filter_uses_persisted_filename_keys_and_shared_facets() 
         })
         .unwrap();
     assert_eq!(root_facets.total, 1);
-    assert_eq!(root_facets.facets[0].matching_group_count, 1);
+    assert_eq!(root_facets.facets[0].matching_group_count, 2);
     let drive_facets = db
         .page_duplicate_file_drive_facets(&DuplicateFileDriveFacetPageQuery {
             run_id,
@@ -994,7 +1017,49 @@ fn any_member_extension_filter_uses_persisted_filename_keys_and_shared_facets() 
         })
         .unwrap();
     assert_eq!(drive_facets.total, 1);
-    assert_eq!(drive_facets.facets[0].matching_group_count, 1);
+    assert_eq!(drive_facets.facets[0].matching_group_count, 2);
+
+    let all_members_filter = DuplicateFileGroupFilter {
+        extension_match: DuplicateFileExtensionMatchMode::AllMembers,
+        ..base_filter.clone()
+    };
+    let all_member_groups = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            run_id,
+            limit: 10,
+            sort_field: DuplicateFileGroupSortField::RecoverableBytes,
+            sort_direction: SortDirection::Descending,
+            filter: all_members_filter.clone(),
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(all_member_groups.total, 1);
+    assert_eq!(all_member_groups.summary.matching_group_count, 1);
+    assert_eq!(all_member_groups.summary.matching_copy_count, 2);
+    assert_eq!(all_member_groups.summary.potential_recoverable_bytes, 500);
+    assert_eq!(all_member_groups.groups[0].file_size, 500);
+    let all_member_root_facets = db
+        .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
+            run_id,
+            limit: 25,
+            sort_field: DuplicateFileSelectedRootFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: all_members_filter.clone(),
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(all_member_root_facets.facets[0].matching_group_count, 1);
+    let all_member_drive_facets = db
+        .page_duplicate_file_drive_facets(&DuplicateFileDriveFacetPageQuery {
+            run_id,
+            limit: 25,
+            sort_field: DuplicateFileDriveFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: all_members_filter,
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(all_member_drive_facets.facets[0].matching_group_count, 1);
 
     let no_extension = db
         .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
@@ -1011,6 +1076,22 @@ fn any_member_extension_filter_uses_persisted_filename_keys_and_shared_facets() 
         .unwrap();
     assert_eq!(no_extension.total, 1);
     assert_eq!(no_extension.groups[0].file_size, 200);
+    let all_members_without_extension = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            filter: DuplicateFileGroupFilter {
+                extension_key: Some(String::new()),
+                extension_match: DuplicateFileExtensionMatchMode::AllMembers,
+                ..base_filter.clone()
+            },
+            run_id,
+            limit: 10,
+            sort_field: DuplicateFileGroupSortField::RecoverableBytes,
+            sort_direction: SortDirection::Descending,
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(all_members_without_extension.total, 1);
+    assert_eq!(all_members_without_extension.groups[0].file_size, 200);
 
     let multiple_suffix = db
         .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
@@ -1168,6 +1249,7 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
             search: None,
             path_match: DuplicateFilePathMatchMode::Substring,
             extension_key: None,
+            extension_match: DuplicateFileExtensionMatchMode::AnyMember,
             minimum_size: 0,
             minimum_copy_count: 2,
             across_drives: false,
@@ -1268,6 +1350,7 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
                 search: None,
                 path_match: DuplicateFilePathMatchMode::Substring,
                 extension_key: None,
+                extension_match: DuplicateFileExtensionMatchMode::AnyMember,
                 minimum_size: 0,
                 minimum_copy_count: 2,
                 across_drives: true,
@@ -1429,9 +1512,48 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         .facets
         .iter()
         .all(|facet| facet.matching_group_count == 100));
+    let all_extension_filter = DuplicateFileGroupFilter {
+        extension_key: Some("bin".to_owned()),
+        extension_match: DuplicateFileExtensionMatchMode::AllMembers,
+        ..query.filter.clone()
+    };
+    let all_extension_groups = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            filter: all_extension_filter.clone(),
+            ..query.clone()
+        })
+        .unwrap();
+    assert_eq!(all_extension_groups.total, 100);
+    assert_eq!(all_extension_groups.summary.matching_copy_count, 300);
+    let all_extension_roots = db
+        .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
+            run_id,
+            limit: 25,
+            sort_field: DuplicateFileSelectedRootFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: all_extension_filter.clone(),
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(all_extension_roots.facets[0].matching_group_count, 100);
+    let all_extension_drives = db
+        .page_duplicate_file_drive_facets(&DuplicateFileDriveFacetPageQuery {
+            run_id,
+            limit: 25,
+            sort_field: DuplicateFileDriveFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: all_extension_filter,
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(all_extension_drives.total, 2);
+    assert!(all_extension_drives
+        .facets
+        .iter()
+        .all(|facet| facet.matching_group_count == 100));
     assert!(
         extension_started.elapsed() < std::time::Duration::from_secs(5),
-        "100,000-group extension group/facet queries took {:?}",
+        "100,000-group any/all extension group/facet queries took {:?}",
         extension_started.elapsed()
     );
 

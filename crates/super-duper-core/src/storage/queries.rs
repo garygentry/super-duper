@@ -1612,18 +1612,37 @@ fn duplicate_file_group_predicate(
         }
     }
     if let Some(extension_key) = filter.extension_key.as_deref() {
-        predicates.push(
-            "dg.id IN (
-                SELECT extension_member.group_id
-                FROM scanned_file extension_file INDEXED BY idx_file_run_extension_key
-                JOIN duplicate_group_member extension_member
-                  ON extension_member.file_id = extension_file.id
-                WHERE extension_file.run_id = ?
-                  AND extension_file.extension_key = ?
-            )"
-            .to_owned(),
-        );
-        parameters.push(SqlValue::Integer(run_id));
+        match filter.extension_match {
+            DuplicateFileExtensionMatchMode::AnyMember => {
+                predicates.push(
+                    "dg.id IN (
+                        SELECT extension_member.group_id
+                        FROM scanned_file extension_file INDEXED BY idx_file_run_extension_key
+                        JOIN duplicate_group_member extension_member
+                          ON extension_member.file_id = extension_file.id
+                        WHERE extension_file.run_id = ?
+                          AND extension_file.extension_key = ?
+                    )"
+                    .to_owned(),
+                );
+                parameters.push(SqlValue::Integer(run_id));
+            }
+            DuplicateFileExtensionMatchMode::AllMembers => {
+                predicates.push(
+                    "dg.file_count = (
+                        SELECT COUNT(*)
+                        FROM duplicate_group_member extension_member
+                             INDEXED BY idx_group_member_group
+                        JOIN scanned_file extension_file
+                          ON extension_file.id = extension_member.file_id
+                        WHERE extension_member.group_id = dg.id
+                          AND extension_file.run_id = dg.run_id
+                          AND extension_file.extension_key = ?
+                    )"
+                    .to_owned(),
+                );
+            }
+        }
         parameters.push(SqlValue::Text(extension_key.to_owned()));
     }
     if filter.across_drives {

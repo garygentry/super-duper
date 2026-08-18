@@ -385,8 +385,11 @@ function Invoke-WpfAutomation([long]$RunId) {
         Assert-True ($extension.Current.Name -eq 'Filename extension without the dot') 'Extension filter was not accessible.'
         Assert-True ($extension.Current.HelpText.Contains('any immutable member', [StringComparison]::OrdinalIgnoreCase)) 'Extension filter did not explain its any-member semantics.'
         $withoutExtension = Find-Element AutomationId 'FileWithoutExtension'
-        Assert-True ($withoutExtension.Current.Name.Contains('any member', [StringComparison]::OrdinalIgnoreCase)) 'No-extension filter was not accessible.'
+        Assert-True ($withoutExtension.Current.Name.Contains('extension filter value', [StringComparison]::OrdinalIgnoreCase)) 'No-extension filter was not accessible.'
         Assert-True ($withoutExtension.Current.HelpText.Contains('terminal dot', [StringComparison]::OrdinalIgnoreCase)) 'No-extension filter did not explain terminal-dot handling.'
+        $allExtensionsMatch = Find-Element AutomationId 'FileAllExtensionsMatch'
+        Assert-True ($allExtensionsMatch.Current.Name.Contains('every copy', [StringComparison]::OrdinalIgnoreCase)) 'All-member extension filter was not accessible.'
+        Assert-True ($allExtensionsMatch.Current.HelpText.Contains('distinct from file type', [StringComparison]::OrdinalIgnoreCase)) 'All-member extension filter did not distinguish extension from file type.'
         $rootFacet = Find-Element AutomationId 'FileSelectedRootFacet'
         Assert-True ($rootFacet.Current.Name.Contains('Selected root facet', [StringComparison]::OrdinalIgnoreCase)) 'Selected-root facet was not accessible.'
         $driveFacet = Find-Element AutomationId 'FileDriveFacet'
@@ -510,7 +513,18 @@ function Invoke-WpfAutomation([long]$RunId) {
             Start-Sleep -Milliseconds 100
         }
         Assert-True ((Get-AutomationCount (Find-Element AutomationId 'FileSummaryMatchingSets')) -eq 1) 'Any-member extension filtering did not isolate the mixed-extension smoke set.'
-        Invoke-Element (Find-Element AutomationId 'FileClearFilters')
+        $allExtensionsMatchToggle = $allExtensionsMatch.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
+        if ($allExtensionsMatchToggle.Current.ToggleState -ne [Windows.Automation.ToggleState]::Off) {
+            $allExtensionsMatchToggle.Toggle()
+        }
+        $allExtensionsMatchToggle.Toggle()
+        Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            if ((Find-Element AutomationId 'FileApplyFilters' 1).Current.IsEnabled) { break }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ((Get-AutomationCount (Find-Element AutomationId 'FileSummaryMatchingSets')) -eq 0) 'All-member extension filtering did not exclude the mixed-extension smoke set.'
+        $extension.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('')
         $withoutExtensionToggle = $withoutExtension.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
         if ($withoutExtensionToggle.Current.ToggleState -ne [Windows.Automation.ToggleState]::Off) {
             $withoutExtensionToggle.Toggle()
@@ -521,7 +535,7 @@ function Invoke-WpfAutomation([long]$RunId) {
             if ((Find-Element AutomationId 'FileApplyFilters' 1).Current.IsEnabled) { break }
             Start-Sleep -Milliseconds 100
         }
-        Assert-True ((Get-AutomationCount (Find-Element AutomationId 'FileSummaryMatchingSets')) -eq 1) 'No-extension filtering did not isolate the extensionless smoke set.'
+        Assert-True ((Get-AutomationCount (Find-Element AutomationId 'FileSummaryMatchingSets')) -eq 1) 'All-member no-extension filtering did not isolate the extensionless smoke set.'
         Invoke-Element (Find-Element AutomationId 'FileClearFilters')
         Invoke-Element (Find-Element Name 'Group size')
         Invoke-Element (Find-Element AutomationId 'FileNextGroupPage')
@@ -609,7 +623,7 @@ function Invoke-WpfAutomation([long]$RunId) {
         $null = Find-FirstDataItem $folderMembers
         Invoke-Element (Find-DescendantByName $folderMembers 'Show in Explorer')
         Assert-NoVisibleDetailError 'FolderDetailError'
-        Write-Output "WPF automation passed for restored run $RunId, including exact member-path, any-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
+        Write-Output "WPF automation passed for restored run $RunId, including exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
     }
     finally {
         try {
@@ -1010,12 +1024,37 @@ try {
         filter = @{ extension = 'JPG'; minimumSize = '0'; acrossDrives = $false }; cursor = $null
     }
     Assert-True ($extensionDriveFacets.facets[0].matchingGroupCount -eq 1) 'Drive facet did not apply the any-member extension filter.'
+    $allExtensionFiles = Send-WorkerRequest $restored 'duplicate_file_group.page' @{
+        runId = $run.id; pageSize = 25
+        sort = @{ field = 'recoverableBytes'; direction = 'descending' }
+        filter = @{ extension = 'JPG'; extensionMatch = 'all'; minimumSize = '0' }; cursor = $null
+    }
+    Assert-True ($allExtensionFiles.total -eq 0) 'All-member extension filter did not exclude the mixed-extension smoke set.'
+    Assert-True ($allExtensionFiles.summary.matchingGroupCount -eq 0) 'All-member extension summary diverged from its result total.'
+    $allExtensionRootFacets = Send-WorkerRequest $restored 'duplicate_file_selected_root_facet.page' @{
+        runId = $run.id; pageSize = 25
+        sort = @{ field = 'matchingGroupCount'; direction = 'descending' }
+        filter = @{ extension = 'JPG'; extensionMatch = 'all'; minimumSize = '0'; acrossDrives = $false }; cursor = $null
+    }
+    Assert-True ($allExtensionRootFacets.total -eq 0) 'Selected-root facet did not apply the all-member extension filter.'
+    $allExtensionDriveFacets = Send-WorkerRequest $restored 'duplicate_file_drive_facet.page' @{
+        runId = $run.id; pageSize = 25
+        sort = @{ field = 'matchingGroupCount'; direction = 'descending' }
+        filter = @{ extension = 'JPG'; extensionMatch = 'all'; minimumSize = '0'; acrossDrives = $false }; cursor = $null
+    }
+    Assert-True ($allExtensionDriveFacets.total -eq 0) 'Drive facet did not apply the all-member extension filter.'
     $noExtensionFiles = Send-WorkerRequest $restored 'duplicate_file_group.page' @{
         runId = $run.id; pageSize = 25
         sort = @{ field = 'recoverableBytes'; direction = 'descending' }
         filter = @{ extension = ''; minimumSize = '0' }; cursor = $null
     }
     Assert-True ($noExtensionFiles.total -eq 1) 'Explicit no-extension filter did not isolate the extensionless smoke set.'
+    $allNoExtensionFiles = Send-WorkerRequest $restored 'duplicate_file_group.page' @{
+        runId = $run.id; pageSize = 25
+        sort = @{ field = 'recoverableBytes'; direction = 'descending' }
+        filter = @{ extension = ''; extensionMatch = 'all'; minimumSize = '0' }; cursor = $null
+    }
+    Assert-True ($allNoExtensionFiles.total -eq 1) 'All-member no-extension filter did not isolate the extensionless smoke set.'
     $fileMembers = Send-WorkerRequest $restored 'duplicate_file_group.members' @{
         runId = $run.id; groupId = $filteredFiles.groups[0].id; pageSize = 25
         sort = @{ field = 'path'; direction = 'ascending' }

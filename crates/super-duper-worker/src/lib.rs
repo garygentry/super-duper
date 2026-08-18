@@ -12,16 +12,16 @@ use std::time::{Duration, Instant};
 use super_duper_core::progress::ProgressReporter;
 use super_duper_core::storage::models::{
     CloudDetectionStatus, CloudPolicy, DuplicateFileDriveFacetPageQuery,
-    DuplicateFileDriveFacetResult, DuplicateFileDriveFacetSortField, DuplicateFileGroupFilter,
-    DuplicateFileGroupPageQuery, DuplicateFileGroupResult, DuplicateFileGroupSortField,
-    DuplicateFileMemberFilter, DuplicateFileMemberPageQuery, DuplicateFileMemberResult,
-    DuplicateFileMemberSortField, DuplicateFilePathMatchMode,
-    DuplicateFileSelectedRootFacetPageQuery, DuplicateFileSelectedRootFacetResult,
-    DuplicateFileSelectedRootFacetSortField, DuplicateFolderGroupFilter,
-    DuplicateFolderGroupPageQuery, DuplicateFolderGroupResult, DuplicateFolderGroupSortField,
-    DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery, DuplicateFolderMemberResult,
-    DuplicateFolderMemberSortField, PageCursor, PageCursorValue, RegisteredCloudLocation,
-    RunExclusion, RunParameters, ScanRun, ScanSession, SortDirection,
+    DuplicateFileDriveFacetResult, DuplicateFileDriveFacetSortField,
+    DuplicateFileExtensionMatchMode, DuplicateFileGroupFilter, DuplicateFileGroupPageQuery,
+    DuplicateFileGroupResult, DuplicateFileGroupSortField, DuplicateFileMemberFilter,
+    DuplicateFileMemberPageQuery, DuplicateFileMemberResult, DuplicateFileMemberSortField,
+    DuplicateFilePathMatchMode, DuplicateFileSelectedRootFacetPageQuery,
+    DuplicateFileSelectedRootFacetResult, DuplicateFileSelectedRootFacetSortField,
+    DuplicateFolderGroupFilter, DuplicateFolderGroupPageQuery, DuplicateFolderGroupResult,
+    DuplicateFolderGroupSortField, DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery,
+    DuplicateFolderMemberResult, DuplicateFolderMemberSortField, PageCursor, PageCursorValue,
+    RegisteredCloudLocation, RunExclusion, RunParameters, ScanRun, ScanSession, SortDirection,
 };
 use super_duper_core::storage::Database;
 use super_duper_core::{AppConfig, ScanEngine};
@@ -280,6 +280,8 @@ struct DuplicateFileGroupFilterParameters {
     path_match: String,
     #[serde(default)]
     extension: Option<String>,
+    #[serde(default = "default_extension_match")]
+    extension_match: String,
     #[serde(default = "default_minimum_size")]
     minimum_size: String,
     #[serde(default = "default_minimum_copy_count")]
@@ -298,6 +300,7 @@ impl Default for DuplicateFileGroupFilterParameters {
             search: None,
             path_match: default_path_match(),
             extension: None,
+            extension_match: default_extension_match(),
             minimum_size: default_minimum_size(),
             minimum_copy_count: default_minimum_copy_count(),
             across_drives: false,
@@ -348,6 +351,8 @@ struct DuplicateFileSelectedRootFacetFilterParameters {
     path_match: String,
     #[serde(default)]
     extension: Option<String>,
+    #[serde(default = "default_extension_match")]
+    extension_match: String,
     #[serde(default = "default_minimum_size")]
     minimum_size: String,
     #[serde(default = "default_minimum_copy_count")]
@@ -364,6 +369,7 @@ impl Default for DuplicateFileSelectedRootFacetFilterParameters {
             search: None,
             path_match: default_path_match(),
             extension: None,
+            extension_match: default_extension_match(),
             minimum_size: default_minimum_size(),
             minimum_copy_count: default_minimum_copy_count(),
             across_drives: false,
@@ -413,6 +419,8 @@ struct DuplicateFileDriveFacetFilterParameters {
     path_match: String,
     #[serde(default)]
     extension: Option<String>,
+    #[serde(default = "default_extension_match")]
+    extension_match: String,
     #[serde(default = "default_minimum_size")]
     minimum_size: String,
     #[serde(default = "default_minimum_copy_count")]
@@ -429,6 +437,7 @@ impl Default for DuplicateFileDriveFacetFilterParameters {
             search: None,
             path_match: default_path_match(),
             extension: None,
+            extension_match: default_extension_match(),
             minimum_size: default_minimum_size(),
             minimum_copy_count: default_minimum_copy_count(),
             across_drives: false,
@@ -1119,6 +1128,8 @@ impl WorkerSession {
                 requested_path_match
             });
         let extension = normalize_extension_filter(parameters.filter.extension.as_deref())?;
+        let extension_match =
+            normalize_extension_match(&parameters.filter.extension_match, extension.as_deref())?;
         let minimum_size =
             parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
         validate_minimum_copy_count(parameters.filter.minimum_copy_count)?;
@@ -1137,6 +1148,7 @@ impl WorkerSession {
             search.as_deref(),
             path_match,
             extension.as_deref(),
+            extension_match,
             minimum_size,
             parameters.filter.minimum_copy_count,
             parameters.filter.across_drives,
@@ -1163,6 +1175,7 @@ impl WorkerSession {
                     search,
                     path_match,
                     extension_key: extension,
+                    extension_match,
                     minimum_size,
                     minimum_copy_count: parameters.filter.minimum_copy_count,
                     across_drives: parameters.filter.across_drives,
@@ -1227,6 +1240,8 @@ impl WorkerSession {
                 requested_path_match
             });
         let extension = normalize_extension_filter(parameters.filter.extension.as_deref())?;
+        let extension_match =
+            normalize_extension_match(&parameters.filter.extension_match, extension.as_deref())?;
         let minimum_size =
             parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
         validate_minimum_copy_count(parameters.filter.minimum_copy_count)?;
@@ -1241,6 +1256,7 @@ impl WorkerSession {
             search.as_deref(),
             path_match,
             extension.as_deref(),
+            extension_match,
             minimum_size,
             parameters.filter.minimum_copy_count,
             parameters.filter.across_drives,
@@ -1266,6 +1282,7 @@ impl WorkerSession {
                     search,
                     path_match,
                     extension_key: extension,
+                    extension_match,
                     minimum_size,
                     minimum_copy_count: parameters.filter.minimum_copy_count,
                     across_drives: parameters.filter.across_drives,
@@ -1335,6 +1352,8 @@ impl WorkerSession {
                 requested_path_match
             });
         let extension = normalize_extension_filter(parameters.filter.extension.as_deref())?;
+        let extension_match =
+            normalize_extension_match(&parameters.filter.extension_match, extension.as_deref())?;
         let minimum_size =
             parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
         validate_minimum_copy_count(parameters.filter.minimum_copy_count)?;
@@ -1349,6 +1368,7 @@ impl WorkerSession {
             search.as_deref(),
             path_match,
             extension.as_deref(),
+            extension_match,
             minimum_size,
             parameters.filter.minimum_copy_count,
             parameters.filter.across_drives,
@@ -1374,6 +1394,7 @@ impl WorkerSession {
                     search,
                     path_match,
                     extension_key: extension,
+                    extension_match,
                     minimum_size,
                     minimum_copy_count: parameters.filter.minimum_copy_count,
                     across_drives: parameters.filter.across_drives,
@@ -2447,6 +2468,27 @@ fn normalize_extension_filter(value: Option<&str>) -> Result<Option<String>, Pro
     Ok(Some(value.to_lowercase()))
 }
 
+fn normalize_extension_match(
+    value: &str,
+    extension: Option<&str>,
+) -> Result<DuplicateFileExtensionMatchMode, ProtocolFailure> {
+    let parsed = match value {
+        "any" => DuplicateFileExtensionMatchMode::AnyMember,
+        "all" => DuplicateFileExtensionMatchMode::AllMembers,
+        _ => {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "filter.extensionMatch must be any or all",
+            )
+            .with_details(json!({
+                "field":"filter.extensionMatch",
+                "allowed":["any","all"]
+            })))
+        }
+    };
+    Ok(extension.map_or(DuplicateFileExtensionMatchMode::AnyMember, |_| parsed))
+}
+
 fn parse_non_negative_decimal(value: &str, field: &str) -> Result<i64, ProtocolFailure> {
     value
         .parse::<i64>()
@@ -2480,6 +2522,7 @@ fn group_query_signature(
     search: Option<&str>,
     path_match: DuplicateFilePathMatchMode,
     extension: Option<&str>,
+    extension_match: DuplicateFileExtensionMatchMode,
     minimum_size: i64,
     minimum_copy_count: i64,
     across_drives: bool,
@@ -2493,6 +2536,7 @@ fn group_query_signature(
         "search": search.unwrap_or_default(),
         "pathMatch": path_match_name(path_match),
         "extension": extension,
+        "extensionMatch": extension_match_name(extension_match),
         "minimumSize": minimum_size,
         "minimumCopyCount": minimum_copy_count,
         "acrossDrives": across_drives,
@@ -2509,6 +2553,7 @@ fn selected_root_facet_query_signature(
     search: Option<&str>,
     path_match: DuplicateFilePathMatchMode,
     extension: Option<&str>,
+    extension_match: DuplicateFileExtensionMatchMode,
     minimum_size: i64,
     minimum_copy_count: i64,
     across_drives: bool,
@@ -2521,6 +2566,7 @@ fn selected_root_facet_query_signature(
         "search": search.unwrap_or_default(),
         "pathMatch": path_match_name(path_match),
         "extension": extension,
+        "extensionMatch": extension_match_name(extension_match),
         "minimumSize": minimum_size,
         "minimumCopyCount": minimum_copy_count,
         "acrossDrives": across_drives,
@@ -2536,6 +2582,7 @@ fn drive_facet_query_signature(
     search: Option<&str>,
     path_match: DuplicateFilePathMatchMode,
     extension: Option<&str>,
+    extension_match: DuplicateFileExtensionMatchMode,
     minimum_size: i64,
     minimum_copy_count: i64,
     across_drives: bool,
@@ -2548,6 +2595,7 @@ fn drive_facet_query_signature(
         "search": search.unwrap_or_default(),
         "pathMatch": path_match_name(path_match),
         "extension": extension,
+        "extensionMatch": extension_match_name(extension_match),
         "minimumSize": minimum_size,
         "minimumCopyCount": minimum_copy_count,
         "acrossDrives": across_drives,
@@ -2909,6 +2957,13 @@ fn path_match_name(path_match: DuplicateFilePathMatchMode) -> &'static str {
     match path_match {
         DuplicateFilePathMatchMode::Substring => "substring",
         DuplicateFilePathMatchMode::Exact => "exact",
+    }
+}
+
+fn extension_match_name(extension_match: DuplicateFileExtensionMatchMode) -> &'static str {
+    match extension_match {
+        DuplicateFileExtensionMatchMode::AnyMember => "any",
+        DuplicateFileExtensionMatchMode::AllMembers => "all",
     }
 }
 
@@ -3483,6 +3538,10 @@ fn default_path_match() -> String {
     "substring".to_owned()
 }
 
+fn default_extension_match() -> String {
+    "any".to_owned()
+}
+
 fn default_descending() -> String {
     "descending".to_owned()
 }
@@ -3577,6 +3636,156 @@ mod tests {
         );
         assert_eq!(response(&frames, "list")["result"]["total"], 1);
         assert_eq!(response(&frames, "delete")["ok"], true);
+    }
+
+    #[test]
+    fn extension_match_mode_is_bound_to_all_duplicate_file_cursor_signatures() {
+        let group_any = group_query_signature(
+            1,
+            DuplicateFileGroupSortField::RecoverableBytes,
+            SortDirection::Descending,
+            None,
+            DuplicateFilePathMatchMode::Substring,
+            Some("bin"),
+            DuplicateFileExtensionMatchMode::AnyMember,
+            0,
+            2,
+            false,
+            None,
+            None,
+        );
+        let group_all = group_query_signature(
+            1,
+            DuplicateFileGroupSortField::RecoverableBytes,
+            SortDirection::Descending,
+            None,
+            DuplicateFilePathMatchMode::Substring,
+            Some("bin"),
+            DuplicateFileExtensionMatchMode::AllMembers,
+            0,
+            2,
+            false,
+            None,
+            None,
+        );
+        let group_cursor = encode_group_cursor(
+            &DuplicateFileGroupResult {
+                id: 1,
+                run_id: 1,
+                file_size: 100,
+                file_count: 2,
+                recoverable_bytes: 100,
+                representative_name: "one.bin".to_owned(),
+                distinct_selected_root_count: 1,
+                distinct_drive_count: 1,
+            },
+            DuplicateFileGroupSortField::RecoverableBytes,
+            false,
+            &group_any,
+        )
+        .unwrap();
+        assert_eq!(
+            decode_cursor(Some(&group_cursor), "duplicate-file-groups", &group_all)
+                .unwrap_err()
+                .code,
+            "invalid_cursor"
+        );
+
+        let root_any = selected_root_facet_query_signature(
+            1,
+            DuplicateFileSelectedRootFacetSortField::MatchingGroupCount,
+            SortDirection::Descending,
+            None,
+            DuplicateFilePathMatchMode::Substring,
+            Some("bin"),
+            DuplicateFileExtensionMatchMode::AnyMember,
+            0,
+            2,
+            false,
+            None,
+        );
+        let root_all = selected_root_facet_query_signature(
+            1,
+            DuplicateFileSelectedRootFacetSortField::MatchingGroupCount,
+            SortDirection::Descending,
+            None,
+            DuplicateFilePathMatchMode::Substring,
+            Some("bin"),
+            DuplicateFileExtensionMatchMode::AllMembers,
+            0,
+            2,
+            false,
+            None,
+        );
+        let root_cursor = encode_selected_root_facet_cursor(
+            &DuplicateFileSelectedRootFacetResult {
+                cursor_id: 1,
+                value: "/root".to_owned(),
+                matching_group_count: 1,
+            },
+            DuplicateFileSelectedRootFacetSortField::MatchingGroupCount,
+            false,
+            &root_any,
+        )
+        .unwrap();
+        assert_eq!(
+            decode_cursor(
+                Some(&root_cursor),
+                "duplicate-file-selected-root-facets",
+                &root_all,
+            )
+            .unwrap_err()
+            .code,
+            "invalid_cursor"
+        );
+
+        let drive_any = drive_facet_query_signature(
+            1,
+            DuplicateFileDriveFacetSortField::MatchingGroupCount,
+            SortDirection::Descending,
+            None,
+            DuplicateFilePathMatchMode::Substring,
+            Some("bin"),
+            DuplicateFileExtensionMatchMode::AnyMember,
+            0,
+            2,
+            false,
+            None,
+        );
+        let drive_all = drive_facet_query_signature(
+            1,
+            DuplicateFileDriveFacetSortField::MatchingGroupCount,
+            SortDirection::Descending,
+            None,
+            DuplicateFilePathMatchMode::Substring,
+            Some("bin"),
+            DuplicateFileExtensionMatchMode::AllMembers,
+            0,
+            2,
+            false,
+            None,
+        );
+        let drive_cursor = encode_drive_facet_cursor(
+            &DuplicateFileDriveFacetResult {
+                cursor_id: 1,
+                value: "D:".to_owned(),
+                matching_group_count: 1,
+            },
+            DuplicateFileDriveFacetSortField::MatchingGroupCount,
+            false,
+            &drive_any,
+        )
+        .unwrap();
+        assert_eq!(
+            decode_cursor(
+                Some(&drive_cursor),
+                "duplicate-file-drive-facets",
+                &drive_all,
+            )
+            .unwrap_err()
+            .code,
+            "invalid_cursor"
+        );
     }
 
     #[test]
@@ -3832,6 +4041,26 @@ mod tests {
         assert_eq!(extension["result"]["summary"]["matchingGroupCount"], 1);
         assert_eq!(extension["result"]["summary"]["matchingCopyCount"], 2);
         assert_eq!(extension["result"]["groups"][0]["groupSize"], "100");
+        let all_extension_request = json!({
+            "type":"request",
+            "id":"all-extension",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "pageSize":25,
+                "filter":{"extension":"BIN","extensionMatch":"all"}
+            }
+        });
+        let all_extension: Value = serde_json::from_str(
+            &worker
+                .handle_line(&all_extension_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(all_extension["result"]["total"], 1);
+        assert_eq!(all_extension["result"]["summary"]["matchingGroupCount"], 1);
+        assert_eq!(all_extension["result"]["summary"]["matchingCopyCount"], 3);
+        assert_eq!(all_extension["result"]["groups"][0]["groupSize"], "200");
         let no_extension_request = json!({
             "type":"request",
             "id":"no-extension",
@@ -3846,6 +4075,19 @@ mod tests {
         .unwrap();
         assert_eq!(no_extension["result"]["total"], 1);
         assert_eq!(no_extension["result"]["groups"][0]["groupSize"], "100");
+        let all_no_extension_request = json!({
+            "type":"request",
+            "id":"all-no-extension",
+            "method":"duplicate_file_group.page",
+            "params":{"runId":1,"filter":{"extension":"","extensionMatch":"all"}}
+        });
+        let all_no_extension: Value = serde_json::from_str(
+            &worker
+                .handle_line(&all_no_extension_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(all_no_extension["result"]["total"], 0);
         let invalid_extension_request = json!({
             "type":"request",
             "id":"invalid-extension",
@@ -3862,6 +4104,23 @@ mod tests {
         assert_eq!(
             invalid_extension["error"]["details"]["field"],
             "filter.extension"
+        );
+        let invalid_extension_match_request = json!({
+            "type":"request",
+            "id":"invalid-extension-match",
+            "method":"duplicate_file_group.page",
+            "params":{"runId":1,"filter":{"extension":"bin","extensionMatch":"representative"}}
+        });
+        let invalid_extension_match: Value = serde_json::from_str(
+            &worker
+                .handle_line(&invalid_extension_match_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(invalid_extension_match["error"]["code"], "invalid_request");
+        assert_eq!(
+            invalid_extension_match["error"]["details"]["field"],
+            "filter.extensionMatch"
         );
         let invalid_minimum_copy_count_request = json!({
             "type":"request",
@@ -4043,6 +4302,24 @@ mod tests {
             .unwrap()
             .iter()
             .all(|facet| facet["matchingGroupCount"] == 1));
+        let all_extension_root_facet_request = json!({
+            "type":"request",
+            "id":"root-facet-all-extension",
+            "method":"duplicate_file_selected_root_facet.page",
+            "params":{"runId":1,"pageSize":25,"filter":{"extension":"BIN","extensionMatch":"all"}}
+        });
+        let all_extension_root_facet: Value = serde_json::from_str(
+            &worker
+                .handle_line(&all_extension_root_facet_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(all_extension_root_facet["result"]["total"], 2);
+        assert!(all_extension_root_facet["result"]["facets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|facet| facet["matchingGroupCount"] == 1));
         let invalid_root_facet_extension_request = json!({
             "type":"request",
             "id":"root-facet-extension-invalid",
@@ -4122,6 +4399,24 @@ mod tests {
         .unwrap();
         assert_eq!(extension_drive_facet["result"]["total"], 2);
         assert!(extension_drive_facet["result"]["facets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|facet| facet["matchingGroupCount"] == 1));
+        let all_extension_drive_facet_request = json!({
+            "type":"request",
+            "id":"drive-facet-all-extension",
+            "method":"duplicate_file_drive_facet.page",
+            "params":{"runId":1,"pageSize":25,"filter":{"extension":"bin","extensionMatch":"all"}}
+        });
+        let all_extension_drive_facet: Value = serde_json::from_str(
+            &worker
+                .handle_line(&all_extension_drive_facet_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(all_extension_drive_facet["result"]["total"], 2);
+        assert!(all_extension_drive_facet["result"]["facets"]
             .as_array()
             .unwrap()
             .iter()
