@@ -241,6 +241,107 @@ public sealed class DuplicateFilesViewModelTests
     }
 
     [TestMethod]
+    public async Task SetNavigationMovesWithinAndAcrossExistingBoundedGroupPages()
+    {
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(query.Cursor switch
+            {
+                "next-page" => new WorkerDuplicateFileGroupPage(
+                    [Group(3, query.RunId, "third.bin"), Group(4, query.RunId, "fourth.bin")],
+                    4,
+                    null,
+                    "previous-page"),
+                "previous-page" => new WorkerDuplicateFileGroupPage(
+                    [Group(1, query.RunId, "first.bin"), Group(2, query.RunId, "second.bin")],
+                    4,
+                    "next-page",
+                    null),
+                _ => new WorkerDuplicateFileGroupPage(
+                    [Group(1, query.RunId, "first.bin"), Group(2, query.RunId, "second.bin")],
+                    4,
+                    "next-page",
+                    null),
+            }),
+            MemberPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileMemberPage(
+                    [Member(query.GroupId, query.GroupId, $@"C:\Data\{query.GroupId}.bin")],
+                    1,
+                    null,
+                    null)),
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(15, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        Assert.AreEqual(1, viewModel.SelectedGroup!.Id);
+        Assert.IsFalse(viewModel.CanMoveToPreviousSet);
+        Assert.IsTrue(viewModel.CanMoveToNextSet);
+
+        await viewModel.NextSetCommand.ExecuteAsync(null);
+        Assert.AreEqual(2, viewModel.SelectedGroup!.Id);
+
+        await viewModel.NextSetCommand.ExecuteAsync(null);
+        Assert.AreEqual(3, viewModel.SelectedGroup!.Id);
+        Assert.AreEqual("third.bin", viewModel.SelectedGroup.RepresentativeName);
+
+        await viewModel.PreviousSetCommand.ExecuteAsync(null);
+        Assert.AreEqual(2, viewModel.SelectedGroup!.Id);
+        Assert.AreEqual("second.bin", viewModel.SelectedGroup.RepresentativeName);
+        Assert.IsTrue(viewModel.CachedGroupPageCount <= DuplicateFilesViewModel.CacheCapacity);
+    }
+
+    [TestMethod]
+    public async Task SetNavigationRejectsLateMembersFromPreviouslySelectedGroup()
+    {
+        var oldResponse = new TaskCompletionSource<WorkerDuplicateFileMemberPage>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var oldRequestObserved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileGroupPage(
+                    [Group(1, query.RunId, "first.bin"), Group(2, query.RunId, "second.bin")],
+                    2,
+                    null,
+                    null)),
+            MemberPageHandler = (query, _) =>
+            {
+                if (query.GroupId == 1)
+                {
+                    oldRequestObserved.TrySetResult();
+                    return oldResponse.Task;
+                }
+                return Task.FromResult(new WorkerDuplicateFileMemberPage(
+                    [Member(2, query.GroupId, @"C:\Data\second.bin")],
+                    1,
+                    null,
+                    null));
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(16, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        await oldRequestObserved.Task;
+
+        await viewModel.NextSetCommand.ExecuteAsync(null);
+        Assert.AreEqual(2, viewModel.SelectedGroup!.Id);
+        Assert.AreEqual(@"C:\Data\second.bin", viewModel.Members.Single().Path);
+
+        oldResponse.SetResult(new WorkerDuplicateFileMemberPage(
+            [Member(1, 1, @"C:\Data\stale-first.bin")],
+            1,
+            null,
+            null));
+        await Task.Yield();
+        await Task.Yield();
+
+        Assert.AreEqual(2, viewModel.SelectedGroup!.Id);
+        Assert.AreEqual(@"C:\Data\second.bin", viewModel.Members.Single().Path);
+    }
+
+    [TestMethod]
     public async Task RootFacetGenerationRejectsLateResponseAndCacheStaysBounded()
     {
         var oldResponse = new TaskCompletionSource<WorkerDuplicateFileSelectedRootFacetPage>(

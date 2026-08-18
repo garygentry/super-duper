@@ -3,7 +3,7 @@
 ## Status
 
 Active implementation roadmap for the Windows duplicate-review experience. Milestone 6
-release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first eight
+release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first nine
 read-only Milestone 8 slices are implemented and accepted; the broader milestone remains in
 progress and is gated by the remaining criteria below.
 
@@ -304,14 +304,15 @@ Files library. The user can see what was excluded and can deliberately opt into 
 
 ### Milestone 8 - Duplicate Review Workspace
 
-Status: The first eight read-only file-review slices are accepted. They add a worker-owned summary
+Status: The first nine read-only file-review slices are accepted. They add a worker-owned summary
 for the current duplicate-file query, immutable member location context, bounded per-set
 selected-root/drive span, a worker-owned across-drives entry point, and aggregate location coverage
 plus bounded selected-root and drive facets with exact filters without introducing review
 decisions, live filesystem state, or deletion behavior. The seventh slice adds a worker-owned
 minimum-copy-count filter through the same bounded group and cross-facet query paths. Full
 Milestone 8 remains in progress. The eighth slice adds a precise, accessible 1 GB-or-larger entry
-point over the existing indexed worker-owned one-copy-size predicate.
+point over the existing indexed worker-owned one-copy-size predicate. The ninth slice adds bounded
+next/previous-set navigation and returns keyboard focus to the selected virtualized group row.
 
 #### Refined first vertical slice (2026-08-17)
 
@@ -829,6 +830,78 @@ point and requires no new protocol field or query channel.
   review, and representative-hardware warm-query/bounded-memory profiling. Durable decisions remain
   Milestone 10 and deletion remains Milestone 11.
 
+#### Next/previous-set keyboard focus-restoration slice (2026-08-18)
+
+##### Audit and scope decision
+
+Extension/type filtering is still not a safe small slice. The displayed representative type is
+derived from one representative label, while exact-content members may use different extensions.
+An any-member extension predicate would mean that at least one immutable member has the requested
+normalized extension; an all-member predicate would mean that every immutable member has that
+extension, with a separately defined no-extension value. Before either behavior is chosen, the
+contract must define terminal-dot, dotfile, multiple-suffix, empty-extension, Unicode, and
+case-normalization rules; distinguish extension from a maintained file-type classification; store
+or generate the normalized value under Rust ownership; and add a run/group/value index that can
+serve group rows, total, summary, and both cross-facet count paths. The current client-derived
+representative type and `idx_file_run_path` do not satisfy that contract.
+
+A more-specific path filter is also broader than this slice. Exact canonical-path equality,
+boundary-aware canonical-path prefix/descendant matching, and selected-root-relative matching are
+different operations. Prefix/descendant semantics must specify separator and path-segment
+boundaries, whether the root itself matches, case normalization, selected-root-relative behavior,
+and an indexable worker representation. The existing group search remains a case-insensitive
+literal substring across immutable member canonical paths and continues to be labeled `Path
+search`; it is not relabeled as a path-prefix filter.
+
+Next/previous-set focus restoration is therefore the smallest coherent remaining gate. It reuses
+the current 200-row group page, opaque group cursors, five-page group cache, cancellation source,
+query generation, and stale-response guard. Selecting a new set continues to cancel the previous
+member request and advance the independent member generation.
+
+##### Implemented interaction
+
+- `Previous set` and `Next set` move within the current bounded group page. At a page boundary they
+  load one existing previous/next keyset cursor; the next page selects its first row and the
+  previous page selects its last row, preserving continuous sorted-set traversal.
+- The controls expose stable automation IDs, descriptive automation names, and Alt+P/Alt+N access
+  keys. After keyboard, mouse, or UI Automation invocation, WPF realizes the selected virtualized
+  row with `ScrollIntoView`, updates layout, and returns keyboard focus to that row so arrow-key
+  review can continue.
+- The navigation path adds no protocol field, cursor kind, SQL predicate, index, facet channel,
+  cache, cancellation source, query generation, filesystem access, or unbounded collection. The
+  existing group/member and independent selected-root/drive facet bounds remain unchanged.
+- Schema v4 and immutable historical results are unchanged. The slice adds no preview, thumbnail,
+  validation, Cloud Files access, durable decision, deletion, `scanned_file.marked_deleted`, or
+  Milestone 10/11 behavior.
+
+##### Acceptance result
+
+- Ten focused Core duplicate-file tests passed, including traversal within and across bounded group
+  pages and rejection of a late member response from the previously selected set. All three
+  focused STA WPF surface tests passed and verify accessible controls plus focus inside the selected
+  realized group row.
+- The unchanged 100,000-group regression passed in focused runs in 2.18 seconds Debug and 1.57
+  seconds optimized Release. In the complete workspace runs it completed in 2.04 seconds Debug and
+  0.88 seconds Release, within the five-second bounded gates. Representative-hardware warm-query
+  and explicit bounded-memory profiling remain full-milestone gates.
+- `cargo test --workspace` and `cargo test --workspace --release` passed, including 15 storage and
+  9 worker tests in each configuration. Debug and Release worker builds passed.
+- Debug and Release solution builds passed with zero warnings and zero errors under installed SDK
+  10.0.400 from `C:\Windows\Temp` with absolute solution paths; the unavailable pinned 10.0.303
+  SDK and `global.json` were unchanged. Serialized tests passed 42 Core, 22 Infrastructure, and 3
+  WPF tests in each configuration; the one real-provider Infrastructure test was intentionally
+  skipped.
+- Real Debug and Release `Invoke-WindowsSmoke.ps1 -SkipBuild` runs passed next/previous-set
+  selection and keyboard-focus restoration, existing worker-owned filters/facets/summary/location
+  workflows, Explorer reveal, Cloud setup/fail-closed behavior, and deterministic shutdown.
+  PowerShell parsing and `git diff --check` passed. Repository-wide `cargo fmt --all -- --check`
+  remains blocked by pre-existing formatting drift in unchanged CLI/FFI files, which remain
+  preserved.
+- Remaining Milestone 8 gates are further richer worker-owned filters once their semantics and
+  indexing are explicit, the complete accessibility review, and representative-hardware
+  warm-query/bounded-memory profiling. Durable decisions remain Milestone 10 and deletion remains
+  Milestone 11.
+
 #### User outcome
 
 The results surface answers three questions without requiring repeated Explorer investigation:
@@ -1274,3 +1347,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-17 | Refined and accepted the worker-owned paged drive facet and exact-drive filter after focused/optimized coverage, the Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed. | Complete the bounded location-facet workflow with cross-facet composition, an explicit drive cursor signature, separate five-page Core cache, independent cancellation/generation, stale-response rejection, and keyboard-accessible WPF interaction while leaving richer filters, focus restoration, complete accessibility review, representative profiling, decisions, validation, and deletion as later gates. |
 | 2026-08-18 | Refined and accepted the worker-owned minimum-copy-count filter after focused/optimized coverage, the Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the latest 100,000-group regression completed in 2.21 seconds Debug and 1.39 seconds optimized Release, and each .NET configuration passed 39 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally gated. | Add the smallest indexed `Three or more copies` entry point through the normalized group rows/total/summary and both cross-composed facet predicates/signatures while preserving existing bounded caches, independent facet cancellation/generations, stale-response rejection, and the Milestone 8/10/11 scope boundaries; remaining Milestone 8 gates are additional richer worker-owned filters, next/previous-set keyboard focus restoration, the complete accessibility review, and representative-hardware warm-query/bounded-memory profiling. |
 | 2026-08-18 | Refined and accepted the precise worker-owned one-copy-size entry point after focused/optimized coverage, the Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the expanded 100,000-group regression completed in 2.24 seconds Debug and 0.88 seconds optimized Release, and each .NET configuration passed 40 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally gated. | Add the smallest indexed `1 GB or larger` result-understanding entry point by normalizing the existing `minimumSize` predicate to at least 1,073,741,824 bytes across group rows/total/summary and both facet predicates/signatures, while deferring extension/type and path-prefix filters until member-accurate semantics and indexes are explicit and preserving bounded caches, independent cancellation/generations, stale-response rejection, and the Milestone 8/10/11 boundaries. |
+| 2026-08-18 | Refined and accepted bounded next/previous-set navigation with virtualized-row keyboard focus restoration after focused Core/WPF tests, Debug/Release 100,000-group coverage, the full Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the complete workspace regression completed in 2.04 seconds Debug and 0.88 seconds Release, and each .NET configuration passed 42 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | Close the focus-restoration gate through the existing group cursor/cache/cancellation/generation path and independent member stale-response guard without changing protocol, SQL, indexes, facets, or memory bounds; extension/type remains deferred until any-member/all-member normalization and indexed worker ownership are explicit, and true path filtering remains deferred until exact/prefix/descendant, segment-boundary, case, and selected-root-relative semantics are explicit. |

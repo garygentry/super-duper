@@ -107,6 +107,10 @@ public sealed class WpfSurfaceSmokeTests
                 FindByAutomationId<TextBlock>(files, "FileSelectedSetExplanation").Text,
                 "does not identify an original");
             _ = FindByAutomationId<TextBlock>(files, "FileSelectedSetLocations");
+            var previousSet = FindByAutomationId<Button>(files, "FilePreviousSet");
+            var nextSet = FindByAutomationId<Button>(files, "FileNextSet");
+            StringAssert.Contains(AutomationProperties.GetName(previousSet), "focus returns");
+            StringAssert.Contains(AutomationProperties.GetName(nextSet), "focus returns");
             var fileMemberHeaders = FindByAutomationId<DataGrid>(files, "FileMembersGrid")
                 .Columns.Select(column => column.Header?.ToString()).ToArray();
             CollectionAssert.IsSubsetOf(
@@ -140,6 +144,19 @@ public sealed class WpfSurfaceSmokeTests
                 FindByAutomationId<TextBox>(setup, "IgnorePatterns")));
             Assert.AreEqual("Run history", AutomationProperties.GetName(
                 FindByAutomationId<DataGrid>(history, "RunHistoryGrid")));
+
+            var focusHost = new Window { Width = 1200, Height = 800, Content = files };
+            focusHost.Show();
+            focusHost.Activate();
+            DrainDispatcher();
+            fileGroups.ItemsSource = new[] { new object(), new object() };
+            fileGroups.SelectedIndex = 1;
+            fileGroups.UpdateLayout();
+            Assert.IsTrue(nextSet.Focus());
+            Assert.IsTrue(files.RestoreGroupGridFocus());
+            DrainDispatcher();
+            Assert.IsTrue(fileGroups.IsKeyboardFocusWithin);
+            focusHost.Close();
 
             app.Shutdown();
         });
@@ -209,5 +226,14 @@ public sealed class WpfSurfaceSmokeTests
         {
             ExceptionDispatchInfo.Capture(failure).Throw();
         }
+    }
+
+    private static void DrainDispatcher()
+    {
+        var frame = new DispatcherFrame();
+        Dispatcher.CurrentDispatcher.BeginInvoke(
+            DispatcherPriority.ContextIdle,
+            new Action(() => frame.Continue = false));
+        Dispatcher.PushFrame(frame);
     }
 }

@@ -297,6 +297,20 @@ function Invoke-WpfAutomation([long]$RunId) {
             }
         }
 
+        function Test-IsAutomationDescendant($Ancestor, $Element) {
+            $current = $Element
+            while ($null -ne $current) {
+                if ([Windows.Automation.Automation]::Compare($Ancestor, $current)) { return $true }
+                try {
+                    $current = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($current)
+                }
+                catch {
+                    return $false
+                }
+            }
+            return $false
+        }
+
         Select-Element (Find-Element Name 'Milestone 6 Smoke')
         Select-Element (Find-Element AutomationId 'SetupTab')
         $null = Find-Element AutomationId 'CloudPolicyName'
@@ -443,6 +457,36 @@ function Invoke-WpfAutomation([long]$RunId) {
         $fileGrid = Find-Element AutomationId 'FileGroupsGrid'
         $fileRow = Find-FirstDataItem $fileGrid
         Select-Element $fileRow
+        $selectedSetName = Find-Element AutomationId 'FileSelectedSetName'
+        $beforeNextSet = $selectedSetName.Current.Name
+        $previousSet = Find-Element AutomationId 'FilePreviousSet'
+        $nextSet = Find-Element AutomationId 'FileNextSet'
+        Assert-True ($previousSet.Current.Name.Contains('focus returns', [StringComparison]::OrdinalIgnoreCase)) 'Previous-set focus behavior was not accessible.'
+        Assert-True ($nextSet.Current.Name.Contains('focus returns', [StringComparison]::OrdinalIgnoreCase)) 'Next-set focus behavior was not accessible.'
+        Invoke-Element $nextSet
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            $selectedSetName = Find-Element AutomationId 'FileSelectedSetName' 1
+            $focused = [Windows.Automation.AutomationElement]::FocusedElement
+            if ($selectedSetName.Current.Name -ne $beforeNextSet -and
+                (Test-IsAutomationDescendant $fileGrid $focused)) {
+                break
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ($selectedSetName.Current.Name -ne $beforeNextSet) 'Next set did not advance the selected duplicate set.'
+        Assert-True (Test-IsAutomationDescendant $fileGrid ([Windows.Automation.AutomationElement]::FocusedElement)) 'Next set did not restore keyboard focus to the selected group row.'
+        Invoke-Element $previousSet
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            $selectedSetName = Find-Element AutomationId 'FileSelectedSetName' 1
+            $focused = [Windows.Automation.AutomationElement]::FocusedElement
+            if ($selectedSetName.Current.Name -eq $beforeNextSet -and
+                (Test-IsAutomationDescendant $fileGrid $focused)) {
+                break
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ($selectedSetName.Current.Name -eq $beforeNextSet) 'Previous set did not restore the prior duplicate set.'
+        Assert-True (Test-IsAutomationDescendant $fileGrid ([Windows.Automation.AutomationElement]::FocusedElement)) 'Previous set did not restore keyboard focus to the selected group row.'
         $search = Find-Element AutomationId 'FileSearch'
         $search.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('group010')
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
@@ -481,7 +525,7 @@ function Invoke-WpfAutomation([long]$RunId) {
         $null = Find-FirstDataItem $folderMembers
         Invoke-Element (Find-DescendantByName $folderMembers 'Show in Explorer')
         Assert-NoVisibleDetailError 'FolderDetailError'
-        Write-Output "WPF automation passed for restored run $RunId, including the 1 GB-or-larger and minimum-copy-count entry points plus selected-root and drive facet filtering and completed ordinary, long-path, and folder Explorer reveal commands."
+        Write-Output "WPF automation passed for restored run $RunId, including the 1 GB-or-larger and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
     }
     finally {
         try {

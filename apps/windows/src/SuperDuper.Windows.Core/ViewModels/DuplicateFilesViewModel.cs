@@ -83,6 +83,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         ClearFiltersCommand = new AsyncRelayCommand(ClearFiltersAsync);
         NextPageCommand = new AsyncRelayCommand(NextPageAsync, () => CanMoveNext);
         PreviousPageCommand = new AsyncRelayCommand(PreviousPageAsync, () => CanMovePrevious);
+        NextSetCommand = new AsyncRelayCommand(NextSetAsync, () => CanMoveToNextSet);
+        PreviousSetCommand = new AsyncRelayCommand(PreviousSetAsync, () => CanMoveToPreviousSet);
         NextRootFacetPageCommand = new AsyncRelayCommand(NextRootFacetPageAsync, () => CanMoveRootFacetsNext);
         PreviousRootFacetPageCommand = new AsyncRelayCommand(PreviousRootFacetPageAsync, () => CanMoveRootFacetsPrevious);
         SortRootFacetsByCountCommand = new AsyncRelayCommand(
@@ -178,6 +180,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _selectedGroup, value))
             {
                 OnPropertyChanged(nameof(HasSelectedGroup));
+                RaiseSetNavigationProperties();
                 _ = LoadSelectedGroupAsync(value);
             }
         }
@@ -465,6 +468,16 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 
     public bool CanMovePrevious => !IsLoading && _currentGroupPage?.PreviousCursor is not null;
 
+    public bool CanMoveToNextSet =>
+        !IsLoading
+        && SelectedGroup is not null
+        && (SelectedGroupIndex < Groups.Count - 1 || _currentGroupPage?.NextCursor is not null);
+
+    public bool CanMoveToPreviousSet =>
+        !IsLoading
+        && SelectedGroup is not null
+        && (SelectedGroupIndex > 0 || _currentGroupPage?.PreviousCursor is not null);
+
     public bool CanMoveMembersNext => !IsDetailLoading && _currentMemberPage?.NextCursor is not null;
 
     public bool CanMoveMembersPrevious => !IsDetailLoading && _currentMemberPage?.PreviousCursor is not null;
@@ -492,6 +505,10 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     public IAsyncRelayCommand NextPageCommand { get; }
 
     public IAsyncRelayCommand PreviousPageCommand { get; }
+
+    public IAsyncRelayCommand NextSetCommand { get; }
+
+    public IAsyncRelayCommand PreviousSetCommand { get; }
 
     public IAsyncRelayCommand NextRootFacetPageCommand { get; }
 
@@ -684,13 +701,14 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         DuplicateFileGroupFilter filter,
         long generation,
         CancellationToken cancellationToken,
-        bool display)
+        bool display,
+        bool selectLast = false)
     {
         if (_groupCache.TryGet(cursor, out var cached))
         {
             if (display && generation == _groupGeneration)
             {
-                DisplayGroupPage(cached);
+                DisplayGroupPage(cached, selectLast);
                 _ = PrefetchGroupNeighborsAsync(cached, filter, generation, cancellationToken);
             }
             return;
@@ -722,7 +740,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             _groupCache.Set(cursor, page);
             if (display)
             {
-                DisplayGroupPage(page);
+                DisplayGroupPage(page, selectLast);
                 _ = PrefetchGroupNeighborsAsync(page, filter, generation, cancellationToken);
             }
         }
@@ -746,7 +764,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void DisplayGroupPage(WorkerDuplicateFileGroupPage page)
+    private void DisplayGroupPage(WorkerDuplicateFileGroupPage page, bool selectLast)
     {
         _currentGroupPage = page;
         TotalGroups = page.Total;
@@ -754,7 +772,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         Groups = page.Groups.Select(group => new DuplicateFileGroupListItemViewModel(group)).ToArray();
         OnPropertyChanged(nameof(HasGroups));
         OnPropertyChanged(nameof(IsEmpty));
-        SelectedGroup = Groups.FirstOrDefault();
+        SelectedGroup = selectLast ? Groups.LastOrDefault() : Groups.FirstOrDefault();
         RaisePagingProperties();
     }
 
@@ -810,6 +828,57 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         if (_currentGroupPage?.PreviousCursor is { } cursor && TryBuildFilter(out var filter) && _groupCancellation is not null)
         {
             await LoadGroupPageAsync(cursor, filter, _groupGeneration, _groupCancellation.Token, display: true);
+        }
+    }
+
+    private async Task NextSetAsync()
+    {
+        var selectedIndex = SelectedGroupIndex;
+        if (selectedIndex < 0)
+        {
+            return;
+        }
+        if (selectedIndex < Groups.Count - 1)
+        {
+            SelectedGroup = Groups[selectedIndex + 1];
+            return;
+        }
+        if (_currentGroupPage?.NextCursor is { } cursor
+            && TryBuildFilter(out var filter)
+            && _groupCancellation is not null)
+        {
+            await LoadGroupPageAsync(
+                cursor,
+                filter,
+                _groupGeneration,
+                _groupCancellation.Token,
+                display: true);
+        }
+    }
+
+    private async Task PreviousSetAsync()
+    {
+        var selectedIndex = SelectedGroupIndex;
+        if (selectedIndex < 0)
+        {
+            return;
+        }
+        if (selectedIndex > 0)
+        {
+            SelectedGroup = Groups[selectedIndex - 1];
+            return;
+        }
+        if (_currentGroupPage?.PreviousCursor is { } cursor
+            && TryBuildFilter(out var filter)
+            && _groupCancellation is not null)
+        {
+            await LoadGroupPageAsync(
+                cursor,
+                filter,
+                _groupGeneration,
+                _groupCancellation.Token,
+                display: true,
+                selectLast: true);
         }
     }
 
@@ -1461,6 +1530,25 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         return true;
     }
 
+    private int SelectedGroupIndex
+    {
+        get
+        {
+            if (SelectedGroup is null)
+            {
+                return -1;
+            }
+            for (var index = 0; index < Groups.Count; index++)
+            {
+                if (Groups[index].Id == SelectedGroup.Id)
+                {
+                    return index;
+                }
+            }
+            return -1;
+        }
+    }
+
     private void CopyPath(DuplicateFileMemberListItemViewModel? member)
     {
         if (member is null)
@@ -1533,6 +1621,15 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanMovePrevious));
         NextPageCommand.NotifyCanExecuteChanged();
         PreviousPageCommand.NotifyCanExecuteChanged();
+        RaiseSetNavigationProperties();
+    }
+
+    private void RaiseSetNavigationProperties()
+    {
+        OnPropertyChanged(nameof(CanMoveToNextSet));
+        OnPropertyChanged(nameof(CanMoveToPreviousSet));
+        NextSetCommand.NotifyCanExecuteChanged();
+        PreviousSetCommand.NotifyCanExecuteChanged();
     }
 
     private void RaiseMemberPagingProperties()

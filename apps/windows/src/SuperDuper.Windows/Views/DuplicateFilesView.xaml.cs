@@ -1,4 +1,6 @@
+using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using SuperDuper.Windows.Core.ViewModels;
 using SuperDuper.Windows.Core.Workers;
 
@@ -7,6 +9,35 @@ namespace SuperDuper.Windows.Views;
 public partial class DuplicateFilesView : UserControl
 {
     public DuplicateFilesView() => InitializeComponent();
+
+    private async void OnSetNavigationClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DuplicateFilesViewModel viewModel)
+        {
+            return;
+        }
+        var command = ReferenceEquals(sender, PreviousSetButton)
+            ? viewModel.PreviousSetCommand
+            : viewModel.NextSetCommand;
+        await command.ExecuteAsync(null);
+        await Dispatcher.InvokeAsync(RestoreGroupGridFocus, DispatcherPriority.Input);
+    }
+
+    internal bool RestoreGroupGridFocus()
+    {
+        var selectedItem = GroupsGrid.SelectedItem;
+        if (selectedItem is null)
+        {
+            return GroupsGrid.Focus();
+        }
+        GroupsGrid.ScrollIntoView(selectedItem);
+        GroupsGrid.UpdateLayout();
+        if (GroupsGrid.ItemContainerGenerator.ContainerFromItem(selectedItem) is DataGridRow row)
+        {
+            return row.Focus() || GroupsGrid.Focus();
+        }
+        return GroupsGrid.Focus();
+    }
 
     private async void OnGroupsSorting(object sender, DataGridSortingEventArgs e)
     {
