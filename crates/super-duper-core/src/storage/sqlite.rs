@@ -82,8 +82,83 @@ impl Database {
             }
             _ => return Err(Error::InvalidQuery),
         }
+        self.reconcile_extension_keys()?;
         debug!("SQLite schema ready at version {}", CURRENT_SCHEMA_VERSION);
         Ok(())
+    }
+
+    fn reconcile_extension_keys(&self) -> Result<()> {
+        let has_scanned_file = self.conn.query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM sqlite_master
+                WHERE type = 'table' AND name = 'scanned_file'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?;
+        if !has_scanned_file {
+            return Ok(());
+        }
+        let has_extension_key = self.conn.query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM pragma_table_info('scanned_file') WHERE name = 'extension_key'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?;
+        let has_extension_index = self.conn.query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM sqlite_master
+                WHERE type = 'index' AND name = 'idx_file_run_extension_key'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?;
+        let has_missing_keys = has_extension_key
+            && self.conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM scanned_file WHERE extension_key IS NULL LIMIT 1)",
+                [],
+                |row| row.get::<_, bool>(0),
+            )?;
+        if has_extension_key && has_extension_index && !has_missing_keys {
+            return Ok(());
+        }
+        let tx = self.conn.unchecked_transaction()?;
+        if !has_extension_key {
+            tx.execute_batch("ALTER TABLE scanned_file ADD COLUMN extension_key TEXT;")?;
+        }
+
+        loop {
+            let rows = {
+                let mut statement = tx.prepare(
+                    "SELECT id, file_name FROM scanned_file
+                     WHERE extension_key IS NULL ORDER BY id LIMIT 500",
+                )?;
+                let rows = statement
+                    .query_map([], |row| {
+                        Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+                    })?
+                    .collect::<Result<Vec<_>>>()?;
+                rows
+            };
+            if rows.is_empty() {
+                break;
+            }
+            {
+                let mut update = tx.prepare_cached(
+                    "UPDATE scanned_file SET extension_key = ?1
+                     WHERE id = ?2 AND extension_key IS NULL",
+                )?;
+                for (id, file_name) in rows {
+                    update.execute(params![normalized_file_extension_key(&file_name), id])?;
+                }
+            }
+        }
+        tx.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_file_run_extension_key
+                 ON scanned_file(run_id, extension_key, id);",
+        )?;
+        tx.commit()
     }
 
     fn migrate_v2_to_v3(&self) -> Result<()> {
@@ -355,4 +430,14 @@ impl Database {
 
 fn unicode_nocase_compare(left: &str, right: &str) -> Ordering {
     left.to_lowercase().cmp(&right.to_lowercase())
+}
+
+pub(super) fn normalized_file_extension_key(file_name: &str) -> String {
+    let Some(dot_index) = file_name.rfind('.') else {
+        return String::new();
+    };
+    if dot_index == 0 || dot_index + 1 == file_name.len() {
+        return String::new();
+    }
+    file_name[dot_index + 1..].to_lowercase()
 }

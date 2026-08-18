@@ -207,6 +207,9 @@ pub struct PageCursor {
 pub struct DuplicateFileGroupFilter {
     pub search: Option<String>,
     pub path_match: DuplicateFilePathMatchMode,
+    /// A locale-independently lowercased final filename suffix. `Some("")` explicitly
+    /// selects members without an extension; `None` does not filter by extension.
+    pub extension_key: Option<String>,
     pub minimum_size: i64,
     pub minimum_copy_count: i64,
     pub across_drives: bool,

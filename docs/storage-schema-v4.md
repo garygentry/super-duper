@@ -37,7 +37,7 @@ outside the post-MVP review workflow.
 is small by construction and remains server-owned; later Activity work may generalize the event
 surface without rewriting the immutable exclusion records.
 
-## Read-only exact-path review indexes
+## Read-only review indexes
 
 Milestone 8 adds no table or column and does not advance `user_version`. Rust registers the
 `UNICODE_NOCASE` SQLite collation before schema reconciliation. It compares locale-independent
@@ -53,6 +53,27 @@ additive indexes idempotently under Rust ownership.
 The existing member-path substring predicate is unchanged and is not a prefix index. A future
 boundary-aware prefix/descendant or selected-root-relative filter requires separately specified
 normalized path keys and indexes before it can be exposed.
+
+Milestone 8 also adds a nullable internal `scanned_file.extension_key` column without advancing
+`user_version`. Rust populates it from the persisted final `file_name` segment when a file snapshot
+is inserted. The key is the suffix after the last dot, excluding the dot. A name without a dot, a
+terminal dot, or a dotfile whose only dot is its leading dot stores the empty no-extension key;
+`.env.local` stores `local`, and `archive.tar.gz` stores `gz`.
+
+Extension keys use locale-independent Unicode lowercase while preserving the original Unicode
+normalization form. They do not trim characters, infer MIME or file type, inspect the
+representative label, canonicalize a path, or read the filesystem. The optional group filter uses
+`None` for no extension predicate and the empty stored key for an explicit no-extension predicate.
+It has any-member semantics: one matching immutable member is sufficient even when other exact-
+content members use different extensions. All-member matching and maintained file-type
+classification remain separate, unexposed contracts.
+
+`idx_file_run_extension_key` covers `(run_id, extension_key, id)`. Together with
+`idx_group_member_file`, it serves duplicate-file group rows, total, summary, selected-root facet
+counts, and drive facet counts. Opening an older schema-v4 database adds the column if needed,
+backfills null keys in bounded 500-row SQLite batches, and creates the index transactionally. Once
+the column, index, and keys are present, ordinary worker connections take only the read-only
+reconciliation checks. The backfill uses persisted filenames only and performs no filesystem I/O.
 
 ## Migration
 

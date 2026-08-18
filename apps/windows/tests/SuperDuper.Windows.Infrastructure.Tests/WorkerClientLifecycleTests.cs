@@ -114,7 +114,7 @@ public sealed class WorkerClientLifecycleTests
         var root = Path.Combine(temp, "root");
         Directory.CreateDirectory(root);
         await File.WriteAllTextAsync(Path.Combine(root, "one.txt"), "non-empty");
-        await File.WriteAllTextAsync(Path.Combine(root, "one-copy.txt"), "non-empty");
+        await File.WriteAllTextAsync(Path.Combine(root, "one-copy.JPG"), "non-empty");
         var folderA = Directory.CreateDirectory(Path.Combine(root, "folder-a"));
         var folderB = Directory.CreateDirectory(Path.Combine(root, "folder-b"));
         await File.WriteAllTextAsync(Path.Combine(folderA.FullName, "same.txt"), "folder content");
@@ -251,6 +251,36 @@ public sealed class WorkerClientLifecycleTests
                         exactPath,
                         "0",
                         PathMatch: DuplicateFilePathMatchMode.Exact)));
+            var extensionGroups = await client.GetDuplicateFileGroupsAsync(
+                new DuplicateFileGroupQuery(
+                    started.Id,
+                    200,
+                    DuplicateFileGroupSortField.RecoverableBytes,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileGroupFilter(
+                        string.Empty,
+                        "0",
+                        Extension: "JPG")));
+            var extensionRootFacets = await client.GetDuplicateFileSelectedRootFacetsAsync(
+                new DuplicateFileSelectedRootFacetQuery(
+                    started.Id,
+                    25,
+                    DuplicateFileSelectedRootFacetSortField.MatchingGroupCount,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileSelectedRootFacetFilter(
+                        string.Empty,
+                        "0",
+                        Extension: "JPG")));
+            var extensionDriveFacets = await client.GetDuplicateFileDriveFacetsAsync(
+                new DuplicateFileDriveFacetQuery(
+                    started.Id,
+                    25,
+                    DuplicateFileDriveFacetSortField.MatchingGroupCount,
+                    WorkerSortDirection.Descending,
+                    new DuplicateFileDriveFacetFilter(
+                        string.Empty,
+                        "0",
+                        Extension: "JPG")));
             var folderGroups = await client.GetDuplicateFolderGroupsAsync(
                 new DuplicateFolderGroupQuery(
                     started.Id,
@@ -291,8 +321,14 @@ public sealed class WorkerClientLifecycleTests
             Assert.AreEqual(1, exactPathRootFacets.Facets.Single().MatchingGroupCount);
             Assert.AreEqual(1, exactPathDriveFacets.Total);
             Assert.AreEqual(1, exactPathDriveFacets.Facets.Single().MatchingGroupCount);
+            Assert.AreEqual(1, extensionGroups.Total);
+            Assert.AreEqual(1, extensionGroups.Summary.MatchingGroupCount);
+            Assert.AreEqual(1, extensionRootFacets.Total);
+            Assert.AreEqual(1, extensionRootFacets.Facets.Single().MatchingGroupCount);
+            Assert.AreEqual(1, extensionDriveFacets.Total);
+            Assert.AreEqual(1, extensionDriveFacets.Facets.Single().MatchingGroupCount);
             CollectionAssert.IsSubsetOf(
-                new[] { "one.txt", "one-copy.txt" },
+                new[] { "one.txt", "one-copy.JPG" },
                 members.Members.Select(member => member.FileName).ToArray());
             Assert.AreEqual(1, folderGroups.Total);
             Assert.AreEqual(2, folderMembers.Total);

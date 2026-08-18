@@ -3,7 +3,7 @@
 ## Status
 
 Active implementation roadmap for the Windows duplicate-review experience. Milestone 6
-release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first ten
+release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first eleven
 read-only Milestone 8 slices are implemented and accepted; the broader milestone remains in
 progress and is gated by the remaining criteria below.
 
@@ -304,7 +304,7 @@ Files library. The user can see what was excluded and can deliberately opt into 
 
 ### Milestone 8 - Duplicate Review Workspace
 
-Status: The first ten read-only file-review slices are accepted. They add a worker-owned summary
+Status: The first eleven read-only file-review slices are accepted. They add a worker-owned summary
 for the current duplicate-file query, immutable member location context, bounded per-set
 selected-root/drive span, a worker-owned across-drives entry point, and aggregate location coverage
 plus bounded selected-root and drive facets with exact filters without introducing review
@@ -314,7 +314,9 @@ Milestone 8 remains in progress. The eighth slice adds a precise, accessible 1 G
 point over the existing indexed worker-owned one-copy-size predicate. The ninth slice adds bounded
 next/previous-set navigation and returns keyboard focus to the selected virtualized group row. The
 tenth slice adds indexed exact canonical-member-path matching while retaining the existing literal
-substring path search as a distinct default mode.
+substring path search as a distinct default mode. The eleventh slice adds indexed any-member exact
+filename-extension and explicit no-extension matching without inferring from the representative
+label or introducing file-type classification.
 
 #### Refined first vertical slice (2026-08-17)
 
@@ -991,6 +993,89 @@ indexes exist.
   worktree were preserved and covered by the current Debug/Release .NET and real WPF smoke runs,
   but this exact-path slice does not claim that broader gate.
 
+#### Any-member filename-extension filter slice (2026-08-18)
+
+##### Audit and scope decision
+
+Boundary-aware canonical prefix/descendant filtering remains broader than one safe slice. It still
+requires separator/device-prefix normalization, explicit prefix-or-self versus descendant-only
+semantics, Unicode-form and case rules, and stored range keys. Selected-root-relative matching is a
+separate operation requiring an exact selected root plus indexed root/relative keys. The existing
+member-path substring search remains a literal case-insensitive substring operation and is not
+renamed or reused as either path mode.
+
+Filename extension can be a complete bounded slice when it remains an immutable member attribute.
+The exposed `any-member` behavior means at least one set member has the requested key. A future
+`all-member` behavior would require every immutable member to have that key; it is not exposed, so
+mixed-extension exact-content sets remain discoverable through any-member matching. Filename
+extension is not MIME or maintained file-type classification, and the representative-derived Type
+label remains display-only.
+
+The final persisted filename segment supplies the suffix after its last dot. A name with no dot, a
+terminal dot, and a dotfile whose only dot is its leading dot have no extension; `.env.local` maps
+to `local`, and `archive.tar.gz` maps to `gz`. Keys exclude the dot and use locale-independent
+Unicode lowercase while preserving normalization form. Input is not trimmed, path-canonicalized,
+or Unicode-form-normalized. An absent value means no extension predicate; an explicit empty value
+means no extension.
+
+##### Implemented contract and UX
+
+- Schema v4 gains an additive internal nullable `scanned_file.extension_key` without advancing
+  `user_version`. Rust writes it with each immutable snapshot. Opening an older v4 database adds
+  the column if needed, backfills null keys transactionally in bounded 500-row SQLite batches, and
+  creates `idx_file_run_extension_key(run_id, extension_key, id)`. Reconciled connections return
+  after read-only checks; no filesystem or Cloud Files access occurs.
+- `filter.extension` is optional on group, selected-root-facet, and drive-facet requests. It accepts
+  at most 255 Unicode scalar values without dots or path separators. Empty explicitly selects
+  no-extension members. The normalized any-member predicate serves group rows, total, summary, and
+  both cross-composed facet counts. All three cursor signatures distinguish absent, empty, and
+  normalized non-empty extension values.
+- Core and Infrastructure carry the field through the existing group, selected-root-facet, and
+  drive-facet requests. The group, member, selected-root-facet, and drive-facet caches remain
+  independently bounded to five pages with their existing cancellation sources, query
+  generations, two-page directional prefetch limits, and stale-response rejection. No new channel
+  or unbounded WPF collection is introduced.
+- WPF adds a labeled extension box and a separate no-extension checkbox on a wrapping filter row.
+  Automation names/help text state any-member behavior, the distinction from file type, and
+  no-extension terminal-dot/dotfile behavior. Explicit tab order, system brushes, live regions,
+  row virtualization, full-path help text, and bounded DataGridCell focus restoration remain
+  intact.
+- The slice reads only immutable run-owned SQLite state. It adds no preview, thumbnail, validation,
+  filesystem read, Cloud Files access, durable decision, deletion, `scanned_file.marked_deleted`,
+  or Milestone 10/11 behavior.
+
+##### Acceptance result
+
+- Focused extension/backfill storage tests and the comprehensive worker paging/cursor test passed.
+  Three typed worker-lifecycle tests, 13 focused Core duplicate-file tests, and all three STA WPF
+  surface tests passed. Coverage includes mixed member extensions, explicit no-extension,
+  terminal-dot/dotfile/multiple-suffix rules, Unicode case with normalization-form preservation,
+  group/summary/facet predicate agreement, invalid input, and all three cursor signatures.
+- The expanded 100,000-group group/summary/selected-root-facet/drive-facet regression completed in
+  2.39 seconds Debug and 1.05 seconds optimized Release, within its five-second gates.
+  Representative-hardware warm-query and explicit bounded-memory profiling remain open.
+- `cargo test --workspace` and `cargo test --workspace --release` passed with 18 storage and 9
+  worker tests in each configuration. Explicit Debug and Release worker builds passed. The first
+  full Debug attempt exposed that the minimal v3 migration fixture omitted `scanned_file`; bounded
+  extension reconciliation now no-ops when result storage is absent, and the focused migration
+  regression plus both complete final Rust runs passed.
+- Debug and Release .NET builds from `C:\Windows\Temp` against the absolute solution path passed
+  with zero warnings and errors under installed SDK 10.0.400; `global.json` remains unchanged.
+  Each configuration passed 45 Core, 22 Infrastructure, and 3 WPF tests, with the real-provider
+  Infrastructure test intentionally skipped.
+- Real Debug and Release `Invoke-WindowsSmoke.ps1 -SkipBuild` passed worker group/summary/root-facet/
+  drive-facet extension filtering, explicit no-extension filtering, accessible WPF interaction,
+  and the accepted exact-path, next/previous-set focus, facet, Explorer, cloud-fail-closed, and
+  shutdown workflows.
+- Targeted Rust formatting, PowerShell parsing, and `git diff --check` passed. Repository-wide
+  `cargo fmt --all -- --check` remains blocked only by the accepted pre-existing formatting drift
+  in unchanged CLI/FFI files; those unrelated files were preserved.
+- Remaining Milestone 8 gates are further richer worker-owned filters such as all-member extension,
+  separately versioned file-type classification, or boundary-aware path modes once their contracts
+  and indexes are complete; the complete accessibility review; and representative-hardware
+  warm-query/bounded-memory profiling. Durable decisions remain Milestone 10 and deletion remains
+  Milestone 11.
+
 #### User outcome
 
 The results surface answers three questions without requiring repeated Explorer investigation:
@@ -1438,3 +1523,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-18 | Refined and accepted the precise worker-owned one-copy-size entry point after focused/optimized coverage, the Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the expanded 100,000-group regression completed in 2.24 seconds Debug and 0.88 seconds optimized Release, and each .NET configuration passed 40 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally gated. | Add the smallest indexed `1 GB or larger` result-understanding entry point by normalizing the existing `minimumSize` predicate to at least 1,073,741,824 bytes across group rows/total/summary and both facet predicates/signatures, while deferring extension/type and path-prefix filters until member-accurate semantics and indexes are explicit and preserving bounded caches, independent cancellation/generations, stale-response rejection, and the Milestone 8/10/11 boundaries. |
 | 2026-08-18 | Refined and accepted bounded next/previous-set navigation with virtualized-row keyboard focus restoration after focused Core/WPF tests, Debug/Release 100,000-group coverage, the full Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the complete workspace regression completed in 2.04 seconds Debug and 0.88 seconds Release, and each .NET configuration passed 42 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | Close the focus-restoration gate through the existing group cursor/cache/cancellation/generation path and independent member stale-response guard without changing protocol, SQL, indexes, facets, or memory bounds; extension/type remains deferred until any-member/all-member normalization and indexed worker ownership are explicit, and true path filtering remains deferred until exact/prefix/descendant, segment-boundary, case, and selected-root-relative semantics are explicit. |
 | 2026-08-18 | Refined and accepted the exact canonical-member-path entry point after focused exact-path/lifecycle/Core/WPF coverage, the full Debug/Release Rust and serialized .NET matrix, and corrected real Debug/Release WPF smoke passed; the expanded 100,000-group regression completed in 2.41 seconds Debug and 1.03 seconds optimized Release, and each .NET configuration passed 44 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | Add indexed, Unicode-case-normalized any-member exact equality through the shared group rows/total/summary predicate, all three cursor signatures, and both cross-composed facet counts without changing the five-page cache, cancellation, generation, stale-response, or WPF collection bounds. Extension/type remains deferred until explicit any-member/all-member/no-extension semantics and indexed normalized member keys exist; canonical prefix/descendant and selected-root-relative modes remain deferred until separator-boundary semantics and stored range-query keys exist. The remaining Milestone 8 gates are further richer worker-owned filters, the complete accessibility review, and representative-hardware warm-query/bounded-memory profiling. |
+| 2026-08-18 | Refined and accepted indexed any-member filename-extension and explicit no-extension filtering after focused storage/worker/lifecycle/Core/WPF coverage, the full Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the expanded 100,000-group regression completed in 2.39 seconds Debug and 1.05 seconds optimized Release, and each .NET configuration passed 45 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | Define extension from every immutable member's final persisted filename segment, including terminal-dot, dotfile, multiple-suffix, Unicode-lowercase, normalization-form-preserving, and explicit no-extension rules; distinguish it from file-type classification; and serve group rows/total/summary plus both cross-facets and all three signatures from a Rust-owned backfilled key/index while preserving the four independent five-page caches, cancellation/generation/prefetch/stale-response bounds, and Milestone 8/10/11 boundaries. Canonical prefix/descendant and selected-root-relative modes remain deferred pending stored boundary-aware range keys; remaining gates are further explicitly indexed filters, the complete accessibility review, and representative-hardware warm-query/bounded-memory profiling. |

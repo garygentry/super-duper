@@ -322,6 +322,64 @@ public sealed class DuplicateFilesViewModelTests
     }
 
     [TestMethod]
+    public async Task AnyMemberExtensionAndNoExtensionFlowThroughGroupsAndIndependentFacets()
+    {
+        DuplicateFileGroupQuery? groupQuery = null;
+        DuplicateFileSelectedRootFacetQuery? rootFacetQuery = null;
+        DuplicateFileDriveFacetQuery? driveFacetQuery = null;
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) =>
+            {
+                groupQuery = query;
+                return Task.FromResult(new WorkerDuplicateFileGroupPage([], 0, null, null));
+            },
+            RootFacetPageHandler = (query, _) =>
+            {
+                rootFacetQuery = query;
+                return Task.FromResult(new WorkerDuplicateFileSelectedRootFacetPage([], 0, null, null));
+            },
+            DriveFacetPageHandler = (query, _) =>
+            {
+                driveFacetQuery = query;
+                return Task.FromResult(new WorkerDuplicateFileDriveFacetPage([], 0, null, null));
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(20, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        viewModel.ExtensionText = "JPG";
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+
+        Assert.AreEqual("JPG", groupQuery!.Filter.Extension);
+        Assert.AreEqual("JPG", rootFacetQuery!.Filter.Extension);
+        Assert.AreEqual("JPG", driveFacetQuery!.Filter.Extension);
+
+        viewModel.WithoutExtension = true;
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(string.Empty, groupQuery.Filter.Extension);
+        Assert.AreEqual(string.Empty, rootFacetQuery.Filter.Extension);
+        Assert.AreEqual(string.Empty, driveFacetQuery.Filter.Extension);
+
+        groupQuery = null;
+        viewModel.WithoutExtension = false;
+        viewModel.ExtensionText = "tar.gz";
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+
+        Assert.IsNull(groupQuery);
+        StringAssert.Contains(viewModel.ErrorMessage, "without a dot");
+
+        await viewModel.ClearFiltersCommand.ExecuteAsync(null);
+        Assert.AreEqual(string.Empty, viewModel.ExtensionText);
+        Assert.IsFalse(viewModel.WithoutExtension);
+        Assert.IsNull(groupQuery!.Filter.Extension);
+        Assert.IsNull(rootFacetQuery.Filter.Extension);
+        Assert.IsNull(driveFacetQuery.Filter.Extension);
+    }
+
+    [TestMethod]
     public async Task SetNavigationMovesWithinAndAcrossExistingBoundedGroupPages()
     {
         var client = new TestWorkerClient

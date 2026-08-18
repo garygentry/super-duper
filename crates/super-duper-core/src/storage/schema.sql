@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS scanned_file (
     canonical_path TEXT NOT NULL,
     relative_path TEXT NOT NULL DEFAULT '',
     file_name TEXT NOT NULL,
+    extension_key TEXT,
     parent_dir TEXT NOT NULL,
     drive_letter TEXT NOT NULL DEFAULT '',
     file_size INTEGER NOT NULL,

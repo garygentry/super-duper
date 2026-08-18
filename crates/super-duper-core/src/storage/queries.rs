@@ -1,5 +1,5 @@
 use super::models::*;
-use super::sqlite::Database;
+use super::sqlite::{normalized_file_extension_key, Database};
 use chrono::Utc;
 use rusqlite::types::Value as SqlValue;
 use rusqlite::{params, params_from_iter, Error, Result};
@@ -359,9 +359,9 @@ impl Database {
             let mut stmt = tx.prepare_cached(
                 "INSERT INTO scanned_file
                     (run_id, root_path, canonical_path, relative_path, file_name, parent_dir,
-                     drive_letter, file_size, last_modified, partial_hash, content_hash,
-                     file_identity, warning_message, marked_deleted)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                     extension_key, drive_letter, file_size, last_modified, partial_hash,
+                     content_hash, file_identity, warning_message, marked_deleted)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
             )?;
             for file in files {
                 count += stmt.execute(params![
@@ -371,6 +371,7 @@ impl Database {
                     file.relative_path,
                     file.file_name,
                     file.parent_dir,
+                    normalized_file_extension_key(&file.file_name),
                     file.drive_letter,
                     file.file_size,
                     file.last_modified,
@@ -1609,6 +1610,21 @@ fn duplicate_file_group_predicate(
                 parameters.push(SqlValue::Text(search.to_owned()));
             }
         }
+    }
+    if let Some(extension_key) = filter.extension_key.as_deref() {
+        predicates.push(
+            "dg.id IN (
+                SELECT extension_member.group_id
+                FROM scanned_file extension_file INDEXED BY idx_file_run_extension_key
+                JOIN duplicate_group_member extension_member
+                  ON extension_member.file_id = extension_file.id
+                WHERE extension_file.run_id = ?
+                  AND extension_file.extension_key = ?
+            )"
+            .to_owned(),
+        );
+        parameters.push(SqlValue::Integer(run_id));
+        parameters.push(SqlValue::Text(extension_key.to_owned()));
     }
     if filter.across_drives {
         predicates.push(

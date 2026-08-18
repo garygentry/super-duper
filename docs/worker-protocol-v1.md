@@ -14,6 +14,9 @@ selected-root facet plus a keyset-paged drive facet that can filter the group qu
 commands remain reserved for a later milestone. The exact-path review entry point switches the
 existing group path search from its default literal substring behavior to complete immutable
 canonical-member-path equality without changing the member channel or reading the filesystem.
+The filename-extension entry point independently applies indexed any-member exact extension or
+explicit no-extension matching from immutable member filenames; it never infers from the
+representative label or classifies file type.
 
 The transport is UTF-8 newline-delimited JSON (JSONL) over redirected standard input and standard
 output. It is a local process boundary, not a network API.
@@ -352,7 +355,7 @@ ascending, which makes paging stable. `pageSize` defaults to 200 and must be 1â€
 Request:
 
 ```json
-{"type":"request","id":"g1","method":"duplicate_file_group.page","params":{"runId":19,"pageSize":200,"sort":{"field":"recoverableBytes","direction":"descending"},"filter":{"search":"photos","pathMatch":"substring","minimumSize":"1048576","minimumCopyCount":3,"acrossDrives":true,"selectedRoot":"D:\\Photos","selectedDrive":"D:"},"cursor":null}}
+{"type":"request","id":"g1","method":"duplicate_file_group.page","params":{"runId":19,"pageSize":200,"sort":{"field":"recoverableBytes","direction":"descending"},"filter":{"search":"photos","pathMatch":"substring","extension":"jpg","minimumSize":"1048576","minimumCopyCount":3,"acrossDrives":true,"selectedRoot":"D:\\Photos","selectedDrive":"D:"},"cursor":null}}
 ```
 
 Allowed group sort fields are `recoverableBytes`, `groupSize`, `copyCount`, and
@@ -365,6 +368,16 @@ Unicode normalization forms are not rewritten. Only locale-independent Unicode l
 comparison is applied, so the path stays snapshot-owned and the operation performs no filesystem
 canonicalization. Exact values may contain at most 32,767 Unicode scalar values. A blank search
 normalizes `pathMatch` back to `substring` because it contributes no predicate.
+`filter.extension` is optional. When present, it applies exact any-member matching to the suffix
+after the last dot of each immutable member's final persisted filename segment. The value contains
+no dot or path separator and is limited to 255 Unicode scalar values. The worker applies
+locale-independent Unicode lowercase without trimming or Unicode normalization-form conversion.
+An empty value explicitly matches members with no extension; an absent or null value applies no
+extension predicate. Filenames without a dot, with a terminal dot, or with only a leading dot have
+no extension; `.env.local` maps to `local`, and `archive.tar.gz` maps to `gz`. Exact-content members
+may have different extensions, so the representative name and display-only representative Type
+never participate. This is filename-extension matching, not MIME or maintained file-type
+classification; all-member extension matching is not exposed.
 `filter.minimumSize` is a non-negative decimal byte string and
 defaults to `"0"`; it applies to immutable one-copy group size, not recoverable bytes. The Windows
 `1 GB or larger` entry point sends the greater of a manually entered minimum and `"1073741824"`
@@ -394,10 +407,10 @@ de-duplicated case-insensitively. A drive count greater than one identifies a cr
 zero remains valid for migrated snapshots or path types without a drive label. These fields do not
 change the allowed group sorts or cursor signature.
 
-`summary` uses the same normalized run, search/path-match, minimum-size, minimum-copy-count, across-drives,
-selected-root, and selected-drive predicate as `total`. It is computed by SQLite in the worker,
+`summary` uses the same normalized run, search/path-match, extension, minimum-size,
+minimum-copy-count, across-drives, selected-root, and selected-drive predicate as `total`. It is computed by SQLite in the worker,
 not by walking client
-pages. The path-match, minimum-copy-count, across-drives, selected-root, and selected-drive values are included
+pages. The path-match, extension, minimum-copy-count, across-drives, selected-root, and selected-drive values are included
 in the opaque cursor's query signature.
 `matchingGroupCount` equals `total`;
 `matchingCopyCount` sums copies in the matching sets; `potentialRecoverableBytes` sums recoverable
@@ -411,7 +424,7 @@ and cannot be mixed by a late client response.
 ### `duplicate_file_selected_root_facet.page`
 
 This read-only command returns selected-root values and matching-set counts without materializing
-group or member pages. It applies the current group search/path-match, minimum-size, minimum-copy-count,
+group or member pages. It applies the current group search/path-match, extension, minimum-size, minimum-copy-count,
 across-drives, and selected-drive predicate. It intentionally does not accept or apply
 `selectedRoot`, so a current
 root selection does not collapse the alternatives and the user can switch roots.
@@ -419,7 +432,7 @@ root selection does not collapse the alternatives and the user can switch roots.
 Request:
 
 ```json
-{"type":"request","id":"rf1","method":"duplicate_file_selected_root_facet.page","params":{"runId":19,"pageSize":25,"sort":{"field":"matchingGroupCount","direction":"descending"},"filter":{"search":"photos","pathMatch":"substring","minimumSize":"1048576","minimumCopyCount":3,"acrossDrives":false,"selectedDrive":"D:"},"cursor":null}}
+{"type":"request","id":"rf1","method":"duplicate_file_selected_root_facet.page","params":{"runId":19,"pageSize":25,"sort":{"field":"matchingGroupCount","direction":"descending"},"filter":{"search":"photos","pathMatch":"substring","extension":"jpg","minimumSize":"1048576","minimumCopyCount":3,"acrossDrives":false,"selectedDrive":"D:"},"cursor":null}}
 ```
 
 Allowed sort fields are `matchingGroupCount` and `value`; directions are `ascending` and
@@ -434,15 +447,15 @@ Values are distinct, non-empty immutable `scanned_file.root_path` labels de-dupl
 case-insensitively. `matchingGroupCount` counts matching duplicate sets represented under that
 root, not member copies. Values, counts, filtering, sorting, and paging are computed by SQLite in
 the worker. The cursor kind is `duplicate-file-selected-root-facets`; its explicit query signature
-binds the run, facet sort and direction, normalized search/path-match, minimum size, minimum copy count, and
-across-drives value. It also binds the optional exact selected-drive value. A cursor from another facet
+binds the run, facet sort and direction, normalized search/path-match, normalized extension,
+minimum size, minimum copy count, and across-drives value. It also binds the optional exact selected-drive value. A cursor from another facet
 sort/filter/run or from a group/member channel returns
 `invalid_cursor`.
 
 ### `duplicate_file_drive_facet.page`
 
 This read-only command returns drive values and matching-set counts without materializing group or
-member pages. It applies the current group search/path-match, minimum-size, minimum-copy-count, across-drives,
+member pages. It applies the current group search/path-match, extension, minimum-size, minimum-copy-count, across-drives,
 and selected-root predicate. It intentionally does not accept or apply `selectedDrive`, so a
 current drive selection
 does not collapse the alternatives and the user can switch drives.
@@ -450,7 +463,7 @@ does not collapse the alternatives and the user can switch drives.
 Request:
 
 ```json
-{"type":"request","id":"df1","method":"duplicate_file_drive_facet.page","params":{"runId":19,"pageSize":25,"sort":{"field":"matchingGroupCount","direction":"descending"},"filter":{"search":"photos","pathMatch":"substring","minimumSize":"1048576","minimumCopyCount":3,"acrossDrives":false,"selectedRoot":"D:\\Photos"},"cursor":null}}
+{"type":"request","id":"df1","method":"duplicate_file_drive_facet.page","params":{"runId":19,"pageSize":25,"sort":{"field":"matchingGroupCount","direction":"descending"},"filter":{"search":"photos","pathMatch":"substring","extension":"jpg","minimumSize":"1048576","minimumCopyCount":3,"acrossDrives":false,"selectedRoot":"D:\\Photos"},"cursor":null}}
 ```
 
 Allowed sort fields are `matchingGroupCount` and `value`; directions are `ascending` and
@@ -465,8 +478,8 @@ Values are distinct, non-empty immutable `scanned_file.drive_letter` labels de-d
 case-insensitively. `matchingGroupCount` counts matching duplicate sets represented on that drive,
 not member copies. Values, counts, filtering, sorting, and paging are computed by SQLite in the
 worker. The cursor kind is `duplicate-file-drive-facets`; its explicit query signature binds the
-run, facet sort and direction, normalized search/path-match, minimum size, minimum copy count, across-drives
-value, and optional exact selected-root value. A cursor from another facet sort/filter/run or from a group/member
+run, facet sort and direction, normalized search/path-match, normalized extension, minimum size,
+minimum copy count, across-drives value, and optional exact selected-root value. A cursor from another facet sort/filter/run or from a group/member
 channel returns `invalid_cursor`.
 
 ### `duplicate_file_group.members`

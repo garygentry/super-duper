@@ -16,6 +16,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     public const long OneGigabyteBytes = 1_073_741_824;
     public const int MaximumSubstringSearchCharacters = 512;
     public const int MaximumExactPathCharacters = 32_767;
+    public const int MaximumExtensionCharacters = 255;
 
     private readonly IWorkerClient _workerClient;
     private readonly IClipboardService _clipboard;
@@ -48,6 +49,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private long _driveFacetGeneration;
     private string _searchText = string.Empty;
     private bool _exactPathMatch;
+    private string _extensionText = string.Empty;
+    private bool _withoutExtension;
     private string _minimumSizeText = string.Empty;
     private bool _oneGigabyteOrLarger;
     private bool _threeOrMoreCopies;
@@ -200,6 +203,18 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     {
         get => _exactPathMatch;
         set => SetProperty(ref _exactPathMatch, value);
+    }
+
+    public string ExtensionText
+    {
+        get => _extensionText;
+        set => SetProperty(ref _extensionText, value);
+    }
+
+    public bool WithoutExtension
+    {
+        get => _withoutExtension;
+        set => SetProperty(ref _withoutExtension, value);
     }
 
     public string MinimumSizeText
@@ -648,6 +663,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     {
         SearchText = string.Empty;
         ExactPathMatch = false;
+        ExtensionText = string.Empty;
+        WithoutExtension = false;
         MinimumSizeText = string.Empty;
         OneGigabyteOrLarger = false;
         ThreeOrMoreCopies = false;
@@ -925,7 +942,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             groupFilter.AcrossDrives,
             groupFilter.SelectedDrive,
             groupFilter.MinimumCopyCount,
-            groupFilter.PathMatch);
+            groupFilter.PathMatch,
+            groupFilter.Extension);
         await LoadRootFacetPageAsync(
             null,
             filter,
@@ -1093,7 +1111,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 groupFilter.AcrossDrives,
                 groupFilter.SelectedDrive,
                 groupFilter.MinimumCopyCount,
-                groupFilter.PathMatch);
+                groupFilter.PathMatch,
+                groupFilter.Extension);
             await LoadRootFacetPageAsync(
                 cursor,
                 filter,
@@ -1115,7 +1134,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 groupFilter.AcrossDrives,
                 groupFilter.SelectedDrive,
                 groupFilter.MinimumCopyCount,
-                groupFilter.PathMatch);
+                groupFilter.PathMatch,
+                groupFilter.Extension);
             await LoadRootFacetPageAsync(
                 cursor,
                 filter,
@@ -1157,7 +1177,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             groupFilter.AcrossDrives,
             groupFilter.SelectedRoot,
             groupFilter.MinimumCopyCount,
-            groupFilter.PathMatch);
+            groupFilter.PathMatch,
+            groupFilter.Extension);
         await LoadDriveFacetPageAsync(
             null,
             filter,
@@ -1324,7 +1345,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 groupFilter.AcrossDrives,
                 groupFilter.SelectedRoot,
                 groupFilter.MinimumCopyCount,
-                groupFilter.PathMatch);
+                groupFilter.PathMatch,
+                groupFilter.Extension);
             await LoadDriveFacetPageAsync(
                 cursor,
                 filter,
@@ -1346,7 +1368,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 groupFilter.AcrossDrives,
                 groupFilter.SelectedRoot,
                 groupFilter.MinimumCopyCount,
-                groupFilter.PathMatch);
+                groupFilter.PathMatch,
+                groupFilter.Extension);
             await LoadDriveFacetPageAsync(
                 cursor,
                 filter,
@@ -1545,6 +1568,24 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         {
             value = Math.Max(value, OneGigabyteBytes);
         }
+        string? extension = null;
+        if (WithoutExtension)
+        {
+            extension = string.Empty;
+        }
+        else if (ExtensionText.Length > 0)
+        {
+            if (ExtensionText.EnumerateRunes().Count() > MaximumExtensionCharacters
+                || ExtensionText.Contains('.', StringComparison.Ordinal)
+                || ExtensionText.Contains('/', StringComparison.Ordinal)
+                || ExtensionText.Contains('\\', StringComparison.Ordinal))
+            {
+                ErrorMessage = $"Extension must contain at most {MaximumExtensionCharacters:N0} characters without a dot or path separator.";
+                filter = new DuplicateFileGroupFilter(string.Empty, "0", false);
+                return false;
+            }
+            extension = ExtensionText;
+        }
         ErrorMessage = null;
         filter = new DuplicateFileGroupFilter(
             search,
@@ -1553,7 +1594,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             SelectedRootFacet?.Value,
             SelectedDriveFacet?.Value,
             ThreeOrMoreCopies ? 3 : 2,
-            ExactPathMatch ? DuplicateFilePathMatchMode.Exact : DuplicateFilePathMatchMode.Substring);
+            ExactPathMatch ? DuplicateFilePathMatchMode.Exact : DuplicateFilePathMatchMode.Substring,
+            extension);
         return true;
     }
 

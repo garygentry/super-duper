@@ -13,14 +13,15 @@ uses stable UI Automation IDs to exercise both result surfaces and invoke Explor
   member browsing, including the worker-owned filtered review summary, bounded per-group
   selected-root/drive span, aggregate filtered location coverage, the worker-owned across-drives
   and minimum-copy-count filters, the one-copy-size minimum and accessible 1 GB-or-larger preset,
-  exact canonical-member-path matching while preserving literal path substring search,
+  exact canonical-member-path matching while preserving literal path substring search, indexed
+  any-member filename-extension matching plus explicit no-extension matching without representative-name inference,
   worker-owned paged selected-root and drive facets with exact filters, and immutable selected-root,
   relative-path, and drive member context;
 - exact duplicate-folder sorting, filtering, and member browsing;
 - fixed-drive scanning, a path longer than 260 characters, a locked file, and a skipped junction;
 - all five scan-phase timings and all five result-query timings on stderr;
 - WPF startup/restoration, duplicate-file and exact-folder tabs, grid sorting, paging, filtering,
-  row selection, exact-path filtering, next/previous-set keyboard focus restoration, accessible selected-root and drive
+  row selection, exact-path and extension/no-extension filtering, next/previous-set keyboard focus restoration, accessible selected-root and drive
   facets plus 1 GB-or-larger/minimum-copy-count/
   across-drives/review-summary/aggregate-location/set-explanation/location-span text, completed ordinary/
   long-path file and folder Explorer reveal commands, and
@@ -101,7 +102,9 @@ If UI Automation is blocked by a locked session, elevation boundary, or headless
    confirm keyboard focus returns to the selected group row. Apply `1 GB or larger` and confirm
    the small fixture is empty, then clear it. Apply `Three or more copies`, then clear it. Filter
    one set, select `Exact path`, replace the search with a complete member path, and confirm exactly
-   one set remains; then clear it. Choose and apply counted
+   one set remains; then clear it. Enter `JPG` in Extension and confirm the mixed-extension set is
+   isolated, then clear it; apply No extension and confirm the extensionless set is isolated, then
+   clear it. Choose and apply counted
    selected-root and drive facets, clear them, then choose Show in Explorer.
 3. Open Duplicate Folders, sort Representative folder, filter for `original-set`, select the group,
    and reveal a folder in Explorer.

@@ -106,7 +106,8 @@ public sealed record DuplicateFileGroupFilter(
     string? SelectedRoot = null,
     string? SelectedDrive = null,
     long MinimumCopyCount = 2,
-    DuplicateFilePathMatchMode PathMatch = DuplicateFilePathMatchMode.Substring);
+    DuplicateFilePathMatchMode PathMatch = DuplicateFilePathMatchMode.Substring,
+    string? Extension = null);
 
 public sealed record DuplicateFileGroupQuery(
     long RunId,
@@ -165,7 +166,8 @@ public sealed record DuplicateFileSelectedRootFacetFilter(
     bool AcrossDrives = false,
     string? SelectedDrive = null,
     long MinimumCopyCount = 2,
-    DuplicateFilePathMatchMode PathMatch = DuplicateFilePathMatchMode.Substring);
+    DuplicateFilePathMatchMode PathMatch = DuplicateFilePathMatchMode.Substring,
+    string? Extension = null);
 
 public sealed record DuplicateFileSelectedRootFacetQuery(
     long RunId,
@@ -197,7 +199,8 @@ public sealed record DuplicateFileDriveFacetFilter(
     bool AcrossDrives = false,
     string? SelectedRoot = null,
     long MinimumCopyCount = 2,
-    DuplicateFilePathMatchMode PathMatch = DuplicateFilePathMatchMode.Substring);
+    DuplicateFilePathMatchMode PathMatch = DuplicateFilePathMatchMode.Substring,
+    string? Extension = null);
 
 public sealed record DuplicateFileDriveFacetQuery(
     long RunId,

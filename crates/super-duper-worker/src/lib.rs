@@ -33,6 +33,7 @@ const DEFAULT_RESULT_PAGE_SIZE: i64 = 200;
 const MAXIMUM_PAGE_SIZE: i64 = 500;
 const MAXIMUM_FILTER_CHARACTERS: usize = 512;
 const MAXIMUM_EXACT_PATH_CHARACTERS: usize = 32_767;
+const MAXIMUM_EXTENSION_CHARACTERS: usize = 255;
 const MAXIMUM_CURSOR_CHARACTERS: usize = MAXIMUM_FRAME_BYTES / 2;
 const EVENT_INTERVAL: Duration = Duration::from_millis(100);
 const DATABASE_PROGRESS_INTERVAL: Duration = Duration::from_millis(500);
@@ -277,6 +278,8 @@ struct DuplicateFileGroupFilterParameters {
     search: Option<String>,
     #[serde(default = "default_path_match")]
     path_match: String,
+    #[serde(default)]
+    extension: Option<String>,
     #[serde(default = "default_minimum_size")]
     minimum_size: String,
     #[serde(default = "default_minimum_copy_count")]
@@ -294,6 +297,7 @@ impl Default for DuplicateFileGroupFilterParameters {
         Self {
             search: None,
             path_match: default_path_match(),
+            extension: None,
             minimum_size: default_minimum_size(),
             minimum_copy_count: default_minimum_copy_count(),
             across_drives: false,
@@ -342,6 +346,8 @@ struct DuplicateFileSelectedRootFacetFilterParameters {
     search: Option<String>,
     #[serde(default = "default_path_match")]
     path_match: String,
+    #[serde(default)]
+    extension: Option<String>,
     #[serde(default = "default_minimum_size")]
     minimum_size: String,
     #[serde(default = "default_minimum_copy_count")]
@@ -357,6 +363,7 @@ impl Default for DuplicateFileSelectedRootFacetFilterParameters {
         Self {
             search: None,
             path_match: default_path_match(),
+            extension: None,
             minimum_size: default_minimum_size(),
             minimum_copy_count: default_minimum_copy_count(),
             across_drives: false,
@@ -404,6 +411,8 @@ struct DuplicateFileDriveFacetFilterParameters {
     search: Option<String>,
     #[serde(default = "default_path_match")]
     path_match: String,
+    #[serde(default)]
+    extension: Option<String>,
     #[serde(default = "default_minimum_size")]
     minimum_size: String,
     #[serde(default = "default_minimum_copy_count")]
@@ -419,6 +428,7 @@ impl Default for DuplicateFileDriveFacetFilterParameters {
         Self {
             search: None,
             path_match: default_path_match(),
+            extension: None,
             minimum_size: default_minimum_size(),
             minimum_copy_count: default_minimum_copy_count(),
             across_drives: false,
@@ -1108,6 +1118,7 @@ impl WorkerSession {
             .map_or(DuplicateFilePathMatchMode::Substring, |_| {
                 requested_path_match
             });
+        let extension = normalize_extension_filter(parameters.filter.extension.as_deref())?;
         let minimum_size =
             parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
         validate_minimum_copy_count(parameters.filter.minimum_copy_count)?;
@@ -1125,6 +1136,7 @@ impl WorkerSession {
             sort_direction,
             search.as_deref(),
             path_match,
+            extension.as_deref(),
             minimum_size,
             parameters.filter.minimum_copy_count,
             parameters.filter.across_drives,
@@ -1150,6 +1162,7 @@ impl WorkerSession {
                 filter: DuplicateFileGroupFilter {
                     search,
                     path_match,
+                    extension_key: extension,
                     minimum_size,
                     minimum_copy_count: parameters.filter.minimum_copy_count,
                     across_drives: parameters.filter.across_drives,
@@ -1213,6 +1226,7 @@ impl WorkerSession {
             .map_or(DuplicateFilePathMatchMode::Substring, |_| {
                 requested_path_match
             });
+        let extension = normalize_extension_filter(parameters.filter.extension.as_deref())?;
         let minimum_size =
             parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
         validate_minimum_copy_count(parameters.filter.minimum_copy_count)?;
@@ -1226,6 +1240,7 @@ impl WorkerSession {
             sort_direction,
             search.as_deref(),
             path_match,
+            extension.as_deref(),
             minimum_size,
             parameters.filter.minimum_copy_count,
             parameters.filter.across_drives,
@@ -1250,6 +1265,7 @@ impl WorkerSession {
                 filter: DuplicateFileGroupFilter {
                     search,
                     path_match,
+                    extension_key: extension,
                     minimum_size,
                     minimum_copy_count: parameters.filter.minimum_copy_count,
                     across_drives: parameters.filter.across_drives,
@@ -1318,6 +1334,7 @@ impl WorkerSession {
             .map_or(DuplicateFilePathMatchMode::Substring, |_| {
                 requested_path_match
             });
+        let extension = normalize_extension_filter(parameters.filter.extension.as_deref())?;
         let minimum_size =
             parse_non_negative_decimal(&parameters.filter.minimum_size, "filter.minimumSize")?;
         validate_minimum_copy_count(parameters.filter.minimum_copy_count)?;
@@ -1331,6 +1348,7 @@ impl WorkerSession {
             sort_direction,
             search.as_deref(),
             path_match,
+            extension.as_deref(),
             minimum_size,
             parameters.filter.minimum_copy_count,
             parameters.filter.across_drives,
@@ -1355,6 +1373,7 @@ impl WorkerSession {
                 filter: DuplicateFileGroupFilter {
                     search,
                     path_match,
+                    extension_key: extension,
                     minimum_size,
                     minimum_copy_count: parameters.filter.minimum_copy_count,
                     across_drives: parameters.filter.across_drives,
@@ -2408,6 +2427,26 @@ fn validate_group_path_filter(
     }
 }
 
+fn normalize_extension_filter(value: Option<&str>) -> Result<Option<String>, ProtocolFailure> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    if value.chars().count() > MAXIMUM_EXTENSION_CHARACTERS
+        || value.contains('.')
+        || value.contains('/')
+        || value.contains('\\')
+    {
+        return Err(ProtocolFailure::new(
+            "invalid_request",
+            format!(
+                "filter.extension must be empty for no extension or contain at most {MAXIMUM_EXTENSION_CHARACTERS} characters without a dot or path separator"
+            ),
+        )
+        .with_details(json!({"field":"filter.extension"})));
+    }
+    Ok(Some(value.to_lowercase()))
+}
+
 fn parse_non_negative_decimal(value: &str, field: &str) -> Result<i64, ProtocolFailure> {
     value
         .parse::<i64>()
@@ -2440,6 +2479,7 @@ fn group_query_signature(
     sort_direction: SortDirection,
     search: Option<&str>,
     path_match: DuplicateFilePathMatchMode,
+    extension: Option<&str>,
     minimum_size: i64,
     minimum_copy_count: i64,
     across_drives: bool,
@@ -2452,6 +2492,7 @@ fn group_query_signature(
         "sortDirection": direction_name(sort_direction),
         "search": search.unwrap_or_default(),
         "pathMatch": path_match_name(path_match),
+        "extension": extension,
         "minimumSize": minimum_size,
         "minimumCopyCount": minimum_copy_count,
         "acrossDrives": across_drives,
@@ -2467,6 +2508,7 @@ fn selected_root_facet_query_signature(
     sort_direction: SortDirection,
     search: Option<&str>,
     path_match: DuplicateFilePathMatchMode,
+    extension: Option<&str>,
     minimum_size: i64,
     minimum_copy_count: i64,
     across_drives: bool,
@@ -2478,6 +2520,7 @@ fn selected_root_facet_query_signature(
         "sortDirection": direction_name(sort_direction),
         "search": search.unwrap_or_default(),
         "pathMatch": path_match_name(path_match),
+        "extension": extension,
         "minimumSize": minimum_size,
         "minimumCopyCount": minimum_copy_count,
         "acrossDrives": across_drives,
@@ -2492,6 +2535,7 @@ fn drive_facet_query_signature(
     sort_direction: SortDirection,
     search: Option<&str>,
     path_match: DuplicateFilePathMatchMode,
+    extension: Option<&str>,
     minimum_size: i64,
     minimum_copy_count: i64,
     across_drives: bool,
@@ -2503,6 +2547,7 @@ fn drive_facet_query_signature(
         "sortDirection": direction_name(sort_direction),
         "search": search.unwrap_or_default(),
         "pathMatch": path_match_name(path_match),
+        "extension": extension,
         "minimumSize": minimum_size,
         "minimumCopyCount": minimum_copy_count,
         "acrossDrives": across_drives,
@@ -3563,9 +3608,9 @@ mod tests {
                 id: 0,
                 run_id,
                 root_path: "/root".to_owned(),
-                canonical_path: "/root/a.txt".to_owned(),
-                relative_path: "a.txt".to_owned(),
-                file_name: "a.txt".to_owned(),
+                canonical_path: "/root/a".to_owned(),
+                relative_path: "a".to_owned(),
+                file_name: "a".to_owned(),
                 parent_dir: "/root".to_owned(),
                 drive_letter: String::new(),
                 file_size: 100,
@@ -3580,9 +3625,9 @@ mod tests {
                 id: 0,
                 run_id,
                 root_path: "/root".to_owned(),
-                canonical_path: "/root/a-copy.txt".to_owned(),
-                relative_path: "a-copy.txt".to_owned(),
-                file_name: "a-copy.txt".to_owned(),
+                canonical_path: "/root/a-copy.JPG".to_owned(),
+                relative_path: "a-copy.JPG".to_owned(),
+                file_name: "a-copy.JPG".to_owned(),
                 parent_dir: "/root".to_owned(),
                 drive_letter: String::new(),
                 file_size: 100,
@@ -3652,7 +3697,7 @@ mod tests {
                 (
                     11,
                     100,
-                    vec!["/root/a.txt".to_owned(), "/root/a-copy.txt".to_owned()],
+                    vec!["/root/a".to_owned(), "/root/a-copy.JPG".to_owned()],
                 ),
                 (
                     22,
@@ -3770,6 +3815,54 @@ mod tests {
         assert_eq!(minimum_size["result"]["summary"]["matchingGroupCount"], 1);
         assert_eq!(minimum_size["result"]["summary"]["matchingCopyCount"], 3);
         assert_eq!(minimum_size["result"]["groups"][0]["groupSize"], "200");
+        let extension_request = json!({
+            "type":"request",
+            "id":"extension",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "pageSize":25,
+                "filter":{"extension":"JPG"}
+            }
+        });
+        let extension: Value =
+            serde_json::from_str(&worker.handle_line(&extension_request.to_string()).unwrap())
+                .unwrap();
+        assert_eq!(extension["result"]["total"], 1);
+        assert_eq!(extension["result"]["summary"]["matchingGroupCount"], 1);
+        assert_eq!(extension["result"]["summary"]["matchingCopyCount"], 2);
+        assert_eq!(extension["result"]["groups"][0]["groupSize"], "100");
+        let no_extension_request = json!({
+            "type":"request",
+            "id":"no-extension",
+            "method":"duplicate_file_group.page",
+            "params":{"runId":1,"filter":{"extension":""}}
+        });
+        let no_extension: Value = serde_json::from_str(
+            &worker
+                .handle_line(&no_extension_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(no_extension["result"]["total"], 1);
+        assert_eq!(no_extension["result"]["groups"][0]["groupSize"], "100");
+        let invalid_extension_request = json!({
+            "type":"request",
+            "id":"invalid-extension",
+            "method":"duplicate_file_group.page",
+            "params":{"runId":1,"filter":{"extension":"tar.gz"}}
+        });
+        let invalid_extension: Value = serde_json::from_str(
+            &worker
+                .handle_line(&invalid_extension_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(invalid_extension["error"]["code"], "invalid_request");
+        assert_eq!(
+            invalid_extension["error"]["details"]["field"],
+            "filter.extension"
+        );
         let invalid_minimum_copy_count_request = json!({
             "type":"request",
             "id":"invalid-minimum-copy-count",
@@ -3932,6 +4025,46 @@ mod tests {
             .unwrap()
             .iter()
             .all(|facet| facet["matchingGroupCount"] == 1));
+        let extension_root_facet_request = json!({
+            "type":"request",
+            "id":"root-facet-extension",
+            "method":"duplicate_file_selected_root_facet.page",
+            "params":{"runId":1,"pageSize":25,"filter":{"extension":"BIN"}}
+        });
+        let extension_root_facet: Value = serde_json::from_str(
+            &worker
+                .handle_line(&extension_root_facet_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(extension_root_facet["result"]["total"], 2);
+        assert!(extension_root_facet["result"]["facets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|facet| facet["matchingGroupCount"] == 1));
+        let invalid_root_facet_extension_request = json!({
+            "type":"request",
+            "id":"root-facet-extension-invalid",
+            "method":"duplicate_file_selected_root_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"matchingGroupCount","direction":"descending"},
+                "filter":{"extension":"bin"},
+                "cursor":root_facet_cursor
+            }
+        });
+        let invalid_root_facet_extension: Value = serde_json::from_str(
+            &worker
+                .handle_line(&invalid_root_facet_extension_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            invalid_root_facet_extension["error"]["code"],
+            "invalid_cursor"
+        );
         let drive_facet_request = json!({
             "type":"request",
             "id":"drive-facet",
@@ -3971,6 +4104,24 @@ mod tests {
         .unwrap();
         assert_eq!(minimum_copy_count_drive_facet["result"]["total"], 2);
         assert!(minimum_copy_count_drive_facet["result"]["facets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|facet| facet["matchingGroupCount"] == 1));
+        let extension_drive_facet_request = json!({
+            "type":"request",
+            "id":"drive-facet-extension",
+            "method":"duplicate_file_drive_facet.page",
+            "params":{"runId":1,"pageSize":25,"filter":{"extension":"bin"}}
+        });
+        let extension_drive_facet: Value = serde_json::from_str(
+            &worker
+                .handle_line(&extension_drive_facet_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(extension_drive_facet["result"]["total"], 2);
+        assert!(extension_drive_facet["result"]["facets"]
             .as_array()
             .unwrap()
             .iter()
@@ -4061,6 +4212,28 @@ mod tests {
         )
         .unwrap();
         assert_eq!(invalid_drive_facet_size["error"]["code"], "invalid_cursor");
+        let invalid_drive_facet_extension_request = json!({
+            "type":"request",
+            "id":"drive-facet-extension-invalid",
+            "method":"duplicate_file_drive_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"value","direction":"ascending"},
+                "filter":{"extension":"bin"},
+                "cursor":drive_facet_cursor
+            }
+        });
+        let invalid_drive_facet_extension: Value = serde_json::from_str(
+            &worker
+                .handle_line(&invalid_drive_facet_extension_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            invalid_drive_facet_extension["error"]["code"],
+            "invalid_cursor"
+        );
         let invalid_root_facet_drive_request = json!({
             "type":"request",
             "id":"root-facet-drive-invalid",
@@ -4086,6 +4259,28 @@ mod tests {
         .unwrap();
         assert_eq!(invalid_root_facet_drive["error"]["code"], "invalid_cursor");
         let cursor = first["result"]["nextCursor"].as_str().unwrap();
+        let invalid_group_extension_cursor_request = json!({
+            "type":"request",
+            "id":"group-extension-cursor-invalid",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"recoverableBytes","direction":"descending"},
+                "filter":{"extension":"bin"},
+                "cursor":cursor
+            }
+        });
+        let invalid_group_extension_cursor: Value = serde_json::from_str(
+            &worker
+                .handle_line(&invalid_group_extension_cursor_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            invalid_group_extension_cursor["error"]["code"],
+            "invalid_cursor"
+        );
         let exact_path_request = json!({
             "type":"request",
             "id":"exact-path",

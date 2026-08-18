@@ -89,6 +89,18 @@ public sealed class WpfSurfaceSmokeTests
             StringAssert.Contains(
                 AutomationProperties.GetHelpText(FindByAutomationId<CheckBox>(files, "FileExactPathMatch")),
                 "Unicode case normalization");
+            Assert.AreEqual(
+                "Filename extension without the dot",
+                AutomationProperties.GetName(FindByAutomationId<TextBox>(files, "FileExtension")));
+            StringAssert.Contains(
+                AutomationProperties.GetHelpText(FindByAutomationId<TextBox>(files, "FileExtension")),
+                "any immutable member");
+            Assert.AreEqual(
+                "Show duplicate sets with any member that has no filename extension",
+                AutomationProperties.GetName(FindByAutomationId<CheckBox>(files, "FileWithoutExtension")));
+            StringAssert.Contains(
+                AutomationProperties.GetHelpText(FindByAutomationId<CheckBox>(files, "FileWithoutExtension")),
+                "terminal dot");
             StringAssert.Contains(
                 AutomationProperties.GetHelpText(FindByAutomationId<TextBox>(files, "FileMinimumSize")),
                 "one-copy file size");
@@ -167,6 +179,8 @@ public sealed class WpfSurfaceSmokeTests
                 FindByAutomationId<CheckBox>(files, "FileThreeOrMoreCopies"),
                 FindByAutomationId<CheckBox>(files, "FileAcrossDrives"),
                 FindByAutomationId<Button>(files, "FileApplyFilters"),
+                FindByAutomationId<TextBox>(files, "FileExtension"),
+                FindByAutomationId<CheckBox>(files, "FileWithoutExtension"),
                 FindByAutomationId<ComboBox>(files, "FileSelectedRootFacet"),
                 FindByAutomationId<Button>(files, "FileRootFacetMostSets"),
                 FindByAutomationId<Button>(files, "FileRootFacetNameSort"),
