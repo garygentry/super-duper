@@ -3,7 +3,7 @@
 ## Status
 
 Active implementation roadmap for the Windows duplicate-review experience. Milestone 6
-release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first seven
+release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first eight
 read-only Milestone 8 slices are implemented and accepted; the broader milestone remains in
 progress and is gated by the remaining criteria below.
 
@@ -304,13 +304,14 @@ Files library. The user can see what was excluded and can deliberately opt into 
 
 ### Milestone 8 - Duplicate Review Workspace
 
-Status: The first seven read-only file-review slices are accepted. They add a worker-owned summary
+Status: The first eight read-only file-review slices are accepted. They add a worker-owned summary
 for the current duplicate-file query, immutable member location context, bounded per-set
 selected-root/drive span, a worker-owned across-drives entry point, and aggregate location coverage
 plus bounded selected-root and drive facets with exact filters without introducing review
 decisions, live filesystem state, or deletion behavior. The seventh slice adds a worker-owned
 minimum-copy-count filter through the same bounded group and cross-facet query paths. Full
-Milestone 8 remains in progress.
+Milestone 8 remains in progress. The eighth slice adds a precise, accessible 1 GB-or-larger entry
+point over the existing indexed worker-owned one-copy-size predicate.
 
 #### Refined first vertical slice (2026-08-17)
 
@@ -768,6 +769,66 @@ point.
   warm-query/bounded-memory profiling. Durable decisions remain Milestone 10 and deletion remains
   Milestone 11.
 
+#### One-gigabyte size entry-point slice (2026-08-18)
+
+##### Audit and scope decision
+
+An extension/type filter is not a safe small follow-up because exact-content members can have
+different extensions and the displayed representative type is derived from only the representative
+name. Worker-owned extension semantics need an explicit any-member/all-member model, normalized
+extension storage, and an index before they can be exposed. A path-prefix filter likewise needs
+explicit path-segment, descendant, case-normalization, selected-root-relative, and boundary
+semantics; re-labeling the existing member-path substring search would be misleading.
+
+The existing `minimumSize` predicate is already defined over immutable
+`duplicate_group.file_size` (one-copy size), covered by `idx_group_run_size`, and normalized through
+group rows, total, summary, the group cursor signature, and both cross-composed facet predicates and
+signatures. A precise size preset is therefore the smallest coherent result-understanding entry
+point and requires no new protocol field or query channel.
+
+##### Implemented contract and UX
+
+- WPF adds an accessible `1 GB or larger` checkbox whose automation name states the exact one-copy
+  threshold: 1,073,741,824 bytes. Core normalizes the effective `minimumSize` to the greater of the
+  manually entered non-negative byte threshold and 1,073,741,824 while the preset is active.
+- SQLite continues to apply `duplicate_group.file_size >= ?` through the single normalized group
+  predicate. Rows, total, review/location summary, selected-root facet counts, and drive facet
+  counts therefore share the same threshold, and all three existing cursor signatures continue to
+  fail closed when it changes.
+- The group, member, selected-root-facet, and drive-facet caches remain independently bounded to
+  five pages. Their existing cancellation sources, query generations, prefetch limits, and
+  stale-response rejection are unchanged; no new WPF collection or facet channel is introduced.
+- Schema v4 remains unchanged and Rust retains exclusive SQLite ownership. The slice reads only
+  immutable run-owned rows and adds no filesystem or Cloud Files access, preview, thumbnail,
+  validation, durable decision, deletion, `scanned_file.marked_deleted`, or Milestone 10/11 state.
+
+##### Acceptance result
+
+- Focused storage and worker tests passed minimum-size predicate/summary/facet agreement and group,
+  selected-root-facet, and drive-facet cursor-signature rejection. Eight focused Core duplicate-file
+  tests and the targeted STA WPF surface test passed under installed SDK 10.0.400 from
+  `C:\Windows\Temp` with absolute project paths; the unavailable pinned 10.0.303 SDK and
+  `global.json` were unchanged.
+- The expanded 100,000-group ordinary/keyset, minimum-size, across-drives, minimum-copy-count, and
+  root/drive facet regression completed in 2.24 seconds Debug and 0.88 seconds optimized Release,
+  within its five-second gates. Representative-hardware warm-query and explicit bounded-memory
+  profiling remain full-milestone gates.
+- `cargo test --workspace` and `cargo test --workspace --release` passed, including 15 storage and
+  9 worker tests in each configuration. Debug and Release worker builds passed.
+- Debug and Release solution builds passed with zero warnings and zero errors. Serialized tests
+  passed 40 Core, 22 Infrastructure, and 3 WPF tests in each configuration; the one real-provider
+  Infrastructure test remained intentionally environment-gated.
+- Real Debug and Release `Invoke-WindowsSmoke.ps1 -SkipBuild` runs passed worker-owned minimum-size
+  group/summary/root-facet/drive-facet behavior, the accessible fixed-threshold WPF toggle and
+  restoration path, existing location/paging/sorting/Explorer workflows, Cloud setup/fail-closed
+  behavior, and deterministic shutdown. Targeted Rust formatting, PowerShell parsing, and
+  `git diff --check` passed. Repository-wide `cargo fmt --all -- --check` remains blocked by
+  pre-existing formatting drift in unchanged CLI/FFI files, which remain preserved.
+- Remaining Milestone 8 gates are further richer worker-owned filters once their semantics and
+  indexing are explicit, next/previous-set keyboard focus restoration, the complete accessibility
+  review, and representative-hardware warm-query/bounded-memory profiling. Durable decisions remain
+  Milestone 10 and deletion remains Milestone 11.
+
 #### User outcome
 
 The results surface answers three questions without requiring repeated Explorer investigation:
@@ -1212,3 +1273,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-17 | Refined and accepted the worker-owned paged selected-root facet and exact-root filter after focused/optimized coverage, the Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed. | Add the first bounded facet entry point with an explicit cursor signature, five-page Core cache, independent cancellation/generation, stale-response rejection, and keyboard-accessible WPF interaction while leaving the drive facet, richer filters, focus restoration, complete accessibility review, representative profiling, decisions, validation, and deletion as later gates. |
 | 2026-08-17 | Refined and accepted the worker-owned paged drive facet and exact-drive filter after focused/optimized coverage, the Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed. | Complete the bounded location-facet workflow with cross-facet composition, an explicit drive cursor signature, separate five-page Core cache, independent cancellation/generation, stale-response rejection, and keyboard-accessible WPF interaction while leaving richer filters, focus restoration, complete accessibility review, representative profiling, decisions, validation, and deletion as later gates. |
 | 2026-08-18 | Refined and accepted the worker-owned minimum-copy-count filter after focused/optimized coverage, the Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the latest 100,000-group regression completed in 2.21 seconds Debug and 1.39 seconds optimized Release, and each .NET configuration passed 39 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally gated. | Add the smallest indexed `Three or more copies` entry point through the normalized group rows/total/summary and both cross-composed facet predicates/signatures while preserving existing bounded caches, independent facet cancellation/generations, stale-response rejection, and the Milestone 8/10/11 scope boundaries; remaining Milestone 8 gates are additional richer worker-owned filters, next/previous-set keyboard focus restoration, the complete accessibility review, and representative-hardware warm-query/bounded-memory profiling. |
+| 2026-08-18 | Refined and accepted the precise worker-owned one-copy-size entry point after focused/optimized coverage, the Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the expanded 100,000-group regression completed in 2.24 seconds Debug and 0.88 seconds optimized Release, and each .NET configuration passed 40 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally gated. | Add the smallest indexed `1 GB or larger` result-understanding entry point by normalizing the existing `minimumSize` predicate to at least 1,073,741,824 bytes across group rows/total/summary and both facet predicates/signatures, while deferring extension/type and path-prefix filters until member-accurate semantics and indexes are explicit and preserving bounded caches, independent cancellation/generations, stale-response rejection, and the Milestone 8/10/11 boundaries. |

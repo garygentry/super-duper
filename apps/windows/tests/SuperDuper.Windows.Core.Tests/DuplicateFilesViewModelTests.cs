@@ -191,6 +191,56 @@ public sealed class DuplicateFilesViewModelTests
     }
 
     [TestMethod]
+    public async Task OneGigabytePresetNormalizesMinimumSizeAcrossGroupsAndIndependentFacets()
+    {
+        DuplicateFileGroupQuery? groupQuery = null;
+        DuplicateFileSelectedRootFacetQuery? rootFacetQuery = null;
+        DuplicateFileDriveFacetQuery? driveFacetQuery = null;
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) =>
+            {
+                groupQuery = query;
+                return Task.FromResult(new WorkerDuplicateFileGroupPage([], 0, null, null));
+            },
+            RootFacetPageHandler = (query, _) =>
+            {
+                rootFacetQuery = query;
+                return Task.FromResult(new WorkerDuplicateFileSelectedRootFacetPage([], 0, null, null));
+            },
+            DriveFacetPageHandler = (query, _) =>
+            {
+                driveFacetQuery = query;
+                return Task.FromResult(new WorkerDuplicateFileDriveFacetPage([], 0, null, null));
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(14, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        viewModel.MinimumSizeText = "4096";
+        viewModel.OneGigabyteOrLarger = true;
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+
+        const string oneGigabyte = "1073741824";
+        Assert.AreEqual(oneGigabyte, groupQuery!.Filter.MinimumSize);
+        Assert.AreEqual(oneGigabyte, rootFacetQuery!.Filter.MinimumSize);
+        Assert.AreEqual(oneGigabyte, driveFacetQuery!.Filter.MinimumSize);
+
+        viewModel.MinimumSizeText = "2147483648";
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+        Assert.AreEqual("2147483648", groupQuery.Filter.MinimumSize);
+        Assert.AreEqual("2147483648", rootFacetQuery.Filter.MinimumSize);
+        Assert.AreEqual("2147483648", driveFacetQuery.Filter.MinimumSize);
+
+        await viewModel.ClearFiltersCommand.ExecuteAsync(null);
+        Assert.IsFalse(viewModel.OneGigabyteOrLarger);
+        Assert.AreEqual("0", groupQuery.Filter.MinimumSize);
+        Assert.AreEqual("0", rootFacetQuery.Filter.MinimumSize);
+        Assert.AreEqual("0", driveFacetQuery.Filter.MinimumSize);
+    }
+
+    [TestMethod]
     public async Task RootFacetGenerationRejectsLateResponseAndCacheStaysBounded()
     {
         var oldResponse = new TaskCompletionSource<WorkerDuplicateFileSelectedRootFacetPage>(

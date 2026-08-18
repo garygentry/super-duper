@@ -3658,6 +3658,27 @@ mod tests {
             3
         );
         assert_eq!(minimum_copy_count["result"]["groups"][0]["copyCount"], 3);
+        let minimum_size_request = json!({
+            "type":"request",
+            "id":"minimum-size",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "pageSize":25,
+                "sort":{"field":"recoverableBytes","direction":"descending"},
+                "filter":{"minimumSize":"200"}
+            }
+        });
+        let minimum_size: Value = serde_json::from_str(
+            &worker
+                .handle_line(&minimum_size_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(minimum_size["result"]["total"], 1);
+        assert_eq!(minimum_size["result"]["summary"]["matchingGroupCount"], 1);
+        assert_eq!(minimum_size["result"]["summary"]["matchingCopyCount"], 3);
+        assert_eq!(minimum_size["result"]["groups"][0]["groupSize"], "200");
         let invalid_minimum_copy_count_request = json!({
             "type":"request",
             "id":"invalid-minimum-copy-count",
@@ -3760,6 +3781,25 @@ mod tests {
             invalid_root_facet_copy_count["error"]["code"],
             "invalid_cursor"
         );
+        let invalid_root_facet_size_request = json!({
+            "type":"request",
+            "id":"root-facet-size-invalid",
+            "method":"duplicate_file_selected_root_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"matchingGroupCount","direction":"descending"},
+                "filter":{"minimumSize":"200"},
+                "cursor":root_facet_cursor
+            }
+        });
+        let invalid_root_facet_size: Value = serde_json::from_str(
+            &worker
+                .handle_line(&invalid_root_facet_size_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(invalid_root_facet_size["error"]["code"], "invalid_cursor");
         let named_root_facet_request = json!({
             "type":"request",
             "id":"root-facet-name",
@@ -3911,6 +3951,25 @@ mod tests {
             invalid_drive_facet_copy_count["error"]["code"],
             "invalid_cursor"
         );
+        let invalid_drive_facet_size_request = json!({
+            "type":"request",
+            "id":"drive-facet-size-invalid",
+            "method":"duplicate_file_drive_facet.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"value","direction":"ascending"},
+                "filter":{"minimumSize":"200"},
+                "cursor":drive_facet_cursor
+            }
+        });
+        let invalid_drive_facet_size: Value = serde_json::from_str(
+            &worker
+                .handle_line(&invalid_drive_facet_size_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(invalid_drive_facet_size["error"]["code"], "invalid_cursor");
         let invalid_root_facet_drive_request = json!({
             "type":"request",
             "id":"root-facet-drive-invalid",
@@ -3989,6 +4048,25 @@ mod tests {
         )
         .unwrap();
         assert_eq!(invalid_copy_count_cursor["error"]["code"], "invalid_cursor");
+        let invalid_size_cursor_request = json!({
+            "type":"request",
+            "id":"invalid-size-cursor",
+            "method":"duplicate_file_group.page",
+            "params":{
+                "runId":1,
+                "pageSize":1,
+                "sort":{"field":"recoverableBytes","direction":"descending"},
+                "filter":{"minimumSize":"200"},
+                "cursor":cursor
+            }
+        });
+        let invalid_size_cursor: Value = serde_json::from_str(
+            &worker
+                .handle_line(&invalid_size_cursor_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(invalid_size_cursor["error"]["code"], "invalid_cursor");
 
         let selected_root_request = json!({
             "type":"request",

@@ -8,7 +8,7 @@ the Windows application. Milestones 0–6 implement negotiation, session and sca
 separately paged duplicate-file and exact-duplicate-folder result browsing. The read-only
 Milestone 8 additions extend duplicate-file pages with a filtered review summary, immutable
 selected-root/drive member context, bounded per-group selected-root/drive counts, optional
-across-drives and minimum-copy-count group filters, aggregate location coverage for the current
+across-drives, minimum-copy-count, and one-copy-size group filters, aggregate location coverage for the current
 query, and a keyset-paged
 selected-root facet plus a keyset-paged drive facet that can filter the group query. Warning
 commands remain reserved for a later milestone.
@@ -357,7 +357,10 @@ Allowed group sort fields are `recoverableBytes`, `groupSize`, `copyCount`, and
 `representativeName`; directions are `ascending` and `descending`. The default is recoverable bytes
 descending. `filter.search` is an optional case-insensitive literal substring search across member
 paths, limited to 512 characters. `filter.minimumSize` is a non-negative decimal byte string and
-defaults to `"0"`. `filter.minimumCopyCount` is an integer greater than or equal to 2 and defaults
+defaults to `"0"`; it applies to immutable one-copy group size, not recoverable bytes. The Windows
+`1 GB or larger` entry point sends the greater of a manually entered minimum and `"1073741824"`
+through this existing field, so rows, total, summary, facets, and cursor signatures retain one
+normalized worker-owned predicate. `filter.minimumCopyCount` is an integer greater than or equal to 2 and defaults
 to `2`; a value of `3` provides the `Three or more copies` review entry point.
 `filter.acrossDrives` is an optional boolean that defaults to `false`; when
 `true`, only sets with more than one distinct, non-empty, case-insensitive immutable drive label

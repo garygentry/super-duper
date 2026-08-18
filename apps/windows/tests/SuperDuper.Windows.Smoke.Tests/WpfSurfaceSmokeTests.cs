@@ -71,6 +71,9 @@ public sealed class WpfSurfaceSmokeTests
                 FindByAutomationId<FrameworkElement>(files, "FileLocationSummary")));
             _ = FindByAutomationId<TextBlock>(files, "FileLocationSummaryText");
             Assert.AreEqual(
+                "Show only duplicate sets whose one-copy size is at least 1 GB, 1,073,741,824 bytes",
+                AutomationProperties.GetName(FindByAutomationId<CheckBox>(files, "FileOneGigabyteOrLarger")));
+            Assert.AreEqual(
                 "Show only duplicate sets with three or more copies",
                 AutomationProperties.GetName(FindByAutomationId<CheckBox>(files, "FileThreeOrMoreCopies")));
             Assert.AreEqual(

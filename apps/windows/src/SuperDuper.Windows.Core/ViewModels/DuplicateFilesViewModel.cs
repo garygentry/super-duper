@@ -12,6 +12,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     public const int RootFacetPageSize = 25;
     public const int DriveFacetPageSize = 25;
     public const int CacheCapacity = 5;
+    public const long OneGigabyteBytes = 1_073_741_824;
 
     private readonly IWorkerClient _workerClient;
     private readonly IClipboardService _clipboard;
@@ -44,6 +45,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private long _driveFacetGeneration;
     private string _searchText = string.Empty;
     private string _minimumSizeText = string.Empty;
+    private bool _oneGigabyteOrLarger;
     private bool _threeOrMoreCopies;
     private bool _acrossDrives;
     private string? _errorMessage;
@@ -191,6 +193,12 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     {
         get => _minimumSizeText;
         set => SetProperty(ref _minimumSizeText, value);
+    }
+
+    public bool OneGigabyteOrLarger
+    {
+        get => _oneGigabyteOrLarger;
+        set => SetProperty(ref _oneGigabyteOrLarger, value);
     }
 
     public bool ThreeOrMoreCopies
@@ -613,6 +621,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     {
         SearchText = string.Empty;
         MinimumSizeText = string.Empty;
+        OneGigabyteOrLarger = false;
         ThreeOrMoreCopies = false;
         AcrossDrives = false;
         SelectedRootFacet = SelectedRootFacetOptions.FirstOrDefault(option => option.Value is null)
@@ -1436,6 +1445,10 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             ErrorMessage = "Minimum size must be a non-negative whole number of bytes.";
             filter = new DuplicateFileGroupFilter(string.Empty, "0", false);
             return false;
+        }
+        if (OneGigabyteOrLarger)
+        {
+            value = Math.Max(value, OneGigabyteBytes);
         }
         ErrorMessage = null;
         filter = new DuplicateFileGroupFilter(

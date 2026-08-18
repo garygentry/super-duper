@@ -454,6 +454,60 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
     assert_eq!(group.distinct_selected_root_count, 2);
     assert_eq!(group.distinct_drive_count, 1);
 
+    let one_copy_size = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            limit: 10,
+            filter: DuplicateFileGroupFilter {
+                minimum_size: 200,
+                ..base_query.filter.clone()
+            },
+            cursor: None,
+            ..base_query.clone()
+        })
+        .unwrap();
+    assert_eq!(one_copy_size.total, 2);
+    assert_eq!(one_copy_size.summary.matching_group_count, 2);
+    assert_eq!(one_copy_size.summary.matching_copy_count, 5);
+    assert_eq!(one_copy_size.summary.potential_recoverable_bytes, 600);
+    assert_eq!(one_copy_size.summary.largest_recoverable_bytes, 400);
+    assert!(one_copy_size
+        .groups
+        .iter()
+        .all(|group| group.file_size >= 200));
+
+    let one_copy_size_root_facets = db
+        .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
+            run_id: first_run,
+            limit: 10,
+            sort_field: DuplicateFileSelectedRootFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: DuplicateFileGroupFilter {
+                minimum_size: 200,
+                ..base_query.filter.clone()
+            },
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(one_copy_size_root_facets.total, 1);
+    assert_eq!(one_copy_size_root_facets.facets[0].matching_group_count, 2);
+
+    let one_copy_size_drive_facets = db
+        .page_duplicate_file_drive_facets(&DuplicateFileDriveFacetPageQuery {
+            run_id: first_run,
+            limit: 10,
+            sort_field: DuplicateFileDriveFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: DuplicateFileGroupFilter {
+                minimum_size: 200,
+                ..base_query.filter.clone()
+            },
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(one_copy_size_drive_facets.total, 2);
+    assert_eq!(one_copy_size_drive_facets.facets[0].matching_group_count, 2);
+    assert_eq!(one_copy_size_drive_facets.facets[1].matching_group_count, 1);
+
     let across_drives = db
         .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
             limit: 10,
@@ -823,6 +877,57 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         started.elapsed() < std::time::Duration::from_secs(5),
         "indexed 100,000-group paging took {:?}",
         started.elapsed()
+    );
+
+    let size_started = std::time::Instant::now();
+    let size_filter = DuplicateFileGroupFilter {
+        minimum_size: 4_000,
+        ..query.filter.clone()
+    };
+    let large_groups = db
+        .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+            filter: size_filter.clone(),
+            ..query.clone()
+        })
+        .unwrap();
+    assert_eq!(large_groups.total, 2_328);
+    assert_eq!(large_groups.summary.matching_group_count, 2_328);
+    assert_eq!(large_groups.summary.matching_copy_count, 4_659);
+    assert!(large_groups
+        .groups
+        .iter()
+        .all(|group| group.file_size >= 4_000));
+    let large_root_facets = db
+        .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
+            run_id,
+            limit: 25,
+            sort_field: DuplicateFileSelectedRootFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: size_filter.clone(),
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(large_root_facets.total, 1);
+    assert_eq!(large_root_facets.facets[0].matching_group_count, 3);
+    let large_drive_facets = db
+        .page_duplicate_file_drive_facets(&DuplicateFileDriveFacetPageQuery {
+            run_id,
+            limit: 25,
+            sort_field: DuplicateFileDriveFacetSortField::MatchingGroupCount,
+            sort_direction: SortDirection::Descending,
+            filter: size_filter,
+            cursor: None,
+        })
+        .unwrap();
+    assert_eq!(large_drive_facets.total, 2);
+    assert!(large_drive_facets
+        .facets
+        .iter()
+        .all(|facet| facet.matching_group_count == 3));
+    assert!(
+        size_started.elapsed() < std::time::Duration::from_secs(5),
+        "100,000-group minimum-size group/facet queries took {:?}",
+        size_started.elapsed()
     );
 
     let across_started = std::time::Instant::now();

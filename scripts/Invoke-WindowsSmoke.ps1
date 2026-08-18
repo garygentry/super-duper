@@ -318,6 +318,8 @@ function Invoke-WpfAutomation([long]$RunId) {
         Assert-True (-not $cloudStatus.Current.Name.Contains('unavailable', [StringComparison]::OrdinalIgnoreCase)) 'Cloud registration discovery remained unavailable in the normal WPF smoke.'
         Assert-True ((Find-Element AutomationId 'StartScanButton').Current.IsEnabled) 'Start scan did not become enabled after successful cloud registration discovery.'
         Select-Element (Find-Element AutomationId 'DuplicateFilesTab')
+        $oneGigabyteOrLarger = Find-Element AutomationId 'FileOneGigabyteOrLarger'
+        Assert-True ($oneGigabyteOrLarger.Current.Name -eq 'Show only duplicate sets whose one-copy size is at least 1 GB, 1,073,741,824 bytes') 'One-gigabyte size preset was not accessible.'
         $threeOrMoreCopies = Find-Element AutomationId 'FileThreeOrMoreCopies'
         Assert-True ($threeOrMoreCopies.Current.Name -eq 'Show only duplicate sets with three or more copies') 'Minimum-copy-count filter was not accessible.'
         $acrossDrives = Find-Element AutomationId 'FileAcrossDrives'
@@ -379,6 +381,25 @@ function Invoke-WpfAutomation([long]$RunId) {
         $selectedDriveFilterText = Find-Element AutomationId 'FileSelectedDriveFilterText'
         Assert-True ($selectedDriveFilterText.Current.Name.Contains('Filtering sets represented on', [StringComparison]::OrdinalIgnoreCase)) 'Drive facet selection did not become active.'
         Invoke-Element (Find-Element Name 'Clear filters')
+        $oneGigabyteToggle = $oneGigabyteOrLarger.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
+        if ($oneGigabyteToggle.Current.ToggleState -ne [Windows.Automation.ToggleState]::Off) {
+            $oneGigabyteToggle.Toggle()
+        }
+        $oneGigabyteToggle.Toggle()
+        Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            if ((Find-Element AutomationId 'FileApplyFilters' 1).Current.IsEnabled) { break }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ((Find-Element AutomationId 'FileApplyFilters').Current.IsEnabled) 'One-gigabyte size preset did not complete responsively.'
+        Assert-True ([long](Find-Element AutomationId 'FileSummaryMatchingSets').Current.Name -eq 0) 'One-gigabyte size preset did not exclude the small smoke sets.'
+        $oneGigabyteToggle.Toggle()
+        Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            if ((Find-Element AutomationId 'FileApplyFilters' 1).Current.IsEnabled) { break }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ([long](Find-Element AutomationId 'FileSummaryMatchingSets').Current.Name -gt 0) 'Clearing the one-gigabyte size preset did not restore the smoke sets.'
         $threeOrMoreCopiesToggle = $threeOrMoreCopies.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
         if ($threeOrMoreCopiesToggle.Current.ToggleState -ne [Windows.Automation.ToggleState]::Off) {
             $threeOrMoreCopiesToggle.Toggle()
@@ -460,7 +481,7 @@ function Invoke-WpfAutomation([long]$RunId) {
         $null = Find-FirstDataItem $folderMembers
         Invoke-Element (Find-DescendantByName $folderMembers 'Show in Explorer')
         Assert-NoVisibleDetailError 'FolderDetailError'
-        Write-Output "WPF automation passed for restored run $RunId, including minimum-copy-count plus selected-root and drive facet filtering and completed ordinary, long-path, and folder Explorer reveal commands."
+        Write-Output "WPF automation passed for restored run $RunId, including the 1 GB-or-larger and minimum-copy-count entry points plus selected-root and drive facet filtering and completed ordinary, long-path, and folder Explorer reveal commands."
     }
     finally {
         try {
@@ -747,6 +768,26 @@ try {
     Assert-True ($filteredFiles.summary.acrossDriveGroupCount -eq 0) 'Single-drive filtered summary reported a cross-drive set.'
     Assert-True ($filteredFiles.groups[0].distinctSelectedRootCount -eq 1) 'Duplicate-file group did not report its selected-root span.'
     Assert-True ($filteredFiles.groups[0].distinctDriveCount -eq 1) 'Duplicate-file group did not report its drive span.'
+    $largeFileGroups = Send-WorkerRequest $restored 'duplicate_file_group.page' @{
+        runId = $run.id; pageSize = 25
+        sort = @{ field = 'groupSize'; direction = 'ascending' }
+        filter = @{ search = ''; minimumSize = '1200' }; cursor = $null
+    }
+    Assert-True ($largeFileGroups.total -gt 0 -and $largeFileGroups.total -lt $filePage.total) 'Minimum-size filter did not isolate a bounded subset of smoke sets.'
+    Assert-True ($largeFileGroups.summary.matchingGroupCount -eq $largeFileGroups.total) 'Minimum-size summary diverged from its result total.'
+    Assert-True (@($largeFileGroups.groups | Where-Object { [uint64]$_.groupSize -lt 1200 }).Count -eq 0) 'Minimum-size filter returned a set below its one-copy-size threshold.'
+    $largeRootFacets = Send-WorkerRequest $restored 'duplicate_file_selected_root_facet.page' @{
+        runId = $run.id; pageSize = 25
+        sort = @{ field = 'matchingGroupCount'; direction = 'descending' }
+        filter = @{ search = ''; minimumSize = '1200'; acrossDrives = $false }; cursor = $null
+    }
+    Assert-True ($largeRootFacets.facets[0].matchingGroupCount -eq $largeFileGroups.total) 'Selected-root facet did not apply the minimum-size filter.'
+    $largeDriveFacets = Send-WorkerRequest $restored 'duplicate_file_drive_facet.page' @{
+        runId = $run.id; pageSize = 25
+        sort = @{ field = 'matchingGroupCount'; direction = 'descending' }
+        filter = @{ search = ''; minimumSize = '1200'; acrossDrives = $false }; cursor = $null
+    }
+    Assert-True ($largeDriveFacets.facets[0].matchingGroupCount -eq $largeFileGroups.total) 'Drive facet did not apply the minimum-size filter.'
     $selectedRootFacets = Send-WorkerRequest $restored 'duplicate_file_selected_root_facet.page' @{
         runId = $run.id; pageSize = 25
         sort = @{ field = 'matchingGroupCount'; direction = 'descending' }
