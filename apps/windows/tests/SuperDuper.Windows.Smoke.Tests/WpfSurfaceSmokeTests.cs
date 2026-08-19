@@ -212,6 +212,7 @@ public sealed class WpfSurfaceSmokeTests
             CollectionAssert.AreEqual(
                 Enumerable.Range(0, keyboardOrder.Length).ToArray(),
                 keyboardOrder.Select(KeyboardNavigation.GetTabIndex).ToArray());
+            AssertPrimaryFileFiltersReflow(files);
             var fileMemberHeaders = FindByAutomationId<DataGrid>(files, "FileMembersGrid")
                 .Columns.Select(column => column.Header?.ToString()).ToArray();
             CollectionAssert.IsSubsetOf(
@@ -284,6 +285,38 @@ public sealed class WpfSurfaceSmokeTests
         Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(groups));
         Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(members));
         Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(members));
+    }
+
+    private static void AssertPrimaryFileFiltersReflow(DuplicateFilesView files)
+    {
+        const double narrowWorkspaceWidth = 620;
+        var host = new Window
+        {
+            Width = narrowWorkspaceWidth,
+            Height = 900,
+            Content = files,
+            SizeToContent = SizeToContent.Manual,
+        };
+        host.Show();
+        host.UpdateLayout();
+        DrainDispatcher();
+
+        var firstFilter = FindByAutomationId<TextBox>(files, "FileSearch");
+        var lastFilter = FindByAutomationId<Button>(files, "FileApplyFilters");
+        var firstTop = firstFilter.TranslatePoint(new Point(0, 0), files).Y;
+        var lastTop = lastFilter.TranslatePoint(new Point(0, 0), files).Y;
+        var lastRight = lastFilter.TranslatePoint(
+            new Point(lastFilter.ActualWidth, 0),
+            files).X;
+
+        Assert.IsTrue(
+            lastTop > firstTop,
+            "The primary filter controls should wrap to another row in a narrow workspace.");
+        Assert.IsTrue(
+            lastRight <= files.ActualWidth,
+            "A wrapped primary filter control extends beyond the duplicate-file workspace.");
+        host.Content = null;
+        host.Close();
     }
 
     private static T FindByAutomationId<T>(DependencyObject root, string automationId)

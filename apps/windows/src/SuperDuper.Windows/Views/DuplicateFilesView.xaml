@@ -12,103 +12,86 @@
             <RowDefinition Height="2*" />
         </Grid.RowDefinitions>
 
-        <Grid Margin="0,0,0,14">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="170" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+        <StackPanel Margin="0,0,0,14">
             <StackPanel>
                 <TextBlock FontSize="22" FontWeight="SemiBold" Text="Duplicate files" />
                 <TextBlock Margin="0,4,0,0"
                            Text="Results belong to the selected historical run and stay server-paged." />
             </StackPanel>
-            <StackPanel Grid.Column="1" Margin="12,0,0,0">
-                <Label Padding="0,0,0,3"
-                       Target="{Binding ElementName=FileSearch}"
-                       Content="Path _search" />
-                <TextBox x:Name="FileSearch"
-                         VerticalContentAlignment="Center"
-                         KeyboardNavigation.TabIndex="0"
-                         automation:AutomationProperties.Name="Path search"
-                         automation:AutomationProperties.HelpText="Enter a complete immutable member path when Exact path is checked; otherwise performs a case-insensitive literal substring search with a 512-character maximum"
-                         automation:AutomationProperties.AutomationId="FileSearch"
-                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                         ToolTip="Search duplicate file paths" />
-                <CheckBox x:Name="FileExactPathMatch"
-                          Margin="0,5,0,0"
-                          KeyboardNavigation.TabIndex="1"
-                          automation:AutomationProperties.AutomationId="FileExactPathMatch"
-                          automation:AutomationProperties.Name="Match the complete canonical member path"
-                          automation:AutomationProperties.HelpText="Uses locale-independent Unicode case normalization and the immutable canonical path; clear this option to restore literal substring search"
-                          Content="Exact path"
-                          IsChecked="{Binding ExactPathMatch}"
-                          ToolTip="Match one complete canonical member path" />
-            </StackPanel>
-            <StackPanel Grid.Column="2" Margin="8,0,0,0">
-                <Label Padding="0,0,0,3"
-                       Target="{Binding ElementName=FileMinimumSize}"
-                       Content="_Minimum size" />
-                <TextBox x:Name="FileMinimumSize"
-                         Width="145"
-                         VerticalContentAlignment="Center"
-                         KeyboardNavigation.TabIndex="2"
-                         automation:AutomationProperties.Name="Minimum file size in bytes"
-                         automation:AutomationProperties.HelpText="Non-negative whole number of bytes applied to one-copy file size"
-                         automation:AutomationProperties.AutomationId="FileMinimumSize"
-                         Text="{Binding MinimumSizeText, UpdateSourceTrigger=PropertyChanged}"
-                         ToolTip="Minimum file size in bytes" />
-            </StackPanel>
-            <CheckBox x:Name="FileThreeOrMoreCopies"
-                      Grid.Column="4"
-                      Margin="10,0,2,0"
-                      VerticalAlignment="Center"
-                      KeyboardNavigation.TabIndex="4"
-                      automation:AutomationProperties.AutomationId="FileThreeOrMoreCopies"
-                      automation:AutomationProperties.Name="Show only duplicate sets with three or more copies"
-                      Content="Three or more copies"
-                      IsChecked="{Binding ThreeOrMoreCopies}" />
-            <CheckBox x:Name="FileAcrossDrives"
-                      Grid.Column="5"
-                      Margin="10,0,2,0"
-                      VerticalAlignment="Center"
-                      KeyboardNavigation.TabIndex="5"
-                      automation:AutomationProperties.AutomationId="FileAcrossDrives"
-                      automation:AutomationProperties.Name="Show only duplicate sets across multiple drives"
-                      Content="Across drives"
-                      IsChecked="{Binding AcrossDrives}" />
-            <CheckBox x:Name="FileOneGigabyteOrLarger"
-                      Grid.Column="3"
-                      Margin="10,0,2,0"
-                      VerticalAlignment="Center"
-                      KeyboardNavigation.TabIndex="3"
-                      automation:AutomationProperties.AutomationId="FileOneGigabyteOrLarger"
-                      automation:AutomationProperties.Name="Show only duplicate sets whose one-copy size is at least 1 GB, 1,073,741,824 bytes"
-                      Content="1 GB or larger"
-                      IsChecked="{Binding OneGigabyteOrLarger}"
-                      ToolTip="One-copy size of at least 1 GB (1,073,741,824 bytes)" />
-            <Button x:Name="FileApplyFilters"
-                    Grid.Column="6"
-                    automation:AutomationProperties.AutomationId="FileApplyFilters"
-                    Margin="8,0,0,0"
-                    Padding="13,7"
-                    KeyboardNavigation.TabIndex="6"
-                    automation:AutomationProperties.Name="Apply duplicate file filters"
-                    Command="{Binding ApplyFiltersCommand}"
-                    Content="Apply filters" />
-            <WrapPanel Grid.Row="1"
-                       Grid.ColumnSpan="7"
-                       Margin="0,10,0,0"
+            <WrapPanel Margin="0,10,0,0"
+                       VerticalAlignment="Center"
+                       automation:AutomationProperties.Name="Primary duplicate file filter controls">
+                <StackPanel Width="170" Margin="0,0,8,0">
+                    <Label Padding="0,0,0,3"
+                           Target="{Binding ElementName=FileSearch}"
+                           Content="Path _search" />
+                    <TextBox x:Name="FileSearch"
+                             VerticalContentAlignment="Center"
+                             KeyboardNavigation.TabIndex="0"
+                             automation:AutomationProperties.Name="Path search"
+                             automation:AutomationProperties.HelpText="Enter a complete immutable member path when Exact path is checked; otherwise performs a case-insensitive literal substring search with a 512-character maximum"
+                             automation:AutomationProperties.AutomationId="FileSearch"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Search duplicate file paths" />
+                    <CheckBox x:Name="FileExactPathMatch"
+                              Margin="0,5,0,0"
+                              KeyboardNavigation.TabIndex="1"
+                              automation:AutomationProperties.AutomationId="FileExactPathMatch"
+                              automation:AutomationProperties.Name="Match the complete canonical member path"
+                              automation:AutomationProperties.HelpText="Uses locale-independent Unicode case normalization and the immutable canonical path; clear this option to restore literal substring search"
+                              Content="Exact path"
+                              IsChecked="{Binding ExactPathMatch}"
+                              ToolTip="Match one complete canonical member path" />
+                </StackPanel>
+                <StackPanel Width="145" Margin="0,0,8,0">
+                    <Label Padding="0,0,0,3"
+                           Target="{Binding ElementName=FileMinimumSize}"
+                           Content="_Minimum size" />
+                    <TextBox x:Name="FileMinimumSize"
+                             Width="145"
+                             VerticalContentAlignment="Center"
+                             KeyboardNavigation.TabIndex="2"
+                             automation:AutomationProperties.Name="Minimum file size in bytes"
+                             automation:AutomationProperties.HelpText="Non-negative whole number of bytes applied to one-copy file size"
+                             automation:AutomationProperties.AutomationId="FileMinimumSize"
+                             Text="{Binding MinimumSizeText, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Minimum file size in bytes" />
+                </StackPanel>
+                <CheckBox x:Name="FileOneGigabyteOrLarger"
+                          Margin="10,0,2,0"
+                          VerticalAlignment="Center"
+                          KeyboardNavigation.TabIndex="3"
+                          automation:AutomationProperties.AutomationId="FileOneGigabyteOrLarger"
+                          automation:AutomationProperties.Name="Show only duplicate sets whose one-copy size is at least 1 GB, 1,073,741,824 bytes"
+                          Content="1 GB or larger"
+                          IsChecked="{Binding OneGigabyteOrLarger}"
+                          ToolTip="One-copy size of at least 1 GB (1,073,741,824 bytes)" />
+                <CheckBox x:Name="FileThreeOrMoreCopies"
+                          Margin="10,0,2,0"
+                          VerticalAlignment="Center"
+                          KeyboardNavigation.TabIndex="4"
+                          automation:AutomationProperties.AutomationId="FileThreeOrMoreCopies"
+                          automation:AutomationProperties.Name="Show only duplicate sets with three or more copies"
+                          Content="Three or more copies"
+                          IsChecked="{Binding ThreeOrMoreCopies}" />
+                <CheckBox x:Name="FileAcrossDrives"
+                          Margin="10,0,2,0"
+                          VerticalAlignment="Center"
+                          KeyboardNavigation.TabIndex="5"
+                          automation:AutomationProperties.AutomationId="FileAcrossDrives"
+                          automation:AutomationProperties.Name="Show only duplicate sets across multiple drives"
+                          Content="Across drives"
+                          IsChecked="{Binding AcrossDrives}" />
+                <Button x:Name="FileApplyFilters"
+                        automation:AutomationProperties.AutomationId="FileApplyFilters"
+                        Margin="8,0,0,0"
+                        Padding="13,7"
+                        KeyboardNavigation.TabIndex="6"
+                        automation:AutomationProperties.Name="Apply duplicate file filters"
+                        Command="{Binding ApplyFiltersCommand}"
+                        Content="Apply filters" />
+            </WrapPanel>
+            <WrapPanel Margin="0,10,0,0"
                        VerticalAlignment="Center"
                        automation:AutomationProperties.Name="Filename extension filter controls">
                 <Label Margin="0,0,8,0"
@@ -147,9 +130,7 @@
                           IsChecked="{Binding AllMembersMustMatchExtension}"
                           ToolTip="Require every immutable member to match the extension value" />
             </WrapPanel>
-            <WrapPanel Grid.Row="2"
-                       Grid.ColumnSpan="7"
-                       Margin="0,10,0,0"
+            <WrapPanel Margin="0,10,0,0"
                        VerticalAlignment="Center"
                        automation:AutomationProperties.Name="Selected-root facet controls">
                 <Label Margin="0,0,8,0"
@@ -231,9 +212,7 @@
                            Text="{Binding SelectedRootFilterText}"
                            TextTrimming="CharacterEllipsis" />
             </WrapPanel>
-            <WrapPanel Grid.Row="3"
-                       Grid.ColumnSpan="7"
-                       Margin="0,8,0,0"
+            <WrapPanel Margin="0,8,0,0"
                        VerticalAlignment="Center"
                        automation:AutomationProperties.Name="Drive facet controls">
                 <Label Margin="0,0,8,0"
@@ -315,7 +294,7 @@
                            Text="{Binding SelectedDriveFilterText}"
                            TextTrimming="CharacterEllipsis" />
             </WrapPanel>
-        </Grid>
+        </StackPanel>
 
         <StackPanel Grid.Row="1" Margin="0,0,0,14">
             <UniformGrid automation:AutomationProperties.AutomationId="FileReviewSummary"
