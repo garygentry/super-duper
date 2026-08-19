@@ -107,7 +107,16 @@
             <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <TextBlock FontSize="17" FontWeight="SemiBold" Text="Duplicate roots in selected group" />
-                <TextBlock Grid.Column="1" Opacity="0.68" Text="{Binding MemberCountText}" />
+                <TextBlock Grid.Column="1"
+                           Opacity="0.68"
+                           automation:AutomationProperties.AutomationId="FolderMemberCount"
+                           automation:AutomationProperties.LiveSetting="Polite"
+                           automation:AutomationProperties.Name="{Binding MemberStatusAnnouncement}"
+                           accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding MemberStatusAnnouncementVersion}"
+                           accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
+                           accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
+                           accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFolderMemberQuery"
+                           Text="{Binding MemberCountText}" />
             </Grid>
             <DataGrid x:Name="MembersGrid" Grid.Row="1" AutoGenerateColumns="False" EnableColumnVirtualization="True" EnableRowVirtualization="True"
                       automation:AutomationProperties.AutomationId="FolderMembersGrid"
@@ -130,9 +139,17 @@
             </DataGrid>
             <Grid Grid.Row="2" Margin="0,8,0,0">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                <TextBlock VerticalAlignment="Center" Foreground="#C84B31" Text="{Binding DetailErrorMessage}" TextTrimming="CharacterEllipsis"
+                <TextBlock VerticalAlignment="Center"
+                           Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
+                           Text="{Binding DetailErrorMessage}"
+                           TextTrimming="CharacterEllipsis"
                            automation:AutomationProperties.AutomationId="FolderDetailError"
-                           automation:AutomationProperties.Name="Folder action error"
+                           automation:AutomationProperties.LiveSetting="Assertive"
+                           automation:AutomationProperties.Name="{Binding DetailErrorMessage, StringFormat='Exact-folder detail error: {0}'}"
+                           accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding MemberErrorAnnouncementVersion}"
+                           accessibility:AutomationNotificationBehavior.NotificationKind="ActionAborted"
+                           accessibility:AutomationNotificationBehavior.NotificationProcessing="ImportantMostRecent"
+                           accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFolderMemberQuery"
                            Visibility="{Binding HasDetailError, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate folder member paging" Orientation="Horizontal">
                     <Button Padding="10,4" Command="{Binding PreviousMemberPageCommand}" Content="Previous folders" />

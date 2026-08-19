@@ -298,6 +298,23 @@ public sealed class WpfSurfaceSmokeTests
                 AutomationProperties.GetLiveSetting(folderGroupError));
             Assert.AreEqual("DuplicateFolderGroupQuery",
                 AutomationNotificationBehavior.GetActivityId(folderGroupError));
+            var folderMemberStatus = FindByAutomationId<TextBlock>(folders, "FolderMemberCount");
+            Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
+                AutomationNotificationBehavior.GetNotificationKind(folderMemberStatus));
+            Assert.AreEqual(AutomationNotificationProcessing.MostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(folderMemberStatus));
+            Assert.AreEqual("DuplicateFolderMemberQuery",
+                AutomationNotificationBehavior.GetActivityId(folderMemberStatus));
+            var folderDetailError = FindByAutomationId<TextBlock>(folders, "FolderDetailError");
+            Assert.AreEqual(AutomationNotificationKind.ActionAborted,
+                AutomationNotificationBehavior.GetNotificationKind(folderDetailError));
+            Assert.AreEqual(AutomationNotificationProcessing.ImportantMostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(folderDetailError));
+            Assert.AreEqual(AutomationLiveSetting.Assertive,
+                AutomationProperties.GetLiveSetting(folderDetailError));
+            Assert.AreEqual("DuplicateFolderMemberQuery",
+                AutomationNotificationBehavior.GetActivityId(folderDetailError));
+            Assert.AreEqual(SystemColors.ControlTextBrush, folderDetailError.Foreground);
 
             Assert.AreEqual("Scan sessions", AutomationProperties.GetName(
                 FindByAutomationId<ListBox>(sessions, "SessionsList")));
@@ -447,6 +464,27 @@ public sealed class WpfSurfaceSmokeTests
                 Assert.AreEqual(folderErrorAnnouncement, announcedText);
                 Assert.AreEqual(AutomationNotificationKind.ActionAborted, announcedKind);
                 Assert.AreEqual("DuplicateFolderGroupQuery", announcedActivityId);
+
+                const string folderMemberAnnouncement =
+                    @"Selected exact duplicate folder group loaded: C:\Archive. 2 folder copies.";
+                AutomationProperties.SetName(folderMemberStatus, folderMemberAnnouncement);
+                AutomationNotificationBehavior.SetAnnouncementVersion(folderMemberStatus, 1);
+                DrainDispatcher();
+                Assert.AreSame(folderMemberStatus, announcedElement);
+                Assert.AreEqual(folderMemberAnnouncement, announcedText);
+                Assert.AreEqual(AutomationNotificationKind.ActionCompleted, announcedKind);
+                Assert.AreEqual("DuplicateFolderMemberQuery", announcedActivityId);
+
+                const string folderDetailErrorAnnouncement =
+                    "Exact-folder detail error: Worker folder-member query failed.";
+                folderDetailError.Visibility = Visibility.Visible;
+                AutomationProperties.SetName(folderDetailError, folderDetailErrorAnnouncement);
+                AutomationNotificationBehavior.SetAnnouncementVersion(folderDetailError, 1);
+                DrainDispatcher();
+                Assert.AreSame(folderDetailError, announcedElement);
+                Assert.AreEqual(folderDetailErrorAnnouncement, announcedText);
+                Assert.AreEqual(AutomationNotificationKind.ActionAborted, announcedKind);
+                Assert.AreEqual("DuplicateFolderMemberQuery", announcedActivityId);
 
                 focusHost.Content = files;
             }

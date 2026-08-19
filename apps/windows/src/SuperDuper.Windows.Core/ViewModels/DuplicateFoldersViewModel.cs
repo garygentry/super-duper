@@ -35,8 +35,11 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     private string? _detailErrorMessage;
     private string _groupStatusAnnouncement = "Duplicate folder results have not loaded.";
     private string _groupErrorAnnouncement = string.Empty;
+    private string _memberStatusAnnouncement = "No exact duplicate folder group details have loaded.";
     private long _groupStatusAnnouncementVersion;
     private long _groupErrorAnnouncementVersion;
+    private long _memberStatusAnnouncementVersion;
+    private long _memberErrorAnnouncementVersion;
     private bool _isLoading;
     private bool _isDetailLoading;
     private DuplicateFolderGroupSortField _sortField = DuplicateFolderGroupSortField.TotalBytes;
@@ -166,6 +169,21 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     {
         get => _groupErrorAnnouncementVersion;
         private set => SetProperty(ref _groupErrorAnnouncementVersion, value);
+    }
+    public string MemberStatusAnnouncement
+    {
+        get => _memberStatusAnnouncement;
+        private set => SetProperty(ref _memberStatusAnnouncement, value);
+    }
+    public long MemberStatusAnnouncementVersion
+    {
+        get => _memberStatusAnnouncementVersion;
+        private set => SetProperty(ref _memberStatusAnnouncementVersion, value);
+    }
+    public long MemberErrorAnnouncementVersion
+    {
+        get => _memberErrorAnnouncementVersion;
+        private set => SetProperty(ref _memberErrorAnnouncementVersion, value);
     }
 
     public IAsyncRelayCommand ApplyFiltersCommand { get; }
@@ -349,7 +367,9 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         {
             if (display && generation == _memberGeneration)
             {
+                DetailErrorMessage = null;
                 DisplayMemberPage(cached);
+                PublishMemberQueryAnnouncement();
                 _ = PrefetchMembersAsync(cached, runId, groupId, generation, token);
             }
             return;
@@ -370,7 +390,15 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception) { if (display && generation == _memberGeneration) DetailErrorMessage = exception.Message; }
-        finally { if (display && generation == _memberGeneration) { IsDetailLoading = false; OnPropertyChanged(nameof(IsDetailEmpty)); } }
+        finally
+        {
+            if (display && generation == _memberGeneration)
+            {
+                IsDetailLoading = false;
+                OnPropertyChanged(nameof(IsDetailEmpty));
+                PublishMemberQueryAnnouncement();
+            }
+        }
     }
 
     private void DisplayMemberPage(WorkerDuplicateFolderMemberPage page)
@@ -505,6 +533,26 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
 
         GroupErrorAnnouncement = $"{prefix} {ErrorMessage}";
         GroupErrorAnnouncementVersion++;
+    }
+
+    private void PublishMemberQueryAnnouncement()
+    {
+        if (SelectedGroup is not { } group || Run?.Status != "completed")
+        {
+            return;
+        }
+
+        if (HasDetailError)
+        {
+            MemberErrorAnnouncementVersion++;
+            return;
+        }
+
+        MemberStatusAnnouncement = TotalMembers == 0
+            ? $"Selected exact duplicate folder group loaded: {group.RepresentativePath}. No folder copies to display."
+            : $"Selected exact duplicate folder group loaded: {group.RepresentativePath}. "
+                + $"{FormatCount(TotalMembers, "folder copy", "folder copies")}.";
+        MemberStatusAnnouncementVersion++;
     }
 
     private static string FormatCount(long value, string singular, string plural) =>

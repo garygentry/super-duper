@@ -28,6 +28,10 @@ public sealed class DuplicateFoldersViewModelTests
             "Duplicate folder query complete. 1 matching exact duplicate folder group.",
             viewModel.GroupStatusAnnouncement);
         Assert.AreEqual(1, viewModel.GroupStatusAnnouncementVersion);
+        Assert.AreEqual(
+            @"Selected exact duplicate folder group loaded: C:\One. 1 folder copy.",
+            viewModel.MemberStatusAnnouncement);
+        Assert.AreEqual(1, viewModel.MemberStatusAnnouncementVersion);
         viewModel.CopyPathCommand.Execute(viewModel.Members[0]);
         await viewModel.RevealInExplorerCommand.ExecuteAsync(viewModel.Members[0]);
         Assert.AreEqual(@"C:\One", clipboard.Text);
@@ -149,6 +153,122 @@ public sealed class DuplicateFoldersViewModelTests
 
         Assert.IsFalse(viewModel.IsLoading);
         Assert.AreEqual(@"C:\after-sort", viewModel.Groups.Single().RepresentativePath);
+    }
+
+    [TestMethod]
+    public async Task MemberQueryAnnouncementsRepeatForCachedPagesAndCoverEmptyAndWorkerFailure()
+    {
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderGroupPage(
+                    [
+                        Group(1, query.RunId, @"C:\first"),
+                        Group(2, query.RunId, @"C:\empty"),
+                        Group(3, query.RunId, @"C:\failed"),
+                    ],
+                    3,
+                    null,
+                    null)),
+            FolderMemberPageHandler = (query, _) => query.GroupId switch
+            {
+                1 when query.Cursor is null => Task.FromResult(
+                    new WorkerDuplicateFolderMemberPage(
+                        [new(1, query.GroupId, @"C:\first")],
+                        2,
+                        "next-members",
+                        null)),
+                1 => Task.FromResult(
+                    new WorkerDuplicateFolderMemberPage(
+                        [new(2, query.GroupId, @"D:\first-copy")],
+                        2,
+                        null,
+                        "previous-members")),
+                2 => Task.FromResult(new WorkerDuplicateFolderMemberPage([], 0, null, null)),
+                _ => Task.FromException<WorkerDuplicateFolderMemberPage>(
+                    new IOException("Worker folder-member query failed.")),
+            },
+        };
+        var explorer = new TestExplorer { Error = new IOException("Explorer action failed.") };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), explorer);
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(14, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        Assert.AreEqual(1, viewModel.MemberStatusAnnouncementVersion);
+        var repeatedAnnouncement = viewModel.MemberStatusAnnouncement;
+        await viewModel.RevealInExplorerCommand.ExecuteAsync(viewModel.Members[0]);
+        Assert.IsTrue(viewModel.HasDetailError);
+        Assert.AreEqual(0, viewModel.MemberErrorAnnouncementVersion);
+        await viewModel.NextMemberPageCommand.ExecuteAsync(null);
+        Assert.AreEqual(2, viewModel.MemberStatusAnnouncementVersion);
+        Assert.AreEqual(repeatedAnnouncement, viewModel.MemberStatusAnnouncement);
+        Assert.IsFalse(viewModel.HasDetailError);
+
+        viewModel.SelectedGroup = viewModel.Groups[1];
+        Assert.AreEqual(3, viewModel.MemberStatusAnnouncementVersion);
+        Assert.AreEqual(
+            @"Selected exact duplicate folder group loaded: C:\empty. No folder copies to display.",
+            viewModel.MemberStatusAnnouncement);
+
+        viewModel.SelectedGroup = viewModel.Groups[2];
+        Assert.AreEqual(1, viewModel.MemberErrorAnnouncementVersion);
+        Assert.IsTrue(viewModel.HasDetailError);
+        StringAssert.Contains(viewModel.DetailErrorMessage, "Worker folder-member query failed");
+        Assert.AreEqual(3, viewModel.MemberStatusAnnouncementVersion);
+    }
+
+    [TestMethod]
+    public async Task MemberQueryGenerationRejectsLateResponseWithoutAnnouncement()
+    {
+        var staleResponse = new TaskCompletionSource<WorkerDuplicateFolderMemberPage>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var staleRequestObserved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderGroupPage(
+                    [Group(1, query.RunId, @"C:\first"), Group(2, query.RunId, @"C:\second")],
+                    2,
+                    null,
+                    null)),
+            FolderMemberPageHandler = (query, _) =>
+            {
+                if (query.GroupId == 1)
+                {
+                    staleRequestObserved.TrySetResult();
+                    return staleResponse.Task;
+                }
+                return Task.FromResult(new WorkerDuplicateFolderMemberPage(
+                    [new(2, query.GroupId, @"C:\second")],
+                    1,
+                    null,
+                    null));
+            },
+        };
+        using var viewModel = new DuplicateFoldersViewModel(
+            client,
+            new TestClipboard(),
+            new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(15, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        await staleRequestObserved.Task;
+
+        viewModel.SelectedGroup = viewModel.Groups[1];
+        Assert.AreEqual(1, viewModel.MemberStatusAnnouncementVersion);
+        StringAssert.Contains(viewModel.MemberStatusAnnouncement, @"C:\second");
+
+        staleResponse.SetResult(new WorkerDuplicateFolderMemberPage(
+            [new(1, 1, @"C:\stale")],
+            1,
+            null,
+            null));
+        await Task.Yield();
+        await Task.Yield();
+
+        Assert.AreEqual(@"C:\second", viewModel.Members.Single().Path);
+        Assert.AreEqual(1, viewModel.MemberStatusAnnouncementVersion);
+        Assert.AreEqual(0, viewModel.MemberErrorAnnouncementVersion);
     }
 
     [TestMethod]

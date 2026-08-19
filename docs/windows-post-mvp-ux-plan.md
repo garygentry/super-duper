@@ -4,7 +4,7 @@
 
 Active implementation roadmap for the Windows duplicate-review experience. Milestone 6
 release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first twelve
-read-only Milestone 8 slices and the first six bounded accessibility-remediation slices are implemented
+read-only Milestone 8 slices and the first seven bounded accessibility-remediation slices are implemented
 and accepted; the broader milestone remains in progress and is gated by the remaining criteria
 below.
 
@@ -1587,6 +1587,80 @@ accessibility slice.
   supported minimum-size/multi-DPI audit; and representative-hardware warm-query/bounded-memory
   profiling.
 
+#### Exact-folder member-query screen-reader announcement slice (2026-08-19)
+
+##### Audit and scope decision
+
+No richer worker-owned filter has both a sufficiently small complete contract and the mapping or
+range indexes required across group rows, total, summary, both cross-facets, and all three cursor
+signatures. File-type classification still requires a versioned Rust-owned mapping plus explicit
+migration/reclassification behavior and remains distinct from filename extension. Canonical
+prefix-or-self and descendant-only matching still require separator/segment boundaries, root-self
+behavior, case and Unicode normalization, and stored range keys. Selected-root-relative matching
+remains separate and requires an exact selected root plus indexed root/relative keys. Accepted
+exact equality and case-insensitive literal member-path substring search remain unchanged and are
+not relabeled as boundary-aware path filtering.
+
+The contract, SQL/index, cursor, paging, cache, cancellation, generation, prefetch,
+stale-response, virtualization, performance, supported-width, and multi-surface DPI audit found no
+smaller complete data or layout slice. The broader screen-reader review found the next concrete
+defect in the exact-folder member channel: selecting a folder group or displaying another bounded
+member page settled asynchronously without an explicit completion or worker-failure notification.
+This is smaller than a complete multi-surface DPI change and closes the exact-folder member-query
+gap named by the previous slice while leaving the broader accessibility gate open.
+
+##### Implemented interaction
+
+- Core publishes one concise completion message after a displayed current-generation exact-folder
+  member page settles. It identifies the selected representative path and folder-copy count and
+  includes an explicit no-copies state. Identical displayed results increment a monotonic version,
+  so a displayed prefetched-cache page remains announceable.
+- WPF raises `ActionCompleted` with `MostRecent` processing for success and `ActionAborted` with
+  `ImportantMostRecent` processing for current worker failure under the stable
+  `DuplicateFolderMemberQuery` activity ID. The detail error uses the system control-text brush so
+  the new assertive status does not retain a hard-coded foreground under high contrast.
+- Non-displayed prefetch, cancellation, and stale generations remain silent. An Explorer or
+  clipboard action can continue to show its existing detail error, but does not increment the
+  member-query failure version. Displaying a valid cached member page clears such an action error
+  before raising the query-completion notification.
+- The slice changes no Rust, protocol field, SQL predicate, schema/index, cursor, page size,
+  five-page cache, cancellation source, query generation, two-page directional prefetch bound,
+  stale-response rule, virtualization setting, focus behavior, or collection bound. It performs no
+  new filesystem or Cloud Files read and adds no preview, thumbnail, validation, durable decision,
+  deletion, `scanned_file.marked_deleted`, or Milestone 10/11 behavior.
+
+##### Acceptance result
+
+- Both focused extension/backfill storage tests and the focused worker cursor-signature test
+  passed. All 7 exact-folder Core tests passed, including repeatable cached-page announcements,
+  explicit empty results, worker failures, separation from Explorer-action errors, and
+  stale-generation silence. The focused loaded-peer STA test passed success/error kind,
+  processing, activity metadata, system-brush use, and real loaded-peer notification events for
+  both exact-folder member status elements.
+- The unchanged 100,000-group regression passed focused runs in 2.84 seconds Debug and 1.34 seconds
+  optimized Release, with every internal five-second query assertion passing. The complete storage
+  suites finished in 3.14 seconds Debug and 1.47 seconds Release on this host. These runs do not
+  replace representative-hardware warm-query or bounded-memory profiling.
+- `cargo test --workspace -- --test-threads=1` and
+  `cargo test --workspace --release -- --test-threads=1` passed, each including 18 storage and 10
+  worker tests. Explicit Debug and Release worker builds passed.
+- Debug and Release .NET builds from `C:\Windows\Temp` against the absolute solution path passed
+  with zero warnings and errors under installed SDK 10.0.400; the unavailable pinned 10.0.303 SDK
+  and `global.json` were unchanged. Each serialized configuration passed 50 Core, 22
+  Infrastructure, and 3 WPF tests, with the real-provider Infrastructure test intentionally
+  skipped.
+- Real Debug and Release `Invoke-WindowsSmoke.ps1 -SkipBuild` runs passed the accepted exact-path,
+  any/all extension/no-extension, facet, summary/location, paging, next/previous-set focus,
+  Explorer, cloud-fail-closed, and deterministic shutdown workflows. The new exact-folder member
+  notification events are covered by the loaded-peer STA regression.
+- `git diff --check` passed. Repository-wide `cargo fmt --all -- --check` remains blocked only by
+  the accepted pre-existing formatting drift in unchanged CLI/FFI files; those files were
+  preserved, and this accessibility-only slice changes no Rust source.
+- This slice does not claim the complete accessibility or performance gates. Remaining Milestone 8
+  work is further richer worker-owned filters only after explicit mappings or boundary-aware range
+  keys and indexes exist; the rest of the broader screen-reader and supported
+  minimum-size/multi-DPI review; and representative-hardware warm-query/bounded-memory profiling.
+
 #### User outcome
 
 The results surface answers three questions without requiring repeated Explorer investigation:
@@ -2042,3 +2116,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-19 | Refined and accepted the bounded selected-root/drive facet paging-and-sort screen-reader announcement slice after focused storage/worker/Core/STA coverage, the final Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the unchanged 100,000-group regression passed focused runs in 4.64 seconds Debug and 1.31 seconds optimized Release, and each final .NET configuration passed 47 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | No richer filter has both a small complete contract and its required versioned mapping or boundary-aware range indexes. Raise repeatable coalesced `ActionCompleted` notifications only for explicitly displayed facet paging/sort pages and `ActionAborted` for their current worker failures while filter-driven refresh, non-displayed prefetch, cancellation, and stale generations remain silent; accepted protocol, SQL/indexes, cursors, four five-page caches, independent cancellation/generations, prefetch, virtualization, focus, and Milestone 8/10/11 boundaries remain unchanged. Remaining gates are further explicitly indexed filters, broader screen-reader and supported minimum-size/DPI review, and representative-hardware warm-query/bounded-memory profiling. |
 | 2026-08-19 | Refined and accepted the bounded Session Setup minimum-width accessibility slice after reproducing the overflow in a focused 620-DIP STA regression, then passing focused storage/worker/Core/STA coverage, the full Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke; the complete storage suites finished in 4.48 seconds Debug and 1.77 seconds Release, and each final .NET configuration passed 47 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | No richer filter has both a small complete contract and its required versioned mapping or boundary-aware range indexes. Stretch the existing setup scroller to its narrow viewport, remove oversized root/exclusion/pattern editor minimums, and retain internal scrolling for long unwrapped values without changing accepted protocol, SQL/indexes, cursors, caches, cancellation/generations, prefetch, stale-response handling, virtualization, announcements, or Milestone 8/10/11 boundaries. Remaining gates are further explicitly indexed filters, the rest of the broader screen-reader and supported minimum-size/multi-DPI review, and representative-hardware warm-query/bounded-memory profiling. |
 | 2026-08-19 | Refined and accepted the bounded exact-duplicate-folder group-query screen-reader announcement slice after focused storage/worker/Core/STA coverage, the final Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; loaded-peer testing also found and fixed the accepted duplicate-file group-error `Border` peer gap. The final .NET configurations each passed 48 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | No richer filter has both a small complete contract and its required versioned mapping or boundary-aware range indexes. Raise repeatable `ActionCompleted`/`ActionAborted` notifications only for displayed current-generation exact-folder group results and failures, keep prefetch/cancellation/stale generations silent, and provide a generic peer only for status elements lacking one. Accepted protocol, SQL/indexes, cursors, cache bounds, cancellation/generations, prefetch, stale-response handling, virtualization, focus, and Milestone 8/10/11 boundaries remain unchanged. Remaining gates are further explicitly indexed filters, exact-folder member-query and broader screen-reader plus supported minimum-size/multi-DPI review, and representative-hardware warm-query/bounded-memory profiling. |
+| 2026-08-19 | Refined and accepted the bounded exact-folder member-query screen-reader announcement slice after focused storage/worker/Core/loaded-peer STA coverage, the full serialized Debug/Release Rust and .NET matrix, and real Debug/Release WPF smoke passed; each final .NET configuration passed 50 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | No richer filter has both a small complete contract and its required versioned mapping or boundary-aware range indexes. Raise repeatable `ActionCompleted`/`ActionAborted` notifications only for displayed current-generation exact-folder member results and worker failures, including displayed prefetched-cache pages, while non-displayed prefetch, Explorer-action errors, cancellation, and stale generations remain silent. Accepted protocol, SQL/indexes, cursors, five-page cache, cancellation/generations, two-page prefetch, stale-response handling, virtualization, focus, and Milestone 8/10/11 boundaries remain unchanged. Remaining gates are further explicitly indexed filters, the rest of the broader screen-reader and supported minimum-size/multi-DPI review, and representative-hardware warm-query/bounded-memory profiling. |
