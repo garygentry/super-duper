@@ -80,10 +80,16 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private string _groupStatusAnnouncement = "Duplicate file results have not loaded.";
     private string _groupErrorAnnouncement = string.Empty;
     private string _selectedSetStatusAnnouncement = "No duplicate set details have loaded.";
+    private string _rootFacetStatusAnnouncement = "Selected-root facets have not been paged or sorted.";
+    private string _driveFacetStatusAnnouncement = "Drive facets have not been paged or sorted.";
     private long _groupStatusAnnouncementVersion;
     private long _groupErrorAnnouncementVersion;
     private long _selectedSetStatusAnnouncementVersion;
     private long _selectedSetErrorAnnouncementVersion;
+    private long _rootFacetStatusAnnouncementVersion;
+    private long _rootFacetErrorAnnouncementVersion;
+    private long _driveFacetStatusAnnouncementVersion;
+    private long _driveFacetErrorAnnouncementVersion;
     private bool _disposed;
 
     public DuplicateFilesViewModel(
@@ -527,6 +533,42 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     {
         get => _selectedSetErrorAnnouncementVersion;
         private set => SetProperty(ref _selectedSetErrorAnnouncementVersion, value);
+    }
+
+    public string RootFacetStatusAnnouncement
+    {
+        get => _rootFacetStatusAnnouncement;
+        private set => SetProperty(ref _rootFacetStatusAnnouncement, value);
+    }
+
+    public long RootFacetStatusAnnouncementVersion
+    {
+        get => _rootFacetStatusAnnouncementVersion;
+        private set => SetProperty(ref _rootFacetStatusAnnouncementVersion, value);
+    }
+
+    public long RootFacetErrorAnnouncementVersion
+    {
+        get => _rootFacetErrorAnnouncementVersion;
+        private set => SetProperty(ref _rootFacetErrorAnnouncementVersion, value);
+    }
+
+    public string DriveFacetStatusAnnouncement
+    {
+        get => _driveFacetStatusAnnouncement;
+        private set => SetProperty(ref _driveFacetStatusAnnouncement, value);
+    }
+
+    public long DriveFacetStatusAnnouncementVersion
+    {
+        get => _driveFacetStatusAnnouncementVersion;
+        private set => SetProperty(ref _driveFacetStatusAnnouncementVersion, value);
+    }
+
+    public long DriveFacetErrorAnnouncementVersion
+    {
+        get => _driveFacetErrorAnnouncementVersion;
+        private set => SetProperty(ref _driveFacetErrorAnnouncementVersion, value);
     }
 
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
@@ -985,12 +1027,13 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         }
         _rootFacetSortField = field;
         _rootFacetSortDirection = direction;
-        await ResetAndLoadRootFacetsAsync(filter);
+        await ResetAndLoadRootFacetsAsync(filter, announce: true);
     }
 
     private async Task ResetAndLoadRootFacetsAsync(
         DuplicateFileGroupFilter groupFilter,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool announce = false)
     {
         CancelRootFacetQuery();
         _rootFacetCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -1013,7 +1056,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             filter,
             generation,
             _rootFacetCancellation.Token,
-            display: true);
+            display: true,
+            announce: announce);
     }
 
     private async Task LoadRootFacetPageAsync(
@@ -1021,13 +1065,19 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         DuplicateFileSelectedRootFacetFilter filter,
         long generation,
         CancellationToken cancellationToken,
-        bool display)
+        bool display,
+        bool announce = false)
     {
         if (_rootFacetCache.TryGet(cursor, out var cached))
         {
             if (display && generation == _rootFacetGeneration)
             {
+                RootFacetErrorMessage = null;
                 DisplayRootFacetPage(cached);
+                if (announce)
+                {
+                    PublishRootFacetQueryAnnouncement();
+                }
                 _ = PrefetchRootFacetNeighborsAsync(cached, filter, generation, cancellationToken);
             }
             return;
@@ -1078,6 +1128,10 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             if (display && generation == _rootFacetGeneration)
             {
                 IsRootFacetLoading = false;
+                if (announce)
+                {
+                    PublishRootFacetQueryAnnouncement();
+                }
             }
         }
     }
@@ -1106,6 +1160,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             option.Value,
             selectedValue,
             StringComparison.OrdinalIgnoreCase));
+        RootFacetStatusAnnouncement = BuildRootFacetStatusAnnouncement(page);
         RaiseRootFacetPagingProperties();
     }
 
@@ -1183,7 +1238,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 filter,
                 _rootFacetGeneration,
                 _rootFacetCancellation.Token,
-                display: true);
+                display: true,
+                announce: true);
         }
     }
 
@@ -1207,7 +1263,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 filter,
                 _rootFacetGeneration,
                 _rootFacetCancellation.Token,
-                display: true);
+                display: true,
+                announce: true);
         }
     }
 
@@ -1223,12 +1280,13 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         }
         _driveFacetSortField = field;
         _driveFacetSortDirection = direction;
-        await ResetAndLoadDriveFacetsAsync(filter);
+        await ResetAndLoadDriveFacetsAsync(filter, announce: true);
     }
 
     private async Task ResetAndLoadDriveFacetsAsync(
         DuplicateFileGroupFilter groupFilter,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool announce = false)
     {
         CancelDriveFacetQuery();
         _driveFacetCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -1251,7 +1309,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             filter,
             generation,
             _driveFacetCancellation.Token,
-            display: true);
+            display: true,
+            announce: announce);
     }
 
     private async Task LoadDriveFacetPageAsync(
@@ -1259,13 +1318,19 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         DuplicateFileDriveFacetFilter filter,
         long generation,
         CancellationToken cancellationToken,
-        bool display)
+        bool display,
+        bool announce = false)
     {
         if (_driveFacetCache.TryGet(cursor, out var cached))
         {
             if (display && generation == _driveFacetGeneration)
             {
+                DriveFacetErrorMessage = null;
                 DisplayDriveFacetPage(cached);
+                if (announce)
+                {
+                    PublishDriveFacetQueryAnnouncement();
+                }
                 _ = PrefetchDriveFacetNeighborsAsync(cached, filter, generation, cancellationToken);
             }
             return;
@@ -1316,6 +1381,10 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             if (display && generation == _driveFacetGeneration)
             {
                 IsDriveFacetLoading = false;
+                if (announce)
+                {
+                    PublishDriveFacetQueryAnnouncement();
+                }
             }
         }
     }
@@ -1343,6 +1412,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             option.Value,
             selectedValue,
             StringComparison.OrdinalIgnoreCase));
+        DriveFacetStatusAnnouncement = BuildDriveFacetStatusAnnouncement(page);
         RaiseDriveFacetPagingProperties();
     }
 
@@ -1420,7 +1490,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 filter,
                 _driveFacetGeneration,
                 _driveFacetCancellation.Token,
-                display: true);
+                display: true,
+                announce: true);
         }
     }
 
@@ -1444,7 +1515,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 filter,
                 _driveFacetGeneration,
                 _driveFacetCancellation.Token,
-                display: true);
+                display: true,
+                announce: true);
         }
     }
 
@@ -1726,6 +1798,71 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 + "Exact content was verified at scan time; the representative label does not identify an original.";
         SelectedSetStatusAnnouncementVersion++;
     }
+
+    private void PublishRootFacetQueryAnnouncement()
+    {
+        if (HasRootFacetError)
+        {
+            RootFacetErrorAnnouncementVersion++;
+            return;
+        }
+
+        if (_currentRootFacetPage is not { } page || Run?.Status != "completed")
+        {
+            return;
+        }
+
+        RootFacetStatusAnnouncement = BuildRootFacetStatusAnnouncement(page);
+        RootFacetStatusAnnouncementVersion++;
+    }
+
+    private void PublishDriveFacetQueryAnnouncement()
+    {
+        if (HasDriveFacetError)
+        {
+            DriveFacetErrorAnnouncementVersion++;
+            return;
+        }
+
+        if (_currentDriveFacetPage is not { } page || Run?.Status != "completed")
+        {
+            return;
+        }
+
+        DriveFacetStatusAnnouncement = BuildDriveFacetStatusAnnouncement(page);
+        DriveFacetStatusAnnouncementVersion++;
+    }
+
+    private string BuildRootFacetStatusAnnouncement(WorkerDuplicateFileSelectedRootFacetPage page) =>
+        page.Total == 0
+            ? "Selected-root facet page loaded. No selected roots are available for the current filters."
+            : $"Selected-root facet page loaded. {FormatCount(page.Facets.Count, "selected root", "selected roots")} "
+                + $"shown of {FormatCount(page.Total, "selected root", "selected roots")}, sorted by {RootFacetSortDescription()}.";
+
+    private string BuildDriveFacetStatusAnnouncement(WorkerDuplicateFileDriveFacetPage page) =>
+        page.Total == 0
+            ? "Drive facet page loaded. No drives are available for the current filters."
+            : $"Drive facet page loaded. {FormatCount(page.Facets.Count, "drive", "drives")} "
+                + $"shown of {FormatCount(page.Total, "drive", "drives")}, sorted by {DriveFacetSortDescription()}.";
+
+    private string RootFacetSortDescription() => (_rootFacetSortField, _rootFacetSortDirection) switch
+    {
+        (DuplicateFileSelectedRootFacetSortField.MatchingGroupCount, WorkerSortDirection.Descending) =>
+            "most matching sets",
+        (DuplicateFileSelectedRootFacetSortField.MatchingGroupCount, _) => "fewest matching sets",
+        (DuplicateFileSelectedRootFacetSortField.Value, WorkerSortDirection.Ascending) =>
+            "selected-root name, A to Z",
+        _ => "selected-root name, Z to A",
+    };
+
+    private string DriveFacetSortDescription() => (_driveFacetSortField, _driveFacetSortDirection) switch
+    {
+        (DuplicateFileDriveFacetSortField.MatchingGroupCount, WorkerSortDirection.Descending) =>
+            "most matching sets",
+        (DuplicateFileDriveFacetSortField.MatchingGroupCount, _) => "fewest matching sets",
+        (DuplicateFileDriveFacetSortField.Value, WorkerSortDirection.Ascending) => "drive name, A to Z",
+        _ => "drive name, Z to A",
+    };
 
     private static string FormatCount(long value, string singular, string plural) =>
         value == 1 ? $"1 {singular}" : $"{value:N0} {plural}";

@@ -146,6 +146,34 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 AutomationLiveSetting.Polite,
                 AutomationProperties.GetLiveSetting(FindByAutomationId<TextBlock>(files, "FileSummaryMatchingSets")));
+            var rootFacetStatus = FindByAutomationId<TextBlock>(files, "FileRootFacetCount");
+            Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
+                AutomationNotificationBehavior.GetNotificationKind(rootFacetStatus));
+            Assert.AreEqual(AutomationNotificationProcessing.MostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(rootFacetStatus));
+            Assert.AreEqual("DuplicateFileSelectedRootFacetQuery",
+                AutomationNotificationBehavior.GetActivityId(rootFacetStatus));
+            var rootFacetError = FindByAutomationId<TextBlock>(files, "FileRootFacetError");
+            Assert.AreEqual(AutomationNotificationKind.ActionAborted,
+                AutomationNotificationBehavior.GetNotificationKind(rootFacetError));
+            Assert.AreEqual(AutomationNotificationProcessing.ImportantMostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(rootFacetError));
+            Assert.AreEqual("DuplicateFileSelectedRootFacetQuery",
+                AutomationNotificationBehavior.GetActivityId(rootFacetError));
+            var driveFacetStatus = FindByAutomationId<TextBlock>(files, "FileDriveFacetCount");
+            Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
+                AutomationNotificationBehavior.GetNotificationKind(driveFacetStatus));
+            Assert.AreEqual(AutomationNotificationProcessing.MostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(driveFacetStatus));
+            Assert.AreEqual("DuplicateFileDriveFacetQuery",
+                AutomationNotificationBehavior.GetActivityId(driveFacetStatus));
+            var driveFacetError = FindByAutomationId<TextBlock>(files, "FileDriveFacetError");
+            Assert.AreEqual(AutomationNotificationKind.ActionAborted,
+                AutomationNotificationBehavior.GetNotificationKind(driveFacetError));
+            Assert.AreEqual(AutomationNotificationProcessing.ImportantMostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(driveFacetError));
+            Assert.AreEqual("DuplicateFileDriveFacetQuery",
+                AutomationNotificationBehavior.GetActivityId(driveFacetError));
             var groupStatus = FindByAutomationId<TextBlock>(files, "FileGroupCount");
             Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
                 AutomationNotificationBehavior.GetNotificationKind(groupStatus));
@@ -186,10 +214,10 @@ public sealed class WpfSurfaceSmokeTests
                 FindByAutomationId<Border>(files, "FileGroupError").BorderBrush);
             Assert.AreEqual(
                 SystemColors.ControlTextBrush,
-                FindByAutomationId<TextBlock>(files, "FileRootFacetError").Foreground);
+                rootFacetError.Foreground);
             Assert.AreEqual(
                 SystemColors.ControlTextBrush,
-                FindByAutomationId<TextBlock>(files, "FileDriveFacetError").Foreground);
+                driveFacetError.Foreground);
             Assert.AreEqual(
                 SystemColors.ControlTextBrush,
                 FindByAutomationId<TextBlock>(files, "FileDetailError").Foreground);
@@ -318,6 +346,46 @@ public sealed class WpfSurfaceSmokeTests
                 Assert.AreEqual(selectedSetAnnouncement, announcedText);
                 Assert.AreEqual(AutomationNotificationKind.ActionCompleted, announcedKind);
                 Assert.AreEqual("DuplicateFileMemberQuery", announcedActivityId);
+
+                const string rootFacetAnnouncement =
+                    "Selected-root facet page loaded. 2 selected roots shown of 5 selected roots, sorted by most matching sets.";
+                AutomationProperties.SetName(rootFacetStatus, rootFacetAnnouncement);
+                AutomationNotificationBehavior.SetAnnouncementVersion(rootFacetStatus, 1);
+                DrainDispatcher();
+                Assert.AreSame(rootFacetStatus, announcedElement);
+                Assert.AreEqual(rootFacetAnnouncement, announcedText);
+                Assert.AreEqual(AutomationNotificationKind.ActionCompleted, announcedKind);
+                Assert.AreEqual("DuplicateFileSelectedRootFacetQuery", announcedActivityId);
+
+                const string rootFacetErrorAnnouncement =
+                    "Selected-root facet error: Worker root facet query failed.";
+                AutomationProperties.SetName(rootFacetError, rootFacetErrorAnnouncement);
+                AutomationNotificationBehavior.SetAnnouncementVersion(rootFacetError, 1);
+                DrainDispatcher();
+                Assert.AreSame(rootFacetError, announcedElement);
+                Assert.AreEqual(rootFacetErrorAnnouncement, announcedText);
+                Assert.AreEqual(AutomationNotificationKind.ActionAborted, announcedKind);
+                Assert.AreEqual("DuplicateFileSelectedRootFacetQuery", announcedActivityId);
+
+                const string driveFacetAnnouncement =
+                    "Drive facet page loaded. 2 drives shown of 3 drives, sorted by most matching sets.";
+                AutomationProperties.SetName(driveFacetStatus, driveFacetAnnouncement);
+                AutomationNotificationBehavior.SetAnnouncementVersion(driveFacetStatus, 1);
+                DrainDispatcher();
+                Assert.AreSame(driveFacetStatus, announcedElement);
+                Assert.AreEqual(driveFacetAnnouncement, announcedText);
+                Assert.AreEqual(AutomationNotificationKind.ActionCompleted, announcedKind);
+                Assert.AreEqual("DuplicateFileDriveFacetQuery", announcedActivityId);
+
+                const string driveFacetErrorAnnouncement =
+                    "Drive facet error: Worker drive facet query failed.";
+                AutomationProperties.SetName(driveFacetError, driveFacetErrorAnnouncement);
+                AutomationNotificationBehavior.SetAnnouncementVersion(driveFacetError, 1);
+                DrainDispatcher();
+                Assert.AreSame(driveFacetError, announcedElement);
+                Assert.AreEqual(driveFacetErrorAnnouncement, announcedText);
+                Assert.AreEqual(AutomationNotificationKind.ActionAborted, announcedKind);
+                Assert.AreEqual("DuplicateFileDriveFacetQuery", announcedActivityId);
 
                 const string detailErrorAnnouncement =
                     "Duplicate-file detail error: Worker member query failed.";

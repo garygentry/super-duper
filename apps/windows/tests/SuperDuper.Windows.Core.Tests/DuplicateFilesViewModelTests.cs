@@ -572,6 +572,86 @@ public sealed class DuplicateFilesViewModelTests
     }
 
     [TestMethod]
+    public async Task FacetPagingAndSortAnnouncementsCoverCachedPagesEmptyAndWorkerFailure()
+    {
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileGroupPage(
+                    [Group(1, query.RunId, "item.bin")],
+                    1,
+                    null,
+                    null)),
+            RootFacetPageHandler = (query, _) =>
+            {
+                if (query.SortField == DuplicateFileSelectedRootFacetSortField.Value)
+                {
+                    return Task.FromResult(new WorkerDuplicateFileSelectedRootFacetPage([], 0, null, null));
+                }
+                var page = query.Cursor is null ? 0 : int.Parse(query.Cursor);
+                return Task.FromResult(new WorkerDuplicateFileSelectedRootFacetPage(
+                    [new WorkerDuplicateFileSelectedRootFacet($"root-{page}", 2 - page)],
+                    2,
+                    page == 0 ? "1" : null,
+                    page == 1 ? "0" : null));
+            },
+            DriveFacetPageHandler = (query, _) =>
+            {
+                if (query.SortField == DuplicateFileDriveFacetSortField.Value)
+                {
+                    return Task.FromException<WorkerDuplicateFileDriveFacetPage>(
+                        new InvalidOperationException("Worker drive facet query failed."));
+                }
+                var page = query.Cursor is null ? 0 : int.Parse(query.Cursor);
+                return Task.FromResult(new WorkerDuplicateFileDriveFacetPage(
+                    [new WorkerDuplicateFileDriveFacet($"drive-{page}", 2 - page)],
+                    2,
+                    page == 0 ? "1" : null,
+                    page == 1 ? "0" : null));
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(14, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        Assert.AreEqual(0, viewModel.RootFacetStatusAnnouncementVersion);
+        Assert.AreEqual(0, viewModel.DriveFacetStatusAnnouncementVersion);
+
+        await viewModel.NextRootFacetPageCommand.ExecuteAsync(null);
+        Assert.AreEqual(1, viewModel.RootFacetStatusAnnouncementVersion);
+        Assert.AreEqual(
+            "Selected-root facet page loaded. 1 selected root shown of 2 selected roots, sorted by most matching sets.",
+            viewModel.RootFacetStatusAnnouncement);
+        var repeatedRootAnnouncement = viewModel.RootFacetStatusAnnouncement;
+        await viewModel.PreviousRootFacetPageCommand.ExecuteAsync(null);
+        Assert.AreEqual(2, viewModel.RootFacetStatusAnnouncementVersion);
+        Assert.AreEqual(repeatedRootAnnouncement, viewModel.RootFacetStatusAnnouncement);
+
+        await viewModel.NextDriveFacetPageCommand.ExecuteAsync(null);
+        Assert.AreEqual(1, viewModel.DriveFacetStatusAnnouncementVersion);
+        Assert.AreEqual(
+            "Drive facet page loaded. 1 drive shown of 2 drives, sorted by most matching sets.",
+            viewModel.DriveFacetStatusAnnouncement);
+        var repeatedDriveAnnouncement = viewModel.DriveFacetStatusAnnouncement;
+        await viewModel.PreviousDriveFacetPageCommand.ExecuteAsync(null);
+        Assert.AreEqual(2, viewModel.DriveFacetStatusAnnouncementVersion);
+        Assert.AreEqual(repeatedDriveAnnouncement, viewModel.DriveFacetStatusAnnouncement);
+
+        await viewModel.SortRootFacetsByNameCommand.ExecuteAsync(null);
+        Assert.AreEqual(3, viewModel.RootFacetStatusAnnouncementVersion);
+        Assert.AreEqual(
+            "Selected-root facet page loaded. No selected roots are available for the current filters.",
+            viewModel.RootFacetStatusAnnouncement);
+
+        await viewModel.SortDriveFacetsByNameCommand.ExecuteAsync(null);
+        Assert.AreEqual(1, viewModel.DriveFacetErrorAnnouncementVersion);
+        Assert.IsTrue(viewModel.HasDriveFacetError);
+        StringAssert.Contains(viewModel.DriveFacetErrorMessage, "Worker drive facet query failed");
+        Assert.AreEqual(2, viewModel.DriveFacetStatusAnnouncementVersion);
+    }
+
+    [TestMethod]
     public async Task RootFacetGenerationRejectsLateResponseAndCacheStaysBounded()
     {
         var oldResponse = new TaskCompletionSource<WorkerDuplicateFileSelectedRootFacetPage>(
@@ -588,7 +668,8 @@ public sealed class DuplicateFilesViewModelTests
                     null)),
             RootFacetPageHandler = (query, _) =>
             {
-                if (query.Filter.Search.Length == 0)
+                if (query.SortField == DuplicateFileSelectedRootFacetSortField.Value
+                    && query.Filter.Search.Length == 0)
                 {
                     oldRequestObserved.TrySetResult();
                     return oldResponse.Task;
@@ -602,8 +683,9 @@ public sealed class DuplicateFilesViewModelTests
             },
         };
         using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
-        var initialLoad = viewModel.ShowRunAsync(
+        await viewModel.ShowRunAsync(
             TestWorkerClient.CreateRun(12, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var oldSort = viewModel.SortRootFacetsByNameCommand.ExecuteAsync(null);
         await oldRequestObserved.Task;
 
         viewModel.SearchText = "new";
@@ -613,14 +695,16 @@ public sealed class DuplicateFilesViewModelTests
             1,
             null,
             null));
-        await initialLoad;
+        await oldSort;
 
         Assert.AreEqual("new-root-0", viewModel.SelectedRootFacetOptions[1].Value);
+        Assert.AreEqual(0, viewModel.RootFacetStatusAnnouncementVersion);
         for (var page = 1; page < 9; page++)
         {
             await viewModel.NextRootFacetPageCommand.ExecuteAsync(null);
             Assert.IsTrue(viewModel.CachedRootFacetPageCount <= DuplicateFilesViewModel.CacheCapacity);
             Assert.AreEqual($"new-root-{page}", viewModel.SelectedRootFacetOptions[1].Value);
+            Assert.AreEqual(page, viewModel.RootFacetStatusAnnouncementVersion);
         }
     }
 
@@ -641,7 +725,8 @@ public sealed class DuplicateFilesViewModelTests
                     null)),
             DriveFacetPageHandler = (query, _) =>
             {
-                if (query.Filter.Search.Length == 0)
+                if (query.SortField == DuplicateFileDriveFacetSortField.Value
+                    && query.Filter.Search.Length == 0)
                 {
                     oldRequestObserved.TrySetResult();
                     return oldResponse.Task;
@@ -655,8 +740,9 @@ public sealed class DuplicateFilesViewModelTests
             },
         };
         using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
-        var initialLoad = viewModel.ShowRunAsync(
+        await viewModel.ShowRunAsync(
             TestWorkerClient.CreateRun(13, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var oldSort = viewModel.SortDriveFacetsByNameCommand.ExecuteAsync(null);
         await oldRequestObserved.Task;
 
         viewModel.SearchText = "new";
@@ -666,14 +752,16 @@ public sealed class DuplicateFilesViewModelTests
             1,
             null,
             null));
-        await initialLoad;
+        await oldSort;
 
         Assert.AreEqual("drive-0", viewModel.DriveFacetOptions[1].Value);
+        Assert.AreEqual(0, viewModel.DriveFacetStatusAnnouncementVersion);
         for (var page = 1; page < 9; page++)
         {
             await viewModel.NextDriveFacetPageCommand.ExecuteAsync(null);
             Assert.IsTrue(viewModel.CachedDriveFacetPageCount <= DuplicateFilesViewModel.CacheCapacity);
             Assert.AreEqual($"drive-{page}", viewModel.DriveFacetOptions[1].Value);
+            Assert.AreEqual(page, viewModel.DriveFacetStatusAnnouncementVersion);
         }
     }
 
