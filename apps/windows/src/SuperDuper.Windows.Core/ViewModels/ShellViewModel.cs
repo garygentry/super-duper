@@ -54,6 +54,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         History = new RunHistoryViewModel(workerClient);
         DuplicateFiles = new DuplicateFilesViewModel(workerClient, clipboard, explorer);
         DuplicateFolders = new DuplicateFoldersViewModel(workerClient, clipboard, explorer);
+        DuplicateFiles.ReviewRevisionChanged += OnFileReviewRevisionChanged;
+        DuplicateFolders.ReviewRevisionChanged += OnFolderReviewRevisionChanged;
 
         Sessions.SelectionChanged += OnSessionSelectionChanged;
         Setup.SessionSaved += OnSessionSaved;
@@ -318,10 +320,18 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         {
             _restartableWorkerClient.UnexpectedExit -= OnUnexpectedWorkerExit;
         }
+        DuplicateFiles.ReviewRevisionChanged -= OnFileReviewRevisionChanged;
+        DuplicateFolders.ReviewRevisionChanged -= OnFolderReviewRevisionChanged;
         Progress.Dispose();
         DuplicateFiles.Dispose();
         DuplicateFolders.Dispose();
     }
+
+    private void OnFileReviewRevisionChanged(long runId, long revision) =>
+        _ = DuplicateFolders.RefreshReviewRevisionAsync(runId, revision);
+
+    private void OnFolderReviewRevisionChanged(long runId, long revision) =>
+        _ = DuplicateFiles.RefreshReviewRevisionAsync(runId, revision);
 
     private Task BeginNewSessionAsync()
     {

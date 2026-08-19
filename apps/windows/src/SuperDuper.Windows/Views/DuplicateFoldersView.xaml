@@ -35,6 +35,12 @@
                         automation:AutomationProperties.AutomationId="FolderApplyFilters"
                         Command="{Binding ApplyFiltersCommand}" Content="Apply filters" />
             </WrapPanel>
+            <TextBlock Margin="0,8,0,0"
+                       Opacity="0.78"
+                       automation:AutomationProperties.AutomationId="FolderCombinedReviewSummary"
+                       automation:AutomationProperties.LiveSetting="Polite"
+                       Text="{Binding ReviewPlanSummaryText}"
+                       TextWrapping="Wrap" />
         </StackPanel>
 
         <Grid Grid.Row="1">
@@ -107,7 +113,15 @@
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                <TextBlock FontSize="17" FontWeight="SemiBold" Text="Duplicate roots in selected group" />
+                <StackPanel>
+                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="Duplicate roots in selected group" />
+                    <TextBlock Margin="0,3,0,0"
+                               Opacity="0.72"
+                               automation:AutomationProperties.AutomationId="FolderSelectedReviewSummary"
+                               automation:AutomationProperties.LiveSetting="Polite"
+                               Text="{Binding SelectedReviewSummaryText}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
                 <TextBlock Grid.Column="1"
                            Opacity="0.68"
                            automation:AutomationProperties.AutomationId="FolderMemberCount"
@@ -126,7 +140,34 @@
                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                 <DataGrid.Columns>
                     <DataGridTextColumn Width="*" MinWidth="350" Header="Folder path" Binding="{Binding Path}" />
-                    <DataGridTemplateColumn Width="190" Header="Actions">
+                    <DataGridTextColumn Width="95" Header="Decision" Binding="{Binding Decision}" />
+                    <DataGridTemplateColumn Width="230" Header="Review decision">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Padding="7,2"
+                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Keep folder copy {0}'}"
+                                            automation:AutomationProperties.HelpText="Records a review choice only; it does not delete or validate the folder."
+                                            Command="{Binding DataContext.KeepFolderCommand, ElementName=Root}"
+                                            CommandParameter="{Binding}"
+                                            Content="Keep" />
+                                    <Button Margin="6,0,0,0" Padding="7,2"
+                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Remove folder copy {0}'}"
+                                            automation:AutomationProperties.HelpText="Records a review choice only; it does not delete or validate the folder."
+                                            Command="{Binding DataContext.RemoveFolderCommand, ElementName=Root}"
+                                            CommandParameter="{Binding}"
+                                            Content="Remove" />
+                                    <Button Margin="6,0,0,0" Padding="7,2"
+                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Clear folder decision for {0}'}"
+                                            automation:AutomationProperties.HelpText="Returns this immutable folder copy to Undecided."
+                                            Command="{Binding DataContext.UndecideFolderCommand, ElementName=Root}"
+                                            CommandParameter="{Binding}"
+                                            Content="Undecided" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Width="190" Header="Folder actions">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">

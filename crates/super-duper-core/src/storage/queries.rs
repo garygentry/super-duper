@@ -1121,12 +1121,16 @@ impl Database {
         &self,
         query: &DuplicateFolderMemberPageQuery,
     ) -> Result<DuplicateFolderMemberPage> {
+        let plan = self.active_review_plan(query.run_id)?;
+        let review_plan_id = plan.as_ref().map(|value| value.id);
+        let review_revision = plan.as_ref().map_or(0, |value| value.revision);
         let mut predicates = vec![
             "dfg.run_id = ?".to_owned(),
             "dfg.id = ?".to_owned(),
             "dfg.is_suppressed = 0".to_owned(),
         ];
         let mut base_parameters = vec![
+            review_plan_id.map_or(SqlValue::Null, SqlValue::Integer),
             SqlValue::Integer(query.run_id),
             SqlValue::Integer(query.group_id),
         ];
@@ -1142,7 +1146,9 @@ impl Database {
         let where_sql = predicates.join(" AND ");
         let from_sql = "FROM duplicate_folder_group dfg
                         JOIN duplicate_folder_group_member dfgm ON dfgm.group_id = dfg.id
-                        JOIN directory_node dn ON dn.id = dfgm.directory_id AND dn.run_id = dfg.run_id";
+                        JOIN directory_node dn ON dn.id = dfgm.directory_id AND dn.run_id = dfg.run_id
+                        LEFT JOIN review_folder_decision decision
+                          ON decision.plan_id = ? AND decision.folder_member_id = dfgm.id";
         let total: i64 = self.connection().query_row(
             &format!("SELECT COUNT(*) {from_sql} WHERE {where_sql}"),
             params_from_iter(base_parameters.iter()),
@@ -1166,7 +1172,9 @@ impl Database {
         let order = effective_order(query.sort_direction, before);
         let id_order = effective_order(SortDirection::Ascending, before);
         let sql = format!(
-            "SELECT dfgm.id, dfg.id, dn.path {from_sql}
+            "SELECT dfgm.id, dfg.id, dn.path,
+                    COALESCE(decision.decision, 'undecided'),
+                    decision.provenance, decision.decided_at {from_sql}
              WHERE {where_sql} {cursor_clause}
              ORDER BY {sort_expression} {order}, dfgm.id {id_order} LIMIT ?"
         );
@@ -1176,6 +1184,10 @@ impl Database {
                 id: row.get(0)?,
                 group_id: row.get(1)?,
                 path: row.get(2)?,
+                review_decision: ReviewDecisionKind::parse(&row.get::<_, String>(3)?)
+                    .unwrap_or_default(),
+                review_provenance: row.get(4)?,
+                review_decided_at: row.get(5)?,
             })
         })?;
         let mut members = mapped.collect::<Result<Vec<_>>>()?;
@@ -1186,10 +1198,18 @@ impl Database {
         if before {
             members.reverse();
         }
+        let review_summary = super::review::review_folder_group_summary_tx(
+            self.connection(),
+            query.group_id,
+            review_plan_id,
+        )?;
         Ok(DuplicateFolderMemberPage {
             members,
             total,
             has_more,
+            review_plan_id,
+            review_revision,
+            review_summary,
         })
     }
 

@@ -2170,6 +2170,35 @@ schedule, or expose deletion.
   the new queries without claiming the independently open Milestone 8 representative-hardware,
   Narrator/NVDA, OS high-contrast, or multi-monitor DPI gates.
 
+##### Acceptance result
+
+- Schema v6 and the transactional v5 migration now preserve the v5 review plan/file command
+  contract while adding separate snapshot-backed folder decisions and folder-command replay.
+  Storage coverage exercises all three states, snapshot provenance, restart, exact replay and
+  conflicts, the shared revision, hard-link physical survivors, nested and suppressed exact-
+  folder sets, contained file decisions, and combined logical/physical deduplication.
+- `review_folder_group.page` and `review_folder_decision.set` are separate bounded protocol
+  commands. Exact-folder member cursors bind the active plan revision and return decision metadata
+  plus the selected-set summary. Structured overlap, ownership, stale-revision, and unsafe-folder
+  errors remain review-only and perform no live filesystem or cloud-placeholder access.
+- Core keeps the existing five-page group/member cache bounds, rejects late run/revision responses,
+  and propagates a successful shared revision between the file and folder workspaces so the peer
+  tab clears decision-sensitive pages and refreshes its visible summary. Native WPF row buttons
+  expose complete-path names, native keyboard activation, non-deleting help text, polite success
+  announcements, and actionable assertive failures.
+- The optimized 100,000-visible-group regression kept its initial combined plan and first/next
+  folder-review pages under five seconds. Its 100-sample Release profile measured combined-plan
+  p95 at 6.40 ms, folder-review-page p95 at 14.50 ms, and no observed private-memory growth
+  growth on this development host. This is bounded regression evidence, not representative-
+  hardware evidence and does not close any independent Milestone 8 gate.
+- Full Debug and Release Rust and Windows matrices passed with 24 storage tests plus one intentional
+  representative-profile ignore, 10 worker tests, 57 Core tests, 22 Infrastructure tests plus one
+  intentional provider skip, and 3 WPF STA tests. Explicit worker builds and real Debug/Release
+  smoke passed; smoke recorded a folder `Keep`, restarted the worker, observed the durable choice,
+  activated the accessible WPF control, and proved the disposable directory still existed.
+- No command exposes a deletion schedule or execution path, uses `marked_deleted` or legacy
+  deletion plans as review truth, validates live state, or hydrates an excluded cloud placeholder.
+
 #### Decision model
 
 - A review plan belongs to one immutable completed run.
@@ -2471,22 +2500,22 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 Keep the remaining physical Narrator/NVDA, high-contrast, multi-monitor DPI, and representative-
 hardware Milestone 8 procedures operator-gated; they can close independently from later review
-work. The next implementation slice should extend Milestone 10 to manual exact-folder decisions
-and explicit folder/file overlap safety:
+work. The next implementation slice should refine one bounded Milestone 10 preference-rule preview
+before adding rule application. Start with ordered preferred scan roots because every member
+already owns immutable selected-root context:
 
-1. Design a forward schema migration with a separate snapshot-backed folder-copy decision; do not
-   overload file decisions, `scanned_file.marked_deleted`, or legacy `deletion_plan`.
-2. Define `Keep`, `Remove`, and `Undecided` survivor semantics for exact-folder copies and a stable
-   immutable folder identity/fallback before adding mutation commands.
-3. Detect file decisions contained by a folder decision, hard-link aliases, and nested exact-folder
-   copies so combined summaries never count or schedule the same physical item twice.
-4. Add bounded idempotent worker mutations/queries, restart persistence, stale-revision rejection,
-   large-fixture coverage, and accessible exact-folder controls and combined summaries.
-5. Keep the slice SQLite-only: no live validation, excluded-cloud-placeholder access, preview of
-   content, Recycle Bin integration, or deletion execution.
-
-Preference-rule preview/apply remains a later Milestone 10 slice after the combined manual target
-model is stable. Milestone 12 continues to own live-state badges and changed/resolved behavior.
+1. Define exact tie, missing-root, hard-link-alias, folder-containment, and already-manual-decision
+   semantics, plus a forward migration for named ordered rules that remains separate from manual
+   decisions and execution state.
+2. Add a revision-bound, cursor-paged preview over an explicit scope (selected sets, the complete
+   current filter signature, or a run), with deduplicated affected sets, logical paths, physical
+   items, and bytes. Preview must never silently overwrite manual choices.
+3. Enforce the existing file/folder survivor and overlap invariants against the virtual result and
+   return actionable structured conflicts. Keep preview read-only until its large-fixture bounds,
+   restart behavior, accessible explanation UI, and cancellation/stale-generation tests pass.
+4. Do not add live validation, content access, excluded-cloud-placeholder hydration, a deletion
+   schedule, Recycle Bin integration, or execution. Milestone 12 continues to own live-state badges
+   and changed/resolved behavior.
 
 ## Milestone Definition Template
 
@@ -2536,3 +2565,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-19 | Refined and accepted the bounded exact-folder minimum-width filter-reflow accessibility slice after reproducing the defect in a focused 620-DIP STA regression, then passing focused storage/worker/Core/STA coverage, the full serialized Debug/Release Rust and .NET matrix, and real Debug/Release WPF smoke; the unchanged 100,000-group regression completed in 3.03 seconds Debug and 1.20 seconds optimized Release, and each .NET configuration passed 50 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | No richer filter has both a small complete contract and its required versioned mapping or boundary-aware range indexes, and the broader screen-reader audit found no smaller regression outside accepted gates. Move the exact-folder heading above a wrapping filter panel and wrap its explanation so path, minimum-size, and Apply controls stay inside the supported 620-DIP workspace without changing protocol, SQL/indexes, cursors, paging, five-page caches, cancellation/generations, two-page prefetch, stale-response handling, virtualization, focus, announcements, or Milestone 8/10/11 boundaries. Remaining gates are further explicitly indexed filters, the rest of the broader screen-reader and supported minimum-size/multi-DPI review, and representative-hardware warm-query/bounded-memory profiling. |
 | 2026-08-19 | Added an explicit 100-sample Release profile for the 100,000-group read-only workspace and reconciled the Milestone 8 boundary with concrete keyboard, screen-reader-contract, high-contrast, minimum-width, and DPI findings. The current host passed both facet p95 targets and grew private memory by 815,104 bytes across 300 queries, but its 140.47 ms group/summary p95 missed the 100 ms target. | Close the bounded-memory gate through measured process growth plus fixed cache/collection/virtualization regressions. Keep the warm group/summary and physical Narrator/NVDA, high-contrast, and multi-monitor DPI gates explicitly open with exact operator procedures. Do not make richer filters mandatory without their full mappings/indexes/contracts, and let the read-only boundary close independently of Milestone 10 durable decisions and Milestone 12 live state. |
 | 2026-08-19 | Refined and accepted the first Milestone 10 durable manual-file-decision slice: schema v5, snapshot-backed `Keep`/`Remove`/`Undecided`, idempotent revision-checked worker mutations, bounded plan/group/member summaries, hard-link-aware survivor enforcement, accessible WPF controls, restart persistence, and real Debug/Release non-deleting smoke. | Establish a separate reversible review source of truth without using `marked_deleted`/legacy deletion plans, touching live files or excluded cloud placeholders, or exposing deletion. The new plan/group queries met their warm targets and memory stayed bounded; the independently open Milestone 8 group/drive warm-query and physical accessibility gates remain explicit. |
+| 2026-08-19 | Refined and accepted the second Milestone 10 manual exact-folder-decision slice: transactional schema v6, separate folder snapshots/command replay, shared revision and cross-workspace invalidation, nested/suppressed/file overlap and hard-link safety, deduplicated combined summaries, accessible WPF controls, restart persistence, a 100,000-group profile, and real Debug/Release non-deleting smoke. | Keep folder review distinct from file decisions and execution while preserving at least one intact exact-folder copy and one physical file survivor. The isolated development-host profile measured 6.40 ms combined-plan p95, 14.50 ms folder-page p95, and no observed private-memory growth; it is regression evidence only, so the representative-hardware and physical accessibility gates remain open. The next design slice is a bounded, read-only ordered-preferred-root rule preview. |

@@ -18,14 +18,20 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     private readonly BoundedCursorCache<WorkerDuplicateFolderMemberPage> _memberCache = new(CacheCapacity);
     private CancellationTokenSource? _groupCancellation;
     private CancellationTokenSource? _memberCancellation;
+    private CancellationTokenSource? _reviewCancellation;
     private WorkerRun? _run;
     private IReadOnlyList<DuplicateFolderGroupListItemViewModel> _groups = [];
     private IReadOnlyList<DuplicateFolderMemberListItemViewModel> _members = [];
     private DuplicateFolderGroupListItemViewModel? _selectedGroup;
     private WorkerDuplicateFolderGroupPage? _currentGroupPage;
     private WorkerDuplicateFolderMemberPage? _currentMemberPage;
+    private WorkerReviewPlanView _reviewPlan = new(
+        new WorkerReviewPlan(null, 0, "notCreated", 0, null, null),
+        new WorkerReviewPlanSummary(0, 0, 0, 0, "0", 0));
+    private WorkerReviewFolderGroupSummary _selectedReviewSummary = new(0, 0, 0, 0, 0);
     private long _groupGeneration;
     private long _memberGeneration;
+    private long _reviewGeneration;
     private long _totalGroups;
     private long _totalMembers;
     private string _searchText = string.Empty;
@@ -42,9 +48,13 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     private long _memberErrorAnnouncementVersion;
     private bool _isLoading;
     private bool _isDetailLoading;
+    private bool _isReviewUpdating;
+    private bool _isReviewLoaded;
     private DuplicateFolderGroupSortField _sortField = DuplicateFolderGroupSortField.TotalBytes;
     private WorkerSortDirection _sortDirection = WorkerSortDirection.Descending;
     private bool _disposed;
+
+    public event Action<long, long>? ReviewRevisionChanged;
 
     public DuplicateFoldersViewModel(IWorkerClient workerClient, IClipboardService clipboard, IExplorerService explorer)
     {
@@ -59,6 +69,15 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         PreviousMemberPageCommand = new AsyncRelayCommand(PreviousMemberPageAsync, () => CanMoveMembersPrevious);
         CopyPathCommand = new RelayCommand<DuplicateFolderMemberListItemViewModel>(CopyPath);
         RevealInExplorerCommand = new AsyncRelayCommand<DuplicateFolderMemberListItemViewModel>(RevealAsync);
+        KeepFolderCommand = new AsyncRelayCommand<DuplicateFolderMemberListItemViewModel>(
+            member => SetReviewDecisionAsync(member, "keep"),
+            CanSetReviewDecision);
+        RemoveFolderCommand = new AsyncRelayCommand<DuplicateFolderMemberListItemViewModel>(
+            member => SetReviewDecisionAsync(member, "remove"),
+            CanSetReviewDecision);
+        UndecideFolderCommand = new AsyncRelayCommand<DuplicateFolderMemberListItemViewModel>(
+            member => SetReviewDecisionAsync(member, "undecided"),
+            CanSetReviewDecision);
     }
 
     public WorkerRun? Run { get => _run; private set => SetProperty(ref _run, value); }
@@ -78,6 +97,10 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         {
             if (SetProperty(ref _selectedGroup, value))
             {
+                OnPropertyChanged(nameof(SelectedReviewSummaryText));
+                KeepFolderCommand.NotifyCanExecuteChanged();
+                RemoveFolderCommand.NotifyCanExecuteChanged();
+                UndecideFolderCommand.NotifyCanExecuteChanged();
                 _ = LoadSelectedGroupAsync(value);
             }
         }
@@ -117,6 +140,41 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         get => _isDetailLoading;
         private set { if (SetProperty(ref _isDetailLoading, value)) RaiseMemberPaging(); }
     }
+    public bool IsReviewUpdating
+    {
+        get => _isReviewUpdating;
+        private set
+        {
+            if (SetProperty(ref _isReviewUpdating, value))
+            {
+                KeepFolderCommand.NotifyCanExecuteChanged();
+                RemoveFolderCommand.NotifyCanExecuteChanged();
+                UndecideFolderCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+    public WorkerReviewPlanView ReviewPlan
+    {
+        get => _reviewPlan;
+        private set
+        {
+            if (SetProperty(ref _reviewPlan, value))
+            {
+                OnPropertyChanged(nameof(ReviewPlanSummaryText));
+            }
+        }
+    }
+    public WorkerReviewFolderGroupSummary SelectedReviewSummary
+    {
+        get => _selectedReviewSummary;
+        private set
+        {
+            if (SetProperty(ref _selectedReviewSummary, value))
+            {
+                OnPropertyChanged(nameof(SelectedReviewSummaryText));
+            }
+        }
+    }
     public long TotalGroups
     {
         get => _totalGroups;
@@ -138,6 +196,19 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     public WorkerSortDirection SortDirection => _sortDirection;
     public string GroupCountText => $"{TotalGroups:N0} groups";
     public string MemberCountText => $"{TotalMembers:N0} folders";
+    public string ReviewPlanSummaryText =>
+        $"Combined review: {ReviewPlan.Summary.RemoveCount:N0} files and "
+        + $"{ReviewPlan.Summary.FolderRemoveCount:N0} folders marked Remove · "
+        + $"{ReviewPlan.Summary.EffectiveRemovalFileCount:N0} distinct file paths, "
+        + $"{DisplayFormatting.Bytes(ReviewPlan.Summary.PlannedRemovalBytes)} physical data";
+    public string SelectedReviewSummaryText => SelectedGroup is null
+        ? "No exact-folder set selected for review."
+        : $"Folder review: {SelectedReviewSummary.KeepCount:N0} keep, "
+            + $"{SelectedReviewSummary.RemoveCount:N0} remove, "
+            + $"{SelectedReviewSummary.UndecidedCount:N0} undecided · "
+            + (SelectedReviewSummary.IntactCopyCount == 1
+                ? "1 intact copy remains"
+                : $"{SelectedReviewSummary.IntactCopyCount:N0} intact copies remain");
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
     public bool HasDetailError => !string.IsNullOrWhiteSpace(DetailErrorMessage);
     public bool IsUnavailable => Run is null || Run.Status != "completed";
@@ -194,6 +265,9 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     public IAsyncRelayCommand PreviousMemberPageCommand { get; }
     public IRelayCommand<DuplicateFolderMemberListItemViewModel> CopyPathCommand { get; }
     public IAsyncRelayCommand<DuplicateFolderMemberListItemViewModel> RevealInExplorerCommand { get; }
+    public IAsyncRelayCommand<DuplicateFolderMemberListItemViewModel> KeepFolderCommand { get; }
+    public IAsyncRelayCommand<DuplicateFolderMemberListItemViewModel> RemoveFolderCommand { get; }
+    public IAsyncRelayCommand<DuplicateFolderMemberListItemViewModel> UndecideFolderCommand { get; }
 
     public async Task ShowRunAsync(WorkerRun? run, CancellationToken cancellationToken = default)
     {
@@ -214,7 +288,34 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
             return;
         }
         StateMessage = "No exact duplicate folders matched this run and filter.";
-        await ResetAndLoadGroupsAsync(cancellationToken);
+        _reviewCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var reviewGeneration = ++_reviewGeneration;
+        await Task.WhenAll(
+            ResetAndLoadGroupsAsync(cancellationToken),
+            LoadReviewPlanAsync(run.Id, reviewGeneration, _reviewCancellation.Token));
+    }
+
+    public async Task RefreshReviewRevisionAsync(long runId, long revision)
+    {
+        if (Run?.Id != runId || revision <= ReviewPlan.Plan.Revision)
+        {
+            return;
+        }
+
+        CancelReviewQuery();
+        _reviewCancellation = new CancellationTokenSource();
+        var generation = _reviewGeneration;
+        var cancellationToken = _reviewCancellation.Token;
+        _memberCache.Clear();
+        var planTask = LoadReviewPlanAsync(runId, generation, cancellationToken);
+        if (SelectedGroup is { } selectedGroup)
+        {
+            await Task.WhenAll(planTask, LoadSelectedGroupAsync(selectedGroup));
+        }
+        else
+        {
+            await planTask;
+        }
     }
 
     public async Task ApplySortAsync(DuplicateFolderGroupSortField field, WorkerSortDirection direction, CancellationToken cancellationToken = default)
@@ -238,6 +339,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         _disposed = true;
         CancelGroupQuery();
         CancelMemberQuery();
+        CancelReviewQuery();
     }
 
     private Task ApplyFiltersAsync() => Run?.Status == "completed" ? ResetAndLoadGroupsAsync() : Task.CompletedTask;
@@ -354,6 +456,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         _currentMemberPage = null;
         Members = [];
         TotalMembers = 0;
+        SelectedReviewSummary = new WorkerReviewFolderGroupSummary(group?.Id ?? 0, 0, 0, 0, 0);
         DetailErrorMessage = null;
         if (Run is not { Status: "completed" } run || group is null) return;
         _memberCancellation = new CancellationTokenSource();
@@ -380,7 +483,12 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
             var page = await _workerClient.GetDuplicateFolderGroupMembersAsync(
                 new DuplicateFolderMemberQuery(runId, groupId, PageSize, DuplicateFolderMemberSortField.Path,
                     WorkerSortDirection.Ascending, new DuplicateFolderMemberFilter(string.Empty), cursor), token);
-            if (generation != _memberGeneration || token.IsCancellationRequested) return;
+            if (generation != _memberGeneration
+                || token.IsCancellationRequested
+                || page.ReviewRevision < ReviewPlan.Plan.Revision)
+            {
+                return;
+            }
             _memberCache.Set(cursor, page);
             if (display)
             {
@@ -406,6 +514,19 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         _currentMemberPage = page;
         TotalMembers = page.Total;
         Members = page.Members.Select(member => new DuplicateFolderMemberListItemViewModel(member)).ToArray();
+        SelectedReviewSummary = page.ReviewSummary;
+        if (page.ReviewRevision >= ReviewPlan.Plan.Revision)
+        {
+            ReviewPlan = ReviewPlan with
+            {
+                Plan = ReviewPlan.Plan with
+                {
+                    Id = page.ReviewPlanId,
+                    Revision = page.ReviewRevision,
+                    State = page.ReviewPlanId is null ? "notCreated" : "active",
+                },
+            };
+        }
         RaiseMemberPaging();
     }
 
@@ -435,6 +556,161 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         Run is { } run && SelectedGroup is { } group && _currentMemberPage?.PreviousCursor is { } cursor && _memberCancellation is not null
             ? LoadMemberPageAsync(cursor, run.Id, group.Id, _memberGeneration, _memberCancellation.Token, true)
             : Task.CompletedTask;
+
+    private bool CanSetReviewDecision(DuplicateFolderMemberListItemViewModel? member) =>
+        member is not null
+        && _isReviewLoaded
+        && !IsReviewUpdating
+        && Run?.Status == "completed"
+        && SelectedGroup is not null;
+
+    private async Task LoadReviewPlanAsync(
+        long runId,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var reviewPlan = await _workerClient.GetReviewPlanAsync(runId, cancellationToken);
+            if (generation != _reviewGeneration
+                || cancellationToken.IsCancellationRequested
+                || Run?.Id != runId)
+            {
+                return;
+            }
+            ReviewPlan = reviewPlan;
+            _isReviewLoaded = true;
+            KeepFolderCommand.NotifyCanExecuteChanged();
+            RemoveFolderCommand.NotifyCanExecuteChanged();
+            UndecideFolderCommand.NotifyCanExecuteChanged();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (generation == _reviewGeneration && Run?.Id == runId)
+            {
+                DetailErrorMessage = $"Combined review status could not be loaded. {exception.Message}";
+                MemberErrorAnnouncementVersion++;
+            }
+        }
+    }
+
+    private async Task SetReviewDecisionAsync(
+        DuplicateFolderMemberListItemViewModel? member,
+        string decision)
+    {
+        if (!CanSetReviewDecision(member)
+            || member is null
+            || Run is not { Status: "completed" } run
+            || SelectedGroup is not { } group
+            || _reviewCancellation is null)
+        {
+            return;
+        }
+
+        var generation = _reviewGeneration;
+        var cancellationToken = _reviewCancellation.Token;
+        IsReviewUpdating = true;
+        DetailErrorMessage = null;
+        try
+        {
+            var mutation = await _workerClient.SetReviewFolderDecisionAsync(
+                Guid.NewGuid().ToString("N"),
+                run.Id,
+                group.Id,
+                member.Id,
+                decision,
+                ReviewPlan.Plan.Revision,
+                cancellationToken);
+            if (generation != _reviewGeneration
+                || cancellationToken.IsCancellationRequested
+                || Run?.Id != run.Id
+                || SelectedGroup?.Id != group.Id)
+            {
+                return;
+            }
+            ReviewPlan = ReviewPlan with
+            {
+                Plan = ReviewPlan.Plan with
+                {
+                    Id = mutation.PlanId,
+                    Revision = mutation.AppliedRevision,
+                    State = "active",
+                },
+            };
+            ReviewRevisionChanged?.Invoke(run.Id, mutation.AppliedRevision);
+            _memberCache.Clear();
+            await LoadReviewPlanAsync(run.Id, generation, cancellationToken);
+            var reviewRefreshError = DetailErrorMessage;
+            if (generation != _reviewGeneration
+                || cancellationToken.IsCancellationRequested
+                || SelectedGroup?.Id != group.Id)
+            {
+                return;
+            }
+            await LoadSelectedGroupAsync(SelectedGroup);
+            if (reviewRefreshError is not null)
+            {
+                DetailErrorMessage = reviewRefreshError;
+            }
+            if (generation == _reviewGeneration
+                && SelectedGroup?.Id == group.Id
+                && !HasDetailError)
+            {
+                var decisionText = decision switch
+                {
+                    "keep" => "Keep",
+                    "remove" => "Remove",
+                    _ => "Undecided",
+                };
+                MemberStatusAnnouncement =
+                    $"Folder review decision saved: {decisionText} for {member.Path}. {SelectedReviewSummaryText}.";
+                MemberStatusAnnouncementVersion++;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (generation == _reviewGeneration && Run?.Id == run.Id)
+            {
+                DetailErrorMessage = ReviewDecisionError(exception);
+                MemberErrorAnnouncementVersion++;
+            }
+        }
+        finally
+        {
+            if (generation == _reviewGeneration)
+            {
+                IsReviewUpdating = false;
+            }
+        }
+    }
+
+    private static string ReviewDecisionError(Exception exception)
+    {
+        var message = exception.Message;
+        if (message.Contains("review_overlap_conflict", StringComparison.Ordinal))
+        {
+            return "This folder choice overlaps an existing Keep or Remove choice. Clear the contained file or folder decision first, then retry.";
+        }
+        if (message.Contains("unsafe_folder_review_decision", StringComparison.Ordinal))
+        {
+            return "This choice would leave an exact-folder set without an intact copy. Keep or undecide another folder copy first.";
+        }
+        if (message.Contains("unsafe_review_decision", StringComparison.Ordinal))
+        {
+            return "This choice would leave a duplicate-file set without an accessible physical copy. Keep or undecide another copy first.";
+        }
+        if (message.Contains("review_generation_conflict", StringComparison.Ordinal))
+        {
+            return "Review choices changed before this update was saved. Reload the selected run and try again.";
+        }
+        return $"The folder review decision was not saved. {message}";
+    }
 
     private bool TryBuildFilter(out DuplicateFolderGroupFilter filter)
     {
@@ -476,6 +752,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     {
         CancelGroupQuery();
         CancelMemberQuery();
+        CancelReviewQuery();
         _groupCache.Clear();
         _memberCache.Clear();
         _currentGroupPage = null;
@@ -485,6 +762,11 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         SelectedGroup = null;
         TotalGroups = 0;
         TotalMembers = 0;
+        _isReviewLoaded = false;
+        ReviewPlan = new WorkerReviewPlanView(
+            new WorkerReviewPlan(null, Run?.Id ?? 0, "notCreated", 0, null, null),
+            new WorkerReviewPlanSummary(0, 0, 0, 0, "0", 0));
+        SelectedReviewSummary = new WorkerReviewFolderGroupSummary(0, 0, 0, 0, 0);
         ErrorMessage = null;
         DetailErrorMessage = null;
     }
@@ -503,6 +785,14 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         _memberCancellation?.Dispose();
         _memberCancellation = null;
         _memberGeneration++;
+    }
+
+    private void CancelReviewQuery()
+    {
+        _reviewCancellation?.Cancel();
+        _reviewCancellation?.Dispose();
+        _reviewCancellation = null;
+        _reviewGeneration++;
     }
 
     private void PublishGroupQueryAnnouncement()

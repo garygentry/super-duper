@@ -19,7 +19,9 @@ no-extension matching from immutable member filenames. It defaults to any-member
 require all immutable members; it never infers from the representative label or classifies file
 type.
 The first Milestone 10 slice adds snapshot-backed manual review plans and decisions for completed
-runs. It does not validate or mutate live files and exposes no deletion command.
+runs. The second slice adds separate snapshot-backed exact-folder-copy decisions, folder/file
+overlap safety, and combined summaries on the same plan revision. It does not validate or mutate
+live files or folders and exposes no deletion command.
 
 The transport is UTF-8 newline-delimited JSON (JSONL) over redirected standard input and standard
 output. It is a local process boundary, not a network API.
@@ -133,6 +135,10 @@ The scan-lifecycle and result commands additionally use:
 - `idempotency_conflict`: an operation ID was reused with a different review payload
 - `review_member_not_found`: the file is not owned by the addressed run/group
 - `unsafe_review_decision`: the decision would remove every independent physical survivor
+- `review_folder_member_not_found`: the folder copy is not owned by the addressed visible group
+- `review_overlap_conflict`: a file/folder or nested-folder decision conflicts or is redundant
+- `unsafe_folder_review_decision`: the decision would leave an exact-folder set without an intact
+  copy
 
 ### Event
 
@@ -356,7 +362,7 @@ strings. A review plan is created lazily by the first successful mutation.
 Request params are `{ "runId": 19 }`.
 
 ```json
-{"plan":{"id":12,"runId":19,"state":"active","revision":4,"createdAt":"2026-08-19T12:00:00Z","updatedAt":"2026-08-19T12:05:00Z"},"summary":{"decidedGroupCount":2,"keepCount":1,"removeCount":2,"undecidedCount":5,"plannedRemovalBytes":"10485760","remainingPhysicalCopyCount":6}}
+{"plan":{"id":12,"runId":19,"state":"active","revision":4,"createdAt":"2026-08-19T12:00:00Z","updatedAt":"2026-08-19T12:05:00Z"},"summary":{"decidedGroupCount":2,"keepCount":1,"removeCount":2,"undecidedCount":5,"decidedFolderGroupCount":1,"folderKeepCount":1,"folderRemoveCount":0,"folderUndecidedCount":3,"effectiveRemovalFileCount":2,"plannedRemovalPhysicalItemCount":2,"plannedRemovalBytes":"10485760","remainingPhysicalCopyCount":6,"intactFolderCopyCount":4}}
 ```
 
 Before the first decision, `plan.id`, `createdAt`, and `updatedAt` are null, `state` is
@@ -400,6 +406,39 @@ A non-empty immutable file identity groups hard-link aliases as one physical ite
 unavailable, canonical path is the conservative distinct fallback. A `remove` that would leave no
 independent survivor returns `unsafe_review_decision`. These are review decisions only; no V1
 review command validates, moves, or deletes a file.
+
+### `review_folder_group.page`
+
+Params are `runId`, optional `pageSize` (default 200, maximum 500), and an optional forward-only
+opaque `cursor`:
+
+```json
+{"type":"request","id":"rfg1","method":"review_folder_group.page","params":{"runId":19,"pageSize":200,"cursor":null}}
+```
+
+```json
+{"groups":[{"folderGroupId":41,"keepCount":1,"removeCount":0,"undecidedCount":1,"intactCopyCount":2}],"total":3,"planId":12,"revision":4,"nextCursor":null}
+```
+
+The cursor binds the run, active plan ID, shared revision, page size, and visible-group mode.
+Suppressed nested groups are excluded from the page but remain part of mutation safety.
+
+### `review_folder_decision.set`
+
+```json
+{"type":"request","id":"rfd1","method":"review_folder_decision.set","params":{"operationId":"9fbd9bdf08bd4d14b6348c84d79e7770","runId":19,"folderGroupId":41,"folderMemberId":101,"decision":"keep","expectedRevision":4}}
+```
+
+```json
+{"planId":12,"appliedRevision":5,"replayed":false,"decision":"keep"}
+```
+
+The folder-specific command ledger is separate from `review_decision.set`. The transaction verifies
+completed-run and visible group/member ownership, snapshots the immutable folder copy, checks the
+shared revision, rejects file/folder and nested-folder overlap, preserves physical file survivors
+and intact visible/suppressed folder-copy survivors, advances the plan revision, and records the
+idempotent result. `Keep`, `Remove`, and `Undecided` are review choices only. The command never
+enumerates or mutates the live tree.
 
 ## Duplicate File Result Commands
 
@@ -610,11 +649,13 @@ locations do not participate in exactness.
 Path is the only V1 member sort field. The optional search filter has the same 512-character limit.
 
 ```json
-{"members":[{"id":101,"groupId":41,"path":"D:\\Archive\\Set A"},{"id":102,"groupId":41,"path":"E:\\Backup\\Renamed Set"}],"total":2,"nextCursor":null,"previousCursor":null}
+{"members":[{"id":101,"groupId":41,"path":"D:\\Archive\\Set A","decision":"keep","decisionProvenance":"manual","decisionAt":"2026-08-19T12:06:00Z"},{"id":102,"groupId":41,"path":"E:\\Backup\\Renamed Set","decision":"undecided","decisionProvenance":null,"decisionAt":null}],"total":2,"nextCursor":null,"previousCursor":null,"reviewPlanId":12,"reviewRevision":5,"reviewSummary":{"folderGroupId":41,"keepCount":1,"removeCount":0,"undecidedCount":1,"intactCopyCount":2}}
 ```
 
 Member pages verify both group and run ownership; a mismatch returns
-`duplicate_folder_group_not_found`.
+`duplicate_folder_group_not_found`. Member cursor signatures bind the active plan ID and shared
+revision, so a successful file or folder mutation invalidates older cursors. Decision provenance
+and time are null for implicit Undecided state.
 
 ## Startup
 

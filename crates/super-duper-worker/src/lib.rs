@@ -21,8 +21,9 @@ use super_duper_core::storage::models::{
     DuplicateFolderGroupFilter, DuplicateFolderGroupPageQuery, DuplicateFolderGroupResult,
     DuplicateFolderGroupSortField, DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery,
     DuplicateFolderMemberResult, DuplicateFolderMemberSortField, PageCursor, PageCursorValue,
-    RegisteredCloudLocation, ReviewDecisionKind, ReviewGroupSummary, ReviewPlanSummary,
-    ReviewPlanView, RunExclusion, RunParameters, ScanRun, ScanSession, SortDirection,
+    RegisteredCloudLocation, ReviewDecisionKind, ReviewFolderGroupSummary, ReviewGroupSummary,
+    ReviewPlanSummary, ReviewPlanView, RunExclusion, RunParameters, ScanRun, ScanSession,
+    SortDirection,
 };
 use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::Database;
@@ -512,6 +513,17 @@ struct ReviewDecisionSetParameters {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ReviewFolderDecisionSetParameters {
+    operation_id: String,
+    run_id: i64,
+    folder_group_id: i64,
+    folder_member_id: i64,
+    decision: String,
+    expected_revision: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct DuplicateFolderGroupPageParameters {
     run_id: i64,
     #[serde(default = "default_result_page_size")]
@@ -756,8 +768,15 @@ struct ReviewPlanSummaryDto {
     keep_count: i64,
     remove_count: i64,
     undecided_count: i64,
+    decided_folder_group_count: i64,
+    folder_keep_count: i64,
+    folder_remove_count: i64,
+    folder_undecided_count: i64,
+    effective_removal_file_count: i64,
+    planned_removal_physical_item_count: i64,
     planned_removal_bytes: String,
     remaining_physical_copy_count: i64,
+    intact_folder_copy_count: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -768,6 +787,16 @@ struct ReviewGroupSummaryDto {
     remove_count: i64,
     undecided_count: i64,
     remaining_physical_copy_count: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReviewFolderGroupSummaryDto {
+    folder_group_id: i64,
+    keep_count: i64,
+    remove_count: i64,
+    undecided_count: i64,
+    intact_copy_count: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -787,6 +816,9 @@ struct DuplicateFolderMemberDto {
     id: i64,
     group_id: i64,
     path: String,
+    decision: String,
+    decision_provenance: Option<String>,
+    decision_at: Option<String>,
 }
 
 struct ActiveRun {
@@ -1009,7 +1041,9 @@ impl WorkerSession {
             "run.cancel" => self.run_cancel(request),
             "review_plan.get" => self.review_plan_get(request),
             "review_group.page" => self.review_group_page(request),
+            "review_folder_group.page" => self.review_folder_group_page(request),
             "review_decision.set" => self.review_decision_set(request),
+            "review_folder_decision.set" => self.review_folder_decision_set(request),
             "duplicate_file_group.page" => self.duplicate_file_group_page(request),
             "duplicate_file_selected_root_facet.page" => {
                 self.duplicate_file_selected_root_facet_page(request)
@@ -1244,6 +1278,66 @@ impl WorkerSession {
         }))
     }
 
+    fn review_folder_group_page(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: ReviewGroupPageParameters = parse_parameters(request)?;
+        validate_result_page_size(parameters.page_size)?;
+        let db = self.state.database()?;
+        let plan = db
+            .get_review_plan_view(parameters.run_id)
+            .map_err(review_error)?;
+        let plan_id = plan.plan.as_ref().map_or(0, |value| value.id);
+        let revision = plan.plan.as_ref().map_or(0, |value| value.revision);
+        let signature = format!(
+            "{}|{}|{}|{}|visible",
+            parameters.run_id, plan_id, revision, parameters.page_size
+        );
+        let cursor = decode_cursor(
+            parameters.cursor.as_deref(),
+            "review-folder-groups",
+            &signature,
+        )?;
+        validate_cursor_value(cursor.as_ref(), false)?;
+        if cursor.as_ref().is_some_and(|value| value.before) {
+            return Err(ProtocolFailure::new(
+                "invalid_cursor",
+                "Review-folder-group cursors support forward keyset paging only",
+            ));
+        }
+        let query_started = Instant::now();
+        let page = db
+            .page_review_folder_groups(
+                parameters.run_id,
+                parameters.page_size,
+                cursor.as_ref().map(|value| value.id),
+            )
+            .map_err(review_error)?;
+        log_result_query(
+            "review_folder_group.page",
+            parameters.run_id,
+            None,
+            parameters.page_size,
+            page.groups.len(),
+            page.total,
+            query_started.elapsed(),
+        );
+        let next_cursor = page
+            .groups
+            .last()
+            .filter(|_| page.has_more)
+            .map(|group| encode_review_folder_group_cursor(group.folder_group_id, &signature))
+            .transpose()?;
+        Ok(json!({
+            "groups": page.groups.iter().map(review_folder_group_summary_dto).collect::<Vec<_>>(),
+            "total": page.total,
+            "planId": page.plan_id,
+            "revision": page.revision,
+            "nextCursor": next_cursor,
+        }))
+    }
+
     fn review_decision_set(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
         let parameters: ReviewDecisionSetParameters = parse_parameters(request)?;
         let operation_id = parameters.operation_id.trim();
@@ -1282,6 +1376,59 @@ impl WorkerSession {
                 parameters.run_id,
                 parameters.group_id,
                 parameters.file_id,
+                decision,
+                parameters.expected_revision,
+            )
+            .map_err(review_error)?;
+        Ok(json!({
+            "planId": result.plan_id,
+            "appliedRevision": result.applied_revision,
+            "replayed": result.replayed,
+            "decision": result.decision.as_str(),
+        }))
+    }
+
+    fn review_folder_decision_set(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: ReviewFolderDecisionSetParameters = parse_parameters(request)?;
+        let operation_id = parameters.operation_id.trim();
+        if operation_id.is_empty() || operation_id.chars().count() > MAXIMUM_OPERATION_ID_CHARACTERS
+        {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                format!(
+                    "operationId must contain 1 to {MAXIMUM_OPERATION_ID_CHARACTERS} characters"
+                ),
+            )
+            .with_details(json!({"field":"operationId"})));
+        }
+        if parameters.expected_revision < 0 {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "expectedRevision must be non-negative",
+            )
+            .with_details(json!({"field":"expectedRevision"})));
+        }
+        let decision = ReviewDecisionKind::parse(&parameters.decision).ok_or_else(|| {
+            ProtocolFailure::new(
+                "invalid_request",
+                "decision must be keep, remove, or undecided",
+            )
+            .with_details(json!({
+                "field":"decision",
+                "allowed":["keep","remove","undecided"]
+            }))
+        })?;
+        let result = self
+            .state
+            .database()?
+            .set_review_folder_decision(
+                operation_id,
+                parameters.run_id,
+                parameters.folder_group_id,
+                parameters.folder_member_id,
                 decision,
                 parameters.expected_revision,
             )
@@ -1826,12 +1973,19 @@ impl WorkerSession {
         let sort_field = parse_folder_member_sort_field(&parameters.sort.field)?;
         let sort_direction = parse_sort_direction(&parameters.sort.direction)?;
         let search = validate_search(parameters.filter.search)?;
+        let review = db
+            .get_review_plan_view(parameters.run_id)
+            .map_err(review_error)?;
+        let review_plan_id = review.plan.as_ref().map_or(0, |value| value.id);
+        let review_revision = review.plan.as_ref().map_or(0, |value| value.revision);
         let signature = folder_member_query_signature(
             parameters.run_id,
             parameters.group_id,
             sort_field,
             sort_direction,
             search.as_deref(),
+            review_plan_id,
+            review_revision,
         );
         let cursor = decode_cursor(
             parameters.cursor.as_deref(),
@@ -1883,6 +2037,9 @@ impl WorkerSession {
             "total": page.total,
             "nextCursor": next_cursor,
             "previousCursor": previous_cursor,
+            "reviewPlanId": page.review_plan_id,
+            "reviewRevision": page.review_revision,
+            "reviewSummary": review_folder_group_summary_dto(&page.review_summary),
         }))
     }
 
@@ -2827,9 +2984,11 @@ fn folder_member_query_signature(
     sort_field: DuplicateFolderMemberSortField,
     sort_direction: SortDirection,
     search: Option<&str>,
+    review_plan_id: i64,
+    review_revision: i64,
 ) -> String {
     format!(
-        "{run_id}|{group_id}|{}|{}|{}",
+        "{run_id}|{group_id}|{}|{}|{}|{review_plan_id}|{review_revision}",
         folder_member_sort_name(sort_field),
         direction_name(sort_direction),
         search.unwrap_or_default()
@@ -2941,6 +3100,20 @@ fn encode_review_group_cursor(group_id: i64, signature: &str) -> Result<String, 
         before: false,
         value: CursorScalar::Integer(group_id.to_string()),
         id: group_id,
+    })
+}
+
+fn encode_review_folder_group_cursor(
+    folder_group_id: i64,
+    signature: &str,
+) -> Result<String, ProtocolFailure> {
+    encode_cursor(CursorPayload {
+        version: 1,
+        kind: "review-folder-groups".to_owned(),
+        query: signature.to_owned(),
+        before: false,
+        value: CursorScalar::Integer(folder_group_id.to_string()),
+        id: folder_group_id,
     })
 }
 
@@ -3153,8 +3326,27 @@ fn review_plan_summary_dto(summary: &ReviewPlanSummary) -> ReviewPlanSummaryDto 
         keep_count: summary.keep_count,
         remove_count: summary.remove_count,
         undecided_count: summary.undecided_count,
+        decided_folder_group_count: summary.decided_folder_group_count,
+        folder_keep_count: summary.folder_keep_count,
+        folder_remove_count: summary.folder_remove_count,
+        folder_undecided_count: summary.folder_undecided_count,
+        effective_removal_file_count: summary.effective_removal_file_count,
+        planned_removal_physical_item_count: summary.planned_removal_physical_item_count,
         planned_removal_bytes: summary.planned_removal_bytes.to_string(),
         remaining_physical_copy_count: summary.remaining_physical_copy_count,
+        intact_folder_copy_count: summary.intact_folder_copy_count,
+    }
+}
+
+fn review_folder_group_summary_dto(
+    summary: &ReviewFolderGroupSummary,
+) -> ReviewFolderGroupSummaryDto {
+    ReviewFolderGroupSummaryDto {
+        folder_group_id: summary.folder_group_id,
+        keep_count: summary.keep_count,
+        remove_count: summary.remove_count,
+        undecided_count: summary.undecided_count,
+        intact_copy_count: summary.intact_copy_count,
     }
 }
 
@@ -3184,6 +3376,9 @@ fn folder_member_dto(member: DuplicateFolderMemberResult) -> DuplicateFolderMemb
         id: member.id,
         group_id: member.group_id,
         path: member.path,
+        decision: member.review_decision.as_str().to_owned(),
+        decision_provenance: member.review_provenance,
+        decision_at: member.review_decided_at,
     }
 }
 
@@ -3726,6 +3921,58 @@ fn review_error(error: ReviewError) -> ProtocolFailure {
             "At least one independently accessible physical copy must remain in the duplicate set",
         )
         .with_details(json!({"groupId":group_id,"fileId":file_id,"remainingPhysicalCopies":0})),
+        ReviewError::FolderGroupNotFound {
+            run_id,
+            folder_group_id,
+        } => ProtocolFailure::new(
+            "duplicate_folder_group_not_found",
+            format!("Exact-folder group {folder_group_id} was not found in run {run_id}"),
+        )
+        .with_details(json!({"runId":run_id,"folderGroupId":folder_group_id})),
+        ReviewError::FolderMemberNotFound {
+            run_id,
+            folder_group_id,
+            folder_member_id,
+        } => ProtocolFailure::new(
+            "review_folder_member_not_found",
+            format!("Folder copy {folder_member_id} is not a member of exact-folder group {folder_group_id}"),
+        )
+        .with_details(json!({
+            "runId":run_id,
+            "folderGroupId":folder_group_id,
+            "folderMemberId":folder_member_id
+        })),
+        ReviewError::Overlap {
+            first_kind,
+            first_id,
+            second_kind,
+            second_id,
+        } => ProtocolFailure::new(
+            "review_overlap_conflict",
+            "The requested review decision overlaps an existing file or folder decision",
+        )
+        .with_details(json!({
+            "firstKind":first_kind,
+            "firstId":first_id,
+            "secondKind":second_kind,
+            "secondId":second_id
+        })),
+        ReviewError::UnsafePhysicalRemoval { duplicate_group_id } => ProtocolFailure::new(
+            "unsafe_review_decision",
+            "At least one independently accessible physical copy must remain in every duplicate set",
+        )
+        .with_details(json!({
+            "groupId":duplicate_group_id,
+            "remainingPhysicalCopies":0
+        })),
+        ReviewError::UnsafeFolderRemoval { folder_group_id } => ProtocolFailure::new(
+            "unsafe_folder_review_decision",
+            "At least one intact independently accessible folder copy must remain in every exact-folder set",
+        )
+        .with_details(json!({
+            "folderGroupId":folder_group_id,
+            "remainingIntactCopies":0
+        })),
     }
 }
 
@@ -5421,6 +5668,83 @@ mod tests {
         ).unwrap()).unwrap();
         assert_eq!(members["result"]["members"].as_array().unwrap().len(), 2);
         assert!(members["result"]["members"][0]["path"].is_string());
+        assert_eq!(members["result"]["reviewRevision"], 0);
+        assert_eq!(members["result"]["reviewSummary"]["undecidedCount"], 2);
+        let folder_review: Value = serde_json::from_str(
+            &worker
+                .handle_line(
+                    r#"{"type":"request","id":"rfg","method":"review_folder_group.page","params":{"runId":1,"pageSize":2}}"#,
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            folder_review["result"]["groups"].as_array().unwrap().len(),
+            2
+        );
+        let stale_folder_review_cursor = folder_review["result"]["nextCursor"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let first_member_page: Value = serde_json::from_str(
+            &worker
+                .handle_line(
+                    r#"{"type":"request","id":"fm-one","method":"duplicate_folder_group.members","params":{"runId":1,"groupId":1,"pageSize":1}}"#,
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        let stale_member_cursor = first_member_page["result"]["nextCursor"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let folder_member_id = first_member_page["result"]["members"][0]["id"]
+            .as_i64()
+            .unwrap();
+        let set_folder = json!({
+            "type":"request", "id":"folder-remove", "method":"review_folder_decision.set",
+            "params":{"operationId":"folder-remove-one","runId":1,"folderGroupId":1,
+                      "folderMemberId":folder_member_id,"decision":"remove","expectedRevision":0}
+        });
+        let removed: Value =
+            serde_json::from_str(&worker.handle_line(&set_folder.to_string()).unwrap()).unwrap();
+        assert_eq!(removed["result"]["appliedRevision"], 1);
+        let replayed: Value =
+            serde_json::from_str(&worker.handle_line(&set_folder.to_string()).unwrap()).unwrap();
+        assert_eq!(replayed["result"]["replayed"], true);
+        let old_review_cursor = json!({
+            "type":"request", "id":"old-rfg", "method":"review_folder_group.page",
+            "params":{"runId":1,"pageSize":2,"cursor":stale_folder_review_cursor}
+        });
+        let old_review: Value =
+            serde_json::from_str(&worker.handle_line(&old_review_cursor.to_string()).unwrap())
+                .unwrap();
+        assert_eq!(old_review["error"]["code"], "invalid_cursor");
+        let old_member_cursor = json!({
+            "type":"request", "id":"old-fm", "method":"duplicate_folder_group.members",
+            "params":{"runId":1,"groupId":1,"pageSize":1,"cursor":stale_member_cursor}
+        });
+        let old_member: Value =
+            serde_json::from_str(&worker.handle_line(&old_member_cursor.to_string()).unwrap())
+                .unwrap();
+        assert_eq!(old_member["error"]["code"], "invalid_cursor");
+        let refreshed_members: Value = serde_json::from_str(
+            &worker
+                .handle_line(
+                    r#"{"type":"request","id":"fm-refreshed","method":"duplicate_folder_group.members","params":{"runId":1,"groupId":1,"pageSize":200}}"#,
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(refreshed_members["result"]["reviewRevision"], 1);
+        assert_eq!(
+            refreshed_members["result"]["reviewSummary"]["removeCount"],
+            1
+        );
+        assert_eq!(
+            refreshed_members["result"]["members"][0]["decision"],
+            "remove"
+        );
     }
 
     #[test]

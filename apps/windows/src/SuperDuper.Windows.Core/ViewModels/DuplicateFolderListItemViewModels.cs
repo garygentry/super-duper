@@ -24,4 +24,11 @@ public sealed class DuplicateFolderMemberListItemViewModel(WorkerDuplicateFolder
     public long Id => Member.Id;
 
     public string Path => Member.Path;
+
+    public string Decision => Member.Decision switch
+    {
+        "keep" => "Keep",
+        "remove" => "Remove",
+        _ => "Undecided",
+    };
 }

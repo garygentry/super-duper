@@ -21,7 +21,8 @@ the Windows 11 x64 WPF MVP.
 - Headless CLI for repeatable scans, scripting, and verification
 - C-compatible FFI crate for future native clients
 - Windows 11 WPF front end with durable sessions/runs, cancellation, run-owned cursor paging,
-  duplicate-file and exact-folder browsing, and Explorer reveal
+  duplicate-file and exact-folder browsing, durable non-deleting manual review decisions, and
+  Explorer reveal
 
 ## Architecture
 
@@ -233,10 +234,11 @@ Configured via a `.env` file in the working directory when needed.
 ## Database
 
 Super Duper uses embedded SQLite (`super_duper.db` in the working directory). New databases use
-schema version 5. Version 2, 3, and 4 databases are upgraded transactionally and in place; unknown
-older schemas and databases created by a newer engine are rejected without modification. See
-[`docs/storage-schema-v5.md`](docs/storage-schema-v5.md) for durable-review storage and migration
-details and [`docs/storage-schema-v4.md`](docs/storage-schema-v4.md) for cloud-safe run policy.
+schema version 6. Version 2, 3, 4, and 5 databases are upgraded transactionally and in place;
+unknown older schemas and databases created by a newer engine are rejected without modification.
+See [`docs/storage-schema-v6.md`](docs/storage-schema-v6.md) for durable file/folder-review storage
+and migration details and [`docs/storage-schema-v4.md`](docs/storage-schema-v4.md) for cloud-safe
+run policy.
 
 Key tables:
 

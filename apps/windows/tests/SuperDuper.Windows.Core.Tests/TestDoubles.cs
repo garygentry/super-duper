@@ -38,6 +38,10 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
 
     public Func<string, long, long, long, string, long, CancellationToken, Task<WorkerReviewDecisionMutation>>? ReviewDecisionHandler { get; set; }
 
+    public Func<long, int, string?, CancellationToken, Task<WorkerReviewFolderGroupPage>>? ReviewFolderGroupPageHandler { get; set; }
+
+    public Func<string, long, long, long, string, long, CancellationToken, Task<WorkerReviewFolderDecisionMutation>>? ReviewFolderDecisionHandler { get; set; }
+
     public Func<DuplicateFolderGroupQuery, CancellationToken, Task<WorkerDuplicateFolderGroupPage>>? FolderGroupPageHandler { get; set; }
 
     public Func<DuplicateFolderMemberQuery, CancellationToken, Task<WorkerDuplicateFolderMemberPage>>? FolderMemberPageHandler { get; set; }
@@ -243,6 +247,32 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
             expectedRevision,
             cancellationToken)
         ?? Task.FromResult(new WorkerReviewDecisionMutation(1, expectedRevision + 1, false, decision));
+
+    public Task<WorkerReviewFolderGroupPage> GetReviewFolderGroupsAsync(
+        long runId,
+        int pageSize,
+        string? cursor = null,
+        CancellationToken cancellationToken = default) =>
+        ReviewFolderGroupPageHandler?.Invoke(runId, pageSize, cursor, cancellationToken)
+        ?? Task.FromResult(new WorkerReviewFolderGroupPage([], 0, null, 0, null));
+
+    public Task<WorkerReviewFolderDecisionMutation> SetReviewFolderDecisionAsync(
+        string operationId,
+        long runId,
+        long folderGroupId,
+        long folderMemberId,
+        string decision,
+        long expectedRevision,
+        CancellationToken cancellationToken = default) =>
+        ReviewFolderDecisionHandler?.Invoke(
+            operationId,
+            runId,
+            folderGroupId,
+            folderMemberId,
+            decision,
+            expectedRevision,
+            cancellationToken)
+        ?? Task.FromResult(new WorkerReviewFolderDecisionMutation(1, expectedRevision + 1, false, decision));
 
     public Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(
         DuplicateFolderGroupQuery query,

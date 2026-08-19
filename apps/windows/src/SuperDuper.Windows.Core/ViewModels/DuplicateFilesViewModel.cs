@@ -99,6 +99,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private long _driveFacetErrorAnnouncementVersion;
     private bool _disposed;
 
+    public event Action<long, long>? ReviewRevisionChanged;
+
     public DuplicateFilesViewModel(
         IWorkerClient workerClient,
         IClipboardService clipboard,
@@ -796,6 +798,29 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         await Task.WhenAll(
             ResetAndLoadGroupsAsync(cancellationToken),
             LoadReviewPlanAsync(run.Id, reviewGeneration, _reviewCancellation.Token));
+    }
+
+    public async Task RefreshReviewRevisionAsync(long runId, long revision)
+    {
+        if (Run?.Id != runId || revision <= ReviewPlan.Plan.Revision)
+        {
+            return;
+        }
+
+        CancelReviewQuery();
+        _reviewCancellation = new CancellationTokenSource();
+        var generation = _reviewGeneration;
+        var cancellationToken = _reviewCancellation.Token;
+        _memberCache.Clear();
+        var planTask = LoadReviewPlanAsync(runId, generation, cancellationToken);
+        if (SelectedGroup is { } selectedGroup)
+        {
+            await Task.WhenAll(planTask, LoadSelectedGroupAsync(selectedGroup));
+        }
+        else
+        {
+            await planTask;
+        }
     }
 
     public async Task ApplySortAsync(
@@ -1860,6 +1885,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                     State = "active",
                 },
             };
+            ReviewRevisionChanged?.Invoke(run.Id, mutation.AppliedRevision);
             await LoadReviewPlanAsync(run.Id, generation, cancellationToken);
             var reviewRefreshError = DetailErrorMessage;
             if (generation != _reviewGeneration

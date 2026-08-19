@@ -414,8 +414,15 @@ pub struct ReviewPlanSummary {
     pub keep_count: i64,
     pub remove_count: i64,
     pub undecided_count: i64,
+    pub decided_folder_group_count: i64,
+    pub folder_keep_count: i64,
+    pub folder_remove_count: i64,
+    pub folder_undecided_count: i64,
+    pub effective_removal_file_count: i64,
+    pub planned_removal_physical_item_count: i64,
     pub planned_removal_bytes: i64,
     pub remaining_physical_copy_count: i64,
+    pub intact_folder_copy_count: i64,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -444,6 +451,32 @@ pub struct ReviewGroupPage {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReviewDecisionMutation {
+    pub plan_id: i64,
+    pub applied_revision: i64,
+    pub replayed: bool,
+    pub decision: ReviewDecisionKind,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReviewFolderGroupSummary {
+    pub folder_group_id: i64,
+    pub keep_count: i64,
+    pub remove_count: i64,
+    pub undecided_count: i64,
+    pub intact_copy_count: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewFolderGroupPage {
+    pub groups: Vec<ReviewFolderGroupSummary>,
+    pub total: i64,
+    pub has_more: bool,
+    pub plan_id: Option<i64>,
+    pub revision: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewFolderDecisionMutation {
     pub plan_id: i64,
     pub applied_revision: i64,
     pub replayed: bool,
@@ -517,6 +550,9 @@ pub struct DuplicateFolderMemberResult {
     pub id: i64,
     pub group_id: i64,
     pub path: String,
+    pub review_decision: ReviewDecisionKind,
+    pub review_provenance: Option<String>,
+    pub review_decided_at: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -524,6 +560,9 @@ pub struct DuplicateFolderMemberPage {
     pub members: Vec<DuplicateFolderMemberResult>,
     pub total: i64,
     pub has_more: bool,
+    pub review_plan_id: Option<i64>,
+    pub review_revision: i64,
+    pub review_summary: ReviewFolderGroupSummary,
 }
 
 #[derive(Debug, Clone)]

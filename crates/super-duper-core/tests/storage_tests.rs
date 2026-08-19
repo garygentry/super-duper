@@ -1,12 +1,13 @@
 use rusqlite::{params, Connection, Error as SqlError};
+use std::sync::atomic::AtomicBool;
 use super_duper_core::storage::models::{
     CloudDetectionStatus, CloudPolicy, DuplicateFileDriveFacetPageQuery,
     DuplicateFileDriveFacetSortField, DuplicateFileExtensionMatchMode, DuplicateFileGroupFilter,
     DuplicateFileGroupPageQuery, DuplicateFileGroupSortField, DuplicateFileMemberFilter,
     DuplicateFileMemberPageQuery, DuplicateFileMemberSortField, DuplicateFilePathMatchMode,
-    DuplicateFileSelectedRootFacetPageQuery, DuplicateFileSelectedRootFacetSortField, PageCursor,
-    PageCursorValue, RegisteredCloudLocation, ReviewDecisionKind, RunExclusionInsert,
-    RunParameters, ScannedFile, SortDirection,
+    DuplicateFileSelectedRootFacetPageQuery, DuplicateFileSelectedRootFacetSortField,
+    ExactFolderGroupInsert, PageCursor, PageCursorValue, RegisteredCloudLocation,
+    ReviewDecisionKind, RunExclusionInsert, RunParameters, ScannedFile, SortDirection,
 };
 use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::sqlite::CURRENT_SCHEMA_VERSION;
@@ -1194,7 +1195,12 @@ fn version_four_migrates_review_tables_transactionally() {
     let (_, run_id) = session_and_run(&db, "Preserved v4 run", &["/root"]);
     db.connection()
         .execute_batch(
-            "DROP INDEX idx_review_command_plan_operation;
+            "DROP INDEX idx_review_folder_command_plan_operation;
+             DROP INDEX idx_review_folder_decision_plan_decision;
+             DROP INDEX idx_review_folder_decision_plan_group;
+             DROP TABLE review_folder_command;
+             DROP TABLE review_folder_decision;
+             DROP INDEX idx_review_command_plan_operation;
              DROP INDEX idx_review_decision_plan_decision;
              DROP INDEX idx_review_decision_plan_group;
              DROP INDEX idx_review_plan_one_active_run;
@@ -1209,7 +1215,47 @@ fn version_four_migrates_review_tables_transactionally() {
     let migrated = Database::open(path.to_str().unwrap()).unwrap();
     assert_eq!(migrated.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
     assert_eq!(migrated.get_scan_run(run_id).unwrap().status, "interrupted");
-    for table in ["review_plan", "review_decision", "review_command"] {
+    for table in [
+        "review_plan",
+        "review_decision",
+        "review_command",
+        "review_folder_decision",
+        "review_folder_command",
+    ] {
+        let exists: bool = migrated
+            .connection()
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1)",
+                params![table],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(exists, "missing migrated table {table}");
+    }
+}
+
+#[test]
+fn version_five_migrates_folder_review_tables_transactionally() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("review-v5.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    let (run_id, _, _) = completed_review_fixture(&db);
+    db.connection()
+        .execute_batch(
+            "DROP INDEX idx_review_folder_command_plan_operation;
+             DROP INDEX idx_review_folder_decision_plan_decision;
+             DROP INDEX idx_review_folder_decision_plan_group;
+             DROP TABLE review_folder_command;
+             DROP TABLE review_folder_decision;
+             PRAGMA user_version = 5;",
+        )
+        .unwrap();
+    drop(db);
+
+    let migrated = Database::open(path.to_str().unwrap()).unwrap();
+    assert_eq!(migrated.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+    assert_eq!(migrated.get_scan_run(run_id).unwrap().status, "completed");
+    for table in ["review_folder_decision", "review_folder_command"] {
         let exists: bool = migrated
             .connection()
             .query_row(
@@ -1415,6 +1461,485 @@ fn manual_review_decisions_are_idempotent_persistent_and_preserve_a_physical_sur
     assert_eq!(group.remove_count, 1);
     assert_eq!(group.undecided_count, 1);
     assert_eq!(group.remaining_physical_copy_count, 2);
+}
+
+fn completed_folder_review_fixture(db: &Database) -> (i64, i64, [i64; 2], [i64; 2]) {
+    let (_, run_id) = session_and_run(db, "Folder review", &["/root"]);
+    let first_directory = db
+        .insert_directory_node(run_id, "/root/Copy A", "Copy A", None, 100, 1, 1)
+        .unwrap();
+    let second_directory = db
+        .insert_directory_node(run_id, "/root/Copy B", "Copy B", None, 100, 1, 1)
+        .unwrap();
+    let mut first = file(run_id, "/root/Copy A/item.bin", 100, 91);
+    first.file_identity = Some("volume-1:shared-hard-link".to_owned());
+    let mut second = file(run_id, "/root/Copy B/item.bin", 100, 91);
+    second.file_identity = Some("volume-1:shared-hard-link".to_owned());
+    db.insert_scanned_files(&[first, second]).unwrap();
+    db.insert_duplicate_groups(
+        run_id,
+        &[(
+            91,
+            100,
+            vec![
+                "/root/Copy A/item.bin".to_owned(),
+                "/root/Copy B/item.bin".to_owned(),
+            ],
+        )],
+    )
+    .unwrap();
+    db.replace_exact_folder_groups(
+        run_id,
+        &[ExactFolderGroupInsert {
+            structural_fingerprint: "structure".to_owned(),
+            verified_fingerprint: "verified".to_owned(),
+            total_size: 100,
+            file_count: 1,
+            directory_ids: vec![first_directory, second_directory],
+            is_suppressed: false,
+        }],
+        &AtomicBool::new(false),
+    )
+    .unwrap();
+    db.complete_scan_run(run_id, 2, 200, 2, 1, 1, 100, 0)
+        .unwrap();
+    let folder_group_id = db
+        .connection()
+        .query_row(
+            "SELECT id FROM duplicate_folder_group WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let mut member_statement = db
+        .connection()
+        .prepare(
+            "SELECT member.id FROM duplicate_folder_group_member member
+             JOIN directory_node directory ON directory.id = member.directory_id
+             WHERE member.group_id = ?1 ORDER BY directory.path",
+        )
+        .unwrap();
+    let folder_members = member_statement
+        .query_map(params![folder_group_id], |row| row.get::<_, i64>(0))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let mut file_statement = db
+        .connection()
+        .prepare("SELECT id FROM scanned_file WHERE run_id = ?1 ORDER BY canonical_path")
+        .unwrap();
+    let files = file_statement
+        .query_map(params![run_id], |row| row.get::<_, i64>(0))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    (
+        run_id,
+        folder_group_id,
+        [folder_members[0], folder_members[1]],
+        [files[0], files[1]],
+    )
+}
+
+#[test]
+fn manual_folder_decisions_share_revision_persist_snapshots_and_reject_file_overlap() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("folder-review.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    let (run_id, folder_group_id, [first_copy, second_copy], [first_file, _]) =
+        completed_folder_review_fixture(&db);
+
+    let initial = db.get_review_plan_view(run_id).unwrap();
+    assert_eq!(initial.summary.folder_undecided_count, 2);
+    assert_eq!(initial.summary.intact_folder_copy_count, 2);
+    let removed = db
+        .set_review_folder_decision(
+            "remove-folder-a",
+            run_id,
+            folder_group_id,
+            first_copy,
+            ReviewDecisionKind::Remove,
+            0,
+        )
+        .unwrap();
+    assert_eq!(removed.applied_revision, 1);
+    assert!(!removed.replayed);
+    let replay = db
+        .set_review_folder_decision(
+            "remove-folder-a",
+            run_id,
+            folder_group_id,
+            first_copy,
+            ReviewDecisionKind::Remove,
+            0,
+        )
+        .unwrap();
+    assert!(replay.replayed);
+    assert_eq!(replay.applied_revision, 1);
+    let conflict = db
+        .set_review_folder_decision(
+            "remove-folder-a",
+            run_id,
+            folder_group_id,
+            second_copy,
+            ReviewDecisionKind::Keep,
+            0,
+        )
+        .unwrap_err();
+    assert!(matches!(conflict, ReviewError::IdempotencyConflict { .. }));
+    let file_overlap = db
+        .set_review_decision(
+            "keep-contained-file",
+            run_id,
+            db.connection()
+                .query_row(
+                    "SELECT group_id FROM duplicate_group_member WHERE file_id = ?1",
+                    params![first_file],
+                    |row| row.get(0),
+                )
+                .unwrap(),
+            first_file,
+            ReviewDecisionKind::Keep,
+            1,
+        )
+        .unwrap_err();
+    assert!(matches!(file_overlap, ReviewError::Overlap { .. }));
+
+    let view = db.get_review_plan_view(run_id).unwrap();
+    assert_eq!(view.plan.as_ref().unwrap().revision, 1);
+    assert_eq!(view.summary.folder_remove_count, 1);
+    assert_eq!(view.summary.folder_undecided_count, 1);
+    assert_eq!(view.summary.effective_removal_file_count, 1);
+    assert_eq!(view.summary.planned_removal_physical_item_count, 1);
+    assert_eq!(view.summary.planned_removal_bytes, 100);
+    assert_eq!(view.summary.remaining_physical_copy_count, 1);
+    assert_eq!(view.summary.intact_folder_copy_count, 1);
+    let folder_summary = db
+        .get_review_folder_group_view(run_id, folder_group_id)
+        .unwrap()
+        .1;
+    assert_eq!(folder_summary.remove_count, 1);
+    assert_eq!(folder_summary.undecided_count, 1);
+    assert_eq!(folder_summary.intact_copy_count, 1);
+    let snapshot: (String, i64, i64, String, String, String) = db
+        .connection()
+        .query_row(
+            "SELECT snapshot_path, snapshot_total_size, snapshot_file_count,
+                    snapshot_structural_fingerprint, snapshot_verified_fingerprint, provenance
+             FROM review_folder_decision WHERE folder_member_id = ?1",
+            params![first_copy],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
+        )
+        .unwrap();
+    assert_eq!(snapshot.0, "/root/Copy A");
+    assert_eq!(snapshot.1, 100);
+    assert_eq!(snapshot.2, 1);
+    assert_eq!(snapshot.3, "structure");
+    assert_eq!(snapshot.4, "verified");
+    assert_eq!(snapshot.5, "manual");
+    drop(db);
+
+    let reopened = Database::open(path.to_str().unwrap()).unwrap();
+    let persisted = reopened.get_review_plan_view(run_id).unwrap();
+    assert_eq!(persisted.plan.unwrap().revision, 1);
+    assert_eq!(persisted.summary.folder_remove_count, 1);
+    assert_eq!(persisted.summary.effective_removal_file_count, 1);
+}
+
+#[test]
+fn folder_review_protects_nested_and_suppressed_sets_and_rejects_nested_removal_overlap() {
+    let db = Database::open_in_memory().unwrap();
+    let (_, run_id) = session_and_run(&db, "Nested folder review", &["/root"]);
+    let root_a = db
+        .insert_directory_node(run_id, "/root/A", "A", None, 10, 1, 1)
+        .unwrap();
+    let nested_a = db
+        .insert_directory_node(run_id, "/root/A/Nested", "Nested", Some(root_a), 10, 1, 2)
+        .unwrap();
+    let root_b = db
+        .insert_directory_node(run_id, "/root/B", "B", None, 10, 1, 1)
+        .unwrap();
+    let nested_b = db
+        .insert_directory_node(run_id, "/root/B/Nested", "Nested", Some(root_b), 10, 1, 2)
+        .unwrap();
+    let root_c = db
+        .insert_directory_node(run_id, "/root/C", "C", None, 10, 1, 1)
+        .unwrap();
+    let nested_c = db
+        .insert_directory_node(run_id, "/root/C/Nested", "Nested", Some(root_c), 10, 1, 2)
+        .unwrap();
+    let root_d = db
+        .insert_directory_node(run_id, "/root/D", "D", None, 10, 1, 1)
+        .unwrap();
+    let nested_d = db
+        .insert_directory_node(run_id, "/root/D/Nested", "Nested", Some(root_d), 10, 1, 2)
+        .unwrap();
+    db.insert_scanned_files(&[
+        file(run_id, "/root/A/Nested/item.bin", 10, 1),
+        file(run_id, "/root/B/Nested/item.bin", 10, 1),
+        file(run_id, "/root/C/Nested/item.bin", 10, 1),
+        file(run_id, "/root/D/Nested/item.bin", 10, 1),
+    ])
+    .unwrap();
+    db.replace_exact_folder_groups(
+        run_id,
+        &[
+            ExactFolderGroupInsert {
+                structural_fingerprint: "outer".to_owned(),
+                verified_fingerprint: "outer-v".to_owned(),
+                total_size: 10,
+                file_count: 1,
+                directory_ids: vec![root_a, root_b],
+                is_suppressed: false,
+            },
+            ExactFolderGroupInsert {
+                structural_fingerprint: "inner-visible".to_owned(),
+                verified_fingerprint: "inner-visible-v".to_owned(),
+                total_size: 10,
+                file_count: 1,
+                directory_ids: vec![nested_a, nested_c],
+                is_suppressed: false,
+            },
+            ExactFolderGroupInsert {
+                structural_fingerprint: "inner-suppressed".to_owned(),
+                verified_fingerprint: "inner-suppressed-v".to_owned(),
+                total_size: 10,
+                file_count: 1,
+                directory_ids: vec![nested_b, nested_d],
+                is_suppressed: true,
+            },
+        ],
+        &AtomicBool::new(false),
+    )
+    .unwrap();
+    db.complete_scan_run(run_id, 4, 40, 4, 0, 2, 0, 0).unwrap();
+    let find_group = |fingerprint: &str| {
+        db.connection()
+            .query_row(
+                "SELECT id FROM duplicate_folder_group
+                 WHERE run_id = ?1 AND structural_fingerprint = ?2",
+                params![run_id, fingerprint],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap()
+    };
+    let find_member = |group_id: i64, directory_id: i64| {
+        db.connection()
+            .query_row(
+                "SELECT id FROM duplicate_folder_group_member
+                 WHERE group_id = ?1 AND directory_id = ?2",
+                params![group_id, directory_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap()
+    };
+    let outer_group = find_group("outer");
+    let inner_group = find_group("inner-visible");
+    let suppressed_group = find_group("inner-suppressed");
+    let outer_a_member = find_member(outer_group, root_a);
+    let outer_b_member = find_member(outer_group, root_b);
+    let nested_a_member = find_member(inner_group, nested_a);
+    let suppressed_member = find_member(suppressed_group, nested_b);
+
+    db.set_review_folder_decision(
+        "remove-outer-a",
+        run_id,
+        outer_group,
+        outer_a_member,
+        ReviewDecisionKind::Remove,
+        0,
+    )
+    .unwrap();
+    let nested_overlap = db
+        .set_review_folder_decision(
+            "remove-covered-nested-a",
+            run_id,
+            inner_group,
+            nested_a_member,
+            ReviewDecisionKind::Remove,
+            1,
+        )
+        .unwrap_err();
+    assert!(matches!(nested_overlap, ReviewError::Overlap { .. }));
+    let suppressed = db
+        .set_review_folder_decision(
+            "suppressed-not-addressable",
+            run_id,
+            suppressed_group,
+            suppressed_member,
+            ReviewDecisionKind::Keep,
+            1,
+        )
+        .unwrap_err();
+    assert!(matches!(
+        suppressed,
+        ReviewError::FolderGroupNotFound { .. }
+    ));
+    let unsafe_outer = db
+        .set_review_folder_decision(
+            "remove-outer-b",
+            run_id,
+            outer_group,
+            outer_b_member,
+            ReviewDecisionKind::Remove,
+            1,
+        )
+        .unwrap_err();
+    assert!(matches!(
+        unsafe_outer,
+        ReviewError::UnsafeFolderRemoval { .. }
+    ));
+    let inner_summary = db
+        .get_review_folder_group_view(run_id, inner_group)
+        .unwrap()
+        .1;
+    assert_eq!(inner_summary.intact_copy_count, 1);
+    assert_eq!(
+        db.get_review_plan_view(run_id)
+            .unwrap()
+            .plan
+            .unwrap()
+            .revision,
+        1
+    );
+}
+
+#[test]
+fn hundred_thousand_folder_review_groups_keep_summary_and_keyset_pages_bounded() {
+    let db = Database::open_in_memory().unwrap();
+    let (_, run_id) = session_and_run(&db, "Folder review scale", &["/root"]);
+    let transaction = db.connection().unchecked_transaction().unwrap();
+    let numbers = "WITH digits(d) AS (VALUES(0),(1),(2),(3),(4),(5),(6),(7),(8),(9)),
+                   numbers(n) AS (
+                       SELECT a.d * 10000 + b.d * 1000 + c.d * 100 + d.d * 10 + e.d
+                       FROM digits a CROSS JOIN digits b CROSS JOIN digits c
+                       CROSS JOIN digits d CROSS JOIN digits e
+                   )";
+    transaction
+        .execute(
+            &format!(
+                "{numbers}
+                 INSERT INTO directory_node
+                    (id, run_id, path, name, parent_id, total_size, file_count, depth)
+                 SELECT n * 2 + CASE suffix WHEN 'a' THEN 1 ELSE 2 END,
+                        ?1, printf('/root/%06d-%s', n, suffix), suffix, NULL, 1, 1, 1
+                 FROM numbers CROSS JOIN (SELECT 'a' AS suffix UNION ALL SELECT 'b')"
+            ),
+            params![run_id],
+        )
+        .unwrap();
+    transaction
+        .execute(
+            &format!(
+                "{numbers}
+                 INSERT INTO duplicate_folder_group
+                    (id, run_id, structural_fingerprint, verified_fingerprint, total_size,
+                     file_count, folder_count, is_suppressed)
+                 SELECT n + 1, ?1, printf('s-%d', n), printf('v-%d', n), 1, 1, 2, 0
+                 FROM numbers"
+            ),
+            params![run_id],
+        )
+        .unwrap();
+    transaction
+        .execute(
+            &format!(
+                "{numbers}
+                 INSERT INTO duplicate_folder_group_member (group_id, directory_id)
+                 SELECT n + 1, n * 2 + CASE suffix WHEN 'a' THEN 1 ELSE 2 END
+                 FROM numbers
+                 CROSS JOIN (SELECT 'a' AS suffix UNION ALL SELECT 'b')"
+            ),
+            [],
+        )
+        .unwrap();
+    transaction.commit().unwrap();
+    db.complete_scan_run(run_id, 0, 0, 0, 0, 100_000, 0, 0)
+        .unwrap();
+
+    let started = std::time::Instant::now();
+    let plan = db.get_review_plan_view(run_id).unwrap();
+    let plan_elapsed = started.elapsed();
+    let first = db.page_review_folder_groups(run_id, 200, None).unwrap();
+    let first_elapsed = started.elapsed() - plan_elapsed;
+    let second = db
+        .page_review_folder_groups(
+            run_id,
+            200,
+            first.groups.last().map(|group| group.folder_group_id),
+        )
+        .unwrap();
+    let second_elapsed = started.elapsed() - plan_elapsed - first_elapsed;
+    assert_eq!(plan.summary.folder_undecided_count, 200_000);
+    assert_eq!(plan.summary.intact_folder_copy_count, 200_000);
+    assert_eq!(first.total, 100_000);
+    assert_eq!(first.groups.len(), 200);
+    assert_eq!(second.groups.len(), 200);
+    assert!(first.has_more);
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(5),
+        "100,000-group folder review queries took {:?} (plan {:?}, first {:?}, second {:?})",
+        started.elapsed(),
+        plan_elapsed,
+        first_elapsed,
+        second_elapsed
+    );
+
+    #[cfg(windows)]
+    let baseline_private_bytes = current_process_private_bytes();
+    #[cfg(windows)]
+    let mut peak_private_bytes = baseline_private_bytes;
+    let sample_count = if cfg!(debug_assertions) { 5 } else { 100 };
+    let mut plan_durations = Vec::with_capacity(sample_count);
+    let mut folder_page_durations = Vec::with_capacity(sample_count);
+    for _ in 0..sample_count {
+        let started = std::time::Instant::now();
+        let plan = db.get_review_plan_view(run_id).unwrap();
+        plan_durations.push(started.elapsed());
+        assert_eq!(plan.summary.intact_folder_copy_count, 200_000);
+
+        let started = std::time::Instant::now();
+        let page = db.page_review_folder_groups(run_id, 200, None).unwrap();
+        folder_page_durations.push(started.elapsed());
+        assert_eq!(page.groups.len(), 200);
+
+        #[cfg(windows)]
+        {
+            peak_private_bytes = peak_private_bytes.max(current_process_private_bytes());
+        }
+    }
+    plan_durations.sort_unstable();
+    folder_page_durations.sort_unstable();
+    let percentile_95 = |durations: &[std::time::Duration]| {
+        durations[((durations.len() * 95).div_ceil(100)).saturating_sub(1)]
+    };
+    let plan_p95 = percentile_95(&plan_durations);
+    let folder_page_p95 = percentile_95(&folder_page_durations);
+    #[cfg(windows)]
+    let private_growth_bytes = peak_private_bytes.saturating_sub(baseline_private_bytes);
+    #[cfg(not(windows))]
+    let private_growth_bytes = 0_u64;
+    eprintln!(
+        "folder-review-profile samples={} plan-p95={:.2}ms folder-groups-p95={:.2}ms private-growth={} bytes",
+        sample_count,
+        plan_p95.as_secs_f64() * 1000.0,
+        folder_page_p95.as_secs_f64() * 1000.0,
+        private_growth_bytes,
+    );
+    #[cfg(windows)]
+    assert!(
+        private_growth_bytes < 32 * 1024 * 1024,
+        "repeated bounded folder review pages grew private memory by {private_growth_bytes} bytes"
+    );
 }
 
 fn hundred_thousand_group_fixture() -> (Database, i64, DuplicateFileGroupPageQuery) {

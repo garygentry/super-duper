@@ -283,6 +283,143 @@ public sealed class DuplicateFoldersViewModelTests
         Assert.IsTrue(viewModel.IsEmpty);
     }
 
+    [TestMethod]
+    public async Task FolderDecisionRefreshesCombinedAndSelectedSummariesAndAnnouncement()
+    {
+        var revision = 0L;
+        var decision = "undecided";
+        var client = new TestWorkerClient
+        {
+            ReviewPlanHandler = (runId, _) => Task.FromResult(new WorkerReviewPlanView(
+                new WorkerReviewPlan(revision == 0 ? null : 4, runId, revision == 0 ? "notCreated" : "active", revision, null, null),
+                new WorkerReviewPlanSummary(0, 0, 0, 0, revision == 0 ? "0" : "2048", 2)
+                {
+                    FolderRemoveCount = revision,
+                    FolderUndecidedCount = 2 - revision,
+                    EffectiveRemovalFileCount = revision,
+                    PlannedRemovalPhysicalItemCount = revision,
+                    IntactFolderCopyCount = 2 - revision,
+                })),
+            FolderGroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderGroupPage([Group(1, query.RunId, @"C:\One")], 1, null, null)),
+            FolderMemberPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderMemberPage(
+                    [new WorkerDuplicateFolderMember(10, query.GroupId, @"C:\One") { Decision = decision }],
+                    2,
+                    null,
+                    null)
+                {
+                    ReviewPlanId = revision == 0 ? null : 4,
+                    ReviewRevision = revision,
+                    ReviewSummary = new WorkerReviewFolderGroupSummary(query.GroupId, 0, revision, 2 - revision, 2 - revision),
+                }),
+            ReviewFolderDecisionHandler = (_, runId, groupId, memberId, requested, expected, _) =>
+            {
+                Assert.AreEqual(21, runId);
+                Assert.AreEqual(1, groupId);
+                Assert.AreEqual(10, memberId);
+                Assert.AreEqual(0, expected);
+                revision = 1;
+                decision = requested;
+                return Task.FromResult(new WorkerReviewFolderDecisionMutation(4, revision, false, requested));
+            },
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), new TestExplorer());
+        (long RunId, long Revision)? publishedRevision = null;
+        viewModel.ReviewRevisionChanged += (runId, appliedRevision) =>
+            publishedRevision = (runId, appliedRevision);
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(21, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        await viewModel.RemoveFolderCommand.ExecuteAsync(viewModel.Members.Single());
+
+        Assert.AreEqual("Remove", viewModel.Members.Single().Decision);
+        Assert.AreEqual(1, viewModel.ReviewPlan.Plan.Revision);
+        StringAssert.Contains(viewModel.ReviewPlanSummaryText, "1 folders marked Remove");
+        StringAssert.Contains(viewModel.SelectedReviewSummaryText, "1 intact copy remains");
+        StringAssert.Contains(viewModel.MemberStatusAnnouncement, @"Folder review decision saved: Remove for C:\One");
+        Assert.AreEqual((21L, 1L), publishedRevision);
+    }
+
+    [TestMethod]
+    public async Task ExternalFileRevisionRefreshesVisibleFolderReviewState()
+    {
+        var revision = 0L;
+        var planQueries = 0;
+        var memberQueries = 0;
+        var client = new TestWorkerClient
+        {
+            ReviewPlanHandler = (runId, _) =>
+            {
+                planQueries++;
+                return Task.FromResult(new WorkerReviewPlanView(
+                    new WorkerReviewPlan(revision == 0 ? null : 4, runId, revision == 0 ? "notCreated" : "active", revision, null, null),
+                    new WorkerReviewPlanSummary(0, 0, revision, 2 - revision, revision == 0 ? "0" : "1024", 2 - revision)
+                    {
+                        IntactFolderCopyCount = 2 - revision,
+                    }));
+            },
+            FolderGroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderGroupPage([Group(1, query.RunId, @"C:\One")], 1, null, null)),
+            FolderMemberPageHandler = (query, _) =>
+            {
+                memberQueries++;
+                return Task.FromResult(new WorkerDuplicateFolderMemberPage(
+                    [new WorkerDuplicateFolderMember(10, query.GroupId, @"C:\One")],
+                    2,
+                    null,
+                    null)
+                {
+                    ReviewPlanId = revision == 0 ? null : 4,
+                    ReviewRevision = revision,
+                    ReviewSummary = new WorkerReviewFolderGroupSummary(query.GroupId, 0, 0, 2, 2 - revision),
+                });
+            },
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(31, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        revision = 1;
+        await viewModel.RefreshReviewRevisionAsync(31, revision);
+
+        Assert.AreEqual(1, viewModel.ReviewPlan.Plan.Revision);
+        Assert.AreEqual(2, planQueries);
+        Assert.AreEqual(2, memberQueries);
+        Assert.IsTrue(viewModel.CachedMemberPageCount <= DuplicateFoldersViewModel.CacheCapacity);
+    }
+
+    [TestMethod]
+    public async Task FolderDecisionOverlapIsActionableAndDoesNotReplaceDurableState()
+    {
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderGroupPage([Group(1, query.RunId, @"C:\One")], 1, null, null)),
+            FolderMemberPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderMemberPage(
+                    [new WorkerDuplicateFolderMember(10, query.GroupId, @"C:\One") { Decision = "keep" }],
+                    1,
+                    null,
+                    null)
+                {
+                    ReviewSummary = new WorkerReviewFolderGroupSummary(query.GroupId, 1, 0, 0, 1),
+                }),
+            ReviewFolderDecisionHandler = (_, _, _, _, _, _, _) =>
+                Task.FromException<WorkerReviewFolderDecisionMutation>(
+                    new InvalidOperationException("review_overlap_conflict: conflicting file decision")),
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(22, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        await viewModel.RemoveFolderCommand.ExecuteAsync(viewModel.Members.Single());
+
+        Assert.AreEqual("Keep", viewModel.Members.Single().Decision);
+        StringAssert.Contains(viewModel.DetailErrorMessage, "Clear the contained file or folder decision first");
+        Assert.AreEqual(1, viewModel.MemberErrorAnnouncementVersion);
+    }
+
     private static WorkerDuplicateFolderGroup Group(long id, long runId, string path) =>
         new(id, runId, "2048", 2, 2, path);
 }

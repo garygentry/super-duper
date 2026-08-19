@@ -634,9 +634,21 @@ function Invoke-WpfAutomation([long]$RunId) {
         Invoke-Element (Find-Element AutomationId 'FolderApplyFilters')
         $folderMembers = Find-Element AutomationId 'FolderMembersGrid'
         $null = Find-FirstDataItem $folderMembers
+        $keepFolderButton = Find-DescendantButtonByNameFragment $folderMembers 'Keep folder copy '
+        $keptFolderPath = $keepFolderButton.Current.Name.Substring('Keep folder copy '.Length)
+        Invoke-Element $keepFolderButton
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            $folderReviewSummary = Find-Element AutomationId 'FolderSelectedReviewSummary' 1
+            if ($folderReviewSummary.Current.Name.Contains('1 keep', [StringComparison]::OrdinalIgnoreCase)) {
+                break
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ($folderReviewSummary.Current.Name.Contains('1 keep', [StringComparison]::OrdinalIgnoreCase)) 'The durable exact-folder review summary did not refresh after a Keep decision.'
+        Assert-True ([IO.Directory]::Exists($keptFolderPath)) 'Recording an exact-folder review decision unexpectedly removed the disposable fixture directory.'
         Invoke-Element (Find-DescendantByName $folderMembers 'Show in Explorer')
         Assert-NoVisibleDetailError 'FolderDetailError'
-        Write-Output "WPF automation passed for restored run $RunId, including a durable non-deleting Remove review decision, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
+        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
     }
     finally {
         try {
@@ -1109,7 +1121,40 @@ try {
         filter = @{ search = '' }; cursor = $null
     }
     Assert-True ($folderMembers.total -ge 2) 'Exact-folder member browsing did not return both roots.'
-    $queryDiagnostics = Stop-SmokeWorker $restored
+    $reviewPlan = Send-WorkerRequest $restored 'review_plan.get' @{ runId = $run.id }
+    $folderReviewPage = Send-WorkerRequest $restored 'review_folder_group.page' @{
+        runId = $run.id; pageSize = 25; cursor = $null
+    }
+    Assert-True ($folderReviewPage.total -ge 1) 'Bounded exact-folder review paging returned no smoke result.'
+    $folderDecision = Send-WorkerRequest $restored 'review_folder_decision.set' @{
+        operationId = [Guid]::NewGuid().ToString('N')
+        runId = $run.id
+        folderGroupId = $folderPage.groups[0].id
+        folderMemberId = $folderMembers.members[0].id
+        decision = 'keep'
+        expectedRevision = $reviewPlan.plan.revision
+    }
+    Assert-True ($folderDecision.decision -eq 'keep') 'Exact-folder Keep review decision was not recorded.'
+    Assert-True (-not $folderDecision.replayed) 'The first exact-folder smoke mutation was unexpectedly replayed.'
+    $firstQueryDiagnostics = Stop-SmokeWorker $restored
+    $restored = $null
+
+    $restored = Start-SmokeWorker
+    $null = Send-WorkerRequest $restored 'hello' @{
+        protocolVersions = @(1)
+        client = @{ name = 'windows-smoke-review-restart'; version = '1.0.0' }
+    }
+    $persistedFolderMembers = Send-WorkerRequest $restored 'duplicate_folder_group.members' @{
+        runId = $run.id; groupId = $folderPage.groups[0].id; pageSize = 25
+        sort = @{ field = 'path'; direction = 'ascending' }
+        filter = @{ search = '' }; cursor = $null
+    }
+    $persistedFolderMember = $persistedFolderMembers.members |
+        Where-Object { $_.id -eq $folderMembers.members[0].id } |
+        Select-Object -First 1
+    Assert-True ($persistedFolderMember.decision -eq 'keep') 'Exact-folder review decision did not survive a worker restart.'
+    Assert-True ([IO.Directory]::Exists($persistedFolderMember.path)) 'Recording an exact-folder review decision unexpectedly removed the disposable fixture directory.'
+    $queryDiagnostics = $firstQueryDiagnostics + (Stop-SmokeWorker $restored)
     $restored = $null
 
     foreach ($phase in @('discovering', 'hashing', 'persisting', 'analyzing_folders', 'finalizing')) {
@@ -1119,7 +1164,8 @@ try {
         'duplicate_file_group.page', 'duplicate_file_group.members',
         'duplicate_file_selected_root_facet.page',
         'duplicate_file_drive_facet.page',
-        'duplicate_folder_group.page', 'duplicate_folder_group.members')) {
+        'duplicate_folder_group.page', 'duplicate_folder_group.members',
+        'review_plan.get', 'review_folder_group.page')) {
         Assert-True ($queryDiagnostics.Contains("kind=result_query method=$method")) "Missing $method timing."
     }
 

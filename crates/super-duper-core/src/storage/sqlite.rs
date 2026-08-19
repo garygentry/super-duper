@@ -4,7 +4,7 @@ use chrono::Utc;
 use rusqlite::{params, Connection, Error, Result};
 use tracing::{debug, info};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 5;
+pub const CURRENT_SCHEMA_VERSION: i64 = 6;
 
 pub struct Database {
     conn: Connection,
@@ -67,10 +67,15 @@ impl Database {
         let version = self.schema_version()?;
         match version {
             CURRENT_SCHEMA_VERSION => self.conn.execute_batch(include_str!("schema.sql"))?,
-            4 => self.migrate_v4_to_v5()?,
+            5 => self.migrate_v5_to_v6()?,
+            4 => {
+                self.migrate_v4_to_v5()?;
+                self.migrate_v5_to_v6()?;
+            }
             3 => {
                 self.migrate_v3_to_v4()?;
                 self.migrate_v4_to_v5()?;
+                self.migrate_v5_to_v6()?;
             }
             2 => self.migrate_v2_to_v3()?,
             0 if !self.has_user_tables()? => self.conn.execute_batch(include_str!("schema.sql"))?,
@@ -86,6 +91,9 @@ impl Database {
             }
             _ => return Err(Error::InvalidQuery),
         }
+        // Reconcile idempotent tables and indexes after every supported forward migration. This
+        // also keeps narrowly constructed historical fixtures aligned with the complete schema.
+        self.conn.execute_batch(include_str!("schema.sql"))?;
         self.reconcile_extension_keys()?;
         debug!("SQLite schema ready at version {}", CURRENT_SCHEMA_VERSION);
         Ok(())
@@ -444,6 +452,54 @@ impl Database {
         migration
     }
 
+    fn migrate_v5_to_v6(&self) -> Result<()> {
+        info!("Migrating SQLite schema from version 5 to 6");
+        let migration = self.conn.execute_batch(
+            "BEGIN IMMEDIATE;
+             CREATE TABLE review_folder_decision (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+                 folder_group_id INTEGER NOT NULL REFERENCES duplicate_folder_group(id) ON DELETE CASCADE,
+                 folder_member_id INTEGER NOT NULL REFERENCES duplicate_folder_group_member(id) ON DELETE CASCADE,
+                 directory_id INTEGER NOT NULL REFERENCES directory_node(id) ON DELETE CASCADE,
+                 decision TEXT NOT NULL CHECK(decision IN ('keep', 'remove', 'undecided')),
+                 provenance TEXT NOT NULL CHECK(provenance = 'manual'),
+                 decided_at TEXT NOT NULL,
+                 snapshot_path TEXT NOT NULL,
+                 snapshot_total_size INTEGER NOT NULL CHECK(snapshot_total_size >= 0),
+                 snapshot_file_count INTEGER NOT NULL CHECK(snapshot_file_count > 0),
+                 snapshot_structural_fingerprint TEXT NOT NULL,
+                 snapshot_verified_fingerprint TEXT NOT NULL,
+                 UNIQUE(plan_id, folder_member_id)
+             );
+             CREATE TABLE review_folder_command (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+                 operation_id TEXT NOT NULL,
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 folder_group_id INTEGER NOT NULL REFERENCES duplicate_folder_group(id) ON DELETE CASCADE,
+                 folder_member_id INTEGER NOT NULL REFERENCES duplicate_folder_group_member(id) ON DELETE CASCADE,
+                 decision TEXT NOT NULL CHECK(decision IN ('keep', 'remove', 'undecided')),
+                 expected_revision INTEGER NOT NULL CHECK(expected_revision >= 0),
+                 applied_revision INTEGER NOT NULL CHECK(applied_revision > 0),
+                 created_at TEXT NOT NULL,
+                 UNIQUE(plan_id, operation_id)
+             );
+             CREATE INDEX idx_review_folder_decision_plan_group
+                 ON review_folder_decision(plan_id, folder_group_id, folder_member_id);
+             CREATE INDEX idx_review_folder_decision_plan_decision
+                 ON review_folder_decision(plan_id, decision, directory_id);
+             CREATE INDEX idx_review_folder_command_plan_operation
+                 ON review_folder_command(plan_id, operation_id);
+             PRAGMA user_version = 6;
+             COMMIT;",
+        );
+        if migration.is_err() {
+            let _ = self.conn.execute_batch("ROLLBACK;");
+        }
+        migration
+    }
+
     pub fn reconcile_interrupted_runs(&self) -> Result<usize> {
         let now = Utc::now().to_rfc3339();
         let count = self.conn.execute(
@@ -466,6 +522,8 @@ impl Database {
     pub fn truncate_all(&self) -> Result<()> {
         self.conn.execute_batch(
             "BEGIN;
+             DELETE FROM review_folder_command;
+             DELETE FROM review_folder_decision;
              DELETE FROM review_command;
              DELETE FROM review_decision;
              DELETE FROM review_plan;

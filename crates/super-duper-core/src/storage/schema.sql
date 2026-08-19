@@ -1,4 +1,4 @@
-PRAGMA user_version = 5;
+PRAGMA user_version = 6;
 
 -- Reusable, user-owned scan definitions.
 CREATE TABLE IF NOT EXISTS scan_session (
@@ -179,6 +179,39 @@ CREATE TABLE IF NOT EXISTS review_command (
     UNIQUE(plan_id, operation_id)
 );
 
+-- Exact-folder review remains a separate target kind with its own immutable snapshot and
+-- idempotency payload. It shares only the owning plan and monotonic plan revision.
+CREATE TABLE IF NOT EXISTS review_folder_decision (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+    folder_group_id INTEGER NOT NULL REFERENCES duplicate_folder_group(id) ON DELETE CASCADE,
+    folder_member_id INTEGER NOT NULL REFERENCES duplicate_folder_group_member(id) ON DELETE CASCADE,
+    directory_id INTEGER NOT NULL REFERENCES directory_node(id) ON DELETE CASCADE,
+    decision TEXT NOT NULL CHECK(decision IN ('keep', 'remove', 'undecided')),
+    provenance TEXT NOT NULL CHECK(provenance = 'manual'),
+    decided_at TEXT NOT NULL,
+    snapshot_path TEXT NOT NULL,
+    snapshot_total_size INTEGER NOT NULL CHECK(snapshot_total_size >= 0),
+    snapshot_file_count INTEGER NOT NULL CHECK(snapshot_file_count > 0),
+    snapshot_structural_fingerprint TEXT NOT NULL,
+    snapshot_verified_fingerprint TEXT NOT NULL,
+    UNIQUE(plan_id, folder_member_id)
+);
+
+CREATE TABLE IF NOT EXISTS review_folder_command (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+    operation_id TEXT NOT NULL,
+    run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+    folder_group_id INTEGER NOT NULL REFERENCES duplicate_folder_group(id) ON DELETE CASCADE,
+    folder_member_id INTEGER NOT NULL REFERENCES duplicate_folder_group_member(id) ON DELETE CASCADE,
+    decision TEXT NOT NULL CHECK(decision IN ('keep', 'remove', 'undecided')),
+    expected_revision INTEGER NOT NULL CHECK(expected_revision >= 0),
+    applied_revision INTEGER NOT NULL CHECK(applied_revision > 0),
+    created_at TEXT NOT NULL,
+    UNIQUE(plan_id, operation_id)
+);
+
 -- Structured, run-owned records for whole subtrees pruned before filesystem content access.
 CREATE TABLE IF NOT EXISTS run_exclusion (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -212,6 +245,8 @@ CREATE INDEX IF NOT EXISTS idx_dir_run_parent ON directory_node(run_id, parent_i
 CREATE INDEX IF NOT EXISTS idx_dir_fingerprint ON directory_fingerprint(content_fingerprint);
 CREATE INDEX IF NOT EXISTS idx_dir_similarity_run_score ON directory_similarity(run_id, similarity_score DESC);
 CREATE INDEX IF NOT EXISTS idx_folder_group_member_group ON duplicate_folder_group_member(group_id, id);
+CREATE INDEX IF NOT EXISTS idx_folder_group_member_directory
+    ON duplicate_folder_group_member(directory_id, group_id, id);
 CREATE INDEX IF NOT EXISTS idx_run_exclusion_run_path ON run_exclusion(run_id, path COLLATE NOCASE, id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_review_plan_one_active_run
     ON review_plan(run_id) WHERE state = 'active';
@@ -221,3 +256,9 @@ CREATE INDEX IF NOT EXISTS idx_review_decision_plan_decision
     ON review_decision(plan_id, decision, group_id);
 CREATE INDEX IF NOT EXISTS idx_review_command_plan_operation
     ON review_command(plan_id, operation_id);
+CREATE INDEX IF NOT EXISTS idx_review_folder_decision_plan_group
+    ON review_folder_decision(plan_id, folder_group_id, folder_member_id);
+CREATE INDEX IF NOT EXISTS idx_review_folder_decision_plan_decision
+    ON review_folder_decision(plan_id, decision, directory_id);
+CREATE INDEX IF NOT EXISTS idx_review_folder_command_plan_operation
+    ON review_folder_command(plan_id, operation_id);

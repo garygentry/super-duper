@@ -905,6 +905,9 @@ public sealed class DuplicateFilesViewModelTests
             },
         };
         using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        (long RunId, long Revision)? publishedRevision = null;
+        viewModel.ReviewRevisionChanged += (runId, appliedRevision) =>
+            publishedRevision = (runId, appliedRevision);
         await viewModel.ShowRunAsync(
             TestWorkerClient.CreateRun(12, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
 
@@ -918,7 +921,56 @@ public sealed class DuplicateFilesViewModelTests
             "Set review: 0 keep, 1 remove, 1 undecided · 1 physical copy remains",
             viewModel.SelectedReviewSummaryText);
         StringAssert.Contains(viewModel.SelectedSetStatusAnnouncement, "Review decision saved: Remove");
+        Assert.AreEqual((12L, 1L), publishedRevision);
         Assert.IsTrue(viewModel.RemoveMemberCommand.CanExecute(viewModel.Members[0]));
+        Assert.IsTrue(viewModel.CachedMemberPageCount <= DuplicateFilesViewModel.CacheCapacity);
+    }
+
+    [TestMethod]
+    public async Task ExternalFolderRevisionRefreshesVisibleFileReviewState()
+    {
+        var revision = 0L;
+        var planQueries = 0;
+        var memberQueries = 0;
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileGroupPage([Group(1, query.RunId, "item.bin")], 1, null, null)),
+            ReviewPlanHandler = (runId, _) =>
+            {
+                planQueries++;
+                return Task.FromResult(new WorkerReviewPlanView(
+                    new WorkerReviewPlan(revision == 0 ? null : 7, runId, revision == 0 ? "notCreated" : "active", revision, null, null),
+                    new WorkerReviewPlanSummary(0, 0, 0, 2, "0", 2)
+                    {
+                        FolderKeepCount = revision,
+                    }));
+            },
+            MemberPageHandler = (query, _) =>
+            {
+                memberQueries++;
+                return Task.FromResult(new WorkerDuplicateFileMemberPage(
+                    [Member(1, query.GroupId, @"C:\Data\item.bin"), Member(2, query.GroupId, @"D:\Backup\item.bin")],
+                    2,
+                    null,
+                    null)
+                {
+                    ReviewPlanId = revision == 0 ? null : 7,
+                    ReviewRevision = revision,
+                    ReviewSummary = new WorkerReviewGroupSummary(query.GroupId, 0, 0, 2, 2),
+                });
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(30, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        revision = 1;
+        await viewModel.RefreshReviewRevisionAsync(30, revision);
+
+        Assert.AreEqual(1, viewModel.ReviewPlan.Plan.Revision);
+        Assert.AreEqual(2, planQueries);
+        Assert.AreEqual(2, memberQueries);
         Assert.IsTrue(viewModel.CachedMemberPageCount <= DuplicateFilesViewModel.CacheCapacity);
     }
 

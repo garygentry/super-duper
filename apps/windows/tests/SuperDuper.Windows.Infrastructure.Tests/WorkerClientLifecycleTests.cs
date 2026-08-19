@@ -364,6 +364,32 @@ public sealed class WorkerClientLifecycleTests
                     DuplicateFolderMemberSortField.Path,
                     WorkerSortDirection.Ascending,
                     new DuplicateFolderMemberFilter(string.Empty)));
+            var folderReviewGroups = await client.GetReviewFolderGroupsAsync(started.Id, 200);
+            var keptFolder = folderMembers.Members.First();
+            var folderOperationId = $"folder-lifecycle-{Guid.NewGuid():N}";
+            var folderMutation = await client.SetReviewFolderDecisionAsync(
+                folderOperationId,
+                started.Id,
+                keptFolder.GroupId,
+                keptFolder.Id,
+                "keep",
+                reviewAfter.Plan.Revision);
+            var folderReplay = await client.SetReviewFolderDecisionAsync(
+                folderOperationId,
+                started.Id,
+                keptFolder.GroupId,
+                keptFolder.Id,
+                "keep",
+                reviewAfter.Plan.Revision);
+            var reviewedFolderMembers = await client.GetDuplicateFolderGroupMembersAsync(
+                new DuplicateFolderMemberQuery(
+                    started.Id,
+                    keptFolder.GroupId,
+                    200,
+                    DuplicateFolderMemberSortField.Path,
+                    WorkerSortDirection.Ascending,
+                    new DuplicateFolderMemberFilter(string.Empty)));
+            var combinedAfterFolder = await client.GetReviewPlanAsync(started.Id);
 
             Assert.AreEqual(1, sessions.Total);
             Assert.AreEqual("run.completed", terminalEvent);
@@ -415,6 +441,13 @@ public sealed class WorkerClientLifecycleTests
                 members.Members.Select(member => member.FileName).ToArray());
             Assert.AreEqual(1, folderGroups.Total);
             Assert.AreEqual(2, folderMembers.Total);
+            Assert.AreEqual(1, folderReviewGroups.Total);
+            Assert.AreEqual(reviewAfter.Plan.Revision + 1, folderMutation.AppliedRevision);
+            Assert.IsTrue(folderReplay.Replayed);
+            Assert.AreEqual("keep", reviewedFolderMembers.Members.Single(member => member.Id == keptFolder.Id).Decision);
+            Assert.AreEqual(1, reviewedFolderMembers.ReviewSummary.KeepCount);
+            Assert.AreEqual(folderMutation.AppliedRevision, reviewedFolderMembers.ReviewRevision);
+            Assert.AreEqual(1, combinedAfterFolder.Summary.FolderKeepCount);
             CollectionAssert.AreEquivalent(
                 new[] { folderA.Name, folderB.Name },
                 folderMembers.Members
@@ -434,6 +467,7 @@ public sealed class WorkerClientLifecycleTests
                          "duplicate_file_group.members",
                          "review_plan.get",
                          "review_group.page",
+                         "review_folder_group.page",
                          "duplicate_folder_group.page",
                          "duplicate_folder_group.members",
                      })

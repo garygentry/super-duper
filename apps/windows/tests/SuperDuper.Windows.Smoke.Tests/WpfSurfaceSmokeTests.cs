@@ -302,6 +302,28 @@ public sealed class WpfSurfaceSmokeTests
                 "FolderApplyFilters",
                 "FolderGroupsGrid",
                 "FolderMembersGrid");
+            _ = FindByAutomationId<TextBlock>(folders, "FolderCombinedReviewSummary");
+            _ = FindByAutomationId<TextBlock>(folders, "FolderSelectedReviewSummary");
+            var folderMemberHeaders = FindByAutomationId<DataGrid>(folders, "FolderMembersGrid")
+                .Columns.Select(column => column.Header?.ToString()).ToArray();
+            CollectionAssert.IsSubsetOf(
+                new[] { "Decision", "Review decision", "Folder actions" },
+                folderMemberHeaders);
+            var folderReviewColumn = (DataGridTemplateColumn)FindByAutomationId<DataGrid>(folders, "FolderMembersGrid")
+                .Columns.Single(column => Equals(column.Header, "Review decision"));
+            var folderReviewControls = (StackPanel)folderReviewColumn.CellTemplate.LoadContent();
+            folderReviewControls.DataContext = new { Path = @"C:\Archive\Copy" };
+            DrainDispatcher();
+            var folderReviewButtons = folderReviewControls.Children.OfType<Button>().ToArray();
+            CollectionAssert.AreEqual(
+                new[] { "Keep", "Remove", "Undecided" },
+                folderReviewButtons.Select(button => button.Content?.ToString()).ToArray());
+            Assert.IsTrue(folderReviewButtons.All(button => button.Focusable && KeyboardNavigation.GetIsTabStop(button)));
+            Assert.IsTrue(folderReviewButtons.All(button =>
+                AutomationProperties.GetName(button).Contains(@"C:\Archive\Copy", StringComparison.Ordinal)));
+            Assert.IsTrue(folderReviewButtons.All(button =>
+                AutomationProperties.GetHelpText(button).Contains("does not delete", StringComparison.OrdinalIgnoreCase)
+                || AutomationProperties.GetHelpText(button).Contains("Undecided", StringComparison.Ordinal)));
             var folderGroupStatus = FindByAutomationId<TextBlock>(folders, "FolderGroupCount");
             Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
                 AutomationNotificationBehavior.GetNotificationKind(folderGroupStatus));

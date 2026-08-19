@@ -289,7 +289,16 @@ public sealed record WorkerReviewPlanSummary(
     long RemoveCount,
     long UndecidedCount,
     string PlannedRemovalBytes,
-    long RemainingPhysicalCopyCount);
+    long RemainingPhysicalCopyCount)
+{
+    public long DecidedFolderGroupCount { get; init; }
+    public long FolderKeepCount { get; init; }
+    public long FolderRemoveCount { get; init; }
+    public long FolderUndecidedCount { get; init; }
+    public long EffectiveRemovalFileCount { get; init; }
+    public long PlannedRemovalPhysicalItemCount { get; init; }
+    public long IntactFolderCopyCount { get; init; }
+}
 
 public sealed record WorkerReviewPlanView(
     WorkerReviewPlan Plan,
@@ -310,6 +319,26 @@ public sealed record WorkerReviewGroupPage(
     string? NextCursor);
 
 public sealed record WorkerReviewDecisionMutation(
+    long PlanId,
+    long AppliedRevision,
+    bool Replayed,
+    string Decision);
+
+public sealed record WorkerReviewFolderGroupSummary(
+    long FolderGroupId,
+    long KeepCount,
+    long RemoveCount,
+    long UndecidedCount,
+    long IntactCopyCount);
+
+public sealed record WorkerReviewFolderGroupPage(
+    IReadOnlyList<WorkerReviewFolderGroupSummary> Groups,
+    long Total,
+    long? PlanId,
+    long Revision,
+    string? NextCursor);
+
+public sealed record WorkerReviewFolderDecisionMutation(
     long PlanId,
     long AppliedRevision,
     bool Replayed,
@@ -363,13 +392,23 @@ public sealed record DuplicateFolderMemberQuery(
     DuplicateFolderMemberFilter Filter,
     string? Cursor = null);
 
-public sealed record WorkerDuplicateFolderMember(long Id, long GroupId, string Path);
+public sealed record WorkerDuplicateFolderMember(long Id, long GroupId, string Path)
+{
+    public string Decision { get; init; } = "undecided";
+    public string? DecisionProvenance { get; init; }
+    public string? DecisionAt { get; init; }
+}
 
 public sealed record WorkerDuplicateFolderMemberPage(
     IReadOnlyList<WorkerDuplicateFolderMember> Members,
     long Total,
     string? NextCursor,
-    string? PreviousCursor);
+    string? PreviousCursor)
+{
+    public long? ReviewPlanId { get; init; }
+    public long ReviewRevision { get; init; }
+    public WorkerReviewFolderGroupSummary ReviewSummary { get; init; } = new(0, 0, 0, 0, 0);
+}
 
 public sealed class WorkerRunProgressEventArgs : EventArgs
 {
