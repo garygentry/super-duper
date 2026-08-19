@@ -483,6 +483,108 @@ pub struct ReviewFolderDecisionMutation {
     pub decision: ReviewDecisionKind,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreferenceRule {
+    pub id: i64,
+    pub name: String,
+    pub kind: String,
+    pub state: String,
+    pub revision: i64,
+    pub roots: Vec<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreferenceRuleSummary {
+    pub id: i64,
+    pub name: String,
+    pub kind: String,
+    pub revision: i64,
+    pub root_count: i64,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreferenceRuleSaveResult {
+    pub rule: PreferenceRule,
+    pub replayed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PreferencePreviewScope {
+    SelectedSets(Vec<i64>),
+    CurrentFilter(DuplicateFileGroupFilter),
+    CompletedRun,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PreferencePreviewStatus {
+    Applicable,
+    Blocked,
+}
+
+impl PreferencePreviewStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Applicable => "applicable",
+            Self::Blocked => "blocked",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreferencePreviewGroup {
+    pub group_id: i64,
+    pub status: PreferencePreviewStatus,
+    pub best_rank: Option<i64>,
+    pub preferred_root: Option<String>,
+    pub tied_preferred_path_count: i64,
+    pub proposed_keep_path_count: i64,
+    pub proposed_remove_path_count: i64,
+    pub proposed_remove_physical_item_count: i64,
+    pub proposed_remove_bytes: i64,
+    pub manual_keep_count: i64,
+    pub manual_remove_count: i64,
+    pub explanation_code: String,
+    pub conflict_file_id: Option<i64>,
+    pub conflict_folder_member_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PreferencePreviewSummary {
+    pub scoped_group_count: i64,
+    pub scoped_logical_path_count: i64,
+    pub scoped_physical_item_count: i64,
+    pub scoped_bytes: i64,
+    pub affected_group_count: i64,
+    pub blocked_group_count: i64,
+    pub proposed_keep_path_count: i64,
+    pub proposed_remove_path_count: i64,
+    pub proposed_remove_physical_item_count: i64,
+    pub proposed_remove_bytes: i64,
+    pub manual_keep_path_count: i64,
+    pub manual_remove_path_count: i64,
+    pub tied_group_count: i64,
+    pub no_ranked_root_group_count: i64,
+    pub missing_rule_root_count: i64,
+    pub overlap_conflict_count: i64,
+    pub file_survivor_conflict_count: i64,
+    pub folder_survivor_conflict_count: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreferencePreviewPage {
+    pub groups: Vec<PreferencePreviewGroup>,
+    pub total: i64,
+    pub has_more: bool,
+    pub rule_id: i64,
+    pub rule_revision: i64,
+    pub review_plan_id: Option<i64>,
+    pub review_revision: i64,
+    pub summary: PreferencePreviewSummary,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DuplicateFolderGroupSortField {
     TotalBytes,

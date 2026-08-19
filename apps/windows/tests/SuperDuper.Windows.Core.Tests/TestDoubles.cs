@@ -42,6 +42,10 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
 
     public Func<string, long, long, long, string, long, CancellationToken, Task<WorkerReviewFolderDecisionMutation>>? ReviewFolderDecisionHandler { get; set; }
 
+    public Func<PreferencePreviewQuery, CancellationToken, Task<WorkerPreferencePreviewPage>>? PreferencePreviewHandler { get; set; }
+
+    public List<WorkerPreferenceRule> PreferenceRules { get; } = [];
+
     public Func<DuplicateFolderGroupQuery, CancellationToken, Task<WorkerDuplicateFolderGroupPage>>? FolderGroupPageHandler { get; set; }
 
     public Func<DuplicateFolderMemberQuery, CancellationToken, Task<WorkerDuplicateFolderMemberPage>>? FolderMemberPageHandler { get; set; }
@@ -273,6 +277,64 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
             expectedRevision,
             cancellationToken)
         ?? Task.FromResult(new WorkerReviewFolderDecisionMutation(1, expectedRevision + 1, false, decision));
+
+    public Task<WorkerPreferenceRulePage> ListPreferenceRulesAsync(
+        long offset = 0,
+        int limit = 200,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new WorkerPreferenceRulePage(
+            PreferenceRules.Skip((int)offset).Take(limit).Select(rule => new WorkerPreferenceRuleSummary(
+                rule.Id,
+                rule.Name,
+                rule.Kind,
+                rule.Revision,
+                rule.Roots.Count,
+                rule.UpdatedAt)).ToArray(),
+            PreferenceRules.Count));
+
+    public Task<WorkerPreferenceRule> GetPreferenceRuleAsync(
+        long ruleId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(PreferenceRules.Single(rule => rule.Id == ruleId));
+
+    public Task<WorkerPreferenceRuleSaveResult> SavePreferenceRuleAsync(
+        string operationId,
+        long? ruleId,
+        string name,
+        IReadOnlyList<string> roots,
+        long expectedRevision,
+        CancellationToken cancellationToken = default)
+    {
+        var now = DateTimeOffset.UtcNow.ToString("O");
+        var id = ruleId ?? (PreferenceRules.Count == 0 ? 1 : PreferenceRules.Max(rule => rule.Id) + 1);
+        var existing = PreferenceRules.FindIndex(rule => rule.Id == id);
+        var saved = new WorkerPreferenceRule(
+            id,
+            name,
+            "ordered_preferred_scan_roots",
+            "active",
+            expectedRevision + 1,
+            roots.ToArray(),
+            existing >= 0 ? PreferenceRules[existing].CreatedAt : now,
+            now);
+        if (existing >= 0)
+        {
+            PreferenceRules[existing] = saved;
+        }
+        else
+        {
+            PreferenceRules.Add(saved);
+        }
+        return Task.FromResult(new WorkerPreferenceRuleSaveResult(saved, false));
+    }
+
+    public Task<WorkerPreferencePreviewPage> GetPreferencePreviewAsync(
+        PreferencePreviewQuery query,
+        CancellationToken cancellationToken = default) =>
+        PreferencePreviewHandler?.Invoke(query, cancellationToken)
+        ?? Task.FromResult(new WorkerPreferencePreviewPage(
+            [], 0, null, query.RuleId, query.RuleRevision, null, query.ReviewRevision,
+            new WorkerPreferencePreviewSummary(0, 0, 0, "0", 0, 0, 0, 0, 0, "0", 0, 0, 0, 0, 0, 0, 0, 0)));
 
     public Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(
         DuplicateFolderGroupQuery query,

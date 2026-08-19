@@ -112,6 +112,27 @@ public interface IWorkerClient : IAsyncDisposable
         long expectedRevision,
         CancellationToken cancellationToken = default);
 
+    Task<WorkerPreferenceRulePage> ListPreferenceRulesAsync(
+        long offset = 0,
+        int limit = 200,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerPreferenceRule> GetPreferenceRuleAsync(
+        long ruleId,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerPreferenceRuleSaveResult> SavePreferenceRuleAsync(
+        string operationId,
+        long? ruleId,
+        string name,
+        IReadOnlyList<string> roots,
+        long expectedRevision,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerPreferencePreviewPage> GetPreferencePreviewAsync(
+        PreferencePreviewQuery query,
+        CancellationToken cancellationToken = default);
+
     Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(
         DuplicateFolderGroupQuery query,
         CancellationToken cancellationToken = default);

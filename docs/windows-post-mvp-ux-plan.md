@@ -6,7 +6,9 @@ Active implementation roadmap for the Windows duplicate-review experience. Miles
 release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first twelve
 read-only Milestone 8 slices and the first eight bounded accessibility-remediation slices are
 implemented and accepted; the broader milestone remains in progress and is gated by the remaining
-criteria below.
+criteria below. The first three Milestone 10 slices are also accepted: durable manual file
+decisions, durable manual exact-folder decisions, and the read-only ordered preferred scan-root
+rule preview. Rule application, live validation, and deletion remain deferred.
 
 This is the durable planning source for post-MVP Windows UX work. Update this document when a
 milestone is refined, split, accepted, or superseded so future coding sessions do not have to
@@ -2313,8 +2315,10 @@ live validation, filesystem access, deletion, or Recycle Bin operation.
   adding per-set totals.
 - Expected structured errors distinguish missing/non-completed run, missing/archived rule, stale
   rule revision, stale review revision, invalid/foreign selected sets, invalid complete filter,
-  invalid scope, invalid cursor, and bounded preview complexity. Blocked set rows contain stable
-  conflict explanations; request-level errors never expose raw SQL or unbounded path data.
+  invalid scope, invalid cursor, and bounded preview complexity. V1 caps one evaluation at 100,000
+  sets and 500,000 logical paths and returns `preview_too_complex` rather than a partial preview.
+  Blocked set rows contain stable conflict explanations; request-level errors never expose raw SQL
+  or unbounded path data.
 
 ##### Core lifetime, cancellation, restart, and performance
 
@@ -2323,10 +2327,11 @@ live validation, filesystem access, deletion, or Recycle Bin operation.
   scope/revisions. Changing run, rule, rule order, scope, filter, or review revision cancels current
   waits, clears decision-sensitive preview pages, and rejects late responses by the complete
   generation key. No run-wide decision, path, or physical-identity dictionary is introduced.
-- Host cancellation stops awaiting a page without treating the read as a mutation. Worker preview
-  queries run on a non-dispatcher worker path, check cancellation at bounded SQL progress intervals,
-  and are safe to abandon; EOF/worker exit leaves no preview state to reconcile. Restart reloads the
-  saved rule and recomputes preview solely from SQLite.
+- Host cancellation stops awaiting a page without treating the read as a mutation. The bounded
+  SQLite read may finish in the worker after its correlation wait is cancelled; Core rejects that
+  response through the complete generation key, and no partial preview state exists to reconcile.
+  Worker exit likewise leaves no preview mutation behind. Restart reloads the saved rule and
+  recomputes preview solely from SQLite.
 - Disposable coverage includes schema migration/rollback, save replay/conflict/revision/restart,
   all three scopes, complete filter/cursor signatures, ties, missing roots, hard-link aliases,
   manual precedence, folder containment, suppressed groups, overlap/survivor conflicts, and global
@@ -2339,8 +2344,8 @@ live validation, filesystem access, deletion, or Recycle Bin operation.
 - The duplicate-file workspace exposes a named-rule editor with explicit Move up/Move down buttons
   for the ordered root list, Save, scope selection, and Preview. Native controls have deterministic
   tab order and Space/Enter activation; list selection plus the move buttons provides a complete
-  keyboard reordering path without drag-and-drop. Automation names/help text include the root's
-  complete immutable value and its one-based rank.
+  keyboard reordering path without drag-and-drop. Each list item exposes the root's complete
+  immutable value, and the ordered list plus Move up/Move down labels explain its explicit rank.
 - The preview heading states that nothing has been applied or deleted. A fixed summary identifies
   the scope and counts applicable/blocked/tied/manual-precedence outcomes. Virtualized paged rows
   expose concise reasons such as `Kept because D:\\Photos ranks above E:\\Backup`, `Kept because
@@ -2360,6 +2365,31 @@ decisions, modify manual decisions, advance a review plan, use `scanned_file.mar
 legacy `deletion_plan`, validate live state, read excluded placeholders, or expose/schedule/execute
 deletion. A later application slice must separately design rule snapshot provenance, idempotent
 plan mutation, reversal, conflicts after preview, and revalidation of the same invariants.
+
+##### Acceptance result
+
+- Schema v7 and the read-only preview are accepted. Named ordered rules persist independently from
+  review/live/execution state, exact idempotent save replay returns its originally applied revision,
+  and restart reconstruction preserves rule and preview behavior. No rule command writes manual
+  file/folder decisions or advances the shared review-plan revision.
+- Storage and worker coverage exercises exact rank/tie/missing-root behavior, all three explicit
+  scopes, complete filter and cursor signatures, hard-link de-duplication, manual precedence,
+  folder containment, overlap and survivor conflicts, stale revisions, and 100,000-set bounds.
+  The final Debug and Release Rust suites each passed 29 storage tests with the two operator
+  profiles intentionally ignored and 11 worker tests.
+- Core uses a separate five-page cache, cancellation source, and query generation; rule/run/scope/
+  filter/review changes invalidate decision-sensitive pages and reject late responses. The final
+  Debug and serialized Release Windows matrices each passed 59 Core, 22 Infrastructure plus the
+  intentional provider skip, and 3 WPF STA tests.
+- The isolated optimized 100-sample development-host profile evaluates 100,000 real sets and
+  200,100 logical paths. Its complete-run first-page preview plus fixed summary measured 870.42 ms
+  p95 with 2,199,552 bytes of retained private-memory growth, below the five-second query and 32 MB
+  repeated-growth ceilings. This is regression evidence only and does not close the
+  representative-hardware gate.
+- Real interactive Debug and Release smoke passed with a saved rule, a non-empty read-only preview,
+  worker restart persistence/reconstruction, accessible WPF completion text, and disposable files
+  still present. No command exposes deletion, reads live filesystem state, or accesses excluded
+  cloud-placeholder content.
 
 #### Decision model
 
@@ -2662,22 +2692,22 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 Keep the remaining physical Narrator/NVDA, high-contrast, multi-monitor DPI, and representative-
 hardware Milestone 8 procedures operator-gated; they can close independently from later review
-work. The next implementation slice should refine one bounded Milestone 10 preference-rule preview
-before adding rule application. Start with ordered preferred scan roots because every member
-already owns immutable selected-root context:
+work. The next implementation slice should refine, before coding, one separately bounded Milestone
+10 ordered-rule application mutation:
 
-1. Define exact tie, missing-root, hard-link-alias, folder-containment, and already-manual-decision
-   semantics, plus a forward migration for named ordered rules that remains separate from manual
-   decisions and execution state.
-2. Add a revision-bound, cursor-paged preview over an explicit scope (selected sets, the complete
-   current filter signature, or a run), with deduplicated affected sets, logical paths, physical
-   items, and bytes. Preview must never silently overwrite manual choices.
-3. Enforce the existing file/folder survivor and overlap invariants against the virtual result and
-   return actionable structured conflicts. Keep preview read-only until its large-fixture bounds,
-   restart behavior, accessible explanation UI, and cancellation/stale-generation tests pass.
-4. Do not add live validation, content access, excluded-cloud-placeholder hydration, a deletion
-   schedule, Recycle Bin integration, or execution. Milestone 12 continues to own live-state badges
-   and changed/resolved behavior.
+1. Snapshot rule ID/revision, run, exact scope/filter signature, and source review-plan revision in
+   Rust-owned provenance. Require an explicit idempotency key and expected revisions; an exact replay
+   returns the original outcome, while any drift returns a structured conflict and makes no change.
+2. Write only rule-produced decisions for preview-applicable sets, preserve manual Keep/Remove
+   precedence, re-evaluate the same file/folder overlap and survivor invariants transactionally, and
+   advance the shared review-plan revision exactly once. Define how a later manual decision overrides
+   provenance without becoming rule-owned.
+3. Design a bounded, idempotent reversal/clear operation that removes only decisions produced by
+   that recorded application and never erases later manual choices. Keep rule configuration,
+   application provenance, manual review state, live state, and execution state separate.
+4. Keep this next slice non-executing: do not validate live files, hydrate excluded cloud
+   placeholders, create a deletion schedule, use legacy deletion truth, invoke the Recycle Bin, or
+   delete anything. Milestone 12 continues to own live-state badges and changed/resolved behavior.
 
 ## Milestone Definition Template
 
@@ -2728,3 +2758,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-19 | Added an explicit 100-sample Release profile for the 100,000-group read-only workspace and reconciled the Milestone 8 boundary with concrete keyboard, screen-reader-contract, high-contrast, minimum-width, and DPI findings. The current host passed both facet p95 targets and grew private memory by 815,104 bytes across 300 queries, but its 140.47 ms group/summary p95 missed the 100 ms target. | Close the bounded-memory gate through measured process growth plus fixed cache/collection/virtualization regressions. Keep the warm group/summary and physical Narrator/NVDA, high-contrast, and multi-monitor DPI gates explicitly open with exact operator procedures. Do not make richer filters mandatory without their full mappings/indexes/contracts, and let the read-only boundary close independently of Milestone 10 durable decisions and Milestone 12 live state. |
 | 2026-08-19 | Refined and accepted the first Milestone 10 durable manual-file-decision slice: schema v5, snapshot-backed `Keep`/`Remove`/`Undecided`, idempotent revision-checked worker mutations, bounded plan/group/member summaries, hard-link-aware survivor enforcement, accessible WPF controls, restart persistence, and real Debug/Release non-deleting smoke. | Establish a separate reversible review source of truth without using `marked_deleted`/legacy deletion plans, touching live files or excluded cloud placeholders, or exposing deletion. The new plan/group queries met their warm targets and memory stayed bounded; the independently open Milestone 8 group/drive warm-query and physical accessibility gates remain explicit. |
 | 2026-08-19 | Refined and accepted the second Milestone 10 manual exact-folder-decision slice: transactional schema v6, separate folder snapshots/command replay, shared revision and cross-workspace invalidation, nested/suppressed/file overlap and hard-link safety, deduplicated combined summaries, accessible WPF controls, restart persistence, a 100,000-group profile, and real Debug/Release non-deleting smoke. | Keep folder review distinct from file decisions and execution while preserving at least one intact exact-folder copy and one physical file survivor. The isolated development-host profile measured 6.40 ms combined-plan p95, 14.50 ms folder-page p95, and no observed private-memory growth; it is regression evidence only, so the representative-hardware and physical accessibility gates remain open. The next design slice is a bounded, read-only ordered-preferred-root rule preview. |
+| 2026-08-19 | Refined and accepted the third Milestone 10 slice: transactional schema v7 named ordered-root rules, revision-bound read-only preview over selected-set/current-filter/completed-run scopes, manual file/folder precedence, virtual overlap/survivor enforcement, hard-link-aware de-duplication, bounded Core caching and stale-response rejection, accessible WPF explanations, restart reconstruction, and real Debug/Release non-deleting smoke. | Persist reusable rule metadata with preview while keeping application deferred and separate from manual decisions, live state, and execution state. The isolated optimized 100-sample fixture evaluated 100,000 real sets/200,100 logical paths at 870.42 ms p95 with 2,199,552 bytes retained private-memory growth, within its development-host ceilings; it is regression evidence only. The next slice is design-first, idempotent rule application/reversal provenance without deletion or live validation; representative-hardware and physical accessibility gates remain open. |

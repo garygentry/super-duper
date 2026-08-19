@@ -21,10 +21,12 @@ use super_duper_core::storage::models::{
     DuplicateFolderGroupFilter, DuplicateFolderGroupPageQuery, DuplicateFolderGroupResult,
     DuplicateFolderGroupSortField, DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery,
     DuplicateFolderMemberResult, DuplicateFolderMemberSortField, PageCursor, PageCursorValue,
-    RegisteredCloudLocation, ReviewDecisionKind, ReviewFolderGroupSummary, ReviewGroupSummary,
-    ReviewPlanSummary, ReviewPlanView, RunExclusion, RunParameters, ScanRun, ScanSession,
-    SortDirection,
+    PreferencePreviewGroup, PreferencePreviewScope, PreferencePreviewSummary, PreferenceRule,
+    PreferenceRuleSummary, RegisteredCloudLocation, ReviewDecisionKind, ReviewFolderGroupSummary,
+    ReviewGroupSummary, ReviewPlanSummary, ReviewPlanView, RunExclusion, RunParameters, ScanRun,
+    ScanSession, SortDirection,
 };
+use super_duper_core::storage::preference::PreferenceError;
 use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::Database;
 use super_duper_core::{AppConfig, ScanEngine};
@@ -275,7 +277,7 @@ impl Default for DuplicateFileGroupSortParameters {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 struct DuplicateFileGroupFilterParameters {
     #[serde(default)]
@@ -520,6 +522,47 @@ struct ReviewFolderDecisionSetParameters {
     folder_member_id: i64,
     decision: String,
     expected_revision: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PreferenceRuleIdParameters {
+    rule_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PreferenceRuleSaveParameters {
+    operation_id: String,
+    #[serde(default)]
+    rule_id: Option<i64>,
+    name: String,
+    roots: Vec<String>,
+    expected_revision: i64,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PreferencePreviewScopeParameters {
+    kind: String,
+    #[serde(default)]
+    group_ids: Vec<i64>,
+    #[serde(default)]
+    filter: DuplicateFileGroupFilterParameters,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PreferencePreviewParameters {
+    run_id: i64,
+    rule_id: i64,
+    rule_revision: i64,
+    review_revision: i64,
+    #[serde(default = "default_result_page_size")]
+    page_size: i64,
+    scope: PreferencePreviewScopeParameters,
+    #[serde(default)]
+    cursor: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1044,6 +1087,10 @@ impl WorkerSession {
             "review_folder_group.page" => self.review_folder_group_page(request),
             "review_decision.set" => self.review_decision_set(request),
             "review_folder_decision.set" => self.review_folder_decision_set(request),
+            "preference_rule.list" => self.preference_rule_list(request),
+            "preference_rule.get" => self.preference_rule_get(request),
+            "preference_rule.save" => self.preference_rule_save(request),
+            "preference_rule.preview" => self.preference_rule_preview(request),
             "duplicate_file_group.page" => self.duplicate_file_group_page(request),
             "duplicate_file_selected_root_facet.page" => {
                 self.duplicate_file_selected_root_facet_page(request)
@@ -1225,6 +1272,137 @@ impl WorkerSession {
         Ok(json!({
             "plan": review_plan_dto(parameters.run_id, &view),
             "summary": review_plan_summary_dto(&view.summary),
+        }))
+    }
+
+    fn preference_rule_list(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let page: PageParameters = parse_parameters(request)?;
+        validate_page(&page)?;
+        if page.limit > 200 {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "preference_rule.list limit must be 1..=200",
+            )
+            .with_details(json!({"field":"limit","maximum":200})));
+        }
+        let (rules, total) = self
+            .state
+            .database()?
+            .list_preference_rules(page.offset, page.limit)
+            .map_err(preference_error)?;
+        Ok(json!({
+            "rules": rules.iter().map(preference_rule_summary_dto).collect::<Vec<_>>(),
+            "total": total,
+        }))
+    }
+
+    fn preference_rule_get(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let parameters: PreferenceRuleIdParameters = parse_parameters(request)?;
+        let rule = self
+            .state
+            .database()?
+            .get_preference_rule(parameters.rule_id)
+            .map_err(preference_error)?;
+        Ok(json!({"rule":preference_rule_dto(&rule)}))
+    }
+
+    fn preference_rule_save(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let parameters: PreferenceRuleSaveParameters = parse_parameters(request)?;
+        validate_preference_rule_parameters(&parameters)?;
+        let result = self
+            .state
+            .database()?
+            .save_preference_rule(
+                &parameters.operation_id,
+                parameters.rule_id,
+                &parameters.name,
+                &parameters.roots,
+                parameters.expected_revision,
+            )
+            .map_err(preference_error)?;
+        Ok(json!({
+            "rule": preference_rule_dto(&result.rule),
+            "replayed": result.replayed,
+        }))
+    }
+
+    fn preference_rule_preview(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let mut parameters: PreferencePreviewParameters = parse_parameters(request)?;
+        validate_result_page_size(parameters.page_size)?;
+        if parameters.rule_revision <= 0 || parameters.review_revision < 0 {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "ruleRevision must be positive and reviewRevision must be non-negative",
+            ));
+        }
+        let (scope, scope_signature) = parse_preference_preview_scope(&mut parameters.scope)?;
+        let plan = self
+            .state
+            .database()?
+            .get_review_plan_view(parameters.run_id)
+            .map_err(review_error)?;
+        let plan_id = plan.plan.as_ref().map_or(0, |value| value.id);
+        let current_review_revision = plan.plan.as_ref().map_or(0, |value| value.revision);
+        let signature = json!({
+            "runId": parameters.run_id,
+            "ruleId": parameters.rule_id,
+            "ruleRevision": parameters.rule_revision,
+            "reviewPlanId": plan_id,
+            "reviewRevision": current_review_revision,
+            "pageSize": parameters.page_size,
+            "scope": scope_signature,
+        })
+        .to_string();
+        let cursor = decode_cursor(
+            parameters.cursor.as_deref(),
+            "preference-rule-preview",
+            &signature,
+        )?;
+        validate_cursor_value(cursor.as_ref(), false)?;
+        if cursor.as_ref().is_some_and(|value| value.before) {
+            return Err(ProtocolFailure::new(
+                "invalid_cursor",
+                "Preference-preview cursors support forward keyset paging only",
+            ));
+        }
+        let started = Instant::now();
+        let page = self
+            .state
+            .database()?
+            .page_preference_preview(
+                parameters.run_id,
+                parameters.rule_id,
+                parameters.rule_revision,
+                parameters.review_revision,
+                &scope,
+                parameters.page_size,
+                cursor.as_ref().map(|value| value.id),
+            )
+            .map_err(preference_error)?;
+        log_result_query(
+            "preference_rule.preview",
+            parameters.run_id,
+            None,
+            parameters.page_size,
+            page.groups.len(),
+            page.total,
+            started.elapsed(),
+        );
+        let next_cursor = page
+            .groups
+            .last()
+            .filter(|_| page.has_more)
+            .map(|group| encode_preference_preview_cursor(group.group_id, &signature))
+            .transpose()?;
+        Ok(json!({
+            "groups": page.groups.iter().map(preference_preview_group_dto).collect::<Vec<_>>(),
+            "total": page.total,
+            "nextCursor": next_cursor,
+            "ruleId": page.rule_id,
+            "ruleRevision": page.rule_revision,
+            "reviewPlanId": page.review_plan_id,
+            "reviewRevision": page.review_revision,
+            "summary": preference_preview_summary_dto(&page.summary),
         }))
     }
 
@@ -2624,6 +2802,189 @@ fn validate_result_page_size(page_size: i64) -> Result<(), ProtocolFailure> {
     }
 }
 
+fn validate_preference_rule_parameters(
+    parameters: &PreferenceRuleSaveParameters,
+) -> Result<(), ProtocolFailure> {
+    if parameters.operation_id.is_empty()
+        || parameters.operation_id.chars().count() > MAXIMUM_OPERATION_ID_CHARACTERS
+    {
+        return Err(ProtocolFailure::new(
+            "invalid_request",
+            format!("operationId must contain 1 to {MAXIMUM_OPERATION_ID_CHARACTERS} characters"),
+        )
+        .with_details(json!({"field":"operationId"})));
+    }
+    if parameters.name != parameters.name.trim()
+        || parameters.name.trim().is_empty()
+        || parameters.name.chars().count() > 128
+    {
+        return Err(ProtocolFailure::new(
+            "invalid_request",
+            "name must contain 1 to 128 characters without surrounding whitespace",
+        )
+        .with_details(json!({"field":"name"})));
+    }
+    if !(1..=64).contains(&parameters.roots.len()) {
+        return Err(ProtocolFailure::new(
+            "invalid_request",
+            "roots must contain 1 to 64 ordered paths",
+        )
+        .with_details(json!({"field":"roots","minimum":1,"maximum":64})));
+    }
+    if parameters.expected_revision < 0
+        || (parameters.rule_id.is_none() && parameters.expected_revision != 0)
+    {
+        return Err(ProtocolFailure::new(
+            "invalid_request",
+            "new rules require expectedRevision zero; revisions cannot be negative",
+        )
+        .with_details(json!({"field":"expectedRevision"})));
+    }
+    let mut distinct = std::collections::HashSet::new();
+    for root in &parameters.roots {
+        if root != root.trim()
+            || root.is_empty()
+            || root.chars().count() > MAXIMUM_EXACT_PATH_CHARACTERS
+            || !Path::new(root).is_absolute()
+        {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "each root must be a nonblank absolute path of at most 32767 characters",
+            )
+            .with_details(json!({"field":"roots"})));
+        }
+        if !distinct.insert(root.to_lowercase()) {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "roots must be unique ignoring case",
+            )
+            .with_details(json!({"field":"roots"})));
+        }
+    }
+    Ok(())
+}
+
+fn parse_preference_preview_scope(
+    scope: &mut PreferencePreviewScopeParameters,
+) -> Result<(PreferencePreviewScope, Value), ProtocolFailure> {
+    match scope.kind.as_str() {
+        "completed_run" => {
+            if !scope.group_ids.is_empty()
+                || scope.filter != DuplicateFileGroupFilterParameters::default()
+            {
+                return Err(ProtocolFailure::new(
+                    "invalid_scope",
+                    "completed_run scope does not accept groupIds or filter fields",
+                ));
+            }
+            Ok((
+                PreferencePreviewScope::CompletedRun,
+                json!({"kind":"completed_run"}),
+            ))
+        }
+        "selected_sets" => {
+            if !(1..=500).contains(&scope.group_ids.len()) {
+                return Err(ProtocolFailure::new(
+                    "invalid_scope",
+                    "selected_sets scope requires 1 to 500 groupIds",
+                )
+                .with_details(json!({"field":"scope.groupIds","minimum":1,"maximum":500})));
+            }
+            if scope.filter != DuplicateFileGroupFilterParameters::default() {
+                return Err(ProtocolFailure::new(
+                    "invalid_scope",
+                    "selected_sets scope does not accept filter fields",
+                ));
+            }
+            if scope.group_ids.iter().any(|id| *id <= 0) {
+                return Err(ProtocolFailure::new(
+                    "invalid_scope",
+                    "scope.groupIds must contain positive IDs",
+                ));
+            }
+            let mut ids = scope.group_ids.clone();
+            ids.sort_unstable();
+            ids.dedup();
+            if ids.len() != scope.group_ids.len() {
+                return Err(ProtocolFailure::new(
+                    "invalid_scope",
+                    "scope.groupIds must not contain duplicates",
+                ));
+            }
+            Ok((
+                PreferencePreviewScope::SelectedSets(ids.clone()),
+                json!({"kind":"selected_sets","groupIds":ids}),
+            ))
+        }
+        "current_filter" => {
+            if !scope.group_ids.is_empty() {
+                return Err(ProtocolFailure::new(
+                    "invalid_scope",
+                    "current_filter scope does not accept groupIds",
+                ));
+            }
+            let requested_path_match = parse_path_match(&scope.filter.path_match)?;
+            let search =
+                validate_group_path_filter(scope.filter.search.take(), requested_path_match)?;
+            let path_match = if search.is_none() {
+                DuplicateFilePathMatchMode::Substring
+            } else {
+                requested_path_match
+            };
+            let extension = normalize_extension_filter(scope.filter.extension.as_deref())?;
+            let extension_match =
+                normalize_extension_match(&scope.filter.extension_match, extension.as_deref())?;
+            let minimum_size =
+                parse_non_negative_decimal(&scope.filter.minimum_size, "scope.filter.minimumSize")?;
+            validate_minimum_copy_count(scope.filter.minimum_copy_count)?;
+            let selected_root = scope
+                .filter
+                .selected_root
+                .clone()
+                .filter(|value| !value.is_empty());
+            let selected_drive = scope
+                .filter
+                .selected_drive
+                .clone()
+                .filter(|value| !value.is_empty());
+            let signature = json!({
+                "kind":"current_filter",
+                "search":search.as_deref().unwrap_or_default(),
+                "pathMatch":path_match_name(path_match),
+                "extension":extension,
+                "extensionMatch":extension_match_name(extension_match),
+                "minimumSize":minimum_size,
+                "minimumCopyCount":scope.filter.minimum_copy_count,
+                "acrossDrives":scope.filter.across_drives,
+                "selectedRoot":selected_root.as_deref().unwrap_or_default(),
+                "selectedDrive":selected_drive.as_deref().unwrap_or_default(),
+            });
+            Ok((
+                PreferencePreviewScope::CurrentFilter(DuplicateFileGroupFilter {
+                    search,
+                    path_match,
+                    extension_key: extension,
+                    extension_match,
+                    minimum_size,
+                    minimum_copy_count: scope.filter.minimum_copy_count,
+                    across_drives: scope.filter.across_drives,
+                    selected_root,
+                    selected_drive,
+                }),
+                signature,
+            ))
+        }
+        _ => Err(ProtocolFailure::new(
+            "invalid_scope",
+            "scope.kind must be selected_sets, current_filter, or completed_run",
+        )
+        .with_details(json!({
+            "field":"scope.kind",
+            "allowed":["selected_sets","current_filter","completed_run"]
+        }))),
+    }
+}
+
 fn parse_path_match(value: &str) -> Result<DuplicateFilePathMatchMode, ProtocolFailure> {
     match value {
         "substring" => Ok(DuplicateFilePathMatchMode::Substring),
@@ -3096,6 +3457,20 @@ fn encode_review_group_cursor(group_id: i64, signature: &str) -> Result<String, 
     encode_cursor(CursorPayload {
         version: 1,
         kind: "review-groups".to_owned(),
+        query: signature.to_owned(),
+        before: false,
+        value: CursorScalar::Integer(group_id.to_string()),
+        id: group_id,
+    })
+}
+
+fn encode_preference_preview_cursor(
+    group_id: i64,
+    signature: &str,
+) -> Result<String, ProtocolFailure> {
+    encode_cursor(CursorPayload {
+        version: 1,
+        kind: "preference-rule-preview".to_owned(),
         query: signature.to_owned(),
         before: false,
         value: CursorScalar::Integer(group_id.to_string()),
@@ -3880,6 +4255,152 @@ fn internal_database_error(error: rusqlite::Error) -> ProtocolFailure {
     )
 }
 
+fn preference_rule_summary_dto(rule: &PreferenceRuleSummary) -> Value {
+    json!({
+        "id":rule.id,
+        "name":rule.name,
+        "kind":rule.kind,
+        "revision":rule.revision,
+        "rootCount":rule.root_count,
+        "updatedAt":rule.updated_at,
+    })
+}
+
+fn preference_rule_dto(rule: &PreferenceRule) -> Value {
+    json!({
+        "id":rule.id,
+        "name":rule.name,
+        "kind":rule.kind,
+        "state":rule.state,
+        "revision":rule.revision,
+        "roots":rule.roots,
+        "createdAt":rule.created_at,
+        "updatedAt":rule.updated_at,
+    })
+}
+
+fn preference_preview_group_dto(group: &PreferencePreviewGroup) -> Value {
+    json!({
+        "groupId":group.group_id,
+        "status":group.status.as_str(),
+        "bestRank":group.best_rank,
+        "preferredRoot":group.preferred_root,
+        "tiedPreferredPathCount":group.tied_preferred_path_count,
+        "proposedKeepPathCount":group.proposed_keep_path_count,
+        "proposedRemovePathCount":group.proposed_remove_path_count,
+        "proposedRemovePhysicalItemCount":group.proposed_remove_physical_item_count,
+        "proposedRemoveBytes":group.proposed_remove_bytes.to_string(),
+        "manualKeepCount":group.manual_keep_count,
+        "manualRemoveCount":group.manual_remove_count,
+        "explanationCode":group.explanation_code,
+        "conflictFileId":group.conflict_file_id,
+        "conflictFolderMemberId":group.conflict_folder_member_id,
+    })
+}
+
+fn preference_preview_summary_dto(summary: &PreferencePreviewSummary) -> Value {
+    json!({
+        "scopedGroupCount":summary.scoped_group_count,
+        "scopedLogicalPathCount":summary.scoped_logical_path_count,
+        "scopedPhysicalItemCount":summary.scoped_physical_item_count,
+        "scopedBytes":summary.scoped_bytes.to_string(),
+        "affectedGroupCount":summary.affected_group_count,
+        "blockedGroupCount":summary.blocked_group_count,
+        "proposedKeepPathCount":summary.proposed_keep_path_count,
+        "proposedRemovePathCount":summary.proposed_remove_path_count,
+        "proposedRemovePhysicalItemCount":summary.proposed_remove_physical_item_count,
+        "proposedRemoveBytes":summary.proposed_remove_bytes.to_string(),
+        "manualKeepPathCount":summary.manual_keep_path_count,
+        "manualRemovePathCount":summary.manual_remove_path_count,
+        "tiedGroupCount":summary.tied_group_count,
+        "noRankedRootGroupCount":summary.no_ranked_root_group_count,
+        "missingRuleRootCount":summary.missing_rule_root_count,
+        "overlapConflictCount":summary.overlap_conflict_count,
+        "fileSurvivorConflictCount":summary.file_survivor_conflict_count,
+        "folderSurvivorConflictCount":summary.folder_survivor_conflict_count,
+    })
+}
+
+fn preference_error(error: PreferenceError) -> ProtocolFailure {
+    match error {
+        PreferenceError::Database(error) => internal_database_error(error),
+        PreferenceError::Serialization(error) => ProtocolFailure::new(
+            "internal_error",
+            format!("Rule serialization failed: {error}"),
+        ),
+        PreferenceError::RunNotFound { run_id } => {
+            ProtocolFailure::new("run_not_found", format!("Run {run_id} was not found"))
+                .with_details(json!({"runId":run_id}))
+        }
+        PreferenceError::RunNotCompleted { run_id, status } => ProtocolFailure::new(
+            "invalid_state",
+            "Preference preview is available only for completed runs",
+        )
+        .with_details(json!({"runId":run_id,"status":status})),
+        PreferenceError::RuleNotFound { rule_id } => ProtocolFailure::new(
+            "preference_rule_not_found",
+            format!("Preference rule {rule_id} was not found"),
+        )
+        .with_details(json!({"ruleId":rule_id})),
+        PreferenceError::RuleArchived { rule_id } => ProtocolFailure::new(
+            "invalid_state",
+            "Archived preference rules cannot be previewed or edited",
+        )
+        .with_details(json!({"ruleId":rule_id,"state":"archived"})),
+        PreferenceError::StaleRuleRevision {
+            rule_id,
+            expected,
+            current,
+        } => ProtocolFailure::new(
+            "preference_rule_generation_conflict",
+            "The preference rule changed; reload it before continuing",
+        )
+        .with_details(json!({
+            "ruleId":rule_id,
+            "expectedRevision":expected,
+            "currentRevision":current
+        })),
+        PreferenceError::StaleReviewRevision { expected, current } => ProtocolFailure::new(
+            "review_generation_conflict",
+            "Manual review decisions changed; rerun the preview",
+        )
+        .with_details(json!({"expectedRevision":expected,"currentRevision":current})),
+        PreferenceError::IdempotencyConflict { operation_id } => ProtocolFailure::new(
+            "idempotency_conflict",
+            "The operationId was already used for another preference-rule save",
+        )
+        .with_details(json!({"operationId":operation_id})),
+        PreferenceError::DuplicateName { name } => ProtocolFailure::new(
+            "preference_rule_name_conflict",
+            "Another preference rule already uses this name",
+        )
+        .with_details(json!({"name":name})),
+        PreferenceError::InvalidSelectedGroup { run_id, group_id } => ProtocolFailure::new(
+            "invalid_scope",
+            "A selected duplicate set does not belong to the completed run",
+        )
+        .with_details(json!({"runId":run_id,"groupId":group_id})),
+        PreferenceError::InvalidRule { message } => {
+            ProtocolFailure::new("invalid_request", message)
+        }
+        PreferenceError::PreviewTooComplex {
+            scoped_group_count,
+            maximum_group_count,
+            scoped_logical_path_count,
+            maximum_logical_path_count,
+        } => ProtocolFailure::new(
+            "preview_too_complex",
+            "The preference preview scope exceeds this protocol version's bounded limits",
+        )
+        .with_details(json!({
+            "scopedGroupCount": scoped_group_count,
+            "maximumGroupCount": maximum_group_count,
+            "scopedLogicalPathCount": scoped_logical_path_count,
+            "maximumLogicalPathCount": maximum_logical_path_count,
+        })),
+    }
+}
+
 fn review_error(error: ReviewError) -> ProtocolFailure {
     match error {
         ReviewError::Database(error) => internal_database_error(error),
@@ -4096,6 +4617,7 @@ fn default_minimum_copy_count() -> i64 {
 mod tests {
     use super::*;
     use std::io::Cursor;
+    use super_duper_core::storage::models::ScannedFile;
     use tempfile::TempDir;
 
     const HELLO: &str = r#"{"type":"request","id":"hello-1","method":"hello","params":{"protocolVersions":[1],"client":{"name":"protocol-test","version":"1.0.0"}}}"#;
@@ -4136,6 +4658,156 @@ mod tests {
         );
         assert_eq!(response(&frames, "hello-1")["result"]["protocolVersion"], 1);
         assert_eq!(response(&frames, "status")["ok"], true);
+    }
+
+    #[test]
+    fn preference_rules_persist_and_preview_with_revision_bound_cursors() {
+        let temp = TempDir::new().unwrap();
+        let database_path = temp.path().join("worker.db");
+        let root_a = temp.path().join("preferred");
+        let root_b = temp.path().join("backup");
+        let db = Database::open(database_path.to_str().unwrap()).unwrap();
+        let roots = vec![
+            root_a.to_string_lossy().to_string(),
+            root_b.to_string_lossy().to_string(),
+        ];
+        let session_id = db.create_session("Preview", &roots, &[]).unwrap();
+        let run_parameters = RunParameters {
+            roots: roots.clone(),
+            ignore_patterns: Vec::new(),
+            directory_similarity_threshold_millis: 500,
+            cloud_policy: CloudPolicy::ExcludeRegisteredRoots,
+            manual_location_exclusions: Vec::new(),
+            registered_cloud_locations: Vec::new(),
+            cloud_detection_status: CloudDetectionStatus::Complete,
+        };
+        let run_id = db
+            .create_scan_run(session_id, &run_parameters, "test")
+            .unwrap();
+        db.start_scan_run(run_id).unwrap();
+        let mut files = Vec::new();
+        for (index, hash) in [11_i64, 22].into_iter().enumerate() {
+            for (copy, root) in roots.iter().enumerate() {
+                let path = Path::new(root).join(format!("set-{index}-{copy}.bin"));
+                files.push(ScannedFile {
+                    id: 0,
+                    run_id,
+                    root_path: root.clone(),
+                    canonical_path: path.to_string_lossy().to_string(),
+                    relative_path: format!("set-{index}-{copy}.bin"),
+                    file_name: format!("set-{index}-{copy}.bin"),
+                    parent_dir: root.clone(),
+                    drive_letter: String::new(),
+                    file_size: 100,
+                    last_modified: 1,
+                    partial_hash: None,
+                    content_hash: Some(hash),
+                    file_identity: Some(format!("physical-{index}-{copy}")),
+                    warning_message: None,
+                    marked_deleted: false,
+                });
+            }
+        }
+        db.insert_scanned_files(&files).unwrap();
+        db.insert_duplicate_groups(
+            run_id,
+            &[
+                (
+                    11,
+                    100,
+                    files[..2]
+                        .iter()
+                        .map(|file| file.canonical_path.clone())
+                        .collect(),
+                ),
+                (
+                    22,
+                    100,
+                    files[2..]
+                        .iter()
+                        .map(|file| file.canonical_path.clone())
+                        .collect(),
+                ),
+            ],
+        )
+        .unwrap();
+        db.complete_scan_run(run_id, 4, 400, 4, 2, 0, 200, 0)
+            .unwrap();
+        drop(db);
+
+        let first = execute(
+            &temp,
+            &[
+                HELLO.to_owned(),
+                json!({
+                    "type":"request","id":"save","method":"preference_rule.save",
+                    "params":{
+                        "operationId":"save-rule","name":"Preferred locations",
+                        "roots":roots,"expectedRevision":0
+                    }
+                }).to_string(),
+                json!({
+                    "type":"request","id":"preview","method":"preference_rule.preview",
+                    "params":{
+                        "runId":run_id,"ruleId":1,"ruleRevision":1,"reviewRevision":0,
+                        "pageSize":1,"scope":{"kind":"completed_run"}
+                    }
+                }).to_string(),
+                json!({
+                    "type":"request","id":"invalid-selected-scope","method":"preference_rule.preview",
+                    "params":{
+                        "runId":run_id,"ruleId":1,"ruleRevision":1,"reviewRevision":0,
+                        "scope":{"kind":"selected_sets","groupIds":[1],"filter":{"minimumCopyCount":3}}
+                    }
+                }).to_string(),
+                r#"{"type":"request","id":"list-rules","method":"preference_rule.list","params":{}}"#.to_owned(),
+                r#"{"type":"request","id":"get-rule","method":"preference_rule.get","params":{"ruleId":1}}"#.to_owned(),
+            ],
+        );
+        assert_eq!(response(&first, "save")["result"]["rule"]["revision"], 1);
+        assert_eq!(response(&first, "list-rules")["result"]["total"], 1);
+        assert_eq!(
+            response(&first, "get-rule")["result"]["rule"]["roots"][0],
+            roots[0]
+        );
+        let preview = &response(&first, "preview")["result"];
+        assert_eq!(preview["total"], 2);
+        assert_eq!(preview["groups"].as_array().unwrap().len(), 1);
+        assert_eq!(preview["summary"]["affectedGroupCount"], 2);
+        assert_eq!(preview["summary"]["proposedRemovePhysicalItemCount"], 2);
+        assert_eq!(
+            response(&first, "invalid-selected-scope")["error"]["code"],
+            "invalid_scope"
+        );
+        let cursor = preview["nextCursor"].as_str().unwrap();
+
+        let second = execute(
+            &temp,
+            &[
+                HELLO.to_owned(),
+                json!({
+                    "type":"request","id":"update","method":"preference_rule.save",
+                    "params":{
+                        "operationId":"update-rule","ruleId":1,"name":"Preferred locations",
+                        "roots":[roots[1],roots[0]],"expectedRevision":1
+                    }
+                })
+                .to_string(),
+                json!({
+                    "type":"request","id":"stale-cursor","method":"preference_rule.preview",
+                    "params":{
+                        "runId":run_id,"ruleId":1,"ruleRevision":2,"reviewRevision":0,
+                        "pageSize":1,"scope":{"kind":"completed_run"},"cursor":cursor
+                    }
+                })
+                .to_string(),
+            ],
+        );
+        assert_eq!(response(&second, "update")["result"]["rule"]["revision"], 2);
+        assert_eq!(
+            response(&second, "stale-cursor")["error"]["code"],
+            "invalid_cursor"
+        );
     }
 
     #[test]

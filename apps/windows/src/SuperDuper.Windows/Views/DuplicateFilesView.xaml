@@ -311,6 +311,204 @@
                            Text="{Binding SelectedDriveFilterText}"
                            TextTrimming="CharacterEllipsis" />
             </WrapPanel>
+            <Expander Margin="0,12,0,0"
+                      automation:AutomationProperties.AutomationId="PreferredRootPreviewExpander"
+                      automation:AutomationProperties.Name="Ordered preferred scan-root rule preview"
+                      automation:AutomationProperties.HelpText="Edit and save a named root ordering, choose an explicit scope, and compute a read-only virtual preview. No review decision is applied and nothing is deleted."
+                      Header="Preferred-root rule preview — read only; nothing is applied or deleted"
+                      IsExpanded="False">
+                <Border Margin="0,6,0,0"
+                        Padding="12"
+                        BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                    <StackPanel>
+                        <StackPanel>
+                            <WrapPanel>
+                                <Label Padding="0,0,6,0"
+                                       VerticalAlignment="Center"
+                                       Target="{Binding ElementName=PreferenceRuleList}"
+                                       Content="Saved _rule" />
+                                <ComboBox x:Name="PreferenceRuleList"
+                                          Width="230"
+                                          KeyboardNavigation.TabIndex="20"
+                                          automation:AutomationProperties.AutomationId="PreferenceRuleList"
+                                          automation:AutomationProperties.Name="Saved preferred-root rules"
+                                          DisplayMemberPath="Name"
+                                          ItemsSource="{Binding PreferenceRules.Rules}"
+                                          SelectedItem="{Binding PreferenceRules.SelectedRule, Mode=TwoWay}" />
+                                <Button Margin="6,0,0,0"
+                                        Padding="9,4"
+                                        KeyboardNavigation.TabIndex="21"
+                                        automation:AutomationProperties.AutomationId="PreferenceNewRule"
+                                        automation:AutomationProperties.Name="Create a new ordered preferred-root rule"
+                                        Command="{Binding PreferenceRules.NewRuleCommand}"
+                                        Content="New" />
+                            </WrapPanel>
+                            <Label Margin="0,8,0,0"
+                                   Padding="0,0,0,3"
+                                   Target="{Binding ElementName=PreferenceRuleName}"
+                                   Content="Rule _name" />
+                            <TextBox x:Name="PreferenceRuleName"
+                                     KeyboardNavigation.TabIndex="22"
+                                     automation:AutomationProperties.AutomationId="PreferenceRuleName"
+                                     automation:AutomationProperties.Name="Preferred-root rule name"
+                                     automation:AutomationProperties.HelpText="Enter 1 to 128 characters without surrounding whitespace"
+                                     Text="{Binding PreferenceRules.RuleName, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,8,0,4"
+                                       FontWeight="SemiBold"
+                                       Text="Roots, highest rank first" />
+                            <ListBox Height="96"
+                                     KeyboardNavigation.TabIndex="23"
+                                     automation:AutomationProperties.AutomationId="PreferenceOrderedRoots"
+                                     automation:AutomationProperties.Name="Ordered preferred scan roots; highest rank first"
+                                     ItemsSource="{Binding PreferenceRules.OrderedRoots}"
+                                     SelectedItem="{Binding PreferenceRules.SelectedRoot, Mode=TwoWay}">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="automation:AutomationProperties.Name" Value="{Binding}" />
+                                        <Setter Property="automation:AutomationProperties.HelpText" Value="Use Move up and Move down to change this root's explicit rank" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                            </ListBox>
+                            <WrapPanel Margin="0,6,0,0">
+                                <Button Padding="9,4"
+                                        KeyboardNavigation.TabIndex="24"
+                                        automation:AutomationProperties.AutomationId="PreferenceMoveRootUp"
+                                        automation:AutomationProperties.Name="Move selected root one rank higher"
+                                        Command="{Binding PreferenceRules.MoveRootUpCommand}"
+                                        Content="Move up" />
+                                <Button Margin="6,0,0,0"
+                                        Padding="9,4"
+                                        KeyboardNavigation.TabIndex="25"
+                                        automation:AutomationProperties.AutomationId="PreferenceMoveRootDown"
+                                        automation:AutomationProperties.Name="Move selected root one rank lower"
+                                        Command="{Binding PreferenceRules.MoveRootDownCommand}"
+                                        Content="Move down" />
+                                <Button Margin="6,0,0,0"
+                                        Padding="9,4"
+                                        KeyboardNavigation.TabIndex="26"
+                                        automation:AutomationProperties.AutomationId="PreferenceRemoveRoot"
+                                        automation:AutomationProperties.Name="Remove selected root from this rule"
+                                        Command="{Binding PreferenceRules.RemoveRootCommand}"
+                                        Content="Remove" />
+                            </WrapPanel>
+                            <WrapPanel Margin="0,6,0,0">
+                                <TextBox Width="255"
+                                         KeyboardNavigation.TabIndex="27"
+                                         automation:AutomationProperties.AutomationId="PreferenceNewRoot"
+                                         automation:AutomationProperties.Name="Absolute scan root to add to the ordered rule"
+                                         Text="{Binding PreferenceRules.NewRoot, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button Margin="6,0,0,0"
+                                        Padding="9,4"
+                                        KeyboardNavigation.TabIndex="28"
+                                        automation:AutomationProperties.AutomationId="PreferenceAddRoot"
+                                        automation:AutomationProperties.Name="Add root at the lowest preference rank"
+                                        Command="{Binding PreferenceRules.AddRootCommand}"
+                                        Content="Add root" />
+                            </WrapPanel>
+                            <WrapPanel Margin="0,8,0,0">
+                                <Button Padding="13,6"
+                                        KeyboardNavigation.TabIndex="29"
+                                        automation:AutomationProperties.AutomationId="PreferenceSaveRule"
+                                        automation:AutomationProperties.Name="Save named ordered preferred-root rule configuration"
+                                        automation:AutomationProperties.HelpText="Saves configuration only; does not change any review decision"
+                                        Command="{Binding PreferenceRules.SaveCommand}"
+                                        Content="Save rule" />
+                            </WrapPanel>
+                        </StackPanel>
+                        <StackPanel Margin="0,12,0,0">
+                            <WrapPanel>
+                                <Label Padding="0,0,6,0"
+                                       VerticalAlignment="Center"
+                                       Target="{Binding ElementName=PreferencePreviewScope}"
+                                       Content="Preview _scope" />
+                                <ComboBox x:Name="PreferencePreviewScope"
+                                          Width="220"
+                                          KeyboardNavigation.TabIndex="30"
+                                          automation:AutomationProperties.AutomationId="PreferencePreviewScope"
+                                          automation:AutomationProperties.Name="Explicit preferred-root preview scope"
+                                          DisplayMemberPath="DisplayName"
+                                          ItemsSource="{Binding PreferenceRules.ScopeOptions}"
+                                          SelectedItem="{Binding PreferenceRules.SelectedScope, Mode=TwoWay}" />
+                                <Button Margin="8,0,0,0"
+                                        Padding="13,6"
+                                        KeyboardNavigation.TabIndex="31"
+                                        automation:AutomationProperties.AutomationId="PreferenceRunPreview"
+                                        automation:AutomationProperties.Name="Run read-only preferred-root preview"
+                                        automation:AutomationProperties.HelpText="Computes virtual Keep and Remove outcomes without applying decisions or deleting files"
+                                        Command="{Binding PreferenceRules.PreviewCommand}"
+                                        Content="Preview" />
+                                <Button Margin="6,0,0,0"
+                                        Padding="10,6"
+                                        KeyboardNavigation.TabIndex="32"
+                                        automation:AutomationProperties.AutomationId="PreferenceNextPreviewPage"
+                                        automation:AutomationProperties.Name="Next preferred-root preview page"
+                                        Command="{Binding PreferenceRules.NextPageCommand}"
+                                        Content="Next page" />
+                            </WrapPanel>
+                            <TextBlock Margin="0,8,0,0"
+                                       TextWrapping="Wrap"
+                                       automation:AutomationProperties.AutomationId="PreferencePreviewSummary"
+                                       automation:AutomationProperties.Name="{Binding PreferenceRules.SummaryText, StringFormat='Preferred-root preview summary: {0}'}"
+                                       Text="{Binding PreferenceRules.SummaryText}" />
+                            <TextBlock Margin="0,5,0,0"
+                                       TextWrapping="Wrap"
+                                       automation:AutomationProperties.AutomationId="PreferencePreviewStatus"
+                                       automation:AutomationProperties.LiveSetting="Polite"
+                                       automation:AutomationProperties.Name="{Binding PreferenceRules.StatusMessage}"
+                                       accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding PreferenceRules.AnnouncementVersion}"
+                                       accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
+                                       accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
+                                       accessibility:AutomationNotificationBehavior.ActivityId="PreferredRootPreview"
+                                       Text="{Binding PreferenceRules.StatusMessage}" />
+                            <TextBlock Margin="0,5,0,0"
+                                       TextWrapping="Wrap"
+                                       automation:AutomationProperties.AutomationId="PreferencePreviewError"
+                                       automation:AutomationProperties.LiveSetting="Assertive"
+                                       automation:AutomationProperties.Name="{Binding PreferenceRules.ErrorMessage, StringFormat='Preferred-root preview error: {0}'}"
+                                       accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding PreferenceRules.AnnouncementVersion}"
+                                       accessibility:AutomationNotificationBehavior.NotificationKind="ActionAborted"
+                                       accessibility:AutomationNotificationBehavior.NotificationProcessing="ImportantMostRecent"
+                                       accessibility:AutomationNotificationBehavior.ActivityId="PreferredRootPreviewError"
+                                       Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
+                                       Text="{Binding PreferenceRules.ErrorMessage}"
+                                       Visibility="{Binding PreferenceRules.HasError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <DataGrid Height="145"
+                                      Margin="0,8,0,0"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      CanUserReorderColumns="False"
+                                      CanUserResizeRows="False"
+                                      EnableRowVirtualization="True"
+                                      IsReadOnly="True"
+                                      KeyboardNavigation.TabIndex="33"
+                                      automation:AutomationProperties.AutomationId="PreferencePreviewGroups"
+                                      automation:AutomationProperties.Name="Read-only preferred-root preview results"
+                                      ItemsSource="{Binding PreferenceRules.PreviewGroups}"
+                                      SelectionMode="Single"
+                                      VirtualizingPanel.IsVirtualizing="True"
+                                      VirtualizingPanel.VirtualizationMode="Recycling">
+                                <DataGrid.RowStyle>
+                                    <Style TargetType="DataGridRow">
+                                        <Setter Property="automation:AutomationProperties.Name" Value="{Binding AutomationName}" />
+                                        <Setter Property="automation:AutomationProperties.HelpText" Value="This is a virtual preview only; nothing is applied or deleted" />
+                                    </Style>
+                                </DataGrid.RowStyle>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Width="70" Header="Set" Binding="{Binding GroupId}" />
+                                    <DataGridTextColumn Width="90" Header="Status" Binding="{Binding Status}" />
+                                    <DataGridTextColumn Width="150" Header="Preferred root" Binding="{Binding PreferredRoot}" />
+                                    <DataGridTextColumn Width="*" Header="Explanation" Binding="{Binding Explanation}" />
+                                    <DataGridTextColumn Width="105" Header="Virtual keep" Binding="{Binding ProposedKeepText}" />
+                                    <DataGridTextColumn Width="155" Header="Virtual remove" Binding="{Binding ProposedRemoveText}" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Expander>
         </StackPanel>
 
         <StackPanel Grid.Row="1" Margin="0,0,0,14">

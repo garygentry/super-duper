@@ -525,6 +525,64 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
             cancellationToken);
     }
 
+    public Task<WorkerPreferenceRulePage> ListPreferenceRulesAsync(
+        long offset = 0,
+        int limit = 200,
+        CancellationToken cancellationToken = default) =>
+        InvokeAsync<WorkerPreferenceRulePage>(
+            "preference_rule.list",
+            new { offset, limit },
+            cancellationToken);
+
+    public async Task<WorkerPreferenceRule> GetPreferenceRuleAsync(
+        long ruleId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await InvokeAsync<PreferenceRuleResult>(
+            "preference_rule.get",
+            new { ruleId },
+            cancellationToken).ConfigureAwait(false);
+        return result.Rule;
+    }
+
+    public Task<WorkerPreferenceRuleSaveResult> SavePreferenceRuleAsync(
+        string operationId,
+        long? ruleId,
+        string name,
+        IReadOnlyList<string> roots,
+        long expectedRevision,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(roots);
+        return InvokeAsync<WorkerPreferenceRuleSaveResult>(
+            "preference_rule.save",
+            new { operationId, ruleId, name, roots, expectedRevision },
+            cancellationToken);
+    }
+
+    public Task<WorkerPreferencePreviewPage> GetPreferencePreviewAsync(
+        PreferencePreviewQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        var scope = PreferenceScope(query.Scope);
+        return InvokeAsync<WorkerPreferencePreviewPage>(
+            "preference_rule.preview",
+            new
+            {
+                runId = query.RunId,
+                ruleId = query.RuleId,
+                ruleRevision = query.RuleRevision,
+                reviewRevision = query.ReviewRevision,
+                pageSize = query.PageSize,
+                scope,
+                cursor = query.Cursor,
+            },
+            cancellationToken);
+    }
+
     public Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(
         DuplicateFolderGroupQuery query,
         CancellationToken cancellationToken = default)
@@ -714,6 +772,44 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
         DuplicateFileExtensionMatchMode.AnyMember => "any",
         DuplicateFileExtensionMatchMode.AllMembers => "all",
         _ => throw new ArgumentOutOfRangeException(nameof(extensionMatch)),
+    };
+
+    private static IReadOnlyDictionary<string, object?> PreferenceScope(
+        PreferencePreviewScope scope)
+    {
+        var result = new Dictionary<string, object?>();
+        switch (scope.Kind)
+        {
+            case PreferencePreviewScopeKind.SelectedSets:
+                result["kind"] = "selected_sets";
+                result["groupIds"] = scope.GroupIds
+                    ?? throw new ArgumentException("Selected-set preview requires group IDs.", nameof(scope));
+                break;
+            case PreferencePreviewScopeKind.CurrentFilter:
+                result["kind"] = "current_filter";
+                result["filter"] = PreferenceFilter(scope.Filter
+                    ?? throw new ArgumentException("Current-filter preview requires a complete filter.", nameof(scope)));
+                break;
+            case PreferencePreviewScopeKind.CompletedRun:
+                result["kind"] = "completed_run";
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(scope));
+        }
+        return result;
+    }
+
+    private static object PreferenceFilter(DuplicateFileGroupFilter filter) => new
+    {
+        search = filter.Search,
+        pathMatch = PathMatch(filter.PathMatch),
+        extension = filter.Extension,
+        extensionMatch = ExtensionMatch(filter.ExtensionMatch),
+        minimumSize = filter.MinimumSize,
+        minimumCopyCount = filter.MinimumCopyCount,
+        acrossDrives = filter.AcrossDrives,
+        selectedRoot = filter.SelectedRoot,
+        selectedDrive = filter.SelectedDrive,
     };
 
     private static string MemberSortField(DuplicateFileMemberSortField field) => field switch
@@ -1005,6 +1101,8 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
     private sealed record SessionResult(WorkerSessionDefinition Session);
 
     private sealed record RunResult(WorkerRun Run);
+
+    private sealed record PreferenceRuleResult(WorkerPreferenceRule Rule);
 
     private sealed record DeleteSessionResult(long SessionId);
 }

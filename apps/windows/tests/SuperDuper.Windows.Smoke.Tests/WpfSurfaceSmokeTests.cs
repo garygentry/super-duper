@@ -143,6 +143,33 @@ public sealed class WpfSurfaceSmokeTests
                 "Next drive facet page",
                 AutomationProperties.GetName(FindByAutomationId<Button>(files, "FileNextDriveFacets")));
             _ = FindByAutomationId<TextBlock>(files, "FileSelectedDriveFilterText");
+            var preferenceExpander = FindByAutomationId<Expander>(files, "PreferredRootPreviewExpander");
+            StringAssert.Contains(AutomationProperties.GetHelpText(preferenceExpander), "No review decision is applied");
+            preferenceExpander.IsExpanded = true;
+            files.UpdateLayout();
+            Assert.AreEqual(
+                "Move selected root one rank higher",
+                AutomationProperties.GetName(FindByAutomationId<Button>(files, "PreferenceMoveRootUp")));
+            Assert.AreEqual(
+                "Move selected root one rank lower",
+                AutomationProperties.GetName(FindByAutomationId<Button>(files, "PreferenceMoveRootDown")));
+            StringAssert.Contains(
+                AutomationProperties.GetHelpText(FindByAutomationId<Button>(files, "PreferenceSaveRule")),
+                "does not change any review decision");
+            StringAssert.Contains(
+                AutomationProperties.GetHelpText(FindByAutomationId<Button>(files, "PreferenceRunPreview")),
+                "without applying decisions or deleting files");
+            var preferenceGrid = FindByAutomationId<DataGrid>(files, "PreferencePreviewGroups");
+            Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(preferenceGrid));
+            Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(preferenceGrid));
+            var preferenceStatus = FindByAutomationId<TextBlock>(files, "PreferencePreviewStatus");
+            Assert.AreEqual(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(preferenceStatus));
+            Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
+                AutomationNotificationBehavior.GetNotificationKind(preferenceStatus));
+            var preferenceError = FindByAutomationId<TextBlock>(files, "PreferencePreviewError");
+            Assert.AreEqual(AutomationLiveSetting.Assertive, AutomationProperties.GetLiveSetting(preferenceError));
+            Assert.AreEqual(AutomationNotificationKind.ActionAborted,
+                AutomationNotificationBehavior.GetNotificationKind(preferenceError));
             Assert.AreEqual(
                 AutomationLiveSetting.Polite,
                 AutomationProperties.GetLiveSetting(FindByAutomationId<TextBlock>(files, "FileSummaryMatchingSets")));
@@ -599,6 +626,19 @@ public sealed class WpfSurfaceSmokeTests
         Assert.IsTrue(
             lastRight <= files.ActualWidth,
             "A wrapped primary filter control extends beyond the duplicate-file workspace.");
+        var preferenceRootEditor = FindByAutomationId<TextBox>(files, "PreferenceNewRoot");
+        var preferencePreview = FindByAutomationId<Button>(files, "PreferenceRunPreview");
+        var rootEditorTop = preferenceRootEditor.TranslatePoint(new Point(0, 0), files).Y;
+        var previewTop = preferencePreview.TranslatePoint(new Point(0, 0), files).Y;
+        var previewRight = preferencePreview.TranslatePoint(
+            new Point(preferencePreview.ActualWidth, 0),
+            files).X;
+        Assert.IsTrue(
+            previewTop > rootEditorTop,
+            "The preferred-root preview controls should stack below the rule editor in a narrow workspace.");
+        Assert.IsTrue(
+            previewRight <= files.ActualWidth,
+            "A preferred-root preview control extends beyond the duplicate-file workspace.");
         host.Content = null;
         host.Close();
     }

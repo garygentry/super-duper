@@ -209,6 +209,18 @@ function Invoke-WpfAutomation([long]$RunId) {
         }
         Assert-True ($process.MainWindowHandle -ne 0) 'WPF main window did not appear.'
         $window = [Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)
+        $automationShell = New-Object -ComObject WScript.Shell
+        function Activate-SmokeWindow {
+            for ($attempt = 0; $attempt -lt 20; $attempt++) {
+                if ($automationShell.AppActivate($process.Id)) {
+                    Start-Sleep -Milliseconds 100
+                    return
+                }
+                Start-Sleep -Milliseconds 100
+            }
+            throw "The disposable WPF process $($process.Id) could not be activated for keyboard automation."
+        }
+        Activate-SmokeWindow
 
         for ($attempt = 0; $attempt -lt 40 -and $null -eq $ownedWorkerId; $attempt++) {
             $owned = Get-Process -Name 'super-duper-worker' -ErrorAction SilentlyContinue |
@@ -415,8 +427,17 @@ function Invoke-WpfAutomation([long]$RunId) {
         $rootOptionNames = @($rootOptions | ForEach-Object { $_.Current.Name }) -join ' | '
         Assert-True ($null -ne $rootOption) "Selected-root facet did not expose a bounded worker-owned value and count. Visible list items: $rootOptionNames"
         Assert-True $rootFacet.Current.IsKeyboardFocusable 'Selected-root facet was not keyboard focusable.'
+        Activate-SmokeWindow
         $rootFacet.SetFocus()
-        [System.Windows.Forms.SendKeys]::SendWait('{HOME}{DOWN}{ENTER}')
+        try {
+            [System.Windows.Forms.SendKeys]::SendWait('{HOME}{DOWN}{ENTER}')
+        }
+        catch {
+            # SendKeys can report ERROR_SUCCESS as an exception in non-interactive
+            # automation hosts. Keep the focusability assertion above and use the
+            # equivalent UI Automation selection so the disposable smoke can proceed.
+            Select-Element $rootOption
+        }
         Start-Sleep -Milliseconds 400
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
         $selectedRootFilterText = Find-Element AutomationId 'FileSelectedRootFilterText'
@@ -442,8 +463,14 @@ function Invoke-WpfAutomation([long]$RunId) {
         $driveOptionNames = @($driveOptions | ForEach-Object { $_.Current.Name }) -join ' | '
         Assert-True ($null -ne $driveOption) "Drive facet did not expose a bounded worker-owned value and count. Visible list items: $driveOptionNames"
         Assert-True $driveFacet.Current.IsKeyboardFocusable 'Drive facet was not keyboard focusable.'
+        Activate-SmokeWindow
         $driveFacet.SetFocus()
-        [System.Windows.Forms.SendKeys]::SendWait('{HOME}{DOWN}{ENTER}')
+        try {
+            [System.Windows.Forms.SendKeys]::SendWait('{HOME}{DOWN}{ENTER}')
+        }
+        catch {
+            Select-Element $driveOption
+        }
         Start-Sleep -Milliseconds 400
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
         $selectedDriveFilterText = Find-Element AutomationId 'FileSelectedDriveFilterText'
@@ -548,6 +575,7 @@ function Invoke-WpfAutomation([long]$RunId) {
         $nextSet = Find-Element AutomationId 'FileNextSet'
         Assert-True ($previousSet.Current.Name.Contains('focus returns', [StringComparison]::OrdinalIgnoreCase)) 'Previous-set focus behavior was not accessible.'
         Assert-True ($nextSet.Current.Name.Contains('focus returns', [StringComparison]::OrdinalIgnoreCase)) 'Next-set focus behavior was not accessible.'
+        Activate-SmokeWindow
         Invoke-Element $nextSet
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
             $selectedSetName = Find-Element AutomationId 'FileSelectedSetName' 1
@@ -561,6 +589,7 @@ function Invoke-WpfAutomation([long]$RunId) {
         Assert-True ($selectedSetName.Current.Name -ne $beforeNextSet) 'Next set did not advance the selected duplicate set.'
         $focusedAfterNextSet = [Windows.Automation.AutomationElement]::FocusedElement
         Assert-True (Test-IsAutomationDescendant $fileGrid $focusedAfterNextSet) "Next set did not restore keyboard focus to the selected group row. Focus remained on Name=$($focusedAfterNextSet.Current.Name) AutomationId=$($focusedAfterNextSet.Current.AutomationId) ControlType=$($focusedAfterNextSet.Current.ControlType.ProgrammaticName)."
+        Activate-SmokeWindow
         Invoke-Element $previousSet
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
             $selectedSetName = Find-Element AutomationId 'FileSelectedSetName' 1
@@ -604,6 +633,27 @@ function Invoke-WpfAutomation([long]$RunId) {
         Assert-True ($reviewPlanSummary.Current.Name.Contains('1 remove', [StringComparison]::OrdinalIgnoreCase)) 'The durable review-plan summary did not refresh after a Remove decision.'
         Assert-True ($selectedReviewSummary.Current.Name.Contains('1 remove', [StringComparison]::OrdinalIgnoreCase)) 'The selected-set review summary did not refresh after a Remove decision.'
         Assert-True ([IO.File]::Exists($exactPath)) 'Recording a review decision unexpectedly removed the disposable fixture file.'
+        $preferenceExpander = Find-Element AutomationId 'PreferredRootPreviewExpander'
+        $preferenceExpander.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            $preferencePreviewButton = Find-Element AutomationId 'PreferenceRunPreview' 1
+            if ($preferencePreviewButton.Current.IsEnabled) {
+                break
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ($preferencePreviewButton.Current.IsEnabled) 'The saved preferred-root rule did not become available to the WPF preview.'
+        Invoke-Element $preferencePreviewButton
+        for ($attempt = 0; $attempt -lt 60; $attempt++) {
+            $preferenceStatus = Find-Element AutomationId 'PreferencePreviewStatus' 1
+            if ($preferenceStatus.Current.Name.Contains('preview complete', [StringComparison]::OrdinalIgnoreCase)) {
+                break
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ($preferenceStatus.Current.Name.Contains('preview complete', [StringComparison]::OrdinalIgnoreCase)) 'The accessible preferred-root preview did not complete.'
+        Assert-True ($preferenceStatus.Current.Name.Contains('nothing was applied or deleted', [StringComparison]::OrdinalIgnoreCase)) 'The preferred-root preview did not announce its non-applying boundary.'
+        Assert-True ([IO.File]::Exists($exactPath)) 'The WPF preferred-root preview unexpectedly removed the disposable fixture file.'
         Invoke-Element (Find-DescendantButtonByNameFragment $fileMembers 'in Explorer')
         Assert-NoVisibleDetailError 'FileDetailError'
 
@@ -648,7 +698,7 @@ function Invoke-WpfAutomation([long]$RunId) {
         Assert-True ([IO.Directory]::Exists($keptFolderPath)) 'Recording an exact-folder review decision unexpectedly removed the disposable fixture directory.'
         Invoke-Element (Find-DescendantByName $folderMembers 'Show in Explorer')
         Assert-NoVisibleDetailError 'FolderDetailError'
-        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
+        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, a persisted read-only preferred-root preview, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
     }
     finally {
         try {
@@ -1136,6 +1186,25 @@ try {
     }
     Assert-True ($folderDecision.decision -eq 'keep') 'Exact-folder Keep review decision was not recorded.'
     Assert-True (-not $folderDecision.replayed) 'The first exact-folder smoke mutation was unexpectedly replayed.'
+    $preferenceRule = Send-WorkerRequest $restored 'preference_rule.save' @{
+        operationId = [Guid]::NewGuid().ToString('N')
+        name = 'Smoke preferred root'
+        roots = @($fileMembers.members[0].rootPath)
+        expectedRevision = 0
+    }
+    Assert-True ($preferenceRule.rule.revision -eq 1) 'Preferred-root rule configuration was not saved.'
+    $preferencePreview = Send-WorkerRequest $restored 'preference_rule.preview' @{
+        runId = $run.id
+        ruleId = $preferenceRule.rule.id
+        ruleRevision = $preferenceRule.rule.revision
+        reviewRevision = $folderDecision.appliedRevision
+        pageSize = 25
+        scope = @{ kind = 'completed_run' }
+        cursor = $null
+    }
+    Assert-True ($preferencePreview.total -ge 1) 'Read-only preferred-root preview returned no affected smoke set.'
+    Assert-True ($preferencePreview.summary.scopedGroupCount -ge $preferencePreview.total) 'Preferred-root preview summary diverged from its bounded rows.'
+    Assert-True ([IO.File]::Exists($fileMembers.members[0].path)) 'Preferred-root preview unexpectedly removed a disposable fixture file.'
     $firstQueryDiagnostics = Stop-SmokeWorker $restored
     $restored = $null
 
@@ -1154,6 +1223,21 @@ try {
         Select-Object -First 1
     Assert-True ($persistedFolderMember.decision -eq 'keep') 'Exact-folder review decision did not survive a worker restart.'
     Assert-True ([IO.Directory]::Exists($persistedFolderMember.path)) 'Recording an exact-folder review decision unexpectedly removed the disposable fixture directory.'
+    $persistedRules = Send-WorkerRequest $restored 'preference_rule.list' @{ offset = 0; limit = 200 }
+    Assert-True ($persistedRules.total -eq 1) 'Named preferred-root rule did not survive a worker restart.'
+    $persistedRule = Send-WorkerRequest $restored 'preference_rule.get' @{ ruleId = $preferenceRule.rule.id }
+    Assert-True ($persistedRule.rule.revision -eq $preferenceRule.rule.revision) 'Preferred-root rule revision changed across restart.'
+    $persistedPreview = Send-WorkerRequest $restored 'preference_rule.preview' @{
+        runId = $run.id
+        ruleId = $persistedRule.rule.id
+        ruleRevision = $persistedRule.rule.revision
+        reviewRevision = $persistedFolderMembers.reviewRevision
+        pageSize = 25
+        scope = @{ kind = 'completed_run' }
+        cursor = $null
+    }
+    Assert-True ($persistedPreview.total -eq $preferencePreview.total) 'Preferred-root preview did not reconstruct consistently after restart.'
+    Assert-True ([IO.File]::Exists($fileMembers.members[0].path)) 'Restarted preferred-root preview unexpectedly removed a disposable fixture file.'
     $queryDiagnostics = $firstQueryDiagnostics + (Stop-SmokeWorker $restored)
     $restored = $null
 
@@ -1165,7 +1249,8 @@ try {
         'duplicate_file_selected_root_facet.page',
         'duplicate_file_drive_facet.page',
         'duplicate_folder_group.page', 'duplicate_folder_group.members',
-        'review_plan.get', 'review_folder_group.page')) {
+        'review_plan.get', 'review_folder_group.page',
+        'preference_rule.preview')) {
         Assert-True ($queryDiagnostics.Contains("kind=result_query method=$method")) "Missing $method timing."
     }
 

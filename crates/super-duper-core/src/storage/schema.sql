@@ -1,4 +1,4 @@
-PRAGMA user_version = 6;
+PRAGMA user_version = 7;
 
 -- Reusable, user-owned scan definitions.
 CREATE TABLE IF NOT EXISTS scan_session (
@@ -212,6 +212,38 @@ CREATE TABLE IF NOT EXISTS review_folder_command (
     UNIQUE(plan_id, operation_id)
 );
 
+-- Reusable preference configuration is deliberately independent of review decisions and any
+-- future execution state. Preview reads these rows but never writes a review plan.
+CREATE TABLE IF NOT EXISTS preference_rule (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL COLLATE UNICODE_NOCASE UNIQUE,
+    kind TEXT NOT NULL CHECK(kind = 'ordered_preferred_scan_roots'),
+    state TEXT NOT NULL DEFAULT 'active' CHECK(state IN ('active', 'archived')),
+    revision INTEGER NOT NULL CHECK(revision > 0),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS preference_rule_root (
+    rule_id INTEGER NOT NULL REFERENCES preference_rule(id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL CHECK(ordinal >= 0 AND ordinal < 64),
+    root_path TEXT NOT NULL CHECK(root_path <> ''),
+    PRIMARY KEY(rule_id, ordinal),
+    UNIQUE(rule_id, root_path COLLATE UNICODE_NOCASE)
+);
+
+CREATE TABLE IF NOT EXISTS preference_rule_command (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation_id TEXT NOT NULL UNIQUE,
+    requested_rule_id INTEGER,
+    name TEXT NOT NULL,
+    roots_json TEXT NOT NULL,
+    expected_revision INTEGER NOT NULL CHECK(expected_revision >= 0),
+    applied_rule_id INTEGER NOT NULL REFERENCES preference_rule(id) ON DELETE CASCADE,
+    applied_revision INTEGER NOT NULL CHECK(applied_revision > 0),
+    created_at TEXT NOT NULL
+);
+
 -- Structured, run-owned records for whole subtrees pruned before filesystem content access.
 CREATE TABLE IF NOT EXISTS run_exclusion (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -262,3 +294,7 @@ CREATE INDEX IF NOT EXISTS idx_review_folder_decision_plan_decision
     ON review_folder_decision(plan_id, decision, directory_id);
 CREATE INDEX IF NOT EXISTS idx_review_folder_command_plan_operation
     ON review_folder_command(plan_id, operation_id);
+CREATE INDEX IF NOT EXISTS idx_preference_rule_state_name
+    ON preference_rule(state, name COLLATE UNICODE_NOCASE, id);
+CREATE INDEX IF NOT EXISTS idx_preference_rule_root_path
+    ON preference_rule_root(rule_id, root_path COLLATE UNICODE_NOCASE, ordinal);

@@ -1,14 +1,16 @@
 use rusqlite::{params, Connection, Error as SqlError};
-use std::sync::atomic::AtomicBool;
+use std::sync::{atomic::AtomicBool, Mutex};
 use super_duper_core::storage::models::{
     CloudDetectionStatus, CloudPolicy, DuplicateFileDriveFacetPageQuery,
     DuplicateFileDriveFacetSortField, DuplicateFileExtensionMatchMode, DuplicateFileGroupFilter,
     DuplicateFileGroupPageQuery, DuplicateFileGroupSortField, DuplicateFileMemberFilter,
     DuplicateFileMemberPageQuery, DuplicateFileMemberSortField, DuplicateFilePathMatchMode,
     DuplicateFileSelectedRootFacetPageQuery, DuplicateFileSelectedRootFacetSortField,
-    ExactFolderGroupInsert, PageCursor, PageCursorValue, RegisteredCloudLocation,
-    ReviewDecisionKind, RunExclusionInsert, RunParameters, ScannedFile, SortDirection,
+    ExactFolderGroupInsert, PageCursor, PageCursorValue, PreferencePreviewScope,
+    RegisteredCloudLocation, ReviewDecisionKind, RunExclusionInsert, RunParameters, ScannedFile,
+    SortDirection,
 };
+use super_duper_core::storage::preference::PreferenceError;
 use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::sqlite::CURRENT_SCHEMA_VERSION;
 use super_duper_core::storage::Database;
@@ -19,6 +21,8 @@ use winapi::um::processthreadsapi::GetCurrentProcess;
 use winapi::um::psapi::{
     GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX,
 };
+
+static LARGE_FIXTURE_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 fn parameters(roots: &[&str], ignores: &[&str]) -> RunParameters {
     RunParameters {
@@ -70,6 +74,393 @@ fn file(run_id: i64, path: &str, size: i64, hash: i64) -> ScannedFile {
 fn schema_version_is_explicit_and_current() {
     let db = Database::open_in_memory().unwrap();
     assert_eq!(db.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+}
+
+#[test]
+fn version_six_migrates_named_preference_rules_transactionally() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("v6-preferences.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    db.connection()
+        .execute_batch(
+            "DROP TABLE preference_rule_command;
+             DROP TABLE preference_rule_root;
+             DROP TABLE preference_rule;
+             PRAGMA user_version = 6;",
+        )
+        .unwrap();
+    drop(db);
+
+    let migrated = Database::open(path.to_str().unwrap()).unwrap();
+    assert_eq!(migrated.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+    for table in [
+        "preference_rule",
+        "preference_rule_root",
+        "preference_rule_command",
+    ] {
+        let exists: bool = migrated
+            .connection()
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1)",
+                params![table],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(exists, "missing migrated table {table}");
+    }
+    assert_eq!(
+        migrated.get_review_plan_view(999).unwrap_err().to_string(),
+        "scan run 999 was not found"
+    );
+}
+
+#[test]
+fn named_preference_rules_are_revisioned_idempotent_and_persistent() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("preference-rules.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    let created = db
+        .save_preference_rule(
+            "create-rule",
+            None,
+            "Primary libraries",
+            &["C:/Photos".to_owned(), "D:/Backup".to_owned()],
+            0,
+        )
+        .unwrap();
+    assert_eq!(created.rule.revision, 1);
+    assert!(!created.replayed);
+    let replay = db
+        .save_preference_rule(
+            "create-rule",
+            None,
+            "Primary libraries",
+            &["C:/Photos".to_owned(), "D:/Backup".to_owned()],
+            0,
+        )
+        .unwrap();
+    assert!(replay.replayed);
+    assert_eq!(replay.rule, created.rule);
+    assert!(matches!(
+        db.save_preference_rule("create-rule", None, "Changed", &["C:/Photos".to_owned()], 0,),
+        Err(PreferenceError::IdempotencyConflict { .. })
+    ));
+    let updated = db
+        .save_preference_rule(
+            "update-rule",
+            Some(created.rule.id),
+            "Primary libraries",
+            &["D:/Backup".to_owned(), "C:/Photos".to_owned()],
+            1,
+        )
+        .unwrap();
+    assert_eq!(updated.rule.revision, 2);
+    assert_eq!(updated.rule.roots[0], "D:/Backup");
+    let historical_replay = db
+        .save_preference_rule(
+            "create-rule",
+            None,
+            "Primary libraries",
+            &["C:/Photos".to_owned(), "D:/Backup".to_owned()],
+            0,
+        )
+        .unwrap();
+    assert!(historical_replay.replayed);
+    assert_eq!(historical_replay.rule.revision, 1);
+    assert_eq!(historical_replay.rule.roots[0], "C:/Photos");
+    assert!(matches!(
+        db.save_preference_rule(
+            "stale-rule",
+            Some(created.rule.id),
+            "Primary libraries",
+            &["C:/Photos".to_owned()],
+            1,
+        ),
+        Err(PreferenceError::StaleRuleRevision { current: 2, .. })
+    ));
+    drop(db);
+
+    let reopened = Database::open(path.to_str().unwrap()).unwrap();
+    assert_eq!(
+        reopened.get_preference_rule(created.rule.id).unwrap(),
+        updated.rule
+    );
+    let (listed, total) = reopened.list_preference_rules(0, 200).unwrap();
+    assert_eq!(total, 1);
+    assert_eq!(listed[0].root_count, 2);
+}
+
+#[test]
+fn preferred_root_preview_handles_ties_missing_roots_manual_precedence_and_physical_aliases() {
+    let db = Database::open_in_memory().unwrap();
+    let (_, run_id) = session_and_run(&db, "Preference preview", &["C:/Preferred", "D:/Backup"]);
+    let mut files = vec![
+        file(run_id, "C:/Preferred/top.bin", 100, 101),
+        file(run_id, "C:/Preferred/top-tie.bin", 100, 101),
+        file(run_id, "D:/Backup/alias.bin", 100, 101),
+        file(run_id, "E:/Unranked/other.bin", 100, 101),
+        file(run_id, "E:/Unranked/none.bin", 50, 202),
+        file(run_id, "F:/Elsewhere/none.bin", 50, 202),
+    ];
+    for item in &mut files {
+        item.root_path = item.canonical_path[..item.canonical_path.rfind('/').unwrap()].to_owned();
+    }
+    files[0].root_path = "C:/Preferred".to_owned();
+    files[1].root_path = "C:/Preferred".to_owned();
+    files[2].root_path = "D:/Backup".to_owned();
+    files[3].root_path = "E:/Unranked".to_owned();
+    files[4].root_path = "E:/Unranked".to_owned();
+    files[5].root_path = "F:/Elsewhere".to_owned();
+    files[0].file_identity = Some("physical-top".to_owned());
+    files[2].file_identity = Some("physical-top".to_owned());
+    files[1].file_identity = Some("physical-tie".to_owned());
+    files[3].file_identity = Some("physical-other".to_owned());
+    db.insert_scanned_files(&files).unwrap();
+    db.insert_duplicate_groups(
+        run_id,
+        &[
+            (
+                101,
+                100,
+                files[..4]
+                    .iter()
+                    .map(|item| item.canonical_path.clone())
+                    .collect(),
+            ),
+            (
+                202,
+                50,
+                files[4..]
+                    .iter()
+                    .map(|item| item.canonical_path.clone())
+                    .collect(),
+            ),
+        ],
+    )
+    .unwrap();
+    db.complete_scan_run(run_id, 6, 500, 6, 2, 0, 350, 0)
+        .unwrap();
+    let group_id: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM duplicate_group WHERE run_id = ?1 AND content_hash = 101",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let manual_keep_file: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM scanned_file WHERE run_id = ?1 AND canonical_path = 'D:/Backup/alias.bin'",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    db.set_review_decision(
+        "manual-keep",
+        run_id,
+        group_id,
+        manual_keep_file,
+        ReviewDecisionKind::Keep,
+        0,
+    )
+    .unwrap();
+    let rule = db
+        .save_preference_rule(
+            "preview-rule",
+            None,
+            "Preferred roots",
+            &[
+                "C:/Preferred".to_owned(),
+                "D:/Backup".to_owned(),
+                "Z:/Missing".to_owned(),
+            ],
+            0,
+        )
+        .unwrap()
+        .rule;
+
+    let page = db
+        .page_preference_preview(
+            run_id,
+            rule.id,
+            rule.revision,
+            1,
+            &PreferencePreviewScope::CompletedRun,
+            50,
+            None,
+        )
+        .unwrap();
+    assert_eq!(page.total, 1, "unranked-only set is not an affected row");
+    assert_eq!(page.groups[0].group_id, group_id);
+    assert_eq!(page.groups[0].tied_preferred_path_count, 2);
+    assert_eq!(page.groups[0].proposed_remove_path_count, 1);
+    assert_eq!(page.groups[0].proposed_remove_physical_item_count, 1);
+    assert_eq!(page.groups[0].proposed_remove_bytes, 100);
+    assert_eq!(page.groups[0].manual_keep_count, 1);
+    assert_eq!(page.summary.no_ranked_root_group_count, 1);
+    assert_eq!(page.summary.missing_rule_root_count, 1);
+    assert_eq!(page.summary.tied_group_count, 1);
+    assert_eq!(page.summary.scoped_physical_item_count, 5);
+    assert_eq!(page.summary.proposed_remove_physical_item_count, 1);
+
+    assert!(matches!(
+        db.page_preference_preview(
+            run_id,
+            rule.id,
+            rule.revision,
+            0,
+            &PreferencePreviewScope::SelectedSets(vec![group_id]),
+            10,
+            None,
+        ),
+        Err(PreferenceError::StaleReviewRevision { current: 1, .. })
+    ));
+}
+
+#[test]
+fn preferred_root_preview_reports_folder_keep_and_folder_survivor_conflicts() {
+    let db = Database::open_in_memory().unwrap();
+    let (run_id, original_group_id, folder_members, _) = completed_folder_review_fixture(&db);
+    db.connection()
+        .execute(
+            "UPDATE scanned_file
+             SET root_path = CASE
+                 WHEN canonical_path LIKE '/root/Copy A/%' THEN '/root/Copy A'
+                 ELSE '/root/Copy B' END
+             WHERE run_id = ?1",
+            params![run_id],
+        )
+        .unwrap();
+    db.set_review_folder_decision(
+        "protect-copy-b",
+        run_id,
+        db.connection()
+            .query_row(
+                "SELECT group_id FROM duplicate_folder_group_member WHERE id = ?1",
+                params![folder_members[1]],
+                |row| row.get(0),
+            )
+            .unwrap(),
+        folder_members[1],
+        ReviewDecisionKind::Keep,
+        0,
+    )
+    .unwrap();
+    let rule = db
+        .save_preference_rule(
+            "folder-keep-preview",
+            None,
+            "Prefer copy A",
+            &["/root/Copy A".to_owned(), "/root/Copy B".to_owned()],
+            0,
+        )
+        .unwrap()
+        .rule;
+    let keep_conflict = db
+        .page_preference_preview(
+            run_id,
+            rule.id,
+            rule.revision,
+            1,
+            &PreferencePreviewScope::CompletedRun,
+            50,
+            None,
+        )
+        .unwrap();
+    assert_eq!(keep_conflict.groups[0].group_id, original_group_id);
+    assert_eq!(keep_conflict.groups[0].status.as_str(), "blocked");
+    assert_eq!(
+        keep_conflict.groups[0].explanation_code,
+        "manual_folder_keep_conflict"
+    );
+    assert_eq!(keep_conflict.summary.overlap_conflict_count, 1);
+
+    let db = Database::open_in_memory().unwrap();
+    let (run_id, original_group_id, _, _) = completed_folder_review_fixture(&db);
+    let mut second_a = file(run_id, "/root/Copy A/second.bin", 80, 303);
+    second_a.root_path = "/root/Copy A".to_owned();
+    second_a.file_identity = Some("physical-second-a".to_owned());
+    let mut second_b = file(run_id, "/root/Copy B/second.bin", 80, 303);
+    second_b.root_path = "/root/Copy B".to_owned();
+    second_b.file_identity = Some("physical-second-b".to_owned());
+    db.insert_scanned_files(&[second_a, second_b]).unwrap();
+    db.insert_duplicate_groups(
+        run_id,
+        &[(
+            303,
+            80,
+            vec![
+                "/root/Copy A/second.bin".to_owned(),
+                "/root/Copy B/second.bin".to_owned(),
+            ],
+        )],
+    )
+    .unwrap();
+    db.connection()
+        .execute_batch(
+            "UPDATE scanned_file
+             SET root_path = CASE
+                 WHEN canonical_path LIKE '/root/Copy A/%' THEN '/root/Copy A'
+                 ELSE '/root/Copy B' END;
+             UPDATE directory_node SET file_count = 2, total_size = 180;
+             UPDATE duplicate_folder_group SET file_count = 2, total_size = 180;",
+        )
+        .unwrap();
+    let second_group_id: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM duplicate_group WHERE run_id = ?1 AND content_hash = 303",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let second_a_id: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM scanned_file WHERE run_id = ?1 AND canonical_path = '/root/Copy A/second.bin'",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    db.set_review_decision(
+        "remove-second-a",
+        run_id,
+        second_group_id,
+        second_a_id,
+        ReviewDecisionKind::Remove,
+        0,
+    )
+    .unwrap();
+    let rule = db
+        .save_preference_rule(
+            "folder-survivor-preview",
+            None,
+            "Prefer copy A",
+            &["/root/Copy A".to_owned(), "/root/Copy B".to_owned()],
+            0,
+        )
+        .unwrap()
+        .rule;
+    let survivor_conflict = db
+        .page_preference_preview(
+            run_id,
+            rule.id,
+            rule.revision,
+            1,
+            &PreferencePreviewScope::CompletedRun,
+            50,
+            None,
+        )
+        .unwrap();
+    let original = survivor_conflict
+        .groups
+        .iter()
+        .find(|group| group.group_id == original_group_id)
+        .unwrap();
+    assert_eq!(original.status.as_str(), "blocked");
+    assert_eq!(original.explanation_code, "folder_survivor_conflict");
+    assert_eq!(survivor_conflict.summary.folder_survivor_conflict_count, 1);
 }
 
 #[test]
@@ -1195,7 +1586,10 @@ fn version_four_migrates_review_tables_transactionally() {
     let (_, run_id) = session_and_run(&db, "Preserved v4 run", &["/root"]);
     db.connection()
         .execute_batch(
-            "DROP INDEX idx_review_folder_command_plan_operation;
+            "DROP TABLE preference_rule_command;
+             DROP TABLE preference_rule_root;
+             DROP TABLE preference_rule;
+             DROP INDEX idx_review_folder_command_plan_operation;
              DROP INDEX idx_review_folder_decision_plan_decision;
              DROP INDEX idx_review_folder_decision_plan_group;
              DROP TABLE review_folder_command;
@@ -1242,7 +1636,10 @@ fn version_five_migrates_folder_review_tables_transactionally() {
     let (run_id, _, _) = completed_review_fixture(&db);
     db.connection()
         .execute_batch(
-            "DROP INDEX idx_review_folder_command_plan_operation;
+            "DROP TABLE preference_rule_command;
+             DROP TABLE preference_rule_root;
+             DROP TABLE preference_rule;
+             DROP INDEX idx_review_folder_command_plan_operation;
              DROP INDEX idx_review_folder_decision_plan_decision;
              DROP INDEX idx_review_folder_decision_plan_group;
              DROP TABLE review_folder_command;
@@ -1815,6 +2212,7 @@ fn folder_review_protects_nested_and_suppressed_sets_and_rejects_nested_removal_
 
 #[test]
 fn hundred_thousand_folder_review_groups_keep_summary_and_keyset_pages_bounded() {
+    let _large_fixture_guard = LARGE_FIXTURE_TEST_LOCK.lock().unwrap();
     let db = Database::open_in_memory().unwrap();
     let (_, run_id) = session_and_run(&db, "Folder review scale", &["/root"]);
     let transaction = db.connection().unchecked_transaction().unwrap();
@@ -2025,6 +2423,41 @@ fn hundred_thousand_group_fixture() -> (Database, i64, DuplicateFileGroupPageQue
     (db, run_id, query)
 }
 
+fn populate_preference_members_for_all_groups(db: &Database, run_id: i64) {
+    let transaction = db.connection().unchecked_transaction().unwrap();
+    for (suffix, root, drive) in [("preferred", "/root", "D:"), ("other", "/secondary", "E:")] {
+        transaction
+            .execute(
+                "INSERT INTO scanned_file
+                    (run_id, root_path, canonical_path, relative_path, file_name, parent_dir,
+                     extension_key, drive_letter, file_size, last_modified, file_identity)
+                 SELECT dg.run_id, ?2,
+                        ?2 || '/preference-' || dg.id || '-' || ?3 || '.bin',
+                        'preference-' || dg.id || '-' || ?3 || '.bin',
+                        'preference-' || dg.id || '-' || ?3 || '.bin',
+                        ?2, 'bin', ?4, dg.file_size, 0,
+                        'preference-' || dg.id || '-' || ?3
+                 FROM duplicate_group dg
+                 WHERE dg.run_id = ?1 AND dg.file_count = 2",
+                params![run_id, root, suffix, drive],
+            )
+            .unwrap();
+        transaction
+            .execute(
+                "INSERT INTO duplicate_group_member (group_id, file_id)
+                 SELECT dg.id, sf.id
+                 FROM duplicate_group dg
+                 JOIN scanned_file sf
+                   ON sf.run_id = dg.run_id
+                  AND sf.canonical_path = ?2 || '/preference-' || dg.id || '-' || ?3 || '.bin'
+                 WHERE dg.run_id = ?1 AND dg.file_count = 2",
+                params![run_id, root, suffix],
+            )
+            .unwrap();
+    }
+    transaction.commit().unwrap();
+}
+
 #[cfg(windows)]
 fn current_process_private_bytes() -> u64 {
     let mut counters: PROCESS_MEMORY_COUNTERS_EX = unsafe { std::mem::zeroed() };
@@ -2040,7 +2473,162 @@ fn current_process_private_bytes() -> u64 {
 }
 
 #[test]
+fn hundred_thousand_group_preference_preview_pages_and_summary_stay_bounded() {
+    let _large_fixture_guard = LARGE_FIXTURE_TEST_LOCK.lock().unwrap();
+    let (db, run_id, _) = hundred_thousand_group_fixture();
+    populate_preference_members_for_all_groups(&db, run_id);
+    let rule = db
+        .save_preference_rule(
+            "scale-preview-rule",
+            None,
+            "Scale preferred root",
+            &["/root".to_owned(), "/missing".to_owned()],
+            0,
+        )
+        .unwrap()
+        .rule;
+    let started = std::time::Instant::now();
+    let first = db
+        .page_preference_preview(
+            run_id,
+            rule.id,
+            rule.revision,
+            0,
+            &PreferencePreviewScope::CompletedRun,
+            50,
+            None,
+        )
+        .unwrap();
+    let first_elapsed = started.elapsed();
+    assert_eq!(first.summary.scoped_group_count, 100_000);
+    assert_eq!(first.summary.scoped_logical_path_count, 200_100);
+    assert_eq!(first.summary.affected_group_count, 100_000);
+    assert_eq!(first.summary.missing_rule_root_count, 1);
+    assert_eq!(first.groups.len(), 50);
+    assert!(first.has_more);
+    let second_started = std::time::Instant::now();
+    let second = db
+        .page_preference_preview(
+            run_id,
+            rule.id,
+            rule.revision,
+            0,
+            &PreferencePreviewScope::CompletedRun,
+            50,
+            first.groups.last().map(|group| group.group_id),
+        )
+        .unwrap();
+    let second_elapsed = second_started.elapsed();
+    assert_eq!(second.groups.len(), 50);
+    assert!(
+        first_elapsed < std::time::Duration::from_secs(5),
+        "100,000-set preview first page exceeded the five-second regression ceiling: {first_elapsed:?}"
+    );
+    assert!(
+        second_elapsed < std::time::Duration::from_secs(5),
+        "100,000-set preview next page exceeded the five-second regression ceiling: {second_elapsed:?}"
+    );
+    db.connection()
+        .execute(
+            "INSERT INTO duplicate_group
+                (run_id, content_hash, file_size, file_count, wasted_bytes)
+             VALUES (?1, 200001, 200001, 2, 200001)",
+            params![run_id],
+        )
+        .unwrap();
+    assert!(matches!(
+        db.page_preference_preview(
+            run_id,
+            rule.id,
+            rule.revision,
+            0,
+            &PreferencePreviewScope::CompletedRun,
+            50,
+            None,
+        ),
+        Err(PreferenceError::PreviewTooComplex {
+            scoped_group_count: 100_001,
+            maximum_group_count: 100_000,
+            scoped_logical_path_count: None,
+            maximum_logical_path_count: 500_000,
+        })
+    ));
+}
+
+#[test]
+#[ignore = "operator performance profile; run optimized with --ignored --nocapture"]
+fn profile_hundred_thousand_group_preference_preview_queries() {
+    let _large_fixture_guard = LARGE_FIXTURE_TEST_LOCK.lock().unwrap();
+    let (db, run_id, _) = hundred_thousand_group_fixture();
+    populate_preference_members_for_all_groups(&db, run_id);
+    let rule = db
+        .save_preference_rule(
+            "scale-preview-profile",
+            None,
+            "Scale preferred root",
+            &["/root".to_owned()],
+            0,
+        )
+        .unwrap()
+        .rule;
+    let warm = db
+        .page_preference_preview(
+            run_id,
+            rule.id,
+            rule.revision,
+            0,
+            &PreferencePreviewScope::CompletedRun,
+            50,
+            None,
+        )
+        .unwrap();
+    assert_eq!(warm.groups.len(), 50);
+    let mut durations = Vec::with_capacity(100);
+    #[cfg(windows)]
+    let baseline_private_bytes = current_process_private_bytes();
+    #[cfg(windows)]
+    let mut peak_private_bytes = baseline_private_bytes;
+    for _ in 0..100 {
+        let started = std::time::Instant::now();
+        let page = db
+            .page_preference_preview(
+                run_id,
+                rule.id,
+                rule.revision,
+                0,
+                &PreferencePreviewScope::CompletedRun,
+                50,
+                None,
+            )
+            .unwrap();
+        durations.push(started.elapsed());
+        assert_eq!(page.groups.len(), 50);
+        #[cfg(windows)]
+        {
+            peak_private_bytes = peak_private_bytes.max(current_process_private_bytes());
+        }
+    }
+    durations.sort_unstable();
+    let p95 = durations[((durations.len() * 95).div_ceil(100)).saturating_sub(1)];
+    #[cfg(windows)]
+    let private_growth_bytes = peak_private_bytes.saturating_sub(baseline_private_bytes);
+    #[cfg(not(windows))]
+    let private_growth_bytes = 0_u64;
+    eprintln!(
+        "preference-preview-profile samples=100 p95={:.2}ms private-growth={} bytes",
+        p95.as_secs_f64() * 1000.0,
+        private_growth_bytes
+    );
+    #[cfg(windows)]
+    assert!(
+        private_growth_bytes < 32 * 1024 * 1024,
+        "repeated preview queries grew private memory by {private_growth_bytes} bytes"
+    );
+}
+
+#[test]
 fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
+    let _large_fixture_guard = LARGE_FIXTURE_TEST_LOCK.lock().unwrap();
     let (db, run_id, query) = hundred_thousand_group_fixture();
     let started = std::time::Instant::now();
     let first = db.page_duplicate_file_groups(&query).unwrap();
@@ -2429,6 +3017,7 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
 #[test]
 #[ignore = "run explicitly in Release on representative Windows hardware"]
 fn representative_review_workspace_profile() {
+    let _large_fixture_guard = LARGE_FIXTURE_TEST_LOCK.lock().unwrap();
     let (db, run_id, query) = hundred_thousand_group_fixture();
     let root_query = DuplicateFileSelectedRootFacetPageQuery {
         run_id,

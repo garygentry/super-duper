@@ -344,6 +344,99 @@ public sealed record WorkerReviewFolderDecisionMutation(
     bool Replayed,
     string Decision);
 
+public sealed record WorkerPreferenceRuleSummary(
+    long Id,
+    string Name,
+    string Kind,
+    long Revision,
+    long RootCount,
+    string UpdatedAt);
+
+public sealed record WorkerPreferenceRule(
+    long Id,
+    string Name,
+    string Kind,
+    string State,
+    long Revision,
+    IReadOnlyList<string> Roots,
+    string CreatedAt,
+    string UpdatedAt);
+
+public sealed record WorkerPreferenceRulePage(
+    IReadOnlyList<WorkerPreferenceRuleSummary> Rules,
+    long Total);
+
+public sealed record WorkerPreferenceRuleSaveResult(
+    WorkerPreferenceRule Rule,
+    bool Replayed);
+
+public enum PreferencePreviewScopeKind
+{
+    SelectedSets,
+    CurrentFilter,
+    CompletedRun,
+}
+
+public sealed record PreferencePreviewScope(
+    PreferencePreviewScopeKind Kind,
+    IReadOnlyList<long>? GroupIds = null,
+    DuplicateFileGroupFilter? Filter = null);
+
+public sealed record PreferencePreviewQuery(
+    long RunId,
+    long RuleId,
+    long RuleRevision,
+    long ReviewRevision,
+    int PageSize,
+    PreferencePreviewScope Scope,
+    string? Cursor = null);
+
+public sealed record WorkerPreferencePreviewGroup(
+    long GroupId,
+    string Status,
+    long? BestRank,
+    string? PreferredRoot,
+    long TiedPreferredPathCount,
+    long ProposedKeepPathCount,
+    long ProposedRemovePathCount,
+    long ProposedRemovePhysicalItemCount,
+    string ProposedRemoveBytes,
+    long ManualKeepCount,
+    long ManualRemoveCount,
+    string ExplanationCode,
+    long? ConflictFileId,
+    long? ConflictFolderMemberId);
+
+public sealed record WorkerPreferencePreviewSummary(
+    long ScopedGroupCount,
+    long ScopedLogicalPathCount,
+    long ScopedPhysicalItemCount,
+    string ScopedBytes,
+    long AffectedGroupCount,
+    long BlockedGroupCount,
+    long ProposedKeepPathCount,
+    long ProposedRemovePathCount,
+    long ProposedRemovePhysicalItemCount,
+    string ProposedRemoveBytes,
+    long ManualKeepPathCount,
+    long ManualRemovePathCount,
+    long TiedGroupCount,
+    long NoRankedRootGroupCount,
+    long MissingRuleRootCount,
+    long OverlapConflictCount,
+    long FileSurvivorConflictCount,
+    long FolderSurvivorConflictCount);
+
+public sealed record WorkerPreferencePreviewPage(
+    IReadOnlyList<WorkerPreferencePreviewGroup> Groups,
+    long Total,
+    string? NextCursor,
+    long RuleId,
+    long RuleRevision,
+    long? ReviewPlanId,
+    long ReviewRevision,
+    WorkerPreferencePreviewSummary Summary);
+
 public enum DuplicateFolderGroupSortField
 {
     TotalBytes,

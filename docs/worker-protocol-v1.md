@@ -22,6 +22,9 @@ The first Milestone 10 slice adds snapshot-backed manual review plans and decisi
 runs. The second slice adds separate snapshot-backed exact-folder-copy decisions, folder/file
 overlap safety, and combined summaries on the same plan revision. It does not validate or mutate
 live files or folders and exposes no deletion command.
+The third slice adds separately persisted named ordered-preferred-scan-root configuration and a
+read-only virtual preview. Preview never writes a review decision, validates a live path, or exposes
+deletion.
 
 The transport is UTF-8 newline-delimited JSON (JSONL) over redirected standard input and standard
 output. It is a local process boundary, not a network API.
@@ -439,6 +442,88 @@ shared revision, rejects file/folder and nested-folder overlap, preserves physic
 and intact visible/suppressed folder-copy survivors, advances the plan revision, and records the
 idempotent result. `Keep`, `Remove`, and `Undecided` are review choices only. The command never
 enumerates or mutates the live tree.
+
+## Ordered Preferred-Root Rule Commands
+
+Rule configuration is reusable and independent of runs and review plans. Root comparison uses
+exact locale-independent case-insensitive equality with immutable `scanned_file.root_path`; the
+worker performs no path normalization, existence check, or filesystem access.
+
+### `preference_rule.list`
+
+```json
+{"type":"request","id":"prl1","method":"preference_rule.list","params":{"offset":0,"limit":200}}
+```
+
+The response contains at most 200 active rules ordered by case-insensitive name and ID:
+
+```json
+{"rules":[{"id":7,"name":"Primary libraries","kind":"ordered_preferred_scan_roots","revision":2,"rootCount":3,"updatedAt":"2026-08-19T18:00:00Z"}],"total":1}
+```
+
+### `preference_rule.get`
+
+```json
+{"type":"request","id":"prg1","method":"preference_rule.get","params":{"ruleId":7}}
+```
+
+The result wraps one rule with `id`, `name`, `kind`, `state`, `revision`, `createdAt`, `updatedAt`,
+and 1--64 exact `roots` in rank order.
+
+### `preference_rule.save`
+
+```json
+{"type":"request","id":"prs1","method":"preference_rule.save","params":{"operationId":"3ee8b649b2e64ee2a16b0b9a72b48e40","ruleId":7,"name":"Primary libraries","roots":["D:\\Photos","E:\\Backup"],"expectedRevision":2}}
+```
+
+Omit `ruleId` and use expected revision zero to create. Updating requires the current positive rule
+revision. Names contain 1--128 characters without surrounding whitespace. Roots are 1--64 distinct
+absolute Windows paths, each nonblank and at most 32,767 Unicode scalar values. The response wraps
+the saved complete rule plus `replayed`. Exact operation replay returns the original applied
+revision; payload reuse returns `idempotency_conflict`. Name and stale-revision conflicts return
+`preference_rule_name_conflict` and `preference_rule_generation_conflict`.
+
+Saving configuration never advances a review-plan revision and never applies the rule.
+
+### `preference_rule.preview`
+
+```json
+{"type":"request","id":"prp1","method":"preference_rule.preview","params":{"runId":19,"ruleId":7,"ruleRevision":3,"reviewRevision":5,"pageSize":100,"scope":{"kind":"current_filter","filter":{"search":"photos","pathMatch":"substring","extension":"jpg","extensionMatch":"all","minimumSize":"1048576","minimumCopyCount":3,"acrossDrives":false,"selectedRoot":"D:\\Photos","selectedDrive":"D:"}},"cursor":null}}
+```
+
+Exactly one scope is required:
+
+- `selected_sets` carries 1--500 distinct positive `groupIds` owned by the completed run;
+- `current_filter` carries every field of the duplicate-file group filter and uses the same
+  normalization/defaults/indexed semantics as `duplicate_file_group.page`;
+- `completed_run` accepts no group IDs or filter and covers every duplicate-file set in the run.
+
+V1 evaluates at most 100,000 scoped sets and 500,000 scoped logical paths. A larger scope returns
+`preview_too_complex` with the observed/bounded counts that were known when evaluation stopped; the
+user can narrow it with `current_filter` or `selected_sets`. This cap bounds transient Rust-owned
+evaluation state and does not create a partial preview.
+
+The response keyset-pages affected or blocked sets by group ID:
+
+```json
+{"groups":[{"groupId":31,"status":"applicable","bestRank":0,"preferredRoot":"D:\\Photos","tiedPreferredPathCount":1,"proposedKeepPathCount":1,"proposedRemovePathCount":2,"proposedRemovePhysicalItemCount":2,"proposedRemoveBytes":"10485760","manualKeepCount":0,"manualRemoveCount":0,"explanationCode":"preferred_root_rank","conflictFileId":null,"conflictFolderMemberId":null}],"total":42,"nextCursor":"opaque","ruleId":7,"ruleRevision":3,"reviewPlanId":12,"reviewRevision":5,"summary":{"scopedGroupCount":50,"scopedLogicalPathCount":140,"scopedPhysicalItemCount":130,"scopedBytes":"734003200","affectedGroupCount":42,"blockedGroupCount":2,"proposedKeepPathCount":45,"proposedRemovePathCount":80,"proposedRemovePhysicalItemCount":75,"proposedRemoveBytes":"524288000","manualKeepPathCount":4,"manualRemovePathCount":3,"tiedGroupCount":3,"noRankedRootGroupCount":6,"missingRuleRootCount":1,"overlapConflictCount":1,"fileSurvivorConflictCount":0,"folderSurvivorConflictCount":1}}
+```
+
+Manual Keep/Remove decisions take precedence. Ranking excludes already effective manual removals,
+keeps every eligible path tied at the best present rank, and virtually removes lower-ranked and
+unranked eligible paths. A set with no ranked eligible root is counted but not returned as an
+affected row. Physical counts de-duplicate non-empty immutable file identities, with canonical path
+as fallback.
+
+Manual folder Keeps, existing folder removals, suppressed exact-folder groups, file physical
+survivors, and intact folder-copy survivors are evaluated through immutable hierarchy rows. A
+violating set is returned as `blocked` with zero proposed changes and one of
+`manual_folder_keep_conflict`, `file_survivor_conflict`, or `folder_survivor_conflict` plus bounded
+conflict IDs.
+
+The cursor binds run, rule ID/revision, active-or-virtual review plan/revision, page size, and the
+canonical complete scope. Rule edits and manual file/folder mutations therefore reject old cursors.
+Cancellation abandons only the read; there is no preview state to reconcile after restart.
 
 ## Duplicate File Result Commands
 

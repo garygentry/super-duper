@@ -109,6 +109,11 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         _workerClient = workerClient;
         _clipboard = clipboard;
         _explorer = explorer;
+        PreferenceRules = new PreferenceRulesViewModel(
+            workerClient,
+            () => TryBuildFilter(out var filter) ? filter : null,
+            () => SelectedGroup?.Id,
+            () => ReviewPlan.Plan.Revision);
         ApplyFiltersCommand = new AsyncRelayCommand(ApplyFiltersAsync);
         ClearFiltersCommand = new AsyncRelayCommand(ClearFiltersAsync);
         NextPageCommand = new AsyncRelayCommand(NextPageAsync, () => CanMoveNext);
@@ -739,6 +744,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 
     public IAsyncRelayCommand<DuplicateFileMemberListItemViewModel> UndecideMemberCommand { get; }
 
+    public PreferenceRulesViewModel PreferenceRules { get; }
+
     public async Task ShowRunAsync(WorkerRun? run, CancellationToken cancellationToken = default)
     {
         Run = run;
@@ -782,6 +789,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         if (run is null)
         {
             StateMessage = "Select a completed run to browse duplicate files.";
+            await PreferenceRules.ShowRunAsync(null, cancellationToken);
             return;
         }
         if (run.Status != "completed")
@@ -789,6 +797,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             StateMessage = run.Status is "running" or "pending" or "cancelling"
                 ? "Duplicate results become available after this scan completes."
                 : $"This run is {DisplayFormatting.Status(run.Status).ToLowerInvariant()}; partial results are not shown.";
+            await PreferenceRules.ShowRunAsync(run, cancellationToken);
             return;
         }
 
@@ -798,6 +807,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         await Task.WhenAll(
             ResetAndLoadGroupsAsync(cancellationToken),
             LoadReviewPlanAsync(run.Id, reviewGeneration, _reviewCancellation.Token));
+        await PreferenceRules.ShowRunAsync(run, cancellationToken);
     }
 
     public async Task RefreshReviewRevisionAsync(long runId, long revision)
@@ -821,6 +831,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         {
             await planTask;
         }
+        PreferenceRules.InvalidateReviewRevision(revision);
     }
 
     public async Task ApplySortAsync(
@@ -862,12 +873,14 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         CancelRootFacetQuery();
         CancelDriveFacetQuery();
         CancelReviewQuery();
+        PreferenceRules.Dispose();
     }
 
     private async Task ApplyFiltersAsync()
     {
         if (Run?.Status == "completed")
         {
+            PreferenceRules.InvalidateFilter();
             await ResetAndLoadGroupsAsync();
         }
     }

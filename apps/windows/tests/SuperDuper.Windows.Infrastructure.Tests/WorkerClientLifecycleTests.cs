@@ -390,6 +390,40 @@ public sealed class WorkerClientLifecycleTests
                     WorkerSortDirection.Ascending,
                     new DuplicateFolderMemberFilter(string.Empty)));
             var combinedAfterFolder = await client.GetReviewPlanAsync(started.Id);
+            var missingRoot = Path.Combine(temp, "missing-root");
+            var immutableRoot = rootFacets.Facets.Single().Value;
+            var savedRule = await client.SavePreferenceRuleAsync(
+                $"preference-{Guid.NewGuid():N}",
+                null,
+                "Preferred libraries",
+                [immutableRoot, missingRoot],
+                0);
+            var savedRules = await client.ListPreferenceRulesAsync();
+            var loadedRule = await client.GetPreferenceRuleAsync(savedRule.Rule.Id);
+            var preferencePreview = await client.GetPreferencePreviewAsync(
+                new PreferencePreviewQuery(
+                    started.Id,
+                    loadedRule.Id,
+                    loadedRule.Revision,
+                    combinedAfterFolder.Plan.Revision,
+                    1,
+                    new PreferencePreviewScope(PreferencePreviewScopeKind.CompletedRun)));
+            var updatedRule = await client.SavePreferenceRuleAsync(
+                $"preference-update-{Guid.NewGuid():N}",
+                loadedRule.Id,
+                loadedRule.Name,
+                [missingRoot, immutableRoot],
+                loadedRule.Revision);
+            var stalePreferenceRule = await Assert.ThrowsExceptionAsync<WorkerProtocolException>(() =>
+                client.GetPreferencePreviewAsync(
+                    new PreferencePreviewQuery(
+                        started.Id,
+                        updatedRule.Rule.Id,
+                        loadedRule.Revision,
+                        combinedAfterFolder.Plan.Revision,
+                        1,
+                        new PreferencePreviewScope(PreferencePreviewScopeKind.CompletedRun),
+                        preferencePreview.NextCursor)));
 
             Assert.AreEqual(1, sessions.Total);
             Assert.AreEqual("run.completed", terminalEvent);
@@ -448,6 +482,14 @@ public sealed class WorkerClientLifecycleTests
             Assert.AreEqual(1, reviewedFolderMembers.ReviewSummary.KeepCount);
             Assert.AreEqual(folderMutation.AppliedRevision, reviewedFolderMembers.ReviewRevision);
             Assert.AreEqual(1, combinedAfterFolder.Summary.FolderKeepCount);
+            Assert.AreEqual(1, savedRules.Total);
+            Assert.AreEqual(2, loadedRule.Roots.Count);
+            Assert.AreEqual(immutableRoot, loadedRule.Roots[0]);
+            Assert.AreEqual(2, preferencePreview.Total);
+            Assert.AreEqual(2, preferencePreview.Summary.AffectedGroupCount);
+            Assert.AreEqual(1, preferencePreview.Summary.MissingRuleRootCount);
+            Assert.IsNotNull(preferencePreview.NextCursor);
+            Assert.AreEqual("preference_rule_generation_conflict", stalePreferenceRule.Code);
             CollectionAssert.AreEquivalent(
                 new[] { folderA.Name, folderB.Name },
                 folderMembers.Members
@@ -468,6 +510,7 @@ public sealed class WorkerClientLifecycleTests
                          "review_plan.get",
                          "review_group.page",
                          "review_folder_group.page",
+                         "preference_rule.preview",
                          "duplicate_folder_group.page",
                          "duplicate_folder_group.members",
                      })

@@ -4,7 +4,7 @@ use chrono::Utc;
 use rusqlite::{params, Connection, Error, Result};
 use tracing::{debug, info};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 6;
+pub const CURRENT_SCHEMA_VERSION: i64 = 7;
 
 pub struct Database {
     conn: Connection,
@@ -67,15 +67,21 @@ impl Database {
         let version = self.schema_version()?;
         match version {
             CURRENT_SCHEMA_VERSION => self.conn.execute_batch(include_str!("schema.sql"))?,
-            5 => self.migrate_v5_to_v6()?,
+            6 => self.migrate_v6_to_v7()?,
+            5 => {
+                self.migrate_v5_to_v6()?;
+                self.migrate_v6_to_v7()?;
+            }
             4 => {
                 self.migrate_v4_to_v5()?;
                 self.migrate_v5_to_v6()?;
+                self.migrate_v6_to_v7()?;
             }
             3 => {
                 self.migrate_v3_to_v4()?;
                 self.migrate_v4_to_v5()?;
                 self.migrate_v5_to_v6()?;
+                self.migrate_v6_to_v7()?;
             }
             2 => self.migrate_v2_to_v3()?,
             0 if !self.has_user_tables()? => self.conn.execute_batch(include_str!("schema.sql"))?,
@@ -500,6 +506,50 @@ impl Database {
         migration
     }
 
+    fn migrate_v6_to_v7(&self) -> Result<()> {
+        info!("Migrating SQLite schema from version 6 to 7");
+        let migration = self.conn.execute_batch(
+            "BEGIN IMMEDIATE;
+             CREATE TABLE preference_rule (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 name TEXT NOT NULL COLLATE UNICODE_NOCASE UNIQUE,
+                 kind TEXT NOT NULL CHECK(kind = 'ordered_preferred_scan_roots'),
+                 state TEXT NOT NULL DEFAULT 'active' CHECK(state IN ('active', 'archived')),
+                 revision INTEGER NOT NULL CHECK(revision > 0),
+                 created_at TEXT NOT NULL,
+                 updated_at TEXT NOT NULL
+             );
+             CREATE TABLE preference_rule_root (
+                 rule_id INTEGER NOT NULL REFERENCES preference_rule(id) ON DELETE CASCADE,
+                 ordinal INTEGER NOT NULL CHECK(ordinal >= 0 AND ordinal < 64),
+                 root_path TEXT NOT NULL CHECK(root_path <> ''),
+                 PRIMARY KEY(rule_id, ordinal),
+                 UNIQUE(rule_id, root_path COLLATE UNICODE_NOCASE)
+             );
+             CREATE TABLE preference_rule_command (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 operation_id TEXT NOT NULL UNIQUE,
+                 requested_rule_id INTEGER,
+                 name TEXT NOT NULL,
+                 roots_json TEXT NOT NULL,
+                 expected_revision INTEGER NOT NULL CHECK(expected_revision >= 0),
+                 applied_rule_id INTEGER NOT NULL REFERENCES preference_rule(id) ON DELETE CASCADE,
+                 applied_revision INTEGER NOT NULL CHECK(applied_revision > 0),
+                 created_at TEXT NOT NULL
+             );
+             CREATE INDEX idx_preference_rule_state_name
+                 ON preference_rule(state, name COLLATE UNICODE_NOCASE, id);
+             CREATE INDEX idx_preference_rule_root_path
+                 ON preference_rule_root(rule_id, root_path COLLATE UNICODE_NOCASE, ordinal);
+             PRAGMA user_version = 7;
+             COMMIT;",
+        );
+        if migration.is_err() {
+            let _ = self.conn.execute_batch("ROLLBACK;");
+        }
+        migration
+    }
+
     pub fn reconcile_interrupted_runs(&self) -> Result<usize> {
         let now = Utc::now().to_rfc3339();
         let count = self.conn.execute(
@@ -522,6 +572,9 @@ impl Database {
     pub fn truncate_all(&self) -> Result<()> {
         self.conn.execute_batch(
             "BEGIN;
+             DELETE FROM preference_rule_command;
+             DELETE FROM preference_rule_root;
+             DELETE FROM preference_rule;
              DELETE FROM review_folder_command;
              DELETE FROM review_folder_decision;
              DELETE FROM review_command;

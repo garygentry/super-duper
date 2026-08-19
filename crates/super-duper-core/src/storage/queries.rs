@@ -1598,7 +1598,7 @@ fn like_pattern(value: &str) -> String {
     )
 }
 
-fn duplicate_file_group_predicate(
+pub(super) fn duplicate_file_group_predicate(
     run_id: i64,
     filter: &DuplicateFileGroupFilter,
     include_selected_root: bool,
