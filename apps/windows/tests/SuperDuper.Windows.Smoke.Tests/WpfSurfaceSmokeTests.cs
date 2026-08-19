@@ -302,6 +302,7 @@ public sealed class WpfSurfaceSmokeTests
                 FindByAutomationId<TextBox>(setup, "ManualCloudLocationExclusions")));
             Assert.AreEqual("Ignore patterns", AutomationProperties.GetName(
                 FindByAutomationId<TextBox>(setup, "IgnorePatterns")));
+            AssertSessionSetupFitsSupportedMinimumWorkspace(setup);
             Assert.AreEqual("Run history", AutomationProperties.GetName(
                 FindByAutomationId<DataGrid>(history, "RunHistoryGrid")));
 
@@ -465,6 +466,35 @@ public sealed class WpfSurfaceSmokeTests
         Assert.IsTrue(
             lastRight <= files.ActualWidth,
             "A wrapped primary filter control extends beyond the duplicate-file workspace.");
+        host.Content = null;
+        host.Close();
+    }
+
+    private static void AssertSessionSetupFitsSupportedMinimumWorkspace(SessionSetupView setup)
+    {
+        const double narrowWorkspaceWidth = 620;
+        var host = new Window
+        {
+            Width = narrowWorkspaceWidth,
+            Height = 600,
+            Content = setup,
+            SizeToContent = SizeToContent.Manual,
+        };
+        host.Show();
+        host.UpdateLayout();
+        DrainDispatcher();
+
+        var manualExclusions = FindByAutomationId<TextBox>(setup, "ManualCloudLocationExclusions");
+        var ignorePatterns = FindByAutomationId<TextBox>(setup, "IgnorePatterns");
+        foreach (var editor in new[] { manualExclusions, ignorePatterns })
+        {
+            var editorRight = editor.TranslatePoint(new Point(editor.ActualWidth, 0), setup).X;
+            Assert.IsTrue(
+                editorRight <= setup.ActualWidth,
+                $"{AutomationProperties.GetAutomationId(editor)} extends beyond the supported narrow workspace.");
+            Assert.AreEqual(ScrollBarVisibility.Auto, editor.HorizontalScrollBarVisibility);
+        }
+
         host.Content = null;
         host.Close();
     }
