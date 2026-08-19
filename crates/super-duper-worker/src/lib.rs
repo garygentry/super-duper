@@ -22,9 +22,9 @@ use super_duper_core::storage::models::{
     DuplicateFolderGroupSortField, DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery,
     DuplicateFolderMemberResult, DuplicateFolderMemberSortField, PageCursor, PageCursorValue,
     PreferencePreviewGroup, PreferencePreviewScope, PreferencePreviewSummary, PreferenceRule,
-    PreferenceRuleSummary, RegisteredCloudLocation, ReviewDecisionKind, ReviewFolderGroupSummary,
-    ReviewGroupSummary, ReviewPlanSummary, ReviewPlanView, RunExclusion, RunParameters, ScanRun,
-    ScanSession, SortDirection,
+    PreferenceRuleApplication, PreferenceRuleSummary, RegisteredCloudLocation, ReviewDecisionKind,
+    ReviewFolderGroupSummary, ReviewGroupSummary, ReviewPlanSummary, ReviewPlanView, RunExclusion,
+    RunParameters, ScanRun, ScanSession, SortDirection,
 };
 use super_duper_core::storage::preference::PreferenceError;
 use super_duper_core::storage::review::ReviewError;
@@ -567,6 +567,52 @@ struct PreferencePreviewParameters {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct PreferenceApplyParameters {
+    operation_id: String,
+    run_id: i64,
+    rule_id: i64,
+    rule_revision: i64,
+    source_review_revision: i64,
+    preview_signature: String,
+    scope: PreferencePreviewScopeParameters,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PreferenceApplicationPageParameters {
+    run_id: i64,
+    #[serde(default)]
+    rule_id: Option<i64>,
+    #[serde(default = "default_application_state")]
+    state: String,
+    #[serde(default = "default_result_page_size")]
+    page_size: i64,
+    #[serde(default)]
+    cursor: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PreferenceApplicationGetParameters {
+    run_id: i64,
+    application_id: i64,
+}
+
+fn default_application_state() -> String {
+    "all".to_owned()
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PreferenceApplicationReverseParameters {
+    operation_id: String,
+    run_id: i64,
+    application_id: i64,
+    expected_revision: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct DuplicateFolderGroupPageParameters {
     run_id: i64,
     #[serde(default = "default_result_page_size")]
@@ -791,6 +837,7 @@ struct DuplicateFileMemberDto {
     decision: String,
     decision_provenance: Option<String>,
     decision_at: Option<String>,
+    decision_application_id: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -820,6 +867,9 @@ struct ReviewPlanSummaryDto {
     planned_removal_bytes: String,
     remaining_physical_copy_count: i64,
     intact_folder_copy_count: i64,
+    rule_keep_count: i64,
+    rule_remove_count: i64,
+    active_rule_application_count: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -1091,6 +1141,12 @@ impl WorkerSession {
             "preference_rule.get" => self.preference_rule_get(request),
             "preference_rule.save" => self.preference_rule_save(request),
             "preference_rule.preview" => self.preference_rule_preview(request),
+            "preference_rule.apply" => self.preference_rule_apply(request),
+            "preference_rule.application.get" => self.preference_rule_application_get(request),
+            "preference_rule.application.page" => self.preference_rule_application_page(request),
+            "preference_rule.application.reverse" => {
+                self.preference_rule_application_reverse(request)
+            }
             "duplicate_file_group.page" => self.duplicate_file_group_page(request),
             "duplicate_file_selected_root_facet.page" => {
                 self.duplicate_file_selected_root_facet_page(request)
@@ -1402,7 +1458,168 @@ impl WorkerSession {
             "ruleRevision": page.rule_revision,
             "reviewPlanId": page.review_plan_id,
             "reviewRevision": page.review_revision,
+            "previewSignature": page.preview_signature,
             "summary": preference_preview_summary_dto(&page.summary),
+        }))
+    }
+
+    fn preference_rule_apply(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let mut parameters: PreferenceApplyParameters = parse_parameters(request)?;
+        validate_operation_id(&parameters.operation_id)?;
+        if parameters.rule_revision <= 0 || parameters.source_review_revision < 0 {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "ruleRevision must be positive and sourceReviewRevision must be non-negative",
+            ));
+        }
+        if parameters.preview_signature.is_empty()
+            || parameters.preview_signature.chars().count() > 128
+        {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "previewSignature must contain 1 to 128 characters",
+            ));
+        }
+        let (scope, _) = parse_preference_preview_scope(&mut parameters.scope)?;
+        let result = self
+            .state
+            .database()?
+            .apply_preference_rule(
+                &parameters.operation_id,
+                parameters.run_id,
+                parameters.rule_id,
+                parameters.rule_revision,
+                parameters.source_review_revision,
+                &parameters.preview_signature,
+                &scope,
+            )
+            .map_err(preference_error)?;
+        Ok(json!({
+            "application": preference_application_dto(&result.application),
+            "replayed": result.replayed,
+        }))
+    }
+
+    fn preference_rule_application_page(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: PreferenceApplicationPageParameters = parse_parameters(request)?;
+        if !(1..=200).contains(&parameters.page_size) {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "application pageSize must be 1..=200",
+            ));
+        }
+        if parameters.rule_id.is_some_and(|id| id <= 0)
+            || !matches!(parameters.state.as_str(), "all" | "active" | "reversed")
+        {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "ruleId must be positive and state must be active, reversed, or all",
+            ));
+        }
+        let plan = self
+            .state
+            .database()?
+            .get_review_plan_view(parameters.run_id)
+            .map_err(review_error)?;
+        let signature = json!({
+            "runId":parameters.run_id,
+            "ruleId":parameters.rule_id,
+            "state":parameters.state,
+            "planId":plan.plan.as_ref().map(|value| value.id),
+            "revision":plan.plan.as_ref().map_or(0, |value| value.revision),
+            "pageSize":parameters.page_size,
+        })
+        .to_string();
+        let cursor = decode_cursor(
+            parameters.cursor.as_deref(),
+            "preference-rule-applications",
+            &signature,
+        )?;
+        validate_cursor_value(cursor.as_ref(), false)?;
+        if cursor.as_ref().is_some_and(|value| value.before) {
+            return Err(invalid_cursor());
+        }
+        let page = self
+            .state
+            .database()?
+            .page_preference_applications(
+                parameters.run_id,
+                parameters.rule_id,
+                Some(&parameters.state),
+                parameters.page_size,
+                cursor.as_ref().map(|value| value.id),
+            )
+            .map_err(preference_error)?;
+        let next_cursor = page
+            .applications
+            .last()
+            .filter(|_| page.has_more)
+            .map(|application| encode_preference_application_cursor(application.id, &signature))
+            .transpose()?;
+        Ok(json!({
+            "applications":page.applications.iter().map(preference_application_summary_dto).collect::<Vec<_>>(),
+            "total":page.total,
+            "nextCursor":next_cursor,
+            "planId":page.plan_id,
+            "revision":page.revision,
+        }))
+    }
+
+    fn preference_rule_application_get(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: PreferenceApplicationGetParameters = parse_parameters(request)?;
+        if parameters.run_id <= 0 || parameters.application_id <= 0 {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "runId and applicationId must be positive",
+            ));
+        }
+        let application = self
+            .state
+            .database()?
+            .get_preference_application(parameters.run_id, parameters.application_id)
+            .map_err(preference_error)?;
+        Ok(json!({"application":preference_application_dto(&application)}))
+    }
+
+    fn preference_rule_application_reverse(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: PreferenceApplicationReverseParameters = parse_parameters(request)?;
+        validate_operation_id(&parameters.operation_id)?;
+        if parameters.run_id <= 0
+            || parameters.application_id <= 0
+            || parameters.expected_revision < 0
+        {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "runId/applicationId must be positive and expectedRevision non-negative",
+            ));
+        }
+        let result = self
+            .state
+            .database()?
+            .reverse_preference_rule_application(
+                &parameters.operation_id,
+                parameters.run_id,
+                parameters.application_id,
+                parameters.expected_revision,
+            )
+            .map_err(preference_error)?;
+        Ok(json!({
+            "applicationId":result.application_id,
+            "planId":result.plan_id,
+            "appliedRevision":result.applied_revision,
+            "replayed":result.replayed,
+            "state":"reversed",
+            "removedRuleKeepCount":result.removed_keep_count,
+            "removedRuleRemoveCount":result.removed_remove_count,
         }))
     }
 
@@ -2864,6 +3081,17 @@ fn validate_preference_rule_parameters(
     Ok(())
 }
 
+fn validate_operation_id(operation_id: &str) -> Result<(), ProtocolFailure> {
+    if operation_id.is_empty() || operation_id.chars().count() > MAXIMUM_OPERATION_ID_CHARACTERS {
+        return Err(ProtocolFailure::new(
+            "invalid_request",
+            format!("operationId must contain 1 to {MAXIMUM_OPERATION_ID_CHARACTERS} characters"),
+        )
+        .with_details(json!({"field":"operationId"})));
+    }
+    Ok(())
+}
+
 fn parse_preference_preview_scope(
     scope: &mut PreferencePreviewScopeParameters,
 ) -> Result<(PreferencePreviewScope, Value), ProtocolFailure> {
@@ -3478,6 +3706,20 @@ fn encode_preference_preview_cursor(
     })
 }
 
+fn encode_preference_application_cursor(
+    application_id: i64,
+    signature: &str,
+) -> Result<String, ProtocolFailure> {
+    encode_cursor(CursorPayload {
+        version: 1,
+        kind: "preference-rule-applications".to_owned(),
+        query: signature.to_owned(),
+        before: false,
+        value: CursorScalar::Integer(application_id.to_string()),
+        id: application_id,
+    })
+}
+
 fn encode_review_folder_group_cursor(
     folder_group_id: i64,
     signature: &str,
@@ -3671,6 +3913,7 @@ fn member_dto(member: DuplicateFileMemberResult) -> DuplicateFileMemberDto {
         decision: member.review_decision.as_str().to_owned(),
         decision_provenance: member.review_provenance,
         decision_at: member.review_decided_at,
+        decision_application_id: member.review_application_id,
     }
 }
 
@@ -3710,6 +3953,9 @@ fn review_plan_summary_dto(summary: &ReviewPlanSummary) -> ReviewPlanSummaryDto 
         planned_removal_bytes: summary.planned_removal_bytes.to_string(),
         remaining_physical_copy_count: summary.remaining_physical_copy_count,
         intact_folder_copy_count: summary.intact_folder_copy_count,
+        rule_keep_count: summary.rule_keep_count,
+        rule_remove_count: summary.rule_remove_count,
+        active_rule_application_count: summary.active_rule_application_count,
     }
 }
 
@@ -4279,6 +4525,64 @@ fn preference_rule_dto(rule: &PreferenceRule) -> Value {
     })
 }
 
+fn preference_application_dto(application: &PreferenceRuleApplication) -> Value {
+    json!({
+        "id":application.id,
+        "planId":application.plan_id,
+        "runId":application.run_id,
+        "ruleId":application.rule_id,
+        "ruleRevision":application.rule_revision,
+        "ruleName":application.rule_name,
+        "ruleKind":application.rule_kind,
+        "ruleRoots":application.rule_roots,
+        "scopeKind":application.scope_kind,
+        "scope":serde_json::from_str::<Value>(&application.scope_json).unwrap_or(Value::Null),
+        "scopeSignature":application.scope_signature,
+        "previewSignature":application.preview_signature,
+        "sourceReviewRevision":application.source_review_revision,
+        "appliedRevision":application.applied_revision,
+        "state":application.state,
+        "createdAt":application.created_at,
+        "reversedAt":application.reversed_at,
+        "summary":{
+            "scopedGroupCount":application.summary.scoped_group_count,
+            "applicableGroupCount":application.summary.applicable_group_count,
+            "blockedGroupCount":application.summary.blocked_group_count,
+            "ruleKeepPathCount":application.summary.rule_keep_path_count,
+            "ruleRemovePathCount":application.summary.rule_remove_path_count,
+            "ruleRemovePhysicalItemCount":application.summary.rule_remove_physical_item_count,
+            "ruleRemoveBytes":application.summary.rule_remove_bytes.to_string(),
+        }
+    })
+}
+
+fn preference_application_summary_dto(application: &PreferenceRuleApplication) -> Value {
+    json!({
+        "id":application.id,
+        "planId":application.plan_id,
+        "runId":application.run_id,
+        "ruleId":application.rule_id,
+        "ruleRevision":application.rule_revision,
+        "ruleName":application.rule_name,
+        "ruleKind":application.rule_kind,
+        "scopeKind":application.scope_kind,
+        "sourceReviewRevision":application.source_review_revision,
+        "appliedRevision":application.applied_revision,
+        "state":application.state,
+        "createdAt":application.created_at,
+        "reversedAt":application.reversed_at,
+        "summary":{
+            "scopedGroupCount":application.summary.scoped_group_count,
+            "applicableGroupCount":application.summary.applicable_group_count,
+            "blockedGroupCount":application.summary.blocked_group_count,
+            "ruleKeepPathCount":application.summary.rule_keep_path_count,
+            "ruleRemovePathCount":application.summary.rule_remove_path_count,
+            "ruleRemovePhysicalItemCount":application.summary.rule_remove_physical_item_count,
+            "ruleRemoveBytes":application.summary.rule_remove_bytes.to_string(),
+        }
+    })
+}
+
 fn preference_preview_group_dto(group: &PreferencePreviewGroup) -> Value {
     json!({
         "groupId":group.group_id,
@@ -4323,6 +4627,7 @@ fn preference_preview_summary_dto(summary: &PreferencePreviewSummary) -> Value {
 
 fn preference_error(error: PreferenceError) -> ProtocolFailure {
     match error {
+        PreferenceError::Review(error) => review_error(error),
         PreferenceError::Database(error) => internal_database_error(error),
         PreferenceError::Serialization(error) => ProtocolFailure::new(
             "internal_error",
@@ -4367,7 +4672,7 @@ fn preference_error(error: PreferenceError) -> ProtocolFailure {
         .with_details(json!({"expectedRevision":expected,"currentRevision":current})),
         PreferenceError::IdempotencyConflict { operation_id } => ProtocolFailure::new(
             "idempotency_conflict",
-            "The operationId was already used for another preference-rule save",
+            "The operationId was already used for another preference-rule command payload",
         )
         .with_details(json!({"operationId":operation_id})),
         PreferenceError::DuplicateName { name } => ProtocolFailure::new(
@@ -4398,6 +4703,35 @@ fn preference_error(error: PreferenceError) -> ProtocolFailure {
             "scopedLogicalPathCount": scoped_logical_path_count,
             "maximumLogicalPathCount": maximum_logical_path_count,
         })),
+        PreferenceError::PreviewConflict => ProtocolFailure::new(
+            "preference_preview_conflict",
+            "The preview no longer matches this rule application request; run Preview again",
+        ),
+        PreferenceError::ApplicationEmpty => ProtocolFailure::new(
+            "rule_application_empty",
+            "The preview contains no applicable rule decisions",
+        ),
+        PreferenceError::ApplicationOverlap {
+            file_id,
+            application_id,
+        } => ProtocolFailure::new(
+            "rule_application_overlap",
+            "Another active rule application already owns one of these decisions",
+        )
+        .with_details(json!({"fileId":file_id,"applicationId":application_id})),
+        PreferenceError::ApplicationNotFound {
+            run_id,
+            application_id,
+        } => ProtocolFailure::new(
+            "rule_application_not_found",
+            format!("Rule application {application_id} was not found in run {run_id}"),
+        )
+        .with_details(json!({"runId":run_id,"applicationId":application_id})),
+        PreferenceError::ApplicationAlreadyReversed { application_id } => ProtocolFailure::new(
+            "rule_application_already_reversed",
+            "This rule application has already been reversed",
+        )
+        .with_details(json!({"applicationId":application_id})),
     }
 }
 
@@ -4780,6 +5114,86 @@ mod tests {
             "invalid_scope"
         );
         let cursor = preview["nextCursor"].as_str().unwrap();
+        let preview_signature = preview["previewSignature"].as_str().unwrap();
+
+        let application_frames = execute(
+            &temp,
+            &[
+                HELLO.to_owned(),
+                json!({
+                    "type":"request","id":"apply","method":"preference_rule.apply",
+                    "params":{
+                        "operationId":"apply-rule","runId":run_id,"ruleId":1,
+                        "ruleRevision":1,"sourceReviewRevision":0,
+                        "previewSignature":preview_signature,
+                        "scope":{"kind":"completed_run"}
+                    }
+                }).to_string(),
+                json!({
+                    "type":"request","id":"applications","method":"preference_rule.application.page",
+                    "params":{"runId":run_id,"ruleId":1,"state":"active","pageSize":20}
+                }).to_string(),
+                json!({
+                    "type":"request","id":"application-detail","method":"preference_rule.application.get",
+                    "params":{"runId":run_id,"applicationId":1}
+                }).to_string(),
+                json!({
+                    "type":"request","id":"members","method":"duplicate_file_group.members",
+                    "params":{"runId":run_id,"groupId":1,"pageSize":20}
+                }).to_string(),
+                json!({
+                    "type":"request","id":"reverse","method":"preference_rule.application.reverse",
+                    "params":{
+                        "operationId":"reverse-rule","runId":run_id,
+                        "applicationId":1,"expectedRevision":1
+                    }
+                }).to_string(),
+                json!({
+                    "type":"request","id":"plan-after-reverse","method":"review_plan.get",
+                    "params":{"runId":run_id}
+                }).to_string(),
+            ],
+        );
+        assert_eq!(
+            response(&application_frames, "apply")["result"]["application"]["appliedRevision"],
+            1
+        );
+        assert_eq!(
+            response(&application_frames, "apply")["result"]["application"]["summary"]
+                ["ruleRemovePathCount"],
+            2
+        );
+        assert_eq!(
+            response(&application_frames, "applications")["result"]["total"],
+            1
+        );
+        assert!(
+            response(&application_frames, "applications")["result"]["applications"][0]
+                .get("ruleRoots")
+                .is_none()
+        );
+        assert_eq!(
+            response(&application_frames, "application-detail")["result"]["application"]
+                ["ruleRoots"][0],
+            roots[0]
+        );
+        assert_eq!(
+            response(&application_frames, "members")["result"]["members"][0]["decisionProvenance"],
+            "rule"
+        );
+        assert_eq!(
+            response(&application_frames, "members")["result"]["members"][0]
+                ["decisionApplicationId"],
+            1
+        );
+        assert_eq!(
+            response(&application_frames, "reverse")["result"]["appliedRevision"],
+            2
+        );
+        assert_eq!(
+            response(&application_frames, "plan-after-reverse")["result"]["plan"]["revision"],
+            2
+        );
 
         let second = execute(
             &temp,
@@ -4796,7 +5210,7 @@ mod tests {
                 json!({
                     "type":"request","id":"stale-cursor","method":"preference_rule.preview",
                     "params":{
-                        "runId":run_id,"ruleId":1,"ruleRevision":2,"reviewRevision":0,
+                        "runId":run_id,"ruleId":1,"ruleRevision":2,"reviewRevision":2,
                         "pageSize":1,"scope":{"kind":"completed_run"},"cursor":cursor
                     }
                 })

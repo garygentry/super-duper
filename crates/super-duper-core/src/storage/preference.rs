@@ -5,6 +5,8 @@ use chrono::Utc;
 use rusqlite::types::Value as SqlValue;
 use rusqlite::{params, params_from_iter, OptionalExtension, Transaction, TransactionBehavior};
 use std::collections::{HashMap, HashSet};
+use std::hash::Hasher;
+use twox_hash::XxHash64;
 
 const MAX_PREVIEW_GROUPS: usize = 100_000;
 const MAX_PREVIEW_LOGICAL_PATHS: usize = 500_000;
@@ -42,6 +44,18 @@ pub enum PreferenceError {
         scoped_logical_path_count: Option<usize>,
         maximum_logical_path_count: usize,
     },
+    #[error("preview signature does not match the submitted rule, review revision, and scope")]
+    PreviewConflict,
+    #[error("the rule application contains no applicable decisions")]
+    ApplicationEmpty,
+    #[error("file {file_id} is already owned by active rule application {application_id}")]
+    ApplicationOverlap { file_id: i64, application_id: i64 },
+    #[error("rule application {application_id} was not found in run {run_id}")]
+    ApplicationNotFound { run_id: i64, application_id: i64 },
+    #[error("rule application {application_id} is already reversed")]
+    ApplicationAlreadyReversed { application_id: i64 },
+    #[error(transparent)]
+    Review(#[from] super::review::ReviewError),
     #[error(transparent)]
     Database(#[from] rusqlite::Error),
     #[error(transparent)]
@@ -56,7 +70,12 @@ struct PreviewMember {
     physical_key: String,
     file_size: i64,
     parent_directory_id: Option<i64>,
-    manual_decision: ReviewDecisionKind,
+    effective_decision: ReviewDecisionKind,
+    provenance: Option<String>,
+    canonical_path: String,
+    file_identity: Option<String>,
+    last_modified: i64,
+    content_hash: Option<i64>,
 }
 
 #[derive(Debug, Default)]
@@ -65,6 +84,14 @@ struct DirectoryReviewState {
     keep_roots: HashMap<i64, i64>,
     remove_roots: HashMap<i64, i64>,
     folder_groups: HashMap<i64, Vec<(i64, i64)>>,
+}
+
+#[derive(Debug)]
+struct RuleDecisionProposal {
+    member: PreviewMember,
+    decision: ReviewDecisionKind,
+    explanation_code: String,
+    preferred_rank: i64,
 }
 
 impl Database {
@@ -381,11 +408,17 @@ impl Database {
             }
             let manual_keep_count = group_members
                 .iter()
-                .filter(|member| member.manual_decision == ReviewDecisionKind::Keep)
+                .filter(|member| {
+                    member.provenance.as_deref() == Some("manual")
+                        && member.effective_decision == ReviewDecisionKind::Keep
+                })
                 .count() as i64;
             let manual_remove_count = group_members
                 .iter()
-                .filter(|member| member.manual_decision == ReviewDecisionKind::Remove)
+                .filter(|member| {
+                    member.provenance.as_deref() == Some("manual")
+                        && member.effective_decision == ReviewDecisionKind::Remove
+                })
                 .count() as i64;
             summary.manual_keep_path_count += manual_keep_count;
             summary.manual_remove_path_count += manual_remove_count;
@@ -393,7 +426,7 @@ impl Database {
             let mut eligible = Vec::new();
             for member in &group_members {
                 let (_, folder_remove) = directory_decisions(member, &directory_state);
-                if member.manual_decision == ReviewDecisionKind::Undecided
+                if member.effective_decision == ReviewDecisionKind::Undecided
                     && folder_remove.is_none()
                 {
                     eligible.push(member);
@@ -540,7 +573,476 @@ impl Database {
             rule_revision: rule.revision,
             review_plan_id: plan_id,
             review_revision,
+            preview_signature: preference_preview_signature(
+                run_id,
+                rule_id,
+                rule.revision,
+                review_revision,
+                scope,
+            )?,
             summary,
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn apply_preference_rule(
+        &self,
+        operation_id: &str,
+        run_id: i64,
+        rule_id: i64,
+        rule_revision: i64,
+        source_review_revision: i64,
+        preview_signature: &str,
+        scope: &PreferencePreviewScope,
+    ) -> Result<PreferenceRuleApplicationResult, PreferenceError> {
+        validate_operation_id(operation_id)?;
+        let scope_json = preference_scope_json(scope)?;
+        let scope_signature = signature_for(&scope_json);
+        let expected_preview_signature = preference_preview_signature(
+            run_id,
+            rule_id,
+            rule_revision,
+            source_review_revision,
+            scope,
+        )?;
+        let tx = Transaction::new_unchecked(self.connection(), TransactionBehavior::Immediate)?;
+        if let Some(existing) = preference_application_by_operation(&tx, operation_id)? {
+            if existing.run_id != run_id
+                || existing.rule_id != rule_id
+                || existing.rule_revision != rule_revision
+                || existing.source_review_revision != source_review_revision
+                || existing.scope_json != scope_json
+                || existing.scope_signature != scope_signature
+                || existing.preview_signature != preview_signature
+            {
+                return Err(PreferenceError::IdempotencyConflict {
+                    operation_id: operation_id.to_owned(),
+                });
+            }
+            tx.commit()?;
+            return Ok(PreferenceRuleApplicationResult {
+                application: existing,
+                replayed: true,
+            });
+        }
+        if preview_signature != expected_preview_signature {
+            return Err(PreferenceError::PreviewConflict);
+        }
+
+        self.ensure_preference_preview_run(run_id)?;
+        let rule = self.get_preference_rule(rule_id)?;
+        if rule.state != "active" {
+            return Err(PreferenceError::RuleArchived { rule_id });
+        }
+        if rule.revision != rule_revision {
+            return Err(PreferenceError::StaleRuleRevision {
+                rule_id,
+                expected: rule_revision,
+                current: rule.revision,
+            });
+        }
+        let now = Utc::now().to_rfc3339();
+        tx.execute(
+            "INSERT INTO review_plan (run_id, state, revision, created_at, updated_at)
+             VALUES (?1, 'active', 0, ?2, ?2) ON CONFLICT DO NOTHING",
+            params![run_id, now],
+        )?;
+        let (plan_id, current_revision) = tx.query_row(
+            "SELECT id, revision FROM review_plan WHERE run_id = ?1 AND state = 'active'",
+            params![run_id],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+        )?;
+        if current_revision != source_review_revision {
+            return Err(PreferenceError::StaleReviewRevision {
+                expected: source_review_revision,
+                current: current_revision,
+            });
+        }
+
+        let preview = self.page_preference_preview(
+            run_id,
+            rule_id,
+            rule_revision,
+            source_review_revision,
+            scope,
+            MAX_PREVIEW_GROUPS as i64,
+            None,
+        )?;
+        if preview.preview_signature != preview_signature {
+            return Err(PreferenceError::PreviewConflict);
+        }
+        let proposals =
+            self.preference_rule_proposals(run_id, plan_id, &rule, scope, &preview.groups)?;
+        if proposals.is_empty() {
+            return Err(PreferenceError::ApplicationEmpty);
+        }
+
+        let proposed_file_ids = proposals
+            .iter()
+            .map(|proposal| proposal.member.file_id)
+            .collect::<HashSet<_>>();
+        {
+            let mut existing = tx.prepare(
+                "SELECT file_id, application_id FROM review_rule_decision WHERE plan_id = ?1",
+            )?;
+            for row in existing.query_map(params![plan_id], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))
+            })? {
+                let (file_id, application_id) = row?;
+                if proposed_file_ids.contains(&file_id) {
+                    return Err(PreferenceError::ApplicationOverlap {
+                        file_id,
+                        application_id,
+                    });
+                }
+            }
+        }
+
+        let applied_revision = current_revision + 1;
+        let rule_roots_json = serde_json::to_string(&rule.roots)?;
+        tx.execute(
+            "INSERT INTO review_rule_application
+                (plan_id, operation_id, run_id, rule_id, rule_revision, rule_name, rule_kind,
+                 rule_roots_json, scope_kind, scope_json, scope_signature, preview_signature,
+                 source_review_revision, applied_revision, scoped_group_count,
+                 applicable_group_count, blocked_group_count, rule_keep_path_count,
+                 rule_remove_path_count, rule_remove_physical_item_count, rule_remove_bytes,
+                 state, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14,
+                     ?15, ?16, ?17, ?18, ?19, ?20, ?21, 'active', ?22)",
+            params![
+                plan_id,
+                operation_id,
+                run_id,
+                rule_id,
+                rule_revision,
+                rule.name,
+                rule.kind,
+                rule_roots_json,
+                preference_scope_kind(scope),
+                scope_json,
+                scope_signature,
+                preview_signature,
+                source_review_revision,
+                applied_revision,
+                preview.summary.scoped_group_count,
+                preview.summary.affected_group_count,
+                preview.summary.blocked_group_count,
+                preview.summary.proposed_keep_path_count,
+                preview.summary.proposed_remove_path_count,
+                preview.summary.proposed_remove_physical_item_count,
+                preview.summary.proposed_remove_bytes,
+                now,
+            ],
+        )?;
+        let application_id = tx.last_insert_rowid();
+        {
+            let mut insert = tx.prepare_cached(
+                "INSERT INTO review_rule_decision
+                    (application_id, plan_id, group_id, file_id, decision, explanation_code,
+                     preferred_rank, decided_at, snapshot_canonical_path,
+                     snapshot_file_identity, snapshot_file_size, snapshot_last_modified,
+                     snapshot_content_hash)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            )?;
+            for proposal in proposals {
+                insert.execute(params![
+                    application_id,
+                    plan_id,
+                    proposal.member.group_id,
+                    proposal.member.file_id,
+                    proposal.decision.as_str(),
+                    proposal.explanation_code,
+                    proposal.preferred_rank,
+                    now,
+                    proposal.member.canonical_path,
+                    proposal.member.file_identity,
+                    proposal.member.file_size,
+                    proposal.member.last_modified,
+                    proposal.member.content_hash,
+                ])?;
+            }
+        }
+        super::review::validate_review_state(&tx, plan_id, run_id)?;
+        tx.execute(
+            "UPDATE review_plan SET revision = ?1, updated_at = ?2
+             WHERE id = ?3 AND revision = ?4",
+            params![applied_revision, now, plan_id, current_revision],
+        )?;
+        let application = preference_application_by_id(&tx, run_id, application_id)?.ok_or(
+            PreferenceError::ApplicationNotFound {
+                run_id,
+                application_id,
+            },
+        )?;
+        tx.commit()?;
+        Ok(PreferenceRuleApplicationResult {
+            application,
+            replayed: false,
+        })
+    }
+
+    fn preference_rule_proposals(
+        &self,
+        run_id: i64,
+        plan_id: i64,
+        rule: &PreferenceRule,
+        scope: &PreferencePreviewScope,
+        preview_groups: &[PreferencePreviewGroup],
+    ) -> Result<Vec<RuleDecisionProposal>, PreferenceError> {
+        let applicable = preview_groups
+            .iter()
+            .filter(|group| group.status == PreferencePreviewStatus::Applicable)
+            .map(|group| (group.group_id, group))
+            .collect::<HashMap<_, _>>();
+        let group_ids = self.preference_scope_group_ids(run_id, scope)?;
+        let rank_by_root = rule
+            .roots
+            .iter()
+            .enumerate()
+            .map(|(index, root)| (root.to_lowercase(), index as i64))
+            .collect::<HashMap<_, _>>();
+        let directory_state = self.preference_directory_state(run_id, Some(plan_id))?;
+        let (sql, values) =
+            self.preference_preview_member_query(run_id, Some(plan_id), scope, &group_ids);
+        let mut statement = self.connection().prepare(&sql)?;
+        let mut rows =
+            statement.query_map(params_from_iter(values.iter()), preview_member_from_row)?;
+        let mut next = rows.next().transpose()?;
+        let mut proposals = Vec::new();
+        for group_id in group_ids {
+            let mut members = Vec::new();
+            while next
+                .as_ref()
+                .is_some_and(|member| member.group_id == group_id)
+            {
+                members.push(next.take().expect("member was checked"));
+                next = rows.next().transpose()?;
+            }
+            let Some(preview_group) = applicable.get(&group_id) else {
+                continue;
+            };
+            let eligible = members
+                .into_iter()
+                .filter(|member| {
+                    member.effective_decision == ReviewDecisionKind::Undecided
+                        && directory_decisions(member, &directory_state).1.is_none()
+                })
+                .collect::<Vec<_>>();
+            let Some(best_rank) = eligible
+                .iter()
+                .filter_map(|member| rank_by_root.get(&member.root_path.to_lowercase()).copied())
+                .min()
+            else {
+                continue;
+            };
+            for member in eligible {
+                let decision = if rank_by_root
+                    .get(&member.root_path.to_lowercase())
+                    .is_some_and(|rank| *rank == best_rank)
+                {
+                    ReviewDecisionKind::Keep
+                } else {
+                    ReviewDecisionKind::Remove
+                };
+                proposals.push(RuleDecisionProposal {
+                    member,
+                    decision,
+                    explanation_code: preview_group.explanation_code.clone(),
+                    preferred_rank: best_rank,
+                });
+            }
+        }
+        Ok(proposals)
+    }
+
+    pub fn get_preference_application(
+        &self,
+        run_id: i64,
+        application_id: i64,
+    ) -> Result<PreferenceRuleApplication, PreferenceError> {
+        self.ensure_preference_preview_run(run_id)?;
+        preference_application_by_id(self.connection(), run_id, application_id)?.ok_or(
+            PreferenceError::ApplicationNotFound {
+                run_id,
+                application_id,
+            },
+        )
+    }
+
+    pub fn page_preference_applications(
+        &self,
+        run_id: i64,
+        rule_id: Option<i64>,
+        state: Option<&str>,
+        limit: i64,
+        before_application_id: Option<i64>,
+    ) -> Result<PreferenceRuleApplicationPage, PreferenceError> {
+        self.ensure_preference_preview_run(run_id)?;
+        let plan = self.active_review_plan(run_id)?;
+        let plan_id = plan.as_ref().map(|value| value.id);
+        let revision = plan.as_ref().map_or(0, |value| value.revision);
+        let state = state.unwrap_or("all");
+        if !matches!(state, "all" | "active" | "reversed") {
+            return Err(PreferenceError::InvalidRule {
+                message: "application state must be active, reversed, or all".to_owned(),
+            });
+        }
+        let total = self.connection().query_row(
+            "SELECT COUNT(*) FROM review_rule_application
+             WHERE run_id = ?1 AND (?2 IS NULL OR rule_id = ?2)
+               AND (?3 = 'all' OR state = ?3)",
+            params![run_id, rule_id, state],
+            |row| row.get(0),
+        )?;
+        let mut statement = self.connection().prepare(
+            "SELECT id FROM review_rule_application
+             WHERE run_id = ?1 AND (?2 IS NULL OR rule_id = ?2)
+               AND (?3 = 'all' OR state = ?3) AND id < ?4
+             ORDER BY id DESC LIMIT ?5",
+        )?;
+        let ids = statement
+            .query_map(
+                params![
+                    run_id,
+                    rule_id,
+                    state,
+                    before_application_id.unwrap_or(i64::MAX),
+                    limit + 1
+                ],
+                |row| row.get::<_, i64>(0),
+            )?
+            .collect::<Result<Vec<_>, _>>()?;
+        let has_more = ids.len() > limit as usize;
+        let mut applications = Vec::with_capacity(ids.len().min(limit as usize));
+        for id in ids.into_iter().take(limit as usize) {
+            if let Some(application) = preference_application_by_id(self.connection(), run_id, id)?
+            {
+                applications.push(application);
+            }
+        }
+        Ok(PreferenceRuleApplicationPage {
+            applications,
+            total,
+            has_more,
+            plan_id,
+            revision,
+        })
+    }
+
+    pub fn reverse_preference_rule_application(
+        &self,
+        operation_id: &str,
+        run_id: i64,
+        application_id: i64,
+        expected_revision: i64,
+    ) -> Result<PreferenceRuleReversalResult, PreferenceError> {
+        validate_operation_id(operation_id)?;
+        let tx = Transaction::new_unchecked(self.connection(), TransactionBehavior::Immediate)?;
+        if let Some(replay) = tx
+            .query_row(
+                "SELECT plan_id, run_id, application_id, expected_revision, applied_revision,
+                        removed_keep_count, removed_remove_count
+                 FROM review_rule_reversal_command WHERE operation_id = ?1",
+                params![operation_id],
+                |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, i64>(2)?,
+                        row.get::<_, i64>(3)?,
+                        row.get::<_, i64>(4)?,
+                        row.get::<_, i64>(5)?,
+                        row.get::<_, i64>(6)?,
+                    ))
+                },
+            )
+            .optional()?
+        {
+            if replay.1 != run_id || replay.2 != application_id || replay.3 != expected_revision {
+                return Err(PreferenceError::IdempotencyConflict {
+                    operation_id: operation_id.to_owned(),
+                });
+            }
+            tx.commit()?;
+            return Ok(PreferenceRuleReversalResult {
+                application_id,
+                plan_id: replay.0,
+                applied_revision: replay.4,
+                replayed: true,
+                removed_keep_count: replay.5,
+                removed_remove_count: replay.6,
+            });
+        }
+        let application = preference_application_by_id(&tx, run_id, application_id)?.ok_or(
+            PreferenceError::ApplicationNotFound {
+                run_id,
+                application_id,
+            },
+        )?;
+        if application.state != "active" {
+            return Err(PreferenceError::ApplicationAlreadyReversed { application_id });
+        }
+        let current_revision: i64 = tx.query_row(
+            "SELECT revision FROM review_plan WHERE id = ?1 AND run_id = ?2 AND state = 'active'",
+            params![application.plan_id, run_id],
+            |row| row.get(0),
+        )?;
+        if current_revision != expected_revision {
+            return Err(PreferenceError::StaleReviewRevision {
+                expected: expected_revision,
+                current: current_revision,
+            });
+        }
+        let (removed_keep_count, removed_remove_count) = tx.query_row(
+            "SELECT COALESCE(SUM(CASE WHEN decision = 'keep' THEN 1 ELSE 0 END), 0),
+                    COALESCE(SUM(CASE WHEN decision = 'remove' THEN 1 ELSE 0 END), 0)
+             FROM review_rule_decision WHERE application_id = ?1",
+            params![application_id],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+        )?;
+        tx.execute(
+            "DELETE FROM review_rule_decision WHERE application_id = ?1",
+            params![application_id],
+        )?;
+        super::review::validate_review_state(&tx, application.plan_id, run_id)?;
+        let applied_revision = current_revision + 1;
+        let now = Utc::now().to_rfc3339();
+        tx.execute(
+            "UPDATE review_rule_application SET state = 'reversed', reversed_at = ?1
+             WHERE id = ?2 AND state = 'active'",
+            params![now, application_id],
+        )?;
+        tx.execute(
+            "UPDATE review_plan SET revision = ?1, updated_at = ?2
+             WHERE id = ?3 AND revision = ?4",
+            params![applied_revision, now, application.plan_id, current_revision],
+        )?;
+        tx.execute(
+            "INSERT INTO review_rule_reversal_command
+                (plan_id, operation_id, run_id, application_id, expected_revision,
+                 applied_revision, removed_keep_count, removed_remove_count, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                application.plan_id,
+                operation_id,
+                run_id,
+                application_id,
+                expected_revision,
+                applied_revision,
+                removed_keep_count,
+                removed_remove_count,
+                now
+            ],
+        )?;
+        tx.commit()?;
+        Ok(PreferenceRuleReversalResult {
+            application_id,
+            plan_id: application.plan_id,
+            applied_revision,
+            replayed: false,
+            removed_keep_count,
+            removed_remove_count,
         })
     }
 
@@ -646,13 +1148,15 @@ impl Database {
             "SELECT sf.id, member.group_id, sf.root_path,
                     CASE WHEN sf.file_identity IS NOT NULL AND sf.file_identity <> ''
                          THEN 'i:' || sf.file_identity ELSE 'p:' || sf.canonical_path END,
-                    sf.file_size, directory.id, COALESCE(decision.decision, 'undecided')
+                    sf.file_size, directory.id, COALESCE(decision.decision, 'undecided'),
+                    decision.provenance, sf.canonical_path,
+                    sf.file_identity, sf.last_modified, sf.content_hash
              FROM duplicate_group dg
              JOIN duplicate_group_member member ON member.group_id = dg.id
              JOIN scanned_file sf ON sf.id = member.file_id AND sf.run_id = dg.run_id
              LEFT JOIN directory_node directory
                ON directory.run_id = sf.run_id AND directory.path = sf.parent_dir
-             LEFT JOIN review_decision decision
+             LEFT JOIN effective_review_decision decision
                ON decision.plan_id = ? AND decision.file_id = sf.id
              WHERE {where_sql}
              ORDER BY member.group_id, sf.id"
@@ -736,7 +1240,7 @@ impl Database {
                  WHERE child.run_id = ?1
              ),
              removed_files(file_id) AS (
-                 SELECT file_id FROM review_decision
+                 SELECT file_id FROM effective_review_decision
                  WHERE plan_id = ?2 AND decision = 'remove'
                  UNION
                  SELECT file.id
@@ -771,8 +1275,155 @@ fn preview_member_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<PreviewM
         physical_key: row.get(3)?,
         file_size: row.get(4)?,
         parent_directory_id: row.get(5)?,
-        manual_decision: ReviewDecisionKind::parse(&decision).unwrap_or_default(),
+        effective_decision: ReviewDecisionKind::parse(&decision).unwrap_or_default(),
+        provenance: row.get(7)?,
+        canonical_path: row.get(8)?,
+        file_identity: row.get(9)?,
+        last_modified: row.get(10)?,
+        content_hash: row.get(11)?,
     })
+}
+
+fn preference_scope_json(scope: &PreferencePreviewScope) -> Result<String, serde_json::Error> {
+    let value = match scope {
+        PreferencePreviewScope::CompletedRun => serde_json::json!({"kind":"completed_run"}),
+        PreferencePreviewScope::SelectedSets(ids) => {
+            let mut ids = ids.clone();
+            ids.sort_unstable();
+            ids.dedup();
+            serde_json::json!({"kind":"selected_sets","groupIds":ids})
+        }
+        PreferencePreviewScope::CurrentFilter(filter) => serde_json::json!({
+            "kind":"current_filter",
+            "filter":{
+                "search":filter.search,
+                "pathMatch":match filter.path_match {
+                    DuplicateFilePathMatchMode::Substring => "substring",
+                    DuplicateFilePathMatchMode::Exact => "exact",
+                },
+                "extension":filter.extension_key,
+                "extensionMatch":match filter.extension_match {
+                    DuplicateFileExtensionMatchMode::AnyMember => "any",
+                    DuplicateFileExtensionMatchMode::AllMembers => "all",
+                },
+                "minimumSize":filter.minimum_size.to_string(),
+                "minimumCopyCount":filter.minimum_copy_count,
+                "acrossDrives":filter.across_drives,
+                "selectedRoot":filter.selected_root,
+                "selectedDrive":filter.selected_drive,
+            }
+        }),
+    };
+    serde_json::to_string(&value)
+}
+
+fn preference_scope_kind(scope: &PreferencePreviewScope) -> &'static str {
+    match scope {
+        PreferencePreviewScope::CompletedRun => "completed_run",
+        PreferencePreviewScope::SelectedSets(_) => "selected_sets",
+        PreferencePreviewScope::CurrentFilter(_) => "current_filter",
+    }
+}
+
+fn signature_for(value: &str) -> String {
+    let mut hasher = XxHash64::with_seed(0x5355_5045_525f_4455);
+    hasher.write(value.as_bytes());
+    format!("v1-{:016x}", hasher.finish())
+}
+
+fn preference_preview_signature(
+    run_id: i64,
+    rule_id: i64,
+    rule_revision: i64,
+    review_revision: i64,
+    scope: &PreferencePreviewScope,
+) -> Result<String, serde_json::Error> {
+    let scope_json = preference_scope_json(scope)?;
+    Ok(signature_for(&format!(
+        "preview\n{run_id}\n{rule_id}\n{rule_revision}\n{review_revision}\n{scope_json}"
+    )))
+}
+
+fn validate_operation_id(operation_id: &str) -> Result<(), PreferenceError> {
+    if operation_id.is_empty() || operation_id.chars().count() > 128 {
+        return Err(PreferenceError::InvalidRule {
+            message: "operation id must contain 1 to 128 characters".to_owned(),
+        });
+    }
+    Ok(())
+}
+
+fn preference_application_from_row(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<PreferenceRuleApplication> {
+    let roots_json = row.get::<_, String>(7)?;
+    let rule_roots = serde_json::from_str(&roots_json).map_err(|error| {
+        rusqlite::Error::FromSqlConversionFailure(7, rusqlite::types::Type::Text, Box::new(error))
+    })?;
+    Ok(PreferenceRuleApplication {
+        id: row.get(0)?,
+        plan_id: row.get(1)?,
+        run_id: row.get(2)?,
+        rule_id: row.get(3)?,
+        rule_revision: row.get(4)?,
+        rule_name: row.get(5)?,
+        rule_kind: row.get(6)?,
+        rule_roots,
+        scope_kind: row.get(8)?,
+        scope_json: row.get(9)?,
+        scope_signature: row.get(10)?,
+        preview_signature: row.get(11)?,
+        source_review_revision: row.get(12)?,
+        applied_revision: row.get(13)?,
+        state: row.get(14)?,
+        created_at: row.get(15)?,
+        reversed_at: row.get(16)?,
+        summary: PreferenceApplicationSummary {
+            scoped_group_count: row.get(17)?,
+            applicable_group_count: row.get(18)?,
+            blocked_group_count: row.get(19)?,
+            rule_keep_path_count: row.get(20)?,
+            rule_remove_path_count: row.get(21)?,
+            rule_remove_physical_item_count: row.get(22)?,
+            rule_remove_bytes: row.get(23)?,
+        },
+    })
+}
+
+const APPLICATION_SELECT: &str =
+    "SELECT id, plan_id, run_id, rule_id, rule_revision, rule_name, rule_kind,
+            rule_roots_json, scope_kind, scope_json, scope_signature, preview_signature,
+            source_review_revision, applied_revision, state, created_at, reversed_at,
+            scoped_group_count, applicable_group_count, blocked_group_count,
+            rule_keep_path_count, rule_remove_path_count,
+            rule_remove_physical_item_count, rule_remove_bytes
+     FROM review_rule_application";
+
+fn preference_application_by_operation(
+    connection: &rusqlite::Connection,
+    operation_id: &str,
+) -> Result<Option<PreferenceRuleApplication>, PreferenceError> {
+    Ok(connection
+        .query_row(
+            &format!("{APPLICATION_SELECT} WHERE operation_id = ?1"),
+            params![operation_id],
+            preference_application_from_row,
+        )
+        .optional()?)
+}
+
+fn preference_application_by_id(
+    connection: &rusqlite::Connection,
+    run_id: i64,
+    application_id: i64,
+) -> Result<Option<PreferenceRuleApplication>, PreferenceError> {
+    Ok(connection
+        .query_row(
+            &format!("{APPLICATION_SELECT} WHERE run_id = ?1 AND id = ?2"),
+            params![run_id, application_id],
+            preference_application_from_row,
+        )
+        .optional()?)
 }
 
 fn validate_rule_storage_inputs(
@@ -858,7 +1509,7 @@ fn member_removed(
     proposed_remove: &[&PreviewMember],
     state: &DirectoryReviewState,
 ) -> bool {
-    member.manual_decision == ReviewDecisionKind::Remove
+    member.effective_decision == ReviewDecisionKind::Remove
         || directory_decisions(member, state).1.is_some()
         || proposed_remove
             .iter()

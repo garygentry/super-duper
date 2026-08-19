@@ -408,6 +408,36 @@ public sealed class WorkerClientLifecycleTests
                     combinedAfterFolder.Plan.Revision,
                     1,
                     new PreferencePreviewScope(PreferencePreviewScopeKind.CompletedRun)));
+            var appliedPreference = await client.ApplyPreferenceRuleAsync(
+                $"preference-apply-{Guid.NewGuid():N}",
+                started.Id,
+                loadedRule.Id,
+                loadedRule.Revision,
+                combinedAfterFolder.Plan.Revision,
+                preferencePreview.PreviewSignature,
+                new PreferencePreviewScope(PreferencePreviewScopeKind.CompletedRun));
+            var applicationHistory = await client.GetPreferenceApplicationsAsync(
+                started.Id,
+                loadedRule.Id,
+                "active",
+                20);
+            var applicationDetail = await client.GetPreferenceApplicationAsync(
+                started.Id,
+                appliedPreference.Application.Id);
+            var ruleReviewedMembers = await client.GetDuplicateFileGroupMembersAsync(
+                new DuplicateFileMemberQuery(
+                    started.Id,
+                    groups.Groups.First().Id,
+                    200,
+                    DuplicateFileMemberSortField.Path,
+                    WorkerSortDirection.Ascending,
+                    new DuplicateFileMemberFilter(string.Empty)));
+            var reversedPreference = await client.ReversePreferenceApplicationAsync(
+                $"preference-reverse-{Guid.NewGuid():N}",
+                started.Id,
+                appliedPreference.Application.Id,
+                appliedPreference.Application.AppliedRevision);
+            var afterPreferenceReversal = await client.GetReviewPlanAsync(started.Id);
             var updatedRule = await client.SavePreferenceRuleAsync(
                 $"preference-update-{Guid.NewGuid():N}",
                 loadedRule.Id,
@@ -420,7 +450,7 @@ public sealed class WorkerClientLifecycleTests
                         started.Id,
                         updatedRule.Rule.Id,
                         loadedRule.Revision,
-                        combinedAfterFolder.Plan.Revision,
+                        afterPreferenceReversal.Plan.Revision,
                         1,
                         new PreferencePreviewScope(PreferencePreviewScopeKind.CompletedRun),
                         preferencePreview.NextCursor)));
@@ -489,7 +519,17 @@ public sealed class WorkerClientLifecycleTests
             Assert.AreEqual(2, preferencePreview.Summary.AffectedGroupCount);
             Assert.AreEqual(1, preferencePreview.Summary.MissingRuleRootCount);
             Assert.IsNotNull(preferencePreview.NextCursor);
-            Assert.AreEqual("preference_rule_generation_conflict", stalePreferenceRule.Code);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(preferencePreview.PreviewSignature));
+            Assert.AreEqual(combinedAfterFolder.Plan.Revision + 1, appliedPreference.Application.AppliedRevision);
+            Assert.AreEqual(1, applicationHistory.Total);
+            Assert.IsNull(applicationHistory.Applications[0].RuleRoots);
+            CollectionAssert.AreEqual(loadedRule.Roots.ToArray(), applicationDetail.RuleRoots?.ToArray());
+            Assert.IsTrue(ruleReviewedMembers.Members.Any(member =>
+                member.DecisionProvenance == "rule"
+                && member.DecisionApplicationId == appliedPreference.Application.Id));
+            Assert.AreEqual(appliedPreference.Application.AppliedRevision + 1, reversedPreference.AppliedRevision);
+            Assert.AreEqual(reversedPreference.AppliedRevision, afterPreferenceReversal.Plan.Revision);
+            Assert.AreEqual("invalid_cursor", stalePreferenceRule.Code);
             CollectionAssert.AreEquivalent(
                 new[] { folderA.Name, folderB.Name },
                 folderMembers.Members

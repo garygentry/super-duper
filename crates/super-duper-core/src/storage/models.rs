@@ -359,6 +359,7 @@ pub struct DuplicateFileMemberResult {
     pub review_decision: ReviewDecisionKind,
     pub review_provenance: Option<String>,
     pub review_decided_at: Option<String>,
+    pub review_application_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -423,6 +424,9 @@ pub struct ReviewPlanSummary {
     pub planned_removal_bytes: i64,
     pub remaining_physical_copy_count: i64,
     pub intact_folder_copy_count: i64,
+    pub rule_keep_count: i64,
+    pub rule_remove_count: i64,
+    pub active_rule_application_count: i64,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -582,7 +586,66 @@ pub struct PreferencePreviewPage {
     pub rule_revision: i64,
     pub review_plan_id: Option<i64>,
     pub review_revision: i64,
+    pub preview_signature: String,
     pub summary: PreferencePreviewSummary,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PreferenceApplicationSummary {
+    pub scoped_group_count: i64,
+    pub applicable_group_count: i64,
+    pub blocked_group_count: i64,
+    pub rule_keep_path_count: i64,
+    pub rule_remove_path_count: i64,
+    pub rule_remove_physical_item_count: i64,
+    pub rule_remove_bytes: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreferenceRuleApplication {
+    pub id: i64,
+    pub plan_id: i64,
+    pub run_id: i64,
+    pub rule_id: i64,
+    pub rule_revision: i64,
+    pub rule_name: String,
+    pub rule_kind: String,
+    pub rule_roots: Vec<String>,
+    pub scope_kind: String,
+    pub scope_json: String,
+    pub scope_signature: String,
+    pub preview_signature: String,
+    pub source_review_revision: i64,
+    pub applied_revision: i64,
+    pub state: String,
+    pub created_at: String,
+    pub reversed_at: Option<String>,
+    pub summary: PreferenceApplicationSummary,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreferenceRuleApplicationResult {
+    pub application: PreferenceRuleApplication,
+    pub replayed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreferenceRuleApplicationPage {
+    pub applications: Vec<PreferenceRuleApplication>,
+    pub total: i64,
+    pub has_more: bool,
+    pub plan_id: Option<i64>,
+    pub revision: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreferenceRuleReversalResult {
+    pub application_id: i64,
+    pub plan_id: i64,
+    pub applied_revision: i64,
+    pub replayed: bool,
+    pub removed_keep_count: i64,
+    pub removed_remove_count: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

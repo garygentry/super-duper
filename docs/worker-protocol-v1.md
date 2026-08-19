@@ -539,7 +539,7 @@ survivors, and advances the shared review revision once. Preview-blocked sets re
 drift or failure rolls back the complete application.
 
 ```json
-{"applicationId":22,"planId":12,"sourceReviewRevision":5,"appliedRevision":6,"replayed":false,"state":"active","summary":{"scopedGroupCount":50,"applicableGroupCount":42,"blockedGroupCount":2,"ruleKeepPathCount":45,"ruleRemovePathCount":80,"ruleRemovePhysicalItemCount":75,"ruleRemoveBytes":"524288000"}}
+{"application":{"id":22,"planId":12,"runId":19,"ruleId":7,"ruleRevision":3,"ruleName":"Preferred photos","ruleKind":"ordered_preferred_scan_roots","ruleRoots":["D:\\Photos","E:\\Backup"],"scopeKind":"completed_run","scope":{"kind":"completed_run"},"scopeSignature":"opaque","previewSignature":"opaque","sourceReviewRevision":5,"appliedRevision":6,"state":"active","createdAt":"2026-08-19T12:00:00.000Z","reversedAt":null,"summary":{"scopedGroupCount":50,"applicableGroupCount":42,"blockedGroupCount":2,"ruleKeepPathCount":45,"ruleRemovePathCount":80,"ruleRemovePhysicalItemCount":75,"ruleRemoveBytes":"524288000"}},"replayed":false}
 ```
 
 The apply operation ID is 1--128 characters. Exact replay returns the original application ID,
@@ -561,8 +561,19 @@ remains rule-eligible. Member results expose effective provenance and optional `
 The response returns at most 200 fixed application summaries in descending application-ID order.
 `ruleId` is optional and state is `active`, `reversed`, or `all`. The forward-only cursor binds the
 run, optional rule, active plan/current revision, state, and page size; any review mutation makes an
-old cursor invalid. A bounded single-application detail response adds snapshotted roots and canonical
-scope metadata without returning member decisions.
+old cursor invalid. Summary rows intentionally omit roots, scope JSON/signatures, and member
+decisions so even a 200-row page stays independent of complete filter size.
+
+### `preference_rule.application.get`
+
+```json
+{"type":"request","id":"prag1","method":"preference_rule.application.get","params":{"runId":19,"applicationId":22}}
+```
+
+The bounded response returns one `application` object in the same snapshotted shape returned by
+`preference_rule.apply`, including exact ordered roots, canonical scope metadata, source signatures,
+fixed counts, and state. It never returns member decisions. Run/application ownership is required;
+unknown or cross-run IDs return `rule_application_not_found`.
 
 ### `preference_rule.application.reverse`
 

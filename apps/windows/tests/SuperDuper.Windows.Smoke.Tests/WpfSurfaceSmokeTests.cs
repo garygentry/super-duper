@@ -144,7 +144,7 @@ public sealed class WpfSurfaceSmokeTests
                 AutomationProperties.GetName(FindByAutomationId<Button>(files, "FileNextDriveFacets")));
             _ = FindByAutomationId<TextBlock>(files, "FileSelectedDriveFilterText");
             var preferenceExpander = FindByAutomationId<Expander>(files, "PreferredRootPreviewExpander");
-            StringAssert.Contains(AutomationProperties.GetHelpText(preferenceExpander), "No review decision is applied");
+            StringAssert.Contains(AutomationProperties.GetHelpText(preferenceExpander), "No files are validated or deleted");
             preferenceExpander.IsExpanded = true;
             files.UpdateLayout();
             Assert.AreEqual(
@@ -159,6 +159,18 @@ public sealed class WpfSurfaceSmokeTests
             StringAssert.Contains(
                 AutomationProperties.GetHelpText(FindByAutomationId<Button>(files, "PreferenceRunPreview")),
                 "without applying decisions or deleting files");
+            StringAssert.Contains(
+                AutomationProperties.GetHelpText(FindByAutomationId<Button>(files, "PreferenceApplyRule")),
+                "review decisions only");
+            StringAssert.Contains(
+                AutomationProperties.GetName(FindByAutomationId<Button>(files, "PreferenceConfirmApplication")),
+                "review decisions only");
+            StringAssert.Contains(
+                AutomationProperties.GetHelpText(FindByAutomationId<Button>(files, "PreferenceReverseApplication")),
+                "preserves manual choices");
+            StringAssert.Contains(
+                AutomationProperties.GetName(FindByAutomationId<Button>(files, "PreferenceConfirmReversal")),
+                "preserving manual review choices");
             var preferenceGrid = FindByAutomationId<DataGrid>(files, "PreferencePreviewGroups");
             Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(preferenceGrid));
             Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(preferenceGrid));

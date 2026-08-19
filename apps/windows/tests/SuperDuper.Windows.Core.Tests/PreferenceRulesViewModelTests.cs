@@ -40,7 +40,7 @@ public sealed class PreferenceRulesViewModelTests
                 query.RuleRevision,
                 null,
                 query.ReviewRevision,
-                Summary(6)));
+                Summary(6)) { PreviewSignature = "preview-pages" });
         };
         using var viewModel = new PreferenceRulesViewModel(
             worker,
@@ -76,6 +76,77 @@ public sealed class PreferenceRulesViewModelTests
         viewModel.InvalidateReviewRevision(reviewRevision);
         Assert.AreEqual(0, viewModel.PreviewGroups.Count);
         StringAssert.Contains(viewModel.StatusMessage, "Manual review decisions changed");
+    }
+
+    [TestMethod]
+    public async Task Confirms_exact_preview_application_and_reverses_only_rule_provenance()
+    {
+        var worker = new TestWorkerClient();
+        var run = CompletedRun(12, [@"C:\Preferred", @"D:\Other"]);
+        var reviewRevision = 0L;
+        worker.PreferencePreviewHandler = (query, _) => Task.FromResult(
+            new WorkerPreferencePreviewPage(
+                [new WorkerPreferencePreviewGroup(
+                    1, "applicable", 0, @"C:\Preferred", 1, 1, 1, 1, "100",
+                    0, 0, "preferred_root_rank", null, null)],
+                1, null, query.RuleId, query.RuleRevision, null, query.ReviewRevision, Summary(1))
+            { PreviewSignature = "preview-exact" });
+        worker.PreferenceApplyHandler = (operationId, runId, ruleId, ruleRevision,
+            sourceReviewRevision, previewSignature, scope, _) =>
+        {
+            Assert.IsFalse(string.IsNullOrWhiteSpace(operationId));
+            Assert.AreEqual(run.Id, runId);
+            Assert.AreEqual(0, sourceReviewRevision);
+            Assert.AreEqual("preview-exact", previewSignature);
+            Assert.AreEqual(PreferencePreviewScopeKind.CurrentFilter, scope.Kind);
+            return Task.FromResult(new WorkerPreferenceApplicationResult(
+                new WorkerPreferenceApplication(
+                    8, 3, runId, ruleId, ruleRevision, "Primary", "ordered_preferred_scan_roots",
+                    [@"C:\Preferred", @"D:\Other"], "current_filter", 0, 1, "active",
+                    DateTimeOffset.UtcNow.ToString("O"), null,
+                    new WorkerPreferenceApplicationSummary(1, 1, 0, 1, 1, 1, "100")),
+                false));
+        };
+        worker.PreferenceReverseHandler = (operationId, runId, applicationId, expectedRevision, _) =>
+        {
+            Assert.IsFalse(string.IsNullOrWhiteSpace(operationId));
+            Assert.AreEqual(8, applicationId);
+            Assert.AreEqual(reviewRevision, expectedRevision);
+            return Task.FromResult(new WorkerPreferenceReversalResult(
+                applicationId, 3, 2, false, "reversed", 1, 1));
+        };
+        using var viewModel = new PreferenceRulesViewModel(
+            worker,
+            () => new DuplicateFileGroupFilter(string.Empty, "0"),
+            () => 1,
+            () => reviewRevision);
+        viewModel.ReviewRevisionChanged += (_, revision) => reviewRevision = revision;
+
+        await viewModel.ShowRunAsync(run);
+        viewModel.RuleName = "Primary";
+        await viewModel.SaveCommand.ExecuteAsync(null);
+        await viewModel.PreviewCommand.ExecuteAsync(null);
+
+        Assert.IsTrue(viewModel.ApplyCommand.CanExecute(null));
+        viewModel.ApplyCommand.Execute(null);
+        Assert.IsTrue(viewModel.IsApplicationConfirmationVisible);
+        StringAssert.Contains(viewModel.ApplicationConfirmationText, "does not delete or validate files");
+        await viewModel.ConfirmApplicationCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, reviewRevision);
+        Assert.AreEqual("active", viewModel.LatestApplication?.State);
+        Assert.IsTrue(viewModel.ReverseCommand.CanExecute(null));
+        StringAssert.Contains(viewModel.StatusMessage, "Nothing was deleted");
+
+        viewModel.ReverseCommand.Execute(null);
+        Assert.IsTrue(viewModel.IsReversalConfirmationVisible);
+        StringAssert.Contains(viewModel.ReversalConfirmationText, "Manual file and folder choices will be preserved");
+        await viewModel.ConfirmReversalCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(2, reviewRevision);
+        Assert.AreEqual("reversed", viewModel.LatestApplication?.State);
+        StringAssert.Contains(viewModel.StatusMessage, "Manual choices were preserved");
+        Assert.IsFalse(viewModel.ReverseCommand.CanExecute(null));
     }
 
     [TestMethod]

@@ -77,15 +77,66 @@ fn schema_version_is_explicit_and_current() {
 }
 
 #[test]
+fn version_seven_migrates_rule_application_tables_transactionally() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("v7-applications.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    db.connection()
+        .execute_batch(
+            "DROP VIEW effective_review_decision;
+             DROP TABLE review_rule_reversal_command;
+             DROP TABLE review_rule_decision;
+             DROP TABLE review_rule_application;
+             ALTER TABLE review_decision DROP COLUMN manual_revision;
+             PRAGMA user_version = 7;",
+        )
+        .unwrap();
+    drop(db);
+
+    let migrated = Database::open(path.to_str().unwrap()).unwrap();
+    assert_eq!(migrated.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+    for table in [
+        "review_rule_application",
+        "review_rule_decision",
+        "review_rule_reversal_command",
+    ] {
+        let exists: bool = migrated
+            .connection()
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1)",
+                params![table],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(exists, "missing migrated table {table}");
+    }
+    let manual_revision: bool = migrated
+        .connection()
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM pragma_table_info('review_decision')
+                            WHERE name = 'manual_revision')",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(manual_revision);
+}
+
+#[test]
 fn version_six_migrates_named_preference_rules_transactionally() {
     let temp = tempdir().unwrap();
     let path = temp.path().join("v6-preferences.db");
     let db = Database::open(path.to_str().unwrap()).unwrap();
     db.connection()
         .execute_batch(
-            "DROP TABLE preference_rule_command;
+            "DROP VIEW effective_review_decision;
+             DROP TABLE review_rule_reversal_command;
+             DROP TABLE review_rule_decision;
+             DROP TABLE review_rule_application;
+             DROP TABLE preference_rule_command;
              DROP TABLE preference_rule_root;
              DROP TABLE preference_rule;
+             ALTER TABLE review_decision DROP COLUMN manual_revision;
              PRAGMA user_version = 6;",
         )
         .unwrap();
@@ -316,6 +367,223 @@ fn preferred_root_preview_handles_ties_missing_roots_manual_precedence_and_physi
         ),
         Err(PreferenceError::StaleReviewRevision { current: 1, .. })
     ));
+}
+
+#[test]
+fn preferred_root_application_is_replayable_manual_override_safe_and_reversible() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("rule-application.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    let (_, run_id) = session_and_run(&db, "Rule application", &["C:/Preferred", "D:/Other"]);
+    let mut preferred = file(run_id, "C:/Preferred/one.bin", 100, 303);
+    preferred.root_path = "C:/Preferred".to_owned();
+    preferred.file_identity = Some("preferred-physical".to_owned());
+    let mut other = file(run_id, "D:/Other/two.bin", 100, 303);
+    other.root_path = "D:/Other".to_owned();
+    other.file_identity = Some("other-physical".to_owned());
+    db.insert_scanned_files(&[preferred, other]).unwrap();
+    db.insert_duplicate_groups(
+        run_id,
+        &[(
+            303,
+            100,
+            vec![
+                "C:/Preferred/one.bin".to_owned(),
+                "D:/Other/two.bin".to_owned(),
+            ],
+        )],
+    )
+    .unwrap();
+    db.complete_scan_run(run_id, 2, 200, 2, 1, 0, 100, 0)
+        .unwrap();
+    let group_id: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM duplicate_group WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let other_id: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM scanned_file WHERE run_id = ?1 AND root_path = 'D:/Other'",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let preferred_id: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM scanned_file WHERE run_id = ?1 AND root_path = 'C:/Preferred'",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let rule = db
+        .save_preference_rule(
+            "application-rule",
+            None,
+            "Prefer primary",
+            &["C:/Preferred".to_owned()],
+            0,
+        )
+        .unwrap()
+        .rule;
+    let scope = PreferencePreviewScope::CompletedRun;
+    let preview = db
+        .page_preference_preview(run_id, rule.id, rule.revision, 0, &scope, 50, None)
+        .unwrap();
+    let applied = db
+        .apply_preference_rule(
+            "apply-rule",
+            run_id,
+            rule.id,
+            rule.revision,
+            0,
+            &preview.preview_signature,
+            &scope,
+        )
+        .unwrap();
+    assert!(!applied.replayed);
+    assert_eq!(applied.application.applied_revision, 1);
+    assert_eq!(applied.application.summary.rule_keep_path_count, 1);
+    assert_eq!(applied.application.summary.rule_remove_path_count, 1);
+
+    let replay = db
+        .apply_preference_rule(
+            "apply-rule",
+            run_id,
+            rule.id,
+            rule.revision,
+            0,
+            &preview.preview_signature,
+            &scope,
+        )
+        .unwrap();
+    assert!(replay.replayed);
+    assert_eq!(replay.application.id, applied.application.id);
+    assert!(matches!(
+        db.apply_preference_rule(
+            "apply-rule",
+            run_id,
+            rule.id,
+            rule.revision,
+            0,
+            "different",
+            &scope,
+        ),
+        Err(PreferenceError::IdempotencyConflict { .. })
+    ));
+
+    let members = db
+        .page_duplicate_file_members(&DuplicateFileMemberPageQuery {
+            run_id,
+            group_id,
+            limit: 20,
+            sort_field: DuplicateFileMemberSortField::Path,
+            sort_direction: SortDirection::Ascending,
+            filter: DuplicateFileMemberFilter { search: None },
+            cursor: None,
+        })
+        .unwrap();
+    assert!(members
+        .members
+        .iter()
+        .all(|member| member.review_provenance.as_deref() == Some("rule")));
+    assert!(members
+        .members
+        .iter()
+        .all(|member| { member.review_application_id == Some(applied.application.id) }));
+
+    db.set_review_decision(
+        "manual-clear-rule-remove",
+        run_id,
+        group_id,
+        other_id,
+        ReviewDecisionKind::Undecided,
+        1,
+    )
+    .unwrap();
+    let overridden = db
+        .page_duplicate_file_members(&DuplicateFileMemberPageQuery {
+            run_id,
+            group_id,
+            limit: 20,
+            sort_field: DuplicateFileMemberSortField::Path,
+            sort_direction: SortDirection::Ascending,
+            filter: DuplicateFileMemberFilter { search: None },
+            cursor: None,
+        })
+        .unwrap();
+    let other_member = overridden
+        .members
+        .iter()
+        .find(|member| member.id == other_id)
+        .unwrap();
+    assert_eq!(other_member.review_decision, ReviewDecisionKind::Undecided);
+    assert_eq!(other_member.review_provenance.as_deref(), Some("manual"));
+    assert_eq!(other_member.review_application_id, None);
+
+    db.set_review_decision(
+        "manual-clear-rule-keep",
+        run_id,
+        group_id,
+        preferred_id,
+        ReviewDecisionKind::Undecided,
+        2,
+    )
+    .unwrap();
+    let overlapping_preview = db
+        .page_preference_preview(run_id, rule.id, rule.revision, 3, &scope, 50, None)
+        .unwrap();
+    assert!(matches!(
+        db.apply_preference_rule(
+            "overlapping-application",
+            run_id,
+            rule.id,
+            rule.revision,
+            3,
+            &overlapping_preview.preview_signature,
+            &scope,
+        ),
+        Err(PreferenceError::ApplicationOverlap { .. })
+    ));
+
+    let reversed = db
+        .reverse_preference_rule_application("reverse-rule", run_id, applied.application.id, 3)
+        .unwrap();
+    assert_eq!(reversed.applied_revision, 4);
+    assert_eq!(reversed.removed_keep_count, 1);
+    assert_eq!(reversed.removed_remove_count, 1);
+    assert!(
+        db.reverse_preference_rule_application("reverse-rule", run_id, applied.application.id, 3,)
+            .unwrap()
+            .replayed
+    );
+    drop(db);
+
+    let reopened = Database::open(path.to_str().unwrap()).unwrap();
+    let application = reopened
+        .get_preference_application(run_id, applied.application.id)
+        .unwrap();
+    assert_eq!(application.state, "reversed");
+    let history = reopened
+        .page_preference_applications(run_id, Some(rule.id), Some("all"), 20, None)
+        .unwrap();
+    assert_eq!(history.total, 1);
+    assert_eq!(history.revision, 4);
+    assert_eq!(history.applications[0].state, "reversed");
+    let manual_row: (String, i64) = reopened
+        .connection()
+        .query_row(
+            "SELECT decision, manual_revision FROM review_decision
+             WHERE plan_id = ?1 AND file_id = ?2",
+            params![application.plan_id, other_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(manual_row, ("undecided".to_owned(), 2));
 }
 
 #[test]
@@ -1586,7 +1854,11 @@ fn version_four_migrates_review_tables_transactionally() {
     let (_, run_id) = session_and_run(&db, "Preserved v4 run", &["/root"]);
     db.connection()
         .execute_batch(
-            "DROP TABLE preference_rule_command;
+            "DROP VIEW effective_review_decision;
+             DROP TABLE review_rule_reversal_command;
+             DROP TABLE review_rule_decision;
+             DROP TABLE review_rule_application;
+             DROP TABLE preference_rule_command;
              DROP TABLE preference_rule_root;
              DROP TABLE preference_rule;
              DROP INDEX idx_review_folder_command_plan_operation;
@@ -1636,7 +1908,11 @@ fn version_five_migrates_folder_review_tables_transactionally() {
     let (run_id, _, _) = completed_review_fixture(&db);
     db.connection()
         .execute_batch(
-            "DROP TABLE preference_rule_command;
+            "DROP VIEW effective_review_decision;
+             DROP TABLE review_rule_reversal_command;
+             DROP TABLE review_rule_decision;
+             DROP TABLE review_rule_application;
+             DROP TABLE preference_rule_command;
              DROP TABLE preference_rule_root;
              DROP TABLE preference_rule;
              DROP INDEX idx_review_folder_command_plan_operation;
@@ -1644,6 +1920,7 @@ fn version_five_migrates_folder_review_tables_transactionally() {
              DROP INDEX idx_review_folder_decision_plan_group;
              DROP TABLE review_folder_command;
              DROP TABLE review_folder_decision;
+             ALTER TABLE review_decision DROP COLUMN manual_revision;
              PRAGMA user_version = 5;",
         )
         .unwrap();
@@ -2623,6 +2900,95 @@ fn profile_hundred_thousand_group_preference_preview_queries() {
     assert!(
         private_growth_bytes < 32 * 1024 * 1024,
         "repeated preview queries grew private memory by {private_growth_bytes} bytes"
+    );
+}
+
+#[test]
+#[ignore = "operator performance profile; run optimized with --ignored --nocapture"]
+fn profile_hundred_thousand_group_rule_application_and_reversal() {
+    let _large_fixture_guard = LARGE_FIXTURE_TEST_LOCK.lock().unwrap();
+    let (db, run_id, _) = hundred_thousand_group_fixture();
+    populate_preference_members_for_all_groups(&db, run_id);
+    let rule = db
+        .save_preference_rule(
+            "scale-application-profile",
+            None,
+            "Scale application preferred root",
+            &["/root".to_owned()],
+            0,
+        )
+        .unwrap()
+        .rule;
+    let scope = PreferencePreviewScope::CompletedRun;
+    let preview = db
+        .page_preference_preview(run_id, rule.id, rule.revision, 0, &scope, 50, None)
+        .unwrap();
+    #[cfg(windows)]
+    let baseline_private_bytes = current_process_private_bytes();
+
+    let apply_started = std::time::Instant::now();
+    let applied = db
+        .apply_preference_rule(
+            "scale-application",
+            run_id,
+            rule.id,
+            rule.revision,
+            0,
+            &preview.preview_signature,
+            &scope,
+        )
+        .unwrap();
+    let apply_elapsed = apply_started.elapsed();
+    assert_eq!(applied.application.summary.scoped_group_count, 100_000);
+    assert_eq!(applied.application.summary.rule_keep_path_count, 100_200);
+    assert_eq!(applied.application.summary.rule_remove_path_count, 99_900);
+
+    let history_started = std::time::Instant::now();
+    let history = db
+        .page_preference_applications(run_id, Some(rule.id), Some("active"), 100, None)
+        .unwrap();
+    let history_elapsed = history_started.elapsed();
+    assert_eq!(history.total, 1);
+    let plan = db.get_review_plan_view(run_id).unwrap();
+    assert_eq!(plan.summary.rule_keep_count, 100_200);
+    assert_eq!(plan.summary.rule_remove_count, 99_900);
+
+    let reverse_started = std::time::Instant::now();
+    let reversed = db
+        .reverse_preference_rule_application(
+            "scale-reversal",
+            run_id,
+            applied.application.id,
+            applied.application.applied_revision,
+        )
+        .unwrap();
+    let reverse_elapsed = reverse_started.elapsed();
+    assert_eq!(reversed.removed_keep_count, 100_200);
+    assert_eq!(reversed.removed_remove_count, 99_900);
+    #[cfg(windows)]
+    let retained_private_growth =
+        current_process_private_bytes().saturating_sub(baseline_private_bytes);
+    #[cfg(not(windows))]
+    let retained_private_growth = 0_u64;
+    eprintln!(
+        "preference-application-profile sets=100000 paths=200100 apply={:.2}ms history={:.2}ms reverse={:.2}ms retained-private-growth={} bytes",
+        apply_elapsed.as_secs_f64() * 1000.0,
+        history_elapsed.as_secs_f64() * 1000.0,
+        reverse_elapsed.as_secs_f64() * 1000.0,
+        retained_private_growth,
+    );
+    assert!(
+        apply_elapsed < std::time::Duration::from_secs(20),
+        "100,000-set application exceeded the twenty-second development-host ceiling: {apply_elapsed:?}"
+    );
+    assert!(
+        reverse_elapsed < std::time::Duration::from_secs(10),
+        "100,000-set reversal exceeded the ten-second development-host ceiling: {reverse_elapsed:?}"
+    );
+    #[cfg(windows)]
+    assert!(
+        retained_private_growth < 128 * 1024 * 1024,
+        "application/reversal retained {retained_private_growth} bytes of private memory"
     );
 }
 

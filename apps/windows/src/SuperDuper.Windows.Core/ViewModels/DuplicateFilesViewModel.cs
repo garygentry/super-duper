@@ -114,6 +114,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             () => TryBuildFilter(out var filter) ? filter : null,
             () => SelectedGroup?.Id,
             () => ReviewPlan.Plan.Revision);
+        PreferenceRules.ReviewRevisionChanged += OnPreferenceReviewRevisionChanged;
         ApplyFiltersCommand = new AsyncRelayCommand(ApplyFiltersAsync);
         ClearFiltersCommand = new AsyncRelayCommand(ClearFiltersAsync);
         NextPageCommand = new AsyncRelayCommand(NextPageAsync, () => CanMoveNext);
@@ -810,7 +811,13 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         await PreferenceRules.ShowRunAsync(run, cancellationToken);
     }
 
-    public async Task RefreshReviewRevisionAsync(long runId, long revision)
+    public Task RefreshReviewRevisionAsync(long runId, long revision) =>
+        RefreshReviewRevisionCoreAsync(runId, revision, invalidatePreferenceRules: true);
+
+    private async Task RefreshReviewRevisionCoreAsync(
+        long runId,
+        long revision,
+        bool invalidatePreferenceRules)
     {
         if (Run?.Id != runId || revision <= ReviewPlan.Plan.Revision)
         {
@@ -831,7 +838,10 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         {
             await planTask;
         }
-        PreferenceRules.InvalidateReviewRevision(revision);
+        if (invalidatePreferenceRules)
+        {
+            PreferenceRules.InvalidateReviewRevision(revision);
+        }
     }
 
     public async Task ApplySortAsync(
@@ -873,7 +883,17 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         CancelRootFacetQuery();
         CancelDriveFacetQuery();
         CancelReviewQuery();
+        PreferenceRules.ReviewRevisionChanged -= OnPreferenceReviewRevisionChanged;
         PreferenceRules.Dispose();
+    }
+
+    private void OnPreferenceReviewRevisionChanged(long runId, long revision) =>
+        _ = RefreshAfterPreferenceMutationAsync(runId, revision);
+
+    private async Task RefreshAfterPreferenceMutationAsync(long runId, long revision)
+    {
+        await RefreshReviewRevisionCoreAsync(runId, revision, invalidatePreferenceRules: false);
+        ReviewRevisionChanged?.Invoke(runId, revision);
     }
 
     private async Task ApplyFiltersAsync()

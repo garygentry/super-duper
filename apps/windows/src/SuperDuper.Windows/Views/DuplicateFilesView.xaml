@@ -313,9 +313,9 @@
             </WrapPanel>
             <Expander Margin="0,12,0,0"
                       automation:AutomationProperties.AutomationId="PreferredRootPreviewExpander"
-                      automation:AutomationProperties.Name="Ordered preferred scan-root rule preview"
-                      automation:AutomationProperties.HelpText="Edit and save a named root ordering, choose an explicit scope, and compute a read-only virtual preview. No review decision is applied and nothing is deleted."
-                      Header="Preferred-root rule preview — read only; nothing is applied or deleted"
+                      automation:AutomationProperties.Name="Ordered preferred scan-root review rule"
+                      automation:AutomationProperties.HelpText="Edit and save a named root ordering, preview an explicit immutable scope, and optionally confirm reversible review decisions. No files are validated or deleted."
+                      Header="Preferred-root review rule — preview, apply review intent, or reverse; nothing is deleted"
                       IsExpanded="False">
                 <Border Margin="0,6,0,0"
                         Padding="12"
@@ -337,7 +337,8 @@
                                           DisplayMemberPath="Name"
                                           ItemsSource="{Binding PreferenceRules.Rules}"
                                           SelectedItem="{Binding PreferenceRules.SelectedRule, Mode=TwoWay}" />
-                                <Button Margin="6,0,0,0"
+                                <Button x:Name="PreferenceApplyRuleButton"
+                                        Margin="6,0,0,0"
                                         Padding="9,4"
                                         KeyboardNavigation.TabIndex="21"
                                         automation:AutomationProperties.AutomationId="PreferenceNewRule"
@@ -446,7 +447,101 @@
                                         automation:AutomationProperties.Name="Next preferred-root preview page"
                                         Command="{Binding PreferenceRules.NextPageCommand}"
                                         Content="Next page" />
+                                <Button Margin="6,0,0,0"
+                                        Padding="13,6"
+                                        KeyboardNavigation.TabIndex="33"
+                                        automation:AutomationProperties.AutomationId="PreferenceApplyRule"
+                                        automation:AutomationProperties.Name="Review and confirm this exact preferred-root preview"
+                                        automation:AutomationProperties.HelpText="Opens a confirmation; applying changes reversible review decisions only and does not validate or delete files"
+                                        Command="{Binding PreferenceRules.ApplyCommand}"
+                                        Content="Apply rule…" />
                             </WrapPanel>
+                            <Border Margin="0,8,0,0"
+                                    Padding="10"
+                                    BorderBrush="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"
+                                    BorderThickness="2"
+                                    Visibility="{Binding PreferenceRules.IsApplicationConfirmationVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock x:Name="PreferenceApplicationConfirmationHeading"
+                                               Focusable="True"
+                                               KeyboardNavigation.TabIndex="34"
+                                               FontWeight="SemiBold"
+                                               Text="Confirm reversible review-rule application"
+                                               automation:AutomationProperties.AutomationId="PreferenceApplicationConfirmationHeading"
+                                               automation:AutomationProperties.Name="Confirm reversible review-rule application" />
+                                    <TextBlock Margin="0,5,0,0"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding PreferenceRules.ApplicationConfirmationText}"
+                                               automation:AutomationProperties.AutomationId="PreferenceApplicationConfirmationSummary"
+                                               automation:AutomationProperties.Name="{Binding PreferenceRules.ApplicationConfirmationText}" />
+                                    <WrapPanel Margin="0,8,0,0">
+                                        <Button Padding="13,6"
+                                                KeyboardNavigation.TabIndex="35"
+                                                automation:AutomationProperties.AutomationId="PreferenceConfirmApplication"
+                                                automation:AutomationProperties.Name="Confirm rule application to review decisions only"
+                                                automation:AutomationProperties.HelpText="Records reversible review intent; does not validate or delete files"
+                                                Command="{Binding PreferenceRules.ConfirmApplicationCommand}"
+                                                Content="Confirm application" />
+                                        <Button Margin="6,0,0,0"
+                                                Padding="13,6"
+                                                KeyboardNavigation.TabIndex="36"
+                                                automation:AutomationProperties.AutomationId="PreferenceCancelApplication"
+                                                automation:AutomationProperties.Name="Cancel rule application confirmation"
+                                                Command="{Binding PreferenceRules.CancelApplicationCommand}"
+                                                Content="Cancel" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Margin="0,8,0,0"
+                                       TextWrapping="Wrap"
+                                       automation:AutomationProperties.AutomationId="PreferenceApplicationHistory"
+                                       automation:AutomationProperties.Name="{Binding PreferenceRules.ApplicationHistoryText}"
+                                       Text="{Binding PreferenceRules.ApplicationHistoryText}" />
+                            <Button x:Name="PreferenceReverseApplicationButton"
+                                    Margin="0,6,0,0"
+                                    Padding="13,6"
+                                    HorizontalAlignment="Left"
+                                    KeyboardNavigation.TabIndex="37"
+                                    automation:AutomationProperties.AutomationId="PreferenceReverseApplication"
+                                    automation:AutomationProperties.Name="Review and confirm reversal of this rule application"
+                                    automation:AutomationProperties.HelpText="Clears only this application's rule-produced decisions and preserves manual choices"
+                                    Command="{Binding PreferenceRules.ReverseCommand}"
+                                    Content="Reverse this application…" />
+                            <Border Margin="0,8,0,0"
+                                    Padding="10"
+                                    BorderBrush="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"
+                                    BorderThickness="2"
+                                    Visibility="{Binding PreferenceRules.IsReversalConfirmationVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock x:Name="PreferenceReversalConfirmationHeading"
+                                               Focusable="True"
+                                               KeyboardNavigation.TabIndex="38"
+                                               FontWeight="SemiBold"
+                                               Text="Confirm isolated rule-application reversal"
+                                               automation:AutomationProperties.AutomationId="PreferenceReversalConfirmationHeading"
+                                               automation:AutomationProperties.Name="Confirm isolated rule-application reversal" />
+                                    <TextBlock Margin="0,5,0,0"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding PreferenceRules.ReversalConfirmationText}"
+                                               automation:AutomationProperties.AutomationId="PreferenceReversalConfirmationSummary"
+                                               automation:AutomationProperties.Name="{Binding PreferenceRules.ReversalConfirmationText}" />
+                                    <WrapPanel Margin="0,8,0,0">
+                                        <Button Padding="13,6"
+                                                KeyboardNavigation.TabIndex="39"
+                                                automation:AutomationProperties.AutomationId="PreferenceConfirmReversal"
+                                                automation:AutomationProperties.Name="Confirm reversal while preserving manual review choices"
+                                                Command="{Binding PreferenceRules.ConfirmReversalCommand}"
+                                                Content="Confirm reversal" />
+                                        <Button Margin="6,0,0,0"
+                                                Padding="13,6"
+                                                KeyboardNavigation.TabIndex="40"
+                                                automation:AutomationProperties.AutomationId="PreferenceCancelReversal"
+                                                automation:AutomationProperties.Name="Cancel rule-application reversal"
+                                                Command="{Binding PreferenceRules.CancelReversalCommand}"
+                                                Content="Cancel" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
                             <TextBlock Margin="0,8,0,0"
                                        TextWrapping="Wrap"
                                        automation:AutomationProperties.AutomationId="PreferencePreviewSummary"
@@ -483,7 +578,7 @@
                                       CanUserResizeRows="False"
                                       EnableRowVirtualization="True"
                                       IsReadOnly="True"
-                                      KeyboardNavigation.TabIndex="33"
+                                      KeyboardNavigation.TabIndex="41"
                                       automation:AutomationProperties.AutomationId="PreferencePreviewGroups"
                                       automation:AutomationProperties.Name="Read-only preferred-root preview results"
                                       ItemsSource="{Binding PreferenceRules.PreviewGroups}"

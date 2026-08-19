@@ -6,11 +6,10 @@ Active implementation roadmap for the Windows duplicate-review experience. Miles
 release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first twelve
 read-only Milestone 8 slices and the first eight bounded accessibility-remediation slices are
 implemented and accepted; the broader milestone remains in progress and is gated by the remaining
-criteria below. The first three Milestone 10 slices are also accepted: durable manual file
-decisions, durable manual exact-folder decisions, and the read-only ordered preferred scan-root
-rule preview. The fourth Milestone 10 slice below now defines bounded ordered-rule application and
-reversal provenance; implementation acceptance remains open. Live validation and deletion remain
-deferred.
+criteria below. The first four Milestone 10 slices are accepted: durable manual file decisions,
+durable manual exact-folder decisions, the read-only ordered preferred scan-root rule preview, and
+bounded ordered-rule application/reversal provenance. Live validation, scheduling, Recycle Bin
+interaction, and deletion remain deferred.
 
 This is the durable planning source for post-MVP Windows UX work. Update this document when a
 milestone is refined, split, accepted, or superseded so future coding sessions do not have to
@@ -2560,6 +2559,40 @@ It cannot close representative-hardware warm queries or physical Narrator/NVDA, 
 or multi-monitor DPI-transition verification, and it introduces no Milestone 11/12 execution or
 live-state behavior.
 
+##### Acceptance result
+
+- Schema v8 now preserves manual rows while storing immutable application snapshots, separate
+  rule-produced rows, later-manual revision precedence, exact apply/reversal command replay, and a
+  SQL-owned effective-decision overlay. Apply and reverse rerun complete file/folder overlap,
+  physical-survivor, and intact-folder-copy invariants in one immediate transaction; conflicts
+  write nothing and reversal removes only its application's rule rows.
+- The worker now exposes exact preview-bound apply, revision-bound fixed-summary history pages,
+  bounded single-application detail, isolated reversal, preview signatures, member application
+  provenance, structured conflicts, and shared review-plan invalidation. Core/Infrastructure keep
+  history and preview caches at five pages, retain operation IDs for deterministic replay, and
+  reject cancelled or stale run/rule/revision generations. WPF adds native inline apply/reversal
+  confirmations, deterministic heading focus, accessible summaries/explanations, polite success
+  announcements, assertive actionable errors, and no deletion affordance.
+- `cargo test --workspace` and `cargo test --workspace --release` passed. Storage passed 31 tests
+  with three intentional operator profiles ignored; worker passed 11 tests. Explicit Debug and
+  Release worker builds passed. Serialized Debug and Release Windows matrices each passed 60 Core,
+  22 Infrastructure plus one intentional provider skip, and 3 WPF STA tests under installed SDK
+  10.0.400 from `C:\Windows\Temp`; pinned unavailable SDK 10.0.303 remained unchanged.
+- The isolated optimized development-host profile applied one completed-run rule across 100,000
+  sets and 200,100 logical paths in 2,766.08 ms, read its history page in 0.17 ms, reversed it in
+  703.08 ms, and retained 46,256,128 private bytes. Those results remain below the explicit 20 s
+  apply, 10 s reversal, and 128 MB retained-growth ceilings, but are regression evidence only and
+  do not close the representative-hardware gate.
+- Real interactive Debug and Release `Invoke-WindowsSmoke.ps1 -SkipBuild` runs passed direct-worker
+  apply/later-manual-override/restart/reversal coverage and accessible WPF completed-run preview,
+  confirmation focus, application, manual-preserving reversal, and announcements. Every disposable
+  file and directory remained present. PowerShell parsing and `git diff --check` passed. No path was
+  live-validated, no excluded cloud placeholder was read or hydrated, and no deletion was exposed,
+  scheduled, or executed.
+- Representative-hardware warm-query evidence, physical Narrator/NVDA verification, OS
+  high-contrast verification, and multi-monitor DPI-transition verification remain independently
+  open Milestone 8 gates.
+
 #### Decision model
 
 - A review plan belongs to one immutable completed run.
@@ -2861,13 +2894,13 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 Keep the remaining physical Narrator/NVDA, high-contrast, multi-monitor DPI, and representative-
 hardware Milestone 8 procedures operator-gated; they can close independently from later review
-work. Implement the refined fourth Milestone 10 vertical slice above: schema-v8 application
-provenance and manual-revision overlay, exact preview-bound apply/replay, bounded application
-history, isolated reversal, shared-revision invalidation, and accessible inline WPF confirmations.
-Keep its acceptance boundary open until storage/worker/Core/Infrastructure/WPF coverage, bounded
-development-host profiling, Debug/Release matrices, and real non-deleting smoke pass. Milestone 12
-continues to own live-state badges and changed/resolved behavior; Milestone 11 continues to own
-validation, scheduling, Recycle Bin interaction, and deletion.
+work. Refine the first Milestone 11 slice design before implementation: bounded, cancellable
+preflight of reviewed removal targets against immutable snapshots, with explicit cloud-placeholder
+exclusion, exact stale/conflict semantics, restart recovery, paging, and accessible confirmation.
+Keep scheduling, Recycle Bin interaction, partial execution, deletion, and Milestone 12
+changed/resolved live-state presentation out of that first preflight slice. Preserve rule
+configuration, application provenance, manual review state, preflight observations, and future
+execution state as separate sources of truth.
 
 ## Milestone Definition Template
 
@@ -2919,3 +2952,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-19 | Refined and accepted the first Milestone 10 durable manual-file-decision slice: schema v5, snapshot-backed `Keep`/`Remove`/`Undecided`, idempotent revision-checked worker mutations, bounded plan/group/member summaries, hard-link-aware survivor enforcement, accessible WPF controls, restart persistence, and real Debug/Release non-deleting smoke. | Establish a separate reversible review source of truth without using `marked_deleted`/legacy deletion plans, touching live files or excluded cloud placeholders, or exposing deletion. The new plan/group queries met their warm targets and memory stayed bounded; the independently open Milestone 8 group/drive warm-query and physical accessibility gates remain explicit. |
 | 2026-08-19 | Refined and accepted the second Milestone 10 manual exact-folder-decision slice: transactional schema v6, separate folder snapshots/command replay, shared revision and cross-workspace invalidation, nested/suppressed/file overlap and hard-link safety, deduplicated combined summaries, accessible WPF controls, restart persistence, a 100,000-group profile, and real Debug/Release non-deleting smoke. | Keep folder review distinct from file decisions and execution while preserving at least one intact exact-folder copy and one physical file survivor. The isolated development-host profile measured 6.40 ms combined-plan p95, 14.50 ms folder-page p95, and no observed private-memory growth; it is regression evidence only, so the representative-hardware and physical accessibility gates remain open. The next design slice is a bounded, read-only ordered-preferred-root rule preview. |
 | 2026-08-19 | Refined and accepted the third Milestone 10 slice: transactional schema v7 named ordered-root rules, revision-bound read-only preview over selected-set/current-filter/completed-run scopes, manual file/folder precedence, virtual overlap/survivor enforcement, hard-link-aware de-duplication, bounded Core caching and stale-response rejection, accessible WPF explanations, restart reconstruction, and real Debug/Release non-deleting smoke. | Persist reusable rule metadata with preview while keeping application deferred and separate from manual decisions, live state, and execution state. The isolated optimized 100-sample fixture evaluated 100,000 real sets/200,100 logical paths at 870.42 ms p95 with 2,199,552 bytes retained private-memory growth, within its development-host ceilings; it is regression evidence only. The next slice is design-first, idempotent rule application/reversal provenance without deletion or live validation; representative-hardware and physical accessibility gates remain open. |
+| 2026-08-19 | Refined and accepted the fourth Milestone 10 slice: transactional schema v8 rule-application provenance, manual-revision precedence, exact preview-bound idempotent apply, fixed-summary history plus bounded detail, isolated replayable reversal, shared revision invalidation, accessible WPF confirmations, restart recovery, and real Debug/Release non-deleting smoke. | Keep reusable rules, rule-produced decisions, manual review choices, live state, and execution state separate while making an exact reviewed rule outcome durable and reversibly attributable. The isolated optimized 100,000-set/200,100-path profile completed apply in 2,766.08 ms and reversal in 703.08 ms with 46,256,128 retained private bytes, within its development-host ceilings only. The next slice is design-first bounded Milestone 11 preflight without scheduling, Recycle Bin interaction, deletion, or Milestone 12 changed/resolved UI; all four independent Milestone 8 operator gates remain open. |

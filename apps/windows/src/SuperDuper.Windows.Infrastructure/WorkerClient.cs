@@ -583,6 +583,75 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
             cancellationToken);
     }
 
+    public Task<WorkerPreferenceApplicationResult> ApplyPreferenceRuleAsync(
+        string operationId,
+        long runId,
+        long ruleId,
+        long ruleRevision,
+        long sourceReviewRevision,
+        string previewSignature,
+        PreferencePreviewScope scope,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(previewSignature);
+        ArgumentNullException.ThrowIfNull(scope);
+        return InvokeAsync<WorkerPreferenceApplicationResult>(
+            "preference_rule.apply",
+            new
+            {
+                operationId,
+                runId,
+                ruleId,
+                ruleRevision,
+                sourceReviewRevision,
+                previewSignature,
+                scope = PreferenceScope(scope),
+            },
+            cancellationToken);
+    }
+
+    public Task<WorkerPreferenceApplicationPage> GetPreferenceApplicationsAsync(
+        long runId,
+        long? ruleId,
+        string state,
+        int pageSize,
+        string? cursor = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(state);
+        return InvokeAsync<WorkerPreferenceApplicationPage>(
+            "preference_rule.application.page",
+            new { runId, ruleId, state, pageSize, cursor },
+            cancellationToken);
+    }
+
+    public async Task<WorkerPreferenceApplication> GetPreferenceApplicationAsync(
+        long runId,
+        long applicationId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await InvokeAsync<PreferenceApplicationResult>(
+            "preference_rule.application.get",
+            new { runId, applicationId },
+            cancellationToken).ConfigureAwait(false);
+        return result.Application;
+    }
+
+    public Task<WorkerPreferenceReversalResult> ReversePreferenceApplicationAsync(
+        string operationId,
+        long runId,
+        long applicationId,
+        long expectedRevision,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        return InvokeAsync<WorkerPreferenceReversalResult>(
+            "preference_rule.application.reverse",
+            new { operationId, runId, applicationId, expectedRevision },
+            cancellationToken);
+    }
+
     public Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(
         DuplicateFolderGroupQuery query,
         CancellationToken cancellationToken = default)
@@ -1103,6 +1172,8 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
     private sealed record RunResult(WorkerRun Run);
 
     private sealed record PreferenceRuleResult(WorkerPreferenceRule Rule);
+
+    private sealed record PreferenceApplicationResult(WorkerPreferenceApplication Application);
 
     private sealed record DeleteSessionResult(long SessionId);
 }

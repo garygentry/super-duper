@@ -260,6 +260,8 @@ public sealed record WorkerDuplicateFileMember(
     public string? DecisionProvenance { get; init; }
 
     public string? DecisionAt { get; init; }
+
+    public long? DecisionApplicationId { get; init; }
 }
 
 public sealed record WorkerDuplicateFileMemberPage(
@@ -298,6 +300,9 @@ public sealed record WorkerReviewPlanSummary(
     public long EffectiveRemovalFileCount { get; init; }
     public long PlannedRemovalPhysicalItemCount { get; init; }
     public long IntactFolderCopyCount { get; init; }
+    public long RuleKeepCount { get; init; }
+    public long RuleRemoveCount { get; init; }
+    public long ActiveRuleApplicationCount { get; init; }
 }
 
 public sealed record WorkerReviewPlanView(
@@ -435,7 +440,56 @@ public sealed record WorkerPreferencePreviewPage(
     long RuleRevision,
     long? ReviewPlanId,
     long ReviewRevision,
-    WorkerPreferencePreviewSummary Summary);
+    WorkerPreferencePreviewSummary Summary)
+{
+    public string PreviewSignature { get; init; } = string.Empty;
+}
+
+public sealed record WorkerPreferenceApplicationSummary(
+    long ScopedGroupCount,
+    long ApplicableGroupCount,
+    long BlockedGroupCount,
+    long RuleKeepPathCount,
+    long RuleRemovePathCount,
+    long RuleRemovePhysicalItemCount,
+    string RuleRemoveBytes);
+
+public sealed record WorkerPreferenceApplication(
+    long Id,
+    long PlanId,
+    long RunId,
+    long RuleId,
+    long RuleRevision,
+    string RuleName,
+    string RuleKind,
+    IReadOnlyList<string>? RuleRoots,
+    string ScopeKind,
+    long SourceReviewRevision,
+    long AppliedRevision,
+    string State,
+    string CreatedAt,
+    string? ReversedAt,
+    WorkerPreferenceApplicationSummary Summary);
+
+public sealed record WorkerPreferenceApplicationResult(
+    WorkerPreferenceApplication Application,
+    bool Replayed);
+
+public sealed record WorkerPreferenceApplicationPage(
+    IReadOnlyList<WorkerPreferenceApplication> Applications,
+    long Total,
+    string? NextCursor,
+    long? PlanId,
+    long Revision);
+
+public sealed record WorkerPreferenceReversalResult(
+    long ApplicationId,
+    long PlanId,
+    long AppliedRevision,
+    bool Replayed,
+    string State,
+    long RemovedRuleKeepCount,
+    long RemovedRuleRemoveCount);
 
 public enum DuplicateFolderGroupSortField
 {

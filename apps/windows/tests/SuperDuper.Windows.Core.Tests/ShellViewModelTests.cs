@@ -150,6 +150,14 @@ public sealed class ShellViewModelTests
 
         public Task<WorkerPreferencePreviewPage> GetPreferencePreviewAsync(PreferencePreviewQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
+        public Task<WorkerPreferenceApplicationResult> ApplyPreferenceRuleAsync(string operationId, long runId, long ruleId, long ruleRevision, long sourceReviewRevision, string previewSignature, PreferencePreviewScope scope, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerPreferenceApplicationPage> GetPreferenceApplicationsAsync(long runId, long? ruleId, string state, int pageSize, string? cursor = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerPreferenceApplication> GetPreferenceApplicationAsync(long runId, long applicationId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerPreferenceReversalResult> ReversePreferenceApplicationAsync(string operationId, long runId, long applicationId, long expectedRevision, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(DuplicateFolderGroupQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<WorkerDuplicateFolderMemberPage> GetDuplicateFolderGroupMembersAsync(DuplicateFolderMemberQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();

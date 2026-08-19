@@ -192,6 +192,19 @@ function Invoke-WpfAutomation([long]$RunId) {
     Add-Type -AssemblyName UIAutomationClient
     Add-Type -AssemblyName UIAutomationTypes
     Add-Type -AssemblyName System.Windows.Forms
+    if ($null -eq ('SmokeMouseInput' -as [type])) {
+        Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class SmokeMouseInput
+{
+    [DllImport("user32.dll")]
+    public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")]
+    public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
+}
+'@
+    }
     $knownWorkerIds = @(Get-Process -Name 'super-duper-worker' -ErrorAction SilentlyContinue | ForEach-Object Id)
     $ownedWorkerId = $null
     $start = [Diagnostics.ProcessStartInfo]::new()
@@ -422,7 +435,7 @@ function Invoke-WpfAutomation([long]$RunId) {
                 [Windows.Automation.AutomationElement]::ControlTypeProperty,
                 [Windows.Automation.ControlType]::ListItem))
         $rootOption = $rootOptions |
-            Where-Object { $_.Current.Name -ne 'All selected roots' -and $_.Current.Name.Contains('set', [StringComparison]::OrdinalIgnoreCase) } |
+            Where-Object { -not $_.Current.IsOffscreen -and $_.Current.Name -ne 'All selected roots' -and $_.Current.Name.Contains('set', [StringComparison]::OrdinalIgnoreCase) } |
             Select-Object -First 1
         $rootOptionNames = @($rootOptions | ForEach-Object { $_.Current.Name }) -join ' | '
         Assert-True ($null -ne $rootOption) "Selected-root facet did not expose a bounded worker-owned value and count. Visible list items: $rootOptionNames"
@@ -458,19 +471,19 @@ function Invoke-WpfAutomation([long]$RunId) {
                 [Windows.Automation.AutomationElement]::ControlTypeProperty,
                 [Windows.Automation.ControlType]::ListItem))
         $driveOption = $driveOptions |
-            Where-Object { $_.Current.Name -ne 'All drives' -and $_.Current.Name.Contains('set', [StringComparison]::OrdinalIgnoreCase) } |
+            Where-Object { -not $_.Current.IsOffscreen -and $_.Current.Name -ne 'All drives' -and $_.Current.Name.Contains('set', [StringComparison]::OrdinalIgnoreCase) } |
             Select-Object -First 1
         $driveOptionNames = @($driveOptions | ForEach-Object { $_.Current.Name }) -join ' | '
         Assert-True ($null -ne $driveOption) "Drive facet did not expose a bounded worker-owned value and count. Visible list items: $driveOptionNames"
         Assert-True $driveFacet.Current.IsKeyboardFocusable 'Drive facet was not keyboard focusable.'
         Activate-SmokeWindow
-        $driveFacet.SetFocus()
-        try {
-            [System.Windows.Forms.SendKeys]::SendWait('{HOME}{DOWN}{ENTER}')
-        }
-        catch {
-            Select-Element $driveOption
-        }
+        $driveOptionRectangle = $driveOption.Current.BoundingRectangle
+        Assert-True (-not $driveOptionRectangle.IsEmpty) 'The live drive facet option did not expose a clickable bounding rectangle.'
+        $driveOptionX = [int]($driveOptionRectangle.Left + ($driveOptionRectangle.Width / 2))
+        $driveOptionY = [int]($driveOptionRectangle.Top + ($driveOptionRectangle.Height / 2))
+        Assert-True ([SmokeMouseInput]::SetCursorPos($driveOptionX, $driveOptionY)) 'The smoke could not position the pointer over the live drive facet option.'
+        [SmokeMouseInput]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+        [SmokeMouseInput]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
         Start-Sleep -Milliseconds 400
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
         $selectedDriveFilterText = Find-Element AutomationId 'FileSelectedDriveFilterText'
@@ -635,6 +648,42 @@ function Invoke-WpfAutomation([long]$RunId) {
         Assert-True ([IO.File]::Exists($exactPath)) 'Recording a review decision unexpectedly removed the disposable fixture file.'
         $preferenceExpander = Find-Element AutomationId 'PreferredRootPreviewExpander'
         $preferenceExpander.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+        $preferenceScope = Find-Element AutomationId 'PreferencePreviewScope'
+        Assert-True $preferenceScope.Current.IsKeyboardFocusable 'The preferred-root scope selector was not keyboard focusable.'
+        try {
+            $preferenceScope.GetCurrentPattern(
+                [Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+            Start-Sleep -Milliseconds 250
+            $scopeItemContainer = $preferenceScope.GetCurrentPattern(
+                [Windows.Automation.ItemContainerPattern]::Pattern)
+            $completedRunScope = $null
+            $scopeItem = $null
+            $scopeItemNames = [Collections.Generic.List[string]]::new()
+            for ($scopeIndex = 0; $scopeIndex -lt 10; $scopeIndex++) {
+                $scopeItem = $scopeItemContainer.FindItemByProperty($scopeItem, $null, $null)
+                if ($null -eq $scopeItem) { break }
+                $scopeItemNames.Add($scopeItem.Current.Name)
+                if ($scopeItem.Current.Name.Contains('DisplayName = Completed run', [StringComparison]::Ordinal) -or $scopeIndex -eq 2) {
+                    $completedRunScope = $scopeItem
+                }
+            }
+            Assert-True ($null -ne $completedRunScope) "The expanded preferred-root scope selector did not expose three options. Items: $($scopeItemNames -join ', ')"
+            $completedRunRectangle = $completedRunScope.Current.BoundingRectangle
+            Assert-True (-not $completedRunRectangle.IsEmpty) 'The Completed run scope did not expose a clickable bounding rectangle.'
+            $completedRunX = [int]($completedRunRectangle.Left + ($completedRunRectangle.Width / 2))
+            $completedRunY = [int]($completedRunRectangle.Top + ($completedRunRectangle.Height / 2))
+            Assert-True ([SmokeMouseInput]::SetCursorPos($completedRunX, $completedRunY)) 'The smoke could not position the pointer over Completed run.'
+            [SmokeMouseInput]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+            [SmokeMouseInput]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+            Start-Sleep -Milliseconds 400
+        }
+        catch {
+            throw "Preferred-root scope selection did not expose its item-container contract: $($_.Exception.Message)"
+        }
+        $selectedPreferenceScope = $preferenceScope.GetCurrentPattern(
+            [Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection()
+        $selectedPreferenceScopeNames = @($selectedPreferenceScope | ForEach-Object { $_.Current.Name }) -join ', '
+        Assert-True ($selectedPreferenceScope.Count -eq 1 -and $selectedPreferenceScope[0].Current.Name.Contains('DisplayName = Completed run', [StringComparison]::Ordinal)) "Scope selection did not choose Completed run. Items: $($scopeItemNames -join ', '). Selected: $selectedPreferenceScopeNames"
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
             $preferencePreviewButton = Find-Element AutomationId 'PreferenceRunPreview' 1
             if ($preferencePreviewButton.Current.IsEnabled) {
@@ -654,6 +703,46 @@ function Invoke-WpfAutomation([long]$RunId) {
         Assert-True ($preferenceStatus.Current.Name.Contains('preview complete', [StringComparison]::OrdinalIgnoreCase)) 'The accessible preferred-root preview did not complete.'
         Assert-True ($preferenceStatus.Current.Name.Contains('nothing was applied or deleted', [StringComparison]::OrdinalIgnoreCase)) 'The preferred-root preview did not announce its non-applying boundary.'
         Assert-True ([IO.File]::Exists($exactPath)) 'The WPF preferred-root preview unexpectedly removed the disposable fixture file.'
+        $preferenceApplyButton = Find-Element AutomationId 'PreferenceApplyRule'
+        Assert-True ($preferenceApplyButton.Current.IsEnabled) 'The exact completed-run preferred-root preview did not enable review-state application.'
+        Invoke-Element $preferenceApplyButton
+        $applicationHeading = Find-Element AutomationId 'PreferenceApplicationConfirmationHeading'
+        for ($attempt = 0; $attempt -lt 40 -and -not $applicationHeading.Current.HasKeyboardFocus; $attempt++) {
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True $applicationHeading.Current.HasKeyboardFocus 'Opening rule application confirmation did not move keyboard focus to its heading.'
+        Invoke-Element (Find-Element AutomationId 'PreferenceConfirmApplication')
+        for ($attempt = 0; $attempt -lt 80; $attempt++) {
+            $preferenceStatus = Find-Element AutomationId 'PreferencePreviewStatus' 1
+            if ($preferenceStatus.Current.Name.Contains('Applied ', [StringComparison]::OrdinalIgnoreCase) -and
+                $preferenceStatus.Current.Name.Contains('Nothing was deleted', [StringComparison]::OrdinalIgnoreCase)) {
+                break
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ($preferenceStatus.Current.Name.Contains('Applied ', [StringComparison]::OrdinalIgnoreCase)) 'The WPF preferred-root application did not announce completion.'
+        Assert-True ($preferenceStatus.Current.Name.Contains('Nothing was deleted', [StringComparison]::OrdinalIgnoreCase)) 'The WPF preferred-root application did not announce its non-deleting boundary.'
+        Assert-True ([IO.File]::Exists($exactPath)) 'The WPF preferred-root application unexpectedly removed the disposable fixture file.'
+        $preferenceReverseButton = Find-Element AutomationId 'PreferenceReverseApplication'
+        Assert-True ($preferenceReverseButton.Current.IsEnabled) 'The new preferred-root application was not available for isolated reversal.'
+        Invoke-Element $preferenceReverseButton
+        $reversalHeading = Find-Element AutomationId 'PreferenceReversalConfirmationHeading'
+        for ($attempt = 0; $attempt -lt 40 -and -not $reversalHeading.Current.HasKeyboardFocus; $attempt++) {
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True $reversalHeading.Current.HasKeyboardFocus 'Opening rule-application reversal confirmation did not move keyboard focus to its heading.'
+        Invoke-Element (Find-Element AutomationId 'PreferenceConfirmReversal')
+        for ($attempt = 0; $attempt -lt 80; $attempt++) {
+            $preferenceStatus = Find-Element AutomationId 'PreferencePreviewStatus' 1
+            if ($preferenceStatus.Current.Name.Contains('Reversed application', [StringComparison]::OrdinalIgnoreCase) -and
+                $preferenceStatus.Current.Name.Contains('Manual choices were preserved', [StringComparison]::OrdinalIgnoreCase)) {
+                break
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ($preferenceStatus.Current.Name.Contains('Reversed application', [StringComparison]::OrdinalIgnoreCase)) 'The WPF preferred-root reversal did not announce completion.'
+        Assert-True ($preferenceStatus.Current.Name.Contains('Manual choices were preserved', [StringComparison]::OrdinalIgnoreCase)) 'The WPF preferred-root reversal did not announce manual-choice preservation.'
+        Assert-True ([IO.File]::Exists($exactPath)) 'The WPF preferred-root reversal unexpectedly removed the disposable fixture file.'
         Invoke-Element (Find-DescendantButtonByNameFragment $fileMembers 'in Explorer')
         Assert-NoVisibleDetailError 'FileDetailError'
 
@@ -698,7 +787,7 @@ function Invoke-WpfAutomation([long]$RunId) {
         Assert-True ([IO.Directory]::Exists($keptFolderPath)) 'Recording an exact-folder review decision unexpectedly removed the disposable fixture directory.'
         Invoke-Element (Find-DescendantByName $folderMembers 'Show in Explorer')
         Assert-NoVisibleDetailError 'FolderDetailError'
-        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, a persisted read-only preferred-root preview, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
+        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
     }
     finally {
         try {
@@ -1205,6 +1294,56 @@ try {
     Assert-True ($preferencePreview.total -ge 1) 'Read-only preferred-root preview returned no affected smoke set.'
     Assert-True ($preferencePreview.summary.scopedGroupCount -ge $preferencePreview.total) 'Preferred-root preview summary diverged from its bounded rows.'
     Assert-True ([IO.File]::Exists($fileMembers.members[0].path)) 'Preferred-root preview unexpectedly removed a disposable fixture file.'
+    $preferenceApplication = Send-WorkerRequest $restored 'preference_rule.apply' @{
+        operationId = [Guid]::NewGuid().ToString('N')
+        runId = $run.id
+        ruleId = $preferenceRule.rule.id
+        ruleRevision = $preferenceRule.rule.revision
+        sourceReviewRevision = $folderDecision.appliedRevision
+        previewSignature = $preferencePreview.previewSignature
+        scope = @{ kind = 'completed_run' }
+    }
+    Assert-True (-not $preferenceApplication.replayed) 'The first preferred-root rule application was unexpectedly replayed.'
+    Assert-True ($preferenceApplication.application.summary.ruleKeepPathCount -ge 1) 'Preferred-root rule application recorded no rule Keep decisions.'
+    $previewPageForProvenance = $preferencePreview
+    $applicablePreviewGroup = $null
+    while ($null -eq $applicablePreviewGroup) {
+        $applicablePreviewGroup = $previewPageForProvenance.groups |
+            Where-Object { $_.status -eq 'applicable' } |
+            Select-Object -First 1
+        if ($null -ne $applicablePreviewGroup -or $null -eq $previewPageForProvenance.nextCursor) {
+            break
+        }
+        $previewPageForProvenance = Send-WorkerRequest $restored 'preference_rule.preview' @{
+            runId = $run.id
+            ruleId = $preferenceRule.rule.id
+            ruleRevision = $preferenceRule.rule.revision
+            reviewRevision = $folderDecision.appliedRevision
+            pageSize = 25
+            scope = @{ kind = 'completed_run' }
+            cursor = $previewPageForProvenance.nextCursor
+        }
+    }
+    Assert-True ($null -ne $applicablePreviewGroup) 'The bounded preferred-root preview contained no applicable set for provenance verification.'
+    $appliedRuleMembers = Send-WorkerRequest $restored 'duplicate_file_group.members' @{
+        runId = $run.id; groupId = $applicablePreviewGroup.groupId; pageSize = 25
+        sort = @{ field = 'path'; direction = 'ascending' }
+        filter = @{ search = '' }; cursor = $null
+    }
+    $ruleOwnedMember = $appliedRuleMembers.members |
+        Where-Object { $_.decisionApplicationId -eq $preferenceApplication.application.id } |
+        Select-Object -First 1
+    Assert-True ($null -ne $ruleOwnedMember) 'Applied preferred-root rule provenance was not visible on a member row.'
+    $manualRuleOverride = Send-WorkerRequest $restored 'review_decision.set' @{
+        operationId = [Guid]::NewGuid().ToString('N')
+        runId = $run.id
+        groupId = $ruleOwnedMember.groupId
+        fileId = $ruleOwnedMember.id
+        decision = 'undecided'
+        expectedRevision = $preferenceApplication.application.appliedRevision
+    }
+    Assert-True ($manualRuleOverride.decision -eq 'undecided') 'A later manual Undecided did not override the rule-produced decision.'
+    Assert-True ([IO.File]::Exists($ruleOwnedMember.path)) 'Rule application or manual override unexpectedly removed a disposable fixture file.'
     $firstQueryDiagnostics = Stop-SmokeWorker $restored
     $restored = $null
 
@@ -1227,11 +1366,32 @@ try {
     Assert-True ($persistedRules.total -eq 1) 'Named preferred-root rule did not survive a worker restart.'
     $persistedRule = Send-WorkerRequest $restored 'preference_rule.get' @{ ruleId = $preferenceRule.rule.id }
     Assert-True ($persistedRule.rule.revision -eq $preferenceRule.rule.revision) 'Preferred-root rule revision changed across restart.'
+    $persistedApplications = Send-WorkerRequest $restored 'preference_rule.application.page' @{
+        runId = $run.id; ruleId = $persistedRule.rule.id; state = 'active'; pageSize = 25; cursor = $null
+    }
+    Assert-True ($persistedApplications.total -eq 1) 'Active preferred-root application provenance did not survive restart.'
+    $persistedRuleMembers = Send-WorkerRequest $restored 'duplicate_file_group.members' @{
+        runId = $run.id; groupId = $ruleOwnedMember.groupId; pageSize = 25
+        sort = @{ field = 'path'; direction = 'ascending' }
+        filter = @{ search = '' }; cursor = $null
+    }
+    $persistedManualOverride = $persistedRuleMembers.members |
+        Where-Object { $_.id -eq $ruleOwnedMember.id } |
+        Select-Object -First 1
+    Assert-True ($persistedManualOverride.decision -eq 'undecided' -and $persistedManualOverride.decisionProvenance -eq 'manual') 'Later manual override did not survive restart as manual provenance.'
+    $preferenceReversal = Send-WorkerRequest $restored 'preference_rule.application.reverse' @{
+        operationId = [Guid]::NewGuid().ToString('N')
+        runId = $run.id
+        applicationId = $preferenceApplication.application.id
+        expectedRevision = $persistedApplications.revision
+    }
+    Assert-True ($preferenceReversal.state -eq 'reversed') 'Preferred-root application reversal did not complete.'
+    Assert-True ($preferenceReversal.removedRuleKeepCount -ge 1) 'Preferred-root reversal did not clear its rule Keep decisions.'
     $persistedPreview = Send-WorkerRequest $restored 'preference_rule.preview' @{
         runId = $run.id
         ruleId = $persistedRule.rule.id
         ruleRevision = $persistedRule.rule.revision
-        reviewRevision = $persistedFolderMembers.reviewRevision
+        reviewRevision = $preferenceReversal.appliedRevision
         pageSize = 25
         scope = @{ kind = 'completed_run' }
         cursor = $null

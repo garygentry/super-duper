@@ -1,4 +1,4 @@
-PRAGMA user_version = 7;
+PRAGMA user_version = 8;
 
 -- Reusable, user-owned scan definitions.
 CREATE TABLE IF NOT EXISTS scan_session (
@@ -162,6 +162,7 @@ CREATE TABLE IF NOT EXISTS review_decision (
     snapshot_file_size INTEGER NOT NULL CHECK(snapshot_file_size >= 0),
     snapshot_last_modified INTEGER NOT NULL,
     snapshot_content_hash INTEGER,
+    manual_revision INTEGER NOT NULL DEFAULT 0 CHECK(manual_revision >= 0),
     UNIQUE(plan_id, file_id)
 );
 
@@ -244,6 +245,95 @@ CREATE TABLE IF NOT EXISTS preference_rule_command (
     created_at TEXT NOT NULL
 );
 
+-- Applying a reusable rule creates review-only provenance and distinct rule-owned decisions.
+-- Reversal removes only the child decision rows and retains the application history row.
+CREATE TABLE IF NOT EXISTS review_rule_application (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+    operation_id TEXT NOT NULL UNIQUE,
+    run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+    rule_id INTEGER NOT NULL REFERENCES preference_rule(id) ON DELETE RESTRICT,
+    rule_revision INTEGER NOT NULL CHECK(rule_revision > 0),
+    rule_name TEXT NOT NULL,
+    rule_kind TEXT NOT NULL CHECK(rule_kind = 'ordered_preferred_scan_roots'),
+    rule_roots_json TEXT NOT NULL,
+    scope_kind TEXT NOT NULL CHECK(scope_kind IN ('selected_sets', 'current_filter', 'completed_run')),
+    scope_json TEXT NOT NULL,
+    scope_signature TEXT NOT NULL,
+    preview_signature TEXT NOT NULL,
+    source_review_revision INTEGER NOT NULL CHECK(source_review_revision >= 0),
+    applied_revision INTEGER NOT NULL CHECK(applied_revision > 0),
+    scoped_group_count INTEGER NOT NULL CHECK(scoped_group_count >= 0),
+    applicable_group_count INTEGER NOT NULL CHECK(applicable_group_count >= 0),
+    blocked_group_count INTEGER NOT NULL CHECK(blocked_group_count >= 0),
+    rule_keep_path_count INTEGER NOT NULL CHECK(rule_keep_path_count >= 0),
+    rule_remove_path_count INTEGER NOT NULL CHECK(rule_remove_path_count >= 0),
+    rule_remove_physical_item_count INTEGER NOT NULL CHECK(rule_remove_physical_item_count >= 0),
+    rule_remove_bytes INTEGER NOT NULL CHECK(rule_remove_bytes >= 0),
+    state TEXT NOT NULL DEFAULT 'active' CHECK(state IN ('active', 'reversed')),
+    created_at TEXT NOT NULL,
+    reversed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS review_rule_decision (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id INTEGER NOT NULL REFERENCES review_rule_application(id) ON DELETE CASCADE,
+    plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+    group_id INTEGER NOT NULL REFERENCES duplicate_group(id) ON DELETE CASCADE,
+    file_id INTEGER NOT NULL REFERENCES scanned_file(id) ON DELETE CASCADE,
+    decision TEXT NOT NULL CHECK(decision IN ('keep', 'remove')),
+    explanation_code TEXT NOT NULL,
+    preferred_rank INTEGER CHECK(preferred_rank IS NULL OR preferred_rank >= 0),
+    decided_at TEXT NOT NULL,
+    snapshot_canonical_path TEXT NOT NULL,
+    snapshot_file_identity TEXT,
+    snapshot_file_size INTEGER NOT NULL CHECK(snapshot_file_size >= 0),
+    snapshot_last_modified INTEGER NOT NULL,
+    snapshot_content_hash INTEGER,
+    UNIQUE(plan_id, file_id)
+);
+
+CREATE TABLE IF NOT EXISTS review_rule_reversal_command (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+    operation_id TEXT NOT NULL UNIQUE,
+    run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+    application_id INTEGER NOT NULL REFERENCES review_rule_application(id) ON DELETE CASCADE,
+    expected_revision INTEGER NOT NULL CHECK(expected_revision >= 0),
+    applied_revision INTEGER NOT NULL CHECK(applied_revision > 0),
+    removed_keep_count INTEGER NOT NULL CHECK(removed_keep_count >= 0),
+    removed_remove_count INTEGER NOT NULL CHECK(removed_remove_count >= 0),
+    created_at TEXT NOT NULL
+);
+
+CREATE VIEW IF NOT EXISTS effective_review_decision AS
+SELECT manual.plan_id, manual.group_id, manual.file_id, manual.decision,
+       'manual' AS provenance, manual.decided_at, NULL AS application_id
+FROM review_decision manual
+LEFT JOIN (
+    SELECT rule_decision.plan_id, rule_decision.file_id, application.applied_revision
+    FROM review_rule_decision rule_decision
+    JOIN review_rule_application application
+      ON application.id = rule_decision.application_id AND application.state = 'active'
+) rule ON rule.plan_id = manual.plan_id AND rule.file_id = manual.file_id
+WHERE manual.decision IN ('keep', 'remove')
+   OR rule.file_id IS NULL
+   OR manual.manual_revision > rule.applied_revision
+UNION ALL
+SELECT rule_decision.plan_id, rule_decision.group_id, rule_decision.file_id,
+       rule_decision.decision, 'rule' AS provenance, rule_decision.decided_at,
+       rule_decision.application_id
+FROM review_rule_decision rule_decision
+JOIN review_rule_application application
+  ON application.id = rule_decision.application_id AND application.state = 'active'
+WHERE NOT EXISTS (
+    SELECT 1 FROM review_decision manual
+    WHERE manual.plan_id = rule_decision.plan_id
+      AND manual.file_id = rule_decision.file_id
+      AND (manual.decision IN ('keep', 'remove')
+           OR manual.manual_revision > application.applied_revision)
+);
+
 -- Structured, run-owned records for whole subtrees pruned before filesystem content access.
 CREATE TABLE IF NOT EXISTS run_exclusion (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -298,3 +388,13 @@ CREATE INDEX IF NOT EXISTS idx_preference_rule_state_name
     ON preference_rule(state, name COLLATE UNICODE_NOCASE, id);
 CREATE INDEX IF NOT EXISTS idx_preference_rule_root_path
     ON preference_rule_root(rule_id, root_path COLLATE UNICODE_NOCASE, ordinal);
+CREATE INDEX IF NOT EXISTS idx_review_rule_application_plan_state
+    ON review_rule_application(plan_id, state, id DESC);
+CREATE INDEX IF NOT EXISTS idx_review_rule_application_run_rule
+    ON review_rule_application(run_id, rule_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_review_rule_decision_application
+    ON review_rule_decision(application_id, group_id, file_id);
+CREATE INDEX IF NOT EXISTS idx_review_rule_decision_plan_group
+    ON review_rule_decision(plan_id, group_id, decision, file_id);
+CREATE INDEX IF NOT EXISTS idx_review_rule_reversal_plan_operation
+    ON review_rule_reversal_command(plan_id, operation_id);

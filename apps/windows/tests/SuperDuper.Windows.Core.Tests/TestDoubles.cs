@@ -44,6 +44,12 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
 
     public Func<PreferencePreviewQuery, CancellationToken, Task<WorkerPreferencePreviewPage>>? PreferencePreviewHandler { get; set; }
 
+    public Func<string, long, long, long, long, string, PreferencePreviewScope, CancellationToken, Task<WorkerPreferenceApplicationResult>>? PreferenceApplyHandler { get; set; }
+
+    public Func<long, long?, string, int, string?, CancellationToken, Task<WorkerPreferenceApplicationPage>>? PreferenceApplicationPageHandler { get; set; }
+
+    public Func<string, long, long, long, CancellationToken, Task<WorkerPreferenceReversalResult>>? PreferenceReverseHandler { get; set; }
+
     public List<WorkerPreferenceRule> PreferenceRules { get; } = [];
 
     public Func<DuplicateFolderGroupQuery, CancellationToken, Task<WorkerDuplicateFolderGroupPage>>? FolderGroupPageHandler { get; set; }
@@ -335,6 +341,55 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
         ?? Task.FromResult(new WorkerPreferencePreviewPage(
             [], 0, null, query.RuleId, query.RuleRevision, null, query.ReviewRevision,
             new WorkerPreferencePreviewSummary(0, 0, 0, "0", 0, 0, 0, 0, 0, "0", 0, 0, 0, 0, 0, 0, 0, 0)));
+
+    public Task<WorkerPreferenceApplicationResult> ApplyPreferenceRuleAsync(
+        string operationId,
+        long runId,
+        long ruleId,
+        long ruleRevision,
+        long sourceReviewRevision,
+        string previewSignature,
+        PreferencePreviewScope scope,
+        CancellationToken cancellationToken = default) =>
+        PreferenceApplyHandler?.Invoke(
+            operationId, runId, ruleId, ruleRevision, sourceReviewRevision,
+            previewSignature, scope, cancellationToken)
+        ?? Task.FromResult(new WorkerPreferenceApplicationResult(
+            new WorkerPreferenceApplication(
+                1, 1, runId, ruleId, ruleRevision, "Rule", "ordered_preferred_scan_roots",
+                [], "completed_run", sourceReviewRevision, sourceReviewRevision + 1, "active",
+                DateTimeOffset.UtcNow.ToString("O"), null,
+                new WorkerPreferenceApplicationSummary(0, 0, 0, 0, 0, 0, "0")),
+            false));
+
+    public Task<WorkerPreferenceApplicationPage> GetPreferenceApplicationsAsync(
+        long runId,
+        long? ruleId,
+        string state,
+        int pageSize,
+        string? cursor = null,
+        CancellationToken cancellationToken = default) =>
+        PreferenceApplicationPageHandler?.Invoke(runId, ruleId, state, pageSize, cursor, cancellationToken)
+        ?? Task.FromResult(new WorkerPreferenceApplicationPage([], 0, null, null, 0));
+
+    public Task<WorkerPreferenceApplication> GetPreferenceApplicationAsync(
+        long runId,
+        long applicationId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new WorkerPreferenceApplication(
+            applicationId, 1, runId, 1, 1, "Rule", "ordered_preferred_scan_roots",
+            [], "completed_run", 0, 1, "active", DateTimeOffset.UtcNow.ToString("O"), null,
+            new WorkerPreferenceApplicationSummary(0, 0, 0, 0, 0, 0, "0")));
+
+    public Task<WorkerPreferenceReversalResult> ReversePreferenceApplicationAsync(
+        string operationId,
+        long runId,
+        long applicationId,
+        long expectedRevision,
+        CancellationToken cancellationToken = default) =>
+        PreferenceReverseHandler?.Invoke(operationId, runId, applicationId, expectedRevision, cancellationToken)
+        ?? Task.FromResult(new WorkerPreferenceReversalResult(
+            applicationId, 1, expectedRevision + 1, false, "reversed", 0, 0));
 
     public Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(
         DuplicateFolderGroupQuery query,

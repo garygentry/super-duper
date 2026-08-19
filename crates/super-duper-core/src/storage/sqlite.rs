@@ -4,7 +4,7 @@ use chrono::Utc;
 use rusqlite::{params, Connection, Error, Result};
 use tracing::{debug, info};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 7;
+pub const CURRENT_SCHEMA_VERSION: i64 = 8;
 
 pub struct Database {
     conn: Connection,
@@ -67,21 +67,28 @@ impl Database {
         let version = self.schema_version()?;
         match version {
             CURRENT_SCHEMA_VERSION => self.conn.execute_batch(include_str!("schema.sql"))?,
-            6 => self.migrate_v6_to_v7()?,
+            7 => self.migrate_v7_to_v8()?,
+            6 => {
+                self.migrate_v6_to_v7()?;
+                self.migrate_v7_to_v8()?;
+            }
             5 => {
                 self.migrate_v5_to_v6()?;
                 self.migrate_v6_to_v7()?;
+                self.migrate_v7_to_v8()?;
             }
             4 => {
                 self.migrate_v4_to_v5()?;
                 self.migrate_v5_to_v6()?;
                 self.migrate_v6_to_v7()?;
+                self.migrate_v7_to_v8()?;
             }
             3 => {
                 self.migrate_v3_to_v4()?;
                 self.migrate_v4_to_v5()?;
                 self.migrate_v5_to_v6()?;
                 self.migrate_v6_to_v7()?;
+                self.migrate_v7_to_v8()?;
             }
             2 => self.migrate_v2_to_v3()?,
             0 if !self.has_user_tables()? => self.conn.execute_batch(include_str!("schema.sql"))?,
@@ -550,6 +557,87 @@ impl Database {
         migration
     }
 
+    fn migrate_v7_to_v8(&self) -> Result<()> {
+        info!("Migrating SQLite schema from version 7 to 8");
+        let migration = self.conn.execute_batch(
+            "BEGIN IMMEDIATE;
+             ALTER TABLE review_decision ADD COLUMN manual_revision INTEGER NOT NULL DEFAULT 0
+                 CHECK(manual_revision >= 0);
+             CREATE TABLE review_rule_application (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+                 operation_id TEXT NOT NULL UNIQUE,
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 rule_id INTEGER NOT NULL REFERENCES preference_rule(id) ON DELETE RESTRICT,
+                 rule_revision INTEGER NOT NULL CHECK(rule_revision > 0),
+                 rule_name TEXT NOT NULL,
+                 rule_kind TEXT NOT NULL CHECK(rule_kind = 'ordered_preferred_scan_roots'),
+                 rule_roots_json TEXT NOT NULL,
+                 scope_kind TEXT NOT NULL CHECK(scope_kind IN ('selected_sets', 'current_filter', 'completed_run')),
+                 scope_json TEXT NOT NULL,
+                 scope_signature TEXT NOT NULL,
+                 preview_signature TEXT NOT NULL,
+                 source_review_revision INTEGER NOT NULL CHECK(source_review_revision >= 0),
+                 applied_revision INTEGER NOT NULL CHECK(applied_revision > 0),
+                 scoped_group_count INTEGER NOT NULL CHECK(scoped_group_count >= 0),
+                 applicable_group_count INTEGER NOT NULL CHECK(applicable_group_count >= 0),
+                 blocked_group_count INTEGER NOT NULL CHECK(blocked_group_count >= 0),
+                 rule_keep_path_count INTEGER NOT NULL CHECK(rule_keep_path_count >= 0),
+                 rule_remove_path_count INTEGER NOT NULL CHECK(rule_remove_path_count >= 0),
+                 rule_remove_physical_item_count INTEGER NOT NULL CHECK(rule_remove_physical_item_count >= 0),
+                 rule_remove_bytes INTEGER NOT NULL CHECK(rule_remove_bytes >= 0),
+                 state TEXT NOT NULL DEFAULT 'active' CHECK(state IN ('active', 'reversed')),
+                 created_at TEXT NOT NULL,
+                 reversed_at TEXT
+             );
+             CREATE TABLE review_rule_decision (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 application_id INTEGER NOT NULL REFERENCES review_rule_application(id) ON DELETE CASCADE,
+                 plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+                 group_id INTEGER NOT NULL REFERENCES duplicate_group(id) ON DELETE CASCADE,
+                 file_id INTEGER NOT NULL REFERENCES scanned_file(id) ON DELETE CASCADE,
+                 decision TEXT NOT NULL CHECK(decision IN ('keep', 'remove')),
+                 explanation_code TEXT NOT NULL,
+                 preferred_rank INTEGER CHECK(preferred_rank IS NULL OR preferred_rank >= 0),
+                 decided_at TEXT NOT NULL,
+                 snapshot_canonical_path TEXT NOT NULL,
+                 snapshot_file_identity TEXT,
+                 snapshot_file_size INTEGER NOT NULL CHECK(snapshot_file_size >= 0),
+                 snapshot_last_modified INTEGER NOT NULL,
+                 snapshot_content_hash INTEGER,
+                 UNIQUE(plan_id, file_id)
+             );
+             CREATE TABLE review_rule_reversal_command (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+                 operation_id TEXT NOT NULL UNIQUE,
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 application_id INTEGER NOT NULL REFERENCES review_rule_application(id) ON DELETE CASCADE,
+                 expected_revision INTEGER NOT NULL CHECK(expected_revision >= 0),
+                 applied_revision INTEGER NOT NULL CHECK(applied_revision > 0),
+                 removed_keep_count INTEGER NOT NULL CHECK(removed_keep_count >= 0),
+                 removed_remove_count INTEGER NOT NULL CHECK(removed_remove_count >= 0),
+                 created_at TEXT NOT NULL
+             );
+             CREATE INDEX idx_review_rule_application_plan_state
+                 ON review_rule_application(plan_id, state, id DESC);
+             CREATE INDEX idx_review_rule_application_run_rule
+                 ON review_rule_application(run_id, rule_id, id DESC);
+             CREATE INDEX idx_review_rule_decision_application
+                 ON review_rule_decision(application_id, group_id, file_id);
+             CREATE INDEX idx_review_rule_decision_plan_group
+                 ON review_rule_decision(plan_id, group_id, decision, file_id);
+             CREATE INDEX idx_review_rule_reversal_plan_operation
+                 ON review_rule_reversal_command(plan_id, operation_id);
+             PRAGMA user_version = 8;
+             COMMIT;",
+        );
+        if migration.is_err() {
+            let _ = self.conn.execute_batch("ROLLBACK;");
+        }
+        migration
+    }
+
     pub fn reconcile_interrupted_runs(&self) -> Result<usize> {
         let now = Utc::now().to_rfc3339();
         let count = self.conn.execute(
@@ -573,6 +661,9 @@ impl Database {
         self.conn.execute_batch(
             "BEGIN;
              DELETE FROM preference_rule_command;
+             DELETE FROM review_rule_reversal_command;
+             DELETE FROM review_rule_decision;
+             DELETE FROM review_rule_application;
              DELETE FROM preference_rule_root;
              DELETE FROM preference_rule;
              DELETE FROM review_folder_command;

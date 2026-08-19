@@ -117,7 +117,7 @@ impl Database {
              FROM page_groups
              LEFT JOIN duplicate_group_member member ON member.group_id = page_groups.id
              LEFT JOIN scanned_file file ON file.id = member.file_id
-             LEFT JOIN review_decision decision
+             LEFT JOIN effective_review_decision decision
                ON decision.plan_id = ?4 AND decision.group_id = page_groups.id
               AND decision.file_id = file.id
              GROUP BY page_groups.id
@@ -287,7 +287,7 @@ impl Database {
                             END AS physical_key
                      FROM duplicate_group_member member
                      JOIN scanned_file file ON file.id = member.file_id
-                     LEFT JOIN review_decision existing
+                     LEFT JOIN effective_review_decision existing
                        ON existing.plan_id = ?1 AND existing.group_id = ?2
                       AND existing.file_id = file.id
                      WHERE member.group_id = ?2
@@ -306,12 +306,13 @@ impl Database {
             }
         }
 
+        let applied_revision = current_revision + 1;
         tx.execute(
             "INSERT INTO review_decision
                 (plan_id, group_id, file_id, decision, provenance, decided_at,
                  snapshot_canonical_path, snapshot_file_identity, snapshot_file_size,
-                 snapshot_last_modified, snapshot_content_hash)
-             VALUES (?1, ?2, ?3, ?4, 'manual', ?5, ?6, ?7, ?8, ?9, ?10)
+                 snapshot_last_modified, snapshot_content_hash, manual_revision)
+             VALUES (?1, ?2, ?3, ?4, 'manual', ?5, ?6, ?7, ?8, ?9, ?10, ?11)
              ON CONFLICT(plan_id, file_id) DO UPDATE SET
                  group_id = excluded.group_id,
                  decision = excluded.decision,
@@ -321,7 +322,8 @@ impl Database {
                  snapshot_file_identity = excluded.snapshot_file_identity,
                  snapshot_file_size = excluded.snapshot_file_size,
                  snapshot_last_modified = excluded.snapshot_last_modified,
-                 snapshot_content_hash = excluded.snapshot_content_hash",
+                 snapshot_content_hash = excluded.snapshot_content_hash,
+                 manual_revision = excluded.manual_revision",
             params![
                 plan_id,
                 group_id,
@@ -333,10 +335,10 @@ impl Database {
                 file_size,
                 last_modified,
                 content_hash,
+                applied_revision,
             ],
         )?;
         validate_review_state(&tx, plan_id, run_id)?;
-        let applied_revision = current_revision + 1;
         tx.execute(
             "UPDATE review_plan SET revision = ?1, updated_at = ?2
              WHERE id = ?3 AND revision = ?4",
@@ -408,7 +410,7 @@ impl Database {
         let has_effective_removals = plan_id.is_some()
             && self.connection().query_row(
                 "SELECT EXISTS(
-                     SELECT 1 FROM review_decision
+                     SELECT 1 FROM effective_review_decision
                      WHERE plan_id = ?1 AND decision = 'remove'
                      UNION ALL
                      SELECT 1 FROM review_folder_decision
@@ -483,7 +485,7 @@ impl Database {
                  WHERE child.run_id = ?1
              ),
              removed_files(file_id) AS (
-                 SELECT file_id FROM review_decision
+                 SELECT file_id FROM effective_review_decision
                  WHERE plan_id = ?4 AND decision = 'remove'
                  UNION
                  SELECT file.id FROM removed_directories removed
@@ -810,7 +812,7 @@ impl Database {
              ),
              decisions AS (
                  SELECT decision.group_id, decision.decision
-                 FROM review_decision decision
+                 FROM effective_review_decision decision
                  JOIN duplicate_group duplicate_group ON duplicate_group.id = decision.group_id
                  WHERE decision.plan_id = ?2 AND duplicate_group.run_id = ?1
              )
@@ -830,6 +832,24 @@ impl Database {
                     ..ReviewPlanSummary::default()
                 })
             },
+        )?;
+        (
+            summary.rule_keep_count,
+            summary.rule_remove_count,
+            summary.active_rule_application_count,
+        ) = self.connection().query_row(
+            "SELECT
+                 COALESCE(SUM(CASE WHEN decision.decision = 'keep'
+                                    AND decision.provenance = 'rule' THEN 1 ELSE 0 END), 0),
+                 COALESCE(SUM(CASE WHEN decision.decision = 'remove'
+                                    AND decision.provenance = 'rule' THEN 1 ELSE 0 END), 0),
+                 (SELECT COUNT(*) FROM review_rule_application
+                  WHERE plan_id = ?2 AND run_id = ?1 AND state = 'active')
+             FROM effective_review_decision decision
+             JOIN duplicate_group duplicate_group ON duplicate_group.id = decision.group_id
+             WHERE decision.plan_id = ?2 AND duplicate_group.run_id = ?1",
+            params![run_id, plan_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )?;
         (
             summary.decided_folder_group_count,
@@ -875,7 +895,7 @@ impl Database {
                  WHERE child.run_id = ?1
              ),
              removed_files(file_id) AS (
-                 SELECT file_id FROM review_decision
+                 SELECT file_id FROM effective_review_decision
                  WHERE plan_id = ?2 AND decision = 'remove'
                  UNION
                  SELECT file.id FROM removed_directories removed
@@ -939,7 +959,7 @@ impl Database {
              ),
              removed_file_ancestors(directory_id) AS (
                  SELECT directory.id
-                 FROM review_decision decision
+                 FROM effective_review_decision decision
                  JOIN scanned_file file ON file.id = decision.file_id AND file.run_id = ?1
                  JOIN directory_node directory
                    ON directory.run_id = ?1
@@ -1017,7 +1037,7 @@ impl Database {
                     END)
              FROM duplicate_group_member member
              JOIN scanned_file file ON file.id = member.file_id
-             LEFT JOIN review_decision decision
+             LEFT JOIN effective_review_decision decision
                ON decision.plan_id = ?2 AND decision.group_id = ?1 AND decision.file_id = file.id
              LEFT JOIN folder_removed_files folder_removed ON folder_removed.file_id = file.id
              WHERE member.group_id = ?1",
@@ -1036,7 +1056,7 @@ impl Database {
     }
 }
 
-fn validate_review_state(
+pub(super) fn validate_review_state(
     tx: &Transaction<'_>,
     plan_id: i64,
     run_id: i64,
@@ -1055,7 +1075,7 @@ fn validate_review_state(
              )
              SELECT file_decision.file_id, folder_tree.folder_member_id,
                     file_decision.decision, folder_tree.folder_decision
-             FROM review_decision file_decision
+             FROM effective_review_decision file_decision
              JOIN scanned_file file ON file.id = file_decision.file_id AND file.run_id = ?2
              JOIN directory_node parent
                ON parent.run_id = ?2
@@ -1140,7 +1160,7 @@ fn validate_review_state(
                  WHERE child.run_id = ?2
              ),
              removed_files(file_id) AS (
-                 SELECT file_id FROM review_decision
+                 SELECT file_id FROM effective_review_decision
                  WHERE plan_id = ?1 AND decision = 'remove'
                  UNION
                  SELECT file.id
@@ -1184,7 +1204,7 @@ fn validate_review_state(
                  WHERE child.run_id = ?2
              ),
              removed_files(file_id) AS (
-                 SELECT file_id FROM review_decision
+                 SELECT file_id FROM effective_review_decision
                  WHERE plan_id = ?1 AND decision = 'remove'
                  UNION
                  SELECT file.id
@@ -1251,7 +1271,7 @@ pub(super) fn review_folder_group_summary_tx(
              JOIN run_context ON child.run_id = run_context.run_id
          ),
          removed_files(file_id) AS (
-             SELECT file_id FROM review_decision
+             SELECT file_id FROM effective_review_decision
              WHERE plan_id = ?2 AND decision = 'remove'
              UNION
              SELECT file.id

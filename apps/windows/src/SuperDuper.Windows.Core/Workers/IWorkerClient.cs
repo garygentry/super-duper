@@ -133,6 +133,36 @@ public interface IWorkerClient : IAsyncDisposable
         PreferencePreviewQuery query,
         CancellationToken cancellationToken = default);
 
+    Task<WorkerPreferenceApplicationResult> ApplyPreferenceRuleAsync(
+        string operationId,
+        long runId,
+        long ruleId,
+        long ruleRevision,
+        long sourceReviewRevision,
+        string previewSignature,
+        PreferencePreviewScope scope,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerPreferenceApplicationPage> GetPreferenceApplicationsAsync(
+        long runId,
+        long? ruleId,
+        string state,
+        int pageSize,
+        string? cursor = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerPreferenceApplication> GetPreferenceApplicationAsync(
+        long runId,
+        long applicationId,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerPreferenceReversalResult> ReversePreferenceApplicationAsync(
+        string operationId,
+        long runId,
+        long applicationId,
+        long expectedRevision,
+        CancellationToken cancellationToken = default);
+
     Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(
         DuplicateFolderGroupQuery query,
         CancellationToken cancellationToken = default);

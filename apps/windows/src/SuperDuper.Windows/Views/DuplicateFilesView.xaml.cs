@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.ComponentModel;
 using SuperDuper.Windows.Core.ViewModels;
 using SuperDuper.Windows.Core.Workers;
 
@@ -12,7 +13,70 @@ public partial class DuplicateFilesView : UserControl
     internal const DispatcherPriority SetNavigationFocusPriority = DispatcherPriority.Background;
     internal static readonly TimeSpan SetNavigationFocusRetryDelay = TimeSpan.FromMilliseconds(50);
 
-    public DuplicateFilesView() => InitializeComponent();
+    private PreferenceRulesViewModel? _preferenceRules;
+    private bool _applicationConfirmationWasVisible;
+    private bool _reversalConfirmationWasVisible;
+
+    public DuplicateFilesView()
+    {
+        InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
+    }
+
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (_preferenceRules is not null)
+        {
+            _preferenceRules.PropertyChanged -= OnPreferenceRulesPropertyChanged;
+        }
+        _preferenceRules = (e.NewValue as DuplicateFilesViewModel)?.PreferenceRules;
+        if (_preferenceRules is not null)
+        {
+            _preferenceRules.PropertyChanged += OnPreferenceRulesPropertyChanged;
+        }
+    }
+
+    private void OnPreferenceRulesPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_preferenceRules is null)
+        {
+            return;
+        }
+        if (e.PropertyName == nameof(PreferenceRulesViewModel.IsApplicationConfirmationVisible))
+        {
+            var visible = _preferenceRules.IsApplicationConfirmationVisible;
+            if (visible)
+            {
+                _ = Dispatcher.BeginInvoke(
+                    new Action(() => PreferenceApplicationConfirmationHeading.Focus()),
+                    DispatcherPriority.Input);
+            }
+            else if (_applicationConfirmationWasVisible)
+            {
+                _ = Dispatcher.BeginInvoke(
+                    new Action(() => PreferenceApplyRuleButton.Focus()),
+                    DispatcherPriority.Input);
+            }
+            _applicationConfirmationWasVisible = visible;
+        }
+        else if (e.PropertyName == nameof(PreferenceRulesViewModel.IsReversalConfirmationVisible))
+        {
+            var visible = _preferenceRules.IsReversalConfirmationVisible;
+            if (visible)
+            {
+                _ = Dispatcher.BeginInvoke(
+                    new Action(() => PreferenceReversalConfirmationHeading.Focus()),
+                    DispatcherPriority.Input);
+            }
+            else if (_reversalConfirmationWasVisible)
+            {
+                _ = Dispatcher.BeginInvoke(
+                    new Action(() => PreferenceReverseApplicationButton.Focus()),
+                    DispatcherPriority.Input);
+            }
+            _reversalConfirmationWasVisible = visible;
+        }
+    }
 
     private async void OnSetNavigationClick(object sender, RoutedEventArgs e)
     {
