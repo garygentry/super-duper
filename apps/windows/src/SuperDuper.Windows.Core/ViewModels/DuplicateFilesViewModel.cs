@@ -77,6 +77,10 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private long _totalDriveFacets;
     private string? _rootFacetErrorMessage;
     private string? _driveFacetErrorMessage;
+    private string _groupStatusAnnouncement = "Duplicate file results have not loaded.";
+    private string _groupErrorAnnouncement = string.Empty;
+    private long _groupStatusAnnouncementVersion;
+    private long _groupErrorAnnouncementVersion;
     private bool _disposed;
 
     public DuplicateFilesViewModel(
@@ -288,6 +292,10 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsEmpty));
                 OnPropertyChanged(nameof(IsLoadingOverlayVisible));
                 RaisePagingProperties();
+                if (!value)
+                {
+                    PublishGroupQueryAnnouncement();
+                }
             }
         }
     }
@@ -474,6 +482,30 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             };
             return $"{roots} · {drives} · {acrossDrives}";
         }
+    }
+
+    public string GroupStatusAnnouncement
+    {
+        get => _groupStatusAnnouncement;
+        private set => SetProperty(ref _groupStatusAnnouncement, value);
+    }
+
+    public string GroupErrorAnnouncement
+    {
+        get => _groupErrorAnnouncement;
+        private set => SetProperty(ref _groupErrorAnnouncement, value);
+    }
+
+    public long GroupStatusAnnouncementVersion
+    {
+        get => _groupStatusAnnouncementVersion;
+        private set => SetProperty(ref _groupStatusAnnouncementVersion, value);
+    }
+
+    public long GroupErrorAnnouncementVersion
+    {
+        get => _groupErrorAnnouncementVersion;
+        private set => SetProperty(ref _groupErrorAnnouncementVersion, value);
     }
 
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
@@ -693,6 +725,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     {
         if (!TryBuildFilter(out var filter))
         {
+            PublishGroupErrorAnnouncement("Duplicate file filters could not be applied.");
             return;
         }
         CancelGroupQuery();
@@ -745,6 +778,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             if (display && generation == _groupGeneration)
             {
                 DisplayGroupPage(cached, selectLast);
+                PublishGroupQueryAnnouncement();
                 _ = PrefetchGroupNeighborsAsync(cached, filter, generation, cancellationToken);
             }
             return;
@@ -1615,6 +1649,41 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 : DuplicateFileExtensionMatchMode.AnyMember);
         return true;
     }
+
+    private void PublishGroupQueryAnnouncement()
+    {
+        if (HasError)
+        {
+            PublishGroupErrorAnnouncement("Duplicate file results could not be loaded.");
+            return;
+        }
+
+        if (Run?.Status != "completed")
+        {
+            return;
+        }
+
+        GroupStatusAnnouncement = TotalGroups == 0
+            ? "Duplicate file query complete. No matching duplicate sets."
+            : $"Duplicate file query complete. {FormatCount(TotalGroups, "matching set", "matching sets")}, "
+                + $"{FormatCount(Summary.MatchingCopyCount, "copy", "copies")}, "
+                + $"{PotentialRecoverableText} potentially recoverable. {LocationCoverageText}.";
+        GroupStatusAnnouncementVersion++;
+    }
+
+    private void PublishGroupErrorAnnouncement(string prefix)
+    {
+        if (!HasError)
+        {
+            return;
+        }
+
+        GroupErrorAnnouncement = $"{prefix} {ErrorMessage}";
+        GroupErrorAnnouncementVersion++;
+    }
+
+    private static string FormatCount(long value, string singular, string plural) =>
+        value == 1 ? $"1 {singular}" : $"{value:N0} {plural}";
 
     private int SelectedGroupIndex
     {

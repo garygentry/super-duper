@@ -5,6 +5,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using SuperDuper.Windows.Accessibility;
 using SuperDuper.Windows.Views;
 using SuperDuper.Windows.Core.Workers;
 
@@ -145,12 +146,24 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 AutomationLiveSetting.Polite,
                 AutomationProperties.GetLiveSetting(FindByAutomationId<TextBlock>(files, "FileSummaryMatchingSets")));
+            var groupStatus = FindByAutomationId<TextBlock>(files, "FileGroupCount");
+            Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
+                AutomationNotificationBehavior.GetNotificationKind(groupStatus));
+            Assert.AreEqual(AutomationNotificationProcessing.MostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(groupStatus));
+            Assert.AreEqual("DuplicateFileGroupQuery",
+                AutomationNotificationBehavior.GetActivityId(groupStatus));
             Assert.AreEqual(
                 AutomationLiveSetting.Polite,
                 AutomationProperties.GetLiveSetting(FindByAutomationId<TextBlock>(files, "FileLocationSummaryText")));
+            var groupError = FindByAutomationId<Border>(files, "FileGroupError");
+            Assert.AreEqual(AutomationNotificationKind.ActionAborted,
+                AutomationNotificationBehavior.GetNotificationKind(groupError));
+            Assert.AreEqual(AutomationNotificationProcessing.ImportantMostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(groupError));
             Assert.AreEqual(
                 AutomationLiveSetting.Assertive,
-                AutomationProperties.GetLiveSetting(FindByAutomationId<Border>(files, "FileGroupError")));
+                AutomationProperties.GetLiveSetting(groupError));
             Assert.AreEqual(
                 SystemColors.ControlTextBrush,
                 FindByAutomationId<Border>(files, "FileGroupError").BorderBrush);
@@ -251,6 +264,35 @@ public sealed class WpfSurfaceSmokeTests
             focusHost.Show();
             focusHost.Activate();
             DrainDispatcher();
+            FrameworkElement? announcedElement = null;
+            string? announcedText = null;
+            AutomationNotificationKind? announcedKind = null;
+            void CaptureNotification(
+                FrameworkElement element,
+                string announcement,
+                AutomationNotificationKind kind,
+                AutomationNotificationProcessing _,
+                string __)
+            {
+                announcedElement = element;
+                announcedText = announcement;
+                announcedKind = kind;
+            }
+            AutomationNotificationBehavior.NotificationRaised += CaptureNotification;
+            try
+            {
+                const string announcement = "Duplicate file query complete. 2 matching sets.";
+                AutomationProperties.SetName(groupStatus, announcement);
+                AutomationNotificationBehavior.SetAnnouncementVersion(groupStatus, 1);
+                DrainDispatcher();
+                Assert.AreSame(groupStatus, announcedElement);
+                Assert.AreEqual(announcement, announcedText);
+                Assert.AreEqual(AutomationNotificationKind.ActionCompleted, announcedKind);
+            }
+            finally
+            {
+                AutomationNotificationBehavior.NotificationRaised -= CaptureNotification;
+            }
             fileGroups.ItemsSource = new[] { new object(), new object() };
             fileGroups.SelectedIndex = 1;
             fileGroups.UpdateLayout();

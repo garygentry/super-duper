@@ -4,7 +4,7 @@
 
 Active implementation roadmap for the Windows duplicate-review experience. Milestone 6
 release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first twelve
-read-only Milestone 8 slices and the first bounded accessibility-remediation slice are implemented
+read-only Milestone 8 slices and the first two bounded accessibility-remediation slices are implemented
 and accepted; the broader milestone remains in progress and is gated by the remaining criteria
 below.
 
@@ -323,6 +323,8 @@ as an explicit opt-in while preserving the accepted any-member default.
 The first bounded accessibility-remediation slice makes the primary duplicate-file filters reflow
 inside the supported narrow workspace while preserving their explicit keyboard and UI Automation
 order.
+The second bounded accessibility-remediation slice raises explicit, coalesced UI Automation
+notifications when the current duplicate-file group query completes or fails.
 
 #### Refined first vertical slice (2026-08-17)
 
@@ -1214,6 +1216,69 @@ window size. Later extension, selected-root, and drive controls already reflowed
   broader screen-reader announcement and supported-size/DPI review; and representative-hardware
   warm-query/bounded-memory profiling.
 
+#### Duplicate-file query screen-reader announcement slice (2026-08-18)
+
+##### Audit and scope decision
+
+Explicit file-type classification remains broader than a bounded follow-up because it requires a
+versioned Rust-owned mapping, migration/reclassification behavior, and language that remains
+distinct from filename extension. Canonical prefix-or-self and descendant-only matching still
+require explicit separator/segment boundaries, root-self behavior, case and Unicode normalization,
+and stored range keys. Selected-root-relative matching remains separate and requires an exact
+selected root plus indexed worker-owned root/relative keys. The accepted exact canonical-path
+equality and case-insensitive member-path substring modes remain unchanged and distinct.
+
+The contract audit found the shared normalized Rust predicate, exact-path and extension indexes,
+group/summary/cross-facet agreement, all three cursor signatures, four independent five-page
+caches and cancellation/generation channels, two-page directional prefetch bounds, stale-response
+rejection, and virtualized one-page WPF collections aligned. The concrete accessibility gap was
+smaller: the view assigned live-region metadata but did not explicitly raise a UI Automation event
+when an asynchronous duplicate-file group query settled, so screen readers had no reliable
+completion or error announcement.
+
+##### Implemented interaction
+
+- Core publishes one concise completion message after the current group generation settles. It
+  includes matching sets, copies, potential recoverable space, and aggregate location coverage; an
+  empty query has an explicit no-matches message.
+- Filter-validation and worker-query failures publish a separate error message. WPF raises
+  `ActionCompleted` with `MostRecent` processing for success and `ActionAborted` with
+  `ImportantMostRecent` processing for failure under one stable duplicate-file-query activity ID.
+- A monotonic announcement version raises a new event even when two page or filter operations have
+  identical text. The attached WPF behavior waits for data binding and a loaded automation peer,
+  coalesces superseded versions, and retains the accepted polite/assertive live-region metadata.
+- Only the current group generation can complete `IsLoading` and publish success or worker failure;
+  cancelled or stale generations retain the accepted rejection behavior. This slice does not yet
+  claim selected-set detail, facet-paging, or complete-workspace screen-reader announcements.
+- The slice changes no protocol field, SQL predicate, schema/index, cursor, page size, cache,
+  cancellation source, query generation, prefetch rule, virtualization setting, or collection
+  bound. It performs no filesystem or Cloud Files read and adds no preview, thumbnail, validation,
+  durable decision, deletion, `scanned_file.marked_deleted`, or Milestone 10/11 behavior.
+
+##### Acceptance result
+
+- Focused extension-mode storage and worker cursor-signature tests passed. The 13 focused Core
+  duplicate-file tests and all 3 STA WPF surface tests passed; coverage proves concise success and
+  validation-error messages, repeatable announcement versions, notification kind/processing/
+  activity metadata, a loaded automation-peer event, the accepted 620-DIP reflow, tab/automation
+  order, system brushes, virtualization, and focus restoration.
+- `cargo test --workspace` and `cargo test --workspace --release` passed with 18 storage and 10
+  worker tests in each configuration. Explicit Debug and Release worker builds passed. The
+  unchanged 100,000-group regression completed in 3.02 seconds Debug and 1.44 seconds optimized
+  Release, within its five-second regression gates.
+- Debug and Release .NET builds from `C:\Windows\Temp` against the absolute solution path passed
+  with zero warnings and errors under installed SDK 10.0.400; the unavailable pinned 10.0.303 SDK
+  and `global.json` were unchanged. Each serialized configuration passed 45 Core, 22
+  Infrastructure, and 3 WPF tests, with the real-provider Infrastructure test intentionally
+  skipped.
+- Real Debug and Release `Invoke-WindowsSmoke.ps1 -SkipBuild` passed the accepted exact-path,
+  any/all extension/no-extension, facet, summary/location, paging, next/previous-set focus,
+  Explorer, cloud-fail-closed, and deterministic shutdown workflows. `git diff --check` passed.
+- This slice does not claim the complete accessibility gate. Remaining Milestone 8 gates are
+  further richer worker-owned filters only after their mapping or boundary-aware range-key
+  contracts and indexes are explicit; selected-set/facet and broader screen-reader review plus
+  supported-size/DPI behavior; and representative-hardware warm-query/bounded-memory profiling.
+
 #### User outcome
 
 The results surface answers three questions without requiring repeated Explorer investigation:
@@ -1664,3 +1729,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-18 | Refined and accepted indexed any-member filename-extension and explicit no-extension filtering after focused storage/worker/lifecycle/Core/WPF coverage, the full Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the expanded 100,000-group regression completed in 2.39 seconds Debug and 1.05 seconds optimized Release, and each .NET configuration passed 45 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | Define extension from every immutable member's final persisted filename segment, including terminal-dot, dotfile, multiple-suffix, Unicode-lowercase, normalization-form-preserving, and explicit no-extension rules; distinguish it from file-type classification; and serve group rows/total/summary plus both cross-facets and all three signatures from a Rust-owned backfilled key/index while preserving the four independent five-page caches, cancellation/generation/prefetch/stale-response bounds, and Milestone 8/10/11 boundaries. Canonical prefix/descendant and selected-root-relative modes remain deferred pending stored boundary-aware range keys; remaining gates are further explicitly indexed filters, the complete accessibility review, and representative-hardware warm-query/bounded-memory profiling. |
 | 2026-08-18 | Refined and accepted opt-in all-member filename-extension and all-member no-extension filtering after focused storage/worker/lifecycle/Core/WPF coverage, the full Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the expanded 100,000-group regression completed in 2.80 seconds Debug and 1.20 seconds optimized Release, Rust passed 18 storage and 10 worker tests, and each .NET configuration passed 45 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | Keep accepted any-member behavior as the default while defining `all` as matching-member count equal to persisted copy count across group rows/total/summary, both cross-facets, and all three cursor signatures; reuse the Rust-owned extension key and indexed membership path without changing the four five-page caches, independent cancellation/generations, two-page directional prefetch, stale-response rejection, or Milestone 8/10/11 boundaries. Versioned file type and boundary-aware canonical/selected-root-relative path modes remain deferred pending their separate mappings or stored range keys; remaining gates are further explicitly indexed filters, the complete accessibility review, and representative-hardware warm-query/bounded-memory profiling. |
 | 2026-08-18 | Refined and accepted the first bounded Milestone 8 accessibility-remediation slice after a focused 620-DIP STA layout regression, the full Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the unchanged 100,000-group regression completed in 2.79 seconds Debug and 1.26 seconds optimized Release, and each .NET configuration passed 45 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | No richer filter had both a sufficiently small contract and its required worker-owned mapping/range indexes. Make the fixed primary duplicate-file filter row reflow within the supported narrow workspace while preserving explicit tab/automation order and every accepted protocol, SQL, cursor, cache, cancellation, generation, prefetch, stale-response, virtualization, and Milestone 8/10/11 boundary; the remaining gates are further explicitly indexed filters, the rest of the complete accessibility review, and representative-hardware warm-query/bounded-memory profiling. |
+| 2026-08-18 | Refined and accepted the bounded duplicate-file query screen-reader announcement slice after focused storage/worker/Core/STA coverage, the full Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; the unchanged 100,000-group regression completed in 3.02 seconds Debug and 1.44 seconds optimized Release, and each .NET configuration passed 45 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | No remaining richer filter has both a small complete contract and its required versioned mapping or boundary-aware range indexes. Raise one coalesced repeatable `ActionCompleted` notification after the current duplicate-file group generation settles and an `ActionAborted` notification for validation/worker failures without changing accepted protocol, SQL/indexes, cursors, caches, cancellation/generations, stale-response rejection, prefetch, virtualization, or Milestone 8/10/11 boundaries; remaining gates are further explicitly indexed filters, selected-set/facet and broader screen-reader plus supported-size/DPI review, and representative-hardware warm-query/bounded-memory profiling. |

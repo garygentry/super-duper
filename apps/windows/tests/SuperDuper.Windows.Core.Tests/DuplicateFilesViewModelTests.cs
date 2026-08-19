@@ -72,6 +72,11 @@ public sealed class DuplicateFilesViewModelTests
         Assert.AreEqual(
             "2 selected roots represented · 2 drives represented · 1 set spans multiple drives",
             viewModel.LocationCoverageText);
+        Assert.AreEqual(1, viewModel.GroupStatusAnnouncementVersion);
+        Assert.AreEqual(
+            "Duplicate file query complete. 1 matching set, 2 copies, 4 KB potentially recoverable. "
+                + "2 selected roots represented · 2 drives represented · 1 set spans multiple drives.",
+            viewModel.GroupStatusAnnouncement);
         Assert.AreEqual("2 selected roots · across 2 drives", viewModel.Groups[0].LocationSpan);
         Assert.AreEqual(@"C:\Photos", viewModel.Members[0].SelectedRoot);
         Assert.AreEqual("photo.jpg", viewModel.Members[0].RelativePath);
@@ -319,6 +324,8 @@ public sealed class DuplicateFilesViewModelTests
 
         Assert.IsNull(groupQuery);
         StringAssert.Contains(viewModel.ErrorMessage, "32,767");
+        Assert.AreEqual(1, viewModel.GroupErrorAnnouncementVersion);
+        StringAssert.StartsWith(viewModel.GroupErrorAnnouncement, "Duplicate file filters could not be applied.");
     }
 
     [TestMethod]
@@ -660,12 +667,14 @@ public sealed class DuplicateFilesViewModelTests
         using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
         await viewModel.ShowRunAsync(
             TestWorkerClient.CreateRun(9, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        Assert.AreEqual(1, viewModel.GroupStatusAnnouncementVersion);
 
         for (var page = 1; page < 9; page++)
         {
             await viewModel.NextPageCommand.ExecuteAsync(null);
             Assert.IsTrue(viewModel.CachedGroupPageCount <= DuplicateFilesViewModel.CacheCapacity);
             Assert.AreEqual($"page-{page}.bin", viewModel.Groups[0].RepresentativeName);
+            Assert.AreEqual(page + 1, viewModel.GroupStatusAnnouncementVersion);
         }
     }
 
