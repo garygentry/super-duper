@@ -2199,6 +2199,168 @@ schedule, or expose deletion.
 - No command exposes a deletion schedule or execution path, uses `marked_deleted` or legacy
   deletion plans as review truth, validates live state, or hydrates an excluded cloud placeholder.
 
+#### Refined third vertical slice: ordered preferred scan-root rule preview (2026-08-19)
+
+##### User story, boundary, and persistence decision
+
+A user can save a named ordering of scan roots, choose an explicit completed-run scope, and inspect
+which immutable duplicate-file paths the rule would prefer to keep or remove before deciding
+whether that rule is useful. The preview explains ties, roots absent from the rule, manual-decision
+precedence, hard-link aliases, and folder-decision conflicts. Closing and restarting the app keeps
+the named rule; rerunning the preview reconstructs the same result when the immutable run, rule
+revision, and review-plan revision are unchanged.
+
+Schema and named-rule persistence land with preview because an unnamed, restart-volatile ordering
+cannot provide the required recovery or explanation contract. Saving rule configuration is a
+separate, bounded metadata mutation: it never creates, changes, or clears a review decision and
+never advances the review-plan revision. Rule application remains deferred to a later separately
+designed mutation slice. This slice adds no rule-produced provenance row, executable schedule,
+live validation, filesystem access, deletion, or Recycle Bin operation.
+
+##### Schema v7 and named ordered rules
+
+- Migrate the Rust-owned product database transactionally from v6 to v7 with `BEGIN IMMEDIATE`.
+  `preference_rule` stores a unique case-insensitive name, the fixed kind
+  `ordered_preferred_scan_roots`, an `active`/reserved `archived` state, a monotonic rule revision,
+  and created/updated timestamps. `preference_rule_root` stores a dense zero-based order and the
+  exact root value. It is separate from review plans/decisions, immutable run/live-state tables,
+  legacy deletion staging, and future execution state.
+- Root values are nonblank absolute Windows paths of at most 32,767 Unicode scalar values. Saving
+  trims no path characters and performs no filesystem normalization, canonicalization, existence
+  check, or Cloud Files access. Values are de-duplicated with locale-independent Unicode
+  case-insensitive comparison, matching immutable `scanned_file.root_path`; an exact duplicate is
+  rejected rather than silently reordered. A rule contains 1--64 roots and a name contains 1--128
+  trimmed Unicode scalar values.
+- `preference_rule.save` uses an operation ID and optional rule ID/expected revision. Creating with
+  no ID requires expected revision zero; updating requires the current positive revision. The rule
+  row, complete replacement root list, revision advance, and idempotency record commit together.
+  Exact replay returns the original rule/revision; reuse with another payload is rejected. Rule
+  configuration revision is independent of the active review-plan revision.
+- `preference_rule.list` and `preference_rule.get` are bounded SQLite-owned reads. V1 lists at most
+  200 active named rules ordered by case-insensitive name and ID and returns fixed-width metadata;
+  `get` returns at most 64 ordered roots. Archiving/deleting and rule application are deferred, so
+  no saved rule can disappear through this surface.
+- Migration creates all foreign keys, checks, and indexes before setting `user_version = 7`, rolls
+  back cleanly to v6 on failure, preserves every schema-v6 row, and continues to reject unknown
+  newer schemas. Run deletion and database truncation do not delete reusable rule configuration;
+  explicit test cleanup removes rule tables before session data without reinterpreting decisions.
+
+##### Exact ordered-root and virtual-decision semantics
+
+- Matching is exact, locale-independent Unicode case-insensitive equality between a rule root and
+  each member's immutable `scanned_file.root_path`. The preview does not infer containment from
+  path strings. A root absent from the rule is unranked; a rule root absent from the addressed run
+  is reported once in fixed-size summary counts but is not an error.
+- Evaluate each duplicate-file set from the immutable snapshot plus the active manual file/folder
+  decisions at the requested plan revision. Explicit manual `Keep` and `Remove` always win and are
+  never rewritten in the virtual result. Explicit or implicit `Undecided` remains rule-eligible.
+  A manual `Remove` cannot become a preferred survivor; ranking therefore considers rule-eligible
+  members not already effectively removed by manual file or folder decisions.
+- If no eligible member has a ranked root, the set is unaffected with reason `no_ranked_root`.
+  Otherwise the lowest numeric rank present is preferred. Every eligible logical path at that same
+  best rank is virtually kept; the rule never breaks a tie by path, member ID, timestamp, or other
+  hidden criterion. Other eligible paths are virtually removed, including unranked paths. Existing
+  manual Keeps remain kept even when lower-ranked, so preview may intentionally show more than one
+  survivor and explains `manual_keep_precedence`.
+- Non-empty immutable `file_identity` is the physical key; canonical path is the conservative
+  fallback when identity was not captured. Hard-link aliases participate as separate logical paths
+  but one physical item. A preferred alias can protect the physical item while a lower-ranked alias
+  is a logical removal target; aliases never inflate survivor or physical-target totals. If all
+  aliases of one physical item are virtually removed, that item contributes once to physical item
+  and byte totals.
+- Manual folder `Keep` protects its complete immutable directory subtree and blocks a conflicting
+  virtual removal. Manual folder `Remove` remains effective and cannot be undone by a virtual keep.
+  Folder containment uses the run-owned `directory_node.parent_id` hierarchy and immutable file
+  parent membership, never a string prefix or live enumeration. Suppressed exact-folder groups
+  continue to participate in safety even though they are not preview rows.
+- Apply the existing file/folder overlap, at-least-one-independent-physical-file-survivor, and
+  at-least-one-intact-exact-folder-copy invariants to the complete virtual set. A set whose proposed
+  changes violate an invariant is `blocked`, makes no virtual rule changes, and carries a stable
+  actionable reason plus bounded conflicting file/folder/group IDs. Preview never silently skips a
+  conflicting proposal while counting it as applicable.
+
+##### Explicit scopes and complete filter signature
+
+- `preference_rule.preview` requires exactly one scope: `selected_sets`, `current_filter`, or
+  `completed_run`. All forms require one completed immutable run and one active saved rule.
+- `selected_sets` contains 1--500 distinct duplicate-file group IDs, all owned by the run. The
+  canonical signature sorts IDs ascending so selection order does not change cursor identity.
+- `current_filter` carries the complete duplicate-file group filter: search/path-match, extension/
+  extension-match, minimum one-copy size, minimum copy count, across-drives, exact selected root,
+  and exact selected drive. It uses the existing normalization, indexed predicates, and scalar
+  limits. Omitting a field receives the same accepted default as `duplicate_file_group.page`; a
+  partial client-side approximation or only the currently loaded page is not a valid scope.
+- `completed_run` addresses every duplicate-file set in the immutable run. Scope never implies the
+  currently selected WPF rows or cached pages. Scope metadata and explanations always state which
+  of the three forms was evaluated.
+
+##### Revision-bound paging, fixed summaries, and errors
+
+- The response keyset-pages at most 500 affected or blocked sets in stable group-ID order. An
+  opaque cursor binds command kind, run, rule ID/revision, active-or-virtual plan ID/revision,
+  normalized scope signature, and page size. A saved-rule edit or manual file/folder mutation makes
+  old cursors return `invalid_cursor`; a late page can never mix generations.
+- Each row contains bounded IDs/counts, status (`applicable` or `blocked`), best rank when present,
+  tied preferred logical-path count, proposed logical keep/remove counts, proposed physical-remove
+  item count/bytes, manual Keep/Remove counts, and a stable primary explanation code. A separate
+  member-detail command is deferred; previews do not materialize run-wide path collections in WPF.
+- One fixed-size SQLite-owned summary accompanies every page and uses the same rule, plan revision,
+  and complete scope: scoped sets/logical paths/physical items/bytes; affected and blocked sets;
+  proposed Keep/Remove logical paths; distinct proposed physical items/bytes; manual Keep/Remove
+  paths; tied sets; sets with no ranked root; missing configured roots; and conflict counts by
+  overlap, file-survivor, and folder-survivor class. Logical paths de-duplicate by immutable file
+  ID; physical items and bytes de-duplicate by physical key across the complete scope, not by
+  adding per-set totals.
+- Expected structured errors distinguish missing/non-completed run, missing/archived rule, stale
+  rule revision, stale review revision, invalid/foreign selected sets, invalid complete filter,
+  invalid scope, invalid cursor, and bounded preview complexity. Blocked set rows contain stable
+  conflict explanations; request-level errors never expose raw SQL or unbounded path data.
+
+##### Core lifetime, cancellation, restart, and performance
+
+- Core owns independent cancellation sources and query generations for rule list/get/save and
+  preview. It retains at most five preview pages and one fixed summary for the selected run/rule/
+  scope/revisions. Changing run, rule, rule order, scope, filter, or review revision cancels current
+  waits, clears decision-sensitive preview pages, and rejects late responses by the complete
+  generation key. No run-wide decision, path, or physical-identity dictionary is introduced.
+- Host cancellation stops awaiting a page without treating the read as a mutation. Worker preview
+  queries run on a non-dispatcher worker path, check cancellation at bounded SQL progress intervals,
+  and are safe to abandon; EOF/worker exit leaves no preview state to reconcile. Restart reloads the
+  saved rule and recomputes preview solely from SQLite.
+- Disposable coverage includes schema migration/rollback, save replay/conflict/revision/restart,
+  all three scopes, complete filter/cursor signatures, ties, missing roots, hard-link aliases,
+  manual precedence, folder containment, suppressed groups, overlap/survivor conflicts, and global
+  logical/physical de-duplication. A 100,000-set fixture records first/next page and fixed-summary
+  optimized p95 plus private-memory growth under the existing five-second regression ceiling.
+  This evidence cannot close the independent representative-hardware Milestone 8 gate.
+
+##### WPF interaction and accessibility
+
+- The duplicate-file workspace exposes a named-rule editor with explicit Move up/Move down buttons
+  for the ordered root list, Save, scope selection, and Preview. Native controls have deterministic
+  tab order and Space/Enter activation; list selection plus the move buttons provides a complete
+  keyboard reordering path without drag-and-drop. Automation names/help text include the root's
+  complete immutable value and its one-based rank.
+- The preview heading states that nothing has been applied or deleted. A fixed summary identifies
+  the scope and counts applicable/blocked/tied/manual-precedence outcomes. Virtualized paged rows
+  expose concise reasons such as `Kept because D:\\Photos ranks above E:\\Backup`, `Kept because
+  both paths share the highest-ranked root`, and `Blocked because a manual folder Keep protects a
+  contained path`; no member is called the original.
+- Successful save and preview completion use repeatable polite announcements. Invalid rule input,
+  stale revisions, worker failure, and blocked-result details use the established actionable
+  assertive surface. Navigation remains usable while a read is pending; only the specific save or
+  preview controls are disabled. Database, worker, filesystem, Explorer, and Shell work remains off
+  the WPF dispatcher.
+
+##### Acceptance boundary
+
+Acceptance requires schema-v7, storage/worker/Core/Infrastructure/WPF coverage, restart persistence,
+large-fixture bounds, Debug/Release matrices, and real non-deleting smoke. It does not create rule
+decisions, modify manual decisions, advance a review plan, use `scanned_file.marked_deleted` or
+legacy `deletion_plan`, validate live state, read excluded placeholders, or expose/schedule/execute
+deletion. A later application slice must separately design rule snapshot provenance, idempotent
+plan mutation, reversal, conflicts after preview, and revalidation of the same invariants.
+
 #### Decision model
 
 - A review plan belongs to one immutable completed run.
