@@ -8,7 +8,9 @@ read-only Milestone 8 slices and the first eight bounded accessibility-remediati
 implemented and accepted; the broader milestone remains in progress and is gated by the remaining
 criteria below. The first three Milestone 10 slices are also accepted: durable manual file
 decisions, durable manual exact-folder decisions, and the read-only ordered preferred scan-root
-rule preview. Rule application, live validation, and deletion remain deferred.
+rule preview. The fourth Milestone 10 slice below now defines bounded ordered-rule application and
+reversal provenance; implementation acceptance remains open. Live validation and deletion remain
+deferred.
 
 This is the durable planning source for post-MVP Windows UX work. Update this document when a
 milestone is refined, split, accepted, or superseded so future coding sessions do not have to
@@ -2391,6 +2393,173 @@ plan mutation, reversal, conflicts after preview, and revalidation of the same i
   still present. No command exposes deletion, reads live filesystem state, or accesses excluded
   cloud-placeholder content.
 
+#### Refined fourth vertical slice: bounded ordered-rule application and reversal provenance (2026-08-19)
+
+##### User story, confirmation boundary, and non-goals
+
+A user who has completed an ordered preferred-root preview can review one fixed confirmation
+summary, apply exactly that rule revision to exactly that immutable run/scope/review revision, and
+later reverse that application without erasing manual review choices made before or after it.
+Application and reversal update only durable review intent. They do not validate a live path,
+hydrate an excluded cloud placeholder, create an executable schedule, invoke Shell or the Recycle
+Bin, or delete anything.
+
+The worker accepts no implicit current selection or currently loaded page. The application request
+resubmits the complete canonical scope plus the preview signature, rule revision, and source review
+revision. Core enables confirmation only for the most recent complete preview generation. Editing
+the rule, scope, filter, selected sets, run, or any review decision cancels confirmation and
+requires another preview.
+
+##### Schema v8 and immutable application provenance
+
+- Migrate Rust-owned SQLite from v7 to v8 in one `BEGIN IMMEDIATE` transaction. Preserve all v7
+  rule configuration, manual file/folder decisions, command replays, and immutable scan results.
+  Create every table, column, foreign key, check, and index before setting `user_version = 8`;
+  failure rolls back to an unchanged v7 database and unknown newer schemas remain fail closed.
+- Add `manual_revision` to `review_decision`, defaulting migrated rows to zero. New manual file
+  mutations store their resulting shared plan revision. Manual `Keep` and `Remove` always outrank
+  rule output. A manual `Undecided` recorded after an application also clears that application's
+  effective choice without becoming rule-owned; an older `Undecided` remains rule-eligible, as it
+  was during preview.
+- `review_rule_application` belongs to one active review plan and snapshots the application ID,
+  operation ID, run, rule ID/revision/name/kind, exact ordered roots JSON, canonical scope kind and
+  complete scope JSON/signature, source preview signature, source review-plan revision, applied
+  revision, fixed apply counts/bytes, state, and timestamps. The snapshot remains explainable if
+  the reusable rule is later edited. Reusable rule configuration remains independent and is never
+  rewritten by application or reversal.
+- `review_rule_decision` is separate from `review_decision` and
+  `review_folder_decision`. It belongs to exactly one application and snapshots the immutable
+  file/group identity, `keep` or `remove`, stable explanation code and rank, and file metadata used
+  during evaluation. At most one active rule-produced row may own a plan/file at a time. Rule rows
+  never masquerade as manual provenance and never use `scanned_file.marked_deleted` or legacy
+  `deletion_plan`.
+- `review_rule_reversal_command` stores the exact operation ID, application, run, expected current
+  review revision, and applied reversal revision. Application operation IDs and reversal operation
+  IDs are each bounded to 1--128 characters and independently idempotent. Run deletion cascades
+  application decisions, applications, and reversal commands with the plan; explicit truncation
+  clears them before manual review and immutable run data while preserving reusable rules until
+  their existing explicit cleanup phase.
+
+##### Effective-decision and later-manual-override semantics
+
+- Effective file review state is one bounded SQL-owned overlay. A manual `Keep`/`Remove` wins
+  regardless of age. A manual `Undecided` wins only when its `manual_revision` is newer than the
+  rule application's applied revision. Otherwise an active rule-produced row is effective; with no
+  effective row the file is implicitly undecided. Folder review remains manual-only.
+- A later manual file mutation writes only `review_decision`, with manual provenance and its own
+  immutable snapshot/revision. It never edits or adopts the corresponding `review_rule_decision`.
+  This preserves the exact application record while allowing immediate user control. Reversing the
+  application later deletes the hidden/superseded rule row and leaves the manual row untouched.
+- Existing member pages and plan/group summaries expose effective decision/provenance plus an
+  optional application ID. Fixed plan summaries distinguish effective Keep/Remove totals from
+  manual file/folder counts and active rule-produced Keep/Remove counts. They continue to globally
+  de-duplicate effective logical removals and physical targets.
+- A new application may address multiple disjoint scopes over time, but it cannot replace a rule
+  row owned by another active application. Any applicable proposal that overlaps an active
+  application returns one structured `rule_application_overlap` conflict and writes nothing. The
+  user can reverse the earlier application or make a manual override; provenance is never silently
+  transferred between applications.
+
+##### Apply transaction, exact replay, and conflict behavior
+
+- `preference_rule.apply` requires `operationId`, `runId`, `ruleId`, `ruleRevision`,
+  `sourceReviewRevision`, `previewSignature`, and exactly the same canonical scope accepted by
+  preview. V1 retains the 100,000-set and 500,000-logical-path limits. The worker recomputes the
+  signature from the complete normalized inputs; a partial filter, loaded page, changed selected
+  set, or stale preview signature is invalid.
+- In one immediate transaction, validate the completed immutable run and active rule; create the
+  active plan only when required; resolve an exact operation replay before current-generation
+  checks; require the current rule and plan revisions to equal the submitted source revisions;
+  rerun the exact preview evaluation; reject complexity or active-application overlap; stage rule
+  rows only for preview-`applicable` sets; and rerun file/folder overlap, physical-survivor, and
+  intact-folder-copy invariants across the complete proposed effective plan.
+- Preview-blocked sets remain unchanged and are recorded only in the application's fixed counts.
+  If there is no applicable Keep or Remove row, return `rule_application_empty`. Otherwise all
+  provenance, rule decisions, the single plan-revision advance, and the idempotency result commit
+  together. Any validation, generation, overlap, invariant, insertion, or commit failure rolls the
+  entire operation back; there is no per-set partial success.
+- An exact replay returns the original application ID, applied revision, and fixed outcome with
+  `replayed: true`, even after later plan revisions or reversal. Reusing the operation ID with a
+  different run, rule/revision, review revision, preview signature, or canonical scope returns
+  `idempotency_conflict`. Drift before a first application returns the specific rule/review/
+  preview conflict and makes no change.
+
+##### Bounded idempotent reversal and restart recovery
+
+- `preference_rule.application.reverse` requires a new operation ID, run/application IDs, and the
+  expected current review revision. It resolves exact replay first, verifies plan/run ownership and
+  that the application is active, deletes only `review_rule_decision` rows owned by that
+  application, marks its provenance record reversed, advances the shared plan revision once, and
+  records the reversal in one immediate transaction. It never deletes or rewrites manual file or
+  folder decisions, another application's rows, reusable rule configuration, live state, or
+  execution state.
+- Reversing an already reversed application with a new operation ID returns
+  `rule_application_already_reversed`; retrying the original exact reversal returns its original
+  revision. A stale expected revision or ownership mismatch changes nothing. Reversal reruns the
+  effective overlap/survivor invariants before commit; although restoring undecided paths is
+  normally monotonic, the invariant check remains part of the fail-closed contract.
+- `preference_rule.application.page` keyset-pages at most 200 application summaries for one
+  completed run, optionally narrowed to a rule, in descending application-ID order. Its cursor
+  binds run, optional rule, active plan ID/current revision, state filter, and page size. Each row
+  returns only fixed provenance/count fields; exact roots and scope JSON remain available through a
+  bounded single-application detail command. Restart reconstructs active/reversed history,
+  effective decisions, summaries, and reversal availability solely from SQLite.
+
+##### Shared revisions, cancellation, caching, and performance
+
+- Successful apply or reverse advances the same `review_plan.revision` exactly once and invalidates
+  file, folder, plan-summary, preview, and application-history cursors. Core propagates that
+  revision through the existing cross-workspace notification path. A successful later manual
+  mutation likewise invalidates preview/application confirmation while preserving application
+  history.
+- Core uses independent cancellation sources and generations for preview, apply, reverse, and
+  application history. It keeps at most five application-history pages plus the existing five
+  preview/group/member page bounds and fixed summaries. Run/rule/scope/filter/revision changes
+  cancel waits and reject late results by run, immutable IDs, operation ID, generation, and returned
+  revision. No run-wide decision or provenance dictionary is introduced.
+- Cancellation of an uncertain apply/reverse wait never invents success or retry with a new ID.
+  Core retains the original operation ID and exact payload for explicit retry; replay makes worker
+  exit/restart recovery deterministic. Database, worker, filesystem, Shell, and Explorer work stay
+  off the WPF dispatcher.
+- Disposable tests cover v7 migration/rollback, application snapshot shape, all scopes, exact
+  signature/replay/conflict, rule/review drift, manual precedence and later overrides, overlapping
+  applications, blocked sets, file/folder overlap, hard-link physical survivors, suppressed-folder
+  survivors, reversal isolation/replay/staleness, restart recovery, revision-bound paging, and
+  global logical/physical de-duplication. A 100,000-set/500,000-path upper-bound fixture records
+  optimized apply, reversal, plan-summary, and first/next history-page time plus retained private-
+  memory growth under explicit development-host ceilings. It cannot close the independent
+  representative-hardware gate.
+
+##### WPF confirmation and accessibility
+
+- After a complete preview, native `Apply rule` enters an inline confirmation region rather than
+  applying immediately. The region states rule name/revision, run, exact scope label, source review
+  revision, applicable/blocked set counts, rule Keep/Remove path counts, physical removal items/
+  bytes, and that this changes review decisions only. `Confirm application` and `Cancel` are native,
+  keyboard-focusable buttons with deterministic tab order and Space/Enter activation; focus moves
+  to the confirmation heading on entry and returns to `Apply rule` on cancel.
+- Apply remains unavailable for a partial/late preview, zero applicable decisions, stale rule or
+  review revision, or an in-flight mutation. Confirmation never labels a path the original and
+  never implies deletion. Success announces the applied rule, decision counts, and new review
+  revision politely, refreshes bounded summaries/history, and offers a native `Reverse this
+  application` action.
+- Reversal uses its own inline confirmation naming the application and the exact rule-produced
+  Keep/Remove counts that will be cleared. Success announces that manual choices were preserved.
+  Stale generation, idempotency reuse, overlapping application, already-reversed, and invariant
+  failures use the established assertive actionable-error region. Navigation remains available
+  while only the relevant mutation controls are disabled, and virtualized preview/history rows
+  retain concise complete accessible names and explanations.
+
+##### Acceptance boundary
+
+Acceptance requires schema-v8/storage/worker/Core/Infrastructure/WPF coverage, restart recovery,
+large-fixture regression evidence, Debug/Release matrices, and real non-deleting smoke proving
+application, later manual override, reversal, restart persistence, accessible confirmation, and
+unchanged disposable files. Until those checks pass this section is design, not a completed gate.
+It cannot close representative-hardware warm queries or physical Narrator/NVDA, OS high-contrast,
+or multi-monitor DPI-transition verification, and it introduces no Milestone 11/12 execution or
+live-state behavior.
+
 #### Decision model
 
 - A review plan belongs to one immutable completed run.
@@ -2692,22 +2861,13 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 Keep the remaining physical Narrator/NVDA, high-contrast, multi-monitor DPI, and representative-
 hardware Milestone 8 procedures operator-gated; they can close independently from later review
-work. The next implementation slice should refine, before coding, one separately bounded Milestone
-10 ordered-rule application mutation:
-
-1. Snapshot rule ID/revision, run, exact scope/filter signature, and source review-plan revision in
-   Rust-owned provenance. Require an explicit idempotency key and expected revisions; an exact replay
-   returns the original outcome, while any drift returns a structured conflict and makes no change.
-2. Write only rule-produced decisions for preview-applicable sets, preserve manual Keep/Remove
-   precedence, re-evaluate the same file/folder overlap and survivor invariants transactionally, and
-   advance the shared review-plan revision exactly once. Define how a later manual decision overrides
-   provenance without becoming rule-owned.
-3. Design a bounded, idempotent reversal/clear operation that removes only decisions produced by
-   that recorded application and never erases later manual choices. Keep rule configuration,
-   application provenance, manual review state, live state, and execution state separate.
-4. Keep this next slice non-executing: do not validate live files, hydrate excluded cloud
-   placeholders, create a deletion schedule, use legacy deletion truth, invoke the Recycle Bin, or
-   delete anything. Milestone 12 continues to own live-state badges and changed/resolved behavior.
+work. Implement the refined fourth Milestone 10 vertical slice above: schema-v8 application
+provenance and manual-revision overlay, exact preview-bound apply/replay, bounded application
+history, isolated reversal, shared-revision invalidation, and accessible inline WPF confirmations.
+Keep its acceptance boundary open until storage/worker/Core/Infrastructure/WPF coverage, bounded
+development-host profiling, Debug/Release matrices, and real non-deleting smoke pass. Milestone 12
+continues to own live-state badges and changed/resolved behavior; Milestone 11 continues to own
+validation, scheduling, Recycle Bin interaction, and deletion.
 
 ## Milestone Definition Template
 

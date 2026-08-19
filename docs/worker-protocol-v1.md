@@ -503,10 +503,11 @@ V1 evaluates at most 100,000 scoped sets and 500,000 scoped logical paths. A lar
 user can narrow it with `current_filter` or `selected_sets`. This cap bounds transient Rust-owned
 evaluation state and does not create a partial preview.
 
-The response keyset-pages affected or blocked sets by group ID:
+The response keyset-pages affected or blocked sets by group ID. `previewSignature` binds the
+canonical run/rule/review/scope inputs and is required by a later apply request:
 
 ```json
-{"groups":[{"groupId":31,"status":"applicable","bestRank":0,"preferredRoot":"D:\\Photos","tiedPreferredPathCount":1,"proposedKeepPathCount":1,"proposedRemovePathCount":2,"proposedRemovePhysicalItemCount":2,"proposedRemoveBytes":"10485760","manualKeepCount":0,"manualRemoveCount":0,"explanationCode":"preferred_root_rank","conflictFileId":null,"conflictFolderMemberId":null}],"total":42,"nextCursor":"opaque","ruleId":7,"ruleRevision":3,"reviewPlanId":12,"reviewRevision":5,"summary":{"scopedGroupCount":50,"scopedLogicalPathCount":140,"scopedPhysicalItemCount":130,"scopedBytes":"734003200","affectedGroupCount":42,"blockedGroupCount":2,"proposedKeepPathCount":45,"proposedRemovePathCount":80,"proposedRemovePhysicalItemCount":75,"proposedRemoveBytes":"524288000","manualKeepPathCount":4,"manualRemovePathCount":3,"tiedGroupCount":3,"noRankedRootGroupCount":6,"missingRuleRootCount":1,"overlapConflictCount":1,"fileSurvivorConflictCount":0,"folderSurvivorConflictCount":1}}
+{"groups":[{"groupId":31,"status":"applicable","bestRank":0,"preferredRoot":"D:\\Photos","tiedPreferredPathCount":1,"proposedKeepPathCount":1,"proposedRemovePathCount":2,"proposedRemovePhysicalItemCount":2,"proposedRemoveBytes":"10485760","manualKeepCount":0,"manualRemoveCount":0,"explanationCode":"preferred_root_rank","conflictFileId":null,"conflictFolderMemberId":null}],"total":42,"nextCursor":"opaque","previewSignature":"opaque","ruleId":7,"ruleRevision":3,"reviewPlanId":12,"reviewRevision":5,"summary":{"scopedGroupCount":50,"scopedLogicalPathCount":140,"scopedPhysicalItemCount":130,"scopedBytes":"734003200","affectedGroupCount":42,"blockedGroupCount":2,"proposedKeepPathCount":45,"proposedRemovePathCount":80,"proposedRemovePhysicalItemCount":75,"proposedRemoveBytes":"524288000","manualKeepPathCount":4,"manualRemovePathCount":3,"tiedGroupCount":3,"noRankedRootGroupCount":6,"missingRuleRootCount":1,"overlapConflictCount":1,"fileSurvivorConflictCount":0,"folderSurvivorConflictCount":1}}
 ```
 
 Manual Keep/Remove decisions take precedence. Ranking excludes already effective manual removals,
@@ -524,6 +525,64 @@ conflict IDs.
 The cursor binds run, rule ID/revision, active-or-virtual review plan/revision, page size, and the
 canonical complete scope. Rule edits and manual file/folder mutations therefore reject old cursors.
 Cancellation abandons only the read; there is no preview state to reconcile after restart.
+
+### `preference_rule.apply`
+
+```json
+{"type":"request","id":"pra1","method":"preference_rule.apply","params":{"operationId":"058dc22e1ff34caaa04db239c10767cc","runId":19,"ruleId":7,"ruleRevision":3,"sourceReviewRevision":5,"previewSignature":"opaque","scope":{"kind":"completed_run"}}}
+```
+
+The scope is the same complete canonical shape accepted by preview. The transaction recomputes its
+signature, verifies the completed run and exact rule/review generations, reruns the bounded preview,
+stages only preview-applicable rule decisions, rechecks overlap plus physical-file and intact-folder
+survivors, and advances the shared review revision once. Preview-blocked sets remain unchanged. Any
+drift or failure rolls back the complete application.
+
+```json
+{"applicationId":22,"planId":12,"sourceReviewRevision":5,"appliedRevision":6,"replayed":false,"state":"active","summary":{"scopedGroupCount":50,"applicableGroupCount":42,"blockedGroupCount":2,"ruleKeepPathCount":45,"ruleRemovePathCount":80,"ruleRemovePhysicalItemCount":75,"ruleRemoveBytes":"524288000"}}
+```
+
+The apply operation ID is 1--128 characters. Exact replay returns the original application ID,
+revision, and fixed summary with `replayed: true`; payload reuse returns `idempotency_conflict`.
+`rule_application_empty`, `rule_application_overlap`, `preference_preview_conflict`, existing
+rule/review generation conflicts, and existing invariant errors write nothing. V1 retains the
+100,000-set/500,000-path evaluation limits.
+
+Rule-produced rows are separate from manual rows. Manual `Keep`/`Remove` always takes precedence.
+A manual `Undecided` made after the application also overrides its rule row; older `Undecided`
+remains rule-eligible. Member results expose effective provenance and optional `applicationId`.
+
+### `preference_rule.application.page`
+
+```json
+{"type":"request","id":"prap1","method":"preference_rule.application.page","params":{"runId":19,"ruleId":7,"state":"all","pageSize":100,"cursor":null}}
+```
+
+The response returns at most 200 fixed application summaries in descending application-ID order.
+`ruleId` is optional and state is `active`, `reversed`, or `all`. The forward-only cursor binds the
+run, optional rule, active plan/current revision, state, and page size; any review mutation makes an
+old cursor invalid. A bounded single-application detail response adds snapshotted roots and canonical
+scope metadata without returning member decisions.
+
+### `preference_rule.application.reverse`
+
+```json
+{"type":"request","id":"prar1","method":"preference_rule.application.reverse","params":{"operationId":"6ca8ef7cf8244abcb34f4f5ef049cd36","runId":19,"applicationId":22,"expectedRevision":8}}
+```
+
+```json
+{"applicationId":22,"planId":12,"appliedRevision":9,"replayed":false,"state":"reversed","removedRuleKeepCount":45,"removedRuleRemoveCount":80}
+```
+
+Reversal deletes only rule-decision rows owned by the application, preserves all manual file/folder
+rows and other applications, marks provenance reversed, rechecks effective-plan invariants, and
+advances the shared revision once. Exact replay returns the original reversal revision. A new
+operation against an already reversed application, a stale revision, or wrong run/plan ownership
+changes nothing.
+
+Apply and reverse are durable review mutations only. Neither command validates live state, reads an
+excluded cloud placeholder, creates an execution schedule, invokes Shell/Recycle Bin behavior, or
+deletes data.
 
 ## Duplicate File Result Commands
 
