@@ -2023,6 +2023,153 @@ preflight, Recycle Bin integration, or any deletion action.
   filters, facets, focus restoration, Explorer, cloud-fail-closed, and shutdown coverage. No
   deletion or live-state behavior was exposed.
 
+#### Refined second vertical slice: manual exact-folder copy decisions
+
+##### User story and bounded scope
+
+A user reviewing the visible copies in one exact-folder set can mark one immutable folder copy
+`Keep`, `Remove`, or `Undecided`, see how that choice overlaps existing manual file decisions, and
+resume the same review after an application or worker restart. Folder and file mutations share the
+one active review plan and its monotonic revision. This slice remains review-only: it does not read
+the current filesystem, validate a tree, access excluded cloud placeholders, create an executable
+schedule, or expose deletion.
+
+##### Schema v6 and immutable folder-copy snapshot
+
+- Migrate the Rust-owned product database transactionally from v5 to v6 with `BEGIN IMMEDIATE`.
+  Create every table, foreign key, check, and index before setting `user_version = 6`; rollback
+  leaves a valid v5 database unchanged. Existing plans, file decisions, command replays, immutable
+  results, and legacy tables are preserved without reinterpretation.
+- Add a separate `review_folder_decision` table. Do not overload `review_decision`: a folder choice
+  belongs to one plan, exact-folder group, and immutable `duplicate_folder_group_member` copy, and
+  also references that member's `directory_node`. Its unique key is `(plan_id, folder_member_id)`.
+- Snapshot manual provenance, decision time, canonical folder path, descendant logical byte/file
+  totals, and the group's structural and verified fingerprints into the decision row. The stable
+  folder-member/directory IDs establish immutable ownership; snapshot fields explain the exact
+  scanned tree on which the choice was made. No snapshot field is refreshed from the live tree.
+- Add a distinct `review_folder_command` ledger whose payload is
+  `(run, folderGroup, folderMember, decision, expectedRevision)`. Operation IDs are 1--128
+  characters and are idempotent within this command family: an exact replay returns its original
+  applied revision, while reuse for another folder payload is rejected. The file-specific
+  `review_command` shape and replay contract remain intact rather than accepting nullable or
+  polymorphic folder fields.
+- Run deletion cascades through both ledgers and both decision tables. Database truncation clears
+  the ledgers and decisions before plans and immutable run data. Neither table uses
+  `scanned_file.marked_deleted` or legacy `deletion_plan` as review truth.
+
+##### Folder decisions and overlap safety
+
+- `Keep` protects the complete snapshotted folder copy: no effective file or folder removal may
+  contain that root or any of its descendants. `Remove` expresses review intent for every
+  snapshotted file path under that copy. `Undecided` clears either effect while retaining an
+  explicit reversible manual row and snapshot; a missing row is also effectively undecided.
+- Determine containment from the immutable run-owned `directory_node.parent_id` hierarchy and join
+  files by the snapshotted directory path. Never use string-prefix containment or enumerate the
+  filesystem. A recursive CTE may walk one addressed subtree or its ancestors, but no complete
+  tree is materialized in Core or WPF.
+- Evaluate the proposed mutation against the effective removal union in the same immediate
+  transaction. That union contains file paths explicitly marked `remove` plus paths beneath folder
+  copies marked `remove`. Reject a file/folder `Remove` already covered by another removed folder,
+  a nested removed-folder overlap, and any `Keep`/`Remove` containment conflict. The actionable
+  error identifies the conflicting decision kind and bounded immutable IDs so the user can clear
+  the older decision first.
+- After applying the proposal virtually, every exact-folder set, including retained suppressed
+  nested groups, must have at least one intact independently accessible folder root. A root is
+  intact only when neither it nor an ancestor folder copy is removed and no effective file removal
+  lies in its snapshotted subtree. Suppressed groups are protected by this invariant but remain
+  non-addressable until the existing advanced visibility toggle is implemented.
+- Also re-evaluate every duplicate-file set touched by a folder subtree, and extend file mutation
+  safety to folder decisions. At least one accessible alias of one physical item must remain.
+  Non-empty immutable `file_identity` values identify hard-link aliases; canonical path remains the
+  conservative fallback. Removing one hard-link path does not remove a surviving alias, and aliases
+  never inflate the independent-physical-survivor count.
+- Combined totals are derived from the effective union, not by adding folder and file subtotals.
+  Logical target paths are distinct by immutable file ID; planned physical items and bytes are
+  distinct by physical key. Thus nested trees, hard links, and a file decision overlapping a folder
+  can neither be counted nor later scheduled twice. This slice exposes no schedule or execution
+  command.
+
+##### Shared revision, commands, and structured errors
+
+- Add `review_folder_decision.set` rather than widening `review_decision.set`. It validates a
+  completed run and exact run/group/member/directory ownership, creates the active plan lazily,
+  resolves a folder-command replay, checks `expectedRevision`, performs overlap and both survivor
+  checks, snapshots/upserts the folder choice, advances the same `review_plan.revision`, and records
+  the replay result in one transaction.
+- Extend `review_decision.set` so a file proposal performs the same cross-kind overlap and folder-
+  survivor checks before advancing that shared revision. Existing exact replays remain replayable
+  after later folder mutations because replay resolution precedes the current-revision check.
+- Keep `review_generation_conflict`, `idempotency_conflict`, and the existing file-member errors.
+  Add separate wrong-folder-group/member ownership, unsafe-folder-survivor, and review-overlap error
+  codes. Details contain only bounded IDs, current/expected revisions, and conflict kinds; WPF maps
+  each to a concrete recovery action instead of displaying raw protocol text.
+
+##### Bounded, revision-consistent reads
+
+- `review_plan.get` continues to return one active/virtual plan and now returns a combined summary
+  for the same revision: explicit file and folder Keep/Remove/Undecided counts, decided file/folder
+  set counts, distinct effective logical targets, distinct planned physical items/bytes, remaining
+  file physical survivors, and intact exact-folder copy count. The aggregation is SQLite-owned and
+  returns one fixed-size row.
+- Add forward-only `review_folder_group.page`, limited to 500 visible exact-folder groups, with
+  Keep/Remove/Undecided copy counts and intact-copy count. Its opaque keyset cursor binds run,
+  active plan ID, shared revision, page size, and visibility mode; a mutation invalidates it.
+- Extend the bounded exact-folder member query to left-join only the active plan and return each
+  visible copy's decision/provenance/time plus the selected folder-set summary. Its existing maximum
+  remains 500 (200 in WPF), and both next/previous cursor signatures bind the active plan ID and
+  shared revision. Old revision cursors fail instead of mixing member generations.
+- Plan/combined-summary, folder-group, and member responses all carry the plan ID/revision they
+  describe. Queries cover visible groups by default; suppressed rows participate only in invariant
+  evaluation until their separately designed visibility entry point exists.
+
+##### Core caching, restart, and stale-response behavior
+
+- Reuse the exact-folder workspace's independent five-page group and five-page member LRU bounds.
+  Decision metadata lives only on cached/visible pages; no run-wide folder-decision dictionary is
+  introduced. Add at most a five-page review-folder-summary cache if the UI needs a separate
+  summary channel.
+- A successful mutation cancels/increments folder-review and member generations, clears only
+  decision-sensitive folder pages, refreshes the displayed member page and combined plan summary,
+  then announces success. File pages are invalidated when a folder choice changes their effective
+  state; folder pages are invalidated when a file choice changes intact-copy state.
+- Run changes, navigation, cancellation, and worker restart reject late plan, group, member, and
+  mutation responses by run ID, selected immutable IDs, generation, and returned review revision.
+  Restart reconstructs every decision and summary from SQLite. An uncertain folder operation is
+  retried only with its original folder operation ID and exact payload.
+
+##### WPF interaction and accessibility
+
+- The exact-folder workspace shows a combined plan summary and a selected-set folder summary. Each
+  virtualized folder-copy row displays its decision and native `Keep`, `Remove`, and `Undecided`
+  buttons whose accessible names include the complete immutable folder path.
+- Buttons remain reachable in deterministic tab order and use native Space/Enter activation;
+  arrow/page navigation and existing next/previous-page focus restoration remain unchanged. While
+  one review mutation is pending, decision buttons are disabled without moving keyboard focus or
+  blocking other already displayed navigation.
+- Success raises one polite, repeatable announcement containing the folder path, new decision, and
+  refreshed set summary. Overlap, stale-revision, and unsafe-survivor failures use the assertive
+  detail-error surface with an actionable instruction such as clearing the named contained file or
+  folder decision first. Automation names/help text never imply that review performs deletion.
+- Database, worker, filesystem, Explorer, and Shell work stays off the WPF dispatcher. This slice
+  adds no filesystem work; existing explicit Explorer commands retain their established background
+  service boundary.
+
+##### Verification and performance bounds
+
+- Storage tests cover v5-to-v6 migration/rollback shape, snapshot ownership, all three states,
+  restart, folder-command replay/conflict, shared stale revisions, nested/ancestor overlap,
+  suppressed-group survival, contained file decisions, hard-link aliases, and deduplicated combined
+  counts. Worker tests cover allow-listing, exact DTOs, structured errors, decimal-safe totals, and
+  revision-bound folder-group/member cursors.
+- Core/Infrastructure/WPF tests cover typed folder commands, five-page cache bounds, cross-workspace
+  invalidation, late-generation/revision rejection, keyboard-focusable row controls, complete-path
+  accessible names, announcements, and actionable errors.
+- A disposable fixture with 100,000 visible groups plus nested suppressed groups and overlapping
+  file/folder aliases must keep the combined plan row and first/next folder-review pages under the
+  existing five-second regression ceiling. Record optimized warm p95 and private-memory growth for
+  the new queries without claiming the independently open Milestone 8 representative-hardware,
+  Narrator/NVDA, OS high-contrast, or multi-monitor DPI gates.
+
 #### Decision model
 
 - A review plan belongs to one immutable completed run.
