@@ -11,6 +11,12 @@ use super_duper_core::storage::models::{
 use super_duper_core::storage::sqlite::CURRENT_SCHEMA_VERSION;
 use super_duper_core::storage::Database;
 use tempfile::tempdir;
+#[cfg(windows)]
+use winapi::um::processthreadsapi::GetCurrentProcess;
+#[cfg(windows)]
+use winapi::um::psapi::{
+    GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX,
+};
 
 fn parameters(roots: &[&str], ignores: &[&str]) -> RunParameters {
     RunParameters {
@@ -1179,8 +1185,7 @@ fn existing_schema_four_extension_keys_are_backfilled_without_filesystem_access(
     assert_eq!(keys, vec![String::new(), "gz".to_owned()]);
 }
 
-#[test]
-fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
+fn hundred_thousand_group_fixture() -> (Database, i64, DuplicateFileGroupPageQuery) {
     let db = Database::open_in_memory().unwrap();
     let (_, run_id) = session_and_run(&db, "Scale", &["/root"]);
     let transaction = db.connection().unchecked_transaction().unwrap();
@@ -1258,6 +1263,26 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         },
         cursor: None,
     };
+    (db, run_id, query)
+}
+
+#[cfg(windows)]
+fn current_process_private_bytes() -> u64 {
+    let mut counters: PROCESS_MEMORY_COUNTERS_EX = unsafe { std::mem::zeroed() };
+    let result = unsafe {
+        GetProcessMemoryInfo(
+            GetCurrentProcess(),
+            &mut counters as *mut PROCESS_MEMORY_COUNTERS_EX as *mut PROCESS_MEMORY_COUNTERS,
+            std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32,
+        )
+    };
+    assert_ne!(result, 0, "GetProcessMemoryInfo failed");
+    counters.PrivateUsage as u64
+}
+
+#[test]
+fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
+    let (db, run_id, query) = hundred_thousand_group_fixture();
     let started = std::time::Instant::now();
     let first = db.page_duplicate_file_groups(&query).unwrap();
     assert_eq!(first.total, 100_000);
@@ -1621,6 +1646,136 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         })
         .unwrap();
     assert_eq!(selected_drive.total, 100);
+}
+
+#[test]
+#[ignore = "run explicitly in Release on representative Windows hardware"]
+fn representative_review_workspace_profile() {
+    let (db, run_id, query) = hundred_thousand_group_fixture();
+    let root_query = DuplicateFileSelectedRootFacetPageQuery {
+        run_id,
+        limit: 25,
+        sort_field: DuplicateFileSelectedRootFacetSortField::MatchingGroupCount,
+        sort_direction: SortDirection::Descending,
+        filter: query.filter.clone(),
+        cursor: None,
+    };
+    let drive_query = DuplicateFileDriveFacetPageQuery {
+        run_id,
+        limit: 25,
+        sort_field: DuplicateFileDriveFacetSortField::MatchingGroupCount,
+        sort_direction: SortDirection::Descending,
+        filter: query.filter.clone(),
+        cursor: None,
+    };
+
+    assert_eq!(
+        db.page_duplicate_file_groups(&query).unwrap().groups.len(),
+        200
+    );
+    assert_eq!(
+        db.page_duplicate_file_selected_root_facets(&root_query)
+            .unwrap()
+            .facets
+            .len(),
+        1
+    );
+    assert_eq!(
+        db.page_duplicate_file_drive_facets(&drive_query)
+            .unwrap()
+            .facets
+            .len(),
+        2
+    );
+
+    #[cfg(windows)]
+    let baseline_private_bytes = current_process_private_bytes();
+    #[cfg(windows)]
+    let mut peak_private_bytes = baseline_private_bytes;
+    let mut group_durations = Vec::with_capacity(100);
+    let mut root_facet_durations = Vec::with_capacity(100);
+    let mut drive_facet_durations = Vec::with_capacity(100);
+
+    for _ in 0..100 {
+        let started = std::time::Instant::now();
+        let group_page = db.page_duplicate_file_groups(&query).unwrap();
+        group_durations.push(started.elapsed());
+        assert_eq!(group_page.groups.len(), 200);
+
+        let started = std::time::Instant::now();
+        let root_page = db
+            .page_duplicate_file_selected_root_facets(&root_query)
+            .unwrap();
+        root_facet_durations.push(started.elapsed());
+        assert_eq!(root_page.facets.len(), 1);
+
+        let started = std::time::Instant::now();
+        let drive_page = db.page_duplicate_file_drive_facets(&drive_query).unwrap();
+        drive_facet_durations.push(started.elapsed());
+        assert_eq!(drive_page.facets.len(), 2);
+
+        #[cfg(windows)]
+        {
+            peak_private_bytes = peak_private_bytes.max(current_process_private_bytes());
+        }
+    }
+
+    for durations in [
+        &mut group_durations,
+        &mut root_facet_durations,
+        &mut drive_facet_durations,
+    ] {
+        durations.sort_unstable();
+    }
+    let percentile_95 = |durations: &[std::time::Duration]| {
+        durations[((durations.len() * 95).div_ceil(100)).saturating_sub(1)]
+    };
+    let percentile_99 = |durations: &[std::time::Duration]| {
+        durations[((durations.len() * 99).div_ceil(100)).saturating_sub(1)]
+    };
+    let group_p95 = percentile_95(&group_durations);
+    let root_facet_p95 = percentile_95(&root_facet_durations);
+    let drive_facet_p95 = percentile_95(&drive_facet_durations);
+
+    #[cfg(windows)]
+    let private_growth_bytes = peak_private_bytes.saturating_sub(baseline_private_bytes);
+    #[cfg(not(windows))]
+    let private_growth_bytes = 0_u64;
+    eprintln!(
+        "review-profile samples=100 groups-p50={:.2}ms groups-p95={:.2}ms groups-p99={:.2}ms root-facets-p95={:.2}ms drive-facets-p95={:.2}ms private-growth={} bytes",
+        group_durations[group_durations.len() / 2].as_secs_f64() * 1000.0,
+        group_p95.as_secs_f64() * 1000.0,
+        percentile_99(&group_durations).as_secs_f64() * 1000.0,
+        root_facet_p95.as_secs_f64() * 1000.0,
+        drive_facet_p95.as_secs_f64() * 1000.0,
+        private_growth_bytes,
+    );
+
+    #[cfg(windows)]
+    assert!(
+        private_growth_bytes < 32 * 1024 * 1024,
+        "repeated bounded review pages grew private memory by {} bytes",
+        private_growth_bytes
+    );
+    let warm_target = std::time::Duration::from_millis(100);
+    assert!(
+        group_p95 < warm_target,
+        "warm group-page p95 {:?} exceeded {:?}",
+        group_p95,
+        warm_target
+    );
+    assert!(
+        root_facet_p95 < warm_target,
+        "warm selected-root facet p95 {:?} exceeded {:?}",
+        root_facet_p95,
+        warm_target
+    );
+    assert!(
+        drive_facet_p95 < warm_target,
+        "warm drive facet p95 {:?} exceeded {:?}",
+        drive_facet_p95,
+        warm_target
+    );
 }
 
 #[test]

@@ -1741,6 +1741,67 @@ XAML change.
   keys and indexes exist; the rest of the broader screen-reader and supported
   minimum-size/multi-DPI review; and representative-hardware warm-query/bounded-memory profiling.
 
+#### Read-only milestone closure audit (2026-08-19)
+
+##### Automated performance and memory profile
+
+- `representative_review_workspace_profile` now reuses the 100,000-group fixture and is ignored by
+  default so ordinary Debug/Release suites do not turn a hardware target into a CI timing test. The
+  explicit Release profile warms the query path, samples 100 group/summary, selected-root-facet,
+  and drive-facet first pages, enforces a 100 ms p95 for each, and requires private-memory growth
+  below 32 MiB across the 300 bounded queries. Run it with:
+
+  ```powershell
+  cargo test -p super-duper-core --release --test storage_tests representative_review_workspace_profile -- --ignored --exact --nocapture --test-threads=1
+  ```
+
+- This host is Windows build 22631.6199 with an Intel Core i5-9600K, 6 logical processors,
+  31.9 GiB RAM, and a 96-DPI interactive desktop. Its stable 100-sample run measured a 71.63 ms
+  group/summary median, 140.47 ms group/summary p95, 59.68 ms selected-root-facet p95, 37.48 ms
+  drive-facet p95, and 815,104 bytes of private-memory growth. The facet and 32 MiB memory bounds
+  pass; the group/summary p95 does not meet the 100 ms target, so the warm-query gate remains open.
+- The measured sub-megabyte growth complements the existing five-page group/member/facet cache
+  assertions, two-page directional prefetch bounds, 200-row visible collections, and recycling
+  virtualization checks. The read-only bounded-memory gate is closed for the current page/cache
+  design; future Milestone 10 plan caches require their own measurements.
+- To close the warm-query gate, run the command above from an already-built Release tree on the
+  designated representative Windows 11 x64 machine under normal background load. Preserve the
+  printed 100-sample metrics and require all three p95 values below 100 ms without a retry-only
+  pass. If group/summary still fails, optimize the existing normalized summary predicate and query
+  plan with `EXPLAIN QUERY PLAN` evidence; do not weaken the target or omit summary/location data.
+
+##### Accessibility findings and remaining operator evidence
+
+- Keyboard automation passes for the explicit 30-control duplicate-file tab order, bounded
+  group/member/facet paging, next/previous-set focus restoration, and virtualized grids. Minimum
+  width is covered at the 900-by-600-DIP main-window minimum and its 620-DIP content workspace:
+  the primary file filters, Session Setup editors, and exact-folder filters all have focused STA
+  reflow regressions and remain within the workspace.
+- Screen-reader automation passes for stable names/IDs and repeatable current-generation
+  completion/failure notifications on duplicate-file groups, members, both facets, and exact-folder
+  groups/members. Non-displayed prefetch, cancellation, stale generations, and Explorer-only errors
+  remain intentionally silent. This proves the UI Automation contract but is not a Narrator or
+  NVDA listening pass.
+- High-contrast code inspection found the review surfaces use dynamic Windows system brushes for
+  borders, backgrounds, and actionable error text; loaded STA tests verify the resolved error
+  brushes. This session did not change the operator's Windows theme, so a physical high-contrast
+  visual pass remains open.
+- The available desktop reports only 96 DPI. WPF layout and the minimum-width regressions use DIPs,
+  but no physical 100/150/200-percent multi-monitor transition was available, so clipping, focus,
+  and popup placement across real per-monitor DPI changes remain open.
+- Current real-WPF smoke attempts reached the selected-root/drive keyboard facet interaction, then
+  the session rejected `SendKeys.SendWait` with `The operation completed successfully.` Both
+  headless Debug/Release worker smokes and all three STA tests passed. This is the documented
+  input-injection restriction, not evidence for the remaining assistive-technology gate.
+- To close the operator accessibility gate, use an interactive Windows 11 x64 desktop with
+  Narrator or NVDA, a Windows high-contrast theme, and physical 100%, 150%, and 200% monitor scales.
+  At both the default and 900-by-600-DIP minimum sizes, traverse Setup, Duplicate files, and
+  Duplicate folders without a mouse; exercise every filter, facet, sort, page, next/previous-set,
+  copy, and Explorer action; move the window between differently scaled monitors; and record the
+  spoken names/status/error announcements, visible focus order, popup placement, contrast, and any
+  clipped or unreachable control. A pass requires no focus loss, duplicate/stale announcement,
+  inaccessible action, horizontal workspace overflow, or DPI-transition clipping.
+
 #### User outcome
 
 The results surface answers three questions without requiring repeated Explorer investigation:
@@ -1752,44 +1813,43 @@ The results surface answers three questions without requiring repeated Explorer 
 #### Summary
 
 - Potential recoverable space.
-- Sets awaiting review, partially reviewed, ready, changed, and resolved.
-- Largest duplicate locations and cross-drive duplication.
-- Entry points such as `Over 1 GB`, `Three or more copies`, `Across drives`, and `Changed since
-  scan`.
+- Matching set/copy counts, largest recoverable opportunity, and aggregate selected-root/drive
+  coverage for the current immutable query.
+- Entry points such as `1 GB or larger`, `Three or more copies`, and `Across drives`.
 
 #### Duplicate-set list
 
 - Representative name or folder, with wording that representative does not mean original.
 - One-copy size, copy count, recoverable size, distinct locations, drives, and selected roots.
-- Review-state and live-state badges.
-- Server-side filters for name, extension, path, root, drive, size, copy count, review state, and
-  live state.
+- Server-side filters for literal or exact member path, extension/no-extension any/all matching,
+  exact selected root, exact drive, minimum size, minimum copy count, and cross-drive sets.
 - Stable server-side sorts and paged facet counts.
 
 #### Selected-set detail
 
 - Persistent set header explaining that exact content was verified at scan time.
-- `Keep`, `Remove`, or `Undecided` decision per member.
-- Multiple `Keep` decisions are valid.
 - Location/root and shortened breadcrumb presentation, with the complete path always accessible.
-- Size, modified time, root, drive, cloud/live state, and decision columns.
-- Commands for next/previous set, set decision, clear decision, copy path, and reveal.
+- Size, modified time, selected-root, relative-path, and drive columns.
+- Commands for next/previous set, copy path, and reveal.
 - Focus restoration and keyboard shortcuts for continuous review.
 
 #### Engine and protocol
 
-- Extend group/member DTOs with selected-root, drive/location, review summary, and live summary.
+- Group/member DTOs include selected-root and drive/location context plus immutable query summary.
 - Add summary/facet queries without materializing member rows.
 - Preserve the existing bounded cursor-cache and query-generation rules.
 - Do not load members until a set is selected.
 
 #### Acceptance criteria
 
-- A user can review thousands of sets without losing selection, focus, decisions, or filter state.
+- A user can inspect thousands of sets without losing selection, focus, or filter state.
 - A 100,000-group fixture stays responsive and memory remains bounded by page/cache settings.
 - No UI operation binds the complete result or facet dataset.
-- Late result, facet, or review responses cannot replace a newer query generation.
-- Accessibility names and keyboard actions cover all review decisions and navigation.
+- Late result or facet responses cannot replace a newer query generation.
+- Accessibility names and keyboard actions cover all read-only review navigation and actions.
+
+Durable decisions are intentionally absent from these read-only acceptance criteria and begin in
+Milestone 10. Live-state badges, validation, and changed/resolved behavior begin in Milestone 12.
 
 ### Milestone 9 - Folder Intelligence and Windows Exploration
 
@@ -2204,3 +2264,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-19 | Refined and accepted the bounded exact-duplicate-folder group-query screen-reader announcement slice after focused storage/worker/Core/STA coverage, the final Debug/Release Rust and serialized .NET matrix, and real Debug/Release WPF smoke passed; loaded-peer testing also found and fixed the accepted duplicate-file group-error `Border` peer gap. The final .NET configurations each passed 48 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | No richer filter has both a small complete contract and its required versioned mapping or boundary-aware range indexes. Raise repeatable `ActionCompleted`/`ActionAborted` notifications only for displayed current-generation exact-folder group results and failures, keep prefetch/cancellation/stale generations silent, and provide a generic peer only for status elements lacking one. Accepted protocol, SQL/indexes, cursors, cache bounds, cancellation/generations, prefetch, stale-response handling, virtualization, focus, and Milestone 8/10/11 boundaries remain unchanged. Remaining gates are further explicitly indexed filters, exact-folder member-query and broader screen-reader plus supported minimum-size/multi-DPI review, and representative-hardware warm-query/bounded-memory profiling. |
 | 2026-08-19 | Refined and accepted the bounded exact-folder member-query screen-reader announcement slice after focused storage/worker/Core/loaded-peer STA coverage, the full serialized Debug/Release Rust and .NET matrix, and real Debug/Release WPF smoke passed; each final .NET configuration passed 50 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | No richer filter has both a small complete contract and its required versioned mapping or boundary-aware range indexes. Raise repeatable `ActionCompleted`/`ActionAborted` notifications only for displayed current-generation exact-folder member results and worker failures, including displayed prefetched-cache pages, while non-displayed prefetch, Explorer-action errors, cancellation, and stale generations remain silent. Accepted protocol, SQL/indexes, cursors, five-page cache, cancellation/generations, two-page prefetch, stale-response handling, virtualization, focus, and Milestone 8/10/11 boundaries remain unchanged. Remaining gates are further explicitly indexed filters, the rest of the broader screen-reader and supported minimum-size/multi-DPI review, and representative-hardware warm-query/bounded-memory profiling. |
 | 2026-08-19 | Refined and accepted the bounded exact-folder minimum-width filter-reflow accessibility slice after reproducing the defect in a focused 620-DIP STA regression, then passing focused storage/worker/Core/STA coverage, the full serialized Debug/Release Rust and .NET matrix, and real Debug/Release WPF smoke; the unchanged 100,000-group regression completed in 3.03 seconds Debug and 1.20 seconds optimized Release, and each .NET configuration passed 50 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | No richer filter has both a small complete contract and its required versioned mapping or boundary-aware range indexes, and the broader screen-reader audit found no smaller regression outside accepted gates. Move the exact-folder heading above a wrapping filter panel and wrap its explanation so path, minimum-size, and Apply controls stay inside the supported 620-DIP workspace without changing protocol, SQL/indexes, cursors, paging, five-page caches, cancellation/generations, two-page prefetch, stale-response handling, virtualization, focus, announcements, or Milestone 8/10/11 boundaries. Remaining gates are further explicitly indexed filters, the rest of the broader screen-reader and supported minimum-size/multi-DPI review, and representative-hardware warm-query/bounded-memory profiling. |
+| 2026-08-19 | Added an explicit 100-sample Release profile for the 100,000-group read-only workspace and reconciled the Milestone 8 boundary with concrete keyboard, screen-reader-contract, high-contrast, minimum-width, and DPI findings. The current host passed both facet p95 targets and grew private memory by 815,104 bytes across 300 queries, but its 140.47 ms group/summary p95 missed the 100 ms target. | Close the bounded-memory gate through measured process growth plus fixed cache/collection/virtualization regressions. Keep the warm group/summary and physical Narrator/NVDA, high-contrast, and multi-monitor DPI gates explicitly open with exact operator procedures. Do not make richer filters mandatory without their full mappings/indexes/contracts, and let the read-only boundary close independently of Milestone 10 durable decisions and Milestone 12 live state. |
