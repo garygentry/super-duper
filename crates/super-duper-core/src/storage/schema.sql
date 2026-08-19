@@ -1,4 +1,4 @@
-PRAGMA user_version = 4;
+PRAGMA user_version = 5;
 
 -- Reusable, user-owned scan definitions.
 CREATE TABLE IF NOT EXISTS scan_session (
@@ -139,6 +139,46 @@ CREATE TABLE IF NOT EXISTS deletion_plan (
     execution_result TEXT
 );
 
+-- Durable review state remains separate from legacy deletion staging and immutable scan rows.
+CREATE TABLE IF NOT EXISTS review_plan (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+    state TEXT NOT NULL DEFAULT 'active' CHECK(state IN ('active', 'archived')),
+    revision INTEGER NOT NULL DEFAULT 0 CHECK(revision >= 0),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS review_decision (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+    group_id INTEGER NOT NULL REFERENCES duplicate_group(id) ON DELETE CASCADE,
+    file_id INTEGER NOT NULL REFERENCES scanned_file(id) ON DELETE CASCADE,
+    decision TEXT NOT NULL CHECK(decision IN ('keep', 'remove', 'undecided')),
+    provenance TEXT NOT NULL CHECK(provenance = 'manual'),
+    decided_at TEXT NOT NULL,
+    snapshot_canonical_path TEXT NOT NULL,
+    snapshot_file_identity TEXT,
+    snapshot_file_size INTEGER NOT NULL CHECK(snapshot_file_size >= 0),
+    snapshot_last_modified INTEGER NOT NULL,
+    snapshot_content_hash INTEGER,
+    UNIQUE(plan_id, file_id)
+);
+
+CREATE TABLE IF NOT EXISTS review_command (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+    operation_id TEXT NOT NULL,
+    run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+    group_id INTEGER NOT NULL REFERENCES duplicate_group(id) ON DELETE CASCADE,
+    file_id INTEGER NOT NULL REFERENCES scanned_file(id) ON DELETE CASCADE,
+    decision TEXT NOT NULL CHECK(decision IN ('keep', 'remove', 'undecided')),
+    expected_revision INTEGER NOT NULL CHECK(expected_revision >= 0),
+    applied_revision INTEGER NOT NULL CHECK(applied_revision > 0),
+    created_at TEXT NOT NULL,
+    UNIQUE(plan_id, operation_id)
+);
+
 -- Structured, run-owned records for whole subtrees pruned before filesystem content access.
 CREATE TABLE IF NOT EXISTS run_exclusion (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -173,3 +213,11 @@ CREATE INDEX IF NOT EXISTS idx_dir_fingerprint ON directory_fingerprint(content_
 CREATE INDEX IF NOT EXISTS idx_dir_similarity_run_score ON directory_similarity(run_id, similarity_score DESC);
 CREATE INDEX IF NOT EXISTS idx_folder_group_member_group ON duplicate_folder_group_member(group_id, id);
 CREATE INDEX IF NOT EXISTS idx_run_exclusion_run_path ON run_exclusion(run_id, path COLLATE NOCASE, id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_review_plan_one_active_run
+    ON review_plan(run_id) WHERE state = 'active';
+CREATE INDEX IF NOT EXISTS idx_review_decision_plan_group
+    ON review_decision(plan_id, group_id, file_id);
+CREATE INDEX IF NOT EXISTS idx_review_decision_plan_decision
+    ON review_decision(plan_id, decision, group_id);
+CREATE INDEX IF NOT EXISTS idx_review_command_plan_operation
+    ON review_command(plan_id, operation_id);

@@ -218,6 +218,41 @@ public sealed class WorkerClientLifecycleTests
                     DuplicateFileMemberSortField.Path,
                     WorkerSortDirection.Ascending,
                     new DuplicateFileMemberFilter(string.Empty)));
+            var reviewBefore = await client.GetReviewPlanAsync(started.Id);
+            var reviewGroups = await client.GetReviewGroupsAsync(started.Id, 200);
+            var reviewedMember = members.Members.Single(member => member.FileName == "one.txt");
+            var operationId = $"lifecycle-{Guid.NewGuid():N}";
+            var mutation = await client.SetReviewDecisionAsync(
+                operationId,
+                started.Id,
+                reviewedMember.GroupId,
+                reviewedMember.Id,
+                "remove",
+                reviewBefore.Plan.Revision);
+            var replay = await client.SetReviewDecisionAsync(
+                operationId,
+                started.Id,
+                reviewedMember.GroupId,
+                reviewedMember.Id,
+                "remove",
+                reviewBefore.Plan.Revision);
+            var reviewedMembers = await client.GetDuplicateFileGroupMembersAsync(
+                new DuplicateFileMemberQuery(
+                    started.Id,
+                    reviewedMember.GroupId,
+                    200,
+                    DuplicateFileMemberSortField.Path,
+                    WorkerSortDirection.Ascending,
+                    new DuplicateFileMemberFilter(string.Empty)));
+            var reviewAfter = await client.GetReviewPlanAsync(started.Id);
+            var stale = await Assert.ThrowsExceptionAsync<WorkerProtocolException>(() =>
+                client.SetReviewDecisionAsync(
+                    $"stale-{Guid.NewGuid():N}",
+                    started.Id,
+                    reviewedMember.GroupId,
+                    members.Members.Single(member => member.Id != reviewedMember.Id).Id,
+                    "keep",
+                    reviewBefore.Plan.Revision));
             var exactPath = members.Members
                 .Single(member => member.FileName == "one.txt")
                 .Path.ToUpperInvariant();
@@ -348,6 +383,17 @@ public sealed class WorkerClientLifecycleTests
             Assert.AreEqual(1, groups.Summary.DistinctDriveCount);
             Assert.AreEqual(0, groups.Summary.AcrossDriveGroupCount);
             Assert.IsTrue(members.Total >= 2);
+            Assert.IsNull(reviewBefore.Plan.Id);
+            Assert.IsTrue(reviewBefore.Summary.UndecidedCount >= members.Total);
+            Assert.AreEqual(2, reviewGroups.Total);
+            Assert.AreEqual(1, mutation.AppliedRevision);
+            Assert.IsFalse(mutation.Replayed);
+            Assert.IsTrue(replay.Replayed);
+            Assert.AreEqual("remove", reviewedMembers.Members.Single(member => member.Id == reviewedMember.Id).Decision);
+            Assert.AreEqual(1, reviewedMembers.ReviewSummary.RemoveCount);
+            Assert.IsTrue(reviewedMembers.ReviewSummary.RemainingPhysicalCopyCount >= 1);
+            Assert.AreEqual(1, reviewAfter.Summary.RemoveCount);
+            Assert.AreEqual("review_generation_conflict", stale.Code);
             Assert.AreEqual(1, exactPathGroups.Total);
             Assert.AreEqual(1, exactPathGroups.Summary.MatchingGroupCount);
             Assert.AreEqual(1, exactPathRootFacets.Total);
@@ -386,6 +432,8 @@ public sealed class WorkerClientLifecycleTests
                          "duplicate_file_selected_root_facet.page",
                          "duplicate_file_drive_facet.page",
                          "duplicate_file_group.members",
+                         "review_plan.get",
+                         "review_group.page",
                          "duplicate_folder_group.page",
                          "duplicate_folder_group.members",
                      })

@@ -1901,6 +1901,128 @@ long paths.
 Review decisions survive restart, can be applied consistently through understandable rules, and
 remain reversible until execution.
 
+#### Refined first vertical slice: durable manual file decisions (2026-08-19)
+
+##### User story and bounded scope
+
+A user reviewing one completed immutable run can mark each visible duplicate-file member `Keep`,
+`Remove`, or `Undecided`, see selected-set and whole-plan summaries, close and restart the app, and
+resume from the same durable decisions. This first slice supports exactly one active plan per run
+and manual file decisions only. It does not add rules, exact-folder decisions, live validation,
+preflight, Recycle Bin integration, or any deletion action.
+
+##### Schema v5 and migration
+
+- Advance the Rust-owned product schema transactionally from v4 to v5. `review_plan` belongs to one
+  immutable completed run, has an `active`/reserved-future-state boundary, and carries a monotonic
+  revision. A partial unique index permits only one active plan per run while leaving room for
+  archived plans later.
+- `review_decision` belongs to a plan, duplicate-file group, and scanned-file member. It stores the
+  explicit decision, `manual` provenance, decision time, and the immutable canonical path, file
+  identity, size, modified time, and content hash used when the decision was made. It never reads or
+  derives state from `scanned_file.marked_deleted` or `deletion_plan`.
+- `review_command` is a bounded-payload idempotency ledger keyed by plan and caller-supplied
+  operation ID. It stores the exact run/group/file/decision/expected-revision request and applied
+  revision. An exact replay is a no-op with the original applied revision; reuse with different
+  payload is rejected.
+- Migration uses `BEGIN IMMEDIATE`/rollback, creates all foreign keys/checks/indexes before setting
+  `user_version = 5`, preserves every v4 row, and keeps newer-schema rejection fail closed. Deleting
+  a run cascades its plans, decisions, and command ledger; truncation clears the new tables before
+  immutable run data.
+
+##### Safety and concurrency contract
+
+- `review_decision.set` is allow-listed and accepts `operationId`, `runId`, `groupId`, `fileId`,
+  `decision`, and `expectedRevision`. Only `keep`, `remove`, and `undecided` are accepted, and this
+  slice always records provenance as `manual`.
+- The mutation runs in one immediate transaction: verify a completed run and exact run/group/member
+  ownership; get or create its active plan; resolve an idempotent replay; reject a stale expected
+  revision; enforce the survivor rule; upsert the snapshot-backed decision; advance the revision;
+  and record the command result.
+- A `remove` is rejected if the resulting set has no independently accessible physical survivor.
+  Non-empty `scanned_file.file_identity` values define physical identity; when identity was not
+  captured, canonical path is the conservative distinct fallback. Hard-link aliases therefore
+  cannot be counted as independent survivors, while an undecided or kept alias of the same physical
+  item means that physical item is still accessible.
+- Structured errors distinguish invalid parameters, non-completed/missing run, wrong group/member
+  ownership, stale review revision, idempotency-key conflict, and unsafe last-survivor removal.
+  Details include only bounded IDs/revisions/counts.
+- Review mutation remains SQLite-only and serialized by the worker command path. It does not touch
+  the filesystem, hydrate/validate/preview excluded cloud placeholders, or infer current live state.
+
+##### Bounded queries and caching
+
+- `review_plan.get` returns the active plan (or a virtual revision-zero empty plan) and one
+  SQLite-owned summary: decided groups, explicit keep/remove/undecided counts, planned removal
+  bytes, and remaining independent physical copies.
+- `review_group.page` keyset-pages at most 500 duplicate groups with explicit decision counts and
+  survivor counts. Its forward-only opaque cursor signature includes run, active plan, revision,
+  and page size so a mutation makes an old cursor stale rather than mixing revisions.
+- Existing duplicate-member pages left-join only the active plan and expose each visible member's
+  decision/provenance plus the current plan revision and selected-group summary. Members remain
+  limited to 200 in WPF/500 in protocol and are not loaded until selection.
+- Core retains the existing five-page group/member cache bounds. A successful decision clears only
+  decision-sensitive member pages, reloads the visible member page and plan summary, and
+  rejects late pre-mutation responses through separate review/member generations. No decision
+  dictionary grows with the run.
+
+##### WPF interaction and accessibility
+
+- The selected-set header adds a concise set review summary, and the workspace adds an overall
+  plan summary. Each virtualized member row shows its current decision and keyboard-native `Keep`,
+  `Remove`, and `Undecided` buttons with accessible names containing the complete path.
+- Only one mutation is submitted at a time. While it is pending, decision controls are disabled;
+  navigation and already displayed results remain coherent. Success announces the new decision and
+  refreshed set summary. Structured safety/conflict failures use the existing actionable assertive
+  detail-error surface without changing the durable decision.
+- Restart reloads plan/member decisions from the worker. Navigating away or changing runs rejects
+  late UI responses; the worker/client contract permits an uncertain operation to be retried with
+  the same operation ID without applying twice.
+
+##### Performance and acceptance tests
+
+- Storage tests cover v4-to-v5 migration/rollback shape, completed-run ownership, restart
+  persistence, all three manual states, snapshot/provenance, idempotent replay/conflict, stale
+  revision, and physical-survivor enforcement with hard-link aliases.
+- Worker tests cover allow-listing, structured errors, decimal-safe DTOs, cursor revision binding,
+  and restart persistence without filesystem access. Infrastructure tests cover exact JSON
+  contracts and error propagation.
+- Core/WPF tests cover commands and accessible names, successful refresh/announcement, safety and
+  stale-generation errors, cache invalidation/bounds, and late mutation/member/summary rejection.
+- A disposable 100,000-group/large-plan fixture must keep plan summary and first/next group pages
+  within the existing five-second regression ceiling and the explicit Release profile records warm
+  plan-query and private-memory evidence. Standard Debug/Release Rust and .NET matrices plus real
+  worker/WPF smoke remain required before acceptance.
+
+##### Acceptance result
+
+- Schema v5, the transactional v4 migration, durable snapshots/provenance, all three decisions,
+  idempotent replay/conflict, stale revision, completed-run ownership, restart persistence, and
+  hard-link-aware survivor enforcement are implemented in Rust-owned SQLite. Standard storage
+  runs passed 20 tests with the operator profile intentionally ignored; worker protocol runs passed
+  all 10 tests in Debug and Release.
+- `review_plan.get`, revision-bound `review_group.page`, and `review_decision.set` are allow-listed
+  with bounded request validation and structured errors. Existing member pages expose decision
+  state and selected-set summaries. The real typed Infrastructure lifecycle covers virtual-plan
+  state, plan creation, exact replay, stale rejection, member refresh, diagnostics, and persistence.
+- Core adds bounded, generation-checked mutation/refresh behavior and three native member-row
+  commands. The selected-set and whole-plan summaries are polite live regions; mutation failures
+  use the existing assertive detail surface. WPF STA coverage validates decision columns, keyboard-
+  focusable buttons, and complete-path accessible names.
+- The dedicated optimized 100,000-group regression passed in 2.47 seconds, including first and
+  next review-group pages. The explicit 100-sample Release profile measured review-plan p95 at
+  38.90 ms, review-group p95 at 5.37 ms, and 753,664 bytes peak private-memory growth. That profile
+  still returns failure for the independently open Milestone 8 warm-query gate: on this run the
+  existing group/summary p95 was 470.50 ms and drive-facet p95 was 137.97 ms against 100 ms; root-
+  facet p95 was 83.40 ms. These measurements do not close the representative-hardware gate.
+- Full `cargo test --workspace` and `cargo test --workspace --release` passed. Debug and Release
+  Windows solution runs passed 53 Core, 22 Infrastructure, and 3 WPF tests with the one real cloud-
+  provider test intentionally skipped. Explicit Debug and Release worker builds passed.
+- Real Debug and Release WPF/worker smoke passed. Each recorded a durable `Remove`, observed both
+  summaries refresh, proved the disposable fixture file still existed, and retained the accepted
+  filters, facets, focus restoration, Explorer, cloud-fail-closed, and shutdown coverage. No
+  deletion or live-state behavior was exposed.
+
 #### Decision model
 
 - A review plan belongs to one immutable completed run.
@@ -2200,23 +2322,24 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Implementation Slice
 
-Close or explicitly operator-gate the remaining read-only Milestone 8 accessibility and
-representative-hardware profiling criteria, then implement only the durable manual-decision portion
-of Milestone 10:
+Keep the remaining physical Narrator/NVDA, high-contrast, multi-monitor DPI, and representative-
+hardware Milestone 8 procedures operator-gated; they can close independently from later review
+work. The next implementation slice should extend Milestone 10 to manual exact-folder decisions
+and explicit folder/file overlap safety:
 
-1. Migrate schema v4 transactionally to separate `review_plan` and `review_decision` concepts.
-2. Support one active plan per immutable completed run.
-3. Persist manual `Keep`, `Remove`, and `Undecided` decisions with provenance and immutable file
-   snapshots.
-4. Expose idempotent allow-listed worker commands plus bounded plan, group, and summary queries.
-5. Enforce at least one independently accessible physical survivor per duplicate set, accounting
-   for hard-link identity.
-6. Add accessible WPF member controls and bounded restart-persistent summaries.
-7. Do not validate live filesystem state, touch excluded cloud placeholders, or expose deletion.
+1. Design a forward schema migration with a separate snapshot-backed folder-copy decision; do not
+   overload file decisions, `scanned_file.marked_deleted`, or legacy `deletion_plan`.
+2. Define `Keep`, `Remove`, and `Undecided` survivor semantics for exact-folder copies and a stable
+   immutable folder identity/fallback before adding mutation commands.
+3. Detect file decisions contained by a folder decision, hard-link aliases, and nested exact-folder
+   copies so combined summaries never count or schedule the same physical item twice.
+4. Add bounded idempotent worker mutations/queries, restart persistence, stale-revision rejection,
+   large-fixture coverage, and accessible exact-folder controls and combined summaries.
+5. Keep the slice SQLite-only: no live validation, excluded-cloud-placeholder access, preview of
+   content, Recycle Bin integration, or deletion execution.
 
-Milestone 7 cloud safety and the Milestone 8 read-only review foundation are already implemented.
-This next slice establishes durable review state without extending `scanned_file.marked_deleted` or
-the legacy `deletion_plan`, and without pulling Milestone 12 live-state behavior forward.
+Preference-rule preview/apply remains a later Milestone 10 slice after the combined manual target
+model is stable. Milestone 12 continues to own live-state badges and changed/resolved behavior.
 
 ## Milestone Definition Template
 
@@ -2265,3 +2388,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-19 | Refined and accepted the bounded exact-folder member-query screen-reader announcement slice after focused storage/worker/Core/loaded-peer STA coverage, the full serialized Debug/Release Rust and .NET matrix, and real Debug/Release WPF smoke passed; each final .NET configuration passed 50 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | No richer filter has both a small complete contract and its required versioned mapping or boundary-aware range indexes. Raise repeatable `ActionCompleted`/`ActionAborted` notifications only for displayed current-generation exact-folder member results and worker failures, including displayed prefetched-cache pages, while non-displayed prefetch, Explorer-action errors, cancellation, and stale generations remain silent. Accepted protocol, SQL/indexes, cursors, five-page cache, cancellation/generations, two-page prefetch, stale-response handling, virtualization, focus, and Milestone 8/10/11 boundaries remain unchanged. Remaining gates are further explicitly indexed filters, the rest of the broader screen-reader and supported minimum-size/multi-DPI review, and representative-hardware warm-query/bounded-memory profiling. |
 | 2026-08-19 | Refined and accepted the bounded exact-folder minimum-width filter-reflow accessibility slice after reproducing the defect in a focused 620-DIP STA regression, then passing focused storage/worker/Core/STA coverage, the full serialized Debug/Release Rust and .NET matrix, and real Debug/Release WPF smoke; the unchanged 100,000-group regression completed in 3.03 seconds Debug and 1.20 seconds optimized Release, and each .NET configuration passed 50 Core, 22 Infrastructure, and 3 WPF tests with the real-provider test intentionally skipped. | No richer filter has both a small complete contract and its required versioned mapping or boundary-aware range indexes, and the broader screen-reader audit found no smaller regression outside accepted gates. Move the exact-folder heading above a wrapping filter panel and wrap its explanation so path, minimum-size, and Apply controls stay inside the supported 620-DIP workspace without changing protocol, SQL/indexes, cursors, paging, five-page caches, cancellation/generations, two-page prefetch, stale-response handling, virtualization, focus, announcements, or Milestone 8/10/11 boundaries. Remaining gates are further explicitly indexed filters, the rest of the broader screen-reader and supported minimum-size/multi-DPI review, and representative-hardware warm-query/bounded-memory profiling. |
 | 2026-08-19 | Added an explicit 100-sample Release profile for the 100,000-group read-only workspace and reconciled the Milestone 8 boundary with concrete keyboard, screen-reader-contract, high-contrast, minimum-width, and DPI findings. The current host passed both facet p95 targets and grew private memory by 815,104 bytes across 300 queries, but its 140.47 ms group/summary p95 missed the 100 ms target. | Close the bounded-memory gate through measured process growth plus fixed cache/collection/virtualization regressions. Keep the warm group/summary and physical Narrator/NVDA, high-contrast, and multi-monitor DPI gates explicitly open with exact operator procedures. Do not make richer filters mandatory without their full mappings/indexes/contracts, and let the read-only boundary close independently of Milestone 10 durable decisions and Milestone 12 live state. |
+| 2026-08-19 | Refined and accepted the first Milestone 10 durable manual-file-decision slice: schema v5, snapshot-backed `Keep`/`Remove`/`Undecided`, idempotent revision-checked worker mutations, bounded plan/group/member summaries, hard-link-aware survivor enforcement, accessible WPF controls, restart persistence, and real Debug/Release non-deleting smoke. | Establish a separate reversible review source of truth without using `marked_deleted`/legacy deletion plans, touching live files or excluded cloud placeholders, or exposing deletion. The new plan/group queries met their warm targets and memory stayed bounded; the independently open Milestone 8 group/drive warm-query and physical accessibility gates remain explicit. |

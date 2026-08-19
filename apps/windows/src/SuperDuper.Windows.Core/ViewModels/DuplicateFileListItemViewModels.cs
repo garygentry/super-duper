@@ -104,6 +104,13 @@ public sealed class DuplicateFileMemberListItemViewModel(WorkerDuplicateFileMemb
 
     public string Size => DisplayFormatting.Bytes(Member.Size);
 
+    public string Decision => Member.Decision switch
+    {
+        "keep" => "Keep",
+        "remove" => "Remove",
+        _ => "Undecided",
+    };
+
     public string Modified
     {
         get

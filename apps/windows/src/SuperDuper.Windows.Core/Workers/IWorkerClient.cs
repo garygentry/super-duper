@@ -78,6 +78,25 @@ public interface IWorkerClient : IAsyncDisposable
         DuplicateFileMemberQuery query,
         CancellationToken cancellationToken = default);
 
+    Task<WorkerReviewPlanView> GetReviewPlanAsync(
+        long runId,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerReviewGroupPage> GetReviewGroupsAsync(
+        long runId,
+        int pageSize,
+        string? cursor = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerReviewDecisionMutation> SetReviewDecisionAsync(
+        string operationId,
+        long runId,
+        long groupId,
+        long fileId,
+        string decision,
+        long expectedRevision,
+        CancellationToken cancellationToken = default);
+
     Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(
         DuplicateFolderGroupQuery query,
         CancellationToken cancellationToken = default);

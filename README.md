@@ -233,9 +233,10 @@ Configured via a `.env` file in the working directory when needed.
 ## Database
 
 Super Duper uses embedded SQLite (`super_duper.db` in the working directory). New databases use
-schema version 4. Version 2 and 3 databases are upgraded transactionally and in place; unknown older
-schemas and databases created by a newer engine are rejected without modification. See
-[`docs/storage-schema-v4.md`](docs/storage-schema-v4.md) for lifecycle and migration details.
+schema version 5. Version 2, 3, and 4 databases are upgraded transactionally and in place; unknown
+older schemas and databases created by a newer engine are rejected without modification. See
+[`docs/storage-schema-v5.md`](docs/storage-schema-v5.md) for durable-review storage and migration
+details and [`docs/storage-schema-v4.md`](docs/storage-schema-v4.md) for cloud-safe run policy.
 
 Key tables:
 
@@ -252,6 +253,9 @@ Key tables:
 | `directory_node` | Per-run directory tree aggregates |
 | `directory_fingerprint` | Per-directory content fingerprints |
 | `directory_similarity` | Precomputed Jaccard pairs |
+| `review_plan` | One active durable review plan per immutable completed run |
+| `review_decision` | Manual keep/remove/undecided decisions with immutable file snapshots |
+| `review_command` | Idempotent review-mutation ledger |
 | `deletion_plan` | Files staged for deletion |
 
 ## FFI Boundary

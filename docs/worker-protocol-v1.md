@@ -18,6 +18,8 @@ The filename-extension entry point independently applies indexed exact extension
 no-extension matching from immutable member filenames. It defaults to any-member matching and can
 require all immutable members; it never infers from the representative label or classifies file
 type.
+The first Milestone 10 slice adds snapshot-backed manual review plans and decisions for completed
+runs. It does not validate or mutate live files and exposes no deletion command.
 
 The transport is UTF-8 newline-delimited JSON (JSONL) over redirected standard input and standard
 output. It is a local process boundary, not a network API.
@@ -53,7 +55,8 @@ performance kind=result_query method=duplicate_file_group.page run_id=19 group_i
 
 A completed run produces duration records for all five phases (`discovering`, `hashing`,
 `persisting`, `analyzing_folders`, and `finalizing`). Every successful duplicate-file/folder
-group/member page query and selected-root/drive facet page query produces a duration record.
+group/member page query, selected-root/drive facet page query, and review plan/group read produces
+a duration record.
 Query records exclude path search/filter text. These diagnostics are not protocol frames and
 never appear on stdout.
 
@@ -126,6 +129,10 @@ The scan-lifecycle and result commands additionally use:
 - `duplicate_group_not_found`: the requested duplicate-file group does not belong to the given run
 - `duplicate_folder_group_not_found`: the requested visible duplicate-folder group does not belong
   to the given run
+- `review_generation_conflict`: `expectedRevision` is stale; details contain both revisions
+- `idempotency_conflict`: an operation ID was reused with a different review payload
+- `review_member_not_found`: the file is not owned by the addressed run/group
+- `unsafe_review_decision`: the decision would remove every independent physical survivor
 
 ### Event
 
@@ -338,6 +345,62 @@ Progress data is:
   event names, run IDs, and progress sequence numbers rather than assuming request/response
   adjacency.
 
+## Durable Review Commands
+
+Review commands accept only immutable completed runs and operate exclusively on Rust-owned SQLite.
+They never inspect the current filesystem or excluded cloud placeholders. Byte totals use decimal
+strings. A review plan is created lazily by the first successful mutation.
+
+### `review_plan.get`
+
+Request params are `{ "runId": 19 }`.
+
+```json
+{"plan":{"id":12,"runId":19,"state":"active","revision":4,"createdAt":"2026-08-19T12:00:00Z","updatedAt":"2026-08-19T12:05:00Z"},"summary":{"decidedGroupCount":2,"keepCount":1,"removeCount":2,"undecidedCount":5,"plannedRemovalBytes":"10485760","remainingPhysicalCopyCount":6}}
+```
+
+Before the first decision, `plan.id`, `createdAt`, and `updatedAt` are null, `state` is
+`notCreated`, and `revision` is zero. The summary still counts implicit undecided members and
+independent physical survivors.
+
+### `review_group.page`
+
+Params are `runId`, optional `pageSize` (default 200, maximum 500), and an optional forward-only
+opaque `cursor`:
+
+```json
+{"type":"request","id":"rg1","method":"review_group.page","params":{"runId":19,"pageSize":200,"cursor":null}}
+```
+
+```json
+{"groups":[{"groupId":31,"keepCount":1,"removeCount":1,"undecidedCount":1,"remainingPhysicalCopyCount":2}],"total":42,"planId":12,"revision":4,"nextCursor":"opaque"}
+```
+
+The cursor binds the run, active plan ID, revision, and page size. Any successful mutation makes an
+older cursor invalid instead of allowing pages from different revisions to mix.
+
+### `review_decision.set`
+
+```json
+{"type":"request","id":"rd1","method":"review_decision.set","params":{"operationId":"c9f1c7d8f6684c19b79ab8623ce6be91","runId":19,"groupId":31,"fileId":88,"decision":"remove","expectedRevision":4}}
+```
+
+```json
+{"planId":12,"appliedRevision":5,"replayed":false,"decision":"remove"}
+```
+
+`operationId` contains 1–128 characters. `decision` is exactly `keep`, `remove`, or `undecided`,
+and `expectedRevision` is non-negative. The transaction verifies completed-run and group/member
+ownership, enforces the revision and physical-survivor invariant, records manual provenance and
+the immutable file snapshot, advances the plan revision, and records the idempotent result. An
+exact operation replay returns the original revision with `replayed: true`; another payload using
+the same ID returns `idempotency_conflict`.
+
+A non-empty immutable file identity groups hard-link aliases as one physical item. When identity is
+unavailable, canonical path is the conservative distinct fallback. A `remove` that would leave no
+independent survivor returns `unsafe_review_decision`. These are review decisions only; no V1
+review command validates, moves, or deletes a file.
+
 ## Duplicate File Result Commands
 
 Duplicate-file results are immutable and queryable only when the addressed run has status
@@ -504,13 +567,16 @@ path and is limited to 512 characters.
 Result:
 
 ```json
-{"members":[{"id":88,"groupId":31,"path":"D:\\Archive\\photo.jpg","fileName":"photo.jpg","parentPath":"D:\\Archive","rootPath":"D:\\Archive","relativePath":"photo.jpg","driveLetter":"D:","size":"5242880","modifiedTimeUnixNanos":"1786795200000000000"}],"total":3,"nextCursor":null,"previousCursor":null}
+{"members":[{"id":88,"groupId":31,"path":"D:\\Archive\\photo.jpg","fileName":"photo.jpg","parentPath":"D:\\Archive","rootPath":"D:\\Archive","relativePath":"photo.jpg","driveLetter":"D:","size":"5242880","modifiedTimeUnixNanos":"1786795200000000000","decision":"remove","decisionProvenance":"manual","decisionAt":"2026-08-19T12:05:00Z"}],"total":3,"nextCursor":null,"previousCursor":null,"reviewPlanId":12,"reviewRevision":5,"reviewSummary":{"groupId":31,"keepCount":1,"removeCount":1,"undecidedCount":1,"remainingPhysicalCopyCount":2}}
 ```
 
 Byte sizes and the nanosecond Unix modification timestamp are decimal strings. Member pages verify
 that `groupId` belongs to `runId`; a mismatched pair returns `duplicate_group_not_found`.
 `rootPath`, `relativePath`, and `driveLetter` come from the immutable scanned-file snapshot and do
 not access the current filesystem. A drive label may be empty for a path type without one.
+`decision` is `undecided` when no explicit row exists. Provenance/time are null for implicit state.
+The plan ID, revision, and group summary describe the same active review generation as the member
+rows; clients reject late pages and refresh after a mutation.
 
 ## Exact Duplicate Folder Result Commands
 

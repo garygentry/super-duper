@@ -447,6 +447,49 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
             cancellationToken);
     }
 
+    public Task<WorkerReviewPlanView> GetReviewPlanAsync(
+        long runId,
+        CancellationToken cancellationToken = default) =>
+        InvokeAsync<WorkerReviewPlanView>(
+            "review_plan.get",
+            new { runId },
+            cancellationToken);
+
+    public Task<WorkerReviewGroupPage> GetReviewGroupsAsync(
+        long runId,
+        int pageSize,
+        string? cursor = null,
+        CancellationToken cancellationToken = default) =>
+        InvokeAsync<WorkerReviewGroupPage>(
+            "review_group.page",
+            new { runId, pageSize, cursor },
+            cancellationToken);
+
+    public Task<WorkerReviewDecisionMutation> SetReviewDecisionAsync(
+        string operationId,
+        long runId,
+        long groupId,
+        long fileId,
+        string decision,
+        long expectedRevision,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(decision);
+        return InvokeAsync<WorkerReviewDecisionMutation>(
+            "review_decision.set",
+            new
+            {
+                operationId,
+                runId,
+                groupId,
+                fileId,
+                decision,
+                expectedRevision,
+            },
+            cancellationToken);
+    }
+
     public Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(
         DuplicateFolderGroupQuery query,
         CancellationToken cancellationToken = default)

@@ -8,9 +8,9 @@ MVP. The previous Windows app implementation was removed before the current WPF 
 - Core duplicate detection pipeline is functional
 - CLI supports processing, directory analysis, hash-cache inspection, config printing, and database
   truncation
-- SQLite schema v4 separates editable named sessions from immutable runs, owns file/group/directory
-  results by run, persists lifecycle outcomes and scan counters, and snapshots the cloud-exclusion
-  policy used by each run
+- SQLite schema v5 separates editable named sessions from immutable runs, owns file/group/directory
+  results by run, persists lifecycle outcomes and scan counters, snapshots each run's cloud-
+  exclusion policy, and stores snapshot-backed manual review plans independently from deletion
 - FFI exposes handles, progress callbacks, paginated queries, and deletion actions for future native
   clients
 
@@ -118,5 +118,6 @@ The detailed post-MVP duplicate-review, cloud-safety, deletion, live-reconciliat
 roadmap is maintained in
 [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md). Milestone 7 cloud safety is
 accepted, the read-only Milestone 8 foundation is implemented with remaining operator acceptance
-gates tracked there, and durable review decisions begin in Milestone 10 independently of the later
-Milestone 12 live-state overlay.
+gates tracked there, and the first Milestone 10 durable manual-file-decision slice is implemented
+independently of the later Milestone 12 live-state overlay. Exact-folder decisions, overlap safety,
+and preference-rule previews remain later slices.

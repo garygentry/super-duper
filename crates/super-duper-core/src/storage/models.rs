@@ -356,6 +356,9 @@ pub struct DuplicateFileMemberResult {
     pub drive_letter: String,
     pub file_size: i64,
     pub last_modified: i64,
+    pub review_decision: ReviewDecisionKind,
+    pub review_provenance: Option<String>,
+    pub review_decided_at: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -363,6 +366,88 @@ pub struct DuplicateFileMemberPage {
     pub members: Vec<DuplicateFileMemberResult>,
     pub total: i64,
     pub has_more: bool,
+    pub review_plan_id: Option<i64>,
+    pub review_revision: i64,
+    pub review_summary: ReviewGroupSummary,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ReviewDecisionKind {
+    Keep,
+    Remove,
+    #[default]
+    Undecided,
+}
+
+impl ReviewDecisionKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Keep => "keep",
+            Self::Remove => "remove",
+            Self::Undecided => "undecided",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "keep" => Some(Self::Keep),
+            "remove" => Some(Self::Remove),
+            "undecided" => Some(Self::Undecided),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewPlan {
+    pub id: i64,
+    pub run_id: i64,
+    pub state: String,
+    pub revision: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReviewPlanSummary {
+    pub decided_group_count: i64,
+    pub keep_count: i64,
+    pub remove_count: i64,
+    pub undecided_count: i64,
+    pub planned_removal_bytes: i64,
+    pub remaining_physical_copy_count: i64,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReviewGroupSummary {
+    pub group_id: i64,
+    pub keep_count: i64,
+    pub remove_count: i64,
+    pub undecided_count: i64,
+    pub remaining_physical_copy_count: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewPlanView {
+    pub plan: Option<ReviewPlan>,
+    pub summary: ReviewPlanSummary,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewGroupPage {
+    pub groups: Vec<ReviewGroupSummary>,
+    pub total: i64,
+    pub has_more: bool,
+    pub plan_id: Option<i64>,
+    pub revision: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewDecisionMutation {
+    pub plan_id: i64,
+    pub applied_revision: i64,
+    pub replayed: bool,
+    pub decision: ReviewDecisionKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

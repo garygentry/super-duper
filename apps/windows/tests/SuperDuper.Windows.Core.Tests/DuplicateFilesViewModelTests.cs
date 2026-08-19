@@ -860,6 +860,132 @@ public sealed class DuplicateFilesViewModelTests
         StringAssert.Contains(viewModel.DetailErrorMessage, "Explorer could not open");
     }
 
+    [TestMethod]
+    public async Task ManualReviewDecisionRefreshesPersistedMemberAndBoundedSummaries()
+    {
+        var revision = 0L;
+        var decision = "undecided";
+        long? observedExpectedRevision = null;
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileGroupPage([Group(1, query.RunId, "item.bin")], 1, null, null)),
+            ReviewPlanHandler = (runId, _) => Task.FromResult(new WorkerReviewPlanView(
+                new WorkerReviewPlan(revision == 0 ? null : 7, runId, revision == 0 ? "notCreated" : "active", revision, null, null),
+                new WorkerReviewPlanSummary(
+                    revision == 0 ? 0 : 1,
+                    0,
+                    decision == "remove" ? 1 : 0,
+                    decision == "remove" ? 1 : 2,
+                    decision == "remove" ? "1024" : "0",
+                    decision == "remove" ? 1 : 2))),
+            MemberPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileMemberPage(
+                    [Member(1, query.GroupId, @"C:\Data\item.bin") with { Decision = decision },
+                     Member(2, query.GroupId, @"D:\Backup\item.bin")],
+                    2,
+                    null,
+                    null)
+                {
+                    ReviewPlanId = revision == 0 ? null : 7,
+                    ReviewRevision = revision,
+                    ReviewSummary = new WorkerReviewGroupSummary(
+                        query.GroupId,
+                        0,
+                        decision == "remove" ? 1 : 0,
+                        decision == "remove" ? 1 : 2,
+                        decision == "remove" ? 1 : 2),
+                }),
+            ReviewDecisionHandler = (_, _, _, _, value, expectedRevision, _) =>
+            {
+                observedExpectedRevision = expectedRevision;
+                decision = value;
+                revision++;
+                return Task.FromResult(new WorkerReviewDecisionMutation(7, revision, false, value));
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(12, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        await viewModel.RemoveMemberCommand.ExecuteAsync(viewModel.Members[0]);
+
+        Assert.AreEqual(0, observedExpectedRevision);
+        Assert.AreEqual("Remove", viewModel.Members[0].Decision);
+        Assert.AreEqual(1, viewModel.ReviewPlan.Plan.Revision);
+        Assert.AreEqual("Review: 0 keep, 1 remove, 1 undecided · 1 KB planned", viewModel.ReviewPlanSummaryText);
+        Assert.AreEqual(
+            "Set review: 0 keep, 1 remove, 1 undecided · 1 physical copy remains",
+            viewModel.SelectedReviewSummaryText);
+        StringAssert.Contains(viewModel.SelectedSetStatusAnnouncement, "Review decision saved: Remove");
+        Assert.IsTrue(viewModel.RemoveMemberCommand.CanExecute(viewModel.Members[0]));
+        Assert.IsTrue(viewModel.CachedMemberPageCount <= DuplicateFilesViewModel.CacheCapacity);
+    }
+
+    [TestMethod]
+    public async Task LateReviewMutationCannotReplaceANewerRun()
+    {
+        var mutation = new TaskCompletionSource<WorkerReviewDecisionMutation>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileGroupPage([Group(query.RunId, query.RunId, $"run-{query.RunId}.bin")], 1, null, null)),
+            MemberPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileMemberPage(
+                    [Member(query.RunId, query.GroupId, $@"C:\Data\run-{query.RunId}.bin")],
+                    1,
+                    null,
+                    null)),
+            ReviewDecisionHandler = (_, _, _, _, _, _, _) => mutation.Task,
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(20, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var pending = viewModel.KeepMemberCommand.ExecuteAsync(viewModel.Members[0]);
+
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(21, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        mutation.SetResult(new WorkerReviewDecisionMutation(9, 1, false, "keep"));
+        await pending;
+
+        Assert.AreEqual(21, viewModel.Run!.Id);
+        Assert.AreEqual("run-21.bin", viewModel.Groups[0].RepresentativeName);
+        Assert.AreEqual(0, viewModel.ReviewPlan.Plan.Revision);
+        Assert.AreEqual("Undecided", viewModel.Members[0].Decision);
+    }
+
+    [TestMethod]
+    public async Task UnsafeReviewFailureIsActionableAndLeavesDisplayedDecisionUnchanged()
+    {
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileGroupPage([Group(1, query.RunId, "item.bin")], 1, null, null)),
+            MemberPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileMemberPage(
+                    [Member(1, query.GroupId, @"C:\Data\item.bin")],
+                    1,
+                    null,
+                    null)),
+            ReviewDecisionHandler = (_, _, _, _, _, _, _) =>
+                Task.FromException<WorkerReviewDecisionMutation>(
+                    new InvalidOperationException(
+                        "unsafe_physical_survivor: one independently accessible copy must remain")),
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(22, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        await viewModel.RemoveMemberCommand.ExecuteAsync(viewModel.Members[0]);
+
+        Assert.AreEqual("Undecided", viewModel.Members[0].Decision);
+        Assert.IsTrue(viewModel.HasDetailError);
+        StringAssert.Contains(viewModel.DetailErrorMessage, "one independently accessible copy must remain");
+        Assert.AreEqual(1, viewModel.SelectedSetErrorAnnouncementVersion);
+        Assert.IsFalse(viewModel.IsReviewUpdating);
+    }
+
     private static WorkerDuplicateFileGroup Group(long id, long runId, string name) =>
         new(id, runId, "1024", 2, "1024", name, ".bin")
         {

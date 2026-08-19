@@ -4,7 +4,7 @@ use chrono::Utc;
 use rusqlite::{params, Connection, Error, Result};
 use tracing::{debug, info};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 4;
+pub const CURRENT_SCHEMA_VERSION: i64 = 5;
 
 pub struct Database {
     conn: Connection,
@@ -67,7 +67,11 @@ impl Database {
         let version = self.schema_version()?;
         match version {
             CURRENT_SCHEMA_VERSION => self.conn.execute_batch(include_str!("schema.sql"))?,
-            3 => self.migrate_v3_to_v4()?,
+            4 => self.migrate_v4_to_v5()?,
+            3 => {
+                self.migrate_v3_to_v4()?;
+                self.migrate_v4_to_v5()?;
+            }
             2 => self.migrate_v2_to_v3()?,
             0 if !self.has_user_tables()? => self.conn.execute_batch(include_str!("schema.sql"))?,
             0 | 1 => {
@@ -383,6 +387,63 @@ impl Database {
         migration
     }
 
+    fn migrate_v4_to_v5(&self) -> Result<()> {
+        info!("Migrating SQLite schema from version 4 to 5");
+        let migration = self.conn.execute_batch(
+            "BEGIN IMMEDIATE;
+             CREATE TABLE review_plan (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 state TEXT NOT NULL DEFAULT 'active' CHECK(state IN ('active', 'archived')),
+                 revision INTEGER NOT NULL DEFAULT 0 CHECK(revision >= 0),
+                 created_at TEXT NOT NULL,
+                 updated_at TEXT NOT NULL
+             );
+             CREATE TABLE review_decision (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+                 group_id INTEGER NOT NULL REFERENCES duplicate_group(id) ON DELETE CASCADE,
+                 file_id INTEGER NOT NULL REFERENCES scanned_file(id) ON DELETE CASCADE,
+                 decision TEXT NOT NULL CHECK(decision IN ('keep', 'remove', 'undecided')),
+                 provenance TEXT NOT NULL CHECK(provenance = 'manual'),
+                 decided_at TEXT NOT NULL,
+                 snapshot_canonical_path TEXT NOT NULL,
+                 snapshot_file_identity TEXT,
+                 snapshot_file_size INTEGER NOT NULL CHECK(snapshot_file_size >= 0),
+                 snapshot_last_modified INTEGER NOT NULL,
+                 snapshot_content_hash INTEGER,
+                 UNIQUE(plan_id, file_id)
+             );
+             CREATE TABLE review_command (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+                 operation_id TEXT NOT NULL,
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 group_id INTEGER NOT NULL REFERENCES duplicate_group(id) ON DELETE CASCADE,
+                 file_id INTEGER NOT NULL REFERENCES scanned_file(id) ON DELETE CASCADE,
+                 decision TEXT NOT NULL CHECK(decision IN ('keep', 'remove', 'undecided')),
+                 expected_revision INTEGER NOT NULL CHECK(expected_revision >= 0),
+                 applied_revision INTEGER NOT NULL CHECK(applied_revision > 0),
+                 created_at TEXT NOT NULL,
+                 UNIQUE(plan_id, operation_id)
+             );
+             CREATE UNIQUE INDEX idx_review_plan_one_active_run
+                 ON review_plan(run_id) WHERE state = 'active';
+             CREATE INDEX idx_review_decision_plan_group
+                 ON review_decision(plan_id, group_id, file_id);
+             CREATE INDEX idx_review_decision_plan_decision
+                 ON review_decision(plan_id, decision, group_id);
+             CREATE INDEX idx_review_command_plan_operation
+                 ON review_command(plan_id, operation_id);
+             PRAGMA user_version = 5;
+             COMMIT;",
+        );
+        if migration.is_err() {
+            let _ = self.conn.execute_batch("ROLLBACK;");
+        }
+        migration
+    }
+
     pub fn reconcile_interrupted_runs(&self) -> Result<usize> {
         let now = Utc::now().to_rfc3339();
         let count = self.conn.execute(
@@ -405,6 +466,9 @@ impl Database {
     pub fn truncate_all(&self) -> Result<()> {
         self.conn.execute_batch(
             "BEGIN;
+             DELETE FROM review_command;
+             DELETE FROM review_decision;
+             DELETE FROM review_plan;
              DELETE FROM deletion_plan;
              DELETE FROM run_exclusion;
              DELETE FROM directory_similarity;

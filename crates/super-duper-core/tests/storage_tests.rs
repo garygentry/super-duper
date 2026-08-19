@@ -5,9 +5,10 @@ use super_duper_core::storage::models::{
     DuplicateFileGroupPageQuery, DuplicateFileGroupSortField, DuplicateFileMemberFilter,
     DuplicateFileMemberPageQuery, DuplicateFileMemberSortField, DuplicateFilePathMatchMode,
     DuplicateFileSelectedRootFacetPageQuery, DuplicateFileSelectedRootFacetSortField, PageCursor,
-    PageCursorValue, RegisteredCloudLocation, RunExclusionInsert, RunParameters, ScannedFile,
-    SortDirection,
+    PageCursorValue, RegisteredCloudLocation, ReviewDecisionKind, RunExclusionInsert,
+    RunParameters, ScannedFile, SortDirection,
 };
+use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::sqlite::CURRENT_SCHEMA_VERSION;
 use super_duper_core::storage::Database;
 use tempfile::tempdir;
@@ -117,7 +118,7 @@ fn version_three_migrates_cloud_defaults_transactionally() {
     let db = Database::open(path.to_str().unwrap()).unwrap();
     let session = db.get_session(1).unwrap();
 
-    assert_eq!(db.schema_version().unwrap(), 4);
+    assert_eq!(db.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
     assert_eq!(session.cloud_policy, "exclude_registered_roots");
     assert_eq!(session.manual_location_exclusions_json, "[]");
     assert_eq!(session.registered_cloud_locations_json, "[]");
@@ -1185,6 +1186,237 @@ fn existing_schema_four_extension_keys_are_backfilled_without_filesystem_access(
     assert_eq!(keys, vec![String::new(), "gz".to_owned()]);
 }
 
+#[test]
+fn version_four_migrates_review_tables_transactionally() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("review-v4.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    let (_, run_id) = session_and_run(&db, "Preserved v4 run", &["/root"]);
+    db.connection()
+        .execute_batch(
+            "DROP INDEX idx_review_command_plan_operation;
+             DROP INDEX idx_review_decision_plan_decision;
+             DROP INDEX idx_review_decision_plan_group;
+             DROP INDEX idx_review_plan_one_active_run;
+             DROP TABLE review_command;
+             DROP TABLE review_decision;
+             DROP TABLE review_plan;
+             PRAGMA user_version = 4;",
+        )
+        .unwrap();
+    drop(db);
+
+    let migrated = Database::open(path.to_str().unwrap()).unwrap();
+    assert_eq!(migrated.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+    assert_eq!(migrated.get_scan_run(run_id).unwrap().status, "interrupted");
+    for table in ["review_plan", "review_decision", "review_command"] {
+        let exists: bool = migrated
+            .connection()
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1)",
+                params![table],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(exists, "missing migrated table {table}");
+    }
+}
+
+fn completed_review_fixture(db: &Database) -> (i64, i64, [i64; 3]) {
+    let (_, run_id) = session_and_run(db, "Review", &["/root"]);
+    let mut first = file(run_id, "/root/first.bin", 100, 77);
+    first.file_identity = Some("volume-1:file-1".to_owned());
+    let mut alias = file(run_id, "/root/first-alias.bin", 100, 77);
+    alias.file_identity = Some("volume-1:file-1".to_owned());
+    let mut second = file(run_id, "/root/second.bin", 100, 77);
+    second.file_identity = Some("volume-1:file-2".to_owned());
+    db.insert_scanned_files(&[first, alias, second]).unwrap();
+    db.insert_duplicate_groups(
+        run_id,
+        &[(
+            77,
+            100,
+            vec![
+                "/root/first.bin".to_owned(),
+                "/root/first-alias.bin".to_owned(),
+                "/root/second.bin".to_owned(),
+            ],
+        )],
+    )
+    .unwrap();
+    db.complete_scan_run(run_id, 3, 300, 3, 1, 0, 200, 0)
+        .unwrap();
+    let group_id = db
+        .connection()
+        .query_row(
+            "SELECT id FROM duplicate_group WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let mut statement = db
+        .connection()
+        .prepare("SELECT id FROM scanned_file WHERE run_id = ?1 ORDER BY canonical_path")
+        .unwrap();
+    let file_ids = statement
+        .query_map(params![run_id], |row| row.get::<_, i64>(0))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    (run_id, group_id, [file_ids[1], file_ids[0], file_ids[2]])
+}
+
+#[test]
+fn manual_review_decisions_are_idempotent_persistent_and_preserve_a_physical_survivor() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("review-decisions.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    let (run_id, group_id, [first, alias, second]) = completed_review_fixture(&db);
+
+    let initial = db.get_review_plan_view(run_id).unwrap();
+    assert!(initial.plan.is_none());
+    assert_eq!(initial.summary.undecided_count, 3);
+    assert_eq!(initial.summary.remaining_physical_copy_count, 2);
+
+    let remove_first = db
+        .set_review_decision(
+            "remove-first",
+            run_id,
+            group_id,
+            first,
+            ReviewDecisionKind::Remove,
+            0,
+        )
+        .unwrap();
+    assert_eq!(remove_first.applied_revision, 1);
+    assert!(!remove_first.replayed);
+    let remove_alias = db
+        .set_review_decision(
+            "remove-alias",
+            run_id,
+            group_id,
+            alias,
+            ReviewDecisionKind::Remove,
+            1,
+        )
+        .unwrap();
+    assert_eq!(remove_alias.applied_revision, 2);
+
+    let unsafe_error = db
+        .set_review_decision(
+            "remove-last-physical-copy",
+            run_id,
+            group_id,
+            second,
+            ReviewDecisionKind::Remove,
+            2,
+        )
+        .unwrap_err();
+    assert!(matches!(unsafe_error, ReviewError::UnsafeRemoval { .. }));
+
+    let keep_second = db
+        .set_review_decision(
+            "keep-second",
+            run_id,
+            group_id,
+            second,
+            ReviewDecisionKind::Keep,
+            2,
+        )
+        .unwrap();
+    assert_eq!(keep_second.applied_revision, 3);
+    let replay = db
+        .set_review_decision(
+            "keep-second",
+            run_id,
+            group_id,
+            second,
+            ReviewDecisionKind::Keep,
+            2,
+        )
+        .unwrap();
+    assert!(replay.replayed);
+    assert_eq!(replay.applied_revision, 3);
+    let conflict = db
+        .set_review_decision(
+            "keep-second",
+            run_id,
+            group_id,
+            first,
+            ReviewDecisionKind::Keep,
+            2,
+        )
+        .unwrap_err();
+    assert!(matches!(conflict, ReviewError::IdempotencyConflict { .. }));
+    let stale = db
+        .set_review_decision(
+            "stale",
+            run_id,
+            group_id,
+            first,
+            ReviewDecisionKind::Undecided,
+            1,
+        )
+        .unwrap_err();
+    assert!(matches!(
+        stale,
+        ReviewError::StaleRevision {
+            expected: 1,
+            actual: 3
+        }
+    ));
+    db.set_review_decision(
+        "clear-first",
+        run_id,
+        group_id,
+        first,
+        ReviewDecisionKind::Undecided,
+        3,
+    )
+    .unwrap();
+
+    let snapshot: (String, Option<String>, i64, i64, Option<i64>, String) = db
+        .connection()
+        .query_row(
+            "SELECT snapshot_canonical_path, snapshot_file_identity, snapshot_file_size,
+                    snapshot_last_modified, snapshot_content_hash, provenance
+             FROM review_decision WHERE file_id = ?1",
+            params![second],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
+        )
+        .unwrap();
+    assert_eq!(snapshot.0, "/root/second.bin");
+    assert_eq!(snapshot.1.as_deref(), Some("volume-1:file-2"));
+    assert_eq!(snapshot.2, 100);
+    assert_eq!(snapshot.3, 1_700_000_000);
+    assert_eq!(snapshot.4, Some(77));
+    assert_eq!(snapshot.5, "manual");
+    drop(db);
+
+    let reopened = Database::open(path.to_str().unwrap()).unwrap();
+    let persisted = reopened.get_review_plan_view(run_id).unwrap();
+    assert_eq!(persisted.plan.unwrap().revision, 4);
+    assert_eq!(persisted.summary.keep_count, 1);
+    assert_eq!(persisted.summary.remove_count, 1);
+    assert_eq!(persisted.summary.undecided_count, 1);
+    assert_eq!(persisted.summary.planned_removal_bytes, 100);
+    assert_eq!(persisted.summary.remaining_physical_copy_count, 2);
+    let group = reopened.get_review_group_view(run_id, group_id).unwrap().1;
+    assert_eq!(group.keep_count, 1);
+    assert_eq!(group.remove_count, 1);
+    assert_eq!(group.undecided_count, 1);
+    assert_eq!(group.remaining_physical_copy_count, 2);
+}
+
 fn hundred_thousand_group_fixture() -> (Database, i64, DuplicateFileGroupPageQuery) {
     let db = Database::open_in_memory().unwrap();
     let (_, run_id) = session_and_run(&db, "Scale", &["/root"]);
@@ -1244,6 +1476,8 @@ fn hundred_thousand_group_fixture() -> (Database, i64, DuplicateFileGroupPageQue
         }
     }
     transaction.commit().unwrap();
+    db.complete_scan_run(run_id, 300, 300_000, 300, 100_000, 0, 0, 0)
+        .unwrap();
 
     let query = DuplicateFileGroupPageQuery {
         run_id,
@@ -1646,6 +1880,25 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         })
         .unwrap();
     assert_eq!(selected_drive.total, 100);
+
+    let review_started = std::time::Instant::now();
+    let review_page = db.page_review_groups(run_id, 200, None).unwrap();
+    assert_eq!(review_page.total, 100_000);
+    assert_eq!(review_page.groups.len(), 200);
+    assert!(review_page.has_more);
+    let next_review_page = db
+        .page_review_groups(
+            run_id,
+            200,
+            review_page.groups.last().map(|group| group.group_id),
+        )
+        .unwrap();
+    assert_eq!(next_review_page.groups.len(), 200);
+    assert!(
+        review_started.elapsed() < std::time::Duration::from_secs(5),
+        "100,000-group review paging took {:?}",
+        review_started.elapsed()
+    );
 }
 
 #[test]
@@ -1687,6 +1940,17 @@ fn representative_review_workspace_profile() {
             .len(),
         2
     );
+    assert_eq!(
+        db.get_review_plan_view(run_id).unwrap().summary.keep_count,
+        0
+    );
+    assert_eq!(
+        db.page_review_groups(run_id, 200, None)
+            .unwrap()
+            .groups
+            .len(),
+        200
+    );
 
     #[cfg(windows)]
     let baseline_private_bytes = current_process_private_bytes();
@@ -1695,6 +1959,8 @@ fn representative_review_workspace_profile() {
     let mut group_durations = Vec::with_capacity(100);
     let mut root_facet_durations = Vec::with_capacity(100);
     let mut drive_facet_durations = Vec::with_capacity(100);
+    let mut review_plan_durations = Vec::with_capacity(100);
+    let mut review_group_durations = Vec::with_capacity(100);
 
     for _ in 0..100 {
         let started = std::time::Instant::now();
@@ -1714,6 +1980,16 @@ fn representative_review_workspace_profile() {
         drive_facet_durations.push(started.elapsed());
         assert_eq!(drive_page.facets.len(), 2);
 
+        let started = std::time::Instant::now();
+        let review_plan = db.get_review_plan_view(run_id).unwrap();
+        review_plan_durations.push(started.elapsed());
+        assert_eq!(review_plan.summary.keep_count, 0);
+
+        let started = std::time::Instant::now();
+        let review_groups = db.page_review_groups(run_id, 200, None).unwrap();
+        review_group_durations.push(started.elapsed());
+        assert_eq!(review_groups.groups.len(), 200);
+
         #[cfg(windows)]
         {
             peak_private_bytes = peak_private_bytes.max(current_process_private_bytes());
@@ -1724,6 +2000,8 @@ fn representative_review_workspace_profile() {
         &mut group_durations,
         &mut root_facet_durations,
         &mut drive_facet_durations,
+        &mut review_plan_durations,
+        &mut review_group_durations,
     ] {
         durations.sort_unstable();
     }
@@ -1736,18 +2014,22 @@ fn representative_review_workspace_profile() {
     let group_p95 = percentile_95(&group_durations);
     let root_facet_p95 = percentile_95(&root_facet_durations);
     let drive_facet_p95 = percentile_95(&drive_facet_durations);
+    let review_plan_p95 = percentile_95(&review_plan_durations);
+    let review_group_p95 = percentile_95(&review_group_durations);
 
     #[cfg(windows)]
     let private_growth_bytes = peak_private_bytes.saturating_sub(baseline_private_bytes);
     #[cfg(not(windows))]
     let private_growth_bytes = 0_u64;
     eprintln!(
-        "review-profile samples=100 groups-p50={:.2}ms groups-p95={:.2}ms groups-p99={:.2}ms root-facets-p95={:.2}ms drive-facets-p95={:.2}ms private-growth={} bytes",
+        "review-profile samples=100 groups-p50={:.2}ms groups-p95={:.2}ms groups-p99={:.2}ms root-facets-p95={:.2}ms drive-facets-p95={:.2}ms review-plan-p95={:.2}ms review-groups-p95={:.2}ms private-growth={} bytes",
         group_durations[group_durations.len() / 2].as_secs_f64() * 1000.0,
         group_p95.as_secs_f64() * 1000.0,
         percentile_99(&group_durations).as_secs_f64() * 1000.0,
         root_facet_p95.as_secs_f64() * 1000.0,
         drive_facet_p95.as_secs_f64() * 1000.0,
+        review_plan_p95.as_secs_f64() * 1000.0,
+        review_group_p95.as_secs_f64() * 1000.0,
         private_growth_bytes,
     );
 
@@ -1774,6 +2056,18 @@ fn representative_review_workspace_profile() {
         drive_facet_p95 < warm_target,
         "warm drive facet p95 {:?} exceeded {:?}",
         drive_facet_p95,
+        warm_target
+    );
+    assert!(
+        review_plan_p95 < warm_target,
+        "warm review-plan p95 {:?} exceeded {:?}",
+        review_plan_p95,
+        warm_target
+    );
+    assert!(
+        review_group_p95 < warm_target,
+        "warm review-group p95 {:?} exceeded {:?}",
+        review_group_p95,
         warm_target
     );
 }

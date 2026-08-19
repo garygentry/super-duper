@@ -29,6 +29,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _memberCancellation;
     private CancellationTokenSource? _rootFacetCancellation;
     private CancellationTokenSource? _driveFacetCancellation;
+    private CancellationTokenSource? _reviewCancellation;
     private WorkerRun? _run;
     private IReadOnlyList<DuplicateFileGroupListItemViewModel> _groups = [];
     private IReadOnlyList<DuplicateFileMemberListItemViewModel> _members = [];
@@ -43,10 +44,15 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private WorkerDuplicateFileSelectedRootFacetPage? _currentRootFacetPage;
     private WorkerDuplicateFileDriveFacetPage? _currentDriveFacetPage;
     private WorkerDuplicateFileReviewSummary _summary = new(0, 0, "0", "0");
+    private WorkerReviewPlanView _reviewPlan = new(
+        new WorkerReviewPlan(null, 0, "notCreated", 0, null, null),
+        new WorkerReviewPlanSummary(0, 0, 0, 0, "0", 0));
+    private WorkerReviewGroupSummary _selectedReviewSummary = new(0, 0, 0, 0, 0);
     private long _groupGeneration;
     private long _memberGeneration;
     private long _rootFacetGeneration;
     private long _driveFacetGeneration;
+    private long _reviewGeneration;
     private string _searchText = string.Empty;
     private bool _exactPathMatch;
     private string _extensionText = string.Empty;
@@ -63,6 +69,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private bool _isDetailLoading;
     private bool _isRootFacetLoading;
     private bool _isDriveFacetLoading;
+    private bool _isReviewUpdating;
     private DuplicateFileGroupSortField _sortField = DuplicateFileGroupSortField.RecoverableBytes;
     private WorkerSortDirection _sortDirection = WorkerSortDirection.Descending;
     private DuplicateFileSelectedRootFacetSortField _rootFacetSortField =
@@ -130,6 +137,15 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         PreviousMemberPageCommand = new AsyncRelayCommand(PreviousMemberPageAsync, () => CanMoveMembersPrevious);
         CopyPathCommand = new RelayCommand<DuplicateFileMemberListItemViewModel>(CopyPath);
         RevealInExplorerCommand = new AsyncRelayCommand<DuplicateFileMemberListItemViewModel>(RevealInExplorerAsync);
+        KeepMemberCommand = new AsyncRelayCommand<DuplicateFileMemberListItemViewModel>(
+            member => SetReviewDecisionAsync(member, "keep"),
+            CanSetReviewDecision);
+        RemoveMemberCommand = new AsyncRelayCommand<DuplicateFileMemberListItemViewModel>(
+            member => SetReviewDecisionAsync(member, "remove"),
+            CanSetReviewDecision);
+        UndecideMemberCommand = new AsyncRelayCommand<DuplicateFileMemberListItemViewModel>(
+            member => SetReviewDecisionAsync(member, "undecided"),
+            CanSetReviewDecision);
     }
 
     public WorkerRun? Run
@@ -201,6 +217,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _selectedGroup, value))
             {
                 OnPropertyChanged(nameof(HasSelectedGroup));
+                OnPropertyChanged(nameof(SelectedReviewSummaryText));
                 RaiseSetNavigationProperties();
                 _ = LoadSelectedGroupAsync(value);
             }
@@ -435,6 +452,44 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         }
     }
 
+    public WorkerReviewPlanView ReviewPlan
+    {
+        get => _reviewPlan;
+        private set
+        {
+            if (SetProperty(ref _reviewPlan, value))
+            {
+                OnPropertyChanged(nameof(ReviewPlanSummaryText));
+            }
+        }
+    }
+
+    public WorkerReviewGroupSummary SelectedReviewSummary
+    {
+        get => _selectedReviewSummary;
+        private set
+        {
+            if (SetProperty(ref _selectedReviewSummary, value))
+            {
+                OnPropertyChanged(nameof(SelectedReviewSummaryText));
+            }
+        }
+    }
+
+    public bool IsReviewUpdating
+    {
+        get => _isReviewUpdating;
+        private set
+        {
+            if (SetProperty(ref _isReviewUpdating, value))
+            {
+                KeepMemberCommand.NotifyCanExecuteChanged();
+                RemoveMemberCommand.NotifyCanExecuteChanged();
+                UndecideMemberCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
     public DuplicateFileGroupSortField SortField => _sortField;
 
     public WorkerSortDirection SortDirection => _sortDirection;
@@ -492,6 +547,21 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             return $"{roots} · {drives} · {acrossDrives}";
         }
     }
+
+    public string ReviewPlanSummaryText =>
+        $"Review: {ReviewPlan.Summary.KeepCount:N0} keep, "
+        + $"{ReviewPlan.Summary.RemoveCount:N0} remove, "
+        + $"{ReviewPlan.Summary.UndecidedCount:N0} undecided · "
+        + $"{DisplayFormatting.Bytes(ReviewPlan.Summary.PlannedRemovalBytes)} planned";
+
+    public string SelectedReviewSummaryText => SelectedGroup is null
+        ? "No duplicate set selected for review."
+        : $"Set review: {SelectedReviewSummary.KeepCount:N0} keep, "
+            + $"{SelectedReviewSummary.RemoveCount:N0} remove, "
+            + $"{SelectedReviewSummary.UndecidedCount:N0} undecided · "
+            + (SelectedReviewSummary.RemainingPhysicalCopyCount == 1
+                ? "1 physical copy remains"
+                : $"{SelectedReviewSummary.RemainingPhysicalCopyCount:N0} physical copies remain");
 
     public string GroupStatusAnnouncement
     {
@@ -661,6 +731,12 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 
     public IAsyncRelayCommand<DuplicateFileMemberListItemViewModel> RevealInExplorerCommand { get; }
 
+    public IAsyncRelayCommand<DuplicateFileMemberListItemViewModel> KeepMemberCommand { get; }
+
+    public IAsyncRelayCommand<DuplicateFileMemberListItemViewModel> RemoveMemberCommand { get; }
+
+    public IAsyncRelayCommand<DuplicateFileMemberListItemViewModel> UndecideMemberCommand { get; }
+
     public async Task ShowRunAsync(WorkerRun? run, CancellationToken cancellationToken = default)
     {
         Run = run;
@@ -668,6 +744,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         CancelMemberQuery();
         CancelRootFacetQuery();
         CancelDriveFacetQuery();
+        CancelReviewQuery();
         _groupCache.Clear();
         _memberCache.Clear();
         _rootFacetCache.Clear();
@@ -688,6 +765,10 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         TotalRootFacets = 0;
         TotalDriveFacets = 0;
         Summary = new WorkerDuplicateFileReviewSummary(0, 0, "0", "0");
+        ReviewPlan = new WorkerReviewPlanView(
+            new WorkerReviewPlan(null, run?.Id ?? 0, "notCreated", 0, null, null),
+            new WorkerReviewPlanSummary(0, 0, 0, 0, "0", 0));
+        SelectedReviewSummary = new WorkerReviewGroupSummary(0, 0, 0, 0, 0);
         ErrorMessage = null;
         DetailErrorMessage = null;
         RootFacetErrorMessage = null;
@@ -710,7 +791,11 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         }
 
         StateMessage = "No duplicate files matched this run and filter.";
-        await ResetAndLoadGroupsAsync(cancellationToken);
+        _reviewCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var reviewGeneration = ++_reviewGeneration;
+        await Task.WhenAll(
+            ResetAndLoadGroupsAsync(cancellationToken),
+            LoadReviewPlanAsync(run.Id, reviewGeneration, _reviewCancellation.Token));
     }
 
     public async Task ApplySortAsync(
@@ -751,6 +836,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         CancelMemberQuery();
         CancelRootFacetQuery();
         CancelDriveFacetQuery();
+        CancelReviewQuery();
     }
 
     private async Task ApplyFiltersAsync()
@@ -1611,8 +1697,24 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         _currentMemberPage = page;
         TotalMembers = page.Total;
         Members = page.Members.Select(member => new DuplicateFileMemberListItemViewModel(member)).ToArray();
+        SelectedReviewSummary = page.ReviewSummary;
+        if (page.ReviewRevision >= ReviewPlan.Plan.Revision)
+        {
+            ReviewPlan = ReviewPlan with
+            {
+                Plan = ReviewPlan.Plan with
+                {
+                    Id = page.ReviewPlanId,
+                    Revision = page.ReviewRevision,
+                    State = page.ReviewPlanId is null ? "notCreated" : "active",
+                },
+            };
+        }
         OnPropertyChanged(nameof(IsDetailEmpty));
         RaiseMemberPagingProperties();
+        KeepMemberCommand.NotifyCanExecuteChanged();
+        RemoveMemberCommand.NotifyCanExecuteChanged();
+        UndecideMemberCommand.NotifyCanExecuteChanged();
     }
 
     private async Task PrefetchMemberNeighborsAsync(
@@ -1676,6 +1778,133 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             && _memberCancellation is not null)
         {
             await LoadMemberPageAsync(cursor, run.Id, group.Id, _memberGeneration, _memberCancellation.Token, display: true);
+        }
+    }
+
+    private bool CanSetReviewDecision(DuplicateFileMemberListItemViewModel? member) =>
+        member is not null
+        && !IsReviewUpdating
+        && Run?.Status == "completed"
+        && SelectedGroup is not null;
+
+    private async Task LoadReviewPlanAsync(
+        long runId,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var reviewPlan = await _workerClient.GetReviewPlanAsync(runId, cancellationToken);
+            if (generation != _reviewGeneration
+                || cancellationToken.IsCancellationRequested
+                || Run?.Id != runId)
+            {
+                return;
+            }
+            ReviewPlan = reviewPlan;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (generation == _reviewGeneration && Run?.Id == runId)
+            {
+                DetailErrorMessage = $"Review status could not be loaded. {exception.Message}";
+                SelectedSetErrorAnnouncementVersion++;
+            }
+        }
+    }
+
+    private async Task SetReviewDecisionAsync(
+        DuplicateFileMemberListItemViewModel? member,
+        string decision)
+    {
+        if (!CanSetReviewDecision(member)
+            || member is null
+            || Run is not { Status: "completed" } run
+            || SelectedGroup is not { } group
+            || _reviewCancellation is null)
+        {
+            return;
+        }
+
+        var generation = _reviewGeneration;
+        var cancellationToken = _reviewCancellation.Token;
+        IsReviewUpdating = true;
+        DetailErrorMessage = null;
+        try
+        {
+            var mutation = await _workerClient.SetReviewDecisionAsync(
+                Guid.NewGuid().ToString("N"),
+                run.Id,
+                group.Id,
+                member.Id,
+                decision,
+                ReviewPlan.Plan.Revision,
+                cancellationToken);
+            if (generation != _reviewGeneration
+                || cancellationToken.IsCancellationRequested
+                || Run?.Id != run.Id
+                || SelectedGroup?.Id != group.Id)
+            {
+                return;
+            }
+
+            ReviewPlan = ReviewPlan with
+            {
+                Plan = ReviewPlan.Plan with
+                {
+                    Id = mutation.PlanId,
+                    Revision = mutation.AppliedRevision,
+                    State = "active",
+                },
+            };
+            await LoadReviewPlanAsync(run.Id, generation, cancellationToken);
+            var reviewRefreshError = DetailErrorMessage;
+            if (generation != _reviewGeneration
+                || cancellationToken.IsCancellationRequested
+                || SelectedGroup?.Id != group.Id)
+            {
+                return;
+            }
+            await LoadSelectedGroupAsync(SelectedGroup);
+            if (reviewRefreshError is not null)
+            {
+                DetailErrorMessage = reviewRefreshError;
+            }
+            if (generation == _reviewGeneration
+                && SelectedGroup?.Id == group.Id
+                && !HasDetailError)
+            {
+                var decisionText = decision switch
+                {
+                    "keep" => "Keep",
+                    "remove" => "Remove",
+                    _ => "Undecided",
+                };
+                SelectedSetStatusAnnouncement =
+                    $"Review decision saved: {decisionText} for {member.Path}. {SelectedReviewSummaryText}.";
+                SelectedSetStatusAnnouncementVersion++;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (generation == _reviewGeneration && Run?.Id == run.Id)
+            {
+                DetailErrorMessage = $"The review decision was not saved. {exception.Message}";
+                SelectedSetErrorAnnouncementVersion++;
+            }
+        }
+        finally
+        {
+            if (generation == _reviewGeneration)
+            {
+                IsReviewUpdating = false;
+            }
         }
     }
 
@@ -1950,6 +2179,15 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         _driveFacetCancellation?.Dispose();
         _driveFacetCancellation = null;
         _driveFacetGeneration++;
+    }
+
+    private void CancelReviewQuery()
+    {
+        _reviewCancellation?.Cancel();
+        _reviewCancellation?.Dispose();
+        _reviewCancellation = null;
+        _reviewGeneration++;
+        IsReviewUpdating = false;
     }
 
     private void RaisePagingProperties()

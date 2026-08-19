@@ -225,6 +225,14 @@ public sealed class WpfSurfaceSmokeTests
                 FindByAutomationId<TextBlock>(files, "FileSelectedSetExplanation").Text,
                 "does not identify an original");
             _ = FindByAutomationId<TextBlock>(files, "FileSelectedSetLocations");
+            Assert.AreEqual(
+                AutomationLiveSetting.Polite,
+                AutomationProperties.GetLiveSetting(
+                    FindByAutomationId<TextBlock>(files, "FileReviewPlanSummary")));
+            Assert.AreEqual(
+                AutomationLiveSetting.Polite,
+                AutomationProperties.GetLiveSetting(
+                    FindByAutomationId<TextBlock>(files, "FileSelectedSetReviewSummary")));
             var previousSet = FindByAutomationId<Button>(files, "FilePreviousSet");
             var nextSet = FindByAutomationId<Button>(files, "FileNextSet");
             Assert.AreEqual(DispatcherPriority.Background, DuplicateFilesView.SetNavigationFocusPriority);
@@ -274,8 +282,20 @@ public sealed class WpfSurfaceSmokeTests
             var fileMemberHeaders = FindByAutomationId<DataGrid>(files, "FileMembersGrid")
                 .Columns.Select(column => column.Header?.ToString()).ToArray();
             CollectionAssert.IsSubsetOf(
-                new[] { "Selected root", "Relative path", "Drive" },
+                new[] { "Selected root", "Relative path", "Drive", "Decision", "Review decision" },
                 fileMemberHeaders);
+            var reviewColumn = (DataGridTemplateColumn)FindByAutomationId<DataGrid>(files, "FileMembersGrid")
+                .Columns.Single(column => Equals(column.Header, "Review decision"));
+            var reviewControls = (StackPanel)reviewColumn.CellTemplate.LoadContent();
+            reviewControls.DataContext = new { Path = @"C:\Data\item.bin" };
+            DrainDispatcher();
+            var reviewButtons = reviewControls.Children.OfType<Button>().ToArray();
+            CollectionAssert.AreEqual(
+                new[] { "Keep", "Remove", "Undecided" },
+                reviewButtons.Select(button => button.Content?.ToString()).ToArray());
+            Assert.IsTrue(reviewButtons.All(button => button.Focusable && KeyboardNavigation.GetIsTabStop(button)));
+            Assert.IsTrue(reviewButtons.All(button =>
+                AutomationProperties.GetName(button).Contains(@"C:\Data\item.bin", StringComparison.Ordinal)));
             AssertSurface(
                 folders,
                 "FolderSearch",

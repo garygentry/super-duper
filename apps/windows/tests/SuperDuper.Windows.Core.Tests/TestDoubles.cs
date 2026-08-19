@@ -32,6 +32,12 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
 
     public Func<DuplicateFileMemberQuery, CancellationToken, Task<WorkerDuplicateFileMemberPage>>? MemberPageHandler { get; set; }
 
+    public Func<long, CancellationToken, Task<WorkerReviewPlanView>>? ReviewPlanHandler { get; set; }
+
+    public Func<long, int, string?, CancellationToken, Task<WorkerReviewGroupPage>>? ReviewGroupPageHandler { get; set; }
+
+    public Func<string, long, long, long, string, long, CancellationToken, Task<WorkerReviewDecisionMutation>>? ReviewDecisionHandler { get; set; }
+
     public Func<DuplicateFolderGroupQuery, CancellationToken, Task<WorkerDuplicateFolderGroupPage>>? FolderGroupPageHandler { get; set; }
 
     public Func<DuplicateFolderMemberQuery, CancellationToken, Task<WorkerDuplicateFolderMemberPage>>? FolderMemberPageHandler { get; set; }
@@ -203,6 +209,40 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
         CancellationToken cancellationToken = default) =>
         DriveFacetPageHandler?.Invoke(query, cancellationToken)
         ?? Task.FromResult(new WorkerDuplicateFileDriveFacetPage([], 0, null, null));
+
+    public Task<WorkerReviewPlanView> GetReviewPlanAsync(
+        long runId,
+        CancellationToken cancellationToken = default) =>
+        ReviewPlanHandler?.Invoke(runId, cancellationToken)
+        ?? Task.FromResult(new WorkerReviewPlanView(
+            new WorkerReviewPlan(null, runId, "notCreated", 0, null, null),
+            new WorkerReviewPlanSummary(0, 0, 0, 0, "0", 0)));
+
+    public Task<WorkerReviewGroupPage> GetReviewGroupsAsync(
+        long runId,
+        int pageSize,
+        string? cursor = null,
+        CancellationToken cancellationToken = default) =>
+        ReviewGroupPageHandler?.Invoke(runId, pageSize, cursor, cancellationToken)
+        ?? Task.FromResult(new WorkerReviewGroupPage([], 0, null, 0, null));
+
+    public Task<WorkerReviewDecisionMutation> SetReviewDecisionAsync(
+        string operationId,
+        long runId,
+        long groupId,
+        long fileId,
+        string decision,
+        long expectedRevision,
+        CancellationToken cancellationToken = default) =>
+        ReviewDecisionHandler?.Invoke(
+            operationId,
+            runId,
+            groupId,
+            fileId,
+            decision,
+            expectedRevision,
+            cancellationToken)
+        ?? Task.FromResult(new WorkerReviewDecisionMutation(1, expectedRevision + 1, false, decision));
 
     public Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(
         DuplicateFolderGroupQuery query,

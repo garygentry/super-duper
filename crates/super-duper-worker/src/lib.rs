@@ -21,8 +21,10 @@ use super_duper_core::storage::models::{
     DuplicateFolderGroupFilter, DuplicateFolderGroupPageQuery, DuplicateFolderGroupResult,
     DuplicateFolderGroupSortField, DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery,
     DuplicateFolderMemberResult, DuplicateFolderMemberSortField, PageCursor, PageCursorValue,
-    RegisteredCloudLocation, RunExclusion, RunParameters, ScanRun, ScanSession, SortDirection,
+    RegisteredCloudLocation, ReviewDecisionKind, ReviewGroupSummary, ReviewPlanSummary,
+    ReviewPlanView, RunExclusion, RunParameters, ScanRun, ScanSession, SortDirection,
 };
+use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::Database;
 use super_duper_core::{AppConfig, ScanEngine};
 
@@ -35,6 +37,7 @@ const MAXIMUM_FILTER_CHARACTERS: usize = 512;
 const MAXIMUM_EXACT_PATH_CHARACTERS: usize = 32_767;
 const MAXIMUM_EXTENSION_CHARACTERS: usize = 255;
 const MAXIMUM_CURSOR_CHARACTERS: usize = MAXIMUM_FRAME_BYTES / 2;
+const MAXIMUM_OPERATION_ID_CHARACTERS: usize = 128;
 const EVENT_INTERVAL: Duration = Duration::from_millis(100);
 const DATABASE_PROGRESS_INTERVAL: Duration = Duration::from_millis(500);
 
@@ -488,6 +491,27 @@ struct DuplicateFileMemberFilterParameters {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ReviewGroupPageParameters {
+    run_id: i64,
+    #[serde(default = "default_result_page_size")]
+    page_size: i64,
+    #[serde(default)]
+    cursor: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReviewDecisionSetParameters {
+    operation_id: String,
+    run_id: i64,
+    group_id: i64,
+    file_id: i64,
+    decision: String,
+    expected_revision: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct DuplicateFolderGroupPageParameters {
     run_id: i64,
     #[serde(default = "default_result_page_size")]
@@ -709,6 +733,41 @@ struct DuplicateFileMemberDto {
     drive_letter: String,
     size: String,
     modified_time_unix_nanos: String,
+    decision: String,
+    decision_provenance: Option<String>,
+    decision_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReviewPlanDto {
+    id: Option<i64>,
+    run_id: i64,
+    state: String,
+    revision: i64,
+    created_at: Option<String>,
+    updated_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReviewPlanSummaryDto {
+    decided_group_count: i64,
+    keep_count: i64,
+    remove_count: i64,
+    undecided_count: i64,
+    planned_removal_bytes: String,
+    remaining_physical_copy_count: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReviewGroupSummaryDto {
+    group_id: i64,
+    keep_count: i64,
+    remove_count: i64,
+    undecided_count: i64,
+    remaining_physical_copy_count: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -948,6 +1007,9 @@ impl WorkerSession {
             "run_exclusion.page" => self.run_exclusion_page(request),
             "run.start" => self.run_start(request),
             "run.cancel" => self.run_cancel(request),
+            "review_plan.get" => self.review_plan_get(request),
+            "review_group.page" => self.review_group_page(request),
+            "review_decision.set" => self.review_decision_set(request),
             "duplicate_file_group.page" => self.duplicate_file_group_page(request),
             "duplicate_file_selected_root_facet.page" => {
                 self.duplicate_file_selected_root_facet_page(request)
@@ -1107,6 +1169,128 @@ impl WorkerSession {
         Ok(json!({
             "exclusions": exclusions.into_iter().map(run_exclusion_dto).collect::<Vec<_>>(),
             "total": total,
+        }))
+    }
+
+    fn review_plan_get(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let parameters: RunIdParameters = parse_parameters(request)?;
+        let db = self.state.database()?;
+        let query_started = Instant::now();
+        let view = db
+            .get_review_plan_view(parameters.run_id)
+            .map_err(review_error)?;
+        log_result_query(
+            "review_plan.get",
+            parameters.run_id,
+            None,
+            1,
+            1,
+            1,
+            query_started.elapsed(),
+        );
+        Ok(json!({
+            "plan": review_plan_dto(parameters.run_id, &view),
+            "summary": review_plan_summary_dto(&view.summary),
+        }))
+    }
+
+    fn review_group_page(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let parameters: ReviewGroupPageParameters = parse_parameters(request)?;
+        validate_result_page_size(parameters.page_size)?;
+        let db = self.state.database()?;
+        let plan = db
+            .get_review_plan_view(parameters.run_id)
+            .map_err(review_error)?;
+        let plan_id = plan.plan.as_ref().map_or(0, |value| value.id);
+        let revision = plan.plan.as_ref().map_or(0, |value| value.revision);
+        let signature = format!(
+            "{}|{}|{}|{}",
+            parameters.run_id, plan_id, revision, parameters.page_size
+        );
+        let cursor = decode_cursor(parameters.cursor.as_deref(), "review-groups", &signature)?;
+        validate_cursor_value(cursor.as_ref(), false)?;
+        if cursor.as_ref().is_some_and(|value| value.before) {
+            return Err(ProtocolFailure::new(
+                "invalid_cursor",
+                "Review-group cursors support forward keyset paging only",
+            ));
+        }
+        let after_group_id = cursor.as_ref().map(|value| value.id);
+        let query_started = Instant::now();
+        let page = db
+            .page_review_groups(parameters.run_id, parameters.page_size, after_group_id)
+            .map_err(review_error)?;
+        log_result_query(
+            "review_group.page",
+            parameters.run_id,
+            None,
+            parameters.page_size,
+            page.groups.len(),
+            page.total,
+            query_started.elapsed(),
+        );
+        let next_cursor = page
+            .groups
+            .last()
+            .filter(|_| page.has_more)
+            .map(|group| encode_review_group_cursor(group.group_id, &signature))
+            .transpose()?;
+        Ok(json!({
+            "groups": page.groups.iter().map(review_group_summary_dto).collect::<Vec<_>>(),
+            "total": page.total,
+            "planId": page.plan_id,
+            "revision": page.revision,
+            "nextCursor": next_cursor,
+        }))
+    }
+
+    fn review_decision_set(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let parameters: ReviewDecisionSetParameters = parse_parameters(request)?;
+        let operation_id = parameters.operation_id.trim();
+        if operation_id.is_empty() || operation_id.chars().count() > MAXIMUM_OPERATION_ID_CHARACTERS
+        {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                format!(
+                    "operationId must contain 1 to {MAXIMUM_OPERATION_ID_CHARACTERS} characters"
+                ),
+            )
+            .with_details(json!({"field":"operationId"})));
+        }
+        if parameters.expected_revision < 0 {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "expectedRevision must be non-negative",
+            )
+            .with_details(json!({"field":"expectedRevision"})));
+        }
+        let decision = ReviewDecisionKind::parse(&parameters.decision).ok_or_else(|| {
+            ProtocolFailure::new(
+                "invalid_request",
+                "decision must be keep, remove, or undecided",
+            )
+            .with_details(json!({
+                "field":"decision",
+                "allowed":["keep","remove","undecided"]
+            }))
+        })?;
+        let result = self
+            .state
+            .database()?
+            .set_review_decision(
+                operation_id,
+                parameters.run_id,
+                parameters.group_id,
+                parameters.file_id,
+                decision,
+                parameters.expected_revision,
+            )
+            .map_err(review_error)?;
+        Ok(json!({
+            "planId": result.plan_id,
+            "appliedRevision": result.applied_revision,
+            "replayed": result.replayed,
+            "decision": result.decision.as_str(),
         }))
     }
 
@@ -1530,6 +1714,9 @@ impl WorkerSession {
             "total": page.total,
             "nextCursor": next_cursor,
             "previousCursor": previous_cursor,
+            "reviewPlanId": page.review_plan_id,
+            "reviewRevision": page.review_revision,
+            "reviewSummary": review_group_summary_dto(&page.review_summary),
         }))
     }
 
@@ -2746,6 +2933,17 @@ fn encode_member_cursor(
     })
 }
 
+fn encode_review_group_cursor(group_id: i64, signature: &str) -> Result<String, ProtocolFailure> {
+    encode_cursor(CursorPayload {
+        version: 1,
+        kind: "review-groups".to_owned(),
+        query: signature.to_owned(),
+        before: false,
+        value: CursorScalar::Integer(group_id.to_string()),
+        id: group_id,
+    })
+}
+
 fn encode_folder_group_cursor(
     group: &DuplicateFolderGroupResult,
     sort_field: DuplicateFolderGroupSortField,
@@ -2922,6 +3120,51 @@ fn member_dto(member: DuplicateFileMemberResult) -> DuplicateFileMemberDto {
         drive_letter: member.drive_letter,
         size: member.file_size.to_string(),
         modified_time_unix_nanos: member.last_modified.to_string(),
+        decision: member.review_decision.as_str().to_owned(),
+        decision_provenance: member.review_provenance,
+        decision_at: member.review_decided_at,
+    }
+}
+
+fn review_plan_dto(run_id: i64, view: &ReviewPlanView) -> ReviewPlanDto {
+    match &view.plan {
+        Some(plan) => ReviewPlanDto {
+            id: Some(plan.id),
+            run_id: plan.run_id,
+            state: plan.state.clone(),
+            revision: plan.revision,
+            created_at: Some(plan.created_at.clone()),
+            updated_at: Some(plan.updated_at.clone()),
+        },
+        None => ReviewPlanDto {
+            id: None,
+            run_id,
+            state: "notCreated".to_owned(),
+            revision: 0,
+            created_at: None,
+            updated_at: None,
+        },
+    }
+}
+
+fn review_plan_summary_dto(summary: &ReviewPlanSummary) -> ReviewPlanSummaryDto {
+    ReviewPlanSummaryDto {
+        decided_group_count: summary.decided_group_count,
+        keep_count: summary.keep_count,
+        remove_count: summary.remove_count,
+        undecided_count: summary.undecided_count,
+        planned_removal_bytes: summary.planned_removal_bytes.to_string(),
+        remaining_physical_copy_count: summary.remaining_physical_copy_count,
+    }
+}
+
+fn review_group_summary_dto(summary: &ReviewGroupSummary) -> ReviewGroupSummaryDto {
+    ReviewGroupSummaryDto {
+        group_id: summary.group_id,
+        keep_count: summary.keep_count,
+        remove_count: summary.remove_count,
+        undecided_count: summary.undecided_count,
+        remaining_physical_copy_count: summary.remaining_physical_copy_count,
     }
 }
 
@@ -3440,6 +3683,50 @@ fn internal_database_error(error: rusqlite::Error) -> ProtocolFailure {
         "internal_error",
         format!("Database operation failed: {error}"),
     )
+}
+
+fn review_error(error: ReviewError) -> ProtocolFailure {
+    match error {
+        ReviewError::Database(error) => internal_database_error(error),
+        ReviewError::RunNotFound { run_id } => {
+            ProtocolFailure::new("run_not_found", format!("Run {run_id} was not found"))
+                .with_details(json!({"runId":run_id}))
+        }
+        ReviewError::RunNotCompleted { run_id, status } => ProtocolFailure::new(
+            "invalid_state",
+            "Review decisions are available only for completed runs",
+        )
+        .with_details(json!({"runId":run_id,"status":status})),
+        ReviewError::GroupNotFound { run_id, group_id } => ProtocolFailure::new(
+            "duplicate_group_not_found",
+            format!("Duplicate file group {group_id} was not found in run {run_id}"),
+        )
+        .with_details(json!({"runId":run_id,"groupId":group_id})),
+        ReviewError::MemberNotFound {
+            run_id,
+            group_id,
+            file_id,
+        } => ProtocolFailure::new(
+            "review_member_not_found",
+            format!("File {file_id} is not a member of duplicate group {group_id}"),
+        )
+        .with_details(json!({"runId":run_id,"groupId":group_id,"fileId":file_id})),
+        ReviewError::StaleRevision { expected, actual } => ProtocolFailure::new(
+            "review_generation_conflict",
+            format!("Review revision {expected} is stale; current revision is {actual}"),
+        )
+        .with_details(json!({"expectedRevision":expected,"currentRevision":actual})),
+        ReviewError::IdempotencyConflict { operation_id } => ProtocolFailure::new(
+            "idempotency_conflict",
+            "The operationId was already used for a different review command",
+        )
+        .with_details(json!({"operationId":operation_id})),
+        ReviewError::UnsafeRemoval { group_id, file_id } => ProtocolFailure::new(
+            "unsafe_review_decision",
+            "At least one independently accessible physical copy must remain in the duplicate set",
+        )
+        .with_details(json!({"groupId":group_id,"fileId":file_id,"remainingPhysicalCopies":0})),
+    }
 }
 
 fn request_id(object: &Map<String, Value>) -> Result<&str, WorkerError> {
@@ -4901,6 +5188,133 @@ mod tests {
             .any(|member| member["rootPath"] == "/archive"
                 && member["relativePath"] == "copies/b-copy.bin"
                 && member["driveLetter"] == "E:"));
+
+        let initial_plan: Value = serde_json::from_str(
+            &worker
+                .handle_line(
+                    r#"{"type":"request","id":"review-initial","method":"review_plan.get","params":{"runId":1}}"#,
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(initial_plan["result"]["plan"]["id"].is_null());
+        assert_eq!(initial_plan["result"]["plan"]["revision"], 0);
+        assert_eq!(initial_plan["result"]["summary"]["undecidedCount"], 5);
+        let review_groups: Value = serde_json::from_str(
+            &worker
+                .handle_line(
+                    r#"{"type":"request","id":"review-groups","method":"review_group.page","params":{"runId":1,"pageSize":1}}"#,
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            review_groups["result"]["groups"].as_array().unwrap().len(),
+            1
+        );
+        let stale_review_cursor = review_groups["result"]["nextCursor"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let member_ids = members["result"]["members"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|member| member["id"].as_i64().unwrap())
+            .collect::<Vec<_>>();
+        let set_remove = json!({
+            "type":"request", "id":"review-remove", "method":"review_decision.set",
+            "params":{"operationId":"remove-one","runId":1,"groupId":group_id,
+                      "fileId":member_ids[0],"decision":"remove","expectedRevision":0}
+        });
+        let removed: Value =
+            serde_json::from_str(&worker.handle_line(&set_remove.to_string()).unwrap()).unwrap();
+        assert_eq!(removed["result"]["appliedRevision"], 1);
+        assert_eq!(removed["result"]["replayed"], false);
+        let replayed: Value =
+            serde_json::from_str(&worker.handle_line(&set_remove.to_string()).unwrap()).unwrap();
+        assert_eq!(replayed["result"]["replayed"], true);
+        let conflict_request = json!({
+            "type":"request", "id":"review-conflict", "method":"review_decision.set",
+            "params":{"operationId":"remove-one","runId":1,"groupId":group_id,
+                      "fileId":member_ids[1],"decision":"keep","expectedRevision":0}
+        });
+        let conflict: Value =
+            serde_json::from_str(&worker.handle_line(&conflict_request.to_string()).unwrap())
+                .unwrap();
+        assert_eq!(conflict["error"]["code"], "idempotency_conflict");
+        let stale_request = json!({
+            "type":"request", "id":"review-stale", "method":"review_decision.set",
+            "params":{"operationId":"stale","runId":1,"groupId":group_id,
+                      "fileId":member_ids[1],"decision":"keep","expectedRevision":0}
+        });
+        let stale: Value =
+            serde_json::from_str(&worker.handle_line(&stale_request.to_string()).unwrap()).unwrap();
+        assert_eq!(stale["error"]["code"], "review_generation_conflict");
+        let remove_second_request = json!({
+            "type":"request", "id":"review-remove-second", "method":"review_decision.set",
+            "params":{"operationId":"remove-two","runId":1,"groupId":group_id,
+                      "fileId":member_ids[1],"decision":"remove","expectedRevision":1}
+        });
+        let removed_second: Value = serde_json::from_str(
+            &worker
+                .handle_line(&remove_second_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(removed_second["result"]["appliedRevision"], 2);
+        let unsafe_request = json!({
+            "type":"request", "id":"review-unsafe", "method":"review_decision.set",
+            "params":{"operationId":"remove-three","runId":1,"groupId":group_id,
+                      "fileId":member_ids[2],"decision":"remove","expectedRevision":2}
+        });
+        let unsafe_response: Value =
+            serde_json::from_str(&worker.handle_line(&unsafe_request.to_string()).unwrap())
+                .unwrap();
+        assert_eq!(unsafe_response["error"]["code"], "unsafe_review_decision");
+        let stale_cursor_request = json!({
+            "type":"request", "id":"review-old-cursor", "method":"review_group.page",
+            "params":{"runId":1,"pageSize":1,"cursor":stale_review_cursor}
+        });
+        let stale_cursor_response: Value = serde_json::from_str(
+            &worker
+                .handle_line(&stale_cursor_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(stale_cursor_response["error"]["code"], "invalid_cursor");
+        let reviewed_members: Value =
+            serde_json::from_str(&worker.handle_line(&members_request.to_string()).unwrap())
+                .unwrap();
+        assert_eq!(reviewed_members["result"]["reviewRevision"], 2);
+        assert_eq!(
+            reviewed_members["result"]["reviewSummary"]["removeCount"],
+            2
+        );
+        assert_eq!(
+            reviewed_members["result"]["members"][0]["decision"],
+            "remove"
+        );
+        assert_eq!(
+            reviewed_members["result"]["members"][0]["decisionProvenance"],
+            "manual"
+        );
+
+        drop(worker);
+        let (sender, _receiver) = mpsc::channel();
+        let state = SharedState::new(WorkerOptions::new(&db_path), sender).unwrap();
+        let mut restarted = WorkerSession::new(state);
+        restarted.handle_line(HELLO).unwrap();
+        let restored: Value = serde_json::from_str(
+            &restarted
+                .handle_line(
+                    r#"{"type":"request","id":"review-restored","method":"review_plan.get","params":{"runId":1}}"#,
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(restored["result"]["plan"]["revision"], 2);
+        assert_eq!(restored["result"]["summary"]["removeCount"], 2);
     }
 
     #[test]

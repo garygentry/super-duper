@@ -132,6 +132,12 @@ public sealed class ShellViewModelTests
 
         public Task<WorkerDuplicateFileMemberPage> GetDuplicateFileGroupMembersAsync(DuplicateFileMemberQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
+        public Task<WorkerReviewPlanView> GetReviewPlanAsync(long runId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerReviewGroupPage> GetReviewGroupsAsync(long runId, int pageSize, string? cursor = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerReviewDecisionMutation> SetReviewDecisionAsync(string operationId, long runId, long groupId, long fileId, string decision, long expectedRevision, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<WorkerDuplicateFolderGroupPage> GetDuplicateFolderGroupsAsync(DuplicateFolderGroupQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<WorkerDuplicateFolderMemberPage> GetDuplicateFolderGroupMembersAsync(DuplicateFolderMemberQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();

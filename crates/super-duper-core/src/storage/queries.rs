@@ -867,7 +867,10 @@ impl Database {
         let where_sql = predicates.join(" AND ");
         let from_sql = "FROM duplicate_group dg
                         JOIN duplicate_group_member dgm ON dgm.group_id = dg.id
-                        JOIN scanned_file sf ON sf.id = dgm.file_id AND sf.run_id = dg.run_id";
+                        JOIN scanned_file sf ON sf.id = dgm.file_id AND sf.run_id = dg.run_id
+                        LEFT JOIN review_plan rp ON rp.run_id = dg.run_id AND rp.state = 'active'
+                        LEFT JOIN review_decision rd
+                          ON rd.plan_id = rp.id AND rd.group_id = dg.id AND rd.file_id = sf.id";
         let total: i64 = self.connection().query_row(
             &format!("SELECT COUNT(*) {from_sql} WHERE {where_sql}"),
             params_from_iter(base_parameters.iter()),
@@ -905,7 +908,8 @@ impl Database {
         let sql = format!(
             "SELECT sf.id, dg.id, sf.canonical_path, sf.file_name, sf.parent_dir,
                     sf.root_path, sf.relative_path, sf.drive_letter,
-                    sf.file_size, sf.last_modified
+                    sf.file_size, sf.last_modified,
+                    COALESCE(rd.decision, 'undecided'), rd.provenance, rd.decided_at
              {from_sql}
              WHERE {where_sql} {cursor_clause}
              ORDER BY {sort_expression} {order}, sf.id {id_order}
@@ -924,6 +928,10 @@ impl Database {
                 drive_letter: row.get(7)?,
                 file_size: row.get(8)?,
                 last_modified: row.get(9)?,
+                review_decision: ReviewDecisionKind::parse(&row.get::<_, String>(10)?)
+                    .unwrap_or_default(),
+                review_provenance: row.get(11)?,
+                review_decided_at: row.get(12)?,
             })
         })?;
         let mut members = mapped.collect::<Result<Vec<_>>>()?;
@@ -934,10 +942,17 @@ impl Database {
         if query.cursor.as_ref().is_some_and(|cursor| cursor.before) {
             members.reverse();
         }
+        let plan = self.active_review_plan(query.run_id)?;
+        let review_plan_id = plan.as_ref().map(|value| value.id);
+        let review_revision = plan.as_ref().map_or(0, |value| value.revision);
+        let review_summary = self.review_group_summary(query.group_id, review_plan_id)?;
         Ok(DuplicateFileMemberPage {
             members,
             total,
             has_more,
+            review_plan_id,
+            review_revision,
+            review_summary,
         })
     }
 

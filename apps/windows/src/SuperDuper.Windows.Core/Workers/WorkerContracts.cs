@@ -254,13 +254,66 @@ public sealed record WorkerDuplicateFileMember(
     public string RelativePath { get; init; } = string.Empty;
 
     public string DriveLetter { get; init; } = string.Empty;
+
+    public string Decision { get; init; } = "undecided";
+
+    public string? DecisionProvenance { get; init; }
+
+    public string? DecisionAt { get; init; }
 }
 
 public sealed record WorkerDuplicateFileMemberPage(
     IReadOnlyList<WorkerDuplicateFileMember> Members,
     long Total,
     string? NextCursor,
-    string? PreviousCursor);
+    string? PreviousCursor)
+{
+    public long? ReviewPlanId { get; init; }
+
+    public long ReviewRevision { get; init; }
+
+    public WorkerReviewGroupSummary ReviewSummary { get; init; } = new(0, 0, 0, 0, 0);
+}
+
+public sealed record WorkerReviewPlan(
+    long? Id,
+    long RunId,
+    string State,
+    long Revision,
+    string? CreatedAt,
+    string? UpdatedAt);
+
+public sealed record WorkerReviewPlanSummary(
+    long DecidedGroupCount,
+    long KeepCount,
+    long RemoveCount,
+    long UndecidedCount,
+    string PlannedRemovalBytes,
+    long RemainingPhysicalCopyCount);
+
+public sealed record WorkerReviewPlanView(
+    WorkerReviewPlan Plan,
+    WorkerReviewPlanSummary Summary);
+
+public sealed record WorkerReviewGroupSummary(
+    long GroupId,
+    long KeepCount,
+    long RemoveCount,
+    long UndecidedCount,
+    long RemainingPhysicalCopyCount);
+
+public sealed record WorkerReviewGroupPage(
+    IReadOnlyList<WorkerReviewGroupSummary> Groups,
+    long Total,
+    long? PlanId,
+    long Revision,
+    string? NextCursor);
+
+public sealed record WorkerReviewDecisionMutation(
+    long PlanId,
+    long AppliedRevision,
+    bool Replayed,
+    string Decision);
 
 public enum DuplicateFolderGroupSortField
 {

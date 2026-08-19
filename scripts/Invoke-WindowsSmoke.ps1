@@ -589,11 +589,24 @@ function Invoke-WpfAutomation([long]$RunId) {
         Assert-True ($locationSummary.Current.Name.Contains('drive', [StringComparison]::OrdinalIgnoreCase)) 'Filtered location summary did not expose drive coverage.'
         Assert-True ($selectedSetExplanation.Current.Name.Contains('not identify an original', [StringComparison]::OrdinalIgnoreCase)) 'Selected-set explanation was not accessible.'
         Assert-True ($selectedSetLocations.Current.Name.Contains('selected root', [StringComparison]::OrdinalIgnoreCase)) 'Selected-set location span was not accessible.'
+        $pathCell = Find-DescendantByHelpTextPrefix $memberRow 'Complete path: '
+        $exactPath = $pathCell.Current.HelpText.Substring('Complete path: '.Length)
+        Invoke-Element (Find-DescendantButtonByNameFragment $fileMembers 'records intent only and does not delete')
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            $reviewPlanSummary = Find-Element AutomationId 'FileReviewPlanSummary' 1
+            $selectedReviewSummary = Find-Element AutomationId 'FileSelectedSetReviewSummary' 1
+            if ($reviewPlanSummary.Current.Name.Contains('1 remove', [StringComparison]::OrdinalIgnoreCase) -and
+                $selectedReviewSummary.Current.Name.Contains('1 remove', [StringComparison]::OrdinalIgnoreCase)) {
+                break
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ($reviewPlanSummary.Current.Name.Contains('1 remove', [StringComparison]::OrdinalIgnoreCase)) 'The durable review-plan summary did not refresh after a Remove decision.'
+        Assert-True ($selectedReviewSummary.Current.Name.Contains('1 remove', [StringComparison]::OrdinalIgnoreCase)) 'The selected-set review summary did not refresh after a Remove decision.'
+        Assert-True ([IO.File]::Exists($exactPath)) 'Recording a review decision unexpectedly removed the disposable fixture file.'
         Invoke-Element (Find-DescendantButtonByNameFragment $fileMembers 'in Explorer')
         Assert-NoVisibleDetailError 'FileDetailError'
 
-        $pathCell = Find-DescendantByHelpTextPrefix $memberRow 'Complete path: '
-        $exactPath = $pathCell.Current.HelpText.Substring('Complete path: '.Length)
         $exactPathToggle = $exactPathMatch.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
         if ($exactPathToggle.Current.ToggleState -ne [Windows.Automation.ToggleState]::Off) {
             $exactPathToggle.Toggle()
@@ -623,7 +636,7 @@ function Invoke-WpfAutomation([long]$RunId) {
         $null = Find-FirstDataItem $folderMembers
         Invoke-Element (Find-DescendantByName $folderMembers 'Show in Explorer')
         Assert-NoVisibleDetailError 'FolderDetailError'
-        Write-Output "WPF automation passed for restored run $RunId, including exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
+        Write-Output "WPF automation passed for restored run $RunId, including a durable non-deleting Remove review decision, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
     }
     finally {
         try {

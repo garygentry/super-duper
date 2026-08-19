@@ -557,6 +557,18 @@
                                automation:AutomationProperties.Name="{Binding SelectedGroup.LocationSpan, StringFormat='Selected duplicate set location span: {0}'}"
                                Text="{Binding SelectedGroup.LocationSpan}"
                                TextWrapping="Wrap" />
+                    <TextBlock Margin="0,3,0,0"
+                               automation:AutomationProperties.AutomationId="FileReviewPlanSummary"
+                               automation:AutomationProperties.LiveSetting="Polite"
+                               automation:AutomationProperties.Name="{Binding ReviewPlanSummaryText}"
+                               Text="{Binding ReviewPlanSummaryText}"
+                               TextWrapping="Wrap" />
+                    <TextBlock Margin="0,3,0,0"
+                               automation:AutomationProperties.AutomationId="FileSelectedSetReviewSummary"
+                               automation:AutomationProperties.LiveSetting="Polite"
+                               automation:AutomationProperties.Name="{Binding SelectedReviewSummaryText}"
+                               Text="{Binding SelectedReviewSummaryText}"
+                               TextWrapping="Wrap" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" HorizontalAlignment="Right">
                     <TextBlock HorizontalAlignment="Right"
@@ -631,6 +643,32 @@
                     <DataGridTextColumn Width="70" Header="Drive" Binding="{Binding Drive}" />
                     <DataGridTextColumn Width="125" Header="Modified" Binding="{Binding Modified}" />
                     <DataGridTextColumn Width="95" Header="Size" Binding="{Binding Size}" />
+                    <DataGridTextColumn Width="95" Header="Decision" Binding="{Binding Decision}" />
+                    <DataGridTemplateColumn Width="260" Header="Review decision">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Padding="7,2"
+                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Keep {0}; preserves this physical copy'}"
+                                            Command="{Binding DataContext.KeepMemberCommand, ElementName=Root}"
+                                            CommandParameter="{Binding}"
+                                            Content="Keep" />
+                                    <Button Margin="6,0,0,0"
+                                            Padding="7,2"
+                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Remove {0}; records intent only and does not delete'}"
+                                            Command="{Binding DataContext.RemoveMemberCommand, ElementName=Root}"
+                                            CommandParameter="{Binding}"
+                                            Content="Remove" />
+                                    <Button Margin="6,0,0,0"
+                                            Padding="7,2"
+                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Reset {0} to undecided'}"
+                                            Command="{Binding DataContext.UndecideMemberCommand, ElementName=Root}"
+                                            CommandParameter="{Binding}"
+                                            Content="Undecided" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                     <DataGridTemplateColumn Width="190" Header="Actions">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
