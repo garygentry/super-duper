@@ -79,8 +79,11 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private string? _driveFacetErrorMessage;
     private string _groupStatusAnnouncement = "Duplicate file results have not loaded.";
     private string _groupErrorAnnouncement = string.Empty;
+    private string _selectedSetStatusAnnouncement = "No duplicate set details have loaded.";
     private long _groupStatusAnnouncementVersion;
     private long _groupErrorAnnouncementVersion;
+    private long _selectedSetStatusAnnouncementVersion;
+    private long _selectedSetErrorAnnouncementVersion;
     private bool _disposed;
 
     public DuplicateFilesViewModel(
@@ -506,6 +509,24 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     {
         get => _groupErrorAnnouncementVersion;
         private set => SetProperty(ref _groupErrorAnnouncementVersion, value);
+    }
+
+    public string SelectedSetStatusAnnouncement
+    {
+        get => _selectedSetStatusAnnouncement;
+        private set => SetProperty(ref _selectedSetStatusAnnouncement, value);
+    }
+
+    public long SelectedSetStatusAnnouncementVersion
+    {
+        get => _selectedSetStatusAnnouncementVersion;
+        private set => SetProperty(ref _selectedSetStatusAnnouncementVersion, value);
+    }
+
+    public long SelectedSetErrorAnnouncementVersion
+    {
+        get => _selectedSetErrorAnnouncementVersion;
+        private set => SetProperty(ref _selectedSetErrorAnnouncementVersion, value);
     }
 
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
@@ -1457,7 +1478,9 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         {
             if (display && generation == _memberGeneration)
             {
+                DetailErrorMessage = null;
                 DisplayMemberPage(cached);
+                PublishSelectedSetQueryAnnouncement();
                 _ = PrefetchMemberNeighborsAsync(cached, runId, groupId, generation, cancellationToken);
             }
             return;
@@ -1506,6 +1529,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             {
                 IsDetailLoading = false;
                 OnPropertyChanged(nameof(IsDetailEmpty));
+                PublishSelectedSetQueryAnnouncement();
             }
         }
     }
@@ -1680,6 +1704,27 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 
         GroupErrorAnnouncement = $"{prefix} {ErrorMessage}";
         GroupErrorAnnouncementVersion++;
+    }
+
+    private void PublishSelectedSetQueryAnnouncement()
+    {
+        if (SelectedGroup is not { } group || Run?.Status != "completed")
+        {
+            return;
+        }
+
+        if (HasDetailError)
+        {
+            SelectedSetErrorAnnouncementVersion++;
+            return;
+        }
+
+        SelectedSetStatusAnnouncement = TotalMembers == 0
+            ? $"Selected duplicate set loaded: {group.RepresentativeName}. No copies to display."
+            : $"Selected duplicate set loaded: {group.RepresentativeName}. "
+                + $"{FormatCount(TotalMembers, "copy", "copies")}. {group.LocationSpan}. "
+                + "Exact content was verified at scan time; the representative label does not identify an original.";
+        SelectedSetStatusAnnouncementVersion++;
     }
 
     private static string FormatCount(long value, string singular, string plural) =>

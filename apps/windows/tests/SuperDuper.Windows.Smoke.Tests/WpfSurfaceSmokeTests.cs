@@ -164,6 +164,23 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 AutomationLiveSetting.Assertive,
                 AutomationProperties.GetLiveSetting(groupError));
+            var memberStatus = FindByAutomationId<TextBlock>(files, "FileMemberCount");
+            Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
+                AutomationNotificationBehavior.GetNotificationKind(memberStatus));
+            Assert.AreEqual(AutomationNotificationProcessing.MostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(memberStatus));
+            Assert.AreEqual("DuplicateFileMemberQuery",
+                AutomationNotificationBehavior.GetActivityId(memberStatus));
+            var detailError = FindByAutomationId<TextBlock>(files, "FileDetailError");
+            Assert.AreEqual(AutomationNotificationKind.ActionAborted,
+                AutomationNotificationBehavior.GetNotificationKind(detailError));
+            Assert.AreEqual(AutomationNotificationProcessing.ImportantMostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(detailError));
+            Assert.AreEqual("DuplicateFileMemberQuery",
+                AutomationNotificationBehavior.GetActivityId(detailError));
+            Assert.AreEqual(
+                AutomationLiveSetting.Assertive,
+                AutomationProperties.GetLiveSetting(detailError));
             Assert.AreEqual(
                 SystemColors.ControlTextBrush,
                 FindByAutomationId<Border>(files, "FileGroupError").BorderBrush);
@@ -267,16 +284,18 @@ public sealed class WpfSurfaceSmokeTests
             FrameworkElement? announcedElement = null;
             string? announcedText = null;
             AutomationNotificationKind? announcedKind = null;
+            string? announcedActivityId = null;
             void CaptureNotification(
                 FrameworkElement element,
                 string announcement,
                 AutomationNotificationKind kind,
                 AutomationNotificationProcessing _,
-                string __)
+                string activityId)
             {
                 announcedElement = element;
                 announcedText = announcement;
                 announcedKind = kind;
+                announcedActivityId = activityId;
             }
             AutomationNotificationBehavior.NotificationRaised += CaptureNotification;
             try
@@ -288,6 +307,27 @@ public sealed class WpfSurfaceSmokeTests
                 Assert.AreSame(groupStatus, announcedElement);
                 Assert.AreEqual(announcement, announcedText);
                 Assert.AreEqual(AutomationNotificationKind.ActionCompleted, announcedKind);
+                Assert.AreEqual("DuplicateFileGroupQuery", announcedActivityId);
+
+                const string selectedSetAnnouncement =
+                    "Selected duplicate set loaded: photo.jpg. 2 copies. 1 selected root · on 1 drive.";
+                AutomationProperties.SetName(memberStatus, selectedSetAnnouncement);
+                AutomationNotificationBehavior.SetAnnouncementVersion(memberStatus, 1);
+                DrainDispatcher();
+                Assert.AreSame(memberStatus, announcedElement);
+                Assert.AreEqual(selectedSetAnnouncement, announcedText);
+                Assert.AreEqual(AutomationNotificationKind.ActionCompleted, announcedKind);
+                Assert.AreEqual("DuplicateFileMemberQuery", announcedActivityId);
+
+                const string detailErrorAnnouncement =
+                    "Duplicate-file detail error: Worker member query failed.";
+                AutomationProperties.SetName(detailError, detailErrorAnnouncement);
+                AutomationNotificationBehavior.SetAnnouncementVersion(detailError, 1);
+                DrainDispatcher();
+                Assert.AreSame(detailError, announcedElement);
+                Assert.AreEqual(detailErrorAnnouncement, announcedText);
+                Assert.AreEqual(AutomationNotificationKind.ActionAborted, announcedKind);
+                Assert.AreEqual("DuplicateFileMemberQuery", announcedActivityId);
             }
             finally
             {

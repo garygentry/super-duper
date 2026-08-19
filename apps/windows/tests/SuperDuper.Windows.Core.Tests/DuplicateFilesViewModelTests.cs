@@ -77,6 +77,11 @@ public sealed class DuplicateFilesViewModelTests
             "Duplicate file query complete. 1 matching set, 2 copies, 4 KB potentially recoverable. "
                 + "2 selected roots represented · 2 drives represented · 1 set spans multiple drives.",
             viewModel.GroupStatusAnnouncement);
+        Assert.AreEqual(1, viewModel.SelectedSetStatusAnnouncementVersion);
+        Assert.AreEqual(
+            "Selected duplicate set loaded: photo.jpg. 1 copy. 2 selected roots · across 2 drives. "
+                + "Exact content was verified at scan time; the representative label does not identify an original.",
+            viewModel.SelectedSetStatusAnnouncement);
         Assert.AreEqual("2 selected roots · across 2 drives", viewModel.Groups[0].LocationSpan);
         Assert.AreEqual(@"C:\Photos", viewModel.Members[0].SelectedRoot);
         Assert.AreEqual("photo.jpg", viewModel.Members[0].RelativePath);
@@ -489,6 +494,8 @@ public sealed class DuplicateFilesViewModelTests
         await viewModel.NextSetCommand.ExecuteAsync(null);
         Assert.AreEqual(2, viewModel.SelectedGroup!.Id);
         Assert.AreEqual(@"C:\Data\second.bin", viewModel.Members.Single().Path);
+        Assert.AreEqual(1, viewModel.SelectedSetStatusAnnouncementVersion);
+        StringAssert.Contains(viewModel.SelectedSetStatusAnnouncement, "second.bin");
 
         oldResponse.SetResult(new WorkerDuplicateFileMemberPage(
             [Member(1, 1, @"C:\Data\stale-first.bin")],
@@ -500,6 +507,68 @@ public sealed class DuplicateFilesViewModelTests
 
         Assert.AreEqual(2, viewModel.SelectedGroup!.Id);
         Assert.AreEqual(@"C:\Data\second.bin", viewModel.Members.Single().Path);
+        Assert.AreEqual(1, viewModel.SelectedSetStatusAnnouncementVersion);
+    }
+
+    [TestMethod]
+    public async Task SelectedSetAnnouncementsRepeatForCachedPagesAndCoverEmptyAndWorkerFailure()
+    {
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileGroupPage(
+                    [
+                        Group(1, query.RunId, "first.bin"),
+                        Group(2, query.RunId, "empty.bin"),
+                        Group(3, query.RunId, "failed.bin"),
+                    ],
+                    3,
+                    null,
+                    null)),
+            MemberPageHandler = (query, _) => query.GroupId switch
+            {
+                1 when query.Cursor is null => Task.FromResult(
+                    new WorkerDuplicateFileMemberPage(
+                        [Member(1, query.GroupId, @"C:\Data\first.bin")],
+                        2,
+                        "next-members",
+                        null)),
+                1 => Task.FromResult(
+                    new WorkerDuplicateFileMemberPage(
+                        [Member(2, query.GroupId, @"D:\Backup\first.bin")],
+                        2,
+                        null,
+                        "previous-members")),
+                2 => Task.FromResult(new WorkerDuplicateFileMemberPage([], 0, null, null)),
+                _ => Task.FromException<WorkerDuplicateFileMemberPage>(
+                    new IOException("Worker member query failed.")),
+            },
+        };
+        var explorer = new TestExplorer { Error = new IOException("Explorer action failed.") };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), explorer);
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(17, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        Assert.AreEqual(1, viewModel.SelectedSetStatusAnnouncementVersion);
+        var repeatedAnnouncement = viewModel.SelectedSetStatusAnnouncement;
+        await viewModel.RevealInExplorerCommand.ExecuteAsync(viewModel.Members[0]);
+        Assert.IsTrue(viewModel.HasDetailError);
+        await viewModel.NextMemberPageCommand.ExecuteAsync(null);
+        Assert.AreEqual(2, viewModel.SelectedSetStatusAnnouncementVersion);
+        Assert.AreEqual(repeatedAnnouncement, viewModel.SelectedSetStatusAnnouncement);
+        Assert.IsFalse(viewModel.HasDetailError);
+
+        viewModel.SelectedGroup = viewModel.Groups[1];
+        Assert.AreEqual(3, viewModel.SelectedSetStatusAnnouncementVersion);
+        Assert.AreEqual(
+            "Selected duplicate set loaded: empty.bin. No copies to display.",
+            viewModel.SelectedSetStatusAnnouncement);
+
+        viewModel.SelectedGroup = viewModel.Groups[2];
+        Assert.AreEqual(1, viewModel.SelectedSetErrorAnnouncementVersion);
+        Assert.IsTrue(viewModel.HasDetailError);
+        StringAssert.Contains(viewModel.DetailErrorMessage, "Worker member query failed");
+        Assert.AreEqual(3, viewModel.SelectedSetStatusAnnouncementVersion);
     }
 
     [TestMethod]
