@@ -25,6 +25,7 @@
 # .NET build and user state
 **/bin/
 **/obj/
+**/.vs/
 *.user
 *.suo
 

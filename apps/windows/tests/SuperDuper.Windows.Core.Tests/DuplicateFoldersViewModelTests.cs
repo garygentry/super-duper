@@ -24,6 +24,10 @@ public sealed class DuplicateFoldersViewModelTests
 
         Assert.AreEqual(1, viewModel.Groups.Count);
         Assert.AreEqual(1, viewModel.Members.Count);
+        Assert.AreEqual(
+            "Duplicate folder query complete. 1 matching exact duplicate folder group.",
+            viewModel.GroupStatusAnnouncement);
+        Assert.AreEqual(1, viewModel.GroupStatusAnnouncementVersion);
         viewModel.CopyPathCommand.Execute(viewModel.Members[0]);
         await viewModel.RevealInExplorerCommand.ExecuteAsync(viewModel.Members[0]);
         Assert.AreEqual(@"C:\One", clipboard.Text);
@@ -57,15 +61,53 @@ public sealed class DuplicateFoldersViewModelTests
         await observed.Task;
         viewModel.SearchText = "new";
         await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+        var currentAnnouncementVersion = viewModel.GroupStatusAnnouncementVersion;
         oldResponse.SetResult(new WorkerDuplicateFolderGroupPage([Group(1, 8, @"C:\stale")], 1, null, null));
         await initial;
         Assert.AreEqual(@"C:\new-0", viewModel.Groups[0].RepresentativePath);
+        Assert.AreEqual(currentAnnouncementVersion, viewModel.GroupStatusAnnouncementVersion);
 
         for (var page = 1; page < 9; page++)
         {
             await viewModel.NextPageCommand.ExecuteAsync(null);
             Assert.IsTrue(viewModel.CachedGroupPageCount <= DuplicateFoldersViewModel.CacheCapacity);
         }
+    }
+
+    [TestMethod]
+    public async Task GroupQueryAnnouncementsRepeatAndReportValidationAndWorkerFailures()
+    {
+        var failWorkerQuery = false;
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (_, _) => failWorkerQuery
+                ? Task.FromException<WorkerDuplicateFolderGroupPage>(new InvalidOperationException("Worker query failed."))
+                : Task.FromResult(new WorkerDuplicateFolderGroupPage([], 0, null, null)),
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), new TestExplorer());
+
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(13, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        Assert.AreEqual(
+            "Duplicate folder query complete. No matching exact duplicate folder groups.",
+            viewModel.GroupStatusAnnouncement);
+        Assert.AreEqual(1, viewModel.GroupStatusAnnouncementVersion);
+
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+        Assert.AreEqual(2, viewModel.GroupStatusAnnouncementVersion);
+
+        viewModel.MinimumSizeText = "invalid";
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+        StringAssert.Contains(viewModel.GroupErrorAnnouncement, "filters could not be applied");
+        StringAssert.Contains(viewModel.GroupErrorAnnouncement, "non-negative whole number");
+        Assert.AreEqual(1, viewModel.GroupErrorAnnouncementVersion);
+
+        viewModel.MinimumSizeText = string.Empty;
+        failWorkerQuery = true;
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+        StringAssert.Contains(viewModel.GroupErrorAnnouncement, "results could not be loaded");
+        StringAssert.Contains(viewModel.GroupErrorAnnouncement, "Worker query failed");
+        Assert.AreEqual(2, viewModel.GroupErrorAnnouncementVersion);
     }
 
     [TestMethod]

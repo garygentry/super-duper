@@ -127,11 +127,8 @@ public static class AutomationNotificationBehavior
         }
 
         var peer = UIElementAutomationPeer.FromElement(element)
-            ?? UIElementAutomationPeer.CreatePeerForElement(element);
-        if (peer is null)
-        {
-            return;
-        }
+            ?? UIElementAutomationPeer.CreatePeerForElement(element)
+            ?? new FrameworkElementAutomationPeer(element);
 
         var kind = GetNotificationKind(element);
         var processing = GetNotificationProcessing(element);

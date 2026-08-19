@@ -33,6 +33,10 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     private string _stateMessage = "Select a completed run to browse duplicate folders.";
     private string? _errorMessage;
     private string? _detailErrorMessage;
+    private string _groupStatusAnnouncement = "Duplicate folder results have not loaded.";
+    private string _groupErrorAnnouncement = string.Empty;
+    private long _groupStatusAnnouncementVersion;
+    private long _groupErrorAnnouncementVersion;
     private bool _isLoading;
     private bool _isDetailLoading;
     private DuplicateFolderGroupSortField _sortField = DuplicateFolderGroupSortField.TotalBytes;
@@ -98,6 +102,10 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsEmpty));
                 OnPropertyChanged(nameof(IsLoadingOverlayVisible));
                 RaiseGroupPaging();
+                if (!value)
+                {
+                    PublishGroupQueryAnnouncement();
+                }
             }
         }
     }
@@ -139,6 +147,26 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     public bool CanMoveMembersPrevious => !IsDetailLoading && _currentMemberPage?.PreviousCursor is not null;
     public int CachedGroupPageCount => _groupCache.Count;
     public int CachedMemberPageCount => _memberCache.Count;
+    public string GroupStatusAnnouncement
+    {
+        get => _groupStatusAnnouncement;
+        private set => SetProperty(ref _groupStatusAnnouncement, value);
+    }
+    public string GroupErrorAnnouncement
+    {
+        get => _groupErrorAnnouncement;
+        private set => SetProperty(ref _groupErrorAnnouncement, value);
+    }
+    public long GroupStatusAnnouncementVersion
+    {
+        get => _groupStatusAnnouncementVersion;
+        private set => SetProperty(ref _groupStatusAnnouncementVersion, value);
+    }
+    public long GroupErrorAnnouncementVersion
+    {
+        get => _groupErrorAnnouncementVersion;
+        private set => SetProperty(ref _groupErrorAnnouncementVersion, value);
+    }
 
     public IAsyncRelayCommand ApplyFiltersCommand { get; }
     public IAsyncRelayCommand ClearFiltersCommand { get; }
@@ -207,7 +235,11 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         CancellationToken cancellationToken = default,
         bool preserveDisplayedResults = false)
     {
-        if (!TryBuildFilter(out var filter)) return;
+        if (!TryBuildFilter(out var filter))
+        {
+            PublishGroupErrorAnnouncement("Duplicate folder filters could not be applied.");
+            return;
+        }
         CancelGroupQuery();
         CancelMemberQuery();
         _groupCache.Clear();
@@ -237,6 +269,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
             if (display && generation == _groupGeneration)
             {
                 DisplayGroupPage(cached);
+                PublishGroupQueryAnnouncement();
                 _ = PrefetchGroupsAsync(cached, filter, generation, token);
             }
             return;
@@ -443,6 +476,39 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         _memberCancellation = null;
         _memberGeneration++;
     }
+
+    private void PublishGroupQueryAnnouncement()
+    {
+        if (HasError)
+        {
+            PublishGroupErrorAnnouncement("Duplicate folder results could not be loaded.");
+            return;
+        }
+
+        if (Run?.Status != "completed")
+        {
+            return;
+        }
+
+        GroupStatusAnnouncement = TotalGroups == 0
+            ? "Duplicate folder query complete. No matching exact duplicate folder groups."
+            : $"Duplicate folder query complete. {FormatCount(TotalGroups, "matching exact duplicate folder group", "matching exact duplicate folder groups")}.";
+        GroupStatusAnnouncementVersion++;
+    }
+
+    private void PublishGroupErrorAnnouncement(string prefix)
+    {
+        if (!HasError)
+        {
+            return;
+        }
+
+        GroupErrorAnnouncement = $"{prefix} {ErrorMessage}";
+        GroupErrorAnnouncementVersion++;
+    }
+
+    private static string FormatCount(long value, string singular, string plural) =>
+        $"{value:N0} {(value == 1 ? singular : plural)}";
 
     private void RaiseState()
     {
