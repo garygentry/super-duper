@@ -315,6 +315,7 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual("DuplicateFolderMemberQuery",
                 AutomationNotificationBehavior.GetActivityId(folderDetailError));
             Assert.AreEqual(SystemColors.ControlTextBrush, folderDetailError.Foreground);
+            AssertFolderFiltersFitSupportedMinimumWorkspace(folders);
 
             Assert.AreEqual("Scan sessions", AutomationProperties.GetName(
                 FindByAutomationId<ListBox>(sessions, "SessionsList")));
@@ -587,6 +588,62 @@ public sealed class WpfSurfaceSmokeTests
 
         host.Content = null;
         host.Close();
+    }
+
+    private static void AssertFolderFiltersFitSupportedMinimumWorkspace(DuplicateFoldersView folders)
+    {
+        const double narrowWorkspaceWidth = 620;
+        var host = new Window
+        {
+            Width = narrowWorkspaceWidth,
+            Height = 900,
+            Content = folders,
+            SizeToContent = SizeToContent.Manual,
+        };
+        host.Show();
+        host.UpdateLayout();
+        DrainDispatcher();
+
+        var heading = FindTextBlockByText(folders, "Exact duplicate folders");
+        var search = FindByAutomationId<TextBox>(folders, "FolderSearch");
+        var minimumSize = FindByAutomationId<TextBox>(folders, "FolderMinimumSize");
+        var apply = FindByAutomationId<Button>(folders, "FolderApplyFilters");
+        var headingTop = heading.TranslatePoint(new Point(0, 0), folders).Y;
+        var searchTop = search.TranslatePoint(new Point(0, 0), folders).Y;
+
+        Assert.IsTrue(
+            searchTop > headingTop,
+            "Exact-folder filters should reflow below their heading in the supported narrow workspace.");
+        foreach (var control in new FrameworkElement[] { search, minimumSize, apply })
+        {
+            var controlRight = control.TranslatePoint(new Point(control.ActualWidth, 0), folders).X;
+            Assert.IsTrue(
+                controlRight <= folders.ActualWidth,
+                $"{AutomationProperties.GetAutomationId(control)} extends beyond the supported narrow workspace.");
+        }
+
+        host.Content = null;
+        host.Close();
+    }
+
+    private static TextBlock FindTextBlockByText(DependencyObject root, string text)
+    {
+        if (root is TextBlock textBlock && textBlock.Text == text)
+        {
+            return textBlock;
+        }
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            try
+            {
+                return FindTextBlockByText(child, text);
+            }
+            catch (AssertFailedException)
+            {
+            }
+        }
+        Assert.Fail($"Could not find TextBlock with text {text}.");
+        return null!;
     }
 
     private static T FindByAutomationId<T>(DependencyObject root, string automationId)

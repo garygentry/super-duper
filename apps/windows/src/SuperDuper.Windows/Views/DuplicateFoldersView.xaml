@@ -12,29 +12,30 @@
             <RowDefinition Height="2*" />
         </Grid.RowDefinitions>
 
-        <Grid Margin="0,0,0,14">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="170" />
-                <ColumnDefinition Width="145" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+        <StackPanel Margin="0,0,0,14">
             <StackPanel>
                 <TextBlock FontSize="22" FontWeight="SemiBold" Text="Exact duplicate folders" />
-                <TextBlock Margin="0,4,0,0" Opacity="0.68" Text="Root names may differ. Nested matches covered by a larger exact root are suppressed." />
+                <TextBlock Margin="0,4,0,0"
+                           Opacity="0.68"
+                           Text="Root names may differ. Nested matches covered by a larger exact root are suppressed."
+                           TextWrapping="Wrap" />
             </StackPanel>
-            <TextBox x:Name="FolderSearch" Grid.Column="1" Margin="12,0,0,0" VerticalContentAlignment="Center"
-                     automation:AutomationProperties.AutomationId="FolderSearch"
-                     automation:AutomationProperties.Name="Folder path search"
-                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search duplicate folder paths" />
-            <TextBox x:Name="FolderMinimumSize" Grid.Column="2" Margin="8,0,0,0" VerticalContentAlignment="Center"
-                     automation:AutomationProperties.AutomationId="FolderMinimumSize"
-                     automation:AutomationProperties.Name="Minimum folder size in bytes"
-                     Text="{Binding MinimumSizeText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Minimum folder size in bytes" />
-            <Button x:Name="FolderApplyFilters" Grid.Column="3" Margin="8,0,0,0" Padding="13,7"
-                    automation:AutomationProperties.AutomationId="FolderApplyFilters"
-                    Command="{Binding ApplyFiltersCommand}" Content="Apply filters" />
-        </Grid>
+            <WrapPanel Margin="0,10,0,0"
+                       VerticalAlignment="Center"
+                       automation:AutomationProperties.Name="Exact duplicate folder filter controls">
+                <TextBox x:Name="FolderSearch" Width="170" Margin="0,0,8,0" VerticalContentAlignment="Center"
+                         automation:AutomationProperties.AutomationId="FolderSearch"
+                         automation:AutomationProperties.Name="Folder path search"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search duplicate folder paths" />
+                <TextBox x:Name="FolderMinimumSize" Width="145" Margin="0,0,8,0" VerticalContentAlignment="Center"
+                         automation:AutomationProperties.AutomationId="FolderMinimumSize"
+                         automation:AutomationProperties.Name="Minimum folder size in bytes"
+                         Text="{Binding MinimumSizeText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Minimum folder size in bytes" />
+                <Button x:Name="FolderApplyFilters" Padding="13,7"
+                        automation:AutomationProperties.AutomationId="FolderApplyFilters"
+                        Command="{Binding ApplyFiltersCommand}" Content="Apply filters" />
+            </WrapPanel>
+        </StackPanel>
 
         <Grid Grid.Row="1">
             <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
