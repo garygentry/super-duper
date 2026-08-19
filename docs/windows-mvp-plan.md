@@ -4,11 +4,12 @@
 
 Approved architecture and implementation plan for the first Super Duper Windows front end.
 
-Implementation status: Milestones 0–6 are implemented on the `wpf-poc` line of development. Final
-operator acceptance on 2026-08-16 found release-blocking rerun, Explorer reveal, shutdown, and
-unexpected-worker recovery defects. The MVP is not code complete until
-[`windows-release-acceptance-remediation-plan.md`](windows-release-acceptance-remediation-plan.md)
-passes in full.
+Implementation status: Milestones 0–6 are implemented and code complete on the `wpf-poc` line of
+development. Final operator acceptance on 2026-08-16 found release-blocking rerun, Explorer reveal,
+shutdown, and unexpected-worker recovery defects. That historical failure and its acceptance
+criteria remain recorded in
+[`windows-release-acceptance-remediation-plan.md`](windows-release-acceptance-remediation-plan.md);
+the fixes and full operator workflow were verified and closed by commit `6f1c405`.
 
 This plan treats the Windows application as a new product surface over the existing Rust engine. It
 does not restore or reuse the deleted Windows application.
@@ -531,7 +532,7 @@ Exit criteria:
 
 ### Milestone 6 - MVP Hardening
 
-Status: Implementation complete; final release acceptance remediation is open.
+Status: Complete, including release acceptance remediation closed by commit `6f1c405`.
 
 Deliverables:
 
@@ -549,8 +550,9 @@ Exit criteria:
 - No destructive filesystem operation is exposed.
 
 The first full operator acceptance run did not satisfy the manual rerun, Explorer reveal, shutdown,
-or unexpected-worker recovery criteria. Remediation is tracked separately so these failures are not
-mistaken for post-MVP feature work.
+or unexpected-worker recovery criteria. The separate remediation plan preserves those failures and
+their regressions; its full code-complete gate later passed and was closed by commit `6f1c405`, so
+they are not open post-MVP work.
 
 ## Test Strategy
 

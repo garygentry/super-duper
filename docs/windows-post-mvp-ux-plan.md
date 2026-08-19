@@ -12,12 +12,12 @@ This is the durable planning source for post-MVP Windows UX work. Update this do
 milestone is refined, split, accepted, or superseded so future coding sessions do not have to
 reconstruct product and architecture decisions from conversation history.
 
-## Prerequisite
+## Completed prerequisite
 
 The release blockers in
 [`windows-release-acceptance-remediation-plan.md`](windows-release-acceptance-remediation-plan.md)
-remain the entry gate. Post-MVP implementation must not enter the release-remediation scope or be
-used to redefine its acceptance criteria.
+were fixed and the full acceptance gate was closed by commit `6f1c405`. The historical remediation
+scope and acceptance criteria remain authoritative for the MVP but no longer gate post-MVP work.
 
 ## Product Goal
 
@@ -340,6 +340,13 @@ notifications when the displayed exact-duplicate-folder member query completes o
 keeping non-displayed prefetch and Explorer-action errors silent.
 The eighth bounded accessibility-remediation slice moves the exact-folder heading and filters into
 a wrapping narrow-workspace layout while preserving their existing automation and query behavior.
+
+This read-only milestone can close on its own acceptance criteria without adding mutable review or
+live filesystem state. Durable `Keep`, `Remove`, and `Undecided` decisions belong to Milestone 10;
+validation and live-state behavior belong to Milestone 12. Additional rich filters are optional
+future Milestone 8 work only after their complete semantics, migration/backfill behavior, indexes,
+cursor signatures, summary/facet integration, and performance bounds are designed; they are not a
+reason to blur those milestone boundaries.
 
 #### Refined first vertical slice (2026-08-17)
 
@@ -2131,19 +2138,25 @@ Initial targets should be measured and refined on representative Windows 11 hard
 - no full-result materialization for rule preview or plan summary;
 - no content read, thumbnail extraction, or validation of excluded cloud placeholders.
 
-## Recommended First Implementation Slice
+## Recommended Next Implementation Slice
 
-Implement Milestone 7, Milestone 8, and only the durable manual-decision portion of Milestone 10:
+Close or explicitly operator-gate the remaining read-only Milestone 8 accessibility and
+representative-hardware profiling criteria, then implement only the durable manual-decision portion
+of Milestone 10:
 
-1. Add the cloud policy to session/run contracts.
-2. Guarantee no hydration for excluded sync roots.
-3. Add the Review landing summary and enhanced duplicate-set detail.
-4. Persist manual `Keep`, `Remove`, and `Undecided` decisions.
-5. Enforce at least one independently accessible survivor.
-6. Do not expose deletion yet.
+1. Migrate schema v4 transactionally to separate `review_plan` and `review_decision` concepts.
+2. Support one active plan per immutable completed run.
+3. Persist manual `Keep`, `Remove`, and `Undecided` decisions with provenance and immutable file
+   snapshots.
+4. Expose idempotent allow-listed worker commands plus bounded plan, group, and summary queries.
+5. Enforce at least one independently accessible physical survivor per duplicate set, accounting
+   for hard-link identity.
+6. Add accessible WPF member controls and bounded restart-persistent summaries.
+7. Do not validate live filesystem state, touch excluded cloud placeholders, or expose deletion.
 
-This slice delivers meaningful UX, establishes the state separation required by later deletion,
-and avoids extending the current `marked_deleted` flag into the product workflow.
+Milestone 7 cloud safety and the Milestone 8 read-only review foundation are already implemented.
+This next slice establishes durable review state without extending `scanned_file.marked_deleted` or
+the legacy `deletion_plan`, and without pulling Milestone 12 live-state behavior forward.
 
 ## Milestone Definition Template
 

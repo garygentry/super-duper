@@ -8,8 +8,9 @@ MVP. The previous Windows app implementation was removed before the current WPF 
 - Core duplicate detection pipeline is functional
 - CLI supports processing, directory analysis, hash-cache inspection, config printing, and database
   truncation
-- SQLite schema v3 separates editable named sessions from immutable runs, owns file/group/directory
-  results by run, and persists lifecycle outcomes and scan counters
+- SQLite schema v4 separates editable named sessions from immutable runs, owns file/group/directory
+  results by run, persists lifecycle outcomes and scan counters, and snapshots the cloud-exclusion
+  policy used by each run
 - FFI exposes handles, progress callbacks, paginated queries, and deletion actions for future native
   clients
 
@@ -92,7 +93,7 @@ blocking their UI thread.
 
 Files: `crates/super-duper-ffi/src/actions.rs`, `crates/super-duper-ffi/src/callbacks.rs`
 
-### 11. New Windows App (Acceptance Remediation)
+### 11. New Windows App
 
 The Windows app is implemented against the Rust worker-process boundary as a new product surface,
 not a continuation of the deleted app. Post-MVP work is ordered below rather than tracked as an
@@ -108,12 +109,14 @@ Milestones 0 (worker/WPF shell), 1 (session/run persistence repair), 2 (worker s
 (session navigation, editing, history, and progress/cancellation UI), 4 (server-paged
 duplicate-file results, bounded caching, and Explorer integration), 5 (verified exact-folder
 results), and 6 (filesystem, diagnostics, smoke, Release, and recovery hardening) are implemented.
-Final operator acceptance found bounded release blockers; the code-complete remediation plan is
-[`docs/windows-release-acceptance-remediation-plan.md`](docs/windows-release-acceptance-remediation-plan.md).
-Post-MVP safe deletion review, distinct similar-folder presentation, bounded thumbnails,
-packaging/shell integration, and export remain deferred until that plan passes.
+Final operator acceptance found bounded release blockers, preserved in
+[`docs/windows-release-acceptance-remediation-plan.md`](docs/windows-release-acceptance-remediation-plan.md);
+commit `6f1c405` fixed them and closed the full code-complete gate. Post-MVP work is therefore no
+longer gated on release remediation.
 
 The detailed post-MVP duplicate-review, cloud-safety, deletion, live-reconciliation, and Activity
 roadmap is maintained in
-[`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md). Its Milestones 7-14 are
-planning targets and remain gated on completion of the release-acceptance remediation plan.
+[`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md). Milestone 7 cloud safety is
+accepted, the read-only Milestone 8 foundation is implemented with remaining operator acceptance
+gates tracked there, and durable review decisions begin in Milestone 10 independently of the later
+Milestone 12 live-state overlay.

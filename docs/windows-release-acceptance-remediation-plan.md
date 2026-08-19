@@ -5,10 +5,10 @@
 Final operator acceptance on Windows 11 x64 failed on 2026-08-16 against `wpf-poc` commit
 `e977bb27169db74bd155b769bc198e0d1a2784c7`.
 
-Milestones 0–6 remain implemented, and the complete Debug/Release Rust and .NET matrix plus
-`Verify-WindowsRelease.ps1` passed on an interactive desktop. The Windows MVP is not release/code
-complete until the acceptance failures in this plan are fixed, regression-tested, and the full
-operator workflow passes without workarounds.
+Status: Complete. Commit `6f1c405` fixed and regression-tested the failures below, and the complete
+Debug/Release Rust and .NET matrix plus `Verify-WindowsRelease.ps1` and the full operator workflow
+passed on an interactive Windows 11 x64 desktop. Milestones 0–6 and the Windows MVP are code
+complete. The original failure narrative remains below as the historical acceptance baseline.
 
 This is a bounded remediation milestone. It does not authorize post-MVP deletion, similar-folder
 scoring, thumbnails, packaging, shell extensions, export, or any mutation of scanned files.
@@ -210,6 +210,9 @@ Then repeat operator acceptance with a new isolated database/cache and retained 
 
 ## Code-Complete Gate
 
+Closure result: Passed and closed by commit `6f1c405`. The criteria below remain the durable
+definition used for that acceptance; they are not open release gates.
+
 The Windows MVP may be called code complete only when all of the following are true:
 
 - every critical/high acceptance defect above is closed with regression coverage;
@@ -221,5 +224,5 @@ The Windows MVP may be called code complete only when all of the following are t
 - the final Git audit shows only intentional source/documentation changes and the preserved `.vs`
   cache remains untracked.
 
-Do not mark this plan complete merely because the existing automated matrix passes. The failed
-operator gates are part of the definition of done.
+This plan was not closed from the automated matrix alone. The failed operator gates were part of
+the definition of done and passed in the interactive acceptance run recorded above.
