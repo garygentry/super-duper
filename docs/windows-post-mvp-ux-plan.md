@@ -9,8 +9,9 @@ implemented and accepted; the broader milestone remains in progress and is gated
 criteria below. The first four Milestone 10 slices are accepted: durable manual file decisions,
 durable manual exact-folder decisions, the read-only ordered preferred scan-root rule preview, and
 bounded ordered-rule application/reversal provenance. The first bounded Milestone 11 preflight
-slice is also accepted. Scheduling, Recycle Bin interaction, deletion, partial execution/recovery,
-and Milestone 12 changed/resolved working-state mutation remain deferred.
+slice is also accepted. The second Milestone 11 slice now has a refined revision-bound Recycle Bin
+operation design, but no operation schema, protocol, Shell integration, deletion, partial-result
+recovery, or Milestone 12 changed/resolved working-state mutation is implemented or exposed.
 
 This is the durable planning source for post-MVP Windows UX work. Update this document when a
 milestone is refined, split, accepted, or superseded so future coding sessions do not have to
@@ -2655,7 +2656,9 @@ live state, and execution state must remain distinct.
 
 Status: The first bounded slice is implemented and accepted. It validates an immutable reviewed-plan
 snapshot and persists observations, but deliberately exposes no scheduling, Recycle Bin, Shell
-operation, deletion, partial execution, recovery, or Milestone 12 working-state mutation.
+operation, deletion, partial execution, recovery, or Milestone 12 working-state mutation. The
+second-slice revision-bound Recycle Bin operation contract is refined below as design only; none of
+its provisional schema, protocol, Infrastructure, or WPF behavior exists yet.
 
 #### Refined first-slice implementation plan (2026-08-20)
 
@@ -2797,6 +2800,316 @@ changed/resolved states.
   and provider transfer counters must remain unchanged where a real Cloud Files fixture is used.
   Development-host timing is regression evidence only and does not close representative-hardware or
   physical accessibility gates.
+
+#### Refined second-slice design plan (2026-08-20)
+
+##### User story, whole-plan boundary, and sources of truth
+
+A user with one current, successfully completed preflight can inspect one fixed execution summary,
+confirm an immediate Recycle Bin operation for exactly that reviewed-plan revision, and later see
+durable per-item outcomes even when Windows completes only part of the work. This slice is designed
+as whole-plan admission: it never silently drops an ineligible removal, never lets the user execute
+only the convenient subset, and never schedules work for later. Partial state exists only because
+Shell work, provider failure, cancellation, process loss, or root loss can occur after mutation has
+started; it is not a selectable execution mode.
+
+The operation binds `runId`, active `planId`, exact `reviewRevision`, `preflightId`, preflight
+`snapshotSignature`, and a deterministic operation-intent signature. It never consults
+`scanned_file.marked_deleted` or legacy `deletion_plan`. Reusable rule configuration, immutable
+rule-application provenance, later manual review choices, immutable preflight observations,
+operation intent/results/recovery evidence, future Milestone 12 live state, and immutable scan
+history remain distinct Rust-owned sources. Operation results do not rewrite any of the others.
+
+Preparation is non-destructive. It may create only a future operation intent and run bounded,
+non-mutating eligibility checks. No path is sent to Windows Shell and no operation can enter a
+submitted state until the accessible final confirmation succeeds. Once submitted, execution starts
+immediately; background scheduling, permanent delete, automatic restore, and user-selected subset
+execution remain unavailable.
+
+##### Exact revision binding and freshness leases
+
+- `recycle_operation.prepare` will require the latest generation for the run to be `completed`, to
+  address the still-active plan and exact current review revision, and to contain no pending item.
+  A later preflight generation in any state, a changed review revision, or another active
+  filesystem mutation invalidates preparation. Exact replay is resolved before freshness checks.
+- The initial policy is deliberately short-lived: preparation must begin within five minutes of
+  the preflight `completedAt`; a wall-clock rollback, sleep/resume discontinuity, app restart, or
+  inability to prove that interval expires the generation. In-process elapsed time uses a monotonic
+  clock; persisted UTC is used only to fail closed across restart. Expiration never changes the old
+  observations and asks the user to run preflight again.
+- Preparation freezes counts and creates bounded batches, then Infrastructure performs only the
+  planned non-opening Recycle Bin capability classification. The worker issues a fixed
+  confirmation summary only after all classifications are durably reported. That summary expires
+  after 60 seconds; any revision, generation, capability, root-availability, or app-lifecycle change
+  closes it and requires a fresh preflight rather than extending the lease.
+- The explicit confirmation must be submitted to the worker within the same 60-second lease. The
+  worker rechecks plan/preflight ownership and commits `submitted` before returning an execution
+  token. Infrastructure must receive that acknowledged token before requesting a batch and must
+  never infer submission from a cancelled or disconnected request.
+- A review/rule mutation while an operation is `prepared` or `awaiting_confirmation` expires that
+  intent without changing the review edit. Once `submitted` is durably acknowledged, mutations of
+  the bound plan and deletion of its run/session are rejected until a non-ambiguous terminal state;
+  execution keeps the exact frozen revision rather than adopting later intent. A
+  `recovery_required` operation retains this lock until an explicit future recovery workflow
+  resolves or administratively preserves its evidence.
+- Before each batch is released, Rust repeats excluded-location, ordinary-item, exact identity,
+  type, size, nanosecond time, complete-hash, folder-tree, and affected-survivor checks against the
+  frozen snapshots. The batch admission expires after 30 seconds; expiry, suspension, or delay
+  reruns admission. Infrastructure repeats the positive Recycle Bin capability decision and
+  non-opening reparse/placeholder classification before Shell item creation, then repeats
+  identity/type/size/time checks from the `PreDeleteItem` callback. The remaining path-swap interval
+  inside Windows Shell is an explicit residual TOCTOU risk, not a promise of filesystem atomicity.
+
+##### Eligibility and fail-closed admission
+
+- Every `remove` item must have a `ready` observation in the bound preflight and must pass the
+  fresh batch admission. `changed`, `missing`, `unavailable`, and `conflict` removals block the
+  whole operation; they are never treated as already resolved, skipped, or eligible for retry under
+  the old generation. Non-ready survivor observations may be disclosed, but every affected file
+  group must still have a newly ready independent physical survivor and every affected folder group
+  a newly ready intact folder copy.
+- A target is `non_recyclable` when Infrastructure cannot positively establish support for a
+  Recycle Bin-only Shell operation for its current local volume/root, or when Shell item creation
+  would require a provider, elevation, hydration, fallback, or interactive error decision. UNC,
+  disconnected, unavailable, or unrecognized provider-backed roots fail closed in the first
+  implementation; removable/mapped roots require explicit positive capability evidence rather
+  than drive-letter inference. One non-recyclable target blocks confirmation for the whole plan.
+- Excluded registered/manual subtrees are rejected lexically before any capability or target I/O.
+  Offline/recall Cloud Files placeholders and every reparse/link target remain ineligible. The
+  worker never places them in an operation batch, and Infrastructure independently refuses to call
+  Shell item creation or `IFileOperation` for them. There is no hydration opt-in or permanent-delete
+  fallback.
+- Hard-linked removals are hashed and safety-checked once per physical identity, but Shell mutation
+  is per selected directory entry: every selected alias has its own durable operation item and
+  result. An alias outside the removal plan neither inflates the independent-survivor count nor is
+  silently removed. Fixed summaries report logical paths, Shell entries, unique physical items,
+  and physically de-duplicated bytes separately.
+- An exact-folder action is eligible only when the entire root and every immutable descendant pass
+  the fresh full-tree admission and all file/folder survivor invariants. Any drift blocks that
+  folder and therefore the whole plan before submission. Existing file/folder and nested-folder
+  overlap rules ensure no separate Shell item is queued inside that root.
+
+##### Final accessible confirmation
+
+The confirmation heading says **Move reviewed items to the Recycle Bin** and states that the action
+starts now. Its fixed worker-owned summary names the session/run and review revision, preflight
+completion time and expiry, logical removal paths, Shell entries, exact folders, unique physical
+items, de-duplicated bytes, affected duplicate groups, and the number of distinct affected
+locations. It labels the byte total as planned content, not guaranteed Recycle Bin allocation or
+recoverability.
+
+Affected configured roots/volumes and their Recycle Bin capability are available through a
+signature-bound paged list in the confirmation region; the fixed heading names the first bounded
+set and total, and `Review all affected locations` opens the virtualized list without materializing
+the plan. The confirmation also names the frozen registered/manual exclusion count, says that zero
+excluded paths or Cloud Files placeholders will be accessed, and blocks rather than hides any
+eligibility failure.
+
+The disclosure says plainly that Windows can recycle some items before another item fails or the
+app closes, cancellation cannot undo completed Shell work, exact-folder recycling is not
+transactional, Recycle Bin capacity/provider behavior can still fail, and the app does not promise
+restore. `Move to Recycle Bin now` and `Cancel` are native buttons with deterministic tab order and
+Space/Enter activation. Focus moves to the confirmation heading on entry and returns to the
+invoking control on cancellation or expiry; Escape never confirms or silently cancels.
+
+##### Provisional schema-v10 intent, states, and idempotency
+
+A possible schema v10 will add only operation-domain records. The proposed `recycle_operation`
+header snapshots the operation ID and canonical payload, run/plan/revision/preflight binding,
+intent/confirmation signatures, policy/freshness versions, fixed counts/bytes/location summary,
+state, timestamps, cancellation request, and bounded structured terminal detail.
+`recycle_operation_batch` stores stable bounded ordinals, item-list signatures, admission expiry,
+Shell-attempt identity, and batch state. `recycle_operation_item` stores one immutable top-level
+Shell path/action plus physical group and logical provenance references. Separate append-safe
+eligibility, result-report, and recovery records retain capability codes, per-item outcomes,
+HRESULTs as unsigned numeric evidence, callback/aborted flags, report operation IDs, and attempts.
+No operation table becomes review or live-state truth.
+
+The header state machine is `prepared -> awaiting_confirmation -> submitted -> executing`, with
+`cancelling` as an active stop request and terminal `expired`, `cancelled`, `completed`,
+`partially_completed`, `failed`, or `recovery_required`. Batches are `pending`, `admitted`,
+`shell_started`, `reported`, `skipped`, or `ambiguous`; items are `pending`, `recycled`, `failed`,
+`cancelled`, or `unknown`. `completed` requires every item to be positively reported recycled.
+`failed` means no mutation was reported and every item has a known non-success result.
+`partially_completed` requires at least one recycled item and no unresolved ambiguity.
+`recovery_required` covers an unreported `shell_started` batch, missing/inconsistent callbacks,
+an unexpected non-Recycle-Bin outcome, or any other state where mutation may have occurred.
+
+Preparation, confirmation, cancellation, batch begin, and result report each have bounded
+idempotency keys and canonical payload signatures. Exact replay returns the durable original
+outcome even after restart; reuse with different content is `idempotency_conflict`. A cancelled
+client wait retains the same key and payload. A new operation ID never grants permission to repeat
+a batch already marked `recycled`, `shell_started`, `reported`, or `ambiguous`.
+
+##### Protocol, ownership, and dedicated STA execution
+
+The planned worker surface is `recycle_operation.prepare`, `.eligibility.report`, `.confirm`,
+`.get`, `.item.page`, `.batch.next`, `.batch.begin`, `.batch.report`, and `.cancel`, with bounded
+coalesced progress and one terminal/recovery event. Exact method/DTO names remain provisional until
+the protocol slice, but all requests use allow-listed fields, decimal strings for large byte
+values, signature-bound cursors, 1 MiB framing, structured errors, and explicit replay markers.
+The worker alone constructs intent/batches, owns SQLite, grants admission, serializes scan,
+preflight, and operation I/O, aggregates outcomes, and decides terminal state.
+
+Infrastructure owns the Windows-only executor and no product persistence. One long-lived dedicated
+thread initializes COM as STA, creates one `IFileOperation` instance per batch, advises one
+`IFileOperationProgressSink`, queues only the admitted top-level `DeleteItem` calls, calls
+`PerformOperations`, always queries `GetAnyOperationsAborted`, unadvises, releases COM objects on
+that thread, and reports the bounded result. Official Shell contracts require STA, make
+`DeleteItem` declarative until `PerformOperations`, expose actual per-item HRESULTs through
+`PostDeleteItem`, and allow a successful `PerformOperations` HRESULT even when work was aborted;
+the design must preserve all four facts rather than infer success from the outer call alone.
+
+The executor sets an explicit reviewed flag set including `FOFX_RECYCLEONDELETE`,
+`FOFX_ADDUNDORECORD`, `FOF_NOCONFIRMATION`, `FOF_NOERRORUI`, `FOF_SILENT`, and
+`FOFX_EARLYFAILURE`; it never accepts defaults or a permanent-delete fallback. A successful
+`PostDeleteItem` counts as `recycled` only when the callback also supplies the newly created Recycle
+Bin Shell item. A null recycled item, unsupported flag, Shell UI request, or inconsistent callback
+is a critical unknown outcome that stops later batches. This follows the documented
+[`IFileOperation`](https://learn.microsoft.com/windows/win32/api/shobjidl_core/nn-shobjidl_core-ifileoperation),
+[`SetOperationFlags`](https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifileoperation-setoperationflags),
+[`PostDeleteItem`](https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifileoperationprogresssink-postdeleteitem),
+and [`GetAnyOperationsAborted`](https://learn.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifileoperation-getanyoperationsaborted)
+contracts.
+
+##### Bounded batches, transport, and cancellation limits
+
+- A normal batch contains at most 32 top-level Shell entries and must fit the existing protocol
+  frame independently of logical-source detail. An exact-folder root is isolated in its own
+  one-item batch. Hard-link alias entries may span batches but retain one physical-group key. WPF
+  receives fixed summaries and at most five 100-row result/location pages, never operation batches
+  or a run-wide result dictionary.
+- Infrastructure must obtain a durable `batch.begin` acknowledgement before calling
+  `PerformOperations`. If acknowledgement is lost, it does not call Shell. Once acknowledged, the
+  worker records `shell_started` before mutation is possible. Infrastructure sends callback
+  results in bounded chunks and one signed final report; report retry uses the same attempt/report
+  IDs and can never queue Shell work again.
+- Before submission, cancellation is immediate and terminal with zero mutation. After submission
+  but before `batch.begin`, it skips every pending batch. Between batches it stops future work;
+  already recycled items remain recycled and the terminal state reflects partial cancellation.
+- After `PerformOperations` starts, the current Shell call is not treated as synchronously
+  cancellable. A cancellation request means stop before the next item when `PreDeleteItem` can
+  safely return a cancellation HRESULT, and always stop before the next batch. The app never kills
+  the STA thread, releases live COM objects from another thread, or claims that completed work was
+  undone. WPF changes the action text to `Stop after current Shell work` and announces the
+  non-cancellable phase.
+
+##### Shell outcomes, ambiguity, recovery, and survivor safety
+
+Per-item mapping uses the `PostDeleteItem` HRESULT, recycled-item presence, `FinishOperations`
+HRESULT, `PerformOperations` HRESULT, and `GetAnyOperationsAborted` flag together. Stable reason
+codes distinguish user/system cancellation, access denied, sharing violation/locked item, root
+disconnection, item disappearance, provider failure, unsupported recycling, unexpected permanent-
+delete evidence, and unmapped Shell failure; localized Shell text is diagnostic only. Pending
+items after an abort become `cancelled` only when no callback or other evidence suggests mutation;
+otherwise they are `unknown`.
+
+Every acknowledged `shell_started` batch lacking a complete accepted report at worker/app restart
+becomes `ambiguous`, and its operation becomes `recovery_required`. Pending later batches remain
+unsubmitted. The worker never replays that batch automatically, never converts source-path absence
+into proof of app recycling, and never repeats an item whose outcome may be success. Infrastructure
+may reconnect and idempotently resend a report it already captured; otherwise the UI preserves the
+unknown items and directs the user to inspect the source locations and Recycle Bin. A future
+explicit reconciliation design may resolve ambiguity, but this slice does not write Milestone 12
+state or invent certainty.
+
+After each fully reported batch, Rust performs operation-scoped rechecks of the still-required
+survivors before admitting another batch. Survivor disappearance, identity/content drift, or an
+unexpected hard-link relationship stops remaining work and creates a structured partial or
+recovery result. These checks append operation recovery evidence only; they do not rewrite the
+preflight, review plan, immutable run, or future live overlay. A failed selected hard-link alias is
+reported separately, a successful alias is never repeated, and independently accessible survivors
+are re-evaluated from physical identity rather than remaining path count.
+
+Exact-folder admission is all-or-nothing only before Shell begins. The root is submitted as one
+isolated Shell item so the Recycle Bin can preserve folder shape, but Windows may mutate descendants
+before a provider/error/cancellation result. Only a positive root `PostDeleteItem` with a recycled
+Shell item is complete success. Any failure, abort, callback gap, or missing recycled item is
+reported as partial/unknown for the folder; the app does not delete leftover descendants, roll back
+already recycled children, or call the folder resolved.
+
+##### Accessible progress, results, and recovery UI
+
+After confirmation, focus moves to an operation-progress heading. The view shows phase, batch and
+item counts, planned versus positively recycled bytes, current affected location, a native stop
+button, and a persistent explanation of whether stopping is immediate, between-batch, or waiting
+for current Shell work. Progress and UI Automation notifications are coalesced to at most ten per
+second; no Shell callback creates one dispatcher update.
+
+Terminal focus moves to a summary heading that separately names recycled, failed, cancelled,
+unknown, and not-submitted counts/bytes, affected locations, exact-folder outcomes, and whether
+manual inspection is required. Virtualized pages expose path, source decision/provenance,
+physical/hard-link context, stable explanation, numeric Shell code when useful, batch, and recovery
+status. `Open Recycle Bin` is offered only after at least one positive recycled result and says that
+restore is owned by Windows. Failed/partial/recovery summaries are assertive; ordinary progress and
+success are polite. `Enter`/`Space`, deterministic tab order, `Ctrl+Home`, Escape behavior, high-
+contrast resources, narrow reflow, focus restoration, and stale-generation rejection receive WPF
+STA coverage. Physical Narrator/NVDA, OS high-contrast, and multi-monitor DPI remain operator gates.
+
+##### Possible v10 migration, rollback, and compatibility
+
+If implementation confirms schema v10, Rust will migrate v9 to v10 in one `BEGIN IMMEDIATE`
+transaction, creating operation tables, constraints, foreign keys, and bounded-query indexes before
+setting `user_version = 10`. Failure leaves an unchanged valid v9 database; supported older schemas
+still migrate in order and unknown newer schemas fail closed. No v9 preflight/review/scan row and no
+legacy deletion field is rewritten or adopted. Explicit truncation and run deletion will remove
+operation result/report/source rows in foreign-key order before their bound preflight and plan.
+
+Before the first successful v10 open, the release workflow must take a consistent SQLite backup of
+the database/WAL state and document its location. A previous binary cannot safely open v10 and
+there is no in-place downgrade that drops operation evidence. Operational rollback therefore means
+closing the app/worker and restoring the complete pre-migration v9 backup; after any Shell mutation,
+rollback must preserve the v10 database and logs as evidence and use a copy for diagnosis rather
+than erasing results. Protocol negotiation must prevent an older Windows client from driving a v10
+worker operation surface. This section designs, but does not add, schema v10.
+
+##### Questions that remain implementation gates
+
+- Confirm on supported Windows 11 filesystems the exact non-mutating evidence that positively
+  establishes Recycle Bin capability; no undocumented drive-type heuristic may become execution
+  authority. Until proven, an unclassified root remains non-recyclable.
+- Measure whether five-minute preflight, 60-second confirmation, 30-second batch admission, and
+  32-entry batches are safe and usable on the large disposable fixture. Tightening is compatible;
+  loosening requires a documented safety review and versioned freshness policy.
+- Verify with real disposable folders and hard links how `PostDeleteItem`, its recycled-item value,
+  outer/finish HRESULTs, and the abort flag behave for successful, partial, locked, oversized,
+  capacity-limited, and cancelled operations. The fake adapter cannot close this Shell-contract
+  evidence gate.
+- Decide after that evidence whether `FOFX_ADDUNDORECORD` remains in the final flag set. Any choice
+  affects Windows' own undo integration only; the app still must not promise or implement restore.
+
+##### Disposable verification and acceptance boundary
+
+- Storage/protocol tests cover v9-to-v10 migration and injected rollback at every DDL phase,
+  unknown-schema rejection, exact binding/freshness/expiry, latest-generation rules, canonical
+  replay/conflict, operation locks, state transitions, batch/item signatures, paged results,
+  report replay, and every crash boundary before/after `shell_started` and accepted result commit.
+- A fake Shell adapter injects queue, `PreDeleteItem`, `PostDeleteItem`, `FinishOperations`, outer
+  HRESULT, abort flag, missing callback, provider, lock, disconnect, null recycled-item, and delayed
+  cancellation outcomes. Infrastructure tests assert the dedicated STA apartment/thread and COM
+  lifetime, exact flags, one advised sink, 32-item/one-folder batches, no call before durable begin,
+  no retry after ambiguous start, and no Shell item creation for excluded/reparse/placeholder paths.
+- Disposable filesystem tests cover identity/metadata/hash drift in every freshness window,
+  path-swap seams, hard-link aliases across batches, survivor loss after a successful batch,
+  exact-folder pre-admission drift and partial callbacks, inaccessible/locked files, disconnected
+  removable/mapped/UNC roots, and bounded failure reporting. Cloud seams assert zero target access;
+  real-provider no-hydration remains a separate unclosed operator acceptance gate.
+- Core tests retain operation IDs across cancellation/restart, bound all caches/generations, and
+  reject late reports. WPF STA tests cover the complete disclosure, all counts/bytes/locations and
+  exclusions, expiry, keyboard/focus/announcements, non-cancellable wording, structured failures,
+  partial/unknown summaries, and `Open Recycle Bin` eligibility without invoking real Shell.
+- Protocol smoke stays non-mutating with a fake executor. A separate interactive operator workflow
+  may later use only generated disposable local fixed-drive fixtures, verify before/after identities
+  and survivors, inspect positive items in the real Recycle Bin, exercise locked/failure/cancel/
+  restart boundaries, and clean up explicitly. It must never target user files, excluded cloud
+  roots, or permanent delete. Debug/Release Rust/.NET matrices, protocol/publish smoke, focused
+  formatting/parsing/diff checks, and documented recovery are required before exposure.
+
+This design does not accept or implement deletion. Implementation acceptance additionally requires
+bounded large-plan regression evidence, but that evidence cannot be claimed as representative-
+hardware performance. It cannot close real-provider preflight/operation no-hydration acceptance or
+the independent Milestone 8 representative-hardware, physical Narrator/NVDA, OS high-contrast, and
+multi-monitor DPI-transition gates without new qualifying operator evidence.
 
 #### User outcome
 
@@ -3040,14 +3353,16 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 Keep the remaining physical Narrator/NVDA, high-contrast, multi-monitor DPI, and representative-
 hardware Milestone 8 procedures operator-gated; they can close independently from later review
-work. Before implementing any destructive action, refine the second Milestone 11 slice as a
-design-only, revision-bound Recycle Bin operation contract. Specify final confirmation, eligibility,
-idempotent submission/result reporting, STA `IFileOperation` ownership, bounded batching,
-cancellation limits, per-item Shell outcomes, restart/crash ambiguity, and all-or-nothing versus
-partial-result semantics. Do not expose or execute deletion until that design and its disposable
-fixtures are accepted. Keep Milestone 12 changed/resolved mutation separate, and preserve rule
-configuration, application provenance, manual review state, preflight observations, future
-execution state, and immutable scan history as distinct sources of truth.
+work. Implement the second Milestone 11 design in two deliberately gated code slices. First add the
+provisional schema-v10 operation intent/state/results model, allow-listed worker contracts,
+freshness/eligibility logic, bounded Core models/caches, accessible confirmation/results UI, and a
+fully injected non-mutating Shell adapter; stop at an explicit disabled-executor boundary and prove
+migration/replay/crash/failure behavior without calling `IFileOperation` or moving a file. Only a
+subsequent separately reviewed slice should add the dedicated-STA real executor, disposable real-
+Recycle-Bin smoke, partial-result recovery, and exposure of `Move to Recycle Bin now`. Keep
+Milestone 12 changed/resolved mutation separate, and preserve rule configuration, application
+provenance, manual review state, preflight observations, operation state, and immutable scan
+history as distinct sources of truth.
 
 ## Milestone Definition Template
 
@@ -3102,3 +3417,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-19 | Refined and accepted the fourth Milestone 10 slice: transactional schema v8 rule-application provenance, manual-revision precedence, exact preview-bound idempotent apply, fixed-summary history plus bounded detail, isolated replayable reversal, shared revision invalidation, accessible WPF confirmations, restart recovery, and real Debug/Release non-deleting smoke. | Keep reusable rules, rule-produced decisions, manual review choices, live state, and execution state separate while making an exact reviewed rule outcome durable and reversibly attributable. The isolated optimized 100,000-set/200,100-path profile completed apply in 2,766.08 ms and reversal in 703.08 ms with 46,256,128 retained private bytes, within its development-host ceilings only. The next slice is design-first bounded Milestone 11 preflight without scheduling, Recycle Bin interaction, deletion, or Milestone 12 changed/resolved UI; all four independent Milestone 8 operator gates remain open. |
 | 2026-08-20 | Refined the first bounded Milestone 11 slice: schema v9 immutable review-revision snapshots, exact physical-file/folder and survivor validation, cloud-placeholder no-open behavior, durable cancellable generations, idempotent commands, recovery, paging, bounded Core caching, and an accessible non-deleting WPF workspace. | Make plan-time validation independently reviewable and restart-safe while keeping observations separate from rules, provenance, manual review, scan history, future execution, and Milestone 12 live state. Scheduling, Shell/Recycle Bin APIs, deletion, partial execution/recovery, changed/resolved mutation, and the four independent Milestone 8 gates remain explicitly out of scope. |
 | 2026-08-20 | Implemented and accepted the first bounded Milestone 11 preflight slice: transactional schema v9, immutable review-revision snapshots, exact metadata/identity/time/hash and folder-tree checks, hard-link-aware physical targets and survivor re-evaluation, excluded-location and Cloud Files no-open classification, idempotent worker lifecycle/recovery/paging, bounded Core caching, accessible WPF confirmation/progress/results, and real Debug/Release non-deleting smoke. | Establish durable current-filesystem observations without turning them into review truth, execution authority, or Milestone 12 live state. All disposable fixtures remained present and unchanged; the four independent Milestone 8 operator gates remain open. The next slice is design-only refinement of a revision-bound Recycle Bin operation contract before any scheduling, Shell mutation, deletion, or partial-execution recovery is exposed. |
+| 2026-08-20 | Refined the second Milestone 11 design as a revision/preflight-bound, freshness-leased, whole-plan Recycle Bin contract with fail-closed eligibility, accessible final confirmation, provisional schema-v10 intent/batch/result/recovery records, dedicated-STA `IFileOperation` ownership, bounded Shell batches, explicit cancellation limits, per-item result mapping, crash ambiguity, hard-link and exact-folder safety, and migration/rollback/test gates. | Keep the accepted v9 preflight immutable and keep rule configuration, application provenance, manual review, operation evidence, future live state, and scan history separate. This is design only: no schema/protocol/operation/UI implementation and no Shell mutation were added. Start implementation with the non-mutating durable contract and injected fake executor; expose the real Recycle Bin executor only in a later reviewed slice. Real-provider no-hydration, representative large-plan performance, and the four independent Milestone 8 operator gates remain open. |
