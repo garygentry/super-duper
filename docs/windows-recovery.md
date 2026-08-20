@@ -68,6 +68,11 @@ recovery record because mutation may have occurred before a result was persisted
 edit, or clear that operation: its run/review remain locked to prevent repeating a potentially
 completed mutation. This build has no recovery-resolution UI. The production app cannot initiate
 Shell work, but the explicitly invoked disposable executor tests can exercise this boundary.
+Preserve the timestamped evidence bundle produced by
+`Invoke-WindowsRecycleBinAcceptance.ps1` with the database and logs. The acceptance matrix in
+[`windows-recycle-bin-acceptance.md`](windows-recycle-bin-acceptance.md) requires numeric callback,
+HRESULT, abort, source/survivor, and Recycle Bin observations; absence of a source path alone is
+never proof that this app recycled it.
 
 ## Database Failure Or Suspected Corruption
 

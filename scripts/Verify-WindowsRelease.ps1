@@ -27,7 +27,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'cargo build --workspace --release failed.' }
     dotnet build $solution --configuration Release
     if ($LASTEXITCODE -ne 0) { throw 'Release solution build failed.' }
-    dotnet test $solution --configuration Release --no-build
+    # Keep the UI STA suite isolated from the loaded Infrastructure project. Concurrent solution
+    # test hosts can starve WPF dispatcher startup long enough to produce a false timeout.
+    dotnet test $solution --configuration Release --no-build -m:1
     if ($LASTEXITCODE -ne 0) { throw 'Release solution tests failed.' }
 
     $expectedPublish = [IO.Path]::GetFullPath((Join-Path $repo 'artifacts/windows-x64'))

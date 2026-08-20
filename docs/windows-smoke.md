@@ -70,10 +70,24 @@ root become a warning instead of preventing the run.
 
 The real Shell adapter is tested separately because it intentionally mutates only its own uniquely
 named disposable fixtures. It is never part of `Invoke-WindowsSmoke.ps1` and does not enable the
-WPF action. Run it on an interactive Windows 11 desktop with an available local Recycle Bin:
+WPF action. Start with the non-mutating evidence collector:
 
 ```powershell
-./scripts/Invoke-WindowsRecycleBinSmoke.ps1 -Configuration Release -ConfirmRecycleBinMutation
+./scripts/Invoke-WindowsRecycleBinAcceptance.ps1 -Configuration Release
+```
+
+It writes a machine-readable matrix, Markdown report, command logs, and TRX under the ignored
+`artifacts/windows-recycle-bin-acceptance/` tree. Unavailable provider/physical prerequisites stay
+open rather than being reported as passes. See
+[`windows-recycle-bin-acceptance.md`](windows-recycle-bin-acceptance.md) for the full operator,
+provider, performance, constants, Windows Undo, TOCTOU/recovery, and physical-accessibility
+procedures.
+
+Run the explicit mutation slice only on an interactive Windows 11 desktop with an available local
+Recycle Bin:
+
+```powershell
+./scripts/Invoke-WindowsRecycleBinAcceptance.ps1 -Configuration Release -ConfirmRecycleBinMutation
 ```
 
 The acceptance proves one dedicated STA owns COM; successful local-root capability requires a

@@ -10,10 +10,11 @@ criteria below. The first four Milestone 10 slices are accepted: durable manual 
 durable manual exact-folder decisions, the read-only ordered preferred scan-root rule preview, and
 bounded ordered-rule application/reversal provenance. The first bounded Milestone 11 preflight
 slice is also accepted. The second Milestone 11 slice now has a refined revision-bound Recycle Bin
-operation design and its first strictly non-mutating foundation is implemented. Schema v10,
-bounded protocol/Core contracts, restart evidence, a disabled Infrastructure capability seam, and
-read-only WPF reconstruction exist; no Shell integration, deletion, real partial execution, or
-Milestone 12 changed/resolved working-state mutation is implemented or exposed.
+operation design, its strictly non-mutating foundation, and a separately gated real Windows
+executor. Schema v10, bounded protocol/Core contracts, restart evidence, read-only WPF
+reconstruction, and explicit disposable Shell acceptance exist. Production still injects the
+disabled executor and exposes no action; provider/physical/performance gates, recovery resolution,
+and Milestone 12 changed/resolved working-state mutation remain unimplemented or unaccepted.
 
 This is the durable planning source for post-MVP Windows UX work. Update this document when a
 milestone is refined, split, accepted, or superseded so future coding sessions do not have to
@@ -3197,6 +3198,47 @@ locked/capacity/provider mappings, final provisional constants, `FOFX_ADDUNDOREC
 path-swap TOCTOU, representative large-plan performance, accessible final-confirmation/operator
 wording, and recovery-resolution UI remain gates.
 
+##### Implemented operator/provider evidence foundation (2026-08-20)
+
+- `Invoke-WindowsRecycleBinAcceptance.ps1` now runs the non-mutating deterministic executor
+  contract by default and writes a versioned JSON matrix, Markdown report, command logs, host
+  context, and TRX evidence beneath the ignored `artifacts/windows-recycle-bin-acceptance/` tree.
+  Missing physical/provider prerequisites remain `not_run` or `open`; every report fixes
+  `productionEnabled:false` and `milestone11Complete:false`.
+- Stable automated coverage now locks every documented cancellation, access, sharing,
+  disappearance, disconnect, capacity, unsupported, long-path, Recycle Bin, provider, and unmapped
+  Shell HRESULT reason code. It also locks the exact current flag set and proves
+  `FOFX_ADDUNDORECORD` remains omitted. These are contract regressions only, not fabricated real
+  Shell/provider outcomes.
+- A separately gated registered-provider test accepts only explicit root/local/offline fixtures,
+  proves the exact Cloud Files registration, and compares non-opening attributes, logical and
+  allocated sizes, timestamps, provider process membership, and provider transfer counters before
+  and after executor inspection. It never crawls the root, opens either file, reads content, or
+  submits the placeholder to Shell.
+- `docs/windows-recycle-bin-acceptance.md` records exact local mutation, provider no-hydration,
+  failure, disconnect, capacity, ambiguous-start, warm-query, large-plan/constants,
+  `FOFX_ADDUNDORECORD`, and physical accessibility procedures plus their evidence boundaries.
+- Three collector runs on the current 6-logical-processor/31.9-GiB Windows 11 development host show
+  why the warm-query gate remains open. Group p95 was 93.50 ms initially, then 115.82 and 154.63 ms
+  after the hardening workload; the last two fail the 100 ms ceiling. The final run measured group
+  p50/p99 of 77.23/401.62 ms, selected-root/drive facet p95 of 51.19/43.85 ms,
+  review-plan/group p95 of 30.23/4.88 ms, and 983,040 bytes retained private growth. All three are
+  regression evidence, none is newly accepted as representative-hardware evidence, and none is
+  large-plan Shell-operation performance.
+- Release hardening now serializes the solution test projects with `-m:1`. Two concurrent runs
+  reproduced a 16-17-second existing WPF STA dispatcher timeout while the exact test passed in about
+  two seconds alone and the complete serialized Release solution passed. Serialization matches the
+  accepted matrix procedure and prevents loaded Infrastructure tests from creating a false WPF
+  failure; it does not loosen the WPF test's timeout or assertions. The serialized run also exposed
+  a race where the optimized worker could finish the recovery test's 6-MiB fixture before `Kill`;
+  that disposable fixture now includes a 1-GiB sparse file, making interruption deterministic with
+  negligible allocation. Focused Debug/Release recovery tests and final Release hardening passed.
+
+No qualifying provider fixture, controlled access-denied/disconnect/capacity/path-swap/process-loss
+campaign, representative large-plan operation profile, or physical accessibility environment was
+available merely by adding this tooling. Those rows remain open and the provisional constants and
+Windows Undo decision remain unaccepted.
+
 #### User outcome
 
 The user can execute a reviewed plan with strong assurance that the files still match the scan and
@@ -3440,9 +3482,10 @@ Initial targets should be measured and refined on representative Windows 11 hard
 Keep the remaining physical Narrator/NVDA, high-contrast, multi-monitor DPI, and representative-
 hardware Milestone 8 procedures operator-gated; they can close independently from later review
 work. The non-mutating foundation and separately gated dedicated-STA executor are implemented, but
-the disabled production composition remains intentional. The next slice should collect real local
-disappearance/capacity and representative provider evidence, run the real Cloud Files no-
-hydration procedure, profile a representative large admitted plan, decide
+the disabled production composition remains intentional. Use the evidence collector and dedicated
+operator guide to collect real local access/disappearance/capacity and representative provider
+evidence, run the explicit-fixture Cloud Files no-hydration procedure, profile a representative
+large admitted plan, decide
 `FOFX_ADDUNDORECORD`/the provisional constants, and complete operator review of final confirmation,
 progress, cancellation, partial/unknown, and recovery wording. Do not expose `Move to Recycle Bin
 now` or replace `executorEnabled:false` until those gates and ambiguous-start non-retry are accepted.
@@ -3507,3 +3550,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-20 | Refined the second Milestone 11 design as a revision/preflight-bound, freshness-leased, whole-plan Recycle Bin contract with fail-closed eligibility, accessible final confirmation, provisional schema-v10 intent/batch/result/recovery records, dedicated-STA `IFileOperation` ownership, bounded Shell batches, explicit cancellation limits, per-item result mapping, crash ambiguity, hard-link and exact-folder safety, and migration/rollback/test gates. | Keep the accepted v9 preflight immutable and keep rule configuration, application provenance, manual review, operation evidence, future live state, and scan history separate. This is design only: no schema/protocol/operation/UI implementation and no Shell mutation were added. Start implementation with the non-mutating durable contract and injected fake executor; expose the real Recycle Bin executor only in a later reviewed slice. Real-provider no-hydration, representative large-plan performance, and the four independent Milestone 8 operator gates remain open. |
 | 2026-08-20 | Implemented the strictly non-mutating second-slice foundation: transactional schema v10 intent/batch/item/report/recovery evidence, exact revision/latest-preflight binding, provisional freshness and batch bounds, fail-closed eligibility, canonical replay, operation locks, restart ambiguity, bounded worker/Core contracts, disabled Infrastructure capability injection, and accessible read-only WPF reconstruction. | Establish durable operation-domain contracts without granting filesystem or Shell mutation authority. No Shell deletion API or path inspection was added and `CanSubmit` remains false. A separately reviewed real dedicated-STA executor slice is next; positive capability, real callbacks/abort/TOCTOU, no-hydration provider acceptance, representative operation performance, and all independent Milestone 8 operator gates remain open. |
 | 2026-08-20 | Implemented the separately gated real Windows executor slice: fresh target/hash/exact-folder and affected-survivor admission, projected callback metadata, positive local-root `SHQueryRecycleBinW` evidence, dedicated-STA `IFileOperation`, durable-start acknowledgement, explicit recycle-only flags, callback/finish/outer/abort mapping, cancellation boundaries, ambiguous-start non-retry, and opt-in disposable hard-link/exact-folder Recycle Bin acceptance. | Keep application composition disabled and WPF read-only while proving the native seam on real Windows. `CanSubmit` remains false and every worker response remains `executorEnabled:false`; Milestone 11 is not complete. Real-provider no-hydration, locked/capacity/provider mappings, final constants, `FOFX_ADDUNDORECORD`, residual TOCTOU, representative operation performance, accessible operator acceptance, recovery resolution, and independent Milestone 8 gates remain open. |
+| 2026-08-20 | Added a fail-closed Recycle Bin acceptance evidence collector, exhaustive stable HRESULT/flag regressions, an explicit-fixture registered-provider no-hydration test, and a dedicated operator/provider/performance/accessibility guide. | Make every available or missing gate reviewable without enabling production or fabricating physical/provider acceptance. Real access-denied/disconnect/capacity/provider/path-swap/process-loss outcomes, representative large-plan operation performance, final freshness/batch constants, `FOFX_ADDUNDORECORD`, physical accessibility, recovery resolution, and independent Milestone 8 gates remain open. |

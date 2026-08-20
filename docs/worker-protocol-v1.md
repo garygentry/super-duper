@@ -755,6 +755,9 @@ The five-minute, 60-second, 30-second, and 32-entry values are provisional, not 
 constants. Local fixed/removable roots currently require a successful official
 `SHQueryRecycleBinW` query; remote/UNC/unrecognized roots fail closed. Real provider behavior,
 locked/capacity-limited mappings, `FOFX_ADDUNDORECORD`, and residual Shell TOCTOU remain unresolved.
+The evidence-only acceptance collector and its explicit non-mutating/provider/Shell boundaries are
+documented in [`windows-recycle-bin-acceptance.md`](windows-recycle-bin-acceptance.md); it does not
+alter this disabled protocol surface or make `executorEnabled` true.
 
 ## Duplicate File Result Commands
 

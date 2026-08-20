@@ -8,6 +8,50 @@ namespace SuperDuper.Windows.Infrastructure.Tests;
 public sealed class WindowsRecycleOperationExecutorTests
 {
     [TestMethod]
+    public void OperationFlags_AreExactAndKeepWindowsUndoOmittedPendingAcceptance()
+    {
+        const uint expected =
+            0x00000004 // FOF_SILENT
+            | 0x00000010 // FOF_NOCONFIRMATION
+            | 0x00000400 // FOF_NOERRORUI
+            | 0x00080000 // FOFX_RECYCLEONDELETE
+            | 0x00100000; // FOFX_EARLYFAILURE
+        const uint addUndoRecord = 0x20000000;
+
+        Assert.AreEqual(expected, WindowsRecycleOperationExecutor.RecycleOnlyOperationFlags);
+        Assert.AreEqual(0u, WindowsRecycleOperationExecutor.RecycleOnlyOperationFlags & addUndoRecord);
+    }
+
+    [TestMethod]
+    [DataRow(unchecked((int)0x80270000), "cancelled_by_system")]
+    [DataRow(unchecked((int)0x80270001), "cancelled_by_system")]
+    [DataRow(unchecked((int)0x80270002), "elevation_required")]
+    [DataRow(unchecked((int)0x80270021), "access_denied")]
+    [DataRow(unchecked((int)0x80270023), "item_disappeared")]
+    [DataRow(unchecked((int)0x80270025), "root_disconnected")]
+    [DataRow(unchecked((int)0x80270027), "sharing_violation")]
+    [DataRow(unchecked((int)0x80270032), "recycle_bin_capacity")]
+    [DataRow(unchecked((int)0x80270033), "recycle_bin_capacity")]
+    [DataRow(unchecked((int)0x80270037), "recycle_bin_capacity")]
+    [DataRow(unchecked((int)0x80270036), "unsupported_recycling")]
+    [DataRow(unchecked((int)0x80270038), "recycle_path_too_long")]
+    [DataRow(unchecked((int)0x8027003A), "recycle_bin_unavailable")]
+    [DataRow(unchecked((int)0x80270042), "provider_unavailable")]
+    [DataRow(unchecked((int)0x80270045), "provider_failure")]
+    [DataRow(unchecked((int)0x80270046), "provider_paused")]
+    [DataRow(unchecked((int)0x80070005), "access_denied")]
+    [DataRow(unchecked((int)0x80070020), "sharing_violation")]
+    [DataRow(unchecked((int)0x80070002), "item_disappeared")]
+    [DataRow(unchecked((int)0x80070003), "item_disappeared")]
+    [DataRow(unchecked((int)0x80070015), "root_disconnected")]
+    [DataRow(unchecked((int)0x800704C7), "cancelled_by_system")]
+    [DataRow(unchecked((int)0x81234567), "unmapped_shell_failure")]
+    public void MapShellFailure_UsesStableReasonCodes(int hresult, string expected)
+    {
+        Assert.AreEqual(expected, WindowsRecycleOperationExecutor.MapShellFailure(hresult));
+    }
+
+    [TestMethod]
     public void Constructor_CreatesOneLongLivedStaThread()
     {
         using var executor = new WindowsRecycleOperationExecutor();
@@ -115,6 +159,68 @@ public sealed class WindowsRecycleOperationExecutorTests
                 return Task.CompletedTask;
             }));
         Assert.IsFalse(acknowledged);
+    }
+
+    [TestMethod]
+    public async Task ExecuteBatchAsync_RejectsOfflineItemBeforeAcknowledgementWithoutContentChange()
+    {
+        var root = CreateTestDirectory();
+        var path = Path.Combine(root, "offline-execution.bin");
+        var payload = Guid.NewGuid().ToByteArray();
+        await File.WriteAllBytesAsync(path, payload);
+        File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Offline);
+        var acknowledged = false;
+        try
+        {
+            using var executor = new WindowsRecycleOperationExecutor();
+            var exception = await Assert.ThrowsExceptionAsync<InvalidOperationException>(() =>
+                executor.ExecuteBatchAsync(
+                    CreateBatch(1, CreateItem(1, path, "file")),
+                    _ =>
+                    {
+                        acknowledged = true;
+                        return Task.CompletedTask;
+                    }));
+
+            StringAssert.Contains(exception.Message, "cloud_placeholder");
+            Assert.IsFalse(acknowledged);
+            CollectionAssert.AreEqual(payload, await File.ReadAllBytesAsync(path));
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.SetAttributes(path, FileAttributes.Normal);
+            }
+            await TestDirectoryCleanup.DeleteAsync(root);
+        }
+    }
+
+    [TestMethod]
+    public async Task ExecuteBatchAsync_RejectsWrongTypeBeforeAcknowledgement()
+    {
+        var root = CreateTestDirectory();
+        var acknowledged = false;
+        try
+        {
+            using var executor = new WindowsRecycleOperationExecutor();
+            var exception = await Assert.ThrowsExceptionAsync<InvalidOperationException>(() =>
+                executor.ExecuteBatchAsync(
+                    CreateBatch(1, CreateItem(1, root, "file")),
+                    _ =>
+                    {
+                        acknowledged = true;
+                        return Task.CompletedTask;
+                    }));
+
+            StringAssert.Contains(exception.Message, "wrong_type");
+            Assert.IsFalse(acknowledged);
+            Assert.IsTrue(Directory.Exists(root));
+        }
+        finally
+        {
+            await TestDirectoryCleanup.DeleteAsync(root);
+        }
     }
 
     [TestMethod]

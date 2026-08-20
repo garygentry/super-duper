@@ -24,6 +24,10 @@ public sealed class WindowsRecycleOperationExecutor : IRecycleOperationCapabilit
 
     internal ApartmentState DedicatedApartmentState => _dispatcher.ApartmentState;
 
+    internal static uint RecycleOnlyOperationFlags => NativeMethods.RecycleOnlyOperationFlags;
+
+    internal static string MapShellFailure(int hresult) => NativeMethods.MapFailure(hresult);
+
     public Task<IReadOnlyList<RecycleEligibilityObservation>> InspectAsync(
         IReadOnlyList<WorkerRecycleOperationItem> items,
         CancellationToken cancellationToken = default)

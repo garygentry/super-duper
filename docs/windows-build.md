@@ -63,5 +63,9 @@ dotnet build apps/windows/SuperDuper.Windows.sln --configuration Release
 dotnet test apps/windows/SuperDuper.Windows.sln --configuration Release
 ```
 
+`Verify-WindowsRelease.ps1` serializes the solution's test projects with `-m:1`. This keeps the WPF
+STA surface suite isolated from the loaded Infrastructure host; running those projects concurrently
+can starve dispatcher startup and produce a false UI timeout even when the isolated test passes.
+
 Release C# integration tests select `target/release/super-duper-worker.exe`; Debug tests select
 `target/debug/super-duper-worker.exe`.

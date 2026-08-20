@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
+using Microsoft.Win32.SafeHandles;
 using SuperDuper.Windows.Core.Workers;
 using SuperDuper.Windows.Infrastructure.Protocol;
 
@@ -21,6 +23,7 @@ public sealed class WorkerRecoveryTests
         {
             await File.WriteAllBytesAsync(Path.Combine(root, $"{index:D4}.bin"), new byte[4096]);
         }
+        CreateSparseRecoveryDelay(root);
 
         try
         {
@@ -101,6 +104,7 @@ public sealed class WorkerRecoveryTests
                 Path.Combine(root, $"{index:D4}.bin"),
                 new byte[4096]);
         }
+        CreateSparseRecoveryDelay(root);
 
         try
         {
@@ -183,6 +187,38 @@ public sealed class WorkerRecoveryTests
         process.BeginErrorReadLine();
         return process;
     }
+
+    private static void CreateSparseRecoveryDelay(string root)
+    {
+        const uint fsctlSetSparse = 0x000900C4;
+        const long logicalLength = 1024L * 1024 * 1024;
+        var path = Path.Combine(root, "recovery-delay.sparse");
+        using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read);
+        Assert.IsTrue(
+            DeviceIoControl(
+                stream.SafeFileHandle,
+                fsctlSetSparse,
+                nint.Zero,
+                0,
+                nint.Zero,
+                0,
+                out _,
+                nint.Zero),
+            new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error()).Message);
+        stream.SetLength(logicalLength);
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DeviceIoControl(
+        SafeFileHandle device,
+        uint ioControlCode,
+        nint inputBuffer,
+        uint inputBufferSize,
+        nint outputBuffer,
+        uint outputBufferSize,
+        out uint bytesReturned,
+        nint overlapped);
 
     private static async Task SendAsync(Process process, string id, string method, object parameters)
     {

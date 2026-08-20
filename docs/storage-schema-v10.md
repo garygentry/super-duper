@@ -86,3 +86,9 @@ root `SHQueryRecycleBinW` query and non-opening ordinary-item classification. It
 and before `PerformOperations`, maps `PreDeleteItem`/`PostDeleteItem`/`FinishOperations` and abort
 evidence, and never offers a permanent-delete fallback. `FOFX_ADDUNDORECORD` is intentionally not
 set pending its unresolved evidence review.
+
+`Invoke-WindowsRecycleBinAcceptance.ps1` is the evidence-only gate for this adapter. Its default
+pass is non-mutating; optional local Shell and explicit-fixture provider modes are separately
+gated. The generated matrix never changes v10 state and explicitly records that production remains
+disabled. Detailed procedures and unresolved rows are in
+[`windows-recycle-bin-acceptance.md`](windows-recycle-bin-acceptance.md).
