@@ -533,26 +533,10 @@ impl Database {
         let (predicates, base_parameters) =
             duplicate_file_group_predicate(query.run_id, &query.filter, true, true);
         let where_sql = predicates.join(" AND ");
-        let across_drive_count_expression = if query.filter.across_drives {
-            "COUNT(*)".to_owned()
-        } else {
-            "COALESCE(SUM(CASE WHEN EXISTS (
-                SELECT 1 FROM duplicate_group_member summary_drive_member
-                JOIN scanned_file summary_drive_file
-                  ON summary_drive_file.id = summary_drive_member.file_id
-                WHERE summary_drive_member.group_id = dg.id
-                  AND summary_drive_file.run_id = dg.run_id
-                  AND summary_drive_file.drive_letter <> ''
-                GROUP BY summary_drive_member.group_id
-                HAVING COUNT(DISTINCT summary_drive_file.drive_letter COLLATE NOCASE) > 1
-            ) THEN 1 ELSE 0 END), 0)"
-                .to_owned()
-        };
         let mut summary = self.connection().query_row(
             &format!(
                 "SELECT COUNT(*), COALESCE(SUM(dg.file_count), 0),
-                        COALESCE(SUM(dg.wasted_bytes), 0), COALESCE(MAX(dg.wasted_bytes), 0),
-                        {across_drive_count_expression}
+                        COALESCE(SUM(dg.wasted_bytes), 0), COALESCE(MAX(dg.wasted_bytes), 0)
                  FROM duplicate_group dg WHERE {where_sql}"
             ),
             params_from_iter(base_parameters.iter()),
@@ -564,10 +548,35 @@ impl Database {
                     largest_recoverable_bytes: row.get(3)?,
                     distinct_selected_root_count: 0,
                     distinct_drive_count: 0,
-                    across_drive_group_count: row.get(4)?,
+                    across_drive_group_count: 0,
                 })
             },
         )?;
+        summary.across_drive_group_count = if query.filter.across_drives {
+            summary.matching_group_count
+        } else {
+            // Across-drive evidence is member-owned. Stream the member index once instead of
+            // running a correlated member probe for every matching duplicate group.
+            self.connection().query_row(
+                &format!(
+                    "SELECT COUNT(*) FROM (
+                        SELECT summary_drive_member.group_id
+                        FROM duplicate_group_member summary_drive_member
+                             INDEXED BY idx_group_member_group
+                        JOIN duplicate_group dg ON dg.id = summary_drive_member.group_id
+                        JOIN scanned_file summary_drive_file
+                          ON summary_drive_file.id = summary_drive_member.file_id
+                         AND summary_drive_file.run_id = dg.run_id
+                        WHERE {where_sql}
+                          AND summary_drive_file.drive_letter <> ''
+                        GROUP BY summary_drive_member.group_id
+                        HAVING COUNT(DISTINCT summary_drive_file.drive_letter COLLATE NOCASE) > 1
+                    )"
+                ),
+                params_from_iter(base_parameters.iter()),
+                |row| row.get(0),
+            )?
+        };
         let (distinct_selected_root_count, distinct_drive_count) = self.connection().query_row(
             &format!(
                 "SELECT
@@ -594,13 +603,24 @@ impl Database {
             DuplicateFileGroupSortField::CopyCount => "file_count",
             DuplicateFileGroupSortField::RepresentativeName => "representative_name COLLATE NOCASE",
         };
+        let representative_sort =
+            query.sort_field == DuplicateFileGroupSortField::RepresentativeName;
+        let candidate_sort_expression = match query.sort_field {
+            DuplicateFileGroupSortField::RecoverableBytes => "dg.wasted_bytes",
+            DuplicateFileGroupSortField::GroupSize => "dg.file_size",
+            DuplicateFileGroupSortField::CopyCount => "dg.file_count",
+            DuplicateFileGroupSortField::RepresentativeName => sort_expression,
+        };
         let mut page_parameters = base_parameters;
         let mut cursor_clause = String::new();
         if let Some(cursor) = &query.cursor {
             let comparator = cursor_comparator(query.sort_direction, cursor.before);
             let id_comparator = cursor_comparator(SortDirection::Ascending, cursor.before);
             cursor_clause = format!(
-                "WHERE ({sort_expression} {comparator} ? OR ({sort_expression} = ? AND id {id_comparator} ?))"
+                "{} ({candidate_sort_expression} {comparator} ? OR
+                         ({candidate_sort_expression} = ? AND {} {id_comparator} ?))",
+                if representative_sort { "WHERE" } else { "AND" },
+                if representative_sort { "id" } else { "dg.id" },
             );
             push_cursor_parameters(
                 &mut page_parameters,
@@ -617,8 +637,9 @@ impl Database {
             SortDirection::Ascending,
             query.cursor.as_ref().is_some_and(|cursor| cursor.before),
         );
-        let sql = format!(
-            "WITH result_groups AS (
+        let sql = if representative_sort {
+            format!(
+                "WITH result_groups AS (
                 SELECT dg.id, dg.run_id, dg.file_size, dg.file_count,
                        dg.wasted_bytes AS recoverable_bytes,
                        COALESCE((
@@ -655,7 +676,48 @@ impl Database {
              {cursor_clause}
              ORDER BY {sort_expression} {order}, id {id_order}
              LIMIT ?"
-        );
+            )
+        } else {
+            format!(
+                "WITH page_groups AS (
+                    SELECT dg.id, dg.run_id, dg.file_size, dg.file_count,
+                           dg.wasted_bytes AS recoverable_bytes
+                    FROM duplicate_group dg
+                    WHERE {where_sql}
+                    {cursor_clause}
+                    ORDER BY {candidate_sort_expression} {order}, dg.id {id_order}
+                    LIMIT ?
+                 )
+                 SELECT pg.id, pg.run_id, pg.file_size, pg.file_count, pg.recoverable_bytes,
+                        COALESCE((
+                            SELECT sf.file_name
+                            FROM duplicate_group_member representative_member
+                            JOIN scanned_file sf ON sf.id = representative_member.file_id
+                            WHERE representative_member.group_id = pg.id
+                              AND sf.run_id = pg.run_id
+                            ORDER BY sf.canonical_path COLLATE NOCASE, sf.id
+                            LIMIT 1
+                        ), '') AS representative_name,
+                        COALESCE((
+                            SELECT COUNT(DISTINCT sf.root_path COLLATE NOCASE)
+                            FROM duplicate_group_member root_member
+                            JOIN scanned_file sf ON sf.id = root_member.file_id
+                            WHERE root_member.group_id = pg.id
+                              AND sf.run_id = pg.run_id
+                              AND sf.root_path <> ''
+                        ), 0) AS distinct_selected_root_count,
+                        COALESCE((
+                            SELECT COUNT(DISTINCT sf.drive_letter COLLATE NOCASE)
+                            FROM duplicate_group_member drive_member
+                            JOIN scanned_file sf ON sf.id = drive_member.file_id
+                            WHERE drive_member.group_id = pg.id
+                              AND sf.run_id = pg.run_id
+                              AND sf.drive_letter <> ''
+                        ), 0) AS distinct_drive_count
+                 FROM page_groups pg
+                 ORDER BY {sort_expression} {order}, id {id_order}"
+            )
+        };
         let mut statement = self.connection().prepare(&sql)?;
         let mapped = statement.query_map(params_from_iter(page_parameters.iter()), |row| {
             Ok(DuplicateFileGroupResult {

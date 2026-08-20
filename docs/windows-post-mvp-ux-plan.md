@@ -14,7 +14,10 @@ operation design, its strictly non-mutating foundation, and a separately gated r
 executor. Schema v10, bounded protocol/Core contracts, restart evidence, read-only WPF
 reconstruction, and explicit disposable Shell acceptance exist. Production still injects the
 disabled executor and exposes no action; provider/physical/performance gates, recovery resolution,
-and Milestone 12 changed/resolved working-state mutation remain unimplemented or unaccepted.
+and Milestone 12 changed/resolved working-state mutation remain unimplemented or unaccepted. A
+read-only query-plan stabilization slice reduced the duplicate-group warm baseline, but
+representative-hardware acceptance remains open because this development host still shows
+simultaneous cross-query tail-latency spikes.
 
 This is the durable planning source for post-MVP Windows UX work. Update this document when a
 milestone is refined, split, accepted, or superseded so future coding sessions do not have to
@@ -1777,6 +1780,30 @@ XAML change.
   printed 100-sample metrics and require all three p95 values below 100 ms without a retry-only
   pass. If group/summary still fails, optimize the existing normalized summary predicate and query
   plan with `EXPLAIN QUERY PLAN` evidence; do not weaken the target or omit summary/location data.
+
+##### Warm-query query-plan stabilization (2026-08-20)
+
+- The group summary no longer performs one correlated across-drive member probe for every matching
+  duplicate group. It now streams the indexed member relation once, applies the exact same shared
+  filter predicate, groups by duplicate-set identity, and counts only groups with more than one
+  distinct non-empty drive. When `Across drives` is itself the active filter, the matching-group
+  total remains the exact across-drive count.
+- Non-name sorts now select the bounded keyset candidate page before calculating representative
+  name and distinct selected-root/drive detail. Representative-name sorting retains its complete
+  member-derived sort before the bound. Focused regressions page every sort through ties and compare
+  the concatenated keyset pages with the complete stable ordering; existing run/filter/summary,
+  exact-path, extension, facet, forward/backward, and 100,000-group assertions remain unchanged.
+- On the same 6-logical-processor development host, the pre-change session baseline was 75.45 ms
+  p50, 136.64 ms p95, and 176.07 ms p99 for group/summary. Two final optimized 100-sample runs
+  passed at 54.77/62.11/116.70 ms and 55.22/93.01/199.87 ms p50/p95/p99, with 716,800 and 610,304
+  bytes of retained private growth. A third final run measured 55.11/198.72/283.01 ms and failed;
+  selected-root and drive facets simultaneously rose to 79.93 and 122.30 ms p95, versus roughly
+  31 ms in the first final run. This is evidence of reduced stable query cost plus unresolved
+  host-wide tail contention, not a retry-only acceptance.
+- The 100 ms representative-hardware gate therefore remains open. Close it only with a qualifying
+  normal-load run on the designated machine; retain failures and p99 diagnostics. This slice does
+  not change cache/page bounds, protocol, storage schema, filesystem access, review decisions,
+  preflight, Recycle Bin execution, or any Milestone 11 production wiring.
 
 ##### Accessibility findings and remaining operator evidence
 
@@ -3551,3 +3578,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-20 | Implemented the strictly non-mutating second-slice foundation: transactional schema v10 intent/batch/item/report/recovery evidence, exact revision/latest-preflight binding, provisional freshness and batch bounds, fail-closed eligibility, canonical replay, operation locks, restart ambiguity, bounded worker/Core contracts, disabled Infrastructure capability injection, and accessible read-only WPF reconstruction. | Establish durable operation-domain contracts without granting filesystem or Shell mutation authority. No Shell deletion API or path inspection was added and `CanSubmit` remains false. A separately reviewed real dedicated-STA executor slice is next; positive capability, real callbacks/abort/TOCTOU, no-hydration provider acceptance, representative operation performance, and all independent Milestone 8 operator gates remain open. |
 | 2026-08-20 | Implemented the separately gated real Windows executor slice: fresh target/hash/exact-folder and affected-survivor admission, projected callback metadata, positive local-root `SHQueryRecycleBinW` evidence, dedicated-STA `IFileOperation`, durable-start acknowledgement, explicit recycle-only flags, callback/finish/outer/abort mapping, cancellation boundaries, ambiguous-start non-retry, and opt-in disposable hard-link/exact-folder Recycle Bin acceptance. | Keep application composition disabled and WPF read-only while proving the native seam on real Windows. `CanSubmit` remains false and every worker response remains `executorEnabled:false`; Milestone 11 is not complete. Real-provider no-hydration, locked/capacity/provider mappings, final constants, `FOFX_ADDUNDORECORD`, residual TOCTOU, representative operation performance, accessible operator acceptance, recovery resolution, and independent Milestone 8 gates remain open. |
 | 2026-08-20 | Added a fail-closed Recycle Bin acceptance evidence collector, exhaustive stable HRESULT/flag regressions, an explicit-fixture registered-provider no-hydration test, and a dedicated operator/provider/performance/accessibility guide. | Make every available or missing gate reviewable without enabling production or fabricating physical/provider acceptance. Real access-denied/disconnect/capacity/provider/path-swap/process-loss outcomes, representative large-plan operation performance, final freshness/batch constants, `FOFX_ADDUNDORECORD`, physical accessibility, recovery resolution, and independent Milestone 8 gates remain open. |
+| 2026-08-20 | Stabilized the read-only duplicate-group warm path by replacing the per-group correlated across-drive summary probe with an indexed member-stream aggregate and bounding non-name detail enrichment after keyset candidate selection; focused all-sort paging equivalence and existing 100,000-group coverage passed. | Reduce the stable development-host group/summary baseline without weakening the 100 ms p95 target or changing protocol/schema/cache bounds. Final runs passed at 62.11 and 93.01 ms p95 but a retained third run failed at 198.72 ms while unrelated facets spiked too, so representative-hardware warm-query acceptance remains open rather than being closed by retries. This slice adds no filesystem, review-mutation, preflight, Shell, Recycle Bin, or production-executor behavior. |

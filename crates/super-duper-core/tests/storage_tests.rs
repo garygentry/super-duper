@@ -1291,6 +1291,72 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
             .collect::<Vec<_>>()
     );
 
+    for (sort_field, sort_direction) in [
+        (
+            DuplicateFileGroupSortField::GroupSize,
+            SortDirection::Descending,
+        ),
+        (
+            DuplicateFileGroupSortField::CopyCount,
+            SortDirection::Descending,
+        ),
+        (
+            DuplicateFileGroupSortField::RepresentativeName,
+            SortDirection::Ascending,
+        ),
+    ] {
+        let sorted_query = DuplicateFileGroupPageQuery {
+            limit: 10,
+            sort_field,
+            sort_direction,
+            cursor: None,
+            ..base_query.clone()
+        };
+        let expected = db.page_duplicate_file_groups(&sorted_query).unwrap();
+        let first = db
+            .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+                limit: 2,
+                ..sorted_query.clone()
+            })
+            .unwrap();
+        let boundary = first.groups.last().unwrap();
+        let cursor_value = match sort_field {
+            DuplicateFileGroupSortField::RecoverableBytes => {
+                PageCursorValue::Integer(boundary.recoverable_bytes)
+            }
+            DuplicateFileGroupSortField::GroupSize => PageCursorValue::Integer(boundary.file_size),
+            DuplicateFileGroupSortField::CopyCount => PageCursorValue::Integer(boundary.file_count),
+            DuplicateFileGroupSortField::RepresentativeName => {
+                PageCursorValue::Text(boundary.representative_name.clone())
+            }
+        };
+        let second = db
+            .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+                limit: 2,
+                cursor: Some(PageCursor {
+                    value: cursor_value,
+                    id: boundary.id,
+                    before: false,
+                }),
+                ..sorted_query
+            })
+            .unwrap();
+        let paged_ids = first
+            .groups
+            .iter()
+            .chain(second.groups.iter())
+            .map(|group| group.id)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            paged_ids,
+            expected
+                .groups
+                .iter()
+                .map(|group| group.id)
+                .collect::<Vec<_>>()
+        );
+    }
+
     let filtered = db
         .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
             limit: 10,

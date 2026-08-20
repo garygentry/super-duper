@@ -138,6 +138,15 @@ The independent 100-sample warm-query profile can be added to an evidence run:
 This runs `representative_review_workspace_profile`. It is Milestone 8 query evidence only and does
 not close representative large-plan operation performance.
 
+The 2026-08-20 read-only query-plan stabilization removed the per-group correlated across-drive
+summary probe and bounds non-name member-detail enrichment after keyset candidate selection. On the
+current development host, the pre-change session run was 75.45/136.64/176.07 ms p50/p95/p99 for
+group/summary. Two final runs passed at 54.77/62.11/116.70 ms and 55.22/93.01/199.87 ms; a third
+retained run failed at 55.11/198.72/283.01 ms while the independent root/drive facets also spiked to
+79.93/122.30 ms p95. The collector must retain that failure. The lower stable baseline does not
+close the representative-hardware gate, and an operator must not discard failures by rerunning
+until only a pass is shown.
+
 A qualifying large-plan operation run must record at least preflight-completion-to-prepare time,
 operator confirmation reading time, confirmation submission age, per-batch fresh-admission time,
 capability inspection time, durable-begin-to-report time, batch/result paging p50/p95/max, retained
