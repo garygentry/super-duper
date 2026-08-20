@@ -881,8 +881,10 @@ $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
         Assert-True ($preflightStatus.Current.Name.Contains('changed 0', [StringComparison]::OrdinalIgnoreCase) -and
             $preflightStatus.Current.Name.Contains('conflicts 0', [StringComparison]::OrdinalIgnoreCase)) 'Unchanged WPF preflight did not expose a clean structured summary.'
         Assert-True ($null -ne (Find-FirstListItem (Find-Element AutomationId 'PreflightItemsList'))) 'WPF preflight did not expose its bounded observation details.'
+        $operationBoundary = Find-Element AutomationId 'RecycleOperationBoundaryNotice'
+        Assert-True ($operationBoundary.Current.Name.Contains('execution is disabled', [StringComparison]::OrdinalIgnoreCase)) 'WPF did not disclose the disabled Recycle Bin executor boundary.'
         Assert-True ([IO.File]::Exists($exactPath)) 'WPF preflight unexpectedly removed a disposable fixture file.'
-        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus with unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
+        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
     }
     catch {
         $automationFailure = $_
@@ -1558,6 +1560,37 @@ try {
     }
     Assert-True ($persistedPreflightPage.total -eq $persistedPreflight.totalItemCount) 'Restarted preflight details did not reconstruct from durable observations.'
     Assert-True ([IO.File]::Exists($fileMembers.members[0].path)) 'Restarted preflight browsing unexpectedly removed a disposable fixture file.'
+    $recycleOperationId = [Guid]::NewGuid().ToString('N')
+    $preparedOperation = Send-WorkerRequest $restored 'recycle_operation.prepare' @{
+        operationId = $recycleOperationId
+        runId = $run.id
+        preflightId = $persistedPreflight.id
+        expectedReviewRevision = $persistedPreflight.reviewRevision
+    }
+    Assert-True (-not $preparedOperation.executorEnabled) 'The non-mutating smoke unexpectedly enabled a Recycle Bin executor.'
+    Assert-True ($preparedOperation.operation.status -eq 'prepared') 'The durable non-mutating operation intent was not prepared.'
+    $replayedOperation = Send-WorkerRequest $restored 'recycle_operation.prepare' @{
+        operationId = $recycleOperationId
+        runId = $run.id
+        preflightId = $persistedPreflight.id
+        expectedReviewRevision = $persistedPreflight.reviewRevision
+    }
+    Assert-True $replayedOperation.replayed 'Exact Recycle Bin operation preparation did not replay.'
+    $operationPage = Send-WorkerRequest $restored 'recycle_operation.item.page' @{
+        recycleOperationId = $preparedOperation.operation.id; pageSize = 200; resultStatus = $null; cursor = $null
+    }
+    Assert-True ($operationPage.total -eq $preparedOperation.operation.shellItemCount) 'Operation detail paging diverged from the fixed Shell-item count.'
+    $disabledItems = @($operationPage.items | ForEach-Object {
+        @{ itemId = $_.id; status = 'non_recyclable'; reasonCode = 'executor_disabled' }
+    })
+    $disabledOperation = Send-WorkerRequest $restored 'recycle_operation.eligibility.report' @{
+        reportOperationId = [Guid]::NewGuid().ToString('N')
+        recycleOperationId = $preparedOperation.operation.id
+        items = $disabledItems
+    }
+    Assert-True ($disabledOperation.operation.status -eq 'failed') 'The disabled executor did not fail the whole operation intent closed.'
+    Assert-True ($disabledOperation.operation.nonRecyclableCount -eq $operationPage.total) 'Disabled capability results were not durably counted.'
+    Assert-True ([IO.File]::Exists($fileMembers.members[0].path)) 'Non-mutating operation smoke unexpectedly removed a disposable fixture file.'
     $queryDiagnostics += Stop-SmokeWorker $restored
     $restored = $null
 
@@ -1570,7 +1603,8 @@ try {
         'duplicate_file_drive_facet.page',
         'duplicate_folder_group.page', 'duplicate_folder_group.members',
         'review_plan.get', 'review_folder_group.page',
-        'preference_rule.preview', 'preflight.item.page')) {
+        'preference_rule.preview', 'preflight.item.page',
+        'recycle_operation.item.page')) {
         Assert-True ($queryDiagnostics.Contains("kind=result_query method=$method")) "Missing $method timing."
     }
 

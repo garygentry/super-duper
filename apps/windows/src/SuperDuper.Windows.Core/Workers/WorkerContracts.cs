@@ -412,6 +412,88 @@ public sealed record WorkerPreflightItemPage(
     long Total,
     string? NextCursor);
 
+public sealed record WorkerRecycleOperation(
+    long Id,
+    string OperationId,
+    long RunId,
+    long PlanId,
+    long PreflightId,
+    long ReviewRevision,
+    string PreflightSnapshotSignature,
+    string IntentSignature,
+    long PolicyVersion,
+    string Status,
+    long LogicalRemovalCount,
+    long ShellItemCount,
+    long PhysicalItemCount,
+    long FolderItemCount,
+    long AffectedGroupCount,
+    string PlannedRemovalBytes,
+    long AffectedLocationCount,
+    long ExclusionCount,
+    long EligibleCount,
+    long NonRecyclableCount,
+    long PendingEligibilityCount,
+    long RecycledCount,
+    long FailedCount,
+    long CancelledCount,
+    long UnknownCount,
+    long PendingResultCount,
+    string PreparedAt,
+    string? ConfirmationSignature,
+    string? ConfirmationExpiresAt,
+    string? SubmittedAt,
+    string? CompletedAt,
+    bool CancellationRequested,
+    string? ErrorCode,
+    string? ErrorDetail,
+    long CurrentReviewRevision,
+    bool IsCurrent);
+
+public sealed record WorkerRecycleOperationResult(
+    WorkerRecycleOperation Operation,
+    bool Replayed,
+    bool ExecutorEnabled);
+
+public sealed record WorkerRecycleOperationItem(
+    long Id,
+    long RecycleOperationId,
+    long BatchId,
+    long Ordinal,
+    long PreflightItemId,
+    long? PreflightSourceId,
+    string TargetKind,
+    string Path,
+    long? GroupId,
+    long? FolderGroupId,
+    long? FolderMemberId,
+    long? SnapshotFileId,
+    long? SnapshotDirectoryId,
+    string PlannedBytes,
+    string EligibilityStatus,
+    string? EligibilityCode,
+    string ResultStatus,
+    string? ResultCode,
+    long? ShellHresult,
+    bool? RecycledItemPresent,
+    string? ResultAt);
+
+public sealed record RecycleOperationItemQuery(
+    long RecycleOperationId,
+    int PageSize,
+    string? ResultStatus = null,
+    string? Cursor = null);
+
+public sealed record WorkerRecycleOperationItemPage(
+    IReadOnlyList<WorkerRecycleOperationItem> Items,
+    long Total,
+    string? NextCursor);
+
+public sealed record RecycleEligibilityObservation(
+    long ItemId,
+    string Status,
+    string? ReasonCode);
+
 public sealed record WorkerPreferenceRuleSummary(
     long Id,
     string Name,

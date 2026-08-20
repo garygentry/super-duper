@@ -30,9 +30,11 @@ troubleshooting. Set `SUPER_DUPER_LOG` to a Rust tracing filter such as
 - Files that disappear, become inaccessible, or change metadata after discovery are warned and
   excluded from affected duplicate results. A completed run can therefore have warnings.
 - V1 exposes a warning count and local diagnostics; `warning.page` remains reserved.
-- The WPF post-MVP review surface exposes non-deleting review decisions and preflight observations,
-  but no file deletion, Recycle Bin action, execution plan, shell extension, or arbitrary filesystem
-  mutation. Deleting a session removes worker-owned history, not scanned files.
+- The WPF post-MVP review surface exposes non-deleting review decisions, preflight observations,
+  and read-only reconstruction of schema-v10 Recycle Bin operation intent/evidence. The production
+  executor is disabled: there is no Recycle Bin action, Shell extension, file deletion, or arbitrary
+  filesystem mutation. Deleting a session removes worker-owned history only when no operation lock
+  requires its evidence; it never deletes scanned files.
 - The database and hash cache use the worker working directory unless `SUPER_DUPER_DB_PATH` and
   `HASH_CACHE_PATH` are set. Keep unpackaged output in a user-writable location.
 
@@ -58,6 +60,14 @@ An abandoned preflight is likewise reconciled to `interrupted`. Its already comm
 remain queryable, but they are never resumed or treated as execution authority. If the review
 revision is still current, start a new preflight operation to obtain a fresh validation generation.
 
+An abandoned schema-v10 operation that never reached durable submission becomes `expired` on
+startup. A test-injected operation in `submitted`, `executing`, or `cancelling` becomes
+`recovery_required`. Every pending item in a durable `shell_started` batch becomes `unknown` with a
+recovery record because mutation may have occurred before a result was persisted. Do not retry,
+edit, or clear that operation: its run/review remain locked to prevent repeating a potentially
+completed mutation. This build has no recovery-resolution UI and no real Shell executor, so such a
+state can currently arise only through protocol/state-machine injection.
+
 ## Database Failure Or Suspected Corruption
 
 1. Close Super Duper and confirm its worker exited.
@@ -67,6 +77,10 @@ revision is still current, start a new preflight operation to obtain a fresh val
 4. Preserve the log and exact app/worker versions.
 5. To test a clean start without destroying evidence, move the complete database set aside and
    restart. Restore it only while the app is closed.
+
+Schema v10 has no in-place downgrade. Before a v9-to-v10 first open, close the app/worker and copy
+the database, `-wal`, and `-shm` as one set. To return to a v9 build, restore that complete backup
+while all processes are closed. Never lower `user_version` or manually drop operation tables.
 
 Unknown old schemas, newer schemas, migration failures, corruption, and inability to persist a
 consistent run are fatal by design; the worker does not truncate or silently recreate them.

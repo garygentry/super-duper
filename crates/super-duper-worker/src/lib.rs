@@ -23,12 +23,14 @@ use super_duper_core::storage::models::{
     DuplicateFolderMemberResult, DuplicateFolderMemberSortField, PageCursor, PageCursorValue,
     PreferencePreviewGroup, PreferencePreviewScope, PreferencePreviewSummary, PreferenceRule,
     PreferenceRuleApplication, PreferenceRuleSummary, Preflight, PreflightItem, PreflightView,
-    RegisteredCloudLocation, ReviewDecisionKind, ReviewFolderGroupSummary, ReviewGroupSummary,
-    ReviewPlanSummary, ReviewPlanView, RunExclusion, RunParameters, ScanRun, ScanSession,
-    SortDirection,
+    RecycleEligibilityObservation, RecycleItemResultObservation, RecycleOperation,
+    RecycleOperationBatch, RecycleOperationItem, RecycleOperationView, RegisteredCloudLocation,
+    ReviewDecisionKind, ReviewFolderGroupSummary, ReviewGroupSummary, ReviewPlanSummary,
+    ReviewPlanView, RunExclusion, RunParameters, ScanRun, ScanSession, SortDirection,
 };
 use super_duper_core::storage::preference::PreferenceError;
 use super_duper_core::storage::preflight::PreflightError;
+use super_duper_core::storage::recycle_operation::RecycleOperationError;
 use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::Database;
 use super_duper_core::{AppConfig, ScanEngine};
@@ -559,6 +561,98 @@ struct PreflightItemPageParameters {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PreflightCancelParameters {
     preflight_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RecycleOperationPrepareParameters {
+    operation_id: String,
+    run_id: i64,
+    preflight_id: i64,
+    expected_review_revision: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RecycleOperationGetParameters {
+    #[serde(default)]
+    recycle_operation_id: Option<i64>,
+    #[serde(default)]
+    run_id: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RecycleOperationItemPageParameters {
+    recycle_operation_id: i64,
+    #[serde(default = "default_result_page_size")]
+    page_size: i64,
+    #[serde(default)]
+    result_status: Option<String>,
+    #[serde(default)]
+    cursor: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RecycleEligibilityItemParameters {
+    item_id: i64,
+    status: String,
+    #[serde(default)]
+    reason_code: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RecycleEligibilityReportParameters {
+    report_operation_id: String,
+    recycle_operation_id: i64,
+    items: Vec<RecycleEligibilityItemParameters>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RecycleOperationConfirmParameters {
+    report_operation_id: String,
+    recycle_operation_id: i64,
+    confirmation_signature: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RecycleOperationIdParameters {
+    recycle_operation_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RecycleBatchBeginParameters {
+    report_operation_id: String,
+    recycle_operation_id: i64,
+    batch_id: i64,
+    shell_attempt_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RecycleResultItemParameters {
+    item_id: i64,
+    status: String,
+    #[serde(default)]
+    reason_code: Option<String>,
+    #[serde(default)]
+    shell_hresult: Option<i64>,
+    #[serde(default)]
+    recycled_item_present: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RecycleBatchReportParameters {
+    report_operation_id: String,
+    recycle_operation_id: i64,
+    batch_id: i64,
+    items: Vec<RecycleResultItemParameters>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1227,6 +1321,17 @@ impl WorkerSession {
             "preflight.get" => self.preflight_get(request),
             "preflight.item.page" => self.preflight_item_page(request),
             "preflight.cancel" => self.preflight_cancel(request),
+            "recycle_operation.prepare" => self.recycle_operation_prepare(request),
+            "recycle_operation.get" => self.recycle_operation_get(request),
+            "recycle_operation.item.page" => self.recycle_operation_item_page(request),
+            "recycle_operation.eligibility.report" => {
+                self.recycle_operation_eligibility_report(request)
+            }
+            "recycle_operation.confirm" => self.recycle_operation_confirm(request),
+            "recycle_operation.cancel" => self.recycle_operation_cancel(request),
+            "recycle_operation.batch.next" => self.recycle_operation_batch_next(request),
+            "recycle_operation.batch.begin" => self.recycle_operation_batch_begin(request),
+            "recycle_operation.batch.report" => self.recycle_operation_batch_report(request),
             "preference_rule.list" => self.preference_rule_list(request),
             "preference_rule.get" => self.preference_rule_get(request),
             "preference_rule.save" => self.preference_rule_save(request),
@@ -2754,6 +2859,274 @@ impl WorkerSession {
                 "status":view.preflight.status,
             })))
         }
+    }
+
+    fn recycle_operation_prepare(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: RecycleOperationPrepareParameters = parse_parameters(request)?;
+        if self.state.active_run_id().is_some() || self.state.active_preflight_id().is_some() {
+            return Err(ProtocolFailure::new(
+                "operation_busy",
+                "A scan or preflight is still using the filesystem",
+            )
+            .with_details(json!({
+                "activeRunId":self.state.active_run_id(),
+                "activePreflightId":self.state.active_preflight_id(),
+            })));
+        }
+        let result = self
+            .state
+            .database()?
+            .prepare_recycle_operation(
+                &parameters.operation_id,
+                parameters.run_id,
+                parameters.preflight_id,
+                parameters.expected_review_revision,
+            )
+            .map_err(recycle_operation_error)?;
+        Ok(json!({
+            "operation": recycle_operation_view_dto(&result.view),
+            "replayed": result.replayed,
+            "executorEnabled": false,
+        }))
+    }
+
+    fn recycle_operation_get(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let parameters: RecycleOperationGetParameters = parse_parameters(request)?;
+        let db = self.state.database()?;
+        let operation = match (parameters.recycle_operation_id, parameters.run_id) {
+            (Some(operation_id), None) if operation_id > 0 => Some(
+                db.get_recycle_operation(operation_id)
+                    .map_err(recycle_operation_error)?,
+            ),
+            (None, Some(run_id)) if run_id > 0 => db
+                .latest_recycle_operation_for_run(run_id)
+                .map_err(recycle_operation_error)?,
+            _ => return Err(ProtocolFailure::new(
+                "invalid_request",
+                "recycle_operation.get requires exactly one positive recycleOperationId or runId",
+            )),
+        };
+        Ok(json!({
+            "operation": operation.as_ref().map(recycle_operation_view_dto),
+            "executorEnabled": false,
+        }))
+    }
+
+    fn recycle_operation_item_page(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: RecycleOperationItemPageParameters = parse_parameters(request)?;
+        if parameters.recycle_operation_id <= 0 || !(1..=200).contains(&parameters.page_size) {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "recycle_operation.item.page requires a positive recycleOperationId and pageSize 1..=200",
+            ));
+        }
+        let signature = format!(
+            "{}|{}",
+            parameters.recycle_operation_id,
+            parameters.result_status.as_deref().unwrap_or("all")
+        );
+        let cursor = decode_cursor(
+            parameters.cursor.as_deref(),
+            "recycle-operation-items",
+            &signature,
+        )?;
+        validate_cursor_value(cursor.as_ref(), false)?;
+        if cursor
+            .as_ref()
+            .is_some_and(|cursor| cursor.id != parameters.recycle_operation_id || cursor.before)
+        {
+            return Err(invalid_cursor());
+        }
+        let offset = cursor
+            .as_ref()
+            .and_then(|cursor| match cursor.value {
+                PageCursorValue::Integer(value) => Some(value),
+                PageCursorValue::Text(_) => None,
+            })
+            .unwrap_or(0);
+        let db = self.state.database()?;
+        let operation = db
+            .get_recycle_operation(parameters.recycle_operation_id)
+            .map_err(recycle_operation_error)?;
+        let query_started = Instant::now();
+        let page = db
+            .page_recycle_operation_items(
+                parameters.recycle_operation_id,
+                offset,
+                parameters.page_size,
+                parameters.result_status.as_deref(),
+            )
+            .map_err(recycle_operation_error)?;
+        log_result_query(
+            "recycle_operation.item.page",
+            operation.operation.run_id,
+            None,
+            parameters.page_size,
+            page.items.len(),
+            page.total,
+            query_started.elapsed(),
+        );
+        let next_cursor = if page.has_more {
+            Some(encode_cursor(CursorPayload {
+                version: 1,
+                kind: "recycle-operation-items".to_owned(),
+                query: signature,
+                before: false,
+                value: CursorScalar::Integer((offset + page.items.len() as i64).to_string()),
+                id: parameters.recycle_operation_id,
+            })?)
+        } else {
+            None
+        };
+        Ok(json!({
+            "items": page.items.iter().map(recycle_operation_item_dto).collect::<Vec<_>>(),
+            "total": page.total,
+            "nextCursor": next_cursor,
+        }))
+    }
+
+    fn recycle_operation_eligibility_report(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: RecycleEligibilityReportParameters = parse_parameters(request)?;
+        let observations = parameters
+            .items
+            .into_iter()
+            .map(|item| RecycleEligibilityObservation {
+                item_id: item.item_id,
+                status: item.status,
+                reason_code: item.reason_code,
+            })
+            .collect::<Vec<_>>();
+        let result = self
+            .state
+            .database()?
+            .report_recycle_eligibility(
+                &parameters.report_operation_id,
+                parameters.recycle_operation_id,
+                &observations,
+            )
+            .map_err(recycle_operation_error)?;
+        Ok(json!({
+            "operation": recycle_operation_view_dto(&result.view),
+            "replayed": result.replayed,
+            "executorEnabled": false,
+        }))
+    }
+
+    fn recycle_operation_confirm(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: RecycleOperationConfirmParameters = parse_parameters(request)?;
+        let result = self
+            .state
+            .database()?
+            .confirm_recycle_operation(
+                &parameters.report_operation_id,
+                parameters.recycle_operation_id,
+                &parameters.confirmation_signature,
+            )
+            .map_err(recycle_operation_error)?;
+        Ok(json!({
+            "operation": recycle_operation_view_dto(&result.view),
+            "replayed": result.replayed,
+            "executorEnabled": false,
+        }))
+    }
+
+    fn recycle_operation_cancel(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: RecycleOperationIdParameters = parse_parameters(request)?;
+        let view = self
+            .state
+            .database()?
+            .cancel_recycle_operation(parameters.recycle_operation_id)
+            .map_err(recycle_operation_error)?;
+        Ok(json!({
+            "operation": recycle_operation_view_dto(&view),
+            "executorEnabled": false,
+        }))
+    }
+
+    fn recycle_operation_batch_next(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: RecycleOperationIdParameters = parse_parameters(request)?;
+        let batch = self
+            .state
+            .database()?
+            .next_recycle_operation_batch(parameters.recycle_operation_id)
+            .map_err(recycle_operation_error)?;
+        Ok(json!({
+            "batch": batch.as_ref().map(recycle_operation_batch_dto),
+            "executorEnabled": false,
+        }))
+    }
+
+    fn recycle_operation_batch_begin(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: RecycleBatchBeginParameters = parse_parameters(request)?;
+        let result = self
+            .state
+            .database()?
+            .begin_recycle_operation_batch(
+                &parameters.report_operation_id,
+                parameters.recycle_operation_id,
+                parameters.batch_id,
+                &parameters.shell_attempt_id,
+            )
+            .map_err(recycle_operation_error)?;
+        Ok(json!({
+            "operation": recycle_operation_view_dto(&result.view),
+            "replayed": result.replayed,
+            "executorEnabled": false,
+        }))
+    }
+
+    fn recycle_operation_batch_report(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: RecycleBatchReportParameters = parse_parameters(request)?;
+        let observations = parameters
+            .items
+            .into_iter()
+            .map(|item| RecycleItemResultObservation {
+                item_id: item.item_id,
+                status: item.status,
+                reason_code: item.reason_code,
+                shell_hresult: item.shell_hresult,
+                recycled_item_present: item.recycled_item_present,
+            })
+            .collect::<Vec<_>>();
+        let result = self
+            .state
+            .database()?
+            .report_recycle_operation_batch(
+                &parameters.report_operation_id,
+                parameters.recycle_operation_id,
+                parameters.batch_id,
+                &observations,
+            )
+            .map_err(recycle_operation_error)?;
+        Ok(json!({
+            "operation": recycle_operation_view_dto(&result.view),
+            "replayed": result.replayed,
+            "executorEnabled": false,
+        }))
     }
 
     fn run_start(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
@@ -5090,6 +5463,202 @@ fn preflight_item_dto(item: &PreflightItem) -> Value {
     })
 }
 
+fn recycle_operation_view_dto(view: &RecycleOperationView) -> Value {
+    let mut value = recycle_operation_dto(&view.operation);
+    if let Some(object) = value.as_object_mut() {
+        object.insert(
+            "currentReviewRevision".to_owned(),
+            json!(view.current_review_revision),
+        );
+        object.insert("isCurrent".to_owned(), json!(view.is_current));
+    }
+    value
+}
+
+fn recycle_operation_dto(operation: &RecycleOperation) -> Value {
+    json!({
+        "id": operation.id,
+        "operationId": operation.operation_id,
+        "runId": operation.run_id,
+        "planId": operation.plan_id,
+        "preflightId": operation.preflight_id,
+        "reviewRevision": operation.review_revision,
+        "preflightSnapshotSignature": operation.preflight_snapshot_signature,
+        "intentSignature": operation.intent_signature,
+        "policyVersion": operation.policy_version,
+        "status": operation.status,
+        "logicalRemovalCount": operation.summary.logical_removal_count,
+        "shellItemCount": operation.summary.shell_item_count,
+        "physicalItemCount": operation.summary.physical_item_count,
+        "folderItemCount": operation.summary.folder_item_count,
+        "affectedGroupCount": operation.summary.affected_group_count,
+        "plannedRemovalBytes": operation.summary.planned_removal_bytes.to_string(),
+        "affectedLocationCount": operation.summary.affected_location_count,
+        "exclusionCount": operation.summary.exclusion_count,
+        "eligibleCount": operation.summary.eligible_count,
+        "nonRecyclableCount": operation.summary.non_recyclable_count,
+        "pendingEligibilityCount": operation.summary.pending_eligibility_count,
+        "recycledCount": operation.summary.recycled_count,
+        "failedCount": operation.summary.failed_count,
+        "cancelledCount": operation.summary.cancelled_count,
+        "unknownCount": operation.summary.unknown_count,
+        "pendingResultCount": operation.summary.pending_result_count,
+        "preparedAt": operation.prepared_at,
+        "confirmationSignature": operation.confirmation_signature,
+        "confirmationExpiresAt": operation.confirmation_expires_at,
+        "submittedAt": operation.submitted_at,
+        "completedAt": operation.completed_at,
+        "cancellationRequested": operation.cancellation_requested,
+        "errorCode": operation.error_code,
+        "errorDetail": operation.error_detail,
+    })
+}
+
+fn recycle_operation_item_dto(item: &RecycleOperationItem) -> Value {
+    json!({
+        "id": item.id,
+        "recycleOperationId": item.recycle_operation_id,
+        "batchId": item.batch_id,
+        "ordinal": item.ordinal,
+        "preflightItemId": item.preflight_item_id,
+        "preflightSourceId": item.preflight_source_id,
+        "targetKind": item.target_kind,
+        "path": item.snapshot_path,
+        "groupId": item.group_id,
+        "folderGroupId": item.folder_group_id,
+        "folderMemberId": item.folder_member_id,
+        "snapshotFileId": item.snapshot_file_id,
+        "snapshotDirectoryId": item.snapshot_directory_id,
+        "plannedBytes": item.planned_bytes.to_string(),
+        "eligibilityStatus": item.eligibility_status,
+        "eligibilityCode": item.eligibility_code,
+        "resultStatus": item.result_status,
+        "resultCode": item.result_code,
+        "shellHresult": item.shell_hresult,
+        "recycledItemPresent": item.recycled_item_present,
+        "resultAt": item.result_at,
+    })
+}
+
+fn recycle_operation_batch_dto(batch: &RecycleOperationBatch) -> Value {
+    json!({
+        "id": batch.id,
+        "recycleOperationId": batch.recycle_operation_id,
+        "ordinal": batch.ordinal,
+        "itemSignature": batch.item_signature,
+        "status": batch.status,
+        "admissionExpiresAt": batch.admission_expires_at,
+        "shellAttemptId": batch.shell_attempt_id,
+        "startedAt": batch.started_at,
+        "reportedAt": batch.reported_at,
+        "items": batch.items.iter().map(recycle_operation_item_dto).collect::<Vec<_>>(),
+    })
+}
+
+fn recycle_operation_error(error: RecycleOperationError) -> ProtocolFailure {
+    match error {
+        RecycleOperationError::Database(error) => internal_database_error(error),
+        RecycleOperationError::InvalidRequest { message } => {
+            ProtocolFailure::new("invalid_request", message)
+        }
+        RecycleOperationError::RunNotFound { run_id } => {
+            ProtocolFailure::new("run_not_found", format!("Run {run_id} was not found"))
+                .with_details(json!({"runId":run_id}))
+        }
+        RecycleOperationError::PreflightNotFound { preflight_id } => ProtocolFailure::new(
+            "preflight_not_found",
+            format!("Preflight {preflight_id} was not found"),
+        )
+        .with_details(json!({"preflightId":preflight_id})),
+        RecycleOperationError::PreflightNotCompleted {
+            preflight_id,
+            status,
+        } => ProtocolFailure::new(
+            "operation_preflight_incomplete",
+            "Recycle operation preparation requires a completed preflight",
+        )
+        .with_details(json!({"preflightId":preflight_id,"status":status})),
+        RecycleOperationError::LatestPreflightRequired {
+            preflight_id,
+            run_id,
+        } => ProtocolFailure::new(
+            "operation_preflight_superseded",
+            "A newer preflight generation exists; inspect it before continuing",
+        )
+        .with_details(json!({"preflightId":preflight_id,"runId":run_id})),
+        RecycleOperationError::StaleReviewRevision { expected, current } => ProtocolFailure::new(
+            "review_generation_conflict",
+            "The review plan changed; run preflight again",
+        )
+        .with_details(json!({"expectedRevision":expected,"currentRevision":current})),
+        RecycleOperationError::PreflightExpired { preflight_id } => ProtocolFailure::new(
+            "operation_preflight_expired",
+            "The completed preflight is outside the preparation freshness lease",
+        )
+        .with_details(json!({"preflightId":preflight_id,"freshnessSeconds":300})),
+        RecycleOperationError::IneligiblePreflight {
+            preflight_id,
+            reason,
+        } => ProtocolFailure::new(
+            "operation_preflight_ineligible",
+            "The complete reviewed plan is not eligible for operation preparation",
+        )
+        .with_details(json!({"preflightId":preflight_id,"reason":reason})),
+        RecycleOperationError::IdempotencyConflict { operation_id } => ProtocolFailure::new(
+            "idempotency_conflict",
+            "The operation ID was already used with another recycle-operation payload",
+        )
+        .with_details(json!({"operationId":operation_id})),
+        RecycleOperationError::NotFound { operation_id } => ProtocolFailure::new(
+            "recycle_operation_not_found",
+            format!("Recycle operation {operation_id} was not found"),
+        )
+        .with_details(json!({"recycleOperationId":operation_id})),
+        RecycleOperationError::InvalidState {
+            operation_id,
+            status,
+        } => ProtocolFailure::new(
+            "recycle_operation_invalid_state",
+            "The recycle operation cannot perform this transition",
+        )
+        .with_details(json!({"recycleOperationId":operation_id,"status":status})),
+        RecycleOperationError::OperationLocked {
+            run_id,
+            operation_id,
+        } => ProtocolFailure::new(
+            "recycle_operation_locked",
+            "Another durable recycle operation locks this reviewed plan",
+        )
+        .with_details(json!({"runId":run_id,"recycleOperationId":operation_id})),
+        RecycleOperationError::ConfirmationExpired { operation_id } => ProtocolFailure::new(
+            "recycle_operation_confirmation_expired",
+            "The final confirmation lease expired; run preflight again",
+        )
+        .with_details(json!({"recycleOperationId":operation_id})),
+        RecycleOperationError::SubmissionExpired { operation_id } => ProtocolFailure::new(
+            "recycle_operation_submission_expired",
+            "The provisional batch-admission lease expired before Shell work could start",
+        )
+        .with_details(json!({"recycleOperationId":operation_id,"freshnessSeconds":30})),
+        RecycleOperationError::ItemNotFound {
+            operation_id,
+            item_id,
+        } => ProtocolFailure::new(
+            "recycle_operation_item_not_found",
+            "The reported item does not belong to this recycle operation",
+        )
+        .with_details(json!({"recycleOperationId":operation_id,"itemId":item_id})),
+        RecycleOperationError::BatchNotFound {
+            operation_id,
+            batch_id,
+        } => ProtocolFailure::new(
+            "recycle_operation_batch_not_found",
+            "The reported batch does not belong to this recycle operation",
+        )
+        .with_details(json!({"recycleOperationId":operation_id,"batchId":batch_id})),
+    }
+}
+
 fn preflight_error(error: PreflightError) -> ProtocolFailure {
     match error {
         PreflightError::Database(error) => internal_database_error(error),
@@ -5143,6 +5712,14 @@ fn preflight_error(error: PreflightError) -> ProtocolFailure {
         PreflightError::InvalidRequest { message } => {
             ProtocolFailure::new("invalid_request", message)
         }
+        PreflightError::OperationLocked {
+            run_id,
+            operation_id,
+        } => ProtocolFailure::new(
+            "recycle_operation_locked",
+            "A durable recycle operation locks this reviewed plan",
+        )
+        .with_details(json!({"runId":run_id,"recycleOperationId":operation_id})),
     }
 }
 
@@ -5253,6 +5830,14 @@ fn preference_error(error: PreferenceError) -> ProtocolFailure {
             "This rule application has already been reversed",
         )
         .with_details(json!({"applicationId":application_id})),
+        PreferenceError::OperationLocked {
+            run_id,
+            operation_id,
+        } => ProtocolFailure::new(
+            "recycle_operation_locked",
+            "A durable recycle operation locks this reviewed plan",
+        )
+        .with_details(json!({"runId":run_id,"recycleOperationId":operation_id})),
     }
 }
 
@@ -5349,6 +5934,11 @@ fn review_error(error: ReviewError) -> ProtocolFailure {
             "folderGroupId":folder_group_id,
             "remainingIntactCopies":0
         })),
+        ReviewError::OperationLocked { run_id, operation_id } => ProtocolFailure::new(
+            "recycle_operation_locked",
+            "A durable recycle operation locks this reviewed plan",
+        )
+        .with_details(json!({"runId":run_id,"recycleOperationId":operation_id})),
     }
 }
 
@@ -5660,6 +6250,71 @@ mod tests {
         assert_eq!(
             response(&frames, "unknown")["error"]["code"],
             "invalid_request"
+        );
+        assert_eq!(fs::read(&remove_path).unwrap(), b"worker preflight fixture");
+        assert_eq!(
+            fs::read(&survivor_path).unwrap(),
+            b"worker preflight fixture"
+        );
+
+        let operation_preflight_id = {
+            let db = Database::open_connection(database_path.to_str().unwrap()).unwrap();
+            let latest = db.latest_preflight_for_run(run_id).unwrap().unwrap();
+            if latest.preflight.status == "completed" {
+                latest.preflight.id
+            } else {
+                let fresh = db
+                    .create_preflight("operation-fixture-preflight", run_id, 2)
+                    .unwrap();
+                db.validate_preflight(fresh.view.preflight.id, &AtomicBool::new(false), |_, _| {})
+                    .unwrap()
+                    .id
+            }
+        };
+
+        let operation_frames = execute(
+            &temp,
+            &[
+                HELLO.to_owned(),
+                json!({"type":"request","id":"prepare-operation","method":"recycle_operation.prepare","params":{"operationId":"prepare-operation","runId":run_id,"preflightId":operation_preflight_id,"expectedReviewRevision":2}}).to_string(),
+                json!({"type":"request","id":"replay-operation","method":"recycle_operation.prepare","params":{"operationId":"prepare-operation","runId":run_id,"preflightId":operation_preflight_id,"expectedReviewRevision":2}}).to_string(),
+                r#"{"type":"request","id":"latest-operation","method":"recycle_operation.get","params":{"runId":1}}"#.to_owned(),
+                r#"{"type":"request","id":"operation-page","method":"recycle_operation.item.page","params":{"recycleOperationId":1,"pageSize":1}}"#.to_owned(),
+                r#"{"type":"request","id":"disabled-capability","method":"recycle_operation.eligibility.report","params":{"reportOperationId":"disabled-capability","recycleOperationId":1,"items":[{"itemId":1,"status":"non_recyclable","reasonCode":"executor_disabled"}]}}"#.to_owned(),
+            ],
+        );
+        assert_eq!(
+            response(&operation_frames, "prepare-operation")["ok"],
+            true,
+            "{:?}",
+            response(&operation_frames, "prepare-operation")
+        );
+        assert_eq!(
+            response(&operation_frames, "prepare-operation")["result"]["executorEnabled"],
+            false
+        );
+        assert_eq!(
+            response(&operation_frames, "prepare-operation")["result"]["operation"]["status"],
+            "prepared"
+        );
+        assert_eq!(
+            response(&operation_frames, "replay-operation")["result"]["replayed"],
+            true
+        );
+        assert_eq!(
+            response(&operation_frames, "latest-operation")["result"]["operation"]["preflightId"],
+            operation_preflight_id
+        );
+        assert_eq!(
+            response(&operation_frames, "operation-page")["result"]["items"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            response(&operation_frames, "disabled-capability")["result"]["operation"]["status"],
+            "failed"
         );
         assert_eq!(fs::read(&remove_path).unwrap(), b"worker preflight fixture");
         assert_eq!(

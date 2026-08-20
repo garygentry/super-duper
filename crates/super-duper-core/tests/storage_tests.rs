@@ -1,3 +1,4 @@
+use chrono::{Duration, Utc};
 use rusqlite::{params, Connection, Error as SqlError};
 use std::fs;
 use std::path::Path;
@@ -12,11 +13,12 @@ use super_duper_core::storage::models::{
     DuplicateFileMemberPageQuery, DuplicateFileMemberSortField, DuplicateFilePathMatchMode,
     DuplicateFileSelectedRootFacetPageQuery, DuplicateFileSelectedRootFacetSortField,
     ExactFolderGroupInsert, PageCursor, PageCursorValue, PreferencePreviewScope,
-    RegisteredCloudLocation, ReviewDecisionKind, RunExclusionInsert, RunParameters, ScannedFile,
-    SortDirection,
+    RecycleEligibilityObservation, RecycleItemResultObservation, RegisteredCloudLocation,
+    ReviewDecisionKind, RunExclusionInsert, RunParameters, ScannedFile, SortDirection,
 };
 use super_duper_core::storage::preference::PreferenceError;
 use super_duper_core::storage::preflight::PreflightError;
+use super_duper_core::storage::recycle_operation::RecycleOperationError;
 use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::sqlite::CURRENT_SCHEMA_VERSION;
 use super_duper_core::storage::Database;
@@ -29,6 +31,18 @@ use winapi::um::psapi::{
 };
 
 static LARGE_FIXTURE_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+fn drop_v10_operation_schema(db: &Database) {
+    db.connection()
+        .execute_batch(
+            "DROP TABLE recycle_operation_recovery;
+             DROP TABLE recycle_operation_report;
+             DROP TABLE recycle_operation_item;
+             DROP TABLE recycle_operation_batch;
+             DROP TABLE recycle_operation;",
+        )
+        .unwrap();
+}
 
 fn parameters(roots: &[&str], ignores: &[&str]) -> RunParameters {
     RunParameters {
@@ -122,10 +136,73 @@ fn schema_version_is_explicit_and_current() {
 }
 
 #[test]
+fn version_nine_migrates_recycle_operation_tables_transactionally() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("v9-recycle-operation.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    drop_v10_operation_schema(&db);
+    db.connection()
+        .execute_batch("PRAGMA user_version = 9;")
+        .unwrap();
+    drop(db);
+
+    let migrated = Database::open(path.to_str().unwrap()).unwrap();
+    assert_eq!(migrated.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+    for table in [
+        "recycle_operation",
+        "recycle_operation_batch",
+        "recycle_operation_item",
+        "recycle_operation_report",
+        "recycle_operation_recovery",
+    ] {
+        let exists: bool = migrated
+            .connection()
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1)",
+                params![table],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(exists, "missing migrated table {table}");
+    }
+}
+
+#[test]
+fn version_nine_recycle_operation_migration_rolls_back_on_failure() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("v9-recycle-operation-rollback.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    drop_v10_operation_schema(&db);
+    db.connection()
+        .execute_batch(
+            "CREATE TABLE recycle_operation (id INTEGER PRIMARY KEY);
+             PRAGMA user_version = 9;",
+        )
+        .unwrap();
+    drop(db);
+
+    assert!(Database::open(path.to_str().unwrap()).is_err());
+    let raw = Connection::open(&path).unwrap();
+    let version: i64 = raw
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 9);
+    let batch_table: bool = raw
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'recycle_operation_batch')",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(!batch_table);
+}
+
+#[test]
 fn version_eight_migrates_preflight_tables_transactionally() {
     let temp = tempdir().unwrap();
     let path = temp.path().join("v8-preflight.db");
     let db = Database::open(path.to_str().unwrap()).unwrap();
+    drop_v10_operation_schema(&db);
     db.connection()
         .execute_batch(
             "DROP TABLE preflight_item_source;
@@ -156,6 +233,7 @@ fn version_eight_preflight_migration_rolls_back_on_failure() {
     let temp = tempdir().unwrap();
     let path = temp.path().join("v8-preflight-rollback.db");
     let db = Database::open(path.to_str().unwrap()).unwrap();
+    drop_v10_operation_schema(&db);
     db.connection()
         .execute_batch(
             "DROP TABLE preflight_item_source;
@@ -188,6 +266,7 @@ fn version_seven_migrates_rule_application_tables_transactionally() {
     let temp = tempdir().unwrap();
     let path = temp.path().join("v7-applications.db");
     let db = Database::open(path.to_str().unwrap()).unwrap();
+    drop_v10_operation_schema(&db);
     db.connection()
         .execute_batch(
             "DROP TABLE preflight_item_source;
@@ -237,6 +316,7 @@ fn version_six_migrates_named_preference_rules_transactionally() {
     let temp = tempdir().unwrap();
     let path = temp.path().join("v6-preferences.db");
     let db = Database::open(path.to_str().unwrap()).unwrap();
+    drop_v10_operation_schema(&db);
     db.connection()
         .execute_batch(
             "DROP TABLE preflight_item_source;
@@ -1964,6 +2044,7 @@ fn version_four_migrates_review_tables_transactionally() {
     let temp = tempdir().unwrap();
     let path = temp.path().join("review-v4.db");
     let db = Database::open(path.to_str().unwrap()).unwrap();
+    drop_v10_operation_schema(&db);
     let (_, run_id) = session_and_run(&db, "Preserved v4 run", &["/root"]);
     db.connection()
         .execute_batch(
@@ -2021,6 +2102,7 @@ fn version_five_migrates_folder_review_tables_transactionally() {
     let temp = tempdir().unwrap();
     let path = temp.path().join("review-v5.db");
     let db = Database::open(path.to_str().unwrap()).unwrap();
+    drop_v10_operation_schema(&db);
     let (run_id, _, _) = completed_review_fixture(&db);
     db.connection()
         .execute_batch(
@@ -2305,6 +2387,300 @@ fn preflight_validates_exact_metadata_hash_and_preserves_disposable_files() {
         changed_items.items[0].reason_code.as_deref(),
         Some("size_changed") | Some("timestamp_changed") | Some("content_hash_changed")
     ));
+}
+
+#[test]
+fn recycle_operation_is_revision_bound_idempotent_locked_and_restart_safe() {
+    let temp = tempdir().unwrap();
+    let root = fs::canonicalize(temp.path()).unwrap();
+    let remove_path = root.join("operation-remove.bin");
+    let survivor_path = root.join("operation-survivor.bin");
+    fs::write(&remove_path, b"non-mutating operation fixture").unwrap();
+    fs::write(&survivor_path, b"non-mutating operation fixture").unwrap();
+    let db_path = root.join("operation.db");
+    let db = Database::open(db_path.to_str().unwrap()).unwrap();
+    let root_text = root.to_string_lossy().into_owned();
+    let (_, run_id) = session_and_run(&db, "Recycle operation", &[&root_text]);
+    let remove = live_file(run_id, &root, &remove_path);
+    let survivor = live_file(run_id, &root, &survivor_path);
+    let hash = remove.content_hash.unwrap();
+    let size = remove.file_size;
+    let remove_canonical = remove.canonical_path.clone();
+    let survivor_canonical = survivor.canonical_path.clone();
+    db.insert_scanned_files(&[remove, survivor]).unwrap();
+    db.insert_duplicate_groups(
+        run_id,
+        &[(
+            hash,
+            size,
+            vec![remove_canonical.clone(), survivor_canonical.clone()],
+        )],
+    )
+    .unwrap();
+    db.complete_scan_run(run_id, 2, size * 2, 2, 1, 0, size, 0)
+        .unwrap();
+    let group_id: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM duplicate_group WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let remove_id: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM scanned_file WHERE canonical_path = ?1",
+            params![remove_canonical],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let survivor_id: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM scanned_file WHERE canonical_path = ?1",
+            params![survivor_canonical],
+            |row| row.get(0),
+        )
+        .unwrap();
+    db.set_review_decision(
+        "operation-remove",
+        run_id,
+        group_id,
+        remove_id,
+        ReviewDecisionKind::Remove,
+        0,
+    )
+    .unwrap();
+    db.set_review_decision(
+        "operation-keep",
+        run_id,
+        group_id,
+        survivor_id,
+        ReviewDecisionKind::Keep,
+        1,
+    )
+    .unwrap();
+    let preflight = db
+        .create_preflight("operation-preflight", run_id, 2)
+        .unwrap();
+    let preflight = db
+        .validate_preflight(
+            preflight.view.preflight.id,
+            &AtomicBool::new(false),
+            |_, _| {},
+        )
+        .unwrap();
+    assert_eq!(preflight.status, "completed");
+
+    db.connection()
+        .execute(
+            "UPDATE preflight SET completed_at = ?1 WHERE id = ?2",
+            params![
+                (Utc::now() - Duration::minutes(10)).to_rfc3339(),
+                preflight.id
+            ],
+        )
+        .unwrap();
+    assert!(matches!(
+        db.prepare_recycle_operation("operation-expired", run_id, preflight.id, 2),
+        Err(RecycleOperationError::PreflightExpired { .. })
+    ));
+    db.connection()
+        .execute(
+            "UPDATE preflight SET completed_at = ?1 WHERE id = ?2",
+            params![Utc::now().to_rfc3339(), preflight.id],
+        )
+        .unwrap();
+
+    let cancelled = db
+        .prepare_recycle_operation("operation-cancel", run_id, preflight.id, 2)
+        .unwrap();
+    let cancelled = db
+        .cancel_recycle_operation(cancelled.view.operation.id)
+        .unwrap();
+    assert_eq!(cancelled.operation.status, "cancelled");
+    assert_eq!(cancelled.operation.summary.cancelled_count, 1);
+
+    let reported = db
+        .prepare_recycle_operation("operation-result", run_id, preflight.id, 2)
+        .unwrap();
+    let reported_items = db
+        .page_recycle_operation_items(reported.view.operation.id, 0, 10, None)
+        .unwrap();
+    let reported = db
+        .report_recycle_eligibility(
+            "operation-result-eligibility",
+            reported.view.operation.id,
+            &[RecycleEligibilityObservation {
+                item_id: reported_items.items[0].id,
+                status: "eligible".to_owned(),
+                reason_code: Some("injected_non_mutating_capability".to_owned()),
+            }],
+        )
+        .unwrap();
+    let reported = db
+        .confirm_recycle_operation(
+            "operation-result-confirm",
+            reported.view.operation.id,
+            reported
+                .view
+                .operation
+                .confirmation_signature
+                .as_deref()
+                .unwrap(),
+        )
+        .unwrap();
+    let reported_batch = db
+        .next_recycle_operation_batch(reported.view.operation.id)
+        .unwrap()
+        .unwrap();
+    db.begin_recycle_operation_batch(
+        "operation-result-begin",
+        reported.view.operation.id,
+        reported_batch.id,
+        "injected-result-attempt",
+    )
+    .unwrap();
+    let failure = [RecycleItemResultObservation {
+        item_id: reported_batch.items[0].id,
+        status: "failed".to_owned(),
+        reason_code: Some("injected_provider_failure".to_owned()),
+        shell_hresult: Some(-1),
+        recycled_item_present: None,
+    }];
+    let reported = db
+        .report_recycle_operation_batch(
+            "operation-result-report",
+            reported.view.operation.id,
+            reported_batch.id,
+            &failure,
+        )
+        .unwrap();
+    assert_eq!(reported.view.operation.status, "failed");
+    assert_eq!(reported.view.operation.summary.failed_count, 1);
+    let replayed_report = db
+        .report_recycle_operation_batch(
+            "operation-result-report",
+            reported.view.operation.id,
+            reported_batch.id,
+            &failure,
+        )
+        .unwrap();
+    assert!(replayed_report.replayed);
+
+    let prepared = db
+        .prepare_recycle_operation("operation-prepare", run_id, preflight.id, 2)
+        .unwrap();
+    assert!(!prepared.replayed);
+    assert_eq!(prepared.view.operation.status, "prepared");
+    assert_eq!(prepared.view.operation.summary.logical_removal_count, 1);
+    assert_eq!(prepared.view.operation.summary.shell_item_count, 1);
+    assert_eq!(prepared.view.operation.summary.pending_eligibility_count, 1);
+    assert_eq!(
+        db.locked_recycle_operation_id(run_id).unwrap(),
+        Some(prepared.view.operation.id)
+    );
+    let replay = db
+        .prepare_recycle_operation("operation-prepare", run_id, preflight.id, 2)
+        .unwrap();
+    assert!(replay.replayed);
+    assert!(matches!(
+        db.prepare_recycle_operation("operation-prepare", run_id, preflight.id, 1),
+        Err(RecycleOperationError::IdempotencyConflict { .. })
+    ));
+    let item_page = db
+        .page_recycle_operation_items(prepared.view.operation.id, 0, 1, None)
+        .unwrap();
+    assert_eq!(item_page.total, 1);
+    assert_eq!(item_page.items.len(), 1);
+    assert!(!item_page.has_more);
+    let eligible = db
+        .report_recycle_eligibility(
+            "operation-eligibility",
+            prepared.view.operation.id,
+            &[RecycleEligibilityObservation {
+                item_id: item_page.items[0].id,
+                status: "eligible".to_owned(),
+                reason_code: Some("injected_non_mutating_capability".to_owned()),
+            }],
+        )
+        .unwrap();
+    assert_eq!(eligible.view.operation.status, "awaiting_confirmation");
+    let confirmation_signature = eligible
+        .view
+        .operation
+        .confirmation_signature
+        .clone()
+        .unwrap();
+    let submitted = db
+        .confirm_recycle_operation(
+            "operation-confirm",
+            prepared.view.operation.id,
+            &confirmation_signature,
+        )
+        .unwrap();
+    assert_eq!(submitted.view.operation.status, "submitted");
+    assert!(matches!(
+        db.create_preflight("operation-locked-preflight", run_id, 2),
+        Err(PreflightError::OperationLocked { .. })
+    ));
+    assert!(matches!(
+        db.set_review_decision(
+            "operation-locked-review",
+            run_id,
+            group_id,
+            remove_id,
+            ReviewDecisionKind::Keep,
+            2,
+        ),
+        Err(ReviewError::OperationLocked { .. })
+    ));
+    let batch = db
+        .next_recycle_operation_batch(prepared.view.operation.id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(batch.items.len(), 1);
+    db.begin_recycle_operation_batch(
+        "operation-begin",
+        prepared.view.operation.id,
+        batch.id,
+        "injected-shell-attempt",
+    )
+    .unwrap();
+    assert_eq!(
+        fs::read(&remove_path).unwrap(),
+        b"non-mutating operation fixture"
+    );
+    assert_eq!(
+        fs::read(&survivor_path).unwrap(),
+        b"non-mutating operation fixture"
+    );
+    drop(db);
+
+    let reopened = Database::open(db_path.to_str().unwrap()).unwrap();
+    let recovered = reopened
+        .get_recycle_operation(prepared.view.operation.id)
+        .unwrap();
+    assert_eq!(recovered.operation.status, "recovery_required");
+    assert_eq!(recovered.operation.summary.unknown_count, 1);
+    let recovery_count: i64 = reopened
+        .connection()
+        .query_row(
+            "SELECT COUNT(*) FROM recycle_operation_recovery WHERE recycle_operation_id = ?1",
+            params![prepared.view.operation.id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(recovery_count, 1);
+    assert_eq!(
+        fs::read(&remove_path).unwrap(),
+        b"non-mutating operation fixture"
+    );
+    assert_eq!(
+        fs::read(&survivor_path).unwrap(),
+        b"non-mutating operation fixture"
+    );
 }
 
 #[test]

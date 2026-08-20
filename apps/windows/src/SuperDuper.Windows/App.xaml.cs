@@ -23,6 +23,7 @@ public partial class App : Application
         services.AddSingleton<IClipboardService, WpfClipboardService>();
         services.AddSingleton<IExplorerService, WindowsExplorerService>();
         services.AddSingleton<ICloudLocationService>(_ => CreateCloudLocationService());
+        services.AddSingleton<IRecycleOperationCapabilityExecutor, DisabledRecycleOperationCapabilityExecutor>();
         services.AddSingleton<ShellViewModel>();
         services.AddSingleton<MainWindow>();
         _services = services.BuildServiceProvider(validateScopes: true);

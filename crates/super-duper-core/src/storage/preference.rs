@@ -54,6 +54,8 @@ pub enum PreferenceError {
     ApplicationNotFound { run_id: i64, application_id: i64 },
     #[error("rule application {application_id} is already reversed")]
     ApplicationAlreadyReversed { application_id: i64 },
+    #[error("run {run_id} is locked by recycle operation {operation_id}")]
+    OperationLocked { run_id: i64, operation_id: i64 },
     #[error(transparent)]
     Review(#[from] super::review::ReviewError),
     #[error(transparent)]
@@ -625,6 +627,7 @@ impl Database {
                 replayed: true,
             });
         }
+        ensure_preference_operation_unlocked(&tx, run_id)?;
         if preview_signature != expected_preview_signature {
             return Err(PreferenceError::PreviewConflict);
         }
@@ -974,6 +977,7 @@ impl Database {
                 removed_remove_count: replay.6,
             });
         }
+        ensure_preference_operation_unlocked(&tx, run_id)?;
         let application = preference_application_by_id(&tx, run_id, application_id)?.ok_or(
             PreferenceError::ApplicationNotFound {
                 run_id,
@@ -1342,6 +1346,39 @@ fn preference_preview_signature(
     Ok(signature_for(&format!(
         "preview\n{run_id}\n{rule_id}\n{rule_revision}\n{review_revision}\n{scope_json}"
     )))
+}
+
+fn ensure_preference_operation_unlocked(
+    tx: &Transaction<'_>,
+    run_id: i64,
+) -> Result<(), PreferenceError> {
+    let operation = tx
+        .query_row(
+            "SELECT id, status FROM recycle_operation
+             WHERE run_id = ?1 AND status IN
+                ('prepared', 'awaiting_confirmation', 'submitted', 'executing', 'cancelling', 'recovery_required')
+             ORDER BY id DESC LIMIT 1",
+            params![run_id],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()?;
+    if let Some((operation_id, status)) = operation {
+        if status == "prepared" || status == "awaiting_confirmation" {
+            tx.execute(
+                "UPDATE recycle_operation SET status = 'expired', completed_at = ?1,
+                        error_code = 'review_changed',
+                        error_detail = 'Rule provenance mutation invalidated the unsubmitted operation intent'
+                 WHERE id = ?2",
+                params![Utc::now().to_rfc3339(), operation_id],
+            )?;
+            return Ok(());
+        }
+        return Err(PreferenceError::OperationLocked {
+            run_id,
+            operation_id,
+        });
+    }
+    Ok(())
 }
 
 fn validate_operation_id(operation_id: &str) -> Result<(), PreferenceError> {

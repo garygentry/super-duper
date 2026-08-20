@@ -6,7 +6,7 @@ using SuperDuper.Windows.Infrastructure.Protocol;
 
 namespace SuperDuper.Windows.Infrastructure;
 
-public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
+public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWorkerClient, IDisposable
 {
     private static readonly TimeSpan DefaultStartupTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(2);
@@ -588,6 +588,74 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
             cancellationToken).ConfigureAwait(false);
         return result.Preflight
             ?? throw new WorkerProtocolException("preflight.cancel returned no preflight");
+    }
+
+    public Task<WorkerRecycleOperationResult> PrepareRecycleOperationAsync(
+        string operationId,
+        long runId,
+        long preflightId,
+        long expectedReviewRevision,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        return InvokeAsync<WorkerRecycleOperationResult>(
+            "recycle_operation.prepare",
+            new { operationId, runId, preflightId, expectedReviewRevision },
+            cancellationToken);
+    }
+
+    public async Task<WorkerRecycleOperation?> GetLatestRecycleOperationAsync(
+        long runId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await InvokeAsync<RecycleOperationGetResult>(
+            "recycle_operation.get",
+            new { runId },
+            cancellationToken).ConfigureAwait(false);
+        return result.Operation;
+    }
+
+    public async Task<WorkerRecycleOperation> GetRecycleOperationAsync(
+        long recycleOperationId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await InvokeAsync<RecycleOperationGetResult>(
+            "recycle_operation.get",
+            new { recycleOperationId },
+            cancellationToken).ConfigureAwait(false);
+        return result.Operation
+            ?? throw new WorkerProtocolException("recycle_operation.get returned no operation");
+    }
+
+    public Task<WorkerRecycleOperationItemPage> GetRecycleOperationItemsAsync(
+        RecycleOperationItemQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        return InvokeAsync<WorkerRecycleOperationItemPage>(
+            "recycle_operation.item.page",
+            new
+            {
+                recycleOperationId = query.RecycleOperationId,
+                pageSize = query.PageSize,
+                resultStatus = query.ResultStatus,
+                cursor = query.Cursor,
+            },
+            cancellationToken);
+    }
+
+    public Task<WorkerRecycleOperationResult> ReportRecycleEligibilityAsync(
+        string reportOperationId,
+        long recycleOperationId,
+        IReadOnlyList<RecycleEligibilityObservation> items,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reportOperationId);
+        ArgumentNullException.ThrowIfNull(items);
+        return InvokeAsync<WorkerRecycleOperationResult>(
+            "recycle_operation.eligibility.report",
+            new { reportOperationId, recycleOperationId, items },
+            cancellationToken);
     }
 
     public Task<WorkerPreferenceRulePage> ListPreferenceRulesAsync(
@@ -1241,6 +1309,10 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
     private sealed record PreferenceApplicationResult(WorkerPreferenceApplication Application);
 
     private sealed record PreflightResult(WorkerPreflight? Preflight);
+
+    private sealed record RecycleOperationGetResult(
+        WorkerRecycleOperation? Operation,
+        bool ExecutorEnabled);
 
     private sealed record DeleteSessionResult(long SessionId);
 }

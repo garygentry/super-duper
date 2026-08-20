@@ -200,3 +200,31 @@ public interface IRestartableWorkerClient : IWorkerClient
 
     Task<WorkerHelloResult> RestartAsync(CancellationToken cancellationToken = default);
 }
+
+public interface IRecycleOperationWorkerClient
+{
+    Task<WorkerRecycleOperationResult> PrepareRecycleOperationAsync(
+        string operationId,
+        long runId,
+        long preflightId,
+        long expectedReviewRevision,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerRecycleOperation?> GetLatestRecycleOperationAsync(
+        long runId,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerRecycleOperation> GetRecycleOperationAsync(
+        long recycleOperationId,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerRecycleOperationItemPage> GetRecycleOperationItemsAsync(
+        RecycleOperationItemQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerRecycleOperationResult> ReportRecycleEligibilityAsync(
+        string reportOperationId,
+        long recycleOperationId,
+        IReadOnlyList<RecycleEligibilityObservation> items,
+        CancellationToken cancellationToken = default);
+}

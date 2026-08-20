@@ -4,7 +4,7 @@ use chrono::Utc;
 use rusqlite::{params, Connection, Error, Result};
 use tracing::{debug, info};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 9;
+pub const CURRENT_SCHEMA_VERSION: i64 = 10;
 
 pub struct Database {
     conn: Connection,
@@ -15,6 +15,7 @@ impl Database {
         let db = Self::open_connection(path)?;
         db.reconcile_interrupted_runs()?;
         db.reconcile_interrupted_preflights()?;
+        db.reconcile_interrupted_recycle_operations()?;
         Ok(db)
     }
 
@@ -35,6 +36,7 @@ impl Database {
         db.migrate_schema()?;
         db.reconcile_interrupted_runs()?;
         db.reconcile_interrupted_preflights()?;
+        db.reconcile_interrupted_recycle_operations()?;
         Ok(db)
     }
 
@@ -69,21 +71,28 @@ impl Database {
         let version = self.schema_version()?;
         match version {
             CURRENT_SCHEMA_VERSION => self.conn.execute_batch(include_str!("schema.sql"))?,
-            8 => self.migrate_v8_to_v9()?,
+            9 => self.migrate_v9_to_v10()?,
+            8 => {
+                self.migrate_v8_to_v9()?;
+                self.migrate_v9_to_v10()?;
+            }
             7 => {
                 self.migrate_v7_to_v8()?;
                 self.migrate_v8_to_v9()?;
+                self.migrate_v9_to_v10()?;
             }
             6 => {
                 self.migrate_v6_to_v7()?;
                 self.migrate_v7_to_v8()?;
                 self.migrate_v8_to_v9()?;
+                self.migrate_v9_to_v10()?;
             }
             5 => {
                 self.migrate_v5_to_v6()?;
                 self.migrate_v6_to_v7()?;
                 self.migrate_v7_to_v8()?;
                 self.migrate_v8_to_v9()?;
+                self.migrate_v9_to_v10()?;
             }
             4 => {
                 self.migrate_v4_to_v5()?;
@@ -91,6 +100,7 @@ impl Database {
                 self.migrate_v6_to_v7()?;
                 self.migrate_v7_to_v8()?;
                 self.migrate_v8_to_v9()?;
+                self.migrate_v9_to_v10()?;
             }
             3 => {
                 self.migrate_v3_to_v4()?;
@@ -99,6 +109,7 @@ impl Database {
                 self.migrate_v6_to_v7()?;
                 self.migrate_v7_to_v8()?;
                 self.migrate_v8_to_v9()?;
+                self.migrate_v9_to_v10()?;
             }
             2 => self.migrate_v2_to_v3()?,
             0 if !self.has_user_tables()? => self.conn.execute_batch(include_str!("schema.sql"))?,
@@ -736,6 +747,121 @@ impl Database {
         migration
     }
 
+    fn migrate_v9_to_v10(&self) -> Result<()> {
+        info!("Migrating SQLite schema from version 9 to 10");
+        let migration = self.conn.execute_batch(
+            "BEGIN IMMEDIATE;
+             CREATE TABLE recycle_operation (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 operation_id TEXT NOT NULL UNIQUE,
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+                 preflight_id INTEGER NOT NULL REFERENCES preflight(id) ON DELETE CASCADE,
+                 review_revision INTEGER NOT NULL CHECK(review_revision >= 0),
+                 preflight_snapshot_signature TEXT NOT NULL,
+                 intent_signature TEXT NOT NULL,
+                 policy_version INTEGER NOT NULL DEFAULT 1 CHECK(policy_version > 0),
+                 status TEXT NOT NULL DEFAULT 'prepared'
+                     CHECK(status IN ('prepared', 'awaiting_confirmation', 'submitted', 'executing',
+                                      'cancelling', 'expired', 'cancelled', 'completed',
+                                      'partially_completed', 'failed', 'recovery_required')),
+                 logical_removal_count INTEGER NOT NULL CHECK(logical_removal_count >= 0),
+                 shell_item_count INTEGER NOT NULL CHECK(shell_item_count >= 0),
+                 physical_item_count INTEGER NOT NULL CHECK(physical_item_count >= 0),
+                 folder_item_count INTEGER NOT NULL CHECK(folder_item_count >= 0),
+                 affected_group_count INTEGER NOT NULL CHECK(affected_group_count >= 0),
+                 planned_removal_bytes INTEGER NOT NULL CHECK(planned_removal_bytes >= 0),
+                 affected_location_count INTEGER NOT NULL DEFAULT 0 CHECK(affected_location_count >= 0),
+                 exclusion_count INTEGER NOT NULL DEFAULT 0 CHECK(exclusion_count >= 0),
+                 prepared_at TEXT NOT NULL,
+                 confirmation_signature TEXT,
+                 confirmation_expires_at TEXT,
+                 submitted_at TEXT,
+                 completed_at TEXT,
+                 cancellation_requested INTEGER NOT NULL DEFAULT 0 CHECK(cancellation_requested IN (0, 1)),
+                 error_code TEXT,
+                 error_detail TEXT
+             );
+             CREATE TABLE recycle_operation_batch (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 recycle_operation_id INTEGER NOT NULL REFERENCES recycle_operation(id) ON DELETE CASCADE,
+                 ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+                 item_signature TEXT NOT NULL,
+                 status TEXT NOT NULL DEFAULT 'pending'
+                     CHECK(status IN ('pending', 'admitted', 'shell_started', 'reported', 'skipped', 'ambiguous')),
+                 admission_expires_at TEXT,
+                 shell_attempt_id TEXT,
+                 started_at TEXT,
+                 reported_at TEXT,
+                 UNIQUE(recycle_operation_id, ordinal)
+             );
+             CREATE TABLE recycle_operation_item (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 recycle_operation_id INTEGER NOT NULL REFERENCES recycle_operation(id) ON DELETE CASCADE,
+                 batch_id INTEGER NOT NULL REFERENCES recycle_operation_batch(id) ON DELETE CASCADE,
+                 ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+                 preflight_item_id INTEGER NOT NULL REFERENCES preflight_item(id) ON DELETE CASCADE,
+                 preflight_source_id INTEGER REFERENCES preflight_item_source(id) ON DELETE CASCADE,
+                 target_kind TEXT NOT NULL CHECK(target_kind IN ('file', 'folder')),
+                 physical_key TEXT NOT NULL,
+                 snapshot_path TEXT NOT NULL,
+                 group_id INTEGER REFERENCES duplicate_group(id) ON DELETE CASCADE,
+                 folder_group_id INTEGER REFERENCES duplicate_folder_group(id) ON DELETE CASCADE,
+                 folder_member_id INTEGER REFERENCES duplicate_folder_group_member(id) ON DELETE CASCADE,
+                 snapshot_file_id INTEGER REFERENCES scanned_file(id) ON DELETE CASCADE,
+                 snapshot_directory_id INTEGER REFERENCES directory_node(id) ON DELETE CASCADE,
+                 planned_bytes INTEGER NOT NULL DEFAULT 0 CHECK(planned_bytes >= 0),
+                 eligibility_status TEXT NOT NULL DEFAULT 'pending'
+                     CHECK(eligibility_status IN ('pending', 'eligible', 'non_recyclable')),
+                 eligibility_code TEXT,
+                 result_status TEXT NOT NULL DEFAULT 'pending'
+                     CHECK(result_status IN ('pending', 'recycled', 'failed', 'cancelled', 'unknown')),
+                 result_code TEXT,
+                 shell_hresult INTEGER,
+                 recycled_item_present INTEGER CHECK(recycled_item_present IS NULL OR recycled_item_present IN (0, 1)),
+                 result_at TEXT,
+                 UNIQUE(recycle_operation_id, ordinal)
+             );
+             CREATE TABLE recycle_operation_report (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 recycle_operation_id INTEGER NOT NULL REFERENCES recycle_operation(id) ON DELETE CASCADE,
+                 batch_id INTEGER REFERENCES recycle_operation_batch(id) ON DELETE CASCADE,
+                 report_operation_id TEXT NOT NULL UNIQUE,
+                 report_kind TEXT NOT NULL CHECK(report_kind IN ('eligibility', 'confirmation', 'batch_begin', 'result', 'recovery')),
+                 payload_signature TEXT NOT NULL,
+                 created_at TEXT NOT NULL
+             );
+             CREATE TABLE recycle_operation_recovery (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 recycle_operation_id INTEGER NOT NULL REFERENCES recycle_operation(id) ON DELETE CASCADE,
+                 batch_id INTEGER REFERENCES recycle_operation_batch(id) ON DELETE CASCADE,
+                 item_id INTEGER REFERENCES recycle_operation_item(id) ON DELETE CASCADE,
+                 reason_code TEXT NOT NULL,
+                 detail TEXT,
+                 created_at TEXT NOT NULL
+             );
+             CREATE INDEX idx_recycle_operation_run_created ON recycle_operation(run_id, id DESC);
+             CREATE INDEX idx_recycle_operation_status ON recycle_operation(status, id);
+             CREATE INDEX idx_recycle_operation_preflight ON recycle_operation(preflight_id, id DESC);
+             CREATE INDEX idx_recycle_operation_batch_state
+                 ON recycle_operation_batch(recycle_operation_id, status, ordinal);
+             CREATE INDEX idx_recycle_operation_item_page
+                 ON recycle_operation_item(recycle_operation_id, result_status, eligibility_status,
+                                           target_kind, snapshot_path COLLATE UNICODE_NOCASE, id);
+             CREATE INDEX idx_recycle_operation_item_batch ON recycle_operation_item(batch_id, ordinal);
+             CREATE INDEX idx_recycle_operation_report_operation
+                 ON recycle_operation_report(recycle_operation_id, id);
+             CREATE INDEX idx_recycle_operation_recovery_operation
+                 ON recycle_operation_recovery(recycle_operation_id, id);
+             PRAGMA user_version = 10;
+             COMMIT;",
+        );
+        if migration.is_err() {
+            let _ = self.conn.execute_batch("ROLLBACK;");
+        }
+        migration
+    }
+
     pub fn reconcile_interrupted_runs(&self) -> Result<usize> {
         let now = Utc::now().to_rfc3339();
         let count = self.conn.execute(
@@ -767,6 +893,63 @@ impl Database {
         Ok(count)
     }
 
+    pub fn reconcile_interrupted_recycle_operations(&self) -> Result<usize> {
+        let now = Utc::now().to_rfc3339();
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
+            "INSERT INTO recycle_operation_recovery
+                (recycle_operation_id, batch_id, item_id, reason_code, detail, created_at)
+             SELECT item.recycle_operation_id, item.batch_id, item.id,
+                    'worker_interrupted_after_shell_start',
+                    'Shell work may have occurred before the worker received a durable item result', ?1
+             FROM recycle_operation_item item
+             JOIN recycle_operation_batch batch ON batch.id = item.batch_id
+             WHERE batch.status = 'shell_started' AND item.result_status = 'pending'
+               AND NOT EXISTS (
+                   SELECT 1 FROM recycle_operation_recovery recovery
+                   WHERE recovery.item_id = item.id
+                     AND recovery.reason_code = 'worker_interrupted_after_shell_start'
+               )",
+            params![now],
+        )?;
+        tx.execute(
+            "UPDATE recycle_operation_item
+             SET result_status = 'unknown', result_code = 'worker_interrupted_after_shell_start',
+                 result_at = ?1
+             WHERE result_status = 'pending' AND batch_id IN
+                (SELECT id FROM recycle_operation_batch WHERE status = 'shell_started')",
+            params![now],
+        )?;
+        tx.execute(
+            "UPDATE recycle_operation_batch
+             SET status = 'ambiguous', reported_at = ?1
+             WHERE status = 'shell_started'",
+            params![now],
+        )?;
+        let expired = tx.execute(
+            "UPDATE recycle_operation
+             SET status = 'expired', completed_at = ?1,
+                 error_code = COALESCE(error_code, 'application_restarted'),
+                 error_detail = COALESCE(error_detail, 'Preparation expired when the application restarted')
+             WHERE status IN ('prepared', 'awaiting_confirmation')",
+            params![now],
+        )?;
+        let ambiguous = tx.execute(
+            "UPDATE recycle_operation
+             SET status = 'recovery_required', completed_at = ?1,
+                 error_code = COALESCE(error_code, 'shell_result_ambiguous'),
+                 error_detail = COALESCE(error_detail, 'Shell work may have started before durable results were received')
+             WHERE status IN ('submitted', 'executing', 'cancelling')",
+            params![now],
+        )?;
+        tx.commit()?;
+        let count = expired + ambiguous;
+        if count > 0 {
+            info!("Reconciled {} abandoned recycle operation(s)", count);
+        }
+        Ok(count)
+    }
+
     pub fn connection(&self) -> &Connection {
         &self.conn
     }
@@ -774,6 +957,11 @@ impl Database {
     pub fn truncate_all(&self) -> Result<()> {
         self.conn.execute_batch(
             "BEGIN;
+             DELETE FROM recycle_operation_recovery;
+             DELETE FROM recycle_operation_report;
+             DELETE FROM recycle_operation_item;
+             DELETE FROM recycle_operation_batch;
+             DELETE FROM recycle_operation;
              DELETE FROM preflight_item_source;
              DELETE FROM preflight_item;
              DELETE FROM preflight;

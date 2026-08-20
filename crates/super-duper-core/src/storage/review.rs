@@ -52,6 +52,8 @@ pub enum ReviewError {
     UnsafePhysicalRemoval { duplicate_group_id: i64 },
     #[error("review decisions would leave exact-folder group {folder_group_id} without an intact independently accessible copy")]
     UnsafeFolderRemoval { folder_group_id: i64 },
+    #[error("run {run_id} is locked by recycle operation {operation_id}")]
+    OperationLocked { run_id: i64, operation_id: i64 },
 }
 
 impl Database {
@@ -276,6 +278,7 @@ impl Database {
                 actual: current_revision,
             });
         }
+        ensure_operation_unlocked(&tx, run_id)?;
         if decision == ReviewDecisionKind::Remove {
             let survivors: i64 = tx.query_row(
                 "SELECT COUNT(*)
@@ -683,6 +686,7 @@ impl Database {
                 actual: current_revision,
             });
         }
+        ensure_operation_unlocked(&tx, run_id)?;
         tx.execute(
             "INSERT INTO review_folder_decision
                 (plan_id, folder_group_id, folder_member_id, directory_id, decision,
@@ -1054,6 +1058,36 @@ impl Database {
         )?;
         Ok(summary)
     }
+}
+
+fn ensure_operation_unlocked(tx: &Transaction<'_>, run_id: i64) -> Result<(), ReviewError> {
+    let operation = tx
+        .query_row(
+            "SELECT id, status FROM recycle_operation
+             WHERE run_id = ?1 AND status IN
+                ('prepared', 'awaiting_confirmation', 'submitted', 'executing', 'cancelling', 'recovery_required')
+             ORDER BY id DESC LIMIT 1",
+            params![run_id],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()?;
+    if let Some((operation_id, status)) = operation {
+        if status == "prepared" || status == "awaiting_confirmation" {
+            tx.execute(
+                "UPDATE recycle_operation SET status = 'expired', completed_at = ?1,
+                        error_code = 'review_changed',
+                        error_detail = 'Review mutation invalidated the unsubmitted operation intent'
+                 WHERE id = ?2",
+                params![Utc::now().to_rfc3339(), operation_id],
+            )?;
+            return Ok(());
+        }
+        return Err(ReviewError::OperationLocked {
+            run_id,
+            operation_id,
+        });
+    }
+    Ok(())
 }
 
 pub(super) fn validate_review_state(

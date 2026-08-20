@@ -163,7 +163,14 @@ impl Database {
 
     pub fn delete_session(&self, session_id: i64) -> Result<()> {
         changed_one(self.connection().execute(
-            "DELETE FROM scan_session WHERE id = ?1",
+            "DELETE FROM scan_session
+             WHERE id = ?1 AND NOT EXISTS(
+                 SELECT 1 FROM scan_run run
+                 JOIN recycle_operation operation ON operation.run_id = run.id
+                 WHERE run.session_id = scan_session.id AND operation.status IN
+                    ('prepared', 'awaiting_confirmation', 'submitted', 'executing',
+                     'cancelling', 'recovery_required')
+             )",
             params![session_id],
         )?)
     }
@@ -345,7 +352,13 @@ impl Database {
 
     pub fn delete_run(&self, run_id: i64) -> Result<()> {
         changed_one(self.connection().execute(
-            "DELETE FROM scan_run WHERE id = ?1 AND status NOT IN ('running', 'cancelling')",
+            "DELETE FROM scan_run WHERE id = ?1 AND status NOT IN ('running', 'cancelling')
+             AND NOT EXISTS(
+                 SELECT 1 FROM recycle_operation operation
+                 WHERE operation.run_id = scan_run.id AND operation.status IN
+                    ('prepared', 'awaiting_confirmation', 'submitted', 'executing',
+                     'cancelling', 'recovery_required')
+             )",
             params![run_id],
         )?)
     }

@@ -36,7 +36,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         IUiDispatcher dispatcher,
         IClipboardService clipboard,
         IExplorerService explorer,
-        ICloudLocationService? cloudLocations = null)
+        ICloudLocationService? cloudLocations = null,
+        IRecycleOperationCapabilityExecutor? recycleOperationExecutor = null)
     {
         _workerClient = workerClient;
         _restartableWorkerClient = workerClient as IRestartableWorkerClient;
@@ -54,7 +55,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         History = new RunHistoryViewModel(workerClient);
         DuplicateFiles = new DuplicateFilesViewModel(workerClient, clipboard, explorer);
         DuplicateFolders = new DuplicateFoldersViewModel(workerClient, clipboard, explorer);
-        Preflight = new PreflightViewModel(workerClient, confirmation);
+        Preflight = new PreflightViewModel(workerClient, confirmation, recycleOperationExecutor);
         DuplicateFiles.ReviewRevisionChanged += OnFileReviewRevisionChanged;
         DuplicateFolders.ReviewRevisionChanged += OnFolderReviewRevisionChanged;
 

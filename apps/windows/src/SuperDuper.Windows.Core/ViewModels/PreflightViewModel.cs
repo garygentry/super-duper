@@ -37,10 +37,14 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
     private long _focusRequestVersion;
     private bool _disposed;
 
-    public PreflightViewModel(IWorkerClient worker, IUserConfirmationService confirmation)
+    public PreflightViewModel(
+        IWorkerClient worker,
+        IUserConfirmationService confirmation,
+        IRecycleOperationCapabilityExecutor? recycleOperationExecutor = null)
     {
         _worker = worker;
         _confirmation = confirmation;
+        Operation = new RecycleOperationViewModel(worker, recycleOperationExecutor);
         StartCommand = new AsyncRelayCommand(StartAsync, () => CanStart);
         CancelCommand = new AsyncRelayCommand(CancelAsync, () => CanCancel);
         NextPageCommand = new AsyncRelayCommand(NextPageAsync, () => CanMoveNext);
@@ -48,6 +52,8 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
     }
 
     public ObservableCollection<PreflightItemViewModel> Items { get; } = [];
+
+    public RecycleOperationViewModel Operation { get; }
 
     public IAsyncRelayCommand StartCommand { get; }
 
@@ -222,8 +228,10 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
         ResetPages();
         ErrorMessage = null;
         NotifyStateChanged();
+        var operationTask = Operation.ShowRunAsync(run, token);
         if (run?.Status != "completed")
         {
+            await operationTask;
             return;
         }
         IsLoading = true;
@@ -233,6 +241,7 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
             var preflightTask = _worker.GetLatestPreflightAsync(run.Id, token);
             var review = await reviewTask;
             var preflight = await preflightTask;
+            await operationTask;
             if (generation != _generation || token.IsCancellationRequested)
             {
                 return;
@@ -303,6 +312,7 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
         }
         _disposed = true;
         CancelLifetime();
+        Operation.Dispose();
     }
 
     private async Task StartAsync()

@@ -3,7 +3,7 @@ using SuperDuper.Windows.Core.Workers;
 
 namespace SuperDuper.Windows.Core.Tests;
 
-internal sealed class TestWorkerClient : IRestartableWorkerClient
+internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOperationWorkerClient
 {
     private long _nextSessionId;
     private long _nextRunId;
@@ -51,6 +51,10 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
     public Func<PreflightItemQuery, CancellationToken, Task<WorkerPreflightItemPage>>? PreflightItemPageHandler { get; set; }
 
     public Func<long, CancellationToken, Task<WorkerPreflight>>? PreflightCancelHandler { get; set; }
+
+    public Func<long, CancellationToken, Task<WorkerRecycleOperation?>>? LatestRecycleOperationHandler { get; set; }
+
+    public Func<RecycleOperationItemQuery, CancellationToken, Task<WorkerRecycleOperationItemPage>>? RecycleOperationItemPageHandler { get; set; }
 
     public Func<PreferencePreviewQuery, CancellationToken, Task<WorkerPreferencePreviewPage>>? PreferencePreviewHandler { get; set; }
 
@@ -327,6 +331,43 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
         PreflightCancelHandler?.Invoke(preflightId, cancellationToken)
         ?? Task.FromResult(CreatePreflight(preflightId, 1, "cancelling", 1));
 
+    public Task<WorkerRecycleOperationResult> PrepareRecycleOperationAsync(
+        string operationId,
+        long runId,
+        long preflightId,
+        long expectedReviewRevision,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new WorkerRecycleOperationResult(
+            CreateRecycleOperation(1, runId, preflightId, expectedReviewRevision), false, false));
+
+    public Task<WorkerRecycleOperation?> GetLatestRecycleOperationAsync(
+        long runId,
+        CancellationToken cancellationToken = default) =>
+        LatestRecycleOperationHandler?.Invoke(runId, cancellationToken)
+        ?? Task.FromResult<WorkerRecycleOperation?>(null);
+
+    public async Task<WorkerRecycleOperation> GetRecycleOperationAsync(
+        long recycleOperationId,
+        CancellationToken cancellationToken = default) =>
+        await GetLatestRecycleOperationAsync(1, cancellationToken)
+        ?? throw new InvalidOperationException("No test recycle operation was configured.");
+
+    public Task<WorkerRecycleOperationItemPage> GetRecycleOperationItemsAsync(
+        RecycleOperationItemQuery query,
+        CancellationToken cancellationToken = default) =>
+        RecycleOperationItemPageHandler?.Invoke(query, cancellationToken)
+        ?? Task.FromResult(new WorkerRecycleOperationItemPage([], 0, null));
+
+    public Task<WorkerRecycleOperationResult> ReportRecycleEligibilityAsync(
+        string reportOperationId,
+        long recycleOperationId,
+        IReadOnlyList<RecycleEligibilityObservation> items,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new WorkerRecycleOperationResult(
+            CreateRecycleOperation(recycleOperationId, 1, 1, 1) with { Status = "failed" },
+            false,
+            false));
+
     public Task<WorkerPreferenceRulePage> ListPreferenceRulesAsync(
         long offset = 0,
         int limit = 200,
@@ -516,6 +557,19 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
             status is "completed" or "cancelled" or "failed" or "interrupted"
                 ? DateTimeOffset.UtcNow.ToString("O") : null,
             null, null, revision, true);
+
+    public static WorkerRecycleOperation CreateRecycleOperation(
+        long id,
+        long runId,
+        long preflightId,
+        long revision,
+        string status = "prepared") =>
+        new(
+            id, $"recycle-operation-{id}", runId, 1, preflightId, revision,
+            $"preflight-signature-{id}", $"intent-signature-{id}", 1, status,
+            4, 3, 3, 0, 2, "4096", 2, 1, 0, 0, 3,
+            0, 0, 0, 0, 3, DateTimeOffset.UtcNow.ToString("O"), null, null,
+            null, null, false, null, null, revision, true);
 
     internal static WorkerRun CreateRun(
         long id,

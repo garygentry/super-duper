@@ -3,6 +3,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
 using SuperDuper.Windows.Accessibility;
@@ -384,6 +385,19 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 "PreflightValidation",
                 AutomationNotificationBehavior.GetActivityId(preflightError));
+            var recycleHeading = FindByAutomationId<TextBlock>(preflight, "RecycleOperationHeading");
+            Assert.IsTrue(recycleHeading.Focusable);
+            var recycleBoundary = FindByAutomationId<TextBlock>(preflight, "RecycleOperationBoundaryNotice");
+            Assert.AreEqual(
+                "BoundaryNotice",
+                BindingOperations.GetBinding(recycleBoundary, TextBlock.TextProperty)?.Path.Path);
+            var recycleItems = FindByAutomationId<ListView>(preflight, "RecycleOperationItemsList");
+            Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(recycleItems));
+            Assert.AreEqual(
+                VirtualizationMode.Recycling,
+                VirtualizingPanel.GetVirtualizationMode(recycleItems));
+            var recycleNext = FindByAutomationId<Button>(preflight, "RecycleOperationNextPageButton");
+            Assert.IsTrue(recycleNext.Focusable && KeyboardNavigation.GetIsTabStop(recycleNext));
             var folderGroupStatus = FindByAutomationId<TextBlock>(folders, "FolderGroupCount");
             Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
                 AutomationNotificationBehavior.GetNotificationKind(folderGroupStatus));

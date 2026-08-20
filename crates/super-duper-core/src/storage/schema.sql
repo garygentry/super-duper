@@ -1,4 +1,4 @@
-PRAGMA user_version = 9;
+PRAGMA user_version = 10;
 
 -- Reusable, user-owned scan definitions.
 CREATE TABLE IF NOT EXISTS scan_session (
@@ -409,6 +409,102 @@ CREATE TABLE IF NOT EXISTS preflight_item_source (
     snapshot_path TEXT NOT NULL
 );
 
+-- A non-scheduling, revision-bound Recycle Bin intent. Schema v10 persists the complete
+-- operation contract and injected reports, but does not itself perform filesystem or Shell work.
+CREATE TABLE IF NOT EXISTS recycle_operation (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation_id TEXT NOT NULL UNIQUE,
+    run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+    plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+    preflight_id INTEGER NOT NULL REFERENCES preflight(id) ON DELETE CASCADE,
+    review_revision INTEGER NOT NULL CHECK(review_revision >= 0),
+    preflight_snapshot_signature TEXT NOT NULL,
+    intent_signature TEXT NOT NULL,
+    policy_version INTEGER NOT NULL DEFAULT 1 CHECK(policy_version > 0),
+    status TEXT NOT NULL DEFAULT 'prepared'
+        CHECK(status IN ('prepared', 'awaiting_confirmation', 'submitted', 'executing',
+                         'cancelling', 'expired', 'cancelled', 'completed',
+                         'partially_completed', 'failed', 'recovery_required')),
+    logical_removal_count INTEGER NOT NULL CHECK(logical_removal_count >= 0),
+    shell_item_count INTEGER NOT NULL CHECK(shell_item_count >= 0),
+    physical_item_count INTEGER NOT NULL CHECK(physical_item_count >= 0),
+    folder_item_count INTEGER NOT NULL CHECK(folder_item_count >= 0),
+    affected_group_count INTEGER NOT NULL CHECK(affected_group_count >= 0),
+    planned_removal_bytes INTEGER NOT NULL CHECK(planned_removal_bytes >= 0),
+    affected_location_count INTEGER NOT NULL DEFAULT 0 CHECK(affected_location_count >= 0),
+    exclusion_count INTEGER NOT NULL DEFAULT 0 CHECK(exclusion_count >= 0),
+    prepared_at TEXT NOT NULL,
+    confirmation_signature TEXT,
+    confirmation_expires_at TEXT,
+    submitted_at TEXT,
+    completed_at TEXT,
+    cancellation_requested INTEGER NOT NULL DEFAULT 0 CHECK(cancellation_requested IN (0, 1)),
+    error_code TEXT,
+    error_detail TEXT
+);
+
+CREATE TABLE IF NOT EXISTS recycle_operation_batch (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recycle_operation_id INTEGER NOT NULL REFERENCES recycle_operation(id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+    item_signature TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending', 'admitted', 'shell_started', 'reported', 'skipped', 'ambiguous')),
+    admission_expires_at TEXT,
+    shell_attempt_id TEXT,
+    started_at TEXT,
+    reported_at TEXT,
+    UNIQUE(recycle_operation_id, ordinal)
+);
+
+CREATE TABLE IF NOT EXISTS recycle_operation_item (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recycle_operation_id INTEGER NOT NULL REFERENCES recycle_operation(id) ON DELETE CASCADE,
+    batch_id INTEGER NOT NULL REFERENCES recycle_operation_batch(id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+    preflight_item_id INTEGER NOT NULL REFERENCES preflight_item(id) ON DELETE CASCADE,
+    preflight_source_id INTEGER REFERENCES preflight_item_source(id) ON DELETE CASCADE,
+    target_kind TEXT NOT NULL CHECK(target_kind IN ('file', 'folder')),
+    physical_key TEXT NOT NULL,
+    snapshot_path TEXT NOT NULL,
+    group_id INTEGER REFERENCES duplicate_group(id) ON DELETE CASCADE,
+    folder_group_id INTEGER REFERENCES duplicate_folder_group(id) ON DELETE CASCADE,
+    folder_member_id INTEGER REFERENCES duplicate_folder_group_member(id) ON DELETE CASCADE,
+    snapshot_file_id INTEGER REFERENCES scanned_file(id) ON DELETE CASCADE,
+    snapshot_directory_id INTEGER REFERENCES directory_node(id) ON DELETE CASCADE,
+    planned_bytes INTEGER NOT NULL DEFAULT 0 CHECK(planned_bytes >= 0),
+    eligibility_status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(eligibility_status IN ('pending', 'eligible', 'non_recyclable')),
+    eligibility_code TEXT,
+    result_status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(result_status IN ('pending', 'recycled', 'failed', 'cancelled', 'unknown')),
+    result_code TEXT,
+    shell_hresult INTEGER,
+    recycled_item_present INTEGER CHECK(recycled_item_present IS NULL OR recycled_item_present IN (0, 1)),
+    result_at TEXT,
+    UNIQUE(recycle_operation_id, ordinal)
+);
+
+CREATE TABLE IF NOT EXISTS recycle_operation_report (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recycle_operation_id INTEGER NOT NULL REFERENCES recycle_operation(id) ON DELETE CASCADE,
+    batch_id INTEGER REFERENCES recycle_operation_batch(id) ON DELETE CASCADE,
+    report_operation_id TEXT NOT NULL UNIQUE,
+    report_kind TEXT NOT NULL CHECK(report_kind IN ('eligibility', 'confirmation', 'batch_begin', 'result', 'recovery')),
+    payload_signature TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS recycle_operation_recovery (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recycle_operation_id INTEGER NOT NULL REFERENCES recycle_operation(id) ON DELETE CASCADE,
+    batch_id INTEGER REFERENCES recycle_operation_batch(id) ON DELETE CASCADE,
+    item_id INTEGER REFERENCES recycle_operation_item(id) ON DELETE CASCADE,
+    reason_code TEXT NOT NULL,
+    detail TEXT,
+    created_at TEXT NOT NULL
+);
+
 -- Structured, run-owned records for whole subtrees pruned before filesystem content access.
 CREATE TABLE IF NOT EXISTS run_exclusion (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -483,3 +579,20 @@ CREATE INDEX IF NOT EXISTS idx_preflight_item_pending
     ON preflight_item(preflight_id, ordinal) WHERE outcome = 'pending';
 CREATE INDEX IF NOT EXISTS idx_preflight_item_source_item
     ON preflight_item_source(item_id, id);
+CREATE INDEX IF NOT EXISTS idx_recycle_operation_run_created
+    ON recycle_operation(run_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_recycle_operation_status
+    ON recycle_operation(status, id);
+CREATE INDEX IF NOT EXISTS idx_recycle_operation_preflight
+    ON recycle_operation(preflight_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_recycle_operation_batch_state
+    ON recycle_operation_batch(recycle_operation_id, status, ordinal);
+CREATE INDEX IF NOT EXISTS idx_recycle_operation_item_page
+    ON recycle_operation_item(recycle_operation_id, result_status, eligibility_status,
+                              target_kind, snapshot_path COLLATE UNICODE_NOCASE, id);
+CREATE INDEX IF NOT EXISTS idx_recycle_operation_item_batch
+    ON recycle_operation_item(batch_id, ordinal);
+CREATE INDEX IF NOT EXISTS idx_recycle_operation_report_operation
+    ON recycle_operation_report(recycle_operation_id, id);
+CREATE INDEX IF NOT EXISTS idx_recycle_operation_recovery_operation
+    ON recycle_operation_recovery(recycle_operation_id, id);

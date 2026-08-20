@@ -49,6 +49,8 @@ pub enum PreflightError {
     SnapshotConflict { message: String },
     #[error("invalid preflight request: {message}")]
     InvalidRequest { message: String },
+    #[error("run {run_id} is locked by recycle operation {operation_id}")]
+    OperationLocked { run_id: i64, operation_id: i64 },
 }
 
 #[derive(Clone)]
@@ -136,6 +138,33 @@ impl Database {
                 view: self.get_preflight_view(preflight_id)?,
                 replayed: true,
             });
+        }
+
+        if let Some((operation_id, status)) = tx
+            .query_row(
+                "SELECT id, status FROM recycle_operation
+                 WHERE run_id = ?1 AND status IN
+                    ('prepared', 'awaiting_confirmation', 'submitted', 'executing', 'cancelling', 'recovery_required')
+                 ORDER BY id DESC LIMIT 1",
+                params![run_id],
+                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()?
+        {
+            if status == "prepared" || status == "awaiting_confirmation" {
+                tx.execute(
+                    "UPDATE recycle_operation SET status = 'expired', completed_at = ?1,
+                            error_code = 'preflight_superseded',
+                            error_detail = 'A newer preflight generation invalidated the unsubmitted operation intent'
+                     WHERE id = ?2",
+                    params![Utc::now().to_rfc3339(), operation_id],
+                )?;
+            } else {
+            return Err(PreflightError::OperationLocked {
+                run_id,
+                operation_id,
+            });
+            }
         }
 
         let run = tx

@@ -21,6 +21,9 @@ uses stable UI Automation IDs to exercise both result surfaces and invoke Explor
 - immutable review-revision preflight start and exact replay, structured ready observations,
   bounded detail paging, completed-generation reconstruction after worker restart, and assertions
   that reviewed disposable files remain present and byte-for-byte unchanged;
+- schema-v10 non-mutating operation preparation and exact replay, bounded item paging, explicit
+  `executorEnabled:false`, injected `non_recyclable/executor_disabled` whole-plan failure, durable
+  summary counts, and unchanged disposable files; no Shell or Recycle Bin API is invoked;
 - fixed-drive scanning, a path longer than 260 characters, a locked file, and a skipped junction;
 - all five scan-phase timings and all five result-query timings on stderr;
 - WPF startup/restoration, duplicate-file and exact-folder tabs, grid sorting, paging, filtering,
@@ -31,7 +34,8 @@ uses stable UI Automation IDs to exercise both result surfaces and invoke Explor
   deterministic result-loaded, repeated idle, startup-failure, and database-failure shutdown;
 - WPF preflight plan summary, explicit non-deleting metadata/content-read confirmation, keyboard Yes
   action, terminal summary and focus movement, virtualized observation details, and unchanged
-  disposable files.
+  disposable files, plus a focusable read-only operation heading and explicit disabled-executor,
+  partial/ambiguous-risk disclosure with no submission action.
 - Cloud locations setup accessibility, responsive registration refresh, Start scan becoming enabled
   after successful discovery, and a separate deterministic provider-unavailable launch where the
   default policy remains fail closed before and after refresh.

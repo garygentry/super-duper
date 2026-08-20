@@ -684,6 +684,74 @@ are not opened, enumerated, canonicalized, hashed, or passed to native identity 
 non-opening attributes classify reparse points and offline/recall placeholders before metadata or
 content reads; placeholders are never hydrated.
 
+## Provisional Recycle Operation Foundation
+
+These schema-v10 commands persist and reconstruct the second Milestone 11 operation contract. This
+build has no Shell executor: every operation response includes `executorEnabled:false`, WPF exposes
+no submission action, and none of these commands moves, deletes, recycles, schedules, opens,
+canonicalizes, or hydrates a target. Result-transition commands exist for injected protocol/state-
+machine testing before a separately reviewed executor is allowed.
+
+`recycle_operation.prepare` accepts `operationId`, positive `runId` and `preflightId`, and
+`expectedReviewRevision`. The preflight must be the latest completed generation, current for the
+active plan, provisionally no more than five minutes old, and all removal observations must be
+`ready`. Preparation is whole-plan and fail closed. Exact replay returns `replayed:true`; another
+payload returns `idempotency_conflict`. The response contains the fixed operation summary and
+`executorEnabled:false`.
+
+```json
+{"type":"request","id":"rop1","method":"recycle_operation.prepare","params":{"operationId":"prepare-19-8","runId":19,"preflightId":31,"expectedReviewRevision":8}}
+```
+
+The operation object includes IDs/signatures/policy/status; logical, Shell-entry, physical,
+folder, group, location and exclusion counts; planned bytes as a decimal string; eligibility and
+result counters; freshness/result timestamps; cancellation/error fields; and the query-time
+`currentReviewRevision`/`isCurrent` comparison.
+
+`recycle_operation.get` requires exactly one positive `recycleOperationId` or `runId` (latest) and
+returns `operation:null` when a run has none. `recycle_operation.item.page` accepts a positive
+operation ID, page size 1–200, optional result status, and opaque cursor. The cursor is bound to the
+operation/filter. Pages contain immutable binding fields, snapshot path and planned bytes,
+eligibility, item result, HRESULT, recycled-item evidence, and result time; paging never accesses
+the filesystem.
+
+```json
+{"type":"request","id":"rop2","method":"recycle_operation.item.page","params":{"recycleOperationId":4,"pageSize":100,"resultStatus":"unknown","cursor":null}}
+```
+
+The remaining allow-listed injected-executor transitions are:
+
+- `recycle_operation.eligibility.report`: `reportOperationId`, operation ID, and 1–200 unique
+  `{itemId,status,reasonCode}` entries, where status is `eligible` or `non_recyclable`. All items
+  must become eligible before the operation enters `awaiting_confirmation`; one blocked item fails
+  the whole intent.
+- `recycle_operation.confirm`: report ID, operation ID, and the exact worker-issued confirmation
+  signature. It rechecks current revision/latest preflight, enforces the provisional 60-second
+  lease, persists `submitted`, and starts a provisional 30-second batch-admission lease. It does
+  not invoke Shell.
+- `recycle_operation.cancel`: operation ID. Before a batch starts it durably cancels pending items;
+  while executing it only records `cancelling`. Terminal replay is inert.
+- `recycle_operation.batch.next`: operation ID; returns at most one bounded pending batch.
+- `recycle_operation.batch.begin`: report ID, operation ID, batch ID, and Shell-attempt ID. It
+  rechecks revision/generation and admission expiry, then durably records `shell_started`. In this
+  slice the record is reachable only through injected tests and is not a Shell call.
+- `recycle_operation.batch.report`: report ID, operation ID, batch ID, and at most 32 unique item
+  outcomes (`recycled`, `failed`, `cancelled`, or `unknown`) with structured reason/HRESULT and
+  optional positive recycled-item evidence. A claimed recycle without positive evidence and every
+  missing callback become `unknown` recovery records.
+
+Report IDs and canonical sorted payload signatures make exact retries replayable and reject changed
+payloads. Startup expires unsubmitted intent. Submitted/executing/cancelling work becomes
+`recovery_required`; pending items from `shell_started` batches become `unknown` with durable
+recovery evidence, so retry cannot repeat a possibly completed mutation. Structured errors include
+`operation_preflight_expired`, `operation_preflight_ineligible`, `recycle_operation_locked`,
+`recycle_operation_invalid_state`, `recycle_operation_confirmation_expired`,
+`recycle_operation_submission_expired`, and item/batch-not-found codes.
+
+The five-minute, 60-second, 30-second, and 32-entry values are provisional, not accepted product
+constants. Positive Recycle Bin capability evidence, real callback/abort mapping,
+`FOFX_ADDUNDORECORD`, and residual Shell TOCTOU behavior remain unresolved.
+
 ## Duplicate File Result Commands
 
 Duplicate-file results are immutable and queryable only when the addressed run has status

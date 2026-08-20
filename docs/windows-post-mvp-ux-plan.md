@@ -10,8 +10,10 @@ criteria below. The first four Milestone 10 slices are accepted: durable manual 
 durable manual exact-folder decisions, the read-only ordered preferred scan-root rule preview, and
 bounded ordered-rule application/reversal provenance. The first bounded Milestone 11 preflight
 slice is also accepted. The second Milestone 11 slice now has a refined revision-bound Recycle Bin
-operation design, but no operation schema, protocol, Shell integration, deletion, partial-result
-recovery, or Milestone 12 changed/resolved working-state mutation is implemented or exposed.
+operation design and its first strictly non-mutating foundation is implemented. Schema v10,
+bounded protocol/Core contracts, restart evidence, a disabled Infrastructure capability seam, and
+read-only WPF reconstruction exist; no Shell integration, deletion, real partial execution, or
+Milestone 12 changed/resolved working-state mutation is implemented or exposed.
 
 This is the durable planning source for post-MVP Windows UX work. Update this document when a
 milestone is refined, split, accepted, or superseded so future coding sessions do not have to
@@ -2654,11 +2656,10 @@ live state, and execution state must remain distinct.
 
 ### Milestone 11 - Preflight and Recycle Bin Execution
 
-Status: The first bounded slice is implemented and accepted. It validates an immutable reviewed-plan
-snapshot and persists observations, but deliberately exposes no scheduling, Recycle Bin, Shell
-operation, deletion, partial execution, recovery, or Milestone 12 working-state mutation. The
-second-slice revision-bound Recycle Bin operation contract is refined below as design only; none of
-its provisional schema, protocol, Infrastructure, or WPF behavior exists yet.
+Status: The first bounded slice is implemented and accepted. The second-slice design is refined and
+its first strictly non-mutating foundation is implemented below. It adds durable operation-domain
+state and reconstruction, but deliberately exposes no scheduling, Recycle Bin/Shell mutation, real
+partial execution, recovery action, or Milestone 12 working-state mutation.
 
 #### Refined first-slice implementation plan (2026-08-20)
 
@@ -3046,9 +3047,9 @@ success are polite. `Enter`/`Space`, deterministic tab order, `Ctrl+Home`, Escap
 contrast resources, narrow reflow, focus restoration, and stale-generation rejection receive WPF
 STA coverage. Physical Narrator/NVDA, OS high-contrast, and multi-monitor DPI remain operator gates.
 
-##### Possible v10 migration, rollback, and compatibility
+##### Schema v10 migration, rollback, and compatibility
 
-If implementation confirms schema v10, Rust will migrate v9 to v10 in one `BEGIN IMMEDIATE`
+Rust migrates v9 to v10 in one `BEGIN IMMEDIATE`
 transaction, creating operation tables, constraints, foreign keys, and bounded-query indexes before
 setting `user_version = 10`. Failure leaves an unchanged valid v9 database; supported older schemas
 still migrate in order and unknown newer schemas fail closed. No v9 preflight/review/scan row and no
@@ -3061,7 +3062,8 @@ there is no in-place downgrade that drops operation evidence. Operational rollba
 closing the app/worker and restoring the complete pre-migration v9 backup; after any Shell mutation,
 rollback must preserve the v10 database and logs as evidence and use a copy for diagnosis rather
 than erasing results. Protocol negotiation must prevent an older Windows client from driving a v10
-worker operation surface. This section designs, but does not add, schema v10.
+worker operation surface. Schema v10 is now implemented; automated backup orchestration and every
+real Shell mutation/recovery behavior remain outside this foundation.
 
 ##### Questions that remain implementation gates
 
@@ -3110,6 +3112,44 @@ bounded large-plan regression evidence, but that evidence cannot be claimed as r
 hardware performance. It cannot close real-provider preflight/operation no-hydration acceptance or
 the independent Milestone 8 representative-hardware, physical Narrator/NVDA, OS high-contrast, and
 multi-monitor DPI-transition gates without new qualifying operator evidence.
+
+##### Implemented non-mutating foundation (2026-08-20)
+
+- Schema v10 transactionally migrates v9 into separate operation intent, bounded batch/item,
+  canonical report-replay, and per-item recovery records. Tests cover migration success, rollback,
+  older migration chains, and unknown-newer rejection. Downgrade requires restoring a complete
+  closed-process v9 database/WAL/SHM backup; there is no in-place downgrade.
+- Rust prepares only against the latest current completed preflight and exact immutable review
+  revision. Every removal must be `ready`; one non-ready/non-recyclable item fails the whole plan.
+  Canonical IDs/signatures make preparation and reports exactly replayable. Review/provenance/new-
+  preflight mutations expire unsubmitted intent; submitted or ambiguous operations lock them.
+  Run/session deletion stays blocked while operation evidence is active or ambiguous.
+- The implemented five-minute preparation, 60-second confirmation, 30-second submission/admission,
+  and 32-file batch limits are explicitly provisional. Confirmation and batch begin recheck the
+  current revision/latest preflight. Exact folders are isolated; file entries are bounded and
+  hard-link-aware. No fresh target access or exact-folder revalidation was added in this foundation.
+- Startup expires intent that never reached submission. A persisted `shell_started` test boundary
+  is conservatively reconstructed as `recovery_required`; pending items become `unknown` with
+  recovery records. The lock prevents a retry from repeating a mutation that might have completed.
+  This is state-machine evidence only, not a real Shell recovery workflow.
+- Worker DTOs reject unknown fields and expose bounded prepare/get/item/eligibility/confirmation/
+  cancellation/batch/report transitions with structured errors. Every response advertises
+  `executorEnabled:false`. Result transitions support deterministic injection and cannot perform
+  filesystem or Shell work.
+- Core adds bounded operation contracts, a five-page/100-item cache, linked cancellation
+  generations, and stale operation/page rejection. WPF reconstructs fixed counts, bytes, locations,
+  exclusions, partial/ambiguous risk, progress/results, structured errors, announcements, keyboard
+  paging, and focusable headings, while `CanSubmit` is unconditionally false and no “Move now”
+  action exists.
+- Infrastructure adds only an injected disabled capability executor. It deterministically reports
+  `non_recyclable/executor_disabled` and does not inspect a path or call any Shell API. No
+  `IFileOperation`, `SHFileOperation`, move, delete, recycle, scheduling, hydration, or permanent
+  deletion implementation exists.
+
+This foundation does not close positive Recycle Bin capability, real `PostDeleteItem`/abort and
+provider mapping, `FOFX_ADDUNDORECORD`, residual Shell TOCTOU, real-provider no-hydration, or
+representative large-plan operation performance. It also does not close representative-hardware
+warm queries, physical Narrator/NVDA, OS high contrast, or multi-monitor DPI transition.
 
 #### User outcome
 
@@ -3353,13 +3393,12 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 Keep the remaining physical Narrator/NVDA, high-contrast, multi-monitor DPI, and representative-
 hardware Milestone 8 procedures operator-gated; they can close independently from later review
-work. Implement the second Milestone 11 design in two deliberately gated code slices. First add the
-provisional schema-v10 operation intent/state/results model, allow-listed worker contracts,
-freshness/eligibility logic, bounded Core models/caches, accessible confirmation/results UI, and a
-fully injected non-mutating Shell adapter; stop at an explicit disabled-executor boundary and prove
-migration/replay/crash/failure behavior without calling `IFileOperation` or moving a file. Only a
-subsequent separately reviewed slice should add the dedicated-STA real executor, disposable real-
-Recycle-Bin smoke, partial-result recovery, and exposure of `Move to Recycle Bin now`. Keep
+work. The first non-mutating second-slice foundation is implemented. The next slice must be
+separately reviewed before it replaces the disabled executor: add a dedicated-STA `IFileOperation`
+adapter, positive per-root Recycle Bin capability proof, bounded admission revalidation,
+callback/abort and provider-result mapping, and disposable real-Recycle-Bin smoke. Do not expose
+`Move to Recycle Bin now` until that slice proves no-access/no-hydration, ambiguous-start non-retry,
+accessible final confirmation, and cancellation wording on real Windows behavior. Keep
 Milestone 12 changed/resolved mutation separate, and preserve rule configuration, application
 provenance, manual review state, preflight observations, operation state, and immutable scan
 history as distinct sources of truth.
@@ -3418,3 +3457,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-20 | Refined the first bounded Milestone 11 slice: schema v9 immutable review-revision snapshots, exact physical-file/folder and survivor validation, cloud-placeholder no-open behavior, durable cancellable generations, idempotent commands, recovery, paging, bounded Core caching, and an accessible non-deleting WPF workspace. | Make plan-time validation independently reviewable and restart-safe while keeping observations separate from rules, provenance, manual review, scan history, future execution, and Milestone 12 live state. Scheduling, Shell/Recycle Bin APIs, deletion, partial execution/recovery, changed/resolved mutation, and the four independent Milestone 8 gates remain explicitly out of scope. |
 | 2026-08-20 | Implemented and accepted the first bounded Milestone 11 preflight slice: transactional schema v9, immutable review-revision snapshots, exact metadata/identity/time/hash and folder-tree checks, hard-link-aware physical targets and survivor re-evaluation, excluded-location and Cloud Files no-open classification, idempotent worker lifecycle/recovery/paging, bounded Core caching, accessible WPF confirmation/progress/results, and real Debug/Release non-deleting smoke. | Establish durable current-filesystem observations without turning them into review truth, execution authority, or Milestone 12 live state. All disposable fixtures remained present and unchanged; the four independent Milestone 8 operator gates remain open. The next slice is design-only refinement of a revision-bound Recycle Bin operation contract before any scheduling, Shell mutation, deletion, or partial-execution recovery is exposed. |
 | 2026-08-20 | Refined the second Milestone 11 design as a revision/preflight-bound, freshness-leased, whole-plan Recycle Bin contract with fail-closed eligibility, accessible final confirmation, provisional schema-v10 intent/batch/result/recovery records, dedicated-STA `IFileOperation` ownership, bounded Shell batches, explicit cancellation limits, per-item result mapping, crash ambiguity, hard-link and exact-folder safety, and migration/rollback/test gates. | Keep the accepted v9 preflight immutable and keep rule configuration, application provenance, manual review, operation evidence, future live state, and scan history separate. This is design only: no schema/protocol/operation/UI implementation and no Shell mutation were added. Start implementation with the non-mutating durable contract and injected fake executor; expose the real Recycle Bin executor only in a later reviewed slice. Real-provider no-hydration, representative large-plan performance, and the four independent Milestone 8 operator gates remain open. |
+| 2026-08-20 | Implemented the strictly non-mutating second-slice foundation: transactional schema v10 intent/batch/item/report/recovery evidence, exact revision/latest-preflight binding, provisional freshness and batch bounds, fail-closed eligibility, canonical replay, operation locks, restart ambiguity, bounded worker/Core contracts, disabled Infrastructure capability injection, and accessible read-only WPF reconstruction. | Establish durable operation-domain contracts without granting filesystem or Shell mutation authority. No Shell deletion API or path inspection was added and `CanSubmit` remains false. A separately reviewed real dedicated-STA executor slice is next; positive capability, real callbacks/abort/TOCTOU, no-hydration provider acceptance, representative operation performance, and all independent Milestone 8 operator gates remain open. |

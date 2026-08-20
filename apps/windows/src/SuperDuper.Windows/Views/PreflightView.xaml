@@ -101,6 +101,82 @@
                 </Grid>
             </StackPanel>
 
+            <Border Margin="0,20,0,0" Padding="16"
+                    BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                    BorderThickness="1" CornerRadius="6">
+                <StackPanel DataContext="{Binding Operation}">
+                    <TextBlock FontSize="19" FontWeight="SemiBold" Focusable="True"
+                               AutomationProperties.AutomationId="RecycleOperationHeading"
+                               AutomationProperties.Name="Recycle Bin operation foundation"
+                               Text="Recycle Bin operation foundation" />
+                    <TextBlock Margin="0,6,0,0"
+                               AutomationProperties.AutomationId="RecycleOperationBoundaryNotice"
+                               AutomationProperties.Name="{Binding BoundaryNotice}"
+                               Text="{Binding BoundaryNotice}" TextWrapping="Wrap" />
+                    <StackPanel Margin="0,10,0,0"
+                                Visibility="{Binding HasOperation, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock AutomationProperties.AutomationId="RecycleOperationConfirmationSummary"
+                                   AutomationProperties.Name="{Binding ConfirmationSummary}"
+                                   Text="{Binding ConfirmationSummary}" TextWrapping="Wrap" />
+                        <TextBlock Margin="0,6,0,0"
+                                   AutomationProperties.AutomationId="RecycleOperationProgressSummary"
+                                   Text="{Binding ProgressSummary}" TextWrapping="Wrap" />
+                        <TextBlock Margin="0,4,0,0"
+                                   Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
+                                   Text="{Binding RevisionStatus}" TextWrapping="Wrap" />
+                        <ListView Margin="0,12,0,0" MinHeight="100" MaxHeight="280"
+                                  AutomationProperties.AutomationId="RecycleOperationItemsList"
+                                  AutomationProperties.Name="Recycle Bin operation result details"
+                                  ItemsSource="{Binding Items}" ScrollViewer.CanContentScroll="True"
+                                  VirtualizingPanel.IsVirtualizing="True"
+                                  VirtualizingPanel.VirtualizationMode="Recycling">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="2,5">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="110" />
+                                            <ColumnDefinition Width="2*" />
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="3*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock FontWeight="SemiBold" Text="{Binding Status}" />
+                                        <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Item.Path}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="2" Margin="8,0,0,0" Text="{Binding Size}" />
+                                        <TextBlock Grid.Column="3" Margin="8,0,0,0" Text="{Binding Explanation}"
+                                                   TextWrapping="Wrap" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button Padding="12,6" AutomationProperties.AutomationId="RecycleOperationPreviousPageButton"
+                                    Command="{Binding PreviousPageCommand}" Content="Previous operation page" />
+                            <Button Grid.Column="1" Margin="8,0,0,0" Padding="12,6"
+                                    AutomationProperties.AutomationId="RecycleOperationNextPageButton"
+                                    Command="{Binding NextPageCommand}" Content="Next operation page" />
+                            <TextBlock Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Center"
+                                       Text="{Binding PageStatus}" />
+                        </Grid>
+                    </StackPanel>
+                    <TextBlock Margin="0,8,0,0"
+                               Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
+                               AutomationProperties.AutomationId="RecycleOperationError"
+                               Text="{Binding ErrorMessage}" TextWrapping="Wrap"
+                               Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <TextBlock Height="1" Opacity="0" AutomationProperties.Name="{Binding Announcement}"
+                               accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding AnnouncementVersion}"
+                               accessibility:AutomationNotificationBehavior.NotificationKind="Other"
+                               accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
+                               accessibility:AutomationNotificationBehavior.ActivityId="RecycleOperation" />
+                </StackPanel>
+            </Border>
+
             <TextBlock Margin="0,16,0,0"
                        Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
                        AutomationProperties.AutomationId="PreflightError"

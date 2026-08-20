@@ -582,6 +582,125 @@ pub struct PreflightObservation {
     pub os_error: Option<i64>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RecycleOperationSummary {
+    pub logical_removal_count: i64,
+    pub shell_item_count: i64,
+    pub physical_item_count: i64,
+    pub folder_item_count: i64,
+    pub affected_group_count: i64,
+    pub planned_removal_bytes: i64,
+    pub affected_location_count: i64,
+    pub exclusion_count: i64,
+    pub eligible_count: i64,
+    pub non_recyclable_count: i64,
+    pub pending_eligibility_count: i64,
+    pub recycled_count: i64,
+    pub failed_count: i64,
+    pub cancelled_count: i64,
+    pub unknown_count: i64,
+    pub pending_result_count: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecycleOperation {
+    pub id: i64,
+    pub operation_id: String,
+    pub run_id: i64,
+    pub plan_id: i64,
+    pub preflight_id: i64,
+    pub review_revision: i64,
+    pub preflight_snapshot_signature: String,
+    pub intent_signature: String,
+    pub policy_version: i64,
+    pub status: String,
+    pub summary: RecycleOperationSummary,
+    pub prepared_at: String,
+    pub confirmation_signature: Option<String>,
+    pub confirmation_expires_at: Option<String>,
+    pub submitted_at: Option<String>,
+    pub completed_at: Option<String>,
+    pub cancellation_requested: bool,
+    pub error_code: Option<String>,
+    pub error_detail: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecycleOperationView {
+    pub operation: RecycleOperation,
+    pub current_review_revision: i64,
+    pub is_current: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecycleOperationMutationResult {
+    pub view: RecycleOperationView,
+    pub replayed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecycleOperationItem {
+    pub id: i64,
+    pub recycle_operation_id: i64,
+    pub batch_id: i64,
+    pub ordinal: i64,
+    pub preflight_item_id: i64,
+    pub preflight_source_id: Option<i64>,
+    pub target_kind: String,
+    pub physical_key: String,
+    pub snapshot_path: String,
+    pub group_id: Option<i64>,
+    pub folder_group_id: Option<i64>,
+    pub folder_member_id: Option<i64>,
+    pub snapshot_file_id: Option<i64>,
+    pub snapshot_directory_id: Option<i64>,
+    pub planned_bytes: i64,
+    pub eligibility_status: String,
+    pub eligibility_code: Option<String>,
+    pub result_status: String,
+    pub result_code: Option<String>,
+    pub shell_hresult: Option<i64>,
+    pub recycled_item_present: Option<bool>,
+    pub result_at: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecycleOperationItemPage {
+    pub items: Vec<RecycleOperationItem>,
+    pub total: i64,
+    pub has_more: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecycleOperationBatch {
+    pub id: i64,
+    pub recycle_operation_id: i64,
+    pub ordinal: i64,
+    pub item_signature: String,
+    pub status: String,
+    pub admission_expires_at: Option<String>,
+    pub shell_attempt_id: Option<String>,
+    pub started_at: Option<String>,
+    pub reported_at: Option<String>,
+    pub items: Vec<RecycleOperationItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecycleEligibilityObservation {
+    pub item_id: i64,
+    pub status: String,
+    pub reason_code: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecycleItemResultObservation {
+    pub item_id: i64,
+    pub status: String,
+    pub reason_code: Option<String>,
+    pub shell_hresult: Option<i64>,
+    pub recycled_item_present: Option<bool>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreferenceRule {
     pub id: i64,
