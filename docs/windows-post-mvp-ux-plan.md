@@ -2652,6 +2652,151 @@ live state, and execution state must remain distinct.
 
 ### Milestone 11 - Preflight and Recycle Bin Execution
 
+Status: The first bounded slice is design-frozen for implementation. It validates an immutable
+reviewed-plan snapshot and persists observations, but deliberately exposes no scheduling,
+Recycle Bin, Shell operation, deletion, partial execution, recovery, or Milestone 12 working-state
+mutation.
+
+#### Refined first-slice implementation plan (2026-08-20)
+
+##### User story and non-goals
+
+A user who has reviewed at least one removal can inspect an exact plan-revision summary, explicitly
+confirm a metadata-and-content preflight, watch bounded cancellable progress, and understand every
+ready, changed, missing, unavailable, or safety-conflict observation after restart. Completing this
+slice proves only that the frozen targets matched their immutable scan snapshots during that
+preflight. It does not authorize, queue, schedule, or perform deletion, invoke Windows Shell or the
+Recycle Bin, promise that observations remain current, or move results into Milestone 12
+changed/resolved states.
+
+##### Frozen plan and sources of truth
+
+- `preflight.start` requires a completed run, an active non-empty review plan, and its exact
+  `expectedReviewRevision`. In one Rust-owned SQLite transaction it revalidates the combined manual
+  file, manual exact-folder, and active rule-produced effective decisions, enforces the accepted
+  overlap/survivor rules, and materializes a read-only preflight snapshot.
+- The snapshot records `planId`, `reviewRevision`, an exact deterministic `snapshotSignature`, and
+  fixed logical-path, physical-item, folder, byte, and affected-group counts. Later review edits do
+  not rewrite it. Queries return the current review revision and `isCurrent`; a mismatch invalidates
+  confirmation and any future execution handoff without mutating historical observations.
+- Materialized target rows refer only to immutable `scanned_file`, duplicate-group, and exact-folder
+  snapshots. Effective review decisions select actions, but `scanned_file.marked_deleted` and
+  `deletion_plan` are never consulted. Rule configuration, rule-application provenance, manual
+  review rows, preflight snapshots/observations, future operation state, and scan history remain
+  separate tables and contracts.
+- File and exact-folder removals are flattened to physical-file targets for I/O. Logical aliases and
+  contributing file/folder decisions remain bounded source rows. A stable file identity is the
+  physical key when present; otherwise the normalized snapshot path is the conservative key.
+  Folder rows retain their structural and verified fingerprints so the complete current tree can be
+  compared without turning the observation into review or execution state.
+
+##### Exact validation semantics
+
+- Before any target access, validation compares the canonical snapshot path against the immutable
+  run's effective location exclusions. A path inside an excluded registered/manual subtree is a
+  `conflict/excluded_location` observation and is never opened, enumerated, canonicalized, hashed,
+  or passed to a native identity API.
+- On Windows, a non-opening attribute/reparse classification precedes ordinary metadata. A Cloud
+  Files placeholder, recall-on-access entry, reparse point, symlink, junction, directory at a file
+  path, or file at a folder path becomes a structured conflict. Placeholder contents are never
+  opened or hashed, and this slice has no hydration opt-in.
+- A physical file is `ready` only when its path is an ordinary file and stable identity, exact byte
+  length, nanosecond Unix modified time, and complete xxHash64 all equal the scan snapshot. Missing
+  stable identity in either snapshot or observation is a conflict rather than a path-only success.
+  Hashing is cancellable in bounded chunks and metadata/identity are checked again after hashing;
+  a before/after mismatch is `changed/during_validation`.
+- `missing` means the exact path is absent. `changed` means an accessible ordinary file differs in
+  identity, size, timestamp, or hash. `unavailable` means access or I/O failed without evidence that
+  the path is absent. `conflict` covers wrong type, unsafe link/reparse/placeholder state, excluded
+  location, snapshot inconsistency, physical-target alias disagreement, folder-tree mismatch, or a
+  survivor invariant failure. Every non-ready row has a stable reason code and bounded safe detail;
+  OS error numbers may be retained, but error text is not used as the contract.
+- All aliases selected for removal from one physical key must still resolve to the same identity.
+  The physical content is hashed once per validation generation and the observation is projected to
+  its logical source paths. Divergent aliases conflict the physical target instead of silently
+  selecting one path.
+- For every affected duplicate group, at least one independently accessible physical survivor not
+  selected for removal is revalidated with the same identity/type/size/time/hash contract. A hard
+  link alias to a removal target is not a survivor. A target is not ready when its group has no ready
+  survivor, even if the target itself still matches.
+- A removed exact-folder copy is ready only when bounded re-enumeration finds exactly the immutable
+  relative file set, no unexpected directories/reparse entries/placeholders, and every physical file
+  validates. Added, missing, renamed, changed, inaccessible, or type-changed descendants produce a
+  folder conflict. At least one intact non-removed folder copy and every duplicate-file survivor
+  invariant must still hold.
+
+##### Schema v9, lifecycle, and recovery
+
+- Schema v9 adds preflight header, physical item, logical source, folder observation, and command
+  replay tables with foreign keys and bounded-query indexes. The v8-to-v9 migration is one
+  transaction, rolls back on failure, preserves all historical rows, and keeps newer unknown schema
+  rejection.
+- Header states are `pending`, `running`, `cancelling`, `completed`, `cancelled`, `interrupted`, and
+  `failed`. Item outcomes are append-safe observations for one immutable validation generation;
+  preflight never writes review decisions, scan rows, rule rows, or future operation rows.
+- `operationId` plus the complete canonical start payload is idempotent. Exact replay returns the
+  existing preflight; payload reuse returns `operation_conflict`. Only one preflight validation may
+  perform filesystem I/O in a worker process, and scan start is rejected while it is active.
+- The worker persists `running` before launching background I/O, updates fixed counters in batches,
+  checks cancellation before every item, directory batch, and hash chunk, and publishes coalesced
+  progress no faster than ten updates per second. `preflight.cancel` is idempotent and affects only
+  the named active preflight.
+- Worker startup reconciles abandoned `running`/`cancelling` headers to `interrupted`; already
+  committed item observations and summaries remain queryable. Retry deliberately creates a new
+  operation and validation generation from the still-current review revision rather than mixing
+  new observations into the interrupted generation.
+- `preflight.get` returns the fixed header/summary and current-revision comparison.
+  `preflight.item.page` uses an opaque signature-bound cursor, stable outcome/kind/path/id ordering,
+  a maximum page size of 200, and no filesystem access. Completed, cancelled, interrupted, and
+  failed generations remain reconstructible after restart.
+
+##### Protocol, Core, Infrastructure, and WPF
+
+- Worker methods are `preflight.start`, `preflight.get`, `preflight.item.page`, and
+  `preflight.cancel`; events are coalesced `preflight.progress` plus one terminal
+  `preflight.completed`, `preflight.cancelled`, or `preflight.failed`. Allow-listed DTOs reject
+  unknown fields, oversized IDs/cursors, invalid limits, stale revisions, and malformed replays with
+  structured codes such as `review_generation_conflict`, `preflight_busy`,
+  `preflight_not_found`, `preflight_not_cancellable`, and `operation_conflict`.
+- Rust owns snapshot construction, SQLite, filesystem validation, hashing, physical de-duplication,
+  survivor evaluation, folder comparison, status aggregation, paging, and progress. Core owns only
+  contracts and the preflight view model. Infrastructure owns JSONL transport. No filesystem,
+  database, worker-process, or future Shell work runs on the WPF dispatcher.
+- The WPF surface is a `Preflight` workspace for the selected completed run. Before start it presents
+  immutable plan/revision counts and says plainly that no files will be deleted. The primary action
+  opens an accessible confirmation naming metadata, hash, and possible local disk reads; it never
+  describes Recycle Bin execution.
+- While running, the surface shows one aggregate progress bar, checked/total text, current phase,
+  and `Cancel preflight`. Focus moves to progress after confirmation and to the summary heading on a
+  terminal result. Escape does not silently cancel; cancellation requires the named button and a
+  confirmation once validation has started.
+- The terminal summary separates ready, changed, missing, unavailable, and conflict counts. A
+  virtualized bounded list exposes outcome, target kind, path, stable explanation, and source
+  context with keyboard paging. `Enter`/`Space` invoke buttons, `Ctrl+Home` returns to the summary,
+  and retry is enabled only for a current review revision.
+- UI Automation names never encode meaning by color alone. Start, cancellation, terminal summary,
+  stale-revision invalidation, paging, and structured failures raise repeatable coalesced
+  notifications. High-contrast resources and supported narrow/DPI layouts use existing dynamic
+  system brushes and reflow patterns; physical Narrator/NVDA, OS high-contrast, and multi-monitor
+  DPI gates remain independently open.
+
+##### Bounds and acceptance
+
+- Snapshot construction and paging never materialize the full plan in WPF. Rust streams target
+  rows in deterministic batches; the Core cache retains at most five 100-item pages and rejects
+  stale run/preflight/query generations. Hidden prefetch is silent and cancellation disposes the
+  prior query token.
+- Automated disposable-fixture coverage must include v8 migration/rollback/newer-schema rejection,
+  empty/stale/idempotent starts, recovery, paging signatures, cancellation, changed/missing/wrong
+  type/reparse/placeholder/excluded paths, hard-link alias de-duplication and survivor loss,
+  file/folder overlap, exact-folder tree drift, no-hydration seams, worker restart, bounded caches,
+  stale generations, confirmations, focus, keyboard behavior, announcements, and structured errors.
+- Acceptance requires Debug and Release Rust/.NET matrices and real non-deleting WPF smoke over
+  disposable files. Before/after fixture bytes, identities, timestamps, allocation/placeholder state,
+  and provider transfer counters must remain unchanged where a real Cloud Files fixture is used.
+  Development-host timing is regression evidence only and does not close representative-hardware or
+  physical accessibility gates.
+
 #### User outcome
 
 The user can execute a reviewed plan with strong assurance that the files still match the scan and
@@ -2953,3 +3098,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-19 | Refined and accepted the second Milestone 10 manual exact-folder-decision slice: transactional schema v6, separate folder snapshots/command replay, shared revision and cross-workspace invalidation, nested/suppressed/file overlap and hard-link safety, deduplicated combined summaries, accessible WPF controls, restart persistence, a 100,000-group profile, and real Debug/Release non-deleting smoke. | Keep folder review distinct from file decisions and execution while preserving at least one intact exact-folder copy and one physical file survivor. The isolated development-host profile measured 6.40 ms combined-plan p95, 14.50 ms folder-page p95, and no observed private-memory growth; it is regression evidence only, so the representative-hardware and physical accessibility gates remain open. The next design slice is a bounded, read-only ordered-preferred-root rule preview. |
 | 2026-08-19 | Refined and accepted the third Milestone 10 slice: transactional schema v7 named ordered-root rules, revision-bound read-only preview over selected-set/current-filter/completed-run scopes, manual file/folder precedence, virtual overlap/survivor enforcement, hard-link-aware de-duplication, bounded Core caching and stale-response rejection, accessible WPF explanations, restart reconstruction, and real Debug/Release non-deleting smoke. | Persist reusable rule metadata with preview while keeping application deferred and separate from manual decisions, live state, and execution state. The isolated optimized 100-sample fixture evaluated 100,000 real sets/200,100 logical paths at 870.42 ms p95 with 2,199,552 bytes retained private-memory growth, within its development-host ceilings; it is regression evidence only. The next slice is design-first, idempotent rule application/reversal provenance without deletion or live validation; representative-hardware and physical accessibility gates remain open. |
 | 2026-08-19 | Refined and accepted the fourth Milestone 10 slice: transactional schema v8 rule-application provenance, manual-revision precedence, exact preview-bound idempotent apply, fixed-summary history plus bounded detail, isolated replayable reversal, shared revision invalidation, accessible WPF confirmations, restart recovery, and real Debug/Release non-deleting smoke. | Keep reusable rules, rule-produced decisions, manual review choices, live state, and execution state separate while making an exact reviewed rule outcome durable and reversibly attributable. The isolated optimized 100,000-set/200,100-path profile completed apply in 2,766.08 ms and reversal in 703.08 ms with 46,256,128 retained private bytes, within its development-host ceilings only. The next slice is design-first bounded Milestone 11 preflight without scheduling, Recycle Bin interaction, deletion, or Milestone 12 changed/resolved UI; all four independent Milestone 8 operator gates remain open. |
+| 2026-08-20 | Refined the first bounded Milestone 11 slice: schema v9 immutable review-revision snapshots, exact physical-file/folder and survivor validation, cloud-placeholder no-open behavior, durable cancellable generations, idempotent commands, recovery, paging, bounded Core caching, and an accessible non-deleting WPF workspace. | Make plan-time validation independently reviewable and restart-safe while keeping observations separate from rules, provenance, manual review, scan history, future execution, and Milestone 12 live state. Scheduling, Shell/Recycle Bin APIs, deletion, partial execution/recovery, changed/resolved mutation, and the four independent Milestone 8 gates remain explicitly out of scope. |
