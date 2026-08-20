@@ -9,4 +9,9 @@ public interface IRecycleOperationCapabilityExecutor
     Task<IReadOnlyList<RecycleEligibilityObservation>> InspectAsync(
         IReadOnlyList<WorkerRecycleOperationItem> items,
         CancellationToken cancellationToken = default);
+
+    Task<RecycleBatchExecutionResult> ExecuteBatchAsync(
+        WorkerRecycleOperationBatch batch,
+        Func<CancellationToken, Task> acknowledgeShellStart,
+        CancellationToken cancellationToken = default);
 }

@@ -16,7 +16,7 @@ use crate::platform::{self, PathSafety};
 
 use super::models::{
     CloudPolicy, Preflight, PreflightItem, PreflightItemPage, PreflightObservation,
-    PreflightStartResult, PreflightSummary, PreflightView, RunParameters,
+    PreflightStartResult, PreflightSummary, PreflightView, RecycleOperationItem, RunParameters,
 };
 use super::review::{validate_review_state, ReviewError};
 use super::Database;
@@ -623,6 +623,96 @@ impl Database {
         Ok(terminal)
     }
 
+    /// Revalidate one bounded Shell batch and the affected independent survivors against the
+    /// immutable preflight snapshots. This does not rewrite the accepted preflight observation.
+    pub(crate) fn revalidate_recycle_batch(
+        &self,
+        preflight_id: i64,
+        operation_items: &[RecycleOperationItem],
+    ) -> Result<Option<(i64, String)>, PreflightError> {
+        if operation_items.is_empty() {
+            return Err(PreflightError::InvalidRequest {
+                message: "a recycle operation batch cannot be empty".to_owned(),
+            });
+        }
+        let exclusions = self.preflight_exclusions(preflight_id)?;
+        let cancel = AtomicBool::new(false);
+        let mut file_groups = BTreeSet::new();
+        let mut folder_groups = BTreeSet::new();
+
+        for operation_item in operation_items {
+            let Some(mut item) =
+                preflight_item_by_id(self.connection(), operation_item.preflight_item_id)?
+            else {
+                return Ok(Some((
+                    operation_item.id,
+                    "admission_snapshot_missing".to_owned(),
+                )));
+            };
+            item.snapshot_path.clone_from(&operation_item.snapshot_path);
+            let sources = match operation_item.preflight_source_id {
+                Some(source_id) => item_source_by_id(self.connection(), item.id, source_id)?
+                    .into_iter()
+                    .collect(),
+                None => item_sources(self.connection(), item.id)?,
+            };
+            let observation = validate_item(&item, &sources, &exclusions, &cancel);
+            if observation.outcome != "ready" {
+                return Ok(Some((
+                    operation_item.id,
+                    format!(
+                        "admission_{}_{}",
+                        observation.outcome,
+                        observation.reason_code.as_deref().unwrap_or("unspecified")
+                    ),
+                )));
+            }
+            if let Some(group_id) = operation_item.group_id {
+                file_groups.insert(group_id);
+            }
+            if let Some(group_id) = operation_item.folder_group_id {
+                folder_groups.insert(group_id);
+            }
+        }
+
+        for group_id in file_groups {
+            let survivors = survivor_items(self.connection(), preflight_id, Some(group_id), None)?;
+            let mut ready = false;
+            for survivor in survivors {
+                let sources = item_sources(self.connection(), survivor.id)?;
+                if validate_item(&survivor, &sources, &exclusions, &cancel).outcome == "ready" {
+                    ready = true;
+                    break;
+                }
+            }
+            if !ready {
+                return Ok(Some((
+                    operation_items[0].id,
+                    "admission_conflict_survivor_not_ready".to_owned(),
+                )));
+            }
+        }
+
+        for group_id in folder_groups {
+            let survivors = survivor_items(self.connection(), preflight_id, None, Some(group_id))?;
+            let mut ready = false;
+            for survivor in survivors {
+                let sources = item_sources(self.connection(), survivor.id)?;
+                if validate_item(&survivor, &sources, &exclusions, &cancel).outcome == "ready" {
+                    ready = true;
+                    break;
+                }
+            }
+            if !ready {
+                return Ok(Some((
+                    operation_items[0].id,
+                    "admission_conflict_folder_survivor_not_ready".to_owned(),
+                )));
+            }
+        }
+        Ok(None)
+    }
+
     pub fn fail_preflight(
         &self,
         preflight_id: i64,
@@ -1075,6 +1165,29 @@ fn next_pending_item(
         .optional()
 }
 
+fn preflight_item_by_id(
+    connection: &Connection,
+    item_id: i64,
+) -> rusqlite::Result<Option<PreflightItem>> {
+    connection
+        .query_row(
+            "SELECT item.id, item.preflight_id, item.ordinal, item.target_kind, item.target_role,
+                    item.physical_key, item.group_id, item.folder_group_id, item.folder_member_id,
+                    item.snapshot_file_id, item.snapshot_directory_id, item.snapshot_path,
+                    item.snapshot_file_identity, item.snapshot_file_size, item.snapshot_last_modified,
+                    item.snapshot_content_hash, item.snapshot_structural_fingerprint,
+                    item.snapshot_verified_fingerprint, item.outcome, item.reason_code,
+                    item.observed_file_identity, item.observed_file_size,
+                    item.observed_last_modified, item.observed_content_hash, item.os_error,
+                    item.observed_at,
+                    (SELECT COUNT(*) FROM preflight_item_source source WHERE source.item_id = item.id)
+             FROM preflight_item item WHERE item.id = ?1",
+            params![item_id],
+            item_from_row,
+        )
+        .optional()
+}
+
 fn item_sources(connection: &Connection, item_id: i64) -> rusqlite::Result<Vec<SourceSnapshot>> {
     let mut statement = connection.prepare(
         "SELECT source_kind, group_id, folder_group_id, folder_member_id,
@@ -1099,6 +1212,71 @@ fn item_sources(connection: &Connection, item_id: i64) -> rusqlite::Result<Vec<S
         })
     })?;
     rows.collect()
+}
+
+fn item_source_by_id(
+    connection: &Connection,
+    item_id: i64,
+    source_id: i64,
+) -> rusqlite::Result<Option<SourceSnapshot>> {
+    connection
+        .query_row(
+            "SELECT source_kind, group_id, folder_group_id, folder_member_id,
+                    file_id, directory_id, snapshot_path
+             FROM preflight_item_source WHERE id = ?1 AND item_id = ?2",
+            params![source_id, item_id],
+            |row| {
+                let kind: String = row.get(0)?;
+                Ok(SourceSnapshot {
+                    kind: match kind.as_str() {
+                        "file_decision" => "file_decision",
+                        "folder_decision" => "folder_decision",
+                        _ => "survivor",
+                    },
+                    group_id: row.get(1)?,
+                    folder_group_id: row.get(2)?,
+                    folder_member_id: row.get(3)?,
+                    file_id: row.get(4)?,
+                    directory_id: row.get(5)?,
+                    path: row.get(6)?,
+                })
+            },
+        )
+        .optional()
+}
+
+fn survivor_items(
+    connection: &Connection,
+    preflight_id: i64,
+    file_group_id: Option<i64>,
+    folder_group_id: Option<i64>,
+) -> rusqlite::Result<Vec<PreflightItem>> {
+    let mut statement = connection.prepare(
+        "SELECT DISTINCT item.id, item.preflight_id, item.ordinal, item.target_kind,
+                item.target_role, item.physical_key, item.group_id, item.folder_group_id,
+                item.folder_member_id, item.snapshot_file_id, item.snapshot_directory_id,
+                item.snapshot_path, item.snapshot_file_identity, item.snapshot_file_size,
+                item.snapshot_last_modified, item.snapshot_content_hash,
+                item.snapshot_structural_fingerprint, item.snapshot_verified_fingerprint,
+                item.outcome, item.reason_code, item.observed_file_identity,
+                item.observed_file_size, item.observed_last_modified,
+                item.observed_content_hash, item.os_error, item.observed_at,
+                (SELECT COUNT(*) FROM preflight_item_source count_source
+                 WHERE count_source.item_id = item.id)
+         FROM preflight_item item
+         LEFT JOIN preflight_item_source source ON source.item_id = item.id
+         WHERE item.preflight_id = ?1 AND item.target_role = 'survivor'
+           AND ((?2 IS NOT NULL AND source.group_id = ?2)
+             OR (?3 IS NOT NULL AND item.folder_group_id = ?3))
+         ORDER BY item.ordinal",
+    )?;
+    let rows = statement
+        .query_map(
+            params![preflight_id, file_group_id, folder_group_id],
+            item_from_row,
+        )?
+        .collect();
+    rows
 }
 
 fn validate_item(

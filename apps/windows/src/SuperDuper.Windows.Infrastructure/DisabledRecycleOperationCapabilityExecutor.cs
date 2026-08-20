@@ -21,4 +21,15 @@ public sealed class DisabledRecycleOperationCapabilityExecutor : IRecycleOperati
             .ToArray();
         return Task.FromResult(observations);
     }
+
+    public Task<RecycleBatchExecutionResult> ExecuteBatchAsync(
+        WorkerRecycleOperationBatch batch,
+        Func<CancellationToken, Task> acknowledgeShellStart,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(batch);
+        ArgumentNullException.ThrowIfNull(acknowledgeShellStart);
+        cancellationToken.ThrowIfCancellationRequested();
+        throw new InvalidOperationException("Recycle Bin execution is disabled.");
+    }
 }

@@ -3144,12 +3144,58 @@ multi-monitor DPI-transition gates without new qualifying operator evidence.
 - Infrastructure adds only an injected disabled capability executor. It deterministically reports
   `non_recyclable/executor_disabled` and does not inspect a path or call any Shell API. No
   `IFileOperation`, `SHFileOperation`, move, delete, recycle, scheduling, hydration, or permanent
-  deletion implementation exists.
+  deletion implementation was exposed by this foundation.
 
 This foundation does not close positive Recycle Bin capability, real `PostDeleteItem`/abort and
 provider mapping, `FOFX_ADDUNDORECORD`, residual Shell TOCTOU, real-provider no-hydration, or
 representative large-plan operation performance. It also does not close representative-hardware
 warm queries, physical Narrator/NVDA, OS high contrast, or multi-monitor DPI transition.
+
+##### Implemented separately gated executor slice (2026-08-20)
+
+- Rust `batch.next` revalidates each bounded target against immutable type, identity, size,
+  nanosecond time, and complete content hash; exact-folder batches rerun the complete tree check;
+  and affected physical-file and exact-folder survivors are revalidated before a batch becomes
+  `admitted`. Admission failure durably fails the addressed item, marks remaining work not
+  submitted, and never invokes Shell. A 30-second expiry returns the batch to `pending` so the
+  checks must run again.
+- Admitted file entries project only immutable identity/size/time for Infrastructure to repeat a
+  no-content-read check in `PreDeleteItem`. Selected hard-link aliases remain separate Shell
+  entries; revalidation uses the specific pending alias while independent survivors remain
+  physical-identity based. Exact folders remain isolated one-item Shell batches.
+- `WindowsRecycleOperationExecutor` owns one long-lived dedicated STA thread and creates one
+  `IFileOperation` per batch. It repeats non-opening offline/recall/reparse/type classification and
+  positive local-root Recycle Bin evidence, queues declarative `DeleteItem` calls, obtains the
+  caller's durable `batch.begin` acknowledgement, then calls `PerformOperations`. A lost or failed
+  acknowledgement never starts Shell mutation.
+- Capability is positive only for a local fixed/removable root for which documented
+  `SHQueryRecycleBinW` succeeds. UNC, remote, missing, offline/recall, reparse, wrong-type,
+  unavailable, and unrecognized roots fail closed. This does not generalize to mapped drives, real
+  Cloud Files providers, or other provider namespaces.
+- Flags are explicit `FOFX_RECYCLEONDELETE`, `FOF_NOCONFIRMATION`, `FOF_NOERRORUI`, `FOF_SILENT`,
+  and `FOFX_EARLYFAILURE`. `FOFX_ADDUNDORECORD` is intentionally omitted pending evidence review;
+  there is no permanent-delete fallback or permanent test cleanup.
+- One advised progress sink records `PreDeleteItem`, `PostDeleteItem`, `FinishOperations`, outer
+  `PerformOperations`, and `GetAnyOperationsAborted` independently. Positive recycling requires a
+  successful per-item HRESULT and non-null recycled Shell item. Missing/inconsistent callbacks and
+  post-start exceptions become `unknown`; access, sharing, disappearance, root, cancellation, and
+  unmapped HRESULTs retain stable reason codes plus numeric evidence.
+- Cancellation can prevent queued STA work before it starts. After durable Shell start it is
+  observed at `PreDeleteItem` and always returns a reportable batch result; the task/STA is never
+  killed. The executor never retries a started batch, preserving ambiguous-start non-retry.
+- Focused tests cover STA ownership, positive capability without mutation, offline/missing no-
+  content-access classification, expired admission, target and file/folder survivor drift, and
+  disabled-executor non-acknowledgement. Opt-in real-Recycle-Bin acceptance proved successful hard-
+  link alias and exact-folder recycling with byte-identical survivors and post-ack cancellation
+  that left its source unchanged. A locked source produced documented copy-engine HRESULT
+  `0x80270027`, mapped to `sharing_violation`, and also remained byte-identical.
+
+Production still injects `DisabledRecycleOperationCapabilityExecutor`, every worker response still
+reports `executorEnabled:false`, WPF `CanSubmit` remains false, and no `Move to Recycle Bin now`
+action exists. This slice does not complete Milestone 11. Real-provider no-hydration,
+locked/capacity/provider mappings, final provisional constants, `FOFX_ADDUNDORECORD`, residual
+path-swap TOCTOU, representative large-plan performance, accessible final-confirmation/operator
+wording, and recovery-resolution UI remain gates.
 
 #### User outcome
 
@@ -3393,12 +3439,14 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 Keep the remaining physical Narrator/NVDA, high-contrast, multi-monitor DPI, and representative-
 hardware Milestone 8 procedures operator-gated; they can close independently from later review
-work. The first non-mutating second-slice foundation is implemented. The next slice must be
-separately reviewed before it replaces the disabled executor: add a dedicated-STA `IFileOperation`
-adapter, positive per-root Recycle Bin capability proof, bounded admission revalidation,
-callback/abort and provider-result mapping, and disposable real-Recycle-Bin smoke. Do not expose
-`Move to Recycle Bin now` until that slice proves no-access/no-hydration, ambiguous-start non-retry,
-accessible final confirmation, and cancellation wording on real Windows behavior. Keep
+work. The non-mutating foundation and separately gated dedicated-STA executor are implemented, but
+the disabled production composition remains intentional. The next slice should collect real local
+disappearance/capacity and representative provider evidence, run the real Cloud Files no-
+hydration procedure, profile a representative large admitted plan, decide
+`FOFX_ADDUNDORECORD`/the provisional constants, and complete operator review of final confirmation,
+progress, cancellation, partial/unknown, and recovery wording. Do not expose `Move to Recycle Bin
+now` or replace `executorEnabled:false` until those gates and ambiguous-start non-retry are accepted.
+Keep
 Milestone 12 changed/resolved mutation separate, and preserve rule configuration, application
 provenance, manual review state, preflight observations, operation state, and immutable scan
 history as distinct sources of truth.
@@ -3458,3 +3506,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-20 | Implemented and accepted the first bounded Milestone 11 preflight slice: transactional schema v9, immutable review-revision snapshots, exact metadata/identity/time/hash and folder-tree checks, hard-link-aware physical targets and survivor re-evaluation, excluded-location and Cloud Files no-open classification, idempotent worker lifecycle/recovery/paging, bounded Core caching, accessible WPF confirmation/progress/results, and real Debug/Release non-deleting smoke. | Establish durable current-filesystem observations without turning them into review truth, execution authority, or Milestone 12 live state. All disposable fixtures remained present and unchanged; the four independent Milestone 8 operator gates remain open. The next slice is design-only refinement of a revision-bound Recycle Bin operation contract before any scheduling, Shell mutation, deletion, or partial-execution recovery is exposed. |
 | 2026-08-20 | Refined the second Milestone 11 design as a revision/preflight-bound, freshness-leased, whole-plan Recycle Bin contract with fail-closed eligibility, accessible final confirmation, provisional schema-v10 intent/batch/result/recovery records, dedicated-STA `IFileOperation` ownership, bounded Shell batches, explicit cancellation limits, per-item result mapping, crash ambiguity, hard-link and exact-folder safety, and migration/rollback/test gates. | Keep the accepted v9 preflight immutable and keep rule configuration, application provenance, manual review, operation evidence, future live state, and scan history separate. This is design only: no schema/protocol/operation/UI implementation and no Shell mutation were added. Start implementation with the non-mutating durable contract and injected fake executor; expose the real Recycle Bin executor only in a later reviewed slice. Real-provider no-hydration, representative large-plan performance, and the four independent Milestone 8 operator gates remain open. |
 | 2026-08-20 | Implemented the strictly non-mutating second-slice foundation: transactional schema v10 intent/batch/item/report/recovery evidence, exact revision/latest-preflight binding, provisional freshness and batch bounds, fail-closed eligibility, canonical replay, operation locks, restart ambiguity, bounded worker/Core contracts, disabled Infrastructure capability injection, and accessible read-only WPF reconstruction. | Establish durable operation-domain contracts without granting filesystem or Shell mutation authority. No Shell deletion API or path inspection was added and `CanSubmit` remains false. A separately reviewed real dedicated-STA executor slice is next; positive capability, real callbacks/abort/TOCTOU, no-hydration provider acceptance, representative operation performance, and all independent Milestone 8 operator gates remain open. |
+| 2026-08-20 | Implemented the separately gated real Windows executor slice: fresh target/hash/exact-folder and affected-survivor admission, projected callback metadata, positive local-root `SHQueryRecycleBinW` evidence, dedicated-STA `IFileOperation`, durable-start acknowledgement, explicit recycle-only flags, callback/finish/outer/abort mapping, cancellation boundaries, ambiguous-start non-retry, and opt-in disposable hard-link/exact-folder Recycle Bin acceptance. | Keep application composition disabled and WPF read-only while proving the native seam on real Windows. `CanSubmit` remains false and every worker response remains `executorEnabled:false`; Milestone 11 is not complete. Real-provider no-hydration, locked/capacity/provider mappings, final constants, `FOFX_ADDUNDORECORD`, residual TOCTOU, representative operation performance, accessible operator acceptance, recovery resolution, and independent Milestone 8 gates remain open. |

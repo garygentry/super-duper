@@ -90,5 +90,11 @@ public sealed class RecycleOperationViewModelTests
             IReadOnlyList<WorkerRecycleOperationItem> items,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<RecycleEligibilityObservation>>([]);
+
+        public Task<RecycleBatchExecutionResult> ExecuteBatchAsync(
+            WorkerRecycleOperationBatch batch,
+            Func<CancellationToken, Task> acknowledgeShellStart,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("disabled test executor");
     }
 }

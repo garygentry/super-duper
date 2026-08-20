@@ -227,4 +227,32 @@ public interface IRecycleOperationWorkerClient
         long recycleOperationId,
         IReadOnlyList<RecycleEligibilityObservation> items,
         CancellationToken cancellationToken = default);
+
+    Task<WorkerRecycleOperationResult> ConfirmRecycleOperationAsync(
+        string reportOperationId,
+        long recycleOperationId,
+        string confirmationSignature,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerRecycleOperation> CancelRecycleOperationAsync(
+        long recycleOperationId,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerRecycleOperationBatchResult> GetNextRecycleOperationBatchAsync(
+        long recycleOperationId,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerRecycleOperationResult> BeginRecycleOperationBatchAsync(
+        string reportOperationId,
+        long recycleOperationId,
+        long batchId,
+        string shellAttemptId,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerRecycleOperationResult> ReportRecycleOperationBatchAsync(
+        string reportOperationId,
+        long recycleOperationId,
+        long batchId,
+        IReadOnlyList<RecycleItemResultObservation> items,
+        CancellationToken cancellationToken = default);
 }

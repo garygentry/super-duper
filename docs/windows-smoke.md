@@ -66,6 +66,31 @@ drives, and UNC shares cannot be fabricated portably, so pass real, non-producti
 `-AdditionalRoot`. The fixed fixture root remains available, which lets an unavailable additional
 root become a warning instead of preventing the run.
 
+## Explicit real Recycle Bin acceptance
+
+The real Shell adapter is tested separately because it intentionally mutates only its own uniquely
+named disposable fixtures. It is never part of `Invoke-WindowsSmoke.ps1` and does not enable the
+WPF action. Run it on an interactive Windows 11 desktop with an available local Recycle Bin:
+
+```powershell
+./scripts/Invoke-WindowsRecycleBinSmoke.ps1 -Configuration Release -ConfirmRecycleBinMutation
+```
+
+The acceptance proves one dedicated STA owns COM; successful local-root capability requires a
+non-opening ordinary-item classification plus successful `SHQueryRecycleBinW`; durable-start
+acknowledgement occurs before `PerformOperations`; positive `PostDeleteItem` recycled-item,
+`FinishOperations`, outer HRESULT, and abort evidence are retained; cancellation after durable
+start stops at `PreDeleteItem`; and an independent hard-link alias and exact-folder copy survive
+byte-identically. The success fixtures remain recoverable in the current user's Recycle Bin. The
+test deliberately implements no permanent cleanup.
+
+On the 2026-08-20 development host, success returned `PerformOperations=0`,
+`FinishOperations=0`, positive recycled items, and `GetAnyOperationsAborted=false`. Returning the
+cancellation HRESULT from `PreDeleteItem` kept the source unchanged and produced the expected
+per-item cancellation while the aggregate abort flag also remained false. A source opened without
+delete sharing produced Windows copy-engine HRESULT `0x80270027`, mapped to `sharing_violation`,
+and remained byte-identical. This is host evidence, not a provider-wide contract.
+
 ## Real Cloud Files acceptance
 
 `Invoke-WindowsCloudPolicyAcceptance.ps1` is the separate operator gate for a registered OneDrive

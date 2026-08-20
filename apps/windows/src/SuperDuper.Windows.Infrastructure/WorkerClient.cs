@@ -658,6 +658,70 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
             cancellationToken);
     }
 
+    public Task<WorkerRecycleOperationResult> ConfirmRecycleOperationAsync(
+        string reportOperationId,
+        long recycleOperationId,
+        string confirmationSignature,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reportOperationId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(confirmationSignature);
+        return InvokeAsync<WorkerRecycleOperationResult>(
+            "recycle_operation.confirm",
+            new { reportOperationId, recycleOperationId, confirmationSignature },
+            cancellationToken);
+    }
+
+    public async Task<WorkerRecycleOperation> CancelRecycleOperationAsync(
+        long recycleOperationId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await InvokeAsync<RecycleOperationGetResult>(
+            "recycle_operation.cancel",
+            new { recycleOperationId },
+            cancellationToken).ConfigureAwait(false);
+        return result.Operation
+            ?? throw new WorkerProtocolException("recycle_operation.cancel returned no operation");
+    }
+
+    public Task<WorkerRecycleOperationBatchResult> GetNextRecycleOperationBatchAsync(
+        long recycleOperationId,
+        CancellationToken cancellationToken = default) =>
+        InvokeAsync<WorkerRecycleOperationBatchResult>(
+            "recycle_operation.batch.next",
+            new { recycleOperationId },
+            cancellationToken);
+
+    public Task<WorkerRecycleOperationResult> BeginRecycleOperationBatchAsync(
+        string reportOperationId,
+        long recycleOperationId,
+        long batchId,
+        string shellAttemptId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reportOperationId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(shellAttemptId);
+        return InvokeAsync<WorkerRecycleOperationResult>(
+            "recycle_operation.batch.begin",
+            new { reportOperationId, recycleOperationId, batchId, shellAttemptId },
+            cancellationToken);
+    }
+
+    public Task<WorkerRecycleOperationResult> ReportRecycleOperationBatchAsync(
+        string reportOperationId,
+        long recycleOperationId,
+        long batchId,
+        IReadOnlyList<RecycleItemResultObservation> items,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reportOperationId);
+        ArgumentNullException.ThrowIfNull(items);
+        return InvokeAsync<WorkerRecycleOperationResult>(
+            "recycle_operation.batch.report",
+            new { reportOperationId, recycleOperationId, batchId, items },
+            cancellationToken);
+    }
+
     public Task<WorkerPreferenceRulePage> ListPreferenceRulesAsync(
         long offset = 0,
         int limit = 200,

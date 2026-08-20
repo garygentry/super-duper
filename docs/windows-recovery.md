@@ -32,9 +32,10 @@ troubleshooting. Set `SUPER_DUPER_LOG` to a Rust tracing filter such as
 - V1 exposes a warning count and local diagnostics; `warning.page` remains reserved.
 - The WPF post-MVP review surface exposes non-deleting review decisions, preflight observations,
   and read-only reconstruction of schema-v10 Recycle Bin operation intent/evidence. The production
-  executor is disabled: there is no Recycle Bin action, Shell extension, file deletion, or arbitrary
-  filesystem mutation. Deleting a session removes worker-owned history only when no operation lock
-  requires its evidence; it never deletes scanned files.
+  executor is disabled: there is no Recycle Bin action or arbitrary filesystem mutation exposed by
+  the app. A separately gated real executor exists only for explicit disposable acceptance tests.
+  Deleting a session removes worker-owned history only when no operation lock requires its evidence;
+  it never deletes scanned files.
 - The database and hash cache use the worker working directory unless `SUPER_DUPER_DB_PATH` and
   `HASH_CACHE_PATH` are set. Keep unpackaged output in a user-writable location.
 
@@ -65,8 +66,8 @@ startup. A test-injected operation in `submitted`, `executing`, or `cancelling` 
 `recovery_required`. Every pending item in a durable `shell_started` batch becomes `unknown` with a
 recovery record because mutation may have occurred before a result was persisted. Do not retry,
 edit, or clear that operation: its run/review remain locked to prevent repeating a potentially
-completed mutation. This build has no recovery-resolution UI and no real Shell executor, so such a
-state can currently arise only through protocol/state-machine injection.
+completed mutation. This build has no recovery-resolution UI. The production app cannot initiate
+Shell work, but the explicitly invoked disposable executor tests can exercise this boundary.
 
 ## Database Failure Or Suspected Corruption
 

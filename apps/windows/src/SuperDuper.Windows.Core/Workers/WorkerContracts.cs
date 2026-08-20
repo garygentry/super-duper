@@ -476,7 +476,41 @@ public sealed record WorkerRecycleOperationItem(
     string? ResultCode,
     long? ShellHresult,
     bool? RecycledItemPresent,
-    string? ResultAt);
+    string? ResultAt,
+    string? SnapshotFileIdentity = null,
+    string? SnapshotFileSize = null,
+    long? SnapshotLastModified = null);
+
+public sealed record WorkerRecycleOperationBatch(
+    long Id,
+    long RecycleOperationId,
+    long Ordinal,
+    string ItemSignature,
+    string Status,
+    string? AdmissionExpiresAt,
+    string? ShellAttemptId,
+    string? StartedAt,
+    string? ReportedAt,
+    IReadOnlyList<WorkerRecycleOperationItem> Items);
+
+public sealed record WorkerRecycleOperationBatchResult(
+    WorkerRecycleOperationBatch? Batch,
+    bool ExecutorEnabled);
+
+public sealed record RecycleItemResultObservation(
+    long ItemId,
+    string Status,
+    string? ReasonCode,
+    long? ShellHresult,
+    bool? RecycledItemPresent);
+
+public sealed record RecycleBatchExecutionResult(
+    IReadOnlyList<RecycleItemResultObservation> Items,
+    long PerformHresult,
+    long? FinishHresult,
+    bool AnyOperationsAborted,
+    long? AbortQueryHresult,
+    bool ShellStarted);
 
 public sealed record RecycleOperationItemQuery(
     long RecycleOperationId,

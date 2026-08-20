@@ -11,6 +11,7 @@ use super::models::{
     RecycleOperationBatch, RecycleOperationItem, RecycleOperationItemPage,
     RecycleOperationMutationResult, RecycleOperationSummary, RecycleOperationView,
 };
+use super::preflight::PreflightError;
 use super::Database;
 
 const MAXIMUM_OPERATION_ID_CHARACTERS: usize = 128;
@@ -57,6 +58,16 @@ pub enum RecycleOperationError {
     ItemNotFound { operation_id: i64, item_id: i64 },
     #[error("batch {batch_id} does not belong to recycle operation {operation_id}")]
     BatchNotFound { operation_id: i64, batch_id: i64 },
+    #[error("fresh admission rejected item {item_id} in recycle operation {operation_id}: {reason_code}")]
+    AdmissionFailed {
+        operation_id: i64,
+        item_id: i64,
+        reason_code: String,
+    },
+    #[error(
+        "fresh admission for recycle operation {operation_id} could not be evaluated: {message}"
+    )]
+    AdmissionValidationFailed { operation_id: i64, message: String },
 }
 
 #[derive(Clone)]
@@ -469,16 +480,20 @@ impl Database {
             |row| row.get::<_, i64>(0),
         )?;
         let mut statement = self.connection().prepare(
-            "SELECT id, recycle_operation_id, batch_id, ordinal, preflight_item_id,
-                    preflight_source_id, target_kind, physical_key, snapshot_path, group_id,
-                    folder_group_id, folder_member_id, snapshot_file_id, snapshot_directory_id,
-                    planned_bytes, eligibility_status, eligibility_code, result_status,
-                    result_code, shell_hresult, recycled_item_present, result_at
-             FROM recycle_operation_item
-             WHERE recycle_operation_id = ?1 AND (?2 IS NULL OR result_status = ?2)
-             ORDER BY CASE result_status WHEN 'unknown' THEN 0 WHEN 'failed' THEN 1
+            "SELECT item.id, item.recycle_operation_id, item.batch_id, item.ordinal,
+                    item.preflight_item_id, item.preflight_source_id, item.target_kind,
+                    item.physical_key, item.snapshot_path, item.group_id, item.folder_group_id,
+                    item.folder_member_id, item.snapshot_file_id, item.snapshot_directory_id,
+                    item.planned_bytes, item.eligibility_status, item.eligibility_code,
+                    item.result_status, item.result_code, item.shell_hresult,
+                    item.recycled_item_present, item.result_at, preflight.snapshot_file_identity,
+                    preflight.snapshot_file_size, preflight.snapshot_last_modified
+             FROM recycle_operation_item item
+             JOIN preflight_item preflight ON preflight.id = item.preflight_item_id
+             WHERE item.recycle_operation_id = ?1 AND (?2 IS NULL OR item.result_status = ?2)
+             ORDER BY CASE item.result_status WHEN 'unknown' THEN 0 WHEN 'failed' THEN 1
                         WHEN 'cancelled' THEN 2 WHEN 'pending' THEN 3 ELSE 4 END,
-                      target_kind, snapshot_path COLLATE UNICODE_NOCASE, id
+                      item.target_kind, item.snapshot_path COLLATE UNICODE_NOCASE, item.id
              LIMIT ?3 OFFSET ?4",
         )?;
         let items = statement
@@ -721,17 +736,10 @@ impl Database {
             &payload_signature,
         )?;
         let submitted_at = Utc::now();
-        let admission_expires_at =
-            (submitted_at + Duration::seconds(SUBMISSION_FRESHNESS_SECONDS)).to_rfc3339();
         tx.execute(
             "UPDATE recycle_operation SET status = 'submitted', submitted_at = ?1
              WHERE id = ?2 AND status = 'awaiting_confirmation'",
             params![submitted_at.to_rfc3339(), operation_id],
-        )?;
-        tx.execute(
-            "UPDATE recycle_operation_batch SET admission_expires_at = ?1
-             WHERE recycle_operation_id = ?2 AND status = 'pending'",
-            params![admission_expires_at, operation_id],
         )?;
         tx.commit()?;
         Ok(RecycleOperationMutationResult {
@@ -808,15 +816,151 @@ impl Database {
             .connection()
             .query_row(
                 "SELECT id FROM recycle_operation_batch
-                 WHERE recycle_operation_id = ?1 AND status = 'pending'
+                 WHERE recycle_operation_id = ?1 AND status IN ('pending', 'admitted')
                  ORDER BY ordinal LIMIT 1",
                 params![operation_id],
                 |row| row.get::<_, i64>(0),
             )
             .optional()?;
-        batch_id
-            .map(|batch_id| recycle_batch_by_id(self.connection(), operation_id, batch_id))
-            .transpose()
+        let Some(batch_id) = batch_id else {
+            return Ok(None);
+        };
+        let batch = recycle_batch_by_id(self.connection(), operation_id, batch_id)?;
+        let existing_expiry = batch
+            .admission_expires_at
+            .as_deref()
+            .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+            .map(|value| value.with_timezone(&Utc));
+        if batch.status == "admitted" && existing_expiry.is_some_and(|expiry| Utc::now() <= expiry)
+        {
+            return Ok(Some(batch));
+        }
+
+        let preflight_id = self.connection().query_row(
+            "SELECT preflight_id FROM recycle_operation WHERE id = ?1",
+            params![operation_id],
+            |row| row.get::<_, i64>(0),
+        )?;
+        let rejection = self
+            .revalidate_recycle_batch(preflight_id, &batch.items)
+            .map_err(|error| map_admission_validation_error(operation_id, error))?;
+        if let Some((item_id, reason_code)) = rejection {
+            self.record_recycle_admission_failure(operation_id, item_id, &reason_code)?;
+            return Err(RecycleOperationError::AdmissionFailed {
+                operation_id,
+                item_id,
+                reason_code,
+            });
+        }
+
+        let expires_at =
+            (Utc::now() + Duration::seconds(SUBMISSION_FRESHNESS_SECONDS)).to_rfc3339();
+        let tx = Transaction::new_unchecked(self.connection(), TransactionBehavior::Immediate)?;
+        let current = tx.query_row(
+            "SELECT operation.status, operation.cancellation_requested,
+                    operation.review_revision, operation.preflight_id, plan.revision,
+                    (SELECT id FROM preflight newest WHERE newest.run_id = operation.run_id
+                     ORDER BY newest.id DESC LIMIT 1)
+             FROM recycle_operation operation
+             JOIN review_plan plan ON plan.id = operation.plan_id AND plan.state = 'active'
+             WHERE operation.id = ?1",
+            params![operation_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, bool>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
+                    row.get::<_, i64>(5)?,
+                ))
+            },
+        )?;
+        if !matches!(current.0.as_str(), "submitted" | "executing") || current.1 {
+            return Err(RecycleOperationError::InvalidState {
+                operation_id,
+                status: current.0,
+            });
+        }
+        if current.2 != current.4 || current.3 != current.5 {
+            return Err(RecycleOperationError::StaleReviewRevision {
+                expected: current.2,
+                current: current.4,
+            });
+        }
+        let changed = tx.execute(
+            "UPDATE recycle_operation_batch SET status = 'admitted', admission_expires_at = ?1
+             WHERE id = ?2 AND recycle_operation_id = ?3 AND status IN ('pending', 'admitted')",
+            params![expires_at, batch_id, operation_id],
+        )?;
+        if changed == 0 {
+            return Err(RecycleOperationError::BatchNotFound {
+                operation_id,
+                batch_id,
+            });
+        }
+        tx.commit()?;
+        Ok(Some(recycle_batch_by_id(
+            self.connection(),
+            operation_id,
+            batch_id,
+        )?))
+    }
+
+    fn record_recycle_admission_failure(
+        &self,
+        operation_id: i64,
+        item_id: i64,
+        reason_code: &str,
+    ) -> Result<(), RecycleOperationError> {
+        let tx = Transaction::new_unchecked(self.connection(), TransactionBehavior::Immediate)?;
+        let now = Utc::now().to_rfc3339();
+        let changed = tx.execute(
+            "UPDATE recycle_operation_item SET result_status = 'failed', result_code = ?1,
+                    result_at = ?2
+             WHERE id = ?3 AND recycle_operation_id = ?4 AND result_status = 'pending'",
+            params![reason_code, now, item_id, operation_id],
+        )?;
+        if changed == 0 {
+            return Err(RecycleOperationError::ItemNotFound {
+                operation_id,
+                item_id,
+            });
+        }
+        tx.execute(
+            "UPDATE recycle_operation_item SET result_status = 'cancelled',
+                    result_code = 'not_submitted_after_admission_failure', result_at = ?1
+             WHERE recycle_operation_id = ?2 AND result_status = 'pending'",
+            params![now, operation_id],
+        )?;
+        tx.execute(
+            "UPDATE recycle_operation_batch SET status = 'skipped', admission_expires_at = NULL
+             WHERE recycle_operation_id = ?1 AND status IN ('pending', 'admitted')",
+            params![operation_id],
+        )?;
+        let recycled_count: i64 = tx.query_row(
+            "SELECT COUNT(*) FROM recycle_operation_item
+             WHERE recycle_operation_id = ?1 AND result_status = 'recycled'",
+            params![operation_id],
+            |row| row.get(0),
+        )?;
+        tx.execute(
+            "UPDATE recycle_operation SET status = ?1, completed_at = ?2,
+                    error_code = 'fresh_admission_failed', error_detail = ?3
+             WHERE id = ?4 AND status IN ('submitted', 'executing')",
+            params![
+                if recycled_count > 0 {
+                    "partially_completed"
+                } else {
+                    "failed"
+                },
+                now,
+                reason_code,
+                operation_id
+            ],
+        )?;
+        tx.commit()?;
+        Ok(())
     }
 
     pub fn begin_recycle_operation_batch(
@@ -891,10 +1035,9 @@ impl Database {
             .map(|value| value.with_timezone(&Utc));
         if admission_expires_at.map_or(true, |expires| Utc::now() > expires) {
             tx.execute(
-                "UPDATE recycle_operation SET status = 'expired', completed_at = ?1,
-                        error_code = 'submission_lease_expired'
-                 WHERE id = ?2 AND status = 'submitted'",
-                params![Utc::now().to_rfc3339(), operation_id],
+                "UPDATE recycle_operation_batch SET status = 'pending', admission_expires_at = NULL
+                 WHERE id = ?1 AND recycle_operation_id = ?2 AND status = 'admitted'",
+                params![batch_id, operation_id],
             )?;
             tx.commit()?;
             return Err(RecycleOperationError::SubmissionExpired { operation_id });
@@ -920,7 +1063,7 @@ impl Database {
         let changed = tx.execute(
             "UPDATE recycle_operation_batch SET status = 'shell_started',
                     shell_attempt_id = ?1, started_at = ?2
-             WHERE id = ?3 AND recycle_operation_id = ?4 AND status = 'pending'",
+             WHERE id = ?3 AND recycle_operation_id = ?4 AND status = 'admitted'",
             params![
                 shell_attempt_id,
                 Utc::now().to_rfc3339(),
@@ -1260,6 +1403,9 @@ fn recycle_item_from_row(row: &Row<'_>) -> rusqlite::Result<RecycleOperationItem
         folder_member_id: row.get(11)?,
         snapshot_file_id: row.get(12)?,
         snapshot_directory_id: row.get(13)?,
+        snapshot_file_identity: row.get(22)?,
+        snapshot_file_size: row.get(23)?,
+        snapshot_last_modified: row.get(24)?,
         planned_bytes: row.get(14)?,
         eligibility_status: row.get(15)?,
         eligibility_code: row.get(16)?,
@@ -1303,17 +1449,35 @@ fn recycle_batch_by_id(
             batch_id,
         })?;
     let mut statement = connection.prepare(
-        "SELECT id, recycle_operation_id, batch_id, ordinal, preflight_item_id,
-                preflight_source_id, target_kind, physical_key, snapshot_path, group_id,
-                folder_group_id, folder_member_id, snapshot_file_id, snapshot_directory_id,
-                planned_bytes, eligibility_status, eligibility_code, result_status,
-                result_code, shell_hresult, recycled_item_present, result_at
-         FROM recycle_operation_item WHERE batch_id = ?1 ORDER BY ordinal",
+        "SELECT item.id, item.recycle_operation_id, item.batch_id, item.ordinal,
+                item.preflight_item_id, item.preflight_source_id, item.target_kind,
+                item.physical_key, item.snapshot_path, item.group_id, item.folder_group_id,
+                item.folder_member_id, item.snapshot_file_id, item.snapshot_directory_id,
+                item.planned_bytes, item.eligibility_status, item.eligibility_code,
+                item.result_status, item.result_code, item.shell_hresult,
+                item.recycled_item_present, item.result_at, preflight.snapshot_file_identity,
+                preflight.snapshot_file_size, preflight.snapshot_last_modified
+         FROM recycle_operation_item item
+         JOIN preflight_item preflight ON preflight.id = item.preflight_item_id
+         WHERE item.batch_id = ?1 ORDER BY item.ordinal",
     )?;
     batch.items = statement
         .query_map(params![batch_id], recycle_item_from_row)?
         .collect::<Result<Vec<_>, _>>()?;
     Ok(batch)
+}
+
+fn map_admission_validation_error(
+    operation_id: i64,
+    error: PreflightError,
+) -> RecycleOperationError {
+    match error {
+        PreflightError::Database(error) => RecycleOperationError::Database(error),
+        other => RecycleOperationError::AdmissionValidationFailed {
+            operation_id,
+            message: other.to_string(),
+        },
+    }
 }
 
 fn report_replay(

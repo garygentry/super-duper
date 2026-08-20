@@ -32,4 +32,24 @@ public sealed class DisabledRecycleOperationCapabilityExecutorTests
         await Assert.ThrowsExceptionAsync<OperationCanceledException>(
             () => executor.InspectAsync([], cancellation.Token));
     }
+
+    [TestMethod]
+    public async Task ExecuteBatchAsync_NeverAcknowledgesOrExecutes()
+    {
+        var executor = new DisabledRecycleOperationCapabilityExecutor();
+        var acknowledged = false;
+        var batch = new WorkerRecycleOperationBatch(
+            1, 1, 0, "signature", "admitted", DateTimeOffset.UtcNow.AddSeconds(30).ToString("O"),
+            null, null, null, []);
+
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => executor.ExecuteBatchAsync(
+            batch,
+            _ =>
+            {
+                acknowledged = true;
+                return Task.CompletedTask;
+            }));
+
+        Assert.IsFalse(acknowledged);
+    }
 }

@@ -2502,6 +2502,85 @@ fn recycle_operation_is_revision_bound_idempotent_locked_and_restart_safe() {
     assert_eq!(cancelled.operation.status, "cancelled");
     assert_eq!(cancelled.operation.summary.cancelled_count, 1);
 
+    let drifted = db
+        .prepare_recycle_operation("operation-admission-drift", run_id, preflight.id, 2)
+        .unwrap();
+    let drifted_items = db
+        .page_recycle_operation_items(drifted.view.operation.id, 0, 10, None)
+        .unwrap();
+    let drifted = db
+        .report_recycle_eligibility(
+            "operation-admission-drift-eligibility",
+            drifted.view.operation.id,
+            &[RecycleEligibilityObservation {
+                item_id: drifted_items.items[0].id,
+                status: "eligible".to_owned(),
+                reason_code: Some("injected_non_mutating_capability".to_owned()),
+            }],
+        )
+        .unwrap();
+    db.confirm_recycle_operation(
+        "operation-admission-drift-confirm",
+        drifted.view.operation.id,
+        drifted
+            .view
+            .operation
+            .confirmation_signature
+            .as_deref()
+            .unwrap(),
+    )
+    .unwrap();
+    let displaced_path = root.join("remove-displaced.bin");
+    fs::rename(&remove_path, &displaced_path).unwrap();
+    let admission = db.next_recycle_operation_batch(drifted.view.operation.id);
+    fs::rename(&displaced_path, &remove_path).unwrap();
+    assert!(matches!(
+        admission,
+        Err(RecycleOperationError::AdmissionFailed { ref reason_code, .. })
+            if reason_code == "admission_missing_path_missing"
+    ));
+    let drifted = db.get_recycle_operation(drifted.view.operation.id).unwrap();
+    assert_eq!(drifted.operation.status, "failed");
+    assert_eq!(drifted.operation.summary.failed_count, 1);
+
+    let survivor_drift = db
+        .prepare_recycle_operation("operation-survivor-drift", run_id, preflight.id, 2)
+        .unwrap();
+    let survivor_drift_items = db
+        .page_recycle_operation_items(survivor_drift.view.operation.id, 0, 10, None)
+        .unwrap();
+    let survivor_drift = db
+        .report_recycle_eligibility(
+            "operation-survivor-drift-eligibility",
+            survivor_drift.view.operation.id,
+            &[RecycleEligibilityObservation {
+                item_id: survivor_drift_items.items[0].id,
+                status: "eligible".to_owned(),
+                reason_code: Some("injected_non_mutating_capability".to_owned()),
+            }],
+        )
+        .unwrap();
+    db.confirm_recycle_operation(
+        "operation-survivor-drift-confirm",
+        survivor_drift.view.operation.id,
+        survivor_drift
+            .view
+            .operation
+            .confirmation_signature
+            .as_deref()
+            .unwrap(),
+    )
+    .unwrap();
+    let displaced_survivor = root.join("survivor-displaced.bin");
+    fs::rename(&survivor_path, &displaced_survivor).unwrap();
+    let admission = db.next_recycle_operation_batch(survivor_drift.view.operation.id);
+    fs::rename(&displaced_survivor, &survivor_path).unwrap();
+    assert!(matches!(
+        admission,
+        Err(RecycleOperationError::AdmissionFailed { ref reason_code, .. })
+            if reason_code == "admission_conflict_survivor_not_ready"
+    ));
+
     let reported = db
         .prepare_recycle_operation("operation-result", run_id, preflight.id, 2)
         .unwrap();
@@ -2641,6 +2720,11 @@ fn recycle_operation_is_revision_bound_idempotent_locked_and_restart_safe() {
         .unwrap()
         .unwrap();
     assert_eq!(batch.items.len(), 1);
+    assert_eq!(batch.status, "admitted");
+    assert!(batch.admission_expires_at.is_some());
+    assert!(batch.items[0].snapshot_file_identity.is_some());
+    assert_eq!(batch.items[0].snapshot_file_size, Some(30));
+    assert!(batch.items[0].snapshot_last_modified.is_some());
     db.begin_recycle_operation_batch(
         "operation-begin",
         prepared.view.operation.id,
@@ -2866,6 +2950,44 @@ fn preflight_reenumerates_exact_folders_and_blocks_tree_drift() {
         .unwrap();
     assert_eq!(first_result.summary.total_item_count, 4);
     assert_eq!(first_result.summary.ready_count, 4);
+
+    let operation = db
+        .prepare_recycle_operation("folder-operation", run_id, first.view.preflight.id, 1)
+        .unwrap();
+    let operation_items = db
+        .page_recycle_operation_items(operation.view.operation.id, 0, 10, None)
+        .unwrap();
+    let operation = db
+        .report_recycle_eligibility(
+            "folder-operation-eligibility",
+            operation.view.operation.id,
+            &[RecycleEligibilityObservation {
+                item_id: operation_items.items[0].id,
+                status: "eligible".to_owned(),
+                reason_code: Some("injected_non_mutating_capability".to_owned()),
+            }],
+        )
+        .unwrap();
+    db.confirm_recycle_operation(
+        "folder-operation-confirm",
+        operation.view.operation.id,
+        operation
+            .view
+            .operation
+            .confirmation_signature
+            .as_deref()
+            .unwrap(),
+    )
+    .unwrap();
+    let survivor_drift = copy_b.join("added-to-survivor.bin");
+    fs::write(&survivor_drift, b"survivor drift").unwrap();
+    let admission = db.next_recycle_operation_batch(operation.view.operation.id);
+    fs::remove_file(&survivor_drift).unwrap();
+    assert!(matches!(
+        admission,
+        Err(RecycleOperationError::AdmissionFailed { ref reason_code, .. })
+            if reason_code == "admission_conflict_folder_survivor_not_ready"
+    ));
 
     let drifted = db.create_preflight("folder-drift", run_id, 1).unwrap();
     fs::write(copy_a.join("added.bin"), b"added after review").unwrap();

@@ -5541,6 +5541,29 @@ fn recycle_operation_item_dto(item: &RecycleOperationItem) -> Value {
 }
 
 fn recycle_operation_batch_dto(batch: &RecycleOperationBatch) -> Value {
+    let items = batch
+        .items
+        .iter()
+        .map(|item| {
+            let mut dto = recycle_operation_item_dto(item);
+            let object = dto
+                .as_object_mut()
+                .expect("recycle operation item DTO is an object");
+            object.insert(
+                "snapshotFileIdentity".to_owned(),
+                json!(item.snapshot_file_identity),
+            );
+            object.insert(
+                "snapshotFileSize".to_owned(),
+                json!(item.snapshot_file_size.map(|value| value.to_string())),
+            );
+            object.insert(
+                "snapshotLastModified".to_owned(),
+                json!(item.snapshot_last_modified),
+            );
+            dto
+        })
+        .collect::<Vec<_>>();
     json!({
         "id": batch.id,
         "recycleOperationId": batch.recycle_operation_id,
@@ -5551,7 +5574,7 @@ fn recycle_operation_batch_dto(batch: &RecycleOperationBatch) -> Value {
         "shellAttemptId": batch.shell_attempt_id,
         "startedAt": batch.started_at,
         "reportedAt": batch.reported_at,
-        "items": batch.items.iter().map(recycle_operation_item_dto).collect::<Vec<_>>(),
+        "items": items,
     })
 }
 
@@ -5656,6 +5679,24 @@ fn recycle_operation_error(error: RecycleOperationError) -> ProtocolFailure {
             "The reported batch does not belong to this recycle operation",
         )
         .with_details(json!({"recycleOperationId":operation_id,"batchId":batch_id})),
+        RecycleOperationError::AdmissionFailed {
+            operation_id,
+            item_id,
+            reason_code,
+        } => ProtocolFailure::new(
+            "recycle_operation_admission_failed",
+            format!("Fresh admission rejected item {item_id}: {reason_code}"),
+        )
+        .with_details(json!({
+            "recycleOperationId": operation_id,
+            "itemId": item_id,
+            "reasonCode": reason_code,
+        })),
+        RecycleOperationError::AdmissionValidationFailed {
+            operation_id,
+            message,
+        } => ProtocolFailure::new("recycle_operation_admission_unavailable", message)
+            .with_details(json!({"recycleOperationId": operation_id})),
     }
 }
 

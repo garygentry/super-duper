@@ -368,6 +368,48 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
             false,
             false));
 
+    public Task<WorkerRecycleOperationResult> ConfirmRecycleOperationAsync(
+        string reportOperationId,
+        long recycleOperationId,
+        string confirmationSignature,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new WorkerRecycleOperationResult(
+            CreateRecycleOperation(recycleOperationId, 1, 1, 1) with { Status = "submitted" },
+            false,
+            false));
+
+    public Task<WorkerRecycleOperation> CancelRecycleOperationAsync(
+        long recycleOperationId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(CreateRecycleOperation(recycleOperationId, 1, 1, 1) with { Status = "cancelled" });
+
+    public Task<WorkerRecycleOperationBatchResult> GetNextRecycleOperationBatchAsync(
+        long recycleOperationId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new WorkerRecycleOperationBatchResult(null, false));
+
+    public Task<WorkerRecycleOperationResult> BeginRecycleOperationBatchAsync(
+        string reportOperationId,
+        long recycleOperationId,
+        long batchId,
+        string shellAttemptId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new WorkerRecycleOperationResult(
+            CreateRecycleOperation(recycleOperationId, 1, 1, 1) with { Status = "executing" },
+            false,
+            false));
+
+    public Task<WorkerRecycleOperationResult> ReportRecycleOperationBatchAsync(
+        string reportOperationId,
+        long recycleOperationId,
+        long batchId,
+        IReadOnlyList<RecycleItemResultObservation> items,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new WorkerRecycleOperationResult(
+            CreateRecycleOperation(recycleOperationId, 1, 1, 1) with { Status = "completed" },
+            false,
+            false));
+
     public Task<WorkerPreferenceRulePage> ListPreferenceRulesAsync(
         long offset = 0,
         int limit = 200,

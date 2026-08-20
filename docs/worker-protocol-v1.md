@@ -686,11 +686,11 @@ content reads; placeholders are never hydrated.
 
 ## Provisional Recycle Operation Foundation
 
-These schema-v10 commands persist and reconstruct the second Milestone 11 operation contract. This
-build has no Shell executor: every operation response includes `executorEnabled:false`, WPF exposes
-no submission action, and none of these commands moves, deletes, recycles, schedules, opens,
-canonicalizes, or hydrates a target. Result-transition commands exist for injected protocol/state-
-machine testing before a separately reviewed executor is allowed.
+These schema-v10 commands persist and reconstruct the second Milestone 11 operation contract.
+Every operation response still includes `executorEnabled:false`, WPF exposes no submission action,
+and none of these commands itself moves, deletes, recycles, schedules, or hydrates a target. A
+separately gated Infrastructure executor now exists for explicit acceptance tests, but it is not
+registered by the application.
 
 `recycle_operation.prepare` accepts `operationId`, positive `runId` and `preflightId`, and
 `expectedReviewRevision`. The preflight must be the latest completed generation, current for the
@@ -727,14 +727,17 @@ The remaining allow-listed injected-executor transitions are:
   the whole intent.
 - `recycle_operation.confirm`: report ID, operation ID, and the exact worker-issued confirmation
   signature. It rechecks current revision/latest preflight, enforces the provisional 60-second
-  lease, persists `submitted`, and starts a provisional 30-second batch-admission lease. It does
-  not invoke Shell.
+  lease, and persists `submitted`. It does not invoke Shell.
 - `recycle_operation.cancel`: operation ID. Before a batch starts it durably cancels pending items;
   while executing it only records `cancelling`. Terminal replay is inert.
-- `recycle_operation.batch.next`: operation ID; returns at most one bounded pending batch.
+- `recycle_operation.batch.next`: operation ID; revalidates the next bounded pending batch against
+  immutable target identity/type/size/time/hash, exact-folder tree, and affected file/folder
+  survivors. Success returns one `admitted` batch with a fresh provisional 30-second lease and the
+  expected identity/size/time needed by `PreDeleteItem`. Failure terminally stops pending work with
+  `recycle_operation_admission_failed` and durable per-item evidence.
 - `recycle_operation.batch.begin`: report ID, operation ID, batch ID, and Shell-attempt ID. It
-  rechecks revision/generation and admission expiry, then durably records `shell_started`. In this
-  slice the record is reachable only through injected tests and is not a Shell call.
+  rechecks revision/generation and admission expiry, then durably records `shell_started`. Expiry
+  returns the batch to `pending`; the caller must request and pass fresh admission before Shell.
 - `recycle_operation.batch.report`: report ID, operation ID, batch ID, and at most 32 unique item
   outcomes (`recycled`, `failed`, `cancelled`, or `unknown`) with structured reason/HRESULT and
   optional positive recycled-item evidence. A claimed recycle without positive evidence and every
@@ -749,8 +752,9 @@ recovery evidence, so retry cannot repeat a possibly completed mutation. Structu
 `recycle_operation_submission_expired`, and item/batch-not-found codes.
 
 The five-minute, 60-second, 30-second, and 32-entry values are provisional, not accepted product
-constants. Positive Recycle Bin capability evidence, real callback/abort mapping,
-`FOFX_ADDUNDORECORD`, and residual Shell TOCTOU behavior remain unresolved.
+constants. Local fixed/removable roots currently require a successful official
+`SHQueryRecycleBinW` query; remote/UNC/unrecognized roots fail closed. Real provider behavior,
+locked/capacity-limited mappings, `FOFX_ADDUNDORECORD`, and residual Shell TOCTOU remain unresolved.
 
 ## Duplicate File Result Commands
 

@@ -1,9 +1,10 @@
 # Storage Schema v10
 
 Schema version 10 adds Rust-owned durable records for a revision-bound Recycle Bin operation. The
-implemented foundation is deliberately non-mutating: it can prepare, classify, confirm, page,
-cancel, report injected outcomes, and reconstruct ambiguous state, but the production Windows
-executor is disabled and no Shell deletion API is called.
+implemented operation surface remains disabled in production: it can prepare, classify, confirm,
+page, cancel, report outcomes, and reconstruct ambiguous state, while the WPF composition still
+injects the disabled executor and exposes no submission action. A separately gated Windows
+executor adapter and disposable acceptance tests now exercise Shell only when explicitly invoked.
 
 ## Migration, backup, and downgrade
 
@@ -43,7 +44,7 @@ payload reuse conflicts. A review/provenance/new-preflight mutation expires unsu
 submitted, executing, cancelling, and recovery-required operations lock those mutations. Run/session
 deletion remains blocked while operation evidence is active or ambiguous.
 
-The current five-minute preparation, 60-second confirmation, 30-second submission/admission, and
+The current five-minute preparation, 60-second confirmation, 30-second admission, and
 32-entry file-batch values are provisional implementation constants pending the separately listed
 operator and performance gates. Exact folders are isolated into one-item batches. These values are
 not yet accepted product constants.
@@ -57,7 +58,12 @@ descendants remain preflight evidence rather than duplicate Shell items. Eligibi
 states are distinct and include explicit `non_recyclable` and `unknown` outcomes.
 
 `recycle_operation_batch` bounds transport and records an item signature, ordinal, provisional
-admission expiry, Shell-attempt ID, and durable start/report timestamps. `recycle_operation_report`
+admission expiry, Shell-attempt ID, and durable start/report timestamps. `batch.next` now reruns
+the immutable target, complete-hash, exact-folder-tree, affected-file-survivor, and affected-folder-
+survivor checks before changing a batch from `pending` to `admitted`; an expired lease returns the
+batch to `pending` so admission must run again. Snapshot identity, size, and nanosecond modified
+time are projected with an admitted batch for the Infrastructure `PreDeleteItem` check.
+`recycle_operation_report`
 is the canonical replay ledger for eligibility, confirmation, batch-begin, result, and future
 recovery reports. Report payload signatures sort item observations by durable item ID, so equivalent
 orderings replay identically and changed payloads fail.
@@ -71,9 +77,12 @@ repeated.
 
 ## Current safety boundary
 
-The worker contract exposes bounded, allow-listed state transitions for deterministic tests, but
-every response reports `executorEnabled:false`. The WPF surface is reconstruction and disclosure
-only. Infrastructure injects `DisabledRecycleOperationCapabilityExecutor`, which returns
-`non_recyclable/executor_disabled` without opening, canonicalizing, enumerating, hydrating, or
-creating a Shell item for any path. No `IFileOperation`, `SHFileOperation`, Recycle Bin, move,
-delete, scheduling, or permanent-delete code exists in this slice.
+Every worker response still reports `executorEnabled:false`; WPF remains reconstruction and
+disclosure only, `CanSubmit` remains false, and application composition still injects
+`DisabledRecycleOperationCapabilityExecutor`. The real `WindowsRecycleOperationExecutor` is not
+production-wired. Explicit tests may invoke it on a dedicated STA thread after a successful local-
+root `SHQueryRecycleBinW` query and non-opening ordinary-item classification. It requires a fresh
+`admitted` batch, calls the durable-start acknowledgement after declarative `DeleteItem` queuing
+and before `PerformOperations`, maps `PreDeleteItem`/`PostDeleteItem`/`FinishOperations` and abort
+evidence, and never offers a permanent-delete fallback. `FOFX_ADDUNDORECORD` is intentionally not
+set pending its unresolved evidence review.
