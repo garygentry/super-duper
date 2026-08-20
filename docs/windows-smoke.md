@@ -18,6 +18,9 @@ uses stable UI Automation IDs to exercise both result surfaces and invoke Explor
   worker-owned paged selected-root and drive facets with exact filters, and immutable selected-root,
   relative-path, and drive member context;
 - exact duplicate-folder sorting, filtering, and member browsing;
+- immutable review-revision preflight start and exact replay, structured ready observations,
+  bounded detail paging, completed-generation reconstruction after worker restart, and assertions
+  that reviewed disposable files remain present and byte-for-byte unchanged;
 - fixed-drive scanning, a path longer than 260 characters, a locked file, and a skipped junction;
 - all five scan-phase timings and all five result-query timings on stderr;
 - WPF startup/restoration, duplicate-file and exact-folder tabs, grid sorting, paging, filtering,
@@ -25,7 +28,10 @@ uses stable UI Automation IDs to exercise both result surfaces and invoke Explor
   facets plus 1 GB-or-larger/minimum-copy-count/
   across-drives/review-summary/aggregate-location/set-explanation/location-span text, completed ordinary/
   long-path file and folder Explorer reveal commands, and
-  deterministic result-loaded, repeated idle, startup-failure, and database-failure shutdown.
+  deterministic result-loaded, repeated idle, startup-failure, and database-failure shutdown;
+- WPF preflight plan summary, explicit non-deleting metadata/content-read confirmation, keyboard Yes
+  action, terminal summary and focus movement, virtualized observation details, and unchanged
+  disposable files.
 - Cloud locations setup accessibility, responsive registration refresh, Start scan becoming enabled
   after successful discovery, and a separate deterministic provider-unavailable launch where the
   default policy remains fail closed before and after refresh.

@@ -8,8 +8,9 @@ read-only Milestone 8 slices and the first eight bounded accessibility-remediati
 implemented and accepted; the broader milestone remains in progress and is gated by the remaining
 criteria below. The first four Milestone 10 slices are accepted: durable manual file decisions,
 durable manual exact-folder decisions, the read-only ordered preferred scan-root rule preview, and
-bounded ordered-rule application/reversal provenance. Live validation, scheduling, Recycle Bin
-interaction, and deletion remain deferred.
+bounded ordered-rule application/reversal provenance. The first bounded Milestone 11 preflight
+slice is also accepted. Scheduling, Recycle Bin interaction, deletion, partial execution/recovery,
+and Milestone 12 changed/resolved working-state mutation remain deferred.
 
 This is the durable planning source for post-MVP Windows UX work. Update this document when a
 milestone is refined, split, accepted, or superseded so future coding sessions do not have to
@@ -2652,10 +2653,9 @@ live state, and execution state must remain distinct.
 
 ### Milestone 11 - Preflight and Recycle Bin Execution
 
-Status: The first bounded slice is design-frozen for implementation. It validates an immutable
-reviewed-plan snapshot and persists observations, but deliberately exposes no scheduling,
-Recycle Bin, Shell operation, deletion, partial execution, recovery, or Milestone 12 working-state
-mutation.
+Status: The first bounded slice is implemented and accepted. It validates an immutable reviewed-plan
+snapshot and persists observations, but deliberately exposes no scheduling, Recycle Bin, Shell
+operation, deletion, partial execution, recovery, or Milestone 12 working-state mutation.
 
 #### Refined first-slice implementation plan (2026-08-20)
 
@@ -2727,10 +2727,10 @@ changed/resolved states.
 
 ##### Schema v9, lifecycle, and recovery
 
-- Schema v9 adds preflight header, physical item, logical source, folder observation, and command
-  replay tables with foreign keys and bounded-query indexes. The v8-to-v9 migration is one
-  transaction, rolls back on failure, preserves all historical rows, and keeps newer unknown schema
-  rejection.
+- Schema v9 adds preflight headers, physical file/folder items, and logical-source provenance with
+  foreign keys and bounded-query indexes. The header's unique operation ID is the replay record.
+  The v8-to-v9 migration is one transaction, rolls back on failure, preserves all historical rows,
+  and keeps newer unknown schema rejection.
 - Header states are `pending`, `running`, `cancelling`, `completed`, `cancelled`, `interrupted`, and
   `failed`. Item outcomes are append-safe observations for one immutable validation generation;
   preflight never writes review decisions, scan rows, rule rows, or future operation rows.
@@ -2782,10 +2782,11 @@ changed/resolved states.
 
 ##### Bounds and acceptance
 
-- Snapshot construction and paging never materialize the full plan in WPF. Rust streams target
-  rows in deterministic batches; the Core cache retains at most five 100-item pages and rejects
-  stale run/preflight/query generations. Hidden prefetch is silent and cancellation disposes the
-  prior query token.
+- Snapshot construction and paging never materialize the full plan in WPF. Rust materializes only
+  the frozen target/survivor/source set in its transaction, validates one physical item at a time,
+  and pages observations from indexed durable rows. The Core cache retains at most five 100-item
+  pages and rejects stale run/preflight/query generations. Cancellation disposes the prior query
+  token.
 - Automated disposable-fixture coverage must include v8 migration/rollback/newer-schema rejection,
   empty/stale/idempotent starts, recovery, paging signatures, cancellation, changed/missing/wrong
   type/reparse/placeholder/excluded paths, hard-link alias de-duplication and survivor loss,
@@ -3039,13 +3040,14 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 Keep the remaining physical Narrator/NVDA, high-contrast, multi-monitor DPI, and representative-
 hardware Milestone 8 procedures operator-gated; they can close independently from later review
-work. Refine the first Milestone 11 slice design before implementation: bounded, cancellable
-preflight of reviewed removal targets against immutable snapshots, with explicit cloud-placeholder
-exclusion, exact stale/conflict semantics, restart recovery, paging, and accessible confirmation.
-Keep scheduling, Recycle Bin interaction, partial execution, deletion, and Milestone 12
-changed/resolved live-state presentation out of that first preflight slice. Preserve rule
-configuration, application provenance, manual review state, preflight observations, and future
-execution state as separate sources of truth.
+work. Before implementing any destructive action, refine the second Milestone 11 slice as a
+design-only, revision-bound Recycle Bin operation contract. Specify final confirmation, eligibility,
+idempotent submission/result reporting, STA `IFileOperation` ownership, bounded batching,
+cancellation limits, per-item Shell outcomes, restart/crash ambiguity, and all-or-nothing versus
+partial-result semantics. Do not expose or execute deletion until that design and its disposable
+fixtures are accepted. Keep Milestone 12 changed/resolved mutation separate, and preserve rule
+configuration, application provenance, manual review state, preflight observations, future
+execution state, and immutable scan history as distinct sources of truth.
 
 ## Milestone Definition Template
 
@@ -3099,3 +3101,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-19 | Refined and accepted the third Milestone 10 slice: transactional schema v7 named ordered-root rules, revision-bound read-only preview over selected-set/current-filter/completed-run scopes, manual file/folder precedence, virtual overlap/survivor enforcement, hard-link-aware de-duplication, bounded Core caching and stale-response rejection, accessible WPF explanations, restart reconstruction, and real Debug/Release non-deleting smoke. | Persist reusable rule metadata with preview while keeping application deferred and separate from manual decisions, live state, and execution state. The isolated optimized 100-sample fixture evaluated 100,000 real sets/200,100 logical paths at 870.42 ms p95 with 2,199,552 bytes retained private-memory growth, within its development-host ceilings; it is regression evidence only. The next slice is design-first, idempotent rule application/reversal provenance without deletion or live validation; representative-hardware and physical accessibility gates remain open. |
 | 2026-08-19 | Refined and accepted the fourth Milestone 10 slice: transactional schema v8 rule-application provenance, manual-revision precedence, exact preview-bound idempotent apply, fixed-summary history plus bounded detail, isolated replayable reversal, shared revision invalidation, accessible WPF confirmations, restart recovery, and real Debug/Release non-deleting smoke. | Keep reusable rules, rule-produced decisions, manual review choices, live state, and execution state separate while making an exact reviewed rule outcome durable and reversibly attributable. The isolated optimized 100,000-set/200,100-path profile completed apply in 2,766.08 ms and reversal in 703.08 ms with 46,256,128 retained private bytes, within its development-host ceilings only. The next slice is design-first bounded Milestone 11 preflight without scheduling, Recycle Bin interaction, deletion, or Milestone 12 changed/resolved UI; all four independent Milestone 8 operator gates remain open. |
 | 2026-08-20 | Refined the first bounded Milestone 11 slice: schema v9 immutable review-revision snapshots, exact physical-file/folder and survivor validation, cloud-placeholder no-open behavior, durable cancellable generations, idempotent commands, recovery, paging, bounded Core caching, and an accessible non-deleting WPF workspace. | Make plan-time validation independently reviewable and restart-safe while keeping observations separate from rules, provenance, manual review, scan history, future execution, and Milestone 12 live state. Scheduling, Shell/Recycle Bin APIs, deletion, partial execution/recovery, changed/resolved mutation, and the four independent Milestone 8 gates remain explicitly out of scope. |
+| 2026-08-20 | Implemented and accepted the first bounded Milestone 11 preflight slice: transactional schema v9, immutable review-revision snapshots, exact metadata/identity/time/hash and folder-tree checks, hard-link-aware physical targets and survivor re-evaluation, excluded-location and Cloud Files no-open classification, idempotent worker lifecycle/recovery/paging, bounded Core caching, accessible WPF confirmation/progress/results, and real Debug/Release non-deleting smoke. | Establish durable current-filesystem observations without turning them into review truth, execution authority, or Milestone 12 live state. All disposable fixtures remained present and unchanged; the four independent Milestone 8 operator gates remain open. The next slice is design-only refinement of a revision-bound Recycle Bin operation contract before any scheduling, Shell mutation, deletion, or partial-execution recovery is exposed. |

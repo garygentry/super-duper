@@ -118,7 +118,7 @@ The detailed post-MVP duplicate-review, cloud-safety, deletion, live-reconciliat
 roadmap is maintained in
 [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md). Milestone 7 cloud safety is
 accepted, the read-only Milestone 8 foundation is implemented with remaining operator acceptance
-gates tracked there, and the first Milestone 10 durable manual-file-decision slice is implemented
-along with the second manual exact-folder-decision/overlap-safety slice, independently of the later
-Milestone 12 live-state overlay. A bounded ordered-preferred-root rule preview is the next planned
-Milestone 10 slice.
+gates tracked there, all four Milestone 10 review/rule slices are accepted, and the first bounded
+Milestone 11 non-deleting preflight slice is accepted independently of the later Milestone 12
+live-state overlay. The next planned step is design-only refinement of a revision-bound Recycle Bin
+operation contract before any scheduling or filesystem mutation is exposed.

@@ -30,8 +30,9 @@ troubleshooting. Set `SUPER_DUPER_LOG` to a Rust tracing filter such as
 - Files that disappear, become inaccessible, or change metadata after discovery are warned and
   excluded from affected duplicate results. A completed run can therefore have warnings.
 - V1 exposes a warning count and local diagnostics; `warning.page` remains reserved.
-- The WPF MVP exposes no file deletion, Recycle Bin action, deletion plan, shell extension, or
-  arbitrary filesystem mutation. Deleting a session removes worker-owned history, not scanned files.
+- The WPF post-MVP review surface exposes non-deleting review decisions and preflight observations,
+  but no file deletion, Recycle Bin action, execution plan, shell extension, or arbitrary filesystem
+  mutation. Deleting a session removes worker-owned history, not scanned files.
 - The database and hash cache use the worker working directory unless `SUPER_DUPER_DB_PATH` and
   `HASH_CACHE_PATH` are set. Keep unpackaged output in a user-writable location.
 
@@ -52,6 +53,10 @@ durable `running` or `cancelling` rows to `interrupted`. Partial results are not
 completed. Inspect the interrupted run and log, then start a new immutable run. If restart fails,
 the recovery screen retains the executable and diagnostic-log paths. Do not edit SQLite state
 manually.
+
+An abandoned preflight is likewise reconciled to `interrupted`. Its already committed observations
+remain queryable, but they are never resumed or treated as execution authority. If the review
+revision is still current, start a new preflight operation to obtain a fresh validation generation.
 
 ## Database Failure Or Suspected Corruption
 
