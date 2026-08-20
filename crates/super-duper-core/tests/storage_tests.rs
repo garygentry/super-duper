@@ -1,5 +1,10 @@
 use rusqlite::{params, Connection, Error as SqlError};
+use std::fs;
+use std::path::Path;
 use std::sync::{atomic::AtomicBool, Mutex};
+use std::time::UNIX_EPOCH;
+use super_duper_core::hasher::xxhash::hash_file_streaming;
+use super_duper_core::platform;
 use super_duper_core::storage::models::{
     CloudDetectionStatus, CloudPolicy, DuplicateFileDriveFacetPageQuery,
     DuplicateFileDriveFacetSortField, DuplicateFileExtensionMatchMode, DuplicateFileGroupFilter,
@@ -11,6 +16,7 @@ use super_duper_core::storage::models::{
     SortDirection,
 };
 use super_duper_core::storage::preference::PreferenceError;
+use super_duper_core::storage::preflight::PreflightError;
 use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::sqlite::CURRENT_SCHEMA_VERSION;
 use super_duper_core::storage::Database;
@@ -70,10 +76,111 @@ fn file(run_id: i64, path: &str, size: i64, hash: i64) -> ScannedFile {
     }
 }
 
+fn live_file(run_id: i64, root: &Path, path: &Path) -> ScannedFile {
+    let canonical = fs::canonicalize(path).unwrap();
+    let metadata = fs::metadata(&canonical).unwrap();
+    let modified = metadata
+        .modified()
+        .unwrap()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos()
+        .min(i64::MAX as u128) as i64;
+    ScannedFile {
+        id: 0,
+        run_id,
+        root_path: root.to_string_lossy().into_owned(),
+        canonical_path: canonical.to_string_lossy().into_owned(),
+        relative_path: canonical
+            .strip_prefix(root)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned(),
+        file_name: canonical
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned(),
+        parent_dir: canonical.parent().unwrap().to_string_lossy().into_owned(),
+        drive_letter: String::new(),
+        file_size: metadata.len() as i64,
+        last_modified: modified,
+        partial_hash: None,
+        content_hash: Some(
+            hash_file_streaming(&canonical, &AtomicBool::new(false)).unwrap() as i64,
+        ),
+        file_identity: platform::file_identity(&canonical).unwrap(),
+        warning_message: None,
+        marked_deleted: false,
+    }
+}
+
 #[test]
 fn schema_version_is_explicit_and_current() {
     let db = Database::open_in_memory().unwrap();
     assert_eq!(db.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+}
+
+#[test]
+fn version_eight_migrates_preflight_tables_transactionally() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("v8-preflight.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    db.connection()
+        .execute_batch(
+            "DROP TABLE preflight_item_source;
+             DROP TABLE preflight_item;
+             DROP TABLE preflight;
+             PRAGMA user_version = 8;",
+        )
+        .unwrap();
+    drop(db);
+
+    let migrated = Database::open(path.to_str().unwrap()).unwrap();
+    assert_eq!(migrated.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+    for table in ["preflight", "preflight_item", "preflight_item_source"] {
+        let exists: bool = migrated
+            .connection()
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1)",
+                params![table],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(exists, "missing migrated table {table}");
+    }
+}
+
+#[test]
+fn version_eight_preflight_migration_rolls_back_on_failure() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("v8-preflight-rollback.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    db.connection()
+        .execute_batch(
+            "DROP TABLE preflight_item_source;
+             DROP TABLE preflight_item;
+             DROP TABLE preflight;
+             CREATE TABLE preflight (id INTEGER PRIMARY KEY);
+             PRAGMA user_version = 8;",
+        )
+        .unwrap();
+    drop(db);
+
+    assert!(Database::open(path.to_str().unwrap()).is_err());
+    let raw = Connection::open(&path).unwrap();
+    let version: i64 = raw
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 8);
+    let item_table: bool = raw
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'preflight_item')",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(!item_table);
 }
 
 #[test]
@@ -83,7 +190,10 @@ fn version_seven_migrates_rule_application_tables_transactionally() {
     let db = Database::open(path.to_str().unwrap()).unwrap();
     db.connection()
         .execute_batch(
-            "DROP VIEW effective_review_decision;
+            "DROP TABLE preflight_item_source;
+             DROP TABLE preflight_item;
+             DROP TABLE preflight;
+             DROP VIEW effective_review_decision;
              DROP TABLE review_rule_reversal_command;
              DROP TABLE review_rule_decision;
              DROP TABLE review_rule_application;
@@ -129,7 +239,10 @@ fn version_six_migrates_named_preference_rules_transactionally() {
     let db = Database::open(path.to_str().unwrap()).unwrap();
     db.connection()
         .execute_batch(
-            "DROP VIEW effective_review_decision;
+            "DROP TABLE preflight_item_source;
+             DROP TABLE preflight_item;
+             DROP TABLE preflight;
+             DROP VIEW effective_review_decision;
              DROP TABLE review_rule_reversal_command;
              DROP TABLE review_rule_decision;
              DROP TABLE review_rule_application;
@@ -1854,7 +1967,10 @@ fn version_four_migrates_review_tables_transactionally() {
     let (_, run_id) = session_and_run(&db, "Preserved v4 run", &["/root"]);
     db.connection()
         .execute_batch(
-            "DROP VIEW effective_review_decision;
+            "DROP TABLE preflight_item_source;
+             DROP TABLE preflight_item;
+             DROP TABLE preflight;
+             DROP VIEW effective_review_decision;
              DROP TABLE review_rule_reversal_command;
              DROP TABLE review_rule_decision;
              DROP TABLE review_rule_application;
@@ -1908,7 +2024,10 @@ fn version_five_migrates_folder_review_tables_transactionally() {
     let (run_id, _, _) = completed_review_fixture(&db);
     db.connection()
         .execute_batch(
-            "DROP VIEW effective_review_decision;
+            "DROP TABLE preflight_item_source;
+             DROP TABLE preflight_item;
+             DROP TABLE preflight;
+             DROP VIEW effective_review_decision;
              DROP TABLE review_rule_reversal_command;
              DROP TABLE review_rule_decision;
              DROP TABLE review_rule_application;
@@ -1984,6 +2103,414 @@ fn completed_review_fixture(db: &Database) -> (i64, i64, [i64; 3]) {
         .collect::<Result<Vec<_>, _>>()
         .unwrap();
     (run_id, group_id, [file_ids[1], file_ids[0], file_ids[2]])
+}
+
+#[test]
+fn preflight_freezes_exact_review_revision_replays_and_recovers_interruption() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("preflight-snapshot.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    let (run_id, group_id, [first, alias, second]) = completed_review_fixture(&db);
+    db.set_review_decision(
+        "preflight-remove",
+        run_id,
+        group_id,
+        first,
+        ReviewDecisionKind::Remove,
+        0,
+    )
+    .unwrap();
+    db.set_review_decision(
+        "preflight-keep",
+        run_id,
+        group_id,
+        second,
+        ReviewDecisionKind::Keep,
+        1,
+    )
+    .unwrap();
+
+    let created = db.create_preflight("preflight-start", run_id, 2).unwrap();
+    assert!(!created.replayed);
+    assert_eq!(created.view.preflight.status, "pending");
+    assert_eq!(created.view.preflight.review_revision, 2);
+    assert_eq!(created.view.preflight.summary.logical_removal_count, 1);
+    assert_eq!(created.view.preflight.summary.physical_removal_count, 1);
+    assert_eq!(created.view.preflight.summary.affected_group_count, 1);
+    assert_eq!(created.view.preflight.summary.total_item_count, 3);
+    assert!(created.view.is_current);
+    assert!(!created.view.preflight.snapshot_signature.is_empty());
+
+    let page = db
+        .page_preflight_items(created.view.preflight.id, 0, 2, None)
+        .unwrap();
+    assert_eq!(page.total, 3);
+    assert_eq!(page.items.len(), 2);
+    assert!(page.has_more);
+    let survivors = db
+        .page_preflight_items(created.view.preflight.id, 0, 10, Some("pending"))
+        .unwrap();
+    assert_eq!(survivors.total, 3);
+
+    let replay = db.create_preflight("preflight-start", run_id, 2).unwrap();
+    assert!(replay.replayed);
+    assert_eq!(replay.view.preflight.id, created.view.preflight.id);
+    assert!(matches!(
+        db.create_preflight("preflight-start", run_id, 1),
+        Err(PreflightError::IdempotencyConflict { .. })
+    ));
+
+    let cancelled = db.create_preflight("preflight-cancel", run_id, 2).unwrap();
+    let cancelled = db
+        .validate_preflight(
+            cancelled.view.preflight.id,
+            &AtomicBool::new(true),
+            |_, _| {},
+        )
+        .unwrap();
+    assert_eq!(cancelled.status, "cancelled");
+    assert_eq!(cancelled.summary.processed_item_count, 0);
+
+    db.set_review_decision(
+        "preflight-later-review",
+        run_id,
+        group_id,
+        alias,
+        ReviewDecisionKind::Keep,
+        2,
+    )
+    .unwrap();
+    let stale = db.get_preflight_view(created.view.preflight.id).unwrap();
+    assert!(!stale.is_current);
+    assert_eq!(stale.current_review_revision, 3);
+    assert!(matches!(
+        db.create_preflight("stale-preflight", run_id, 2),
+        Err(PreflightError::StaleReviewRevision { current: 3, .. })
+    ));
+
+    db.mark_preflight_running(created.view.preflight.id)
+        .unwrap();
+    drop(db);
+    let reopened = Database::open(path.to_str().unwrap()).unwrap();
+    let recovered = reopened
+        .get_preflight_view(created.view.preflight.id)
+        .unwrap();
+    assert_eq!(recovered.preflight.status, "interrupted");
+    assert_eq!(
+        recovered.preflight.error_code.as_deref(),
+        Some("worker_interrupted")
+    );
+}
+
+#[test]
+fn preflight_validates_exact_metadata_hash_and_preserves_disposable_files() {
+    let temp = tempdir().unwrap();
+    let root = fs::canonicalize(temp.path()).unwrap();
+    let remove_path = root.join("remove.bin");
+    let survivor_path = root.join("survivor.bin");
+    fs::write(&remove_path, b"preflight fixture").unwrap();
+    fs::write(&survivor_path, b"preflight fixture").unwrap();
+    let db_path = root.join("preflight-live.db");
+    let db = Database::open(db_path.to_str().unwrap()).unwrap();
+    let root_text = root.to_string_lossy().into_owned();
+    let (_, run_id) = session_and_run(&db, "Live preflight", &[&root_text]);
+    let remove = live_file(run_id, &root, &remove_path);
+    let survivor = live_file(run_id, &root, &survivor_path);
+    let hash = remove.content_hash.unwrap();
+    let size = remove.file_size;
+    let remove_canonical = remove.canonical_path.clone();
+    let survivor_canonical = survivor.canonical_path.clone();
+    db.insert_scanned_files(&[remove, survivor]).unwrap();
+    db.insert_duplicate_groups(
+        run_id,
+        &[(
+            hash,
+            size,
+            vec![remove_canonical.clone(), survivor_canonical.clone()],
+        )],
+    )
+    .unwrap();
+    db.complete_scan_run(run_id, 2, size * 2, 2, 1, 0, size, 0)
+        .unwrap();
+    let group_id: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM duplicate_group WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let remove_id: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM scanned_file WHERE canonical_path = ?1",
+            params![remove_canonical],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let survivor_id: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM scanned_file WHERE canonical_path = ?1",
+            params![survivor_canonical],
+            |row| row.get(0),
+        )
+        .unwrap();
+    db.set_review_decision(
+        "live-remove",
+        run_id,
+        group_id,
+        remove_id,
+        ReviewDecisionKind::Remove,
+        0,
+    )
+    .unwrap();
+    db.set_review_decision(
+        "live-keep",
+        run_id,
+        group_id,
+        survivor_id,
+        ReviewDecisionKind::Keep,
+        1,
+    )
+    .unwrap();
+    let preflight = db.create_preflight("live-start", run_id, 2).unwrap();
+    let result = db
+        .validate_preflight(
+            preflight.view.preflight.id,
+            &AtomicBool::new(false),
+            |_, _| {},
+        )
+        .unwrap();
+    assert_eq!(result.status, "completed");
+    assert_eq!(result.summary.total_item_count, 2);
+    assert_eq!(result.summary.ready_count, 2);
+    assert_eq!(result.summary.changed_count, 0);
+    assert_eq!(result.summary.conflict_count, 0);
+    assert_eq!(fs::read(&remove_path).unwrap(), b"preflight fixture");
+    assert_eq!(fs::read(&survivor_path).unwrap(), b"preflight fixture");
+
+    let second = db.create_preflight("live-changed", run_id, 2).unwrap();
+    fs::write(&remove_path, b"changed fixture!").unwrap();
+    let changed = db
+        .validate_preflight(second.view.preflight.id, &AtomicBool::new(false), |_, _| {})
+        .unwrap();
+    assert_eq!(changed.status, "completed");
+    assert_eq!(changed.summary.changed_count, 1);
+    let changed_items = db
+        .page_preflight_items(second.view.preflight.id, 0, 10, Some("changed"))
+        .unwrap();
+    assert_eq!(changed_items.total, 1);
+    assert!(matches!(
+        changed_items.items[0].reason_code.as_deref(),
+        Some("size_changed") | Some("timestamp_changed") | Some("content_hash_changed")
+    ));
+}
+
+#[test]
+fn preflight_never_opens_a_target_inside_the_run_exclusion_snapshot() {
+    let temp = tempdir().unwrap();
+    let root = fs::canonicalize(temp.path()).unwrap();
+    let excluded_root = root.join("excluded-cloud");
+    let excluded_path = excluded_root.join("offline.bin");
+    let survivor_path = root.join("survivor.bin");
+    fs::write(&survivor_path, b"excluded preflight fixture").unwrap();
+    let db_path = root.join("preflight-excluded.db");
+    let db = Database::open(db_path.to_str().unwrap()).unwrap();
+    let mut run_parameters = parameters(&[&root.to_string_lossy()], &[]);
+    run_parameters.manual_location_exclusions = vec![excluded_root.to_string_lossy().into_owned()];
+    let session_id = db
+        .create_session("Excluded preflight", &run_parameters.roots, &[])
+        .unwrap();
+    let run_id = db
+        .create_scan_run(session_id, &run_parameters, "test")
+        .unwrap();
+    db.start_scan_run(run_id).unwrap();
+    let survivor = live_file(run_id, &root, &survivor_path);
+    let mut excluded = file(
+        run_id,
+        &excluded_path.to_string_lossy(),
+        survivor.file_size,
+        survivor.content_hash.unwrap(),
+    );
+    excluded.root_path = root.to_string_lossy().into_owned();
+    excluded.canonical_path = excluded_path.to_string_lossy().into_owned();
+    excluded.parent_dir = excluded_root.to_string_lossy().into_owned();
+    excluded.file_name = "offline.bin".to_owned();
+    excluded.file_identity = Some("excluded-cloud-placeholder".to_owned());
+    let paths = vec![
+        excluded.canonical_path.clone(),
+        survivor.canonical_path.clone(),
+    ];
+    let hash = survivor.content_hash.unwrap();
+    let size = survivor.file_size;
+    db.insert_scanned_files(&[excluded, survivor]).unwrap();
+    db.insert_duplicate_groups(run_id, &[(hash, size, paths)])
+        .unwrap();
+    db.complete_scan_run(run_id, 2, size * 2, 2, 1, 0, size, 0)
+        .unwrap();
+    let group_id: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM duplicate_group WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let ids = db
+        .connection()
+        .prepare("SELECT id FROM scanned_file WHERE run_id = ?1 ORDER BY canonical_path")
+        .unwrap()
+        .query_map(params![run_id], |row| row.get::<_, i64>(0))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    db.set_review_decision(
+        "excluded-remove",
+        run_id,
+        group_id,
+        ids[0],
+        ReviewDecisionKind::Remove,
+        0,
+    )
+    .unwrap();
+    db.set_review_decision(
+        "excluded-keep",
+        run_id,
+        group_id,
+        ids[1],
+        ReviewDecisionKind::Keep,
+        1,
+    )
+    .unwrap();
+
+    let preflight = db.create_preflight("excluded-start", run_id, 2).unwrap();
+    let result = db
+        .validate_preflight(
+            preflight.view.preflight.id,
+            &AtomicBool::new(false),
+            |_, _| {},
+        )
+        .unwrap();
+    assert_eq!(result.status, "completed");
+    assert_eq!(result.summary.conflict_count, 1);
+    let conflicts = db
+        .page_preflight_items(preflight.view.preflight.id, 0, 10, Some("conflict"))
+        .unwrap();
+    assert_eq!(
+        conflicts.items[0].reason_code.as_deref(),
+        Some("excluded_location")
+    );
+    assert!(!excluded_path.exists());
+    assert_eq!(
+        fs::read(&survivor_path).unwrap(),
+        b"excluded preflight fixture"
+    );
+}
+
+#[test]
+fn preflight_reenumerates_exact_folders_and_blocks_tree_drift() {
+    let temp = tempdir().unwrap();
+    let root = fs::canonicalize(temp.path()).unwrap();
+    let copy_a = root.join("Copy A");
+    let copy_b = root.join("Copy B");
+    fs::create_dir_all(&copy_a).unwrap();
+    fs::create_dir_all(&copy_b).unwrap();
+    let file_a = copy_a.join("item.bin");
+    let file_b = copy_b.join("item.bin");
+    fs::write(&file_a, b"folder preflight fixture").unwrap();
+    fs::write(&file_b, b"folder preflight fixture").unwrap();
+    let db_path = root.join("preflight-folder.db");
+    let db = Database::open(db_path.to_str().unwrap()).unwrap();
+    let root_text = root.to_string_lossy().into_owned();
+    let (_, run_id) = session_and_run(&db, "Folder preflight", &[&root_text]);
+    let directory_a = db
+        .insert_directory_node(run_id, &copy_a.to_string_lossy(), "Copy A", None, 24, 1, 1)
+        .unwrap();
+    let directory_b = db
+        .insert_directory_node(run_id, &copy_b.to_string_lossy(), "Copy B", None, 24, 1, 1)
+        .unwrap();
+    let snapshot_a = live_file(run_id, &root, &file_a);
+    let snapshot_b = live_file(run_id, &root, &file_b);
+    let hash = snapshot_a.content_hash.unwrap();
+    let size = snapshot_a.file_size;
+    let paths = vec![
+        snapshot_a.canonical_path.clone(),
+        snapshot_b.canonical_path.clone(),
+    ];
+    db.insert_scanned_files(&[snapshot_a, snapshot_b]).unwrap();
+    db.insert_duplicate_groups(run_id, &[(hash, size, paths)])
+        .unwrap();
+    db.replace_exact_folder_groups(
+        run_id,
+        &[ExactFolderGroupInsert {
+            structural_fingerprint: "folder-structure".to_owned(),
+            verified_fingerprint: "folder-verified".to_owned(),
+            total_size: size,
+            file_count: 1,
+            directory_ids: vec![directory_a, directory_b],
+            is_suppressed: false,
+        }],
+        &AtomicBool::new(false),
+    )
+    .unwrap();
+    db.complete_scan_run(run_id, 2, size * 2, 2, 1, 1, size, 0)
+        .unwrap();
+    let folder_group_id: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM duplicate_folder_group WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let folder_member_a: i64 = db
+        .connection()
+        .query_row(
+            "SELECT member.id FROM duplicate_folder_group_member member
+             JOIN directory_node directory ON directory.id = member.directory_id
+             WHERE member.group_id = ?1 AND directory.path = ?2",
+            params![folder_group_id, copy_a.to_string_lossy()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    db.set_review_folder_decision(
+        "remove-folder-copy",
+        run_id,
+        folder_group_id,
+        folder_member_a,
+        ReviewDecisionKind::Remove,
+        0,
+    )
+    .unwrap();
+
+    let first = db.create_preflight("folder-first", run_id, 1).unwrap();
+    let first_result = db
+        .validate_preflight(first.view.preflight.id, &AtomicBool::new(false), |_, _| {})
+        .unwrap();
+    assert_eq!(first_result.summary.total_item_count, 4);
+    assert_eq!(first_result.summary.ready_count, 4);
+
+    let drifted = db.create_preflight("folder-drift", run_id, 1).unwrap();
+    fs::write(copy_a.join("added.bin"), b"added after review").unwrap();
+    let drifted_result = db
+        .validate_preflight(
+            drifted.view.preflight.id,
+            &AtomicBool::new(false),
+            |_, _| {},
+        )
+        .unwrap();
+    assert_eq!(drifted_result.status, "completed");
+    let conflicts = db
+        .page_preflight_items(drifted.view.preflight.id, 0, 10, Some("conflict"))
+        .unwrap();
+    assert!(conflicts.items.iter().any(|item| {
+        item.target_kind == "folder"
+            && item.target_role == "remove"
+            && item.reason_code.as_deref() == Some("folder_tree_changed")
+    }));
+    assert_eq!(fs::read(&file_a).unwrap(), b"folder preflight fixture");
+    assert_eq!(fs::read(&file_b).unwrap(), b"folder preflight fixture");
 }
 
 #[test]

@@ -112,6 +112,28 @@ public interface IWorkerClient : IAsyncDisposable
         long expectedRevision,
         CancellationToken cancellationToken = default);
 
+    Task<WorkerPreflight?> GetLatestPreflightAsync(
+        long runId,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerPreflight> GetPreflightAsync(
+        long preflightId,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerPreflightStartResult> StartPreflightAsync(
+        string operationId,
+        long runId,
+        long expectedReviewRevision,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerPreflightItemPage> GetPreflightItemsAsync(
+        PreflightItemQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerPreflight> CancelPreflightAsync(
+        long preflightId,
+        CancellationToken cancellationToken = default);
+
     Task<WorkerPreferenceRulePage> ListPreferenceRulesAsync(
         long offset = 0,
         int limit = 200,

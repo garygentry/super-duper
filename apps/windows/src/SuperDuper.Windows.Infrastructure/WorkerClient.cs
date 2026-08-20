@@ -525,6 +525,71 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
             cancellationToken);
     }
 
+    public async Task<WorkerPreflight?> GetLatestPreflightAsync(
+        long runId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await InvokeAsync<PreflightResult>(
+            "preflight.get",
+            new { runId },
+            cancellationToken).ConfigureAwait(false);
+        return result.Preflight;
+    }
+
+    public async Task<WorkerPreflight> GetPreflightAsync(
+        long preflightId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await InvokeAsync<PreflightResult>(
+            "preflight.get",
+            new { preflightId },
+            cancellationToken).ConfigureAwait(false);
+        return result.Preflight
+            ?? throw new WorkerProtocolException("preflight.get returned no preflight");
+    }
+
+    public Task<WorkerPreflightStartResult> StartPreflightAsync(
+        string operationId,
+        long runId,
+        long expectedReviewRevision,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        return InvokeAsync<WorkerPreflightStartResult>(
+            "preflight.start",
+            new { operationId, runId, expectedReviewRevision },
+            cancellationToken);
+    }
+
+    public Task<WorkerPreflightItemPage> GetPreflightItemsAsync(
+        PreflightItemQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        return InvokeAsync<WorkerPreflightItemPage>(
+            "preflight.item.page",
+            new
+            {
+                preflightId = query.PreflightId,
+                pageSize = query.PageSize,
+                outcome = query.Outcome,
+                cursor = query.Cursor,
+            },
+            cancellationToken);
+    }
+
+    public async Task<WorkerPreflight> CancelPreflightAsync(
+        long preflightId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await InvokeAsync<PreflightResult>(
+            "preflight.cancel",
+            new { preflightId },
+            cancellationToken).ConfigureAwait(false);
+        return result.Preflight
+            ?? throw new WorkerProtocolException("preflight.cancel returned no preflight");
+    }
+
     public Task<WorkerPreferenceRulePage> ListPreferenceRulesAsync(
         long offset = 0,
         int limit = 200,
@@ -1174,6 +1239,8 @@ public sealed class WorkerClient : IRestartableWorkerClient, IDisposable
     private sealed record PreferenceRuleResult(WorkerPreferenceRule Rule);
 
     private sealed record PreferenceApplicationResult(WorkerPreferenceApplication Application);
+
+    private sealed record PreflightResult(WorkerPreflight? Preflight);
 
     private sealed record DeleteSessionResult(long SessionId);
 }

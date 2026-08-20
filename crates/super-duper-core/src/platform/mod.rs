@@ -5,6 +5,33 @@ use std::ffi::OsString;
 use std::io;
 use std::path::{Component, Path, PathBuf};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PathSafety {
+    Missing,
+    File,
+    Directory,
+    CloudPlaceholder,
+    ReparsePoint,
+    Other,
+}
+
+#[cfg(target_os = "windows")]
+pub fn classify_path_without_open(path: &Path) -> io::Result<PathSafety> {
+    windows::classify_path_without_open(path)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn classify_path_without_open(path: &Path) -> io::Result<PathSafety> {
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => Ok(PathSafety::ReparsePoint),
+        Ok(metadata) if metadata.is_file() => Ok(PathSafety::File),
+        Ok(metadata) if metadata.is_dir() => Ok(PathSafety::Directory),
+        Ok(_) => Ok(PathSafety::Other),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(PathSafety::Missing),
+        Err(error) => Err(error),
+    }
+}
+
 #[cfg(target_os = "windows")]
 pub fn get_drive_letter(path: &Path) -> Option<OsString> {
     windows::get_drive_letter(path)

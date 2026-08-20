@@ -42,6 +42,16 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
 
     public Func<string, long, long, long, string, long, CancellationToken, Task<WorkerReviewFolderDecisionMutation>>? ReviewFolderDecisionHandler { get; set; }
 
+    public Func<long, CancellationToken, Task<WorkerPreflight?>>? LatestPreflightHandler { get; set; }
+
+    public Func<long, CancellationToken, Task<WorkerPreflight>>? PreflightHandler { get; set; }
+
+    public Func<string, long, long, CancellationToken, Task<WorkerPreflightStartResult>>? PreflightStartHandler { get; set; }
+
+    public Func<PreflightItemQuery, CancellationToken, Task<WorkerPreflightItemPage>>? PreflightItemPageHandler { get; set; }
+
+    public Func<long, CancellationToken, Task<WorkerPreflight>>? PreflightCancelHandler { get; set; }
+
     public Func<PreferencePreviewQuery, CancellationToken, Task<WorkerPreferencePreviewPage>>? PreferencePreviewHandler { get; set; }
 
     public Func<string, long, long, long, long, string, PreferencePreviewScope, CancellationToken, Task<WorkerPreferenceApplicationResult>>? PreferenceApplyHandler { get; set; }
@@ -284,6 +294,39 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
             cancellationToken)
         ?? Task.FromResult(new WorkerReviewFolderDecisionMutation(1, expectedRevision + 1, false, decision));
 
+    public Task<WorkerPreflight?> GetLatestPreflightAsync(
+        long runId,
+        CancellationToken cancellationToken = default) =>
+        LatestPreflightHandler?.Invoke(runId, cancellationToken)
+        ?? Task.FromResult<WorkerPreflight?>(null);
+
+    public Task<WorkerPreflight> GetPreflightAsync(
+        long preflightId,
+        CancellationToken cancellationToken = default) =>
+        PreflightHandler?.Invoke(preflightId, cancellationToken)
+        ?? Task.FromResult(CreatePreflight(preflightId, 1, "completed", 1));
+
+    public Task<WorkerPreflightStartResult> StartPreflightAsync(
+        string operationId,
+        long runId,
+        long expectedReviewRevision,
+        CancellationToken cancellationToken = default) =>
+        PreflightStartHandler?.Invoke(operationId, runId, expectedReviewRevision, cancellationToken)
+        ?? Task.FromResult(new WorkerPreflightStartResult(
+            CreatePreflight(1, runId, "running", expectedReviewRevision), false));
+
+    public Task<WorkerPreflightItemPage> GetPreflightItemsAsync(
+        PreflightItemQuery query,
+        CancellationToken cancellationToken = default) =>
+        PreflightItemPageHandler?.Invoke(query, cancellationToken)
+        ?? Task.FromResult(new WorkerPreflightItemPage([], 0, null));
+
+    public Task<WorkerPreflight> CancelPreflightAsync(
+        long preflightId,
+        CancellationToken cancellationToken = default) =>
+        PreflightCancelHandler?.Invoke(preflightId, cancellationToken)
+        ?? Task.FromResult(CreatePreflight(preflightId, 1, "cancelling", 1));
+
     public Task<WorkerPreferenceRulePage> ListPreferenceRulesAsync(
         long offset = 0,
         int limit = 200,
@@ -453,6 +496,26 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient
             ExecutablePath = ExecutablePath,
             DiagnosticLogPath = DiagnosticLogPath,
         });
+
+    public static WorkerPreflight CreatePreflight(
+        long id,
+        long runId,
+        string status,
+        long revision,
+        long processed = 2,
+        long total = 2,
+        long ready = 2,
+        long changed = 0,
+        long missing = 0,
+        long unavailable = 0,
+        long conflict = 0) =>
+        new(
+            id, $"operation-{id}", runId, 1, revision, $"signature-{id}", status,
+            1, 1, 0, 1, "100", total, processed, ready, changed, missing, unavailable,
+            conflict, DateTimeOffset.UtcNow.ToString("O"), DateTimeOffset.UtcNow.ToString("O"),
+            status is "completed" or "cancelled" or "failed" or "interrupted"
+                ? DateTimeOffset.UtcNow.ToString("O") : null,
+            null, null, revision, true);
 
     internal static WorkerRun CreateRun(
         long id,

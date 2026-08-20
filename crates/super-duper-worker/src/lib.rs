@@ -22,11 +22,13 @@ use super_duper_core::storage::models::{
     DuplicateFolderGroupSortField, DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery,
     DuplicateFolderMemberResult, DuplicateFolderMemberSortField, PageCursor, PageCursorValue,
     PreferencePreviewGroup, PreferencePreviewScope, PreferencePreviewSummary, PreferenceRule,
-    PreferenceRuleApplication, PreferenceRuleSummary, RegisteredCloudLocation, ReviewDecisionKind,
-    ReviewFolderGroupSummary, ReviewGroupSummary, ReviewPlanSummary, ReviewPlanView, RunExclusion,
-    RunParameters, ScanRun, ScanSession, SortDirection,
+    PreferenceRuleApplication, PreferenceRuleSummary, Preflight, PreflightItem, PreflightView,
+    RegisteredCloudLocation, ReviewDecisionKind, ReviewFolderGroupSummary, ReviewGroupSummary,
+    ReviewPlanSummary, ReviewPlanView, RunExclusion, RunParameters, ScanRun, ScanSession,
+    SortDirection,
 };
 use super_duper_core::storage::preference::PreferenceError;
+use super_duper_core::storage::preflight::PreflightError;
 use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::Database;
 use super_duper_core::{AppConfig, ScanEngine};
@@ -525,6 +527,41 @@ struct ReviewFolderDecisionSetParameters {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PreflightStartParameters {
+    operation_id: String,
+    run_id: i64,
+    expected_review_revision: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PreflightGetParameters {
+    #[serde(default)]
+    preflight_id: Option<i64>,
+    #[serde(default)]
+    run_id: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PreflightItemPageParameters {
+    preflight_id: i64,
+    #[serde(default = "default_result_page_size")]
+    page_size: i64,
+    #[serde(default)]
+    outcome: Option<String>,
+    #[serde(default)]
+    cursor: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PreflightCancelParameters {
+    preflight_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PreferenceRuleIdParameters {
     rule_id: i64,
@@ -919,9 +956,16 @@ struct ActiveRun {
     cancel_token: Arc<AtomicBool>,
 }
 
+struct ActivePreflight {
+    preflight_id: i64,
+    cancel_token: Arc<AtomicBool>,
+}
+
 struct SharedState {
     database_path: PathBuf,
     active: Mutex<Option<ActiveRun>>,
+    active_preflight: Mutex<Option<ActivePreflight>>,
+    work_gate: Mutex<()>,
     idle: Condvar,
     output: Sender<String>,
 }
@@ -935,6 +979,8 @@ impl SharedState {
         Ok(Arc::new(Self {
             database_path,
             active: Mutex::new(None),
+            active_preflight: Mutex::new(None),
+            work_gate: Mutex::new(()),
             idle: Condvar::new(),
             output,
         }))
@@ -951,6 +997,14 @@ impl SharedState {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .as_ref()
             .map(|active| active.run_id)
+    }
+
+    fn active_preflight_id(&self) -> Option<i64> {
+        self.active_preflight
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .as_ref()
+            .map(|active| active.preflight_id)
     }
 
     fn emit<T: Serialize>(&self, event: &'static str, data: &T) {
@@ -979,6 +1033,23 @@ impl SharedState {
                 .wait(active)
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
         }
+        drop(active);
+        let mut preflight = self
+            .active_preflight
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(active) = preflight.as_ref() {
+            active.cancel_token.store(true, Ordering::Release);
+            if let Ok(db) = Database::open_connection(&self.database_path.to_string_lossy()) {
+                let _ = db.mark_preflight_cancelling(active.preflight_id);
+            }
+        }
+        while preflight.is_some() {
+            preflight = self
+                .idle
+                .wait(preflight)
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+        }
     }
 
     fn finish_active(&self, run_id: i64) {
@@ -987,6 +1058,20 @@ impl SharedState {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         if active.as_ref().is_some_and(|run| run.run_id == run_id) {
+            *active = None;
+            self.idle.notify_all();
+        }
+    }
+
+    fn finish_active_preflight(&self, preflight_id: i64) {
+        let mut active = self
+            .active_preflight
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if active
+            .as_ref()
+            .is_some_and(|preflight| preflight.preflight_id == preflight_id)
+        {
             *active = None;
             self.idle.notify_all();
         }
@@ -1121,6 +1206,7 @@ impl WorkerSession {
             "app.status" => Ok(json!({
                 "protocolVersion": PROTOCOL_VERSION,
                 "activeRunId": self.state.active_run_id(),
+                "activePreflightId": self.state.active_preflight_id(),
             })),
             "session.list" => self.session_list(request),
             "session.get" => self.session_get(request),
@@ -1137,6 +1223,10 @@ impl WorkerSession {
             "review_folder_group.page" => self.review_folder_group_page(request),
             "review_decision.set" => self.review_decision_set(request),
             "review_folder_decision.set" => self.review_folder_decision_set(request),
+            "preflight.start" => self.preflight_start(request),
+            "preflight.get" => self.preflight_get(request),
+            "preflight.item.page" => self.preflight_item_page(request),
+            "preflight.cancel" => self.preflight_cancel(request),
             "preference_rule.list" => self.preference_rule_list(request),
             "preference_rule.get" => self.preference_rule_get(request),
             "preference_rule.save" => self.preference_rule_save(request),
@@ -2438,8 +2528,249 @@ impl WorkerSession {
         }))
     }
 
+    fn preflight_start(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let parameters: PreflightStartParameters = parse_parameters(request)?;
+        if parameters.operation_id.trim().is_empty()
+            || parameters.operation_id.chars().count() > MAXIMUM_OPERATION_ID_CHARACTERS
+            || parameters.run_id <= 0
+            || parameters.expected_review_revision < 0
+        {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "preflight.start requires a positive runId, a non-negative expectedReviewRevision, and a 1..=128 character operationId",
+            ));
+        }
+        let db = self.state.database()?;
+        if let Some(existing) = db
+            .get_preflight_by_operation(&parameters.operation_id)
+            .map_err(preflight_error)?
+        {
+            if existing.preflight.run_id != parameters.run_id
+                || existing.preflight.review_revision != parameters.expected_review_revision
+            {
+                return Err(preflight_error(PreflightError::IdempotencyConflict {
+                    operation_id: parameters.operation_id,
+                }));
+            }
+            return Ok(json!({
+                "preflight":preflight_view_dto(&existing),
+                "replayed":true,
+            }));
+        }
+        let _gate = self
+            .state
+            .work_gate
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(run_id) = self.state.active_run_id() {
+            return Err(ProtocolFailure {
+                code: "preflight_busy",
+                message: "A scan is already using the filesystem".to_owned(),
+                retryable: true,
+                details: json!({"activeRunId":run_id}),
+            });
+        }
+        if let Some(preflight_id) = self.state.active_preflight_id() {
+            return Err(ProtocolFailure {
+                code: "preflight_busy",
+                message: "A preflight is already running".to_owned(),
+                retryable: true,
+                details: json!({"activePreflightId":preflight_id}),
+            });
+        }
+        let result = db
+            .create_preflight(
+                &parameters.operation_id,
+                parameters.run_id,
+                parameters.expected_review_revision,
+            )
+            .map_err(preflight_error)?;
+        if result.view.preflight.status != "pending" {
+            return Ok(json!({
+                "preflight": preflight_view_dto(&result.view),
+                "replayed": result.replayed,
+            }));
+        }
+
+        let started = db
+            .mark_preflight_running(result.view.preflight.id)
+            .map_err(preflight_error)?;
+        let cancel_token = Arc::new(AtomicBool::new(false));
+        *self
+            .state
+            .active_preflight
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(ActivePreflight {
+            preflight_id: started.id,
+            cancel_token: cancel_token.clone(),
+        });
+        let view = db.get_preflight_view(started.id).map_err(preflight_error)?;
+        self.state.emit(
+            "preflight.started",
+            &json!({"preflight":preflight_view_dto(&view)}),
+        );
+        let state = self.state.clone();
+        std::thread::spawn(move || run_preflight_thread(state, started.id, cancel_token));
+        Ok(json!({
+            "preflight": preflight_view_dto(&view),
+            "replayed": result.replayed,
+        }))
+    }
+
+    fn preflight_get(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let parameters: PreflightGetParameters = parse_parameters(request)?;
+        let db = self.state.database()?;
+        let view = match (parameters.preflight_id, parameters.run_id) {
+            (Some(preflight_id), None) if preflight_id > 0 => Some(
+                db.get_preflight_view(preflight_id)
+                    .map_err(preflight_error)?,
+            ),
+            (None, Some(run_id)) if run_id > 0 => db
+                .latest_preflight_for_run(run_id)
+                .map_err(preflight_error)?,
+            _ => {
+                return Err(ProtocolFailure::new(
+                    "invalid_request",
+                    "preflight.get requires exactly one positive preflightId or runId",
+                ))
+            }
+        };
+        Ok(json!({"preflight":view.as_ref().map(preflight_view_dto)}))
+    }
+
+    fn preflight_item_page(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let parameters: PreflightItemPageParameters = parse_parameters(request)?;
+        if parameters.preflight_id <= 0 || !(1..=200).contains(&parameters.page_size) {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "preflight.item.page requires a positive preflightId and pageSize 1..=200",
+            ));
+        }
+        let signature = format!(
+            "{}|{}",
+            parameters.preflight_id,
+            parameters.outcome.as_deref().unwrap_or("all")
+        );
+        let cursor = decode_cursor(parameters.cursor.as_deref(), "preflight-items", &signature)?;
+        validate_cursor_value(cursor.as_ref(), false)?;
+        if cursor
+            .as_ref()
+            .is_some_and(|cursor| cursor.id != parameters.preflight_id || cursor.before)
+        {
+            return Err(invalid_cursor());
+        }
+        let offset = cursor
+            .as_ref()
+            .and_then(|cursor| match cursor.value {
+                PageCursorValue::Integer(value) => Some(value),
+                PageCursorValue::Text(_) => None,
+            })
+            .unwrap_or(0);
+        let db = self.state.database()?;
+        let preflight = db
+            .get_preflight_view(parameters.preflight_id)
+            .map_err(preflight_error)?;
+        let query_started = Instant::now();
+        let page = db
+            .page_preflight_items(
+                parameters.preflight_id,
+                offset,
+                parameters.page_size,
+                parameters.outcome.as_deref(),
+            )
+            .map_err(preflight_error)?;
+        log_result_query(
+            "preflight.item.page",
+            preflight.preflight.run_id,
+            None,
+            i64::from(parameters.page_size),
+            page.items.len(),
+            page.total,
+            query_started.elapsed(),
+        );
+        let next_cursor = if page.has_more {
+            Some(encode_cursor(CursorPayload {
+                version: 1,
+                kind: "preflight-items".to_owned(),
+                query: signature,
+                before: false,
+                value: CursorScalar::Integer((offset + page.items.len() as i64).to_string()),
+                id: parameters.preflight_id,
+            })?)
+        } else {
+            None
+        };
+        Ok(json!({
+            "items":page.items.iter().map(preflight_item_dto).collect::<Vec<_>>(),
+            "total":page.total,
+            "nextCursor":next_cursor,
+        }))
+    }
+
+    fn preflight_cancel(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let parameters: PreflightCancelParameters = parse_parameters(request)?;
+        if parameters.preflight_id <= 0 {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "preflight.cancel requires a positive preflightId",
+            ));
+        }
+        let active = self
+            .state
+            .active_preflight
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(current) = active.as_ref() {
+            if current.preflight_id != parameters.preflight_id {
+                return Err(ProtocolFailure::new(
+                    "preflight_not_cancellable",
+                    "The requested preflight is not the active validation",
+                )
+                .with_details(json!({"activePreflightId":current.preflight_id})));
+            }
+            let db = self.state.database()?;
+            db.mark_preflight_cancelling(parameters.preflight_id)
+                .map_err(preflight_error)?;
+            current.cancel_token.store(true, Ordering::Release);
+            let view = db
+                .get_preflight_view(parameters.preflight_id)
+                .map_err(preflight_error)?;
+            return Ok(json!({"preflight":preflight_view_dto(&view)}));
+        }
+        let view = self
+            .state
+            .database()?
+            .get_preflight_view(parameters.preflight_id)
+            .map_err(preflight_error)?;
+        if matches!(view.preflight.status.as_str(), "cancelled" | "cancelling") {
+            Ok(json!({"preflight":preflight_view_dto(&view)}))
+        } else {
+            Err(ProtocolFailure::new(
+                "preflight_not_cancellable",
+                format!("Preflight is already {}", view.preflight.status),
+            )
+            .with_details(json!({
+                "preflightId":parameters.preflight_id,
+                "status":view.preflight.status,
+            })))
+        }
+    }
+
     fn run_start(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
         let parameters: IdParameters = parse_parameters(request)?;
+        let _gate = self
+            .state
+            .work_gate
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(preflight_id) = self.state.active_preflight_id() {
+            return Err(ProtocolFailure {
+                code: "scan_busy",
+                message: "A preflight is already using the filesystem".to_owned(),
+                retryable: true,
+                details: json!({"activePreflightId":preflight_id}),
+            });
+        }
         let mut active = self
             .state
             .active
@@ -2581,6 +2912,81 @@ impl WorkerSession {
         current.cancel_token.store(true, Ordering::Release);
         Ok(json!({"run":run}))
     }
+}
+
+fn run_preflight_thread(state: Arc<SharedState>, preflight_id: i64, cancel_token: Arc<AtomicBool>) {
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let db = Database::open_connection(&state.database_path.to_string_lossy())?;
+        let mut last_event = None::<Instant>;
+        db.validate_preflight(preflight_id, &cancel_token, |preflight, current_path| {
+            let now = Instant::now();
+            let terminal = matches!(
+                preflight.status.as_str(),
+                "completed" | "cancelled" | "failed" | "interrupted"
+            );
+            if terminal
+                || last_event.map_or(true, |last| now.duration_since(last) >= EVENT_INTERVAL)
+            {
+                last_event = Some(now);
+                state.emit(
+                    "preflight.progress",
+                    &json!({
+                        "preflightId":preflight.id,
+                        "status":preflight.status,
+                        "processedItemCount":preflight.summary.processed_item_count,
+                        "totalItemCount":preflight.summary.total_item_count,
+                        "readyCount":preflight.summary.ready_count,
+                        "changedCount":preflight.summary.changed_count,
+                        "missingCount":preflight.summary.missing_count,
+                        "unavailableCount":preflight.summary.unavailable_count,
+                        "conflictCount":preflight.summary.conflict_count,
+                        "currentPath":current_path,
+                    }),
+                );
+            }
+        })
+    }));
+    match outcome {
+        Ok(Ok(_)) => {}
+        Ok(Err(error)) => {
+            if let Ok(db) = Database::open_connection(&state.database_path.to_string_lossy()) {
+                let _ = db.fail_preflight(preflight_id, "validation_failed", &error.to_string());
+            }
+            eprintln!("worker preflight failed: {error}");
+        }
+        Err(panic) => {
+            let message = if let Some(message) = panic.downcast_ref::<&str>() {
+                (*message).to_owned()
+            } else if let Some(message) = panic.downcast_ref::<String>() {
+                message.clone()
+            } else {
+                "preflight thread panicked".to_owned()
+            };
+            if let Ok(db) = Database::open_connection(&state.database_path.to_string_lossy()) {
+                let _ = db.fail_preflight(preflight_id, "validation_panic", &message);
+            }
+            eprintln!("worker preflight thread failed: {message}");
+        }
+    }
+    match Database::open_connection(&state.database_path.to_string_lossy()) {
+        Ok(db) => match db.get_preflight_view(preflight_id) {
+            Ok(view) => {
+                let event = match view.preflight.status.as_str() {
+                    "completed" => "preflight.completed",
+                    "cancelled" => "preflight.cancelled",
+                    _ => "preflight.failed",
+                };
+                state.emit(event, &json!({"preflight":preflight_view_dto(&view)}));
+            }
+            Err(error) => {
+                eprintln!("worker could not read terminal preflight {preflight_id}: {error}")
+            }
+        },
+        Err(error) => {
+            eprintln!("worker could not reopen terminal preflight {preflight_id}: {error}")
+        }
+    }
+    state.finish_active_preflight(preflight_id);
 }
 
 fn run_scan_thread(
@@ -4625,6 +5031,121 @@ fn preference_preview_summary_dto(summary: &PreferencePreviewSummary) -> Value {
     })
 }
 
+fn preflight_view_dto(view: &PreflightView) -> Value {
+    let mut value = preflight_dto(&view.preflight);
+    value["currentReviewRevision"] = json!(view.current_review_revision);
+    value["isCurrent"] = json!(view.is_current);
+    value
+}
+
+fn preflight_dto(preflight: &Preflight) -> Value {
+    json!({
+        "id":preflight.id,
+        "operationId":preflight.operation_id,
+        "runId":preflight.run_id,
+        "planId":preflight.plan_id,
+        "reviewRevision":preflight.review_revision,
+        "snapshotSignature":preflight.snapshot_signature,
+        "status":preflight.status,
+        "logicalRemovalCount":preflight.summary.logical_removal_count,
+        "physicalRemovalCount":preflight.summary.physical_removal_count,
+        "folderRemovalCount":preflight.summary.folder_removal_count,
+        "affectedGroupCount":preflight.summary.affected_group_count,
+        "plannedRemovalBytes":preflight.summary.planned_removal_bytes.to_string(),
+        "totalItemCount":preflight.summary.total_item_count,
+        "processedItemCount":preflight.summary.processed_item_count,
+        "readyCount":preflight.summary.ready_count,
+        "changedCount":preflight.summary.changed_count,
+        "missingCount":preflight.summary.missing_count,
+        "unavailableCount":preflight.summary.unavailable_count,
+        "conflictCount":preflight.summary.conflict_count,
+        "createdAt":preflight.created_at,
+        "startedAt":preflight.started_at,
+        "completedAt":preflight.completed_at,
+        "errorCode":preflight.error_code,
+        "errorDetail":preflight.error_detail,
+    })
+}
+
+fn preflight_item_dto(item: &PreflightItem) -> Value {
+    json!({
+        "id":item.id,
+        "preflightId":item.preflight_id,
+        "ordinal":item.ordinal,
+        "targetKind":item.target_kind,
+        "targetRole":item.target_role,
+        "groupId":item.group_id,
+        "folderGroupId":item.folder_group_id,
+        "folderMemberId":item.folder_member_id,
+        "snapshotFileId":item.snapshot_file_id,
+        "snapshotDirectoryId":item.snapshot_directory_id,
+        "path":item.snapshot_path,
+        "outcome":item.outcome,
+        "reasonCode":item.reason_code,
+        "observedFileSize":item.observed_file_size.map(|value| value.to_string()),
+        "observedLastModified":item.observed_last_modified,
+        "osError":item.os_error,
+        "observedAt":item.observed_at,
+        "sourceCount":item.source_count,
+    })
+}
+
+fn preflight_error(error: PreflightError) -> ProtocolFailure {
+    match error {
+        PreflightError::Database(error) => internal_database_error(error),
+        PreflightError::Review(error) => review_error(error),
+        PreflightError::RunNotFound { run_id } => {
+            ProtocolFailure::new("run_not_found", format!("Run {run_id} was not found"))
+                .with_details(json!({"runId":run_id}))
+        }
+        PreflightError::RunNotCompleted { run_id, status } => ProtocolFailure::new(
+            "invalid_state",
+            "Preflight is available only for completed runs",
+        )
+        .with_details(json!({"runId":run_id,"status":status})),
+        PreflightError::PlanNotFound { run_id } => ProtocolFailure::new(
+            "preflight_empty",
+            "Review at least one removal before starting preflight",
+        )
+        .with_details(json!({"runId":run_id})),
+        PreflightError::StaleReviewRevision { expected, current } => ProtocolFailure::new(
+            "review_generation_conflict",
+            "The review plan changed; reload it before starting preflight",
+        )
+        .with_details(json!({"expectedRevision":expected,"currentRevision":current})),
+        PreflightError::EmptyPlan => ProtocolFailure::new(
+            "preflight_empty",
+            "Review at least one removal before starting preflight",
+        ),
+        PreflightError::IdempotencyConflict { operation_id } => ProtocolFailure::new(
+            "operation_conflict",
+            "The operationId was already used for another preflight payload",
+        )
+        .with_details(json!({"operationId":operation_id})),
+        PreflightError::NotFound { preflight_id } => ProtocolFailure::new(
+            "preflight_not_found",
+            format!("Preflight {preflight_id} was not found"),
+        )
+        .with_details(json!({"preflightId":preflight_id})),
+        PreflightError::InvalidState {
+            preflight_id,
+            status,
+        } => ProtocolFailure::new(
+            "preflight_not_cancellable",
+            format!("Preflight {preflight_id} is already {status}"),
+        )
+        .with_details(json!({"preflightId":preflight_id,"status":status})),
+        PreflightError::SnapshotConflict { message } => ProtocolFailure::new(
+            "preflight_snapshot_conflict",
+            "The reviewed plan could not be frozen safely",
+        )
+        .with_details(json!({"reason":message})),
+        PreflightError::InvalidRequest { message } => {
+            ProtocolFailure::new("invalid_request", message)
+        }
+    }
+}
+
 fn preference_error(error: PreferenceError) -> ProtocolFailure {
     match error {
         PreferenceError::Review(error) => review_error(error),
@@ -4950,7 +5471,12 @@ fn default_minimum_copy_count() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusqlite::params;
+    use std::fs;
     use std::io::Cursor;
+    use std::time::UNIX_EPOCH;
+    use super_duper_core::hasher::xxhash::hash_file_streaming;
+    use super_duper_core::platform;
     use super_duper_core::storage::models::ScannedFile;
     use tempfile::TempDir;
 
@@ -4992,6 +5518,154 @@ mod tests {
         );
         assert_eq!(response(&frames, "hello-1")["result"]["protocolVersion"], 1);
         assert_eq!(response(&frames, "status")["ok"], true);
+    }
+
+    #[test]
+    fn preflight_protocol_is_revision_bound_idempotent_paged_and_non_deleting() {
+        let temp = TempDir::new().unwrap();
+        let database_path = temp.path().join("worker.db");
+        let root = fs::canonicalize(temp.path()).unwrap();
+        let remove_path = root.join("remove.bin");
+        let survivor_path = root.join("survivor.bin");
+        fs::write(&remove_path, b"worker preflight fixture").unwrap();
+        fs::write(&survivor_path, b"worker preflight fixture").unwrap();
+        let db = Database::open(database_path.to_str().unwrap()).unwrap();
+        let roots = vec![root.to_string_lossy().into_owned()];
+        let session_id = db.create_session("Preflight", &roots, &[]).unwrap();
+        let parameters = RunParameters {
+            roots: roots.clone(),
+            ignore_patterns: Vec::new(),
+            directory_similarity_threshold_millis: 500,
+            cloud_policy: CloudPolicy::ExcludeRegisteredRoots,
+            manual_location_exclusions: Vec::new(),
+            registered_cloud_locations: Vec::new(),
+            cloud_detection_status: CloudDetectionStatus::Complete,
+        };
+        let run_id = db.create_scan_run(session_id, &parameters, "test").unwrap();
+        db.start_scan_run(run_id).unwrap();
+        let snapshots = [&remove_path, &survivor_path]
+            .into_iter()
+            .map(|path| {
+                let canonical = fs::canonicalize(path).unwrap();
+                let metadata = fs::metadata(&canonical).unwrap();
+                ScannedFile {
+                    id: 0,
+                    run_id,
+                    root_path: roots[0].clone(),
+                    canonical_path: canonical.to_string_lossy().into_owned(),
+                    relative_path: canonical
+                        .strip_prefix(&root)
+                        .unwrap()
+                        .to_string_lossy()
+                        .into_owned(),
+                    file_name: canonical
+                        .file_name()
+                        .unwrap()
+                        .to_string_lossy()
+                        .into_owned(),
+                    parent_dir: canonical.parent().unwrap().to_string_lossy().into_owned(),
+                    drive_letter: String::new(),
+                    file_size: metadata.len() as i64,
+                    last_modified: metadata
+                        .modified()
+                        .unwrap()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_nanos()
+                        .min(i64::MAX as u128) as i64,
+                    partial_hash: None,
+                    content_hash: Some(
+                        hash_file_streaming(&canonical, &AtomicBool::new(false)).unwrap() as i64,
+                    ),
+                    file_identity: platform::file_identity(&canonical).unwrap(),
+                    warning_message: None,
+                    marked_deleted: false,
+                }
+            })
+            .collect::<Vec<_>>();
+        let hash = snapshots[0].content_hash.unwrap();
+        let size = snapshots[0].file_size;
+        let paths = snapshots
+            .iter()
+            .map(|file| file.canonical_path.clone())
+            .collect::<Vec<_>>();
+        db.insert_scanned_files(&snapshots).unwrap();
+        db.insert_duplicate_groups(run_id, &[(hash, size, paths)])
+            .unwrap();
+        db.complete_scan_run(run_id, 2, size * 2, 2, 1, 0, size, 0)
+            .unwrap();
+        let group_id: i64 = db
+            .connection()
+            .query_row(
+                "SELECT id FROM duplicate_group WHERE run_id = ?1",
+                params![run_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let ids = db
+            .connection()
+            .prepare("SELECT id FROM scanned_file WHERE run_id = ?1 ORDER BY canonical_path")
+            .unwrap()
+            .query_map(params![run_id], |row| row.get::<_, i64>(0))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        db.set_review_decision(
+            "remove",
+            run_id,
+            group_id,
+            ids[0],
+            ReviewDecisionKind::Remove,
+            0,
+        )
+        .unwrap();
+        db.set_review_decision(
+            "keep",
+            run_id,
+            group_id,
+            ids[1],
+            ReviewDecisionKind::Keep,
+            1,
+        )
+        .unwrap();
+        drop(db);
+
+        let frames = execute(
+            &temp,
+            &[
+                HELLO.to_owned(),
+                r#"{"type":"request","id":"start","method":"preflight.start","params":{"operationId":"start-preflight","runId":1,"expectedReviewRevision":2}}"#.to_owned(),
+                r#"{"type":"request","id":"replay","method":"preflight.start","params":{"operationId":"start-preflight","runId":1,"expectedReviewRevision":2}}"#.to_owned(),
+                r#"{"type":"request","id":"latest","method":"preflight.get","params":{"runId":1}}"#.to_owned(),
+                r#"{"type":"request","id":"page","method":"preflight.item.page","params":{"preflightId":1,"pageSize":1}}"#.to_owned(),
+                r#"{"type":"request","id":"unknown","method":"preflight.get","params":{"runId":1,"unexpected":true}}"#.to_owned(),
+            ],
+        );
+        assert_eq!(response(&frames, "start")["ok"], true);
+        assert_eq!(response(&frames, "start")["result"]["replayed"], false);
+        assert_eq!(
+            response(&frames, "start")["result"]["preflight"]["reviewRevision"],
+            2
+        );
+        assert_eq!(response(&frames, "replay")["result"]["replayed"], true);
+        assert_eq!(response(&frames, "latest")["result"]["preflight"]["id"], 1);
+        assert_eq!(
+            response(&frames, "page")["result"]["items"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(response(&frames, "page")["result"]["nextCursor"].is_string());
+        assert_eq!(
+            response(&frames, "unknown")["error"]["code"],
+            "invalid_request"
+        );
+        assert_eq!(fs::read(&remove_path).unwrap(), b"worker preflight fixture");
+        assert_eq!(
+            fs::read(&survivor_path).unwrap(),
+            b"worker preflight fixture"
+        );
     }
 
     #[test]

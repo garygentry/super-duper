@@ -595,6 +595,95 @@ Apply and reverse are durable review mutations only. Neither command validates l
 excluded cloud placeholder, creates an execution schedule, invokes Shell/Recycle Bin behavior, or
 deletes data.
 
+## Reviewed-Plan Preflight Commands
+
+These schema-v9 commands freeze and validate an exact active review-plan revision. They do not
+authorize, schedule, or execute deletion and never invoke the Windows Shell or Recycle Bin.
+Preflight observations remain separate from immutable scan history, manual decisions, rule
+configuration/application provenance, future execution state, and Milestone 12 live state.
+
+### `preflight.start`
+
+```json
+{"type":"request","id":"pf1","method":"preflight.start","params":{"operationId":"bdf13b56d0ac4fdbac407918e09ff932","runId":19,"expectedReviewRevision":8}}
+```
+
+The run must be completed and the active review plan must contain an effective removal. The worker
+atomically revalidates file/folder overlap and physical-survivor invariants, freezes logical and
+physical targets plus required survivors, persists `running`, and starts background validation.
+`operationId` is limited to 128 characters. Exact replay returns the original generation with
+`replayed:true`, including while it is active; reuse with another run/revision returns
+`operation_conflict`. A stale revision returns `review_generation_conflict`.
+
+```json
+{"preflight":{"id":31,"operationId":"bdf13b56d0ac4fdbac407918e09ff932","runId":19,"planId":12,"reviewRevision":8,"snapshotSignature":"opaque","status":"running","logicalRemovalCount":3,"physicalRemovalCount":2,"folderRemovalCount":0,"affectedGroupCount":2,"plannedRemovalBytes":"10485760","totalItemCount":5,"processedItemCount":0,"readyCount":0,"changedCount":0,"missingCount":0,"unavailableCount":0,"conflictCount":0,"createdAt":"2026-08-20T12:00:00Z","startedAt":"2026-08-20T12:00:00Z","completedAt":null,"errorCode":null,"errorDetail":null,"currentReviewRevision":8,"isCurrent":true},"replayed":false}
+```
+
+Only one scan or preflight may perform filesystem I/O in a worker. Competing starts return
+`preflight_busy` or `scan_busy` with the active ID.
+
+### `preflight.get`
+
+Exactly one positive ID is accepted:
+
+```json
+{"type":"request","id":"pfg1","method":"preflight.get","params":{"preflightId":31}}
+{"type":"request","id":"pfg2","method":"preflight.get","params":{"runId":19}}
+```
+
+`preflightId` returns that generation or `preflight_not_found`. `runId` returns the latest
+generation or `preflight:null`. The response uses the preflight object above. `currentReviewRevision`
+and `isCurrent` are computed at query time; review changes never rewrite the frozen header or item
+observations.
+
+### `preflight.item.page`
+
+```json
+{"type":"request","id":"pfp1","method":"preflight.item.page","params":{"preflightId":31,"pageSize":100,"outcome":"conflict","cursor":null}}
+```
+
+`pageSize` defaults to 200 and is limited to 1–200. Optional outcome is `pending`, `ready`,
+`changed`, `missing`, `unavailable`, or `conflict`. The signature-bound opaque cursor binds the
+preflight and outcome. Pages are stable by severity/outcome, role, kind, Unicode-case-insensitive
+snapshot path, and item ID and perform no filesystem access.
+
+```json
+{"items":[{"id":90,"preflightId":31,"ordinal":2,"targetKind":"file","targetRole":"remove","groupId":44,"folderGroupId":null,"folderMemberId":null,"snapshotFileId":108,"snapshotDirectoryId":null,"path":"D:\\Archive\\photo.jpg","outcome":"changed","reasonCode":"content_hash_changed","observedFileSize":"5242880","observedLastModified":1786795200000000000,"osError":null,"observedAt":"2026-08-20T12:00:02Z","sourceCount":1}],"total":1,"nextCursor":null}
+```
+
+Stable reason codes distinguish identity/size/time/hash drift, change during hashing, missing or
+unavailable paths, wrong types, aliases, excluded locations, reparse points, Cloud Files
+placeholders, folder-tree drift, and file/folder survivor failure. OS error numbers are optional;
+localized error text is not an outcome contract.
+
+### `preflight.cancel`
+
+```json
+{"type":"request","id":"pfc1","method":"preflight.cancel","params":{"preflightId":31}}
+```
+
+The worker first persists `cancelling`, then publishes cancellation to the validation thread.
+Replaying cancellation for `cancelling`/`cancelled` returns the current preflight. Another terminal
+state returns `preflight_not_cancellable`. Cancellation is checked before each item, directory
+batch, and 64 KiB hash chunk. Committed observations remain durable and pending items remain
+pending.
+
+### Preflight events and recovery
+
+`preflight.started` contains `{ "preflight": <preflight> }`. Coalesced `preflight.progress` is
+emitted no faster than ten times per second and contains the preflight ID, status, processed/total
+and outcome counters, plus an optional current path. One terminal `preflight.completed`,
+`preflight.cancelled`, or `preflight.failed` event contains the final preflight object.
+
+On worker startup, abandoned `running`/`cancelling` generations become `interrupted`; committed
+items and summaries remain queryable. Retrying creates a new operation/generation from a still-current
+review revision. It never resumes or combines filesystem observations across generations.
+
+Validation checks immutable run exclusions before any target I/O. Excluded paths are conflicts and
+are not opened, enumerated, canonicalized, hashed, or passed to native identity APIs. Windows
+non-opening attributes classify reparse points and offline/recall placeholders before metadata or
+content reads; placeholders are never hydrated.
+
 ## Duplicate File Result Commands
 
 Duplicate-file results are immutable and queryable only when the addressed run has status
@@ -830,10 +919,10 @@ in a later milestone without changing the handshake.
 ## Shutdown and Process Exit
 
 For V1, graceful shutdown is signalled by the client closing the worker's stdin. On EOF, the worker
-finishes writing the response for every completely received request. If a scan is active, it
-signals cancellation, persists `cancelling`, waits for the scan thread to persist its terminal
-state, flushes remaining protocol frames, and exits with code 0. A partial final frame is a fatal
-framing error and exits non-zero.
+finishes writing the response for every completely received request. If a scan or preflight is
+active, it signals cancellation, persists `cancelling`, waits for the background thread to persist
+its terminal state, flushes remaining protocol frames, and exits with code 0. A partial final frame
+is a fatal framing error and exits non-zero.
 
 The host waits asynchronously for a bounded grace period. If the worker does not exit, the host may
 terminate only that child process tree. Host cancellation of an individual pending request stops

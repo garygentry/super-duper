@@ -58,6 +58,7 @@ public sealed class WpfSurfaceSmokeTests
             var sessions = new SessionListView();
             var setup = new SessionSetupView();
             var history = new RunHistoryView();
+            var preflight = new PreflightView();
             AssertSurface(
                 files,
                 "FileSearch",
@@ -363,6 +364,26 @@ public sealed class WpfSurfaceSmokeTests
             Assert.IsTrue(folderReviewButtons.All(button =>
                 AutomationProperties.GetHelpText(button).Contains("does not delete", StringComparison.OrdinalIgnoreCase)
                 || AutomationProperties.GetHelpText(button).Contains("Undecided", StringComparison.Ordinal)));
+            var startPreflight = FindByAutomationId<Button>(preflight, "StartPreflightButton");
+            StringAssert.Contains(
+                AutomationProperties.GetName(startPreflight),
+                "no files will be deleted");
+            _ = FindByAutomationId<ProgressBar>(preflight, "PreflightProgressBar");
+            var preflightItems = FindByAutomationId<ListView>(preflight, "PreflightItemsList");
+            Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(preflightItems));
+            Assert.AreEqual(
+                VirtualizationMode.Recycling,
+                VirtualizingPanel.GetVirtualizationMode(preflightItems));
+            var preflightError = FindByAutomationId<TextBlock>(preflight, "PreflightError");
+            Assert.AreEqual(
+                AutomationNotificationKind.ActionAborted,
+                AutomationNotificationBehavior.GetNotificationKind(preflightError));
+            Assert.AreEqual(
+                AutomationNotificationProcessing.ImportantMostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(preflightError));
+            Assert.AreEqual(
+                "PreflightValidation",
+                AutomationNotificationBehavior.GetActivityId(preflightError));
             var folderGroupStatus = FindByAutomationId<TextBlock>(folders, "FolderGroupCount");
             Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
                 AutomationNotificationBehavior.GetNotificationKind(folderGroupStatus));

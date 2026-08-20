@@ -150,6 +150,19 @@ function Wait-RunTerminal($Connection, [long]$RunId, [int]$TimeoutSeconds = 120)
     throw "Timed out waiting for run $RunId to finish."
 }
 
+function Wait-PreflightTerminal($Connection, [long]$PreflightId, [int]$TimeoutSeconds = 120) {
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $result = Send-WorkerRequest $Connection 'preflight.get' @{ preflightId = $PreflightId }
+        $preflight = $result.preflight
+        if ($preflight.status -in @('completed', 'cancelled', 'interrupted', 'failed')) {
+            return $preflight
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    throw "Timed out waiting for preflight $PreflightId to finish."
+}
+
 function Stop-SmokeWorker($Connection) {
     if ($Connection.Stopped) { return '' }
     $Connection.Process.StandardInput.Close()
@@ -215,6 +228,9 @@ public static class SmokeMouseInput
     $start.Environment['SUPER_DUPER_DB_PATH'] = $database
     $start.Environment['HASH_CACHE_PATH'] = $cache
     $process = [Diagnostics.Process]::Start($start)
+    $automationFailure = $null
+    $preflightInvoker = $null
+    $preflightInvokeAsync = $null
     try {
         for ($attempt = 0; $attempt -lt 80 -and $process.MainWindowHandle -eq 0; $attempt++) {
             Start-Sleep -Milliseconds 250
@@ -302,6 +318,35 @@ public static class SmokeMouseInput
                 Start-Sleep -Milliseconds 250
             }
             throw "UI Automation data row was not found in $($Container.Current.AutomationId)."
+        }
+
+        function Find-FirstListItem($Container, [int]$Attempts = 40) {
+            for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+                $item = $Container.FindFirst(
+                    [Windows.Automation.TreeScope]::Descendants,
+                    [Windows.Automation.PropertyCondition]::new(
+                        [Windows.Automation.AutomationElement]::ControlTypeProperty,
+                        [Windows.Automation.ControlType]::ListItem))
+                if ($null -ne $item) { return $item }
+                Start-Sleep -Milliseconds 250
+            }
+            throw "UI Automation list item was not found in $($Container.Current.AutomationId)."
+        }
+
+        function Find-FacetOption($Combo, [string]$AllOptionName) {
+            $container = $Combo.GetCurrentPattern([Windows.Automation.ItemContainerPattern]::Pattern)
+            $item = $null
+            $names = [Collections.Generic.List[string]]::new()
+            for ($index = 0; $index -lt 512; $index++) {
+                $item = $container.FindItemByProperty($item, $null, $null)
+                if ($null -eq $item) { break }
+                $names.Add($item.Current.Name)
+                if ($item.Current.Name -ne $AllOptionName -and
+                    $item.Current.Name.Contains('set', [StringComparison]::OrdinalIgnoreCase)) {
+                    return $item
+                }
+            }
+            throw "Facet $($Combo.Current.AutomationId) did not expose a bounded worker-owned value and count. Items: $($names -join ' | ')"
         }
 
         function Find-DescendantByName($Container, [string]$Name, [int]$Attempts = 40) {
@@ -429,28 +474,11 @@ public static class SmokeMouseInput
             throw "Selected-root facet did not expose the ExpandCollapse pattern: $($_.Exception.Message)"
         }
         Start-Sleep -Milliseconds 250
-        $rootOptions = $window.FindAll(
-            [Windows.Automation.TreeScope]::Descendants,
-            [Windows.Automation.PropertyCondition]::new(
-                [Windows.Automation.AutomationElement]::ControlTypeProperty,
-                [Windows.Automation.ControlType]::ListItem))
-        $rootOption = $rootOptions |
-            Where-Object { -not $_.Current.IsOffscreen -and $_.Current.Name -ne 'All selected roots' -and $_.Current.Name.Contains('set', [StringComparison]::OrdinalIgnoreCase) } |
-            Select-Object -First 1
-        $rootOptionNames = @($rootOptions | ForEach-Object { $_.Current.Name }) -join ' | '
-        Assert-True ($null -ne $rootOption) "Selected-root facet did not expose a bounded worker-owned value and count. Visible list items: $rootOptionNames"
+        $rootOption = Find-FacetOption $rootFacet 'All selected roots'
         Assert-True $rootFacet.Current.IsKeyboardFocusable 'Selected-root facet was not keyboard focusable.'
         Activate-SmokeWindow
         $rootFacet.SetFocus()
-        try {
-            [System.Windows.Forms.SendKeys]::SendWait('{HOME}{DOWN}{ENTER}')
-        }
-        catch {
-            # SendKeys can report ERROR_SUCCESS as an exception in non-interactive
-            # automation hosts. Keep the focusability assertion above and use the
-            # equivalent UI Automation selection so the disposable smoke can proceed.
-            Select-Element $rootOption
-        }
+        $rootOption.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
         Start-Sleep -Milliseconds 400
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
         $selectedRootFilterText = Find-Element AutomationId 'FileSelectedRootFilterText'
@@ -465,25 +493,11 @@ public static class SmokeMouseInput
             throw "Drive facet did not expose the ExpandCollapse pattern: $($_.Exception.Message)"
         }
         Start-Sleep -Milliseconds 250
-        $driveOptions = $window.FindAll(
-            [Windows.Automation.TreeScope]::Descendants,
-            [Windows.Automation.PropertyCondition]::new(
-                [Windows.Automation.AutomationElement]::ControlTypeProperty,
-                [Windows.Automation.ControlType]::ListItem))
-        $driveOption = $driveOptions |
-            Where-Object { -not $_.Current.IsOffscreen -and $_.Current.Name -ne 'All drives' -and $_.Current.Name.Contains('set', [StringComparison]::OrdinalIgnoreCase) } |
-            Select-Object -First 1
-        $driveOptionNames = @($driveOptions | ForEach-Object { $_.Current.Name }) -join ' | '
-        Assert-True ($null -ne $driveOption) "Drive facet did not expose a bounded worker-owned value and count. Visible list items: $driveOptionNames"
+        $driveOption = Find-FacetOption $driveFacet 'All drives'
         Assert-True $driveFacet.Current.IsKeyboardFocusable 'Drive facet was not keyboard focusable.'
         Activate-SmokeWindow
-        $driveOptionRectangle = $driveOption.Current.BoundingRectangle
-        Assert-True (-not $driveOptionRectangle.IsEmpty) 'The live drive facet option did not expose a clickable bounding rectangle.'
-        $driveOptionX = [int]($driveOptionRectangle.Left + ($driveOptionRectangle.Width / 2))
-        $driveOptionY = [int]($driveOptionRectangle.Top + ($driveOptionRectangle.Height / 2))
-        Assert-True ([SmokeMouseInput]::SetCursorPos($driveOptionX, $driveOptionY)) 'The smoke could not position the pointer over the live drive facet option.'
-        [SmokeMouseInput]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
-        [SmokeMouseInput]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+        $driveFacet.SetFocus()
+        $driveOption.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
         Start-Sleep -Milliseconds 400
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
         $selectedDriveFilterText = Find-Element AutomationId 'FileSelectedDriveFilterText'
@@ -668,13 +682,8 @@ public static class SmokeMouseInput
                 }
             }
             Assert-True ($null -ne $completedRunScope) "The expanded preferred-root scope selector did not expose three options. Items: $($scopeItemNames -join ', ')"
-            $completedRunRectangle = $completedRunScope.Current.BoundingRectangle
-            Assert-True (-not $completedRunRectangle.IsEmpty) 'The Completed run scope did not expose a clickable bounding rectangle.'
-            $completedRunX = [int]($completedRunRectangle.Left + ($completedRunRectangle.Width / 2))
-            $completedRunY = [int]($completedRunRectangle.Top + ($completedRunRectangle.Height / 2))
-            Assert-True ([SmokeMouseInput]::SetCursorPos($completedRunX, $completedRunY)) 'The smoke could not position the pointer over Completed run.'
-            [SmokeMouseInput]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
-            [SmokeMouseInput]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+            $completedRunScope.GetCurrentPattern(
+                [Windows.Automation.SelectionItemPattern]::Pattern).Select()
             Start-Sleep -Milliseconds 400
         }
         catch {
@@ -787,20 +796,119 @@ public static class SmokeMouseInput
         Assert-True ([IO.Directory]::Exists($keptFolderPath)) 'Recording an exact-folder review decision unexpectedly removed the disposable fixture directory.'
         Invoke-Element (Find-DescendantByName $folderMembers 'Show in Explorer')
         Assert-NoVisibleDetailError 'FolderDetailError'
-        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
+
+        Select-Element (Find-Element AutomationId 'PreflightTab')
+        $preflightPlan = Find-Element AutomationId 'PreflightPlanSummary'
+        Assert-True ($preflightPlan.Current.Name.Contains('logical removal', [StringComparison]::OrdinalIgnoreCase)) 'Preflight did not expose its reviewed-plan snapshot summary.'
+        $startPreflight = Find-Element AutomationId 'StartPreflightButton'
+        Assert-True ($startPreflight.Current.Name.Contains('no files will be deleted', [StringComparison]::OrdinalIgnoreCase)) 'Preflight start did not expose its non-deleting automation name.'
+        Assert-True $startPreflight.Current.IsEnabled 'The current reviewed plan did not enable WPF preflight.'
+        Activate-SmokeWindow
+        $preflightInvoker = [PowerShell]::Create()
+        $null = $preflightInvoker.AddScript(@'
+param([long]$windowHandle)
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+$window = [Windows.Automation.AutomationElement]::FromHandle([IntPtr]::new($windowHandle))
+$button = $window.FindFirst(
+    [Windows.Automation.TreeScope]::Descendants,
+    [Windows.Automation.PropertyCondition]::new(
+        [Windows.Automation.AutomationElement]::AutomationIdProperty,
+        'StartPreflightButton'))
+if ($null -eq $button) { throw 'Background invoker could not find StartPreflightButton.' }
+$button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+'@).AddArgument([long]$process.MainWindowHandle)
+        $preflightInvokeAsync = $preflightInvoker.BeginInvoke()
+        $desktop = [Windows.Automation.AutomationElement]::RootElement
+        $confirmation = $null
+        for ($attempt = 0; $attempt -lt 40 -and $null -eq $confirmation; $attempt++) {
+            $confirmation = $desktop.FindFirst(
+                [Windows.Automation.TreeScope]::Descendants,
+                [Windows.Automation.AndCondition]::new(
+                    [Windows.Automation.PropertyCondition]::new(
+                        [Windows.Automation.AutomationElement]::ProcessIdProperty,
+                        $process.Id),
+                    [Windows.Automation.PropertyCondition]::new(
+                        [Windows.Automation.AutomationElement]::NameProperty,
+                        'Run preflight validation?')))
+            if ($null -eq $confirmation) { Start-Sleep -Milliseconds 100 }
+        }
+        if ($null -eq $confirmation) {
+            $topLevelNames = @($desktop.FindAll(
+                [Windows.Automation.TreeScope]::Children,
+                [Windows.Automation.PropertyCondition]::new(
+                    [Windows.Automation.AutomationElement]::ProcessIdProperty,
+                    $process.Id)) | ForEach-Object { $_.Current.Name }) -join ', '
+            if ($preflightInvokeAsync.IsCompleted) {
+                try { $null = $preflightInvoker.EndInvoke($preflightInvokeAsync) }
+                catch { throw "WPF preflight invocation failed before confirmation: $($_.Exception.Message). Top-level windows: $topLevelNames" }
+            }
+            throw "WPF preflight confirmation did not appear. Top-level windows: $topLevelNames"
+        }
+        $confirmationText = @($confirmation.Current.Name) + @($confirmation.FindAll(
+            [Windows.Automation.TreeScope]::Descendants,
+            [Windows.Automation.Condition]::TrueCondition) | ForEach-Object { $_.Current.Name }) -join ' '
+        Assert-True ($confirmationText.Contains('complete file content', [StringComparison]::OrdinalIgnoreCase)) 'Preflight confirmation did not explain complete-content hashing.'
+        Assert-True ($confirmationText.Contains('will not be opened', [StringComparison]::OrdinalIgnoreCase)) 'Preflight confirmation did not explain excluded and placeholder handling.'
+        Assert-True ($confirmationText.Contains('No files will be deleted', [StringComparison]::OrdinalIgnoreCase)) 'Preflight confirmation did not explain its non-deleting boundary.'
+        $yesLabel = $confirmation.FindFirst(
+            [Windows.Automation.TreeScope]::Descendants,
+            [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::NameProperty,
+                'Yes'))
+        Assert-True ($null -ne $yesLabel) 'Preflight confirmation did not expose a keyboard Yes action.'
+        Activate-SmokeWindow
+        [Windows.Forms.SendKeys]::SendWait('%Y')
+        Assert-True ($preflightInvokeAsync.AsyncWaitHandle.WaitOne(10000)) 'The preflight start invocation did not return after confirmation.'
+        $null = $preflightInvoker.EndInvoke($preflightInvokeAsync)
+        $preflightInvoker.Dispose()
+        $preflightInvoker = $null
+        $preflightInvokeAsync = $null
+        $preflightStatus = $null
+        for ($attempt = 0; $attempt -lt 120; $attempt++) {
+            $preflightStatus = Find-Element AutomationId 'PreflightStatusSummary' 1
+            if ($preflightStatus.Current.Name.Contains('Completed', [StringComparison]::OrdinalIgnoreCase)) {
+                break
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ($preflightStatus.Current.Name.Contains('Completed', [StringComparison]::OrdinalIgnoreCase)) 'WPF preflight did not announce a completed summary.'
+        $preflightHeading = Find-Element AutomationId 'PreflightSummaryHeading'
+        for ($attempt = 0; $attempt -lt 40 -and -not $preflightHeading.Current.HasKeyboardFocus; $attempt++) {
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True $preflightHeading.Current.HasKeyboardFocus 'Completed preflight did not move keyboard focus to its summary heading.'
+        Assert-True ($preflightStatus.Current.Name.Contains('changed 0', [StringComparison]::OrdinalIgnoreCase) -and
+            $preflightStatus.Current.Name.Contains('conflicts 0', [StringComparison]::OrdinalIgnoreCase)) 'Unchanged WPF preflight did not expose a clean structured summary.'
+        Assert-True ($null -ne (Find-FirstListItem (Find-Element AutomationId 'PreflightItemsList'))) 'WPF preflight did not expose its bounded observation details.'
+        Assert-True ([IO.File]::Exists($exactPath)) 'WPF preflight unexpectedly removed a disposable fixture file.'
+        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus with unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
+    }
+    catch {
+        $automationFailure = $_
+        throw
     }
     finally {
         try {
+            if ($null -ne $preflightInvoker) {
+                try { $preflightInvoker.Stop() } catch { }
+                $preflightInvoker.Dispose()
+                $preflightInvoker = $null
+            }
             if (-not $process.HasExited) {
                 $null = $process.CloseMainWindow()
                 if (-not $process.WaitForExit(10000)) {
                     $process.Kill($true)
                     $process.WaitForExit(5000) | Out-Null
-                    throw 'WPF app did not complete graceful shutdown within 10 seconds.'
+                    if ($null -eq $automationFailure) {
+                        throw 'WPF app did not complete graceful shutdown within 10 seconds.'
+                    }
                 }
             }
-            Assert-True ($process.ExitCode -eq 0) "WPF app exited with code $($process.ExitCode)."
-            if ($null -ne $ownedWorkerId) {
+            if ($null -eq $automationFailure) {
+                Assert-True ($process.ExitCode -eq 0) "WPF app exited with code $($process.ExitCode)."
+            }
+            if ($null -ne $ownedWorkerId -and $null -eq $automationFailure) {
                 for ($attempt = 0; $attempt -lt 20 -and $null -ne (Get-Process -Id $ownedWorkerId -ErrorAction SilentlyContinue); $attempt++) {
                     Start-Sleep -Milliseconds 250
                 }
@@ -1398,7 +1506,59 @@ try {
     }
     Assert-True ($persistedPreview.total -eq $preferencePreview.total) 'Preferred-root preview did not reconstruct consistently after restart.'
     Assert-True ([IO.File]::Exists($fileMembers.members[0].path)) 'Restarted preferred-root preview unexpectedly removed a disposable fixture file.'
+    $manualRemoval = Send-WorkerRequest $restored 'review_decision.set' @{
+        operationId = [Guid]::NewGuid().ToString('N')
+        runId = $run.id
+        groupId = $fileMembers.members[0].groupId
+        fileId = $fileMembers.members[0].id
+        decision = 'remove'
+        expectedRevision = $preferenceReversal.appliedRevision
+    }
+    Assert-True ($manualRemoval.decision -eq 'remove') 'The preflight fixture Remove decision was not recorded.'
+    $preflightOperation = [Guid]::NewGuid().ToString('N')
+    $preflightStart = Send-WorkerRequest $restored 'preflight.start' @{
+        operationId = $preflightOperation
+        runId = $run.id
+        expectedReviewRevision = $manualRemoval.appliedRevision
+    }
+    Assert-True (-not $preflightStart.replayed) 'The first preflight start was unexpectedly replayed.'
+    Assert-True ($preflightStart.preflight.reviewRevision -eq $manualRemoval.appliedRevision) 'Preflight did not freeze the exact review revision.'
+    $preflightReplay = Send-WorkerRequest $restored 'preflight.start' @{
+        operationId = $preflightOperation
+        runId = $run.id
+        expectedReviewRevision = $manualRemoval.appliedRevision
+    }
+    Assert-True $preflightReplay.replayed 'Exact active preflight replay did not return the original generation.'
+    Assert-True ($preflightReplay.preflight.id -eq $preflightStart.preflight.id) 'Preflight replay returned a different generation.'
+    $completedPreflight = Wait-PreflightTerminal $restored $preflightStart.preflight.id
+    Assert-True ($completedPreflight.status -eq 'completed') "Preflight ended in status $($completedPreflight.status)."
+    Assert-True ($completedPreflight.processedItemCount -eq $completedPreflight.totalItemCount) 'Preflight did not commit every bounded observation.'
+    Assert-True ($completedPreflight.readyCount -eq $completedPreflight.totalItemCount) 'Unchanged disposable preflight targets did not all validate ready.'
+    Assert-True ($completedPreflight.changedCount -eq 0 -and $completedPreflight.missingCount -eq 0 -and $completedPreflight.unavailableCount -eq 0 -and $completedPreflight.conflictCount -eq 0) 'Unchanged disposable preflight produced a changed, missing, unavailable, or conflict outcome.'
+    $preflightPage = Send-WorkerRequest $restored 'preflight.item.page' @{
+        preflightId = $completedPreflight.id; pageSize = 1; outcome = $null; cursor = $null
+    }
+    Assert-True ($preflightPage.total -eq $completedPreflight.totalItemCount) 'Preflight detail total diverged from its frozen item count.'
+    Assert-True ($preflightPage.items.Count -eq 1 -and $preflightPage.items[0].outcome -eq 'ready') 'Preflight detail paging did not return a ready observation.'
+    Assert-True ([IO.File]::Exists($fileMembers.members[0].path)) 'Preflight unexpectedly removed a disposable fixture file.'
     $queryDiagnostics = $firstQueryDiagnostics + (Stop-SmokeWorker $restored)
+    $restored = $null
+
+    $restored = Start-SmokeWorker
+    $null = Send-WorkerRequest $restored 'hello' @{
+        protocolVersions = @(1)
+        client = @{ name = 'windows-smoke-preflight-restart'; version = '1.0.0' }
+    }
+    $persistedPreflightResult = Send-WorkerRequest $restored 'preflight.get' @{ runId = $run.id }
+    $persistedPreflight = $persistedPreflightResult.preflight
+    Assert-True ($persistedPreflight.id -eq $completedPreflight.id -and $persistedPreflight.status -eq 'completed') 'Completed preflight did not survive worker restart.'
+    Assert-True $persistedPreflight.isCurrent 'Restarted preflight no longer matched the unchanged review revision.'
+    $persistedPreflightPage = Send-WorkerRequest $restored 'preflight.item.page' @{
+        preflightId = $persistedPreflight.id; pageSize = 200; outcome = 'ready'; cursor = $null
+    }
+    Assert-True ($persistedPreflightPage.total -eq $persistedPreflight.totalItemCount) 'Restarted preflight details did not reconstruct from durable observations.'
+    Assert-True ([IO.File]::Exists($fileMembers.members[0].path)) 'Restarted preflight browsing unexpectedly removed a disposable fixture file.'
+    $queryDiagnostics += Stop-SmokeWorker $restored
     $restored = $null
 
     foreach ($phase in @('discovering', 'hashing', 'persisting', 'analyzing_folders', 'finalizing')) {
@@ -1410,7 +1570,7 @@ try {
         'duplicate_file_drive_facet.page',
         'duplicate_folder_group.page', 'duplicate_folder_group.members',
         'review_plan.get', 'review_folder_group.page',
-        'preference_rule.preview')) {
+        'preference_rule.preview', 'preflight.item.page')) {
         Assert-True ($queryDiagnostics.Contains("kind=result_query method=$method")) "Missing $method timing."
     }
 

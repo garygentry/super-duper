@@ -54,6 +54,40 @@ public sealed class ShellViewModelTests
         Assert.AreEqual(FakeWorkerClient.Path, viewModel.WorkerExecutablePath);
     }
 
+    [TestMethod]
+    public async Task ConfirmCancelAndExitAsync_CancelsActivePreflightWithoutDeleting()
+    {
+        var client = new TestWorkerClient();
+        var run = TestWorkerClient.CreateRun(17, 1, "completed", "finalizing", DateTimeOffset.UtcNow);
+        client.ReviewPlanHandler = (_, _) => Task.FromResult(new WorkerReviewPlanView(
+            new WorkerReviewPlan(4, 17, "active", 6, "created", "updated"),
+            new WorkerReviewPlanSummary(1, 1, 1, 0, "100", 1)
+            {
+                EffectiveRemovalFileCount = 1,
+                PlannedRemovalPhysicalItemCount = 1,
+            }));
+        var running = TestWorkerClient.CreatePreflight(23, 17, "running", 6, 0, 2, 0);
+        client.LatestPreflightHandler = (_, _) => Task.FromResult<WorkerPreflight?>(running);
+        client.PreflightHandler = async (_, cancellationToken) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return running;
+        };
+        long? cancelledId = null;
+        client.PreflightCancelHandler = (preflightId, _) =>
+        {
+            cancelledId = preflightId;
+            return Task.FromResult(running with { Status = "cancelling" });
+        };
+        using var viewModel = CreateViewModel(client);
+        await viewModel.Preflight.ShowRunAsync(run);
+
+        var shouldExit = await viewModel.ConfirmCancelAndExitAsync();
+
+        Assert.IsTrue(shouldExit);
+        Assert.AreEqual(23, cancelledId);
+    }
+
     private static ShellViewModel CreateViewModel(IWorkerClient client) =>
         new(
             client,
@@ -141,6 +175,16 @@ public sealed class ShellViewModelTests
         public Task<WorkerReviewFolderGroupPage> GetReviewFolderGroupsAsync(long runId, int pageSize, string? cursor = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<WorkerReviewFolderDecisionMutation> SetReviewFolderDecisionAsync(string operationId, long runId, long folderGroupId, long folderMemberId, string decision, long expectedRevision, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerPreflight?> GetLatestPreflightAsync(long runId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerPreflight> GetPreflightAsync(long preflightId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerPreflightStartResult> StartPreflightAsync(string operationId, long runId, long expectedReviewRevision, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerPreflightItemPage> GetPreflightItemsAsync(PreflightItemQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerPreflight> CancelPreflightAsync(long preflightId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<WorkerPreferenceRulePage> ListPreferenceRulesAsync(long offset = 0, int limit = 200, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 

@@ -487,6 +487,101 @@ pub struct ReviewFolderDecisionMutation {
     pub decision: ReviewDecisionKind,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PreflightSummary {
+    pub logical_removal_count: i64,
+    pub physical_removal_count: i64,
+    pub folder_removal_count: i64,
+    pub affected_group_count: i64,
+    pub planned_removal_bytes: i64,
+    pub total_item_count: i64,
+    pub processed_item_count: i64,
+    pub ready_count: i64,
+    pub changed_count: i64,
+    pub missing_count: i64,
+    pub unavailable_count: i64,
+    pub conflict_count: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Preflight {
+    pub id: i64,
+    pub operation_id: String,
+    pub run_id: i64,
+    pub plan_id: i64,
+    pub review_revision: i64,
+    pub snapshot_signature: String,
+    pub status: String,
+    pub summary: PreflightSummary,
+    pub created_at: String,
+    pub started_at: Option<String>,
+    pub completed_at: Option<String>,
+    pub error_code: Option<String>,
+    pub error_detail: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreflightView {
+    pub preflight: Preflight,
+    pub current_review_revision: i64,
+    pub is_current: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreflightStartResult {
+    pub view: PreflightView,
+    pub replayed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreflightItem {
+    pub id: i64,
+    pub preflight_id: i64,
+    pub ordinal: i64,
+    pub target_kind: String,
+    pub target_role: String,
+    pub physical_key: String,
+    pub group_id: Option<i64>,
+    pub folder_group_id: Option<i64>,
+    pub folder_member_id: Option<i64>,
+    pub snapshot_file_id: Option<i64>,
+    pub snapshot_directory_id: Option<i64>,
+    pub snapshot_path: String,
+    pub snapshot_file_identity: Option<String>,
+    pub snapshot_file_size: Option<i64>,
+    pub snapshot_last_modified: Option<i64>,
+    pub snapshot_content_hash: Option<i64>,
+    pub snapshot_structural_fingerprint: Option<String>,
+    pub snapshot_verified_fingerprint: Option<String>,
+    pub outcome: String,
+    pub reason_code: Option<String>,
+    pub observed_file_identity: Option<String>,
+    pub observed_file_size: Option<i64>,
+    pub observed_last_modified: Option<i64>,
+    pub observed_content_hash: Option<i64>,
+    pub os_error: Option<i64>,
+    pub observed_at: Option<String>,
+    pub source_count: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreflightItemPage {
+    pub items: Vec<PreflightItem>,
+    pub total: i64,
+    pub has_more: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreflightObservation {
+    pub outcome: String,
+    pub reason_code: Option<String>,
+    pub observed_file_identity: Option<String>,
+    pub observed_file_size: Option<i64>,
+    pub observed_last_modified: Option<i64>,
+    pub observed_content_hash: Option<i64>,
+    pub os_error: Option<i64>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreferenceRule {
     pub id: i64,

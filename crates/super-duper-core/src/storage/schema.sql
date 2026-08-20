@@ -1,4 +1,4 @@
-PRAGMA user_version = 8;
+PRAGMA user_version = 9;
 
 -- Reusable, user-owned scan definitions.
 CREATE TABLE IF NOT EXISTS scan_session (
@@ -334,6 +334,81 @@ WHERE NOT EXISTS (
            OR manual.manual_revision > application.applied_revision)
 );
 
+-- A preflight is an immutable review-revision snapshot plus mutable observations for exactly one
+-- validation generation. It is intentionally independent of future file-operation state.
+CREATE TABLE IF NOT EXISTS preflight (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation_id TEXT NOT NULL UNIQUE,
+    run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+    plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+    review_revision INTEGER NOT NULL CHECK(review_revision >= 0),
+    snapshot_signature TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending', 'running', 'cancelling', 'completed', 'cancelled', 'interrupted', 'failed')),
+    logical_removal_count INTEGER NOT NULL CHECK(logical_removal_count >= 0),
+    physical_removal_count INTEGER NOT NULL CHECK(physical_removal_count >= 0),
+    folder_removal_count INTEGER NOT NULL CHECK(folder_removal_count >= 0),
+    affected_group_count INTEGER NOT NULL CHECK(affected_group_count >= 0),
+    planned_removal_bytes INTEGER NOT NULL CHECK(planned_removal_bytes >= 0),
+    total_item_count INTEGER NOT NULL CHECK(total_item_count >= 0),
+    processed_item_count INTEGER NOT NULL DEFAULT 0 CHECK(processed_item_count >= 0),
+    ready_count INTEGER NOT NULL DEFAULT 0 CHECK(ready_count >= 0),
+    changed_count INTEGER NOT NULL DEFAULT 0 CHECK(changed_count >= 0),
+    missing_count INTEGER NOT NULL DEFAULT 0 CHECK(missing_count >= 0),
+    unavailable_count INTEGER NOT NULL DEFAULT 0 CHECK(unavailable_count >= 0),
+    conflict_count INTEGER NOT NULL DEFAULT 0 CHECK(conflict_count >= 0),
+    created_at TEXT NOT NULL,
+    started_at TEXT,
+    completed_at TEXT,
+    error_code TEXT,
+    error_detail TEXT
+);
+
+CREATE TABLE IF NOT EXISTS preflight_item (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    preflight_id INTEGER NOT NULL REFERENCES preflight(id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+    target_kind TEXT NOT NULL CHECK(target_kind IN ('file', 'folder')),
+    target_role TEXT NOT NULL CHECK(target_role IN ('remove', 'survivor')),
+    physical_key TEXT NOT NULL,
+    group_id INTEGER REFERENCES duplicate_group(id) ON DELETE CASCADE,
+    folder_group_id INTEGER REFERENCES duplicate_folder_group(id) ON DELETE CASCADE,
+    folder_member_id INTEGER REFERENCES duplicate_folder_group_member(id) ON DELETE CASCADE,
+    snapshot_file_id INTEGER REFERENCES scanned_file(id) ON DELETE CASCADE,
+    snapshot_directory_id INTEGER REFERENCES directory_node(id) ON DELETE CASCADE,
+    snapshot_path TEXT NOT NULL,
+    snapshot_file_identity TEXT,
+    snapshot_file_size INTEGER CHECK(snapshot_file_size IS NULL OR snapshot_file_size >= 0),
+    snapshot_last_modified INTEGER,
+    snapshot_content_hash INTEGER,
+    snapshot_structural_fingerprint TEXT,
+    snapshot_verified_fingerprint TEXT,
+    outcome TEXT NOT NULL DEFAULT 'pending'
+        CHECK(outcome IN ('pending', 'ready', 'changed', 'missing', 'unavailable', 'conflict')),
+    reason_code TEXT,
+    observed_file_identity TEXT,
+    observed_file_size INTEGER,
+    observed_last_modified INTEGER,
+    observed_content_hash INTEGER,
+    os_error INTEGER,
+    observed_at TEXT,
+    UNIQUE(preflight_id, ordinal)
+);
+
+-- One physical item may represent multiple hard-link aliases and multiple contributing review
+-- decisions. Sources preserve those immutable logical paths without causing duplicate I/O.
+CREATE TABLE IF NOT EXISTS preflight_item_source (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL REFERENCES preflight_item(id) ON DELETE CASCADE,
+    source_kind TEXT NOT NULL CHECK(source_kind IN ('file_decision', 'folder_decision', 'survivor')),
+    group_id INTEGER REFERENCES duplicate_group(id) ON DELETE CASCADE,
+    folder_group_id INTEGER REFERENCES duplicate_folder_group(id) ON DELETE CASCADE,
+    folder_member_id INTEGER REFERENCES duplicate_folder_group_member(id) ON DELETE CASCADE,
+    file_id INTEGER REFERENCES scanned_file(id) ON DELETE CASCADE,
+    directory_id INTEGER REFERENCES directory_node(id) ON DELETE CASCADE,
+    snapshot_path TEXT NOT NULL
+);
+
 -- Structured, run-owned records for whole subtrees pruned before filesystem content access.
 CREATE TABLE IF NOT EXISTS run_exclusion (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -398,3 +473,13 @@ CREATE INDEX IF NOT EXISTS idx_review_rule_decision_plan_group
     ON review_rule_decision(plan_id, group_id, decision, file_id);
 CREATE INDEX IF NOT EXISTS idx_review_rule_reversal_plan_operation
     ON review_rule_reversal_command(plan_id, operation_id);
+CREATE INDEX IF NOT EXISTS idx_preflight_run_created
+    ON preflight(run_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_preflight_status
+    ON preflight(status, id);
+CREATE INDEX IF NOT EXISTS idx_preflight_item_page
+    ON preflight_item(preflight_id, outcome, target_role, target_kind, snapshot_path COLLATE UNICODE_NOCASE, id);
+CREATE INDEX IF NOT EXISTS idx_preflight_item_pending
+    ON preflight_item(preflight_id, ordinal) WHERE outcome = 'pending';
+CREATE INDEX IF NOT EXISTS idx_preflight_item_source_item
+    ON preflight_item_source(item_id, id);

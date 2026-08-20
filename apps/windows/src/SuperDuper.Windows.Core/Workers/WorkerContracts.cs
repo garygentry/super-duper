@@ -349,6 +349,69 @@ public sealed record WorkerReviewFolderDecisionMutation(
     bool Replayed,
     string Decision);
 
+public sealed record WorkerPreflight(
+    long Id,
+    string OperationId,
+    long RunId,
+    long PlanId,
+    long ReviewRevision,
+    string SnapshotSignature,
+    string Status,
+    long LogicalRemovalCount,
+    long PhysicalRemovalCount,
+    long FolderRemovalCount,
+    long AffectedGroupCount,
+    string PlannedRemovalBytes,
+    long TotalItemCount,
+    long ProcessedItemCount,
+    long ReadyCount,
+    long ChangedCount,
+    long MissingCount,
+    long UnavailableCount,
+    long ConflictCount,
+    string CreatedAt,
+    string? StartedAt,
+    string? CompletedAt,
+    string? ErrorCode,
+    string? ErrorDetail,
+    long CurrentReviewRevision,
+    bool IsCurrent);
+
+public sealed record WorkerPreflightStartResult(
+    WorkerPreflight Preflight,
+    bool Replayed);
+
+public sealed record PreflightItemQuery(
+    long PreflightId,
+    int PageSize,
+    string? Outcome = null,
+    string? Cursor = null);
+
+public sealed record WorkerPreflightItem(
+    long Id,
+    long PreflightId,
+    long Ordinal,
+    string TargetKind,
+    string TargetRole,
+    long? GroupId,
+    long? FolderGroupId,
+    long? FolderMemberId,
+    long? SnapshotFileId,
+    long? SnapshotDirectoryId,
+    string Path,
+    string Outcome,
+    string? ReasonCode,
+    string? ObservedFileSize,
+    long? ObservedLastModified,
+    long? OsError,
+    string? ObservedAt,
+    long SourceCount);
+
+public sealed record WorkerPreflightItemPage(
+    IReadOnlyList<WorkerPreflightItem> Items,
+    long Total,
+    string? NextCursor);
+
 public sealed record WorkerPreferenceRuleSummary(
     long Id,
     string Name,

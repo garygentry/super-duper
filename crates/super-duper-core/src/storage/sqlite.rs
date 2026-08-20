@@ -4,7 +4,7 @@ use chrono::Utc;
 use rusqlite::{params, Connection, Error, Result};
 use tracing::{debug, info};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 8;
+pub const CURRENT_SCHEMA_VERSION: i64 = 9;
 
 pub struct Database {
     conn: Connection,
@@ -14,6 +14,7 @@ impl Database {
     pub fn open(path: &str) -> Result<Self> {
         let db = Self::open_connection(path)?;
         db.reconcile_interrupted_runs()?;
+        db.reconcile_interrupted_preflights()?;
         Ok(db)
     }
 
@@ -33,6 +34,7 @@ impl Database {
         db.configure_pragmas()?;
         db.migrate_schema()?;
         db.reconcile_interrupted_runs()?;
+        db.reconcile_interrupted_preflights()?;
         Ok(db)
     }
 
@@ -67,21 +69,28 @@ impl Database {
         let version = self.schema_version()?;
         match version {
             CURRENT_SCHEMA_VERSION => self.conn.execute_batch(include_str!("schema.sql"))?,
-            7 => self.migrate_v7_to_v8()?,
+            8 => self.migrate_v8_to_v9()?,
+            7 => {
+                self.migrate_v7_to_v8()?;
+                self.migrate_v8_to_v9()?;
+            }
             6 => {
                 self.migrate_v6_to_v7()?;
                 self.migrate_v7_to_v8()?;
+                self.migrate_v8_to_v9()?;
             }
             5 => {
                 self.migrate_v5_to_v6()?;
                 self.migrate_v6_to_v7()?;
                 self.migrate_v7_to_v8()?;
+                self.migrate_v8_to_v9()?;
             }
             4 => {
                 self.migrate_v4_to_v5()?;
                 self.migrate_v5_to_v6()?;
                 self.migrate_v6_to_v7()?;
                 self.migrate_v7_to_v8()?;
+                self.migrate_v8_to_v9()?;
             }
             3 => {
                 self.migrate_v3_to_v4()?;
@@ -89,6 +98,7 @@ impl Database {
                 self.migrate_v5_to_v6()?;
                 self.migrate_v6_to_v7()?;
                 self.migrate_v7_to_v8()?;
+                self.migrate_v8_to_v9()?;
             }
             2 => self.migrate_v2_to_v3()?,
             0 if !self.has_user_tables()? => self.conn.execute_batch(include_str!("schema.sql"))?,
@@ -638,6 +648,94 @@ impl Database {
         migration
     }
 
+    fn migrate_v8_to_v9(&self) -> Result<()> {
+        info!("Migrating SQLite schema from version 8 to 9");
+        let migration = self.conn.execute_batch(
+            "BEGIN IMMEDIATE;
+             CREATE TABLE preflight (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 operation_id TEXT NOT NULL UNIQUE,
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 plan_id INTEGER NOT NULL REFERENCES review_plan(id) ON DELETE CASCADE,
+                 review_revision INTEGER NOT NULL CHECK(review_revision >= 0),
+                 snapshot_signature TEXT NOT NULL,
+                 status TEXT NOT NULL DEFAULT 'pending'
+                     CHECK(status IN ('pending', 'running', 'cancelling', 'completed', 'cancelled', 'interrupted', 'failed')),
+                 logical_removal_count INTEGER NOT NULL CHECK(logical_removal_count >= 0),
+                 physical_removal_count INTEGER NOT NULL CHECK(physical_removal_count >= 0),
+                 folder_removal_count INTEGER NOT NULL CHECK(folder_removal_count >= 0),
+                 affected_group_count INTEGER NOT NULL CHECK(affected_group_count >= 0),
+                 planned_removal_bytes INTEGER NOT NULL CHECK(planned_removal_bytes >= 0),
+                 total_item_count INTEGER NOT NULL CHECK(total_item_count >= 0),
+                 processed_item_count INTEGER NOT NULL DEFAULT 0 CHECK(processed_item_count >= 0),
+                 ready_count INTEGER NOT NULL DEFAULT 0 CHECK(ready_count >= 0),
+                 changed_count INTEGER NOT NULL DEFAULT 0 CHECK(changed_count >= 0),
+                 missing_count INTEGER NOT NULL DEFAULT 0 CHECK(missing_count >= 0),
+                 unavailable_count INTEGER NOT NULL DEFAULT 0 CHECK(unavailable_count >= 0),
+                 conflict_count INTEGER NOT NULL DEFAULT 0 CHECK(conflict_count >= 0),
+                 created_at TEXT NOT NULL,
+                 started_at TEXT,
+                 completed_at TEXT,
+                 error_code TEXT,
+                 error_detail TEXT
+             );
+             CREATE TABLE preflight_item (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 preflight_id INTEGER NOT NULL REFERENCES preflight(id) ON DELETE CASCADE,
+                 ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+                 target_kind TEXT NOT NULL CHECK(target_kind IN ('file', 'folder')),
+                 target_role TEXT NOT NULL CHECK(target_role IN ('remove', 'survivor')),
+                 physical_key TEXT NOT NULL,
+                 group_id INTEGER REFERENCES duplicate_group(id) ON DELETE CASCADE,
+                 folder_group_id INTEGER REFERENCES duplicate_folder_group(id) ON DELETE CASCADE,
+                 folder_member_id INTEGER REFERENCES duplicate_folder_group_member(id) ON DELETE CASCADE,
+                 snapshot_file_id INTEGER REFERENCES scanned_file(id) ON DELETE CASCADE,
+                 snapshot_directory_id INTEGER REFERENCES directory_node(id) ON DELETE CASCADE,
+                 snapshot_path TEXT NOT NULL,
+                 snapshot_file_identity TEXT,
+                 snapshot_file_size INTEGER CHECK(snapshot_file_size IS NULL OR snapshot_file_size >= 0),
+                 snapshot_last_modified INTEGER,
+                 snapshot_content_hash INTEGER,
+                 snapshot_structural_fingerprint TEXT,
+                 snapshot_verified_fingerprint TEXT,
+                 outcome TEXT NOT NULL DEFAULT 'pending'
+                     CHECK(outcome IN ('pending', 'ready', 'changed', 'missing', 'unavailable', 'conflict')),
+                 reason_code TEXT,
+                 observed_file_identity TEXT,
+                 observed_file_size INTEGER,
+                 observed_last_modified INTEGER,
+                 observed_content_hash INTEGER,
+                 os_error INTEGER,
+                 observed_at TEXT,
+                 UNIQUE(preflight_id, ordinal)
+             );
+             CREATE TABLE preflight_item_source (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 item_id INTEGER NOT NULL REFERENCES preflight_item(id) ON DELETE CASCADE,
+                 source_kind TEXT NOT NULL CHECK(source_kind IN ('file_decision', 'folder_decision', 'survivor')),
+                 group_id INTEGER REFERENCES duplicate_group(id) ON DELETE CASCADE,
+                 folder_group_id INTEGER REFERENCES duplicate_folder_group(id) ON DELETE CASCADE,
+                 folder_member_id INTEGER REFERENCES duplicate_folder_group_member(id) ON DELETE CASCADE,
+                 file_id INTEGER REFERENCES scanned_file(id) ON DELETE CASCADE,
+                 directory_id INTEGER REFERENCES directory_node(id) ON DELETE CASCADE,
+                 snapshot_path TEXT NOT NULL
+             );
+             CREATE INDEX idx_preflight_run_created ON preflight(run_id, id DESC);
+             CREATE INDEX idx_preflight_status ON preflight(status, id);
+             CREATE INDEX idx_preflight_item_page
+                 ON preflight_item(preflight_id, outcome, target_role, target_kind, snapshot_path COLLATE UNICODE_NOCASE, id);
+             CREATE INDEX idx_preflight_item_pending
+                 ON preflight_item(preflight_id, ordinal) WHERE outcome = 'pending';
+             CREATE INDEX idx_preflight_item_source_item ON preflight_item_source(item_id, id);
+             PRAGMA user_version = 9;
+             COMMIT;",
+        );
+        if migration.is_err() {
+            let _ = self.conn.execute_batch("ROLLBACK;");
+        }
+        migration
+    }
+
     pub fn reconcile_interrupted_runs(&self) -> Result<usize> {
         let now = Utc::now().to_rfc3339();
         let count = self.conn.execute(
@@ -653,6 +751,22 @@ impl Database {
         Ok(count)
     }
 
+    pub fn reconcile_interrupted_preflights(&self) -> Result<usize> {
+        let now = Utc::now().to_rfc3339();
+        let count = self.conn.execute(
+            "UPDATE preflight
+             SET status = 'interrupted', completed_at = ?1,
+                 error_code = COALESCE(error_code, 'worker_interrupted'),
+                 error_detail = COALESCE(error_detail, 'Worker exited before preflight reached a terminal state')
+             WHERE status IN ('running', 'cancelling')",
+            params![now],
+        )?;
+        if count > 0 {
+            info!("Reconciled {} abandoned preflight(s) to interrupted", count);
+        }
+        Ok(count)
+    }
+
     pub fn connection(&self) -> &Connection {
         &self.conn
     }
@@ -660,6 +774,9 @@ impl Database {
     pub fn truncate_all(&self) -> Result<()> {
         self.conn.execute_batch(
             "BEGIN;
+             DELETE FROM preflight_item_source;
+             DELETE FROM preflight_item;
+             DELETE FROM preflight;
              DELETE FROM preference_rule_command;
              DELETE FROM review_rule_reversal_command;
              DELETE FROM review_rule_decision;

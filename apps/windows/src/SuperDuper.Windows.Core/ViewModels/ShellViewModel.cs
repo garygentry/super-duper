@@ -54,6 +54,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         History = new RunHistoryViewModel(workerClient);
         DuplicateFiles = new DuplicateFilesViewModel(workerClient, clipboard, explorer);
         DuplicateFolders = new DuplicateFoldersViewModel(workerClient, clipboard, explorer);
+        Preflight = new PreflightViewModel(workerClient, confirmation);
         DuplicateFiles.ReviewRevisionChanged += OnFileReviewRevisionChanged;
         DuplicateFolders.ReviewRevisionChanged += OnFolderReviewRevisionChanged;
 
@@ -86,6 +87,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     public DuplicateFilesViewModel DuplicateFiles { get; }
 
     public DuplicateFoldersViewModel DuplicateFolders { get; }
+
+    public PreflightViewModel Preflight { get; }
 
     public WorkerConnectionState ConnectionState
     {
@@ -276,6 +279,26 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     {
         if (ActiveRunId is not long runId)
         {
+            if (Preflight.Preflight is not { } preflight || !Preflight.IsRunning)
+            {
+                return true;
+            }
+            var preflightConfirmed = await _confirmation.ConfirmAsync(
+                "Cancel preflight and exit?",
+                "Preflight validation is still running. Cancel it and close Super Duper? No files will be deleted.",
+                cancellationToken);
+            if (!preflightConfirmed)
+            {
+                return false;
+            }
+            try
+            {
+                await _workerClient.CancelPreflightAsync(preflight.Id, cancellationToken);
+            }
+            catch
+            {
+                // Closing stdin remains the bounded last-resort cancellation path during disposal.
+            }
             return true;
         }
         var sessionName = Sessions.Find(_activeSessionId ?? -1)?.Name ?? "the active session";
@@ -325,13 +348,20 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         Progress.Dispose();
         DuplicateFiles.Dispose();
         DuplicateFolders.Dispose();
+        Preflight.Dispose();
     }
 
-    private void OnFileReviewRevisionChanged(long runId, long revision) =>
+    private void OnFileReviewRevisionChanged(long runId, long revision)
+    {
         _ = DuplicateFolders.RefreshReviewRevisionAsync(runId, revision);
+        _ = Preflight.RefreshReviewRevisionAsync(runId, revision);
+    }
 
-    private void OnFolderReviewRevisionChanged(long runId, long revision) =>
+    private void OnFolderReviewRevisionChanged(long runId, long revision)
+    {
         _ = DuplicateFiles.RefreshReviewRevisionAsync(runId, revision);
+        _ = Preflight.RefreshReviewRevisionAsync(runId, revision);
+    }
 
     private Task BeginNewSessionAsync()
     {
@@ -344,6 +374,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         Progress.ShowRun(null);
         _ = DuplicateFiles.ShowRunAsync(null);
         _ = DuplicateFolders.ShowRunAsync(null);
+        _ = Preflight.ShowRunAsync(null);
         DisplaySessionName = "New session";
         SelectedTabIndex = 0;
         ContentErrorMessage = null;
@@ -379,6 +410,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             Progress.ShowRun(History.SelectedRun?.Run);
             await DuplicateFiles.ShowRunAsync(History.SelectedRun?.Run, token);
             await DuplicateFolders.ShowRunAsync(History.SelectedRun?.Run, token);
+            await Preflight.ShowRunAsync(History.SelectedRun?.Run, token);
             if (latest?.Status is "pending" or "running" or "cancelling")
             {
                 SetActiveRun(latest);
@@ -529,6 +561,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         Progress.ShowRun(run);
         _ = DuplicateFiles.ShowRunAsync(run);
         _ = DuplicateFolders.ShowRunAsync(run);
+        _ = Preflight.ShowRunAsync(run);
     }
 
     private void OnSetupPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -669,6 +702,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         Progress.ShowRun(null);
         _ = DuplicateFiles.ShowRunAsync(null);
         _ = DuplicateFolders.ShowRunAsync(null);
+        _ = Preflight.ShowRunAsync(null);
         OnPropertyChanged(nameof(IsEmptyState));
     }
 
@@ -680,6 +714,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             Progress.ShowRun(History.SelectedRun?.Run);
             await DuplicateFiles.ShowRunAsync(History.SelectedRun?.Run);
             await DuplicateFolders.ShowRunAsync(History.SelectedRun?.Run);
+            await Preflight.ShowRunAsync(History.SelectedRun?.Run);
         }
         catch (Exception exception)
         {

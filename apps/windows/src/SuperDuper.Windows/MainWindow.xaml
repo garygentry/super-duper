@@ -80,6 +80,9 @@
                         <TabItem AutomationProperties.AutomationId="DuplicateFoldersTab" Header="Duplicate folders">
                             <views:DuplicateFoldersView DataContext="{Binding DuplicateFolders}" />
                         </TabItem>
+                        <TabItem AutomationProperties.AutomationId="PreflightTab" Header="Preflight">
+                            <views:PreflightView DataContext="{Binding Preflight}" />
+                        </TabItem>
                     </TabControl>
 
                     <Border Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"

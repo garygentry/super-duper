@@ -5,13 +5,52 @@ use std::path::{Component, Path};
 use std::ptr;
 use winapi::shared::minwindef::DWORD;
 use winapi::um::fileapi::{
-    CreateFileW, GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION, OPEN_EXISTING,
+    CreateFileW, GetFileAttributesW, GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+    INVALID_FILE_ATTRIBUTES, OPEN_EXISTING,
 };
 use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
 use winapi::um::winbase::FILE_FLAG_BACKUP_SEMANTICS;
 use winapi::um::winnt::{
+    FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_OFFLINE, FILE_ATTRIBUTE_REPARSE_POINT,
     FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
 };
+
+use super::PathSafety;
+
+const FILE_ATTRIBUTE_RECALL_ON_OPEN: DWORD = 0x0004_0000;
+const FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS: DWORD = 0x0040_0000;
+
+/// Classify attributes without opening the path. Cloud placeholder and reparse results must be
+/// handled before any metadata, identity, canonicalization, or content operation.
+pub fn classify_path_without_open(path: &Path) -> io::Result<PathSafety> {
+    let mut wide = path.as_os_str().encode_wide().collect::<Vec<_>>();
+    wide.push(0);
+    let attributes = unsafe { GetFileAttributesW(wide.as_ptr()) };
+    if attributes == INVALID_FILE_ATTRIBUTES {
+        let error = io::Error::last_os_error();
+        return if error.kind() == io::ErrorKind::NotFound {
+            Ok(PathSafety::Missing)
+        } else {
+            Err(error)
+        };
+    }
+    if attributes
+        & (FILE_ATTRIBUTE_OFFLINE
+            | FILE_ATTRIBUTE_RECALL_ON_OPEN
+            | FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS)
+        != 0
+    {
+        return Ok(PathSafety::CloudPlaceholder);
+    }
+    if attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return Ok(PathSafety::ReparsePoint);
+    }
+    if attributes & FILE_ATTRIBUTE_DIRECTORY != 0 {
+        Ok(PathSafety::Directory)
+    } else {
+        Ok(PathSafety::File)
+    }
+}
 
 pub fn get_drive_letter(path: &Path) -> Option<OsString> {
     for component in path.components() {
