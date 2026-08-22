@@ -117,6 +117,35 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         : $"{StatusText(Operation.Status)}. Recycled {Operation.RecycledCount:N0}; failed {Operation.FailedCount:N0}; "
           + $"cancelled {Operation.CancelledCount:N0}; unknown {Operation.UnknownCount:N0}; pending {Operation.PendingResultCount:N0}.";
 
+    public string CancellationDisclosure => Operation?.Status switch
+    {
+        "prepared" or "awaiting_confirmation" =>
+            "No Shell work has started. Leaving this screen does not move any files.",
+        "submitted" =>
+            "Cancellation can still stop before a Shell batch starts. It cannot undo an item that Windows has already recycled.",
+        "executing" or "cancelling" =>
+            "Cancellation is boundary-aware: the current Windows Shell item may finish, then processing stops before the next safe item or batch. Already recycled items are not restored by the app.",
+        "recovery_required" =>
+            "Do not retry this operation. Windows may have recycled one or more unknown items before reporting was interrupted.",
+        "partially_completed" =>
+            "Some items were recycled and some were not. Cancellation and failures never restore items that Windows already recycled.",
+        "completed" =>
+            "Windows reported the operation complete. Restore, if available, is managed independently through the Windows Recycle Bin.",
+        "cancelled" =>
+            "Processing stopped at a safe boundary. Items recycled before cancellation were not restored by the app.",
+        "failed" =>
+            "Processing failed. Any item already reported as recycled was not restored by the app.",
+        "expired" =>
+            "The freshness lease expired before execution; this intent cannot be submitted.",
+        _ => "No cancellation boundary is available for this operation state.",
+    };
+
+    public string RecoveryGuidance => Operation?.Status == "recovery_required"
+        ? "Recovery requires operator review of every unknown item in its source location and in the Windows Recycle Bin. This build preserves the evidence and cannot resolve or replay the operation."
+        : string.Empty;
+
+    public bool HasRecoveryGuidance => !string.IsNullOrEmpty(RecoveryGuidance);
+
     public string RevisionStatus => Operation is null || Operation.IsCurrent
         ? string.Empty
         : $"This operation is bound to review revision {Operation.ReviewRevision:N0}; the current revision is {Operation.CurrentReviewRevision:N0}.";
@@ -269,7 +298,8 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         {
             nameof(HasOperation), nameof(IsExecutorEnabled), nameof(CanSubmit), nameof(CanMoveNext),
             nameof(CanMovePrevious), nameof(BoundaryNotice), nameof(ConfirmationSummary),
-            nameof(ProgressSummary), nameof(RevisionStatus), nameof(PageStatus),
+            nameof(ProgressSummary), nameof(CancellationDisclosure), nameof(RecoveryGuidance),
+            nameof(HasRecoveryGuidance), nameof(RevisionStatus), nameof(PageStatus),
         })
         {
             OnPropertyChanged(property);

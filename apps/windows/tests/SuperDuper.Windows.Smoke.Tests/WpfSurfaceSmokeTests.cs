@@ -396,6 +396,16 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 VirtualizationMode.Recycling,
                 VirtualizingPanel.GetVirtualizationMode(recycleItems));
+            var cancellationDisclosure = FindByAutomationId<TextBlock>(
+                preflight, "RecycleOperationCancellationDisclosure");
+            Assert.AreEqual(
+                "CancellationDisclosure",
+                BindingOperations.GetBinding(cancellationDisclosure, TextBlock.TextProperty)?.Path.Path);
+            var recoveryGuidance = FindByAutomationId<Border>(preflight, "RecycleOperationRecoveryGuidance");
+            Assert.AreEqual(AutomationLiveSetting.Assertive, AutomationProperties.GetLiveSetting(recoveryGuidance));
+            Assert.AreEqual(
+                "RecoveryGuidance",
+                BindingOperations.GetBinding(recoveryGuidance, AutomationProperties.NameProperty)?.Path.Path);
             var recycleNext = FindByAutomationId<Button>(preflight, "RecycleOperationNextPageButton");
             Assert.IsTrue(recycleNext.Focusable && KeyboardNavigation.GetIsTabStop(recycleNext));
             var folderGroupStatus = FindByAutomationId<TextBlock>(folders, "FolderGroupCount");

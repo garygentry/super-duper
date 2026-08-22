@@ -213,6 +213,12 @@ and location/detail pages are open. Record focus, announcement order/coalescing,
 placement, and keyboard-only access. Automated WPF tests cannot be used to mark these physical rows
 passed.
 
+The read-only WPF reconstruction now exposes state-specific cancellation wording and an assertive
+`recovery_required` warning that forbids retry, directs the operator to inspect every unknown source
+and Recycle Bin item, and states that this build cannot resolve or replay the operation. Automated
+Core and STA coverage lock that contract while `CanSubmit` remains false. This does not replace any
+Narrator/NVDA, high-contrast, or physical multi-monitor DPI observation above.
+
 ## Review boundary
 
 Attach the JSON, Markdown, logs, TRX, host description, and operator notes to a separate review.

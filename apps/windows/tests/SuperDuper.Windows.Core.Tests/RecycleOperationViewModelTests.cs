@@ -31,7 +31,39 @@ public sealed class RecycleOperationViewModelTests
         StringAssert.Contains(viewModel.ConfirmationSummary, "excluded locations remain untouched");
         StringAssert.Contains(viewModel.ConfirmationSummary, "partial or ambiguous results");
         StringAssert.Contains(viewModel.BoundaryNotice, "execution is disabled");
+        StringAssert.Contains(viewModel.CancellationDisclosure, "No Shell work has started");
+        Assert.IsFalse(viewModel.HasRecoveryGuidance);
         Assert.IsTrue(viewModel.AnnouncementVersion > 0);
+    }
+
+    [TestMethod]
+    public async Task ExplainsActiveCancellationBoundaryAndAmbiguousRecoveryWithoutOfferingRetry()
+    {
+        var worker = new TestWorkerClient();
+        var operation = TestWorkerClient.CreateRecycleOperation(8, 12, 7, 4) with
+        {
+            Status = "executing",
+        };
+        worker.LatestRecycleOperationHandler = (_, _) => Task.FromResult<WorkerRecycleOperation?>(operation);
+        using var viewModel = new RecycleOperationViewModel(worker, new DisabledCapability());
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        StringAssert.Contains(viewModel.CancellationDisclosure, "current Windows Shell item may finish");
+        StringAssert.Contains(viewModel.CancellationDisclosure, "Already recycled items are not restored");
+        Assert.IsFalse(viewModel.CanSubmit);
+
+        worker.LatestRecycleOperationHandler = (_, _) => Task.FromResult<WorkerRecycleOperation?>(
+            operation with { Status = "recovery_required", UnknownCount = 1 });
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        StringAssert.Contains(viewModel.CancellationDisclosure, "Do not retry");
+        StringAssert.Contains(viewModel.RecoveryGuidance, "every unknown item");
+        StringAssert.Contains(viewModel.RecoveryGuidance, "cannot resolve or replay");
+        Assert.IsTrue(viewModel.HasRecoveryGuidance);
+        Assert.IsFalse(viewModel.CanSubmit);
     }
 
     [TestMethod]

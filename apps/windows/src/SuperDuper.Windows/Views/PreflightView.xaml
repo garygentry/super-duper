@@ -121,6 +121,19 @@
                         <TextBlock Margin="0,6,0,0"
                                    AutomationProperties.AutomationId="RecycleOperationProgressSummary"
                                    Text="{Binding ProgressSummary}" TextWrapping="Wrap" />
+                        <TextBlock Margin="0,6,0,0"
+                                   AutomationProperties.AutomationId="RecycleOperationCancellationDisclosure"
+                                   AutomationProperties.Name="{Binding CancellationDisclosure}"
+                                   Text="{Binding CancellationDisclosure}" TextWrapping="Wrap" />
+                        <Border Margin="0,8,0,0" Padding="10"
+                                BorderBrush="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
+                                BorderThickness="1"
+                                AutomationProperties.AutomationId="RecycleOperationRecoveryGuidance"
+                                AutomationProperties.Name="{Binding RecoveryGuidance}"
+                                AutomationProperties.LiveSetting="Assertive"
+                                Visibility="{Binding HasRecoveryGuidance, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock FontWeight="SemiBold" Text="{Binding RecoveryGuidance}" TextWrapping="Wrap" />
+                        </Border>
                         <TextBlock Margin="0,4,0,0"
                                    Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
                                    Text="{Binding RevisionStatus}" TextWrapping="Wrap" />
