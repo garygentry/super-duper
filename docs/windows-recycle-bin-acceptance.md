@@ -218,7 +218,8 @@ The read-only WPF reconstruction now exposes state-specific cancellation wording
 and Recycle Bin item, and states that this build cannot resolve or replay the operation. Automated
 Core and STA coverage lock that contract while `CanSubmit` remains false. It also exposes a
 selectable, path-free recovery summary with the stable operation key, evidence record, run,
-preflight, review revision, outcome counts, and stored error code for diagnostic handoff. The
+preflight, review revision, policy version, immutable preflight/intent signatures, lifecycle times,
+cancellation-request state, outcome counts, and stored error code for diagnostic handoff. The
 summary does not inspect the filesystem, resolve an unknown item, or replace any Narrator/NVDA,
 high-contrast, or physical multi-monitor DPI observation above.
 

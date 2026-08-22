@@ -59,6 +59,8 @@ public sealed class RecycleOperationViewModelTests
             {
                 Status = "recovery_required",
                 UnknownCount = 1,
+                SubmittedAt = "2026-08-22T20:01:02.000Z",
+                CancellationRequested = true,
                 ErrorCode = "worker_interrupted",
                 ErrorDetail = "Shell result reporting was interrupted.",
             });
@@ -72,6 +74,13 @@ public sealed class RecycleOperationViewModelTests
         StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Evidence record: 8");
         StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Run: 12");
         StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Preflight: 7");
+        StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Policy version: 1");
+        StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Preflight snapshot signature:");
+        StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Intent signature:");
+        StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Prepared at:");
+        StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Submitted at: 2026-08-22T20:01:02.000Z");
+        StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Completed at: none recorded");
+        StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Cancellation requested: true");
         StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "unknown: 1");
         StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Error code: worker_interrupted");
         Assert.IsFalse(viewModel.RecoveryEvidenceSummary.Contains(@"C:\", StringComparison.Ordinal));

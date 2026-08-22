@@ -123,4 +123,6 @@ Milestone 11 non-deleting preflight slice is accepted independently of the later
 live-state overlay. Its revision-bound Recycle Bin operation contract, strictly non-mutating durable
 foundation, separately gated native executor, and acceptance evidence tooling are implemented.
 Production execution remains disabled while provider, physical-accessibility, representative-
-performance, constants, residual-TOCTOU, and ambiguous-recovery gates remain open.
+performance, constants, residual-TOCTOU, and ambiguous-recovery gates remain open. Read-only
+recovery handoff includes path-free durable identifiers, signatures, lifecycle times, aggregate
+outcomes, and stored error codes, but does not resolve ambiguous items.

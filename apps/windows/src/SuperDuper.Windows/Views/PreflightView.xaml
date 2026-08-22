@@ -138,7 +138,7 @@
                                     Visibility="{Binding HasRecoveryGuidance, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <TextBlock FontWeight="SemiBold" Text="Recovery evidence summary" />
                             <TextBlock Margin="0,2,0,4" TextWrapping="Wrap"
-                                       Text="Select this summary and press Ctrl+C to copy it for diagnosis. It contains identifiers and outcomes, not file paths." />
+                                       Text="Select this summary and press Ctrl+C to copy it for diagnosis. It contains identifiers, immutable signatures, lifecycle times, and outcomes, not file paths." />
                             <TextBox Padding="8" IsReadOnly="True" AcceptsReturn="True"
                                      AutomationProperties.AutomationId="RecycleOperationRecoveryEvidenceSummary"
                                      AutomationProperties.Name="Selectable Recycle Bin recovery evidence summary"
