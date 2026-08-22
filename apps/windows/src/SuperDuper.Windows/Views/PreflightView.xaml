@@ -134,6 +134,17 @@
                                 Visibility="{Binding HasRecoveryGuidance, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <TextBlock FontWeight="SemiBold" Text="{Binding RecoveryGuidance}" TextWrapping="Wrap" />
                         </Border>
+                        <StackPanel Margin="0,8,0,0"
+                                    Visibility="{Binding HasRecoveryGuidance, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock FontWeight="SemiBold" Text="Recovery evidence summary" />
+                            <TextBlock Margin="0,2,0,4" TextWrapping="Wrap"
+                                       Text="Select this summary and press Ctrl+C to copy it for diagnosis. It contains identifiers and outcomes, not file paths." />
+                            <TextBox Padding="8" IsReadOnly="True" AcceptsReturn="True"
+                                     AutomationProperties.AutomationId="RecycleOperationRecoveryEvidenceSummary"
+                                     AutomationProperties.Name="Selectable Recycle Bin recovery evidence summary"
+                                     Text="{Binding RecoveryEvidenceSummary, Mode=OneWay}"
+                                     TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+                        </StackPanel>
                         <TextBlock Margin="0,4,0,0"
                                    Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
                                    Text="{Binding RevisionStatus}" TextWrapping="Wrap" />

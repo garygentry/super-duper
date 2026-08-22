@@ -146,6 +146,18 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
 
     public bool HasRecoveryGuidance => !string.IsNullOrEmpty(RecoveryGuidance);
 
+    public string RecoveryEvidenceSummary => Operation?.Status == "recovery_required"
+        ? $"Operation key: {Operation.OperationId}\n"
+          + $"Evidence record: {Operation.Id}\n"
+          + $"Run: {Operation.RunId}\n"
+          + $"Preflight: {Operation.PreflightId}\n"
+          + $"Review revision: {Operation.ReviewRevision}\n"
+          + $"Status: {Operation.Status}\n"
+          + $"Recycled: {Operation.RecycledCount}; failed: {Operation.FailedCount}; cancelled: {Operation.CancelledCount}; "
+          + $"unknown: {Operation.UnknownCount}; pending: {Operation.PendingResultCount}\n"
+          + $"Error code: {Operation.ErrorCode ?? "none recorded"}"
+        : string.Empty;
+
     public string RevisionStatus => Operation is null || Operation.IsCurrent
         ? string.Empty
         : $"This operation is bound to review revision {Operation.ReviewRevision:N0}; the current revision is {Operation.CurrentReviewRevision:N0}.";
@@ -299,7 +311,8 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             nameof(HasOperation), nameof(IsExecutorEnabled), nameof(CanSubmit), nameof(CanMoveNext),
             nameof(CanMovePrevious), nameof(BoundaryNotice), nameof(ConfirmationSummary),
             nameof(ProgressSummary), nameof(CancellationDisclosure), nameof(RecoveryGuidance),
-            nameof(HasRecoveryGuidance), nameof(RevisionStatus), nameof(PageStatus),
+            nameof(HasRecoveryGuidance), nameof(RecoveryEvidenceSummary), nameof(RevisionStatus),
+            nameof(PageStatus),
         })
         {
             OnPropertyChanged(property);

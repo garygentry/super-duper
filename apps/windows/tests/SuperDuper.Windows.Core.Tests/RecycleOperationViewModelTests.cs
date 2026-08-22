@@ -55,13 +55,27 @@ public sealed class RecycleOperationViewModelTests
         Assert.IsFalse(viewModel.CanSubmit);
 
         worker.LatestRecycleOperationHandler = (_, _) => Task.FromResult<WorkerRecycleOperation?>(
-            operation with { Status = "recovery_required", UnknownCount = 1 });
+            operation with
+            {
+                Status = "recovery_required",
+                UnknownCount = 1,
+                ErrorCode = "worker_interrupted",
+                ErrorDetail = "Shell result reporting was interrupted.",
+            });
         await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
             12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
 
         StringAssert.Contains(viewModel.CancellationDisclosure, "Do not retry");
         StringAssert.Contains(viewModel.RecoveryGuidance, "every unknown item");
         StringAssert.Contains(viewModel.RecoveryGuidance, "cannot resolve or replay");
+        StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Operation key: recycle-operation-8");
+        StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Evidence record: 8");
+        StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Run: 12");
+        StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Preflight: 7");
+        StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "unknown: 1");
+        StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Error code: worker_interrupted");
+        Assert.IsFalse(viewModel.RecoveryEvidenceSummary.Contains(@"C:\", StringComparison.Ordinal));
+        Assert.IsFalse(viewModel.RecoveryEvidenceSummary.Contains("Error detail", StringComparison.Ordinal));
         Assert.IsTrue(viewModel.HasRecoveryGuidance);
         Assert.IsFalse(viewModel.CanSubmit);
     }

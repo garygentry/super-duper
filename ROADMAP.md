@@ -120,5 +120,7 @@ roadmap is maintained in
 accepted, the read-only Milestone 8 foundation is implemented with remaining operator acceptance
 gates tracked there, all four Milestone 10 review/rule slices are accepted, and the first bounded
 Milestone 11 non-deleting preflight slice is accepted independently of the later Milestone 12
-live-state overlay. The next planned step is design-only refinement of a revision-bound Recycle Bin
-operation contract before any scheduling or filesystem mutation is exposed.
+live-state overlay. Its revision-bound Recycle Bin operation contract, strictly non-mutating durable
+foundation, separately gated native executor, and acceptance evidence tooling are implemented.
+Production execution remains disabled while provider, physical-accessibility, representative-
+performance, constants, residual-TOCTOU, and ambiguous-recovery gates remain open.
