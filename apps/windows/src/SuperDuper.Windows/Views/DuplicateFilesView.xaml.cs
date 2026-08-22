@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using System.ComponentModel;
@@ -11,7 +12,7 @@ namespace SuperDuper.Windows.Views;
 public partial class DuplicateFilesView : UserControl
 {
     internal const DispatcherPriority SetNavigationFocusPriority = DispatcherPriority.Background;
-    internal static readonly TimeSpan SetNavigationFocusRetryDelay = TimeSpan.FromMilliseconds(50);
+    internal const int SetNavigationFocusAttemptLimit = 8;
 
     private PreferenceRulesViewModel? _preferenceRules;
     private bool _applicationConfirmationWasVisible;
@@ -47,9 +48,7 @@ public partial class DuplicateFilesView : UserControl
             var visible = _preferenceRules.IsApplicationConfirmationVisible;
             if (visible)
             {
-                _ = Dispatcher.BeginInvoke(
-                    new Action(() => PreferenceApplicationConfirmationHeading.Focus()),
-                    DispatcherPriority.Input);
+                _ = FocusWhenVisibleAsync(PreferenceApplicationConfirmationHeading);
             }
             else if (_applicationConfirmationWasVisible)
             {
@@ -64,9 +63,7 @@ public partial class DuplicateFilesView : UserControl
             var visible = _preferenceRules.IsReversalConfirmationVisible;
             if (visible)
             {
-                _ = Dispatcher.BeginInvoke(
-                    new Action(() => PreferenceReversalConfirmationHeading.Focus()),
-                    DispatcherPriority.Input);
+                _ = FocusWhenVisibleAsync(PreferenceReversalConfirmationHeading);
             }
             else if (_reversalConfirmationWasVisible)
             {
@@ -76,6 +73,21 @@ public partial class DuplicateFilesView : UserControl
             }
             _reversalConfirmationWasVisible = visible;
         }
+    }
+
+    private async Task<bool> FocusWhenVisibleAsync(FrameworkElement heading)
+    {
+        for (var attempt = 0; attempt < SetNavigationFocusAttemptLimit; attempt++)
+        {
+            await Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
+            if (!heading.IsVisible || !heading.IsLoaded)
+            {
+                continue;
+            }
+            heading.BringIntoView();
+            return Keyboard.Focus(heading) is not null;
+        }
+        return false;
     }
 
     private async void OnSetNavigationClick(object sender, RoutedEventArgs e)
@@ -88,9 +100,21 @@ public partial class DuplicateFilesView : UserControl
             ? viewModel.PreviousSetCommand
             : viewModel.NextSetCommand;
         await command.ExecuteAsync(null);
-        await Dispatcher.InvokeAsync(RestoreGroupGridFocus, SetNavigationFocusPriority);
-        await Task.Delay(SetNavigationFocusRetryDelay);
-        await Dispatcher.InvokeAsync(RestoreGroupGridFocus, SetNavigationFocusPriority);
+        await RestoreGroupGridFocusAsync();
+    }
+
+    internal async Task<bool> RestoreGroupGridFocusAsync()
+    {
+        for (var attempt = 0; attempt < SetNavigationFocusAttemptLimit; attempt++)
+        {
+            if (await Dispatcher.InvokeAsync(RestoreGroupGridFocus, SetNavigationFocusPriority)
+                && GroupsGrid.IsKeyboardFocusWithin)
+            {
+                return true;
+            }
+            await Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
+        }
+        return false;
     }
 
     internal bool RestoreGroupGridFocus()

@@ -56,6 +56,207 @@ function Assert-Executed([object]$Result) {
     }
 }
 
+function Start-HostDiagnosticsSampler([string]$OutputPath) {
+    try {
+        $null = New-Item -ItemType File -Path $OutputPath -ErrorAction Stop
+        return Start-Job -ArgumentList $OutputPath -ScriptBlock {
+            param([string]$Destination)
+            $ErrorActionPreference = 'Stop'
+            try {
+                $nativeSource = @(
+                    'using System;',
+                    'using System.Runtime.InteropServices;',
+                    'public static class SuperDuperAcceptanceProcessIo {',
+                    '  [StructLayout(LayoutKind.Sequential)]',
+                    '  private struct IoCounters {',
+                    '    public ulong ReadOperationCount, WriteOperationCount, OtherOperationCount;',
+                    '    public ulong ReadTransferCount, WriteTransferCount, OtherTransferCount;',
+                    '  }',
+                    '  [DllImport("kernel32.dll", SetLastError = true)]',
+                    '  private static extern bool GetProcessIoCounters(IntPtr handle, out IoCounters counters);',
+                    '  public static bool TryGetTotalTransferBytes(IntPtr handle, out ulong total) {',
+                    '    IoCounters counters;',
+                    '    bool success = GetProcessIoCounters(handle, out counters);',
+                    '    total = success ? counters.ReadTransferCount + counters.WriteTransferCount + counters.OtherTransferCount : 0;',
+                    '    return success;',
+                    '  }',
+                    '}'
+                ) -join [Environment]::NewLine
+                Add-Type -TypeDefinition $nativeSource -ErrorAction Stop
+                function Get-DiagnosticProcessSnapshot {
+                    $snapshot = @{}
+                    foreach ($item in @(Get-Process -ErrorAction SilentlyContinue)) {
+                        try {
+                            [uint64]$ioTransferBytes = 0
+                            $ioAvailable = [SuperDuperAcceptanceProcessIo]::TryGetTotalTransferBytes(
+                                $item.Handle,
+                                [ref]$ioTransferBytes)
+                            $snapshot[[int]$item.Id] = [pscustomobject][ordered]@{
+                                name = $item.ProcessName
+                                processId = [int]$item.Id
+                                cpuMilliseconds = [double]$item.TotalProcessorTime.TotalMilliseconds
+                                workingSetBytes = [long]$item.WorkingSet64
+                                ioTransferBytes = $ioTransferBytes
+                                ioAvailable = $ioAvailable
+                            }
+                        }
+                        catch {
+                            # Protected or exiting processes are omitted from competing-process detail.
+                        }
+                        finally {
+                            $item.Dispose()
+                        }
+                    }
+                    return $snapshot
+                }
+                $counterDefinitions = @(
+                    @{ key = 'processorTotal'; category = 'Processor'; counter = '% Processor Time'; instance = '_Total' },
+                    @{ key = 'processorPrivileged'; category = 'Processor'; counter = '% Privileged Time'; instance = '_Total' },
+                    @{ key = 'memoryAvailable'; category = 'Memory'; counter = 'Available MBytes'; instance = '' },
+                    @{ key = 'memoryCommitted'; category = 'Memory'; counter = '% Committed Bytes In Use'; instance = '' },
+                    @{ key = 'memoryPagesInput'; category = 'Memory'; counter = 'Pages Input/sec'; instance = '' },
+                    @{ key = 'diskBytes'; category = 'PhysicalDisk'; counter = 'Disk Bytes/sec'; instance = '_Total' },
+                    @{ key = 'diskTime'; category = 'PhysicalDisk'; counter = '% Disk Time'; instance = '_Total' },
+                    @{ key = 'diskQueue'; category = 'PhysicalDisk'; counter = 'Current Disk Queue Length'; instance = '_Total' },
+                    @{ key = 'diskSplit'; category = 'PhysicalDisk'; counter = 'Split IO/Sec'; instance = '_Total' },
+                    @{ key = 'processorQueue'; category = 'System'; counter = 'Processor Queue Length'; instance = '' },
+                    @{ key = 'contextSwitches'; category = 'System'; counter = 'Context Switches/sec'; instance = '' },
+                    @{ key = 'processes'; category = 'System'; counter = 'Processes'; instance = '' },
+                    @{ key = 'threads'; category = 'System'; counter = 'Threads'; instance = '' }
+                )
+                $counters = [ordered]@{}
+                foreach ($definition in $counterDefinitions) {
+                    $counters[$definition.key] = [Diagnostics.PerformanceCounter]::new(
+                        $definition.category,
+                        $definition.counter,
+                        $definition.instance,
+                        $true)
+                    $null = $counters[$definition.key].NextValue()
+                }
+                $previousProcesses = Get-DiagnosticProcessSnapshot
+                $previousCapturedAt = (Get-Date).ToUniversalTime()
+
+                while ($true) {
+                    Start-Sleep -Seconds 2
+                    $values = [ordered]@{}
+                    foreach ($definition in $counterDefinitions) {
+                        $values[$definition.key] = [double]$counters[$definition.key].NextValue()
+                    }
+                    $currentProcesses = Get-DiagnosticProcessSnapshot
+                    $processDeltas = [Collections.Generic.List[object]]::new()
+                    $capturedAt = (Get-Date).ToUniversalTime()
+                    $elapsedSeconds = [math]::Max(($capturedAt - $previousCapturedAt).TotalSeconds, 0.001)
+                    foreach ($processId in @($currentProcesses.Keys)) {
+                        $process = $currentProcesses[$processId]
+                        if ($previousProcesses.ContainsKey($processId) -and
+                            $process.name -eq $previousProcesses[$processId].name) {
+                            $previous = $previousProcesses[$processId]
+                            $currentCpu = $process.cpuMilliseconds
+                            $previousCpu = $previous.cpuMilliseconds
+                            $currentIo = $process.ioTransferBytes
+                            $previousIo = $previous.ioTransferBytes
+                            if ($currentCpu -ge $previousCpu) {
+                                $ioBytesPerSecond = if ($process.ioAvailable -and $previous.ioAvailable -and $currentIo -ge $previousIo) {
+                                    [math]::Round(($currentIo - $previousIo) / $elapsedSeconds, 2)
+                                }
+                                else {
+                                    $null
+                                }
+                                $processDeltas.Add([pscustomobject][ordered]@{
+                                    name = $process.Name
+                                    processId = $processId
+                                    percentProcessorTime = [math]::Round((($currentCpu - $previousCpu) / 1000 / $elapsedSeconds) * 100, 2)
+                                    workingSetBytes = [long]$process.workingSetBytes
+                                    ioDataBytesPerSecond = $ioBytesPerSecond
+                                })
+                            }
+                        }
+                    }
+                    $sample = [ordered]@{
+                        schemaVersion = 1
+                        capturedAtUtc = $capturedAt.ToString('O')
+                        status = 'captured'
+                        samplingIntervalSeconds = [math]::Round($elapsedSeconds, 3)
+                        samplerProcessId = $PID
+                        processor = $null
+                        memory = $null
+                        disk = $null
+                        contention = $null
+                        topCpuProcesses = @()
+                        topIoProcesses = @()
+                        error = $null
+                    }
+                    $sample.processor = [ordered]@{
+                        percentProcessorTime = [math]::Round($values.processorTotal, 2)
+                        percentPrivilegedTime = [math]::Round($values.processorPrivileged, 2)
+                    }
+                    $sample.memory = [ordered]@{
+                        availableMBytes = [math]::Round($values.memoryAvailable, 2)
+                        percentCommittedBytesInUse = [math]::Round($values.memoryCommitted, 2)
+                        pagesInputPerSecond = [math]::Round($values.memoryPagesInput, 2)
+                    }
+                    $sample.disk = [ordered]@{
+                        bytesPerSecond = [math]::Round($values.diskBytes, 2)
+                        percentDiskTime = [math]::Round($values.diskTime, 2)
+                        currentQueueLength = [math]::Round($values.diskQueue, 2)
+                        splitIoPerSecond = [math]::Round($values.diskSplit, 2)
+                    }
+                    $sample.contention = [ordered]@{
+                        processorQueueLength = [math]::Round($values.processorQueue, 2)
+                        contextSwitchesPerSecond = [math]::Round($values.contextSwitches, 2)
+                        processes = [math]::Round($values.processes, 0)
+                        threads = [math]::Round($values.threads, 0)
+                    }
+                    $sample.topCpuProcesses = @($processDeltas |
+                        Where-Object { $_.percentProcessorTime -gt 0 } |
+                        Sort-Object -Property PercentProcessorTime -Descending |
+                        Select-Object -First 8)
+                    $sample.topIoProcesses = @($processDeltas |
+                        Where-Object { $_.ioDataBytesPerSecond -gt 0 } |
+                        Sort-Object -Property IoDataBytesPerSecond -Descending |
+                        Select-Object -First 8)
+                    $sample | ConvertTo-Json -Depth 6 -Compress | Add-Content -LiteralPath $Destination -Encoding utf8
+                    $previousProcesses = $currentProcesses
+                    $previousCapturedAt = $capturedAt
+                }
+            }
+            catch {
+                [ordered]@{
+                    schemaVersion = 1
+                    capturedAtUtc = (Get-Date).ToUniversalTime().ToString('O')
+                    status = 'unavailable'
+                    error = $_.Exception.Message
+                } | ConvertTo-Json -Compress | Add-Content -LiteralPath $Destination -Encoding utf8
+            }
+        }
+    }
+    catch {
+        [ordered]@{
+            schemaVersion = 1
+            capturedAtUtc = (Get-Date).ToUniversalTime().ToString('O')
+            status = 'unavailable'
+            error = "Host sampler did not start: $($_.Exception.Message)"
+        } | ConvertTo-Json -Compress | Add-Content -LiteralPath $OutputPath -Encoding utf8
+        return $null
+    }
+}
+
+function Stop-HostDiagnosticsSampler([object]$Job) {
+    if ($null -eq $Job) {
+        return
+    }
+    try {
+        Stop-Job -Job $Job -ErrorAction Stop
+        Receive-Job -Job $Job -ErrorAction SilentlyContinue | Out-Null
+    }
+    catch {
+        Write-Warning "Host diagnostics sampler did not stop cleanly: $($_.Exception.Message)"
+    }
+    finally {
+        Remove-Job -Job $Job -Force -ErrorAction SilentlyContinue
+    }
+}
+
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $project = Join-Path $repoRoot 'apps/windows/tests/SuperDuper.Windows.Infrastructure.Tests/SuperDuper.Windows.Infrastructure.Tests.csproj'
 if (-not (Test-Path -LiteralPath $project -PathType Leaf)) {
@@ -63,7 +264,7 @@ if (-not (Test-Path -LiteralPath $project -PathType Leaf)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($EvidenceDirectory)) {
-    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
     $EvidenceDirectory = Join-Path $repoRoot "artifacts/windows-recycle-bin-acceptance/$stamp"
 }
 $evidenceRoot = [IO.Path]::GetFullPath($EvidenceDirectory)
@@ -71,7 +272,32 @@ $repoBoundary = $repoRoot.TrimEnd('\') + '\'
 if (-not $evidenceRoot.StartsWith($repoBoundary, [StringComparison]::OrdinalIgnoreCase)) {
     throw "EvidenceDirectory must stay inside the repository: $evidenceRoot"
 }
-$null = New-Item -ItemType Directory -Path $evidenceRoot -Force
+$evidencePathToInspect = $evidenceRoot
+while (-not $evidencePathToInspect.Equals($repoRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    if (Test-Path -LiteralPath $evidencePathToInspect) {
+        $evidencePathItem = Get-Item -LiteralPath $evidencePathToInspect -Force
+        if (-not $evidencePathItem.PSIsContainer) {
+            throw "EvidenceDirectory path component is not a directory: $evidencePathToInspect"
+        }
+        if ($evidencePathItem.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            throw "EvidenceDirectory must not traverse a reparse point: $evidencePathToInspect"
+        }
+    }
+    $evidenceParent = [IO.Path]::GetDirectoryName($evidencePathToInspect)
+    if ([string]::IsNullOrWhiteSpace($evidenceParent) -or $evidenceParent -eq $evidencePathToInspect) {
+        throw "EvidenceDirectory parent validation failed: $evidenceRoot"
+    }
+    $evidencePathToInspect = $evidenceParent
+}
+if (Test-Path -LiteralPath $evidenceRoot) {
+    $existingEvidence = @(Get-ChildItem -LiteralPath $evidenceRoot -Force)
+    if ($existingEvidence.Count -gt 0) {
+        throw "EvidenceDirectory must be new or empty so an earlier run cannot be overwritten: $evidenceRoot"
+    }
+}
+else {
+    $null = New-Item -ItemType Directory -Path $evidenceRoot
+}
 
 $matrix = [Collections.Generic.List[object]]::new()
 $commands = [Collections.Generic.List[object]]::new()
@@ -191,29 +417,84 @@ try {
     }
 
     if ($RunWarmQueryProfile) {
-        $profile = Invoke-LoggedNative 'representative-review-warm-query' 'cargo' @(
-            'test', '-p', 'super-duper-core', '--release', '--test', 'storage_tests',
-            'representative_review_workspace_profile', '--', '--ignored', '--exact', '--nocapture', '--test-threads=1'
-        )
+        $profileDiagnosticsPath = Join-Path $evidenceRoot 'representative-review-warm-query.json'
+        $hostDiagnosticsPath = Join-Path $evidenceRoot 'representative-review-host-context.jsonl'
+        $hostSampler = Start-HostDiagnosticsSampler $hostDiagnosticsPath
+        try {
+            $env:SUPER_DUPER_REVIEW_PROFILE_EVIDENCE = $profileDiagnosticsPath
+            $profile = Invoke-LoggedNative 'representative-review-warm-query' 'cargo' @(
+                'test', '-p', 'super-duper-core', '--release', '--test', 'storage_tests',
+                'representative_review_workspace_profile', '--', '--ignored', '--exact', '--nocapture', '--test-threads=1'
+            )
+        }
+        finally {
+            Remove-Item Env:SUPER_DUPER_REVIEW_PROFILE_EVIDENCE -ErrorAction SilentlyContinue
+            Stop-HostDiagnosticsSampler $hostSampler
+        }
+        $profileDiagnostics = $null
+        $profileDiagnosticsError = $null
+        if (Test-Path -LiteralPath $profileDiagnosticsPath -PathType Leaf) {
+            try {
+                $profileDiagnostics = Get-Content -LiteralPath $profileDiagnosticsPath -Raw | ConvertFrom-Json
+            }
+            catch {
+                $profileDiagnosticsError = $_.Exception.Message
+            }
+        }
+        $hostSamples = [Collections.Generic.List[object]]::new()
+        $hostInvalidSampleCount = 0
+        if (Test-Path -LiteralPath $hostDiagnosticsPath -PathType Leaf) {
+            Get-Content -LiteralPath $hostDiagnosticsPath | ForEach-Object {
+                if (-not [string]::IsNullOrWhiteSpace($_)) {
+                    try {
+                        $hostSamples.Add(($_ | ConvertFrom-Json))
+                    }
+                    catch {
+                        $hostInvalidSampleCount++
+                    }
+                }
+            }
+        }
         $profileLine = Get-Content -LiteralPath (Join-Path $evidenceRoot 'representative-review-warm-query.log') |
             Where-Object { $_ -like 'review-profile samples=*' } |
             Select-Object -Last 1
-        if ($profileLine -match 'samples=(?<samples>\d+) groups-p50=(?<groupsP50>[\d.]+)ms groups-p95=(?<groupsP95>[\d.]+)ms groups-p99=(?<groupsP99>[\d.]+)ms root-facets-p95=(?<rootP95>[\d.]+)ms drive-facets-p95=(?<driveP95>[\d.]+)ms review-plan-p95=(?<planP95>[\d.]+)ms review-groups-p95=(?<reviewP95>[\d.]+)ms private-growth=(?<growth>\d+) bytes') {
-            $measurements.Add([ordered]@{
-                name = 'representative_review_workspace_profile'
-                samples = [int]$Matches.samples
-                groupsP50Milliseconds = [double]$Matches.groupsP50
-                groupsP95Milliseconds = [double]$Matches.groupsP95
-                groupsP99Milliseconds = [double]$Matches.groupsP99
-                rootFacetsP95Milliseconds = [double]$Matches.rootP95
-                driveFacetsP95Milliseconds = [double]$Matches.driveP95
-                reviewPlanP95Milliseconds = [double]$Matches.planP95
-                reviewGroupsP95Milliseconds = [double]$Matches.reviewP95
-                privateGrowthBytes = [long]$Matches.growth
-                testPassed = $profile.exitCode -eq 0
-                acceptedAsRepresentative = $false
-            })
+        $profileMeasurement = [ordered]@{
+            name = 'representative_review_workspace_profile'
+            samples = $null
+            groupsP50Milliseconds = $null
+            groupsP95Milliseconds = $null
+            groupsP99Milliseconds = $null
+            rootFacetsP95Milliseconds = $null
+            driveFacetsP95Milliseconds = $null
+            reviewPlanP95Milliseconds = $null
+            reviewGroupsP95Milliseconds = $null
+            privateGrowthBytes = $null
+            testPassed = $profile.exitCode -eq 0
+            acceptedAsRepresentative = $false
+            acceptanceOverrideAllowed = $false
+            queryDiagnostics = $profileDiagnosticsPath
+            queryDiagnosticsCaptured = $null -ne $profileDiagnostics
+            queryDiagnosticsParseError = $profileDiagnosticsError
+            queryTimingDistributions = if ($null -ne $profileDiagnostics) { @($profileDiagnostics.queryTimingDistributions) } else { @() }
+            processSnapshotCount = if ($null -ne $profileDiagnostics) { @($profileDiagnostics.processSnapshots).Count } else { 0 }
+            hostDiagnostics = $hostDiagnosticsPath
+            hostSampleCount = $hostSamples.Count
+            hostInvalidSampleCount = $hostInvalidSampleCount
+            hostUnavailableSampleCount = @($hostSamples | Where-Object { $_.status -ne 'captured' }).Count
+            interpretation = 'p50/p75/p90 describe stable cost; p95/p99/max and aligned host/process counters describe tails. Host contention is diagnostic context only and never waives the 100 ms p95 target.'
         }
+        if ($profileLine -match 'samples=(?<samples>\d+) groups-p50=(?<groupsP50>[\d.]+)ms groups-p95=(?<groupsP95>[\d.]+)ms groups-p99=(?<groupsP99>[\d.]+)ms root-facets-p95=(?<rootP95>[\d.]+)ms drive-facets-p95=(?<driveP95>[\d.]+)ms review-plan-p95=(?<planP95>[\d.]+)ms review-groups-p95=(?<reviewP95>[\d.]+)ms private-growth=(?<growth>\d+) bytes') {
+            $profileMeasurement.samples = [int]$Matches.samples
+            $profileMeasurement.groupsP50Milliseconds = [double]$Matches.groupsP50
+            $profileMeasurement.groupsP95Milliseconds = [double]$Matches.groupsP95
+            $profileMeasurement.groupsP99Milliseconds = [double]$Matches.groupsP99
+            $profileMeasurement.rootFacetsP95Milliseconds = [double]$Matches.rootP95
+            $profileMeasurement.driveFacetsP95Milliseconds = [double]$Matches.driveP95
+            $profileMeasurement.reviewPlanP95Milliseconds = [double]$Matches.planP95
+            $profileMeasurement.reviewGroupsP95Milliseconds = [double]$Matches.reviewP95
+            $profileMeasurement.privateGrowthBytes = [long]$Matches.growth
+        }
+        $measurements.Add($profileMeasurement)
         if ($profile.exitCode -eq 0) {
             Add-MatrixEntry 'Representative review warm queries' 'measured' `
                 'The existing 100-sample Release profile completed; timings are in the evidence log and JSON measurement.' `
@@ -236,6 +517,7 @@ catch {
     $failure = $_.Exception.Message
 }
 finally {
+    Remove-Item Env:SUPER_DUPER_REVIEW_PROFILE_EVIDENCE -ErrorAction SilentlyContinue
     Remove-Item Env:SUPER_DUPER_RUN_REAL_RECYCLE_PROVIDER_TESTS -ErrorAction SilentlyContinue
     Remove-Item Env:SUPER_DUPER_RECYCLE_CLOUD_ROOT -ErrorAction SilentlyContinue
     Remove-Item Env:SUPER_DUPER_RECYCLE_LOCAL_FILE -ErrorAction SilentlyContinue
@@ -276,7 +558,7 @@ Add-MatrixEntry 'Production wiring' 'disabled' `
     'This matrix never authorizes production execution or Milestone 11 completion.'
 
 $evidence = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     capturedAt = (Get-Date).ToUniversalTime().ToString('O')
     repository = $repoRoot
     gitHead = $gitHead
@@ -295,6 +577,7 @@ $evidence = [ordered]@{
     matrix = $matrix
     productionEnabled = $false
     milestone11Complete = $false
+    evidenceRetention = 'A new or empty directory is required; failed and passing runs are never overwritten by this collector.'
     failure = $failure
 }
 $jsonPath = Join-Path $evidenceRoot 'acceptance-evidence.json'

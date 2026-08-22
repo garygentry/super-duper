@@ -30,6 +30,14 @@ The command creates a timestamped ignored directory under
 - one log per executed command; and
 - TRX results for focused .NET acceptance tests.
 
+Warm-query runs additionally retain `representative-review-warm-query.json`, containing every
+ordered query duration and test-process snapshot, and
+`representative-review-host-context.jsonl`, containing time-stamped host and competing-process
+samples. Evidence schema v2 requires a new or empty output directory; the default timestamp
+includes milliseconds. The collector refuses to overwrite a prior run, including a failed run.
+It also rejects a reparse point anywhere between the repository and evidence directory so the
+repository boundary cannot be redirected to an unrelated location.
+
 Every report explicitly records `productionEnabled:false` and `milestone11Complete:false`. A
 missing physical/provider prerequisite is `not_run` or `open`, never a pass. The collector requires
 an evidence directory inside the repository so an operator cannot accidentally overwrite an
@@ -138,6 +146,24 @@ The independent 100-sample warm-query profile can be added to an evidence run:
 This runs `representative_review_workspace_profile`. It is Milestone 8 query evidence only and does
 not close representative large-plan operation performance.
 
+The structured query file records all 500 monotonic query intervals (100 each for group/summary,
+selected-root facet, drive facet, review plan, and review groups), p50/p75/p90/p95/p99/max for each
+category, and 101 test-process snapshots: a baseline plus one after each iteration. Windows
+snapshots contain cumulative user/kernel CPU, private and working-set memory, and read/write/other
+operation and transfer counters. The host JSONL sampler uses persistent native performance
+counters for CPU, available/committed memory, paging, disk throughput/utilization/queue/splits,
+processor queue, context switches, process count, and thread count. It also samples competing
+process CPU, working set, and transfer deltas on a nominal two-second interval. Each record includes
+the measured interval and sampler PID so observer cost is visible rather than silently attributed
+to the query process.
+
+Use p50/p75/p90 to describe the stable-cost body and p95/p99/max plus the ordered intervals for the
+tail. Align those offsets with the UTC profile window and host samples when investigating
+simultaneous pressure. Host contention can explain a development-host tail; it cannot convert a
+failed p95 into a pass, waive the unchanged 100 ms target, or make the current host representative.
+Sampler initialization or counter unavailability is retained as an `unavailable` record, and a
+partial final JSONL line is counted rather than causing earlier evidence to be discarded.
+
 The 2026-08-20 read-only query-plan stabilization removed the per-group correlated across-drive
 summary probe and bounds non-name member-detail enrichment after keyset candidate selection. On the
 current development host, the pre-change session run was 75.45/136.64/176.07 ms p50/p95/p99 for
@@ -146,6 +172,18 @@ retained run failed at 55.11/198.72/283.01 ms while the independent root/drive f
 79.93/122.30 ms p95. The collector must retain that failure. The lower stable baseline does not
 close the representative-hardware gate, and an operator must not discard failures by rerunning
 until only a pass is shown.
+
+The first instrumented development-host run on 2026-08-20 also failed and remains retained. Its
+group p50/p75/p90/p95/p99/max distribution was
+52.68/54.76/94.74/140.76/243.87/728.16 ms. Selected-root, drive, review-plan, and review-group p95
+were 63.42/69.71/68.81/5.19 ms, and private growth was 880,640 bytes. All 500 query intervals and
+101 process snapshots survived the failing assertion. Three coarse initial host samples overlapped
+the profile and showed an unrelated backup process using roughly 54-66 MB/s and up to 60% of one
+logical processor; one sample also recorded a processor queue of 10. This is evidence of concurrent
+development-host pressure, not proof that every tail came from that process and not acceptance.
+The heavier initial formatted-counter sampler was then replaced by the persistent lower-overhead
+sampler described above; a separate read-only probe verified its CPU/I/O ranking. Do not rerun the
+profile merely to replace this retained failure with a pass.
 
 A qualifying large-plan operation run must record at least preflight-completion-to-prepare time,
 operator confirmation reading time, confirmation submission age, per-batch fresh-admission time,

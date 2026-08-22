@@ -1,9 +1,11 @@
 use chrono::{Duration, Utc};
 use rusqlite::{params, Connection, Error as SqlError};
+use serde::Serialize;
 use std::fs;
+use std::io::{BufWriter, Write};
 use std::path::Path;
 use std::sync::{atomic::AtomicBool, Mutex};
-use std::time::UNIX_EPOCH;
+use std::time::{Instant, UNIX_EPOCH};
 use super_duper_core::hasher::xxhash::hash_file_streaming;
 use super_duper_core::platform;
 use super_duper_core::storage::models::{
@@ -24,11 +26,17 @@ use super_duper_core::storage::sqlite::CURRENT_SCHEMA_VERSION;
 use super_duper_core::storage::Database;
 use tempfile::tempdir;
 #[cfg(windows)]
-use winapi::um::processthreadsapi::GetCurrentProcess;
+use winapi::shared::minwindef::FILETIME;
+#[cfg(windows)]
+use winapi::um::processthreadsapi::{GetCurrentProcess, GetProcessTimes};
 #[cfg(windows)]
 use winapi::um::psapi::{
     GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX,
 };
+#[cfg(windows)]
+use winapi::um::winbase::GetProcessIoCounters;
+#[cfg(windows)]
+use winapi::um::winnt::IO_COUNTERS;
 
 static LARGE_FIXTURE_TEST_LOCK: Mutex<()> = Mutex::new(());
 
@@ -3840,6 +3848,208 @@ fn current_process_private_bytes() -> u64 {
     counters.PrivateUsage as u64
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReviewProfileQuerySample {
+    sequence: usize,
+    iteration: usize,
+    category: &'static str,
+    started_offset_microseconds: u64,
+    duration_microseconds: u64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReviewProfileProcessSnapshot {
+    phase: &'static str,
+    iteration: Option<usize>,
+    captured_offset_microseconds: u64,
+    process_id: u32,
+    private_bytes: Option<u64>,
+    working_set_bytes: Option<u64>,
+    peak_working_set_bytes: Option<u64>,
+    user_cpu_100ns: Option<u64>,
+    kernel_cpu_100ns: Option<u64>,
+    read_operation_count: Option<u64>,
+    write_operation_count: Option<u64>,
+    other_operation_count: Option<u64>,
+    read_transfer_bytes: Option<u64>,
+    write_transfer_bytes: Option<u64>,
+    other_transfer_bytes: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReviewProfileTimingDistribution {
+    category: &'static str,
+    samples: usize,
+    p50_microseconds: u64,
+    p75_microseconds: u64,
+    p90_microseconds: u64,
+    p95_microseconds: u64,
+    p99_microseconds: u64,
+    max_microseconds: u64,
+    p95_target_microseconds: u64,
+    passed_p95_target: bool,
+}
+
+fn review_profile_percentile(sorted_microseconds: &[u64], percentile: usize) -> u64 {
+    sorted_microseconds[((sorted_microseconds.len() * percentile).div_ceil(100)).saturating_sub(1)]
+}
+
+fn review_profile_distribution(
+    category: &'static str,
+    samples: &[ReviewProfileQuerySample],
+) -> ReviewProfileTimingDistribution {
+    let mut durations = samples
+        .iter()
+        .filter(|sample| sample.category == category)
+        .map(|sample| sample.duration_microseconds)
+        .collect::<Vec<_>>();
+    durations.sort_unstable();
+    assert!(!durations.is_empty(), "missing {category} profile samples");
+    let p95_target_microseconds = 100_000;
+    let p95_microseconds = review_profile_percentile(&durations, 95);
+    ReviewProfileTimingDistribution {
+        category,
+        samples: durations.len(),
+        p50_microseconds: review_profile_percentile(&durations, 50),
+        p75_microseconds: review_profile_percentile(&durations, 75),
+        p90_microseconds: review_profile_percentile(&durations, 90),
+        p95_microseconds,
+        p99_microseconds: review_profile_percentile(&durations, 99),
+        max_microseconds: *durations.last().unwrap(),
+        p95_target_microseconds,
+        passed_p95_target: p95_microseconds < p95_target_microseconds,
+    }
+}
+
+#[cfg(windows)]
+fn file_time_100ns(value: FILETIME) -> u64 {
+    ((value.dwHighDateTime as u64) << 32) | value.dwLowDateTime as u64
+}
+
+#[cfg(windows)]
+fn current_review_profile_process_snapshot(
+    phase: &'static str,
+    iteration: Option<usize>,
+    captured_offset_microseconds: u64,
+) -> ReviewProfileProcessSnapshot {
+    let process = unsafe { GetCurrentProcess() };
+    let mut memory: PROCESS_MEMORY_COUNTERS_EX = unsafe { std::mem::zeroed() };
+    let memory_result = unsafe {
+        GetProcessMemoryInfo(
+            process,
+            &mut memory as *mut PROCESS_MEMORY_COUNTERS_EX as *mut PROCESS_MEMORY_COUNTERS,
+            std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32,
+        )
+    };
+    assert_ne!(memory_result, 0, "GetProcessMemoryInfo failed");
+
+    let mut creation: FILETIME = unsafe { std::mem::zeroed() };
+    let mut exit: FILETIME = unsafe { std::mem::zeroed() };
+    let mut kernel: FILETIME = unsafe { std::mem::zeroed() };
+    let mut user: FILETIME = unsafe { std::mem::zeroed() };
+    let times_result =
+        unsafe { GetProcessTimes(process, &mut creation, &mut exit, &mut kernel, &mut user) };
+    assert_ne!(times_result, 0, "GetProcessTimes failed");
+
+    let mut io: IO_COUNTERS = unsafe { std::mem::zeroed() };
+    let io_result = unsafe { GetProcessIoCounters(process, &mut io) };
+    assert_ne!(io_result, 0, "GetProcessIoCounters failed");
+
+    ReviewProfileProcessSnapshot {
+        phase,
+        iteration,
+        captured_offset_microseconds,
+        process_id: std::process::id(),
+        private_bytes: Some(memory.PrivateUsage as u64),
+        working_set_bytes: Some(memory.WorkingSetSize as u64),
+        peak_working_set_bytes: Some(memory.PeakWorkingSetSize as u64),
+        user_cpu_100ns: Some(file_time_100ns(user)),
+        kernel_cpu_100ns: Some(file_time_100ns(kernel)),
+        read_operation_count: Some(io.ReadOperationCount),
+        write_operation_count: Some(io.WriteOperationCount),
+        other_operation_count: Some(io.OtherOperationCount),
+        read_transfer_bytes: Some(io.ReadTransferCount),
+        write_transfer_bytes: Some(io.WriteTransferCount),
+        other_transfer_bytes: Some(io.OtherTransferCount),
+    }
+}
+
+#[cfg(not(windows))]
+fn current_review_profile_process_snapshot(
+    phase: &'static str,
+    iteration: Option<usize>,
+    captured_offset_microseconds: u64,
+) -> ReviewProfileProcessSnapshot {
+    ReviewProfileProcessSnapshot {
+        phase,
+        iteration,
+        captured_offset_microseconds,
+        process_id: std::process::id(),
+        private_bytes: None,
+        working_set_bytes: None,
+        peak_working_set_bytes: None,
+        user_cpu_100ns: None,
+        kernel_cpu_100ns: None,
+        read_operation_count: None,
+        write_operation_count: None,
+        other_operation_count: None,
+        read_transfer_bytes: None,
+        write_transfer_bytes: None,
+        other_transfer_bytes: None,
+    }
+}
+
+fn measure_review_profile_query<T>(
+    profile_started: Instant,
+    iteration: usize,
+    category: &'static str,
+    samples: &mut Vec<ReviewProfileQuerySample>,
+    operation: impl FnOnce() -> T,
+) -> T {
+    let started_offset_microseconds = profile_started.elapsed().as_micros() as u64;
+    let started = Instant::now();
+    let result = operation();
+    samples.push(ReviewProfileQuerySample {
+        sequence: samples.len(),
+        iteration,
+        category,
+        started_offset_microseconds,
+        duration_microseconds: started.elapsed().as_micros() as u64,
+    });
+    result
+}
+
+#[test]
+fn review_profile_distributions_preserve_stable_and_tail_costs() {
+    let samples = (0..100)
+        .map(|iteration| ReviewProfileQuerySample {
+            sequence: iteration,
+            iteration,
+            category: "group_summary",
+            started_offset_microseconds: iteration as u64 * 1_000,
+            duration_microseconds: if iteration == 99 {
+                250_000
+            } else {
+                (iteration as u64 + 1) * 1_000
+            },
+        })
+        .collect::<Vec<_>>();
+
+    let distribution = review_profile_distribution("group_summary", &samples);
+
+    assert_eq!(distribution.samples, 100);
+    assert_eq!(distribution.p50_microseconds, 50_000);
+    assert_eq!(distribution.p75_microseconds, 75_000);
+    assert_eq!(distribution.p90_microseconds, 90_000);
+    assert_eq!(distribution.p95_microseconds, 95_000);
+    assert_eq!(distribution.p99_microseconds, 99_000);
+    assert_eq!(distribution.max_microseconds, 250_000);
+    assert!(distribution.passed_p95_target);
+}
+
 #[test]
 fn hundred_thousand_group_preference_preview_pages_and_summary_stay_bounded() {
     let _large_fixture_guard = LARGE_FIXTURE_TEST_LOCK.lock().unwrap();
@@ -4532,34 +4742,85 @@ fn representative_review_workspace_profile() {
     let mut drive_facet_durations = Vec::with_capacity(100);
     let mut review_plan_durations = Vec::with_capacity(100);
     let mut review_group_durations = Vec::with_capacity(100);
+    let profile_started_at_utc = Utc::now();
+    let profile_started = Instant::now();
+    let mut query_samples = Vec::with_capacity(500);
+    let mut process_snapshots = Vec::with_capacity(101);
+    process_snapshots.push(current_review_profile_process_snapshot(
+        "baseline",
+        None,
+        profile_started.elapsed().as_micros() as u64,
+    ));
 
-    for _ in 0..100 {
-        let started = std::time::Instant::now();
-        let group_page = db.page_duplicate_file_groups(&query).unwrap();
-        group_durations.push(started.elapsed());
+    for iteration in 0..100 {
+        let group_page = measure_review_profile_query(
+            profile_started,
+            iteration,
+            "group_summary",
+            &mut query_samples,
+            || db.page_duplicate_file_groups(&query).unwrap(),
+        );
+        group_durations.push(std::time::Duration::from_micros(
+            query_samples.last().unwrap().duration_microseconds,
+        ));
         assert_eq!(group_page.groups.len(), 200);
 
-        let started = std::time::Instant::now();
-        let root_page = db
-            .page_duplicate_file_selected_root_facets(&root_query)
-            .unwrap();
-        root_facet_durations.push(started.elapsed());
+        let root_page = measure_review_profile_query(
+            profile_started,
+            iteration,
+            "selected_root_facet",
+            &mut query_samples,
+            || {
+                db.page_duplicate_file_selected_root_facets(&root_query)
+                    .unwrap()
+            },
+        );
+        root_facet_durations.push(std::time::Duration::from_micros(
+            query_samples.last().unwrap().duration_microseconds,
+        ));
         assert_eq!(root_page.facets.len(), 1);
 
-        let started = std::time::Instant::now();
-        let drive_page = db.page_duplicate_file_drive_facets(&drive_query).unwrap();
-        drive_facet_durations.push(started.elapsed());
+        let drive_page = measure_review_profile_query(
+            profile_started,
+            iteration,
+            "drive_facet",
+            &mut query_samples,
+            || db.page_duplicate_file_drive_facets(&drive_query).unwrap(),
+        );
+        drive_facet_durations.push(std::time::Duration::from_micros(
+            query_samples.last().unwrap().duration_microseconds,
+        ));
         assert_eq!(drive_page.facets.len(), 2);
 
-        let started = std::time::Instant::now();
-        let review_plan = db.get_review_plan_view(run_id).unwrap();
-        review_plan_durations.push(started.elapsed());
+        let review_plan = measure_review_profile_query(
+            profile_started,
+            iteration,
+            "review_plan",
+            &mut query_samples,
+            || db.get_review_plan_view(run_id).unwrap(),
+        );
+        review_plan_durations.push(std::time::Duration::from_micros(
+            query_samples.last().unwrap().duration_microseconds,
+        ));
         assert_eq!(review_plan.summary.keep_count, 0);
 
-        let started = std::time::Instant::now();
-        let review_groups = db.page_review_groups(run_id, 200, None).unwrap();
-        review_group_durations.push(started.elapsed());
+        let review_groups = measure_review_profile_query(
+            profile_started,
+            iteration,
+            "review_groups",
+            &mut query_samples,
+            || db.page_review_groups(run_id, 200, None).unwrap(),
+        );
+        review_group_durations.push(std::time::Duration::from_micros(
+            query_samples.last().unwrap().duration_microseconds,
+        ));
         assert_eq!(review_groups.groups.len(), 200);
+
+        process_snapshots.push(current_review_profile_process_snapshot(
+            "iteration_complete",
+            Some(iteration),
+            profile_started.elapsed().as_micros() as u64,
+        ));
 
         #[cfg(windows)]
         {
@@ -4592,6 +4853,41 @@ fn representative_review_workspace_profile() {
     let private_growth_bytes = peak_private_bytes.saturating_sub(baseline_private_bytes);
     #[cfg(not(windows))]
     let private_growth_bytes = 0_u64;
+
+    if let Some(path) = std::env::var_os("SUPER_DUPER_REVIEW_PROFILE_EVIDENCE") {
+        let distributions = [
+            "group_summary",
+            "selected_root_facet",
+            "drive_facet",
+            "review_plan",
+            "review_groups",
+        ]
+        .map(|category| review_profile_distribution(category, &query_samples));
+        let evidence = serde_json::json!({
+            "schemaVersion": 1,
+            "profile": "representative_review_workspace_profile",
+            "profileStartedAtUtc": profile_started_at_utc.to_rfc3339(),
+            "profileEndedAtUtc": Utc::now().to_rfc3339(),
+            "elapsedMicroseconds": profile_started.elapsed().as_micros() as u64,
+            "acceptedAsRepresentative": false,
+            "acceptanceOverrideAllowed": false,
+            "instrumentationBoundary": "Per-query monotonic durations and test-process counters are diagnostic context; concurrent host samples may explain tails but never waive the 100 ms p95 target.",
+            "queryTimingDistributions": distributions,
+            "querySamples": query_samples,
+            "processSnapshots": process_snapshots,
+            "privateGrowthBytes": private_growth_bytes,
+        });
+        let file = fs::File::create(&path).unwrap_or_else(|error| {
+            panic!(
+                "failed to create review profile evidence {:?}: {error}",
+                path
+            )
+        });
+        let mut writer = BufWriter::new(file);
+        serde_json::to_writer_pretty(&mut writer, &evidence)
+            .expect("failed to serialize review profile evidence");
+        writeln!(writer).expect("failed to finish review profile evidence");
+    }
     eprintln!(
         "review-profile samples=100 groups-p50={:.2}ms groups-p95={:.2}ms groups-p99={:.2}ms root-facets-p95={:.2}ms drive-facets-p95={:.2}ms review-plan-p95={:.2}ms review-groups-p95={:.2}ms private-growth={} bytes",
         group_durations[group_durations.len() / 2].as_secs_f64() * 1000.0,

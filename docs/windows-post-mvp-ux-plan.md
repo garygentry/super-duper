@@ -1805,6 +1805,72 @@ XAML change.
   not change cache/page bounds, protocol, storage schema, filesystem access, review decisions,
   preflight, Recycle Bin execution, or any Milestone 11 production wiring.
 
+##### Retained warm-query contention diagnostics (2026-08-20)
+
+- The existing ignored Release profile now emits an optional schema-v1 diagnostic document through
+  the acceptance collector. It retains all 500 ordered query intervals, p50/p75/p90/p95/p99/max
+  per category, and 101 test-process snapshots with cumulative CPU, private/working-set memory,
+  and operation/transfer I/O counters. The ordinary test suite still does not run the hardware
+  profile.
+- Acceptance evidence schema v2 adds a time-aligned host JSONL sidecar with persistent native CPU,
+  memory, paging, disk, queue, context-switch, process/thread, and competing-process CPU/memory/I/O
+  samples. The sampler PID is explicit. A new or empty directory is mandatory, so passing, failing,
+  partial, and unavailable-counter runs cannot overwrite earlier evidence.
+- The retained instrumented development-host run failed the unchanged target at
+  52.68/54.76/94.74/140.76/243.87/728.16 ms group p50/p75/p90/p95/p99/max. Other p95 values were
+  63.42 ms selected-root, 69.71 ms drive, 68.81 ms review-plan, and 5.19 ms review-groups; private
+  growth was 880,640 bytes. The deterministic executor contract passed 31/31 before the profile.
+  All structured diagnostics and the failed matrix were written before the collector returned the
+  profile's exit code 101.
+- Three coarse samples from the initial host sampler overlapped that 17.44-second query window and
+  showed unrelated backup activity around 54-66 MB/s and up to 60% of one logical processor; one
+  sample recorded a processor queue of 10. This distinguishes a lower stable-cost body from
+  concurrent host pressure without claiming that the pressure caused every tail. The initial
+  formatted-counter sampler was then replaced with persistent lower-overhead counters and native
+  process deltas, verified by a separate read-only probe. Observer cost remains visible through the
+  sampler PID.
+- Host context is diagnostic only. It cannot waive the 100 ms p95 target, turn this development
+  host into the designated representative machine, or justify retrying until a pass. No
+  representative-hardware run, large admitted operation, Cloud Files fixture, filesystem access,
+  review/preflight/operation mutation, Shell call, Recycle Bin mutation, schema/protocol change, or
+  production wiring was added.
+- Focused distribution coverage passed in Debug and optimized Release. The finalized default
+  non-mutating collector passed all 31 deterministic executor tests and emitted schema-v2 evidence;
+  parser, sampler-continuity, and non-overwrite-guard probes also passed. The final path-only
+  reparse-point hardening parsed and passed its guard check, but an otherwise redundant post-change
+  collector rerun was unavailable when the execution environment exhausted its approval allowance.
+- The complete Debug/Release Rust workspace and serialized .NET matrix passed. Each .NET
+  configuration passed 66 Core, 56 Infrastructure, and 3 WPF tests; five explicitly gated real
+  provider/Shell tests remained skipped. Real Debug and Release WPF smoke passed. The first full
+  Release verifier retained an unchanged 100,000-set preview failure at 5.284 seconds against its
+  five-second ceiling under the already observed host load, after which the shared fixture lock
+  poisoned two tests. All three affected tests passed individually without changing a ceiling, and
+  the second complete Release publish verification passed, including packaged WPF smoke. This
+  verification rerun does not replace or close the independently failed warm-query gate.
+- `git diff --check` passed. Repository-wide `cargo fmt --all -- --check` remains blocked only by
+  the accepted pre-existing formatting drift in unchanged CLI/FFI files; the modified Rust test
+  file is formatted and those unrelated files were preserved.
+
+##### Deterministic WPF focus follow-up (2026-08-22)
+
+- Two real-smoke focus failures were investigated as timing defects rather than retried as an
+  acceptance strategy: Debug had intermittently retained focus instead of moving it to the newly
+  opened rule-application confirmation heading, and Release had intermittently failed to return
+  focus from `Previous set` to the selected virtualized group row. One pre-change evidence run in
+  each configuration passed, confirming that neither failure was a stable command/state defect.
+- Confirmation focus is still initiated only by the corresponding view-model confirmation
+  transition, but now yields through dispatcher idle turns until the heading is both loaded and
+  actually visible before bringing it into view and assigning keyboard focus. This avoids racing
+  the visibility binding/render pass and avoids focus theft during initial view realization.
+- Set navigation now retries the existing scroll/layout/cell-focus operation across bounded
+  dispatcher/layout turns and stops only when the grid actually contains keyboard focus. The
+  previous fixed 50 ms delay was removed; paging, selection, virtualization, worker protocol,
+  review state, and all cache/cancellation bounds are unchanged.
+- Focused WPF surface tests passed 3/3 in Debug and 3/3 in Release. The post-change real Debug and
+  Release WPF smoke workflows each passed once, including both next/previous-set focus restoration
+  and application/reversal confirmation focus. Recycle Bin execution remained disabled and all
+  disposable fixture files remained unchanged.
+
 ##### Accessibility findings and remaining operator evidence
 
 - Keyboard automation passes for the explicit 30-control duplicate-file tab order, bounded
@@ -3579,3 +3645,5 @@ code reviews rather than a conversational transcript.
 | 2026-08-20 | Implemented the separately gated real Windows executor slice: fresh target/hash/exact-folder and affected-survivor admission, projected callback metadata, positive local-root `SHQueryRecycleBinW` evidence, dedicated-STA `IFileOperation`, durable-start acknowledgement, explicit recycle-only flags, callback/finish/outer/abort mapping, cancellation boundaries, ambiguous-start non-retry, and opt-in disposable hard-link/exact-folder Recycle Bin acceptance. | Keep application composition disabled and WPF read-only while proving the native seam on real Windows. `CanSubmit` remains false and every worker response remains `executorEnabled:false`; Milestone 11 is not complete. Real-provider no-hydration, locked/capacity/provider mappings, final constants, `FOFX_ADDUNDORECORD`, residual TOCTOU, representative operation performance, accessible operator acceptance, recovery resolution, and independent Milestone 8 gates remain open. |
 | 2026-08-20 | Added a fail-closed Recycle Bin acceptance evidence collector, exhaustive stable HRESULT/flag regressions, an explicit-fixture registered-provider no-hydration test, and a dedicated operator/provider/performance/accessibility guide. | Make every available or missing gate reviewable without enabling production or fabricating physical/provider acceptance. Real access-denied/disconnect/capacity/provider/path-swap/process-loss outcomes, representative large-plan operation performance, final freshness/batch constants, `FOFX_ADDUNDORECORD`, physical accessibility, recovery resolution, and independent Milestone 8 gates remain open. |
 | 2026-08-20 | Stabilized the read-only duplicate-group warm path by replacing the per-group correlated across-drive summary probe with an indexed member-stream aggregate and bounding non-name detail enrichment after keyset candidate selection; focused all-sort paging equivalence and existing 100,000-group coverage passed. | Reduce the stable development-host group/summary baseline without weakening the 100 ms p95 target or changing protocol/schema/cache bounds. Final runs passed at 62.11 and 93.01 ms p95 but a retained third run failed at 198.72 ms while unrelated facets spiked too, so representative-hardware warm-query acceptance remains open rather than being closed by retries. This slice adds no filesystem, review-mutation, preflight, Shell, Recycle Bin, or production-executor behavior. |
+| 2026-08-20 | Added retained warm-query distributions plus time-aligned test-process and host contention diagnostics to the non-mutating acceptance collector; the instrumented development-host run failed at 140.76 ms group p95 and preserved all 500 query samples, 101 process snapshots, host context, and its 31/31 deterministic contract result. | Separate the stable-cost body from observable concurrent tails without weakening or auto-overriding the 100 ms p95 target. Evidence schema v2 refuses to overwrite earlier runs, and the lower-overhead sampler exposes its own PID. This is development-host diagnostic evidence only: representative hardware, large-plan operation performance, physical/provider campaigns, all production mutation wiring, and Milestone 11 completion remain open. |
+| 2026-08-22 | Replaced two intermittent real-WPF focus races with bounded dispatcher-state checks after focused Debug/Release WPF coverage and one passing post-change real smoke in each configuration. | Wait for confirmation headings to be loaded/visible and for virtualized group rows to actually contain keyboard focus instead of relying on an early `Input` callback or a fixed 50 ms delay. Preserve all worker, review, preflight, deletion, and disabled-executor boundaries. |
