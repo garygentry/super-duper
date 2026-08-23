@@ -18,6 +18,8 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
     private WorkerRecycleOperation? _operation;
     private string? _cursor;
     private string? _nextCursor;
+    private string? _failedCursor;
+    private int? _failedPageIndex;
     private int _pageIndex;
     private long _totalCount;
     private long _generation;
@@ -36,6 +38,7 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         _executor = executor;
         NextPageCommand = new AsyncRelayCommand(NextPageAsync, () => CanMoveNext);
         PreviousPageCommand = new AsyncRelayCommand(PreviousPageAsync, () => CanMovePrevious);
+        RetryPageCommand = new AsyncRelayCommand(RetryPageAsync, () => CanRetryPage);
     }
 
     public ObservableCollection<RecycleOperationItemViewModel> Items { get; } = [];
@@ -43,6 +46,8 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
     public IAsyncRelayCommand NextPageCommand { get; }
 
     public IAsyncRelayCommand PreviousPageCommand { get; }
+
+    public IAsyncRelayCommand RetryPageCommand { get; }
 
     public WorkerRecycleOperation? Operation
     {
@@ -115,6 +120,8 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
     public bool CanMoveNext => !IsLoading && !string.IsNullOrEmpty(_nextCursor);
 
     public bool CanMovePrevious => !IsLoading && _pageIndex > 0;
+
+    public bool CanRetryPage => !IsLoading && Operation is not null && _failedPageIndex is not null;
 
     public string BoundaryNotice => IsExecutorEnabled
         ? "A separately reviewed executor is present, but this surface still does not submit Shell work."
@@ -223,8 +230,8 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             Operation = operation;
             if (operation is not null)
             {
-                await LoadPageAsync(null, generation, token);
-                if (IsCurrentGeneration(generation, token))
+                if (await TryNavigateAsync(null, 0, generation, token)
+                    && IsCurrentGeneration(generation, token))
                 {
                     Announcement =
                         $"Recycle Bin operation reconstructed. {ProgressSummary} {PageStatus} {BoundaryNotice}";
@@ -291,6 +298,20 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         }
     }
 
+    private async Task RetryPageAsync()
+    {
+        if (_lifetime is null || _failedPageIndex is not int failedPageIndex)
+        {
+            return;
+        }
+
+        var failedCursor = _failedCursor;
+        if (await TryNavigateAsync(failedCursor, failedPageIndex, _generation, _lifetime.Token))
+        {
+            AnnouncePage();
+        }
+    }
+
     private async Task<bool> TryNavigateAsync(
         string? cursor,
         int pageIndex,
@@ -309,9 +330,12 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         {
             if (IsCurrentGeneration(generation, token))
             {
+                _failedCursor = cursor;
+                _failedPageIndex = pageIndex;
                 ErrorMessage = exception.Message;
                 ErrorAnnouncement = $"Recycle Bin operation page error. {exception.Message}";
                 ErrorAnnouncementVersion++;
+                NotifyStateChanged();
             }
             return false;
         }
@@ -358,6 +382,8 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             _nextCursor = page.NextCursor;
             _pageIndex = pageIndex ?? _history.Count;
             _totalCount = page.Total;
+            _failedCursor = null;
+            _failedPageIndex = null;
             ErrorMessage = null;
             NotifyStateChanged();
             return true;
@@ -381,6 +407,8 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         Items.Clear();
         _cursor = null;
         _nextCursor = null;
+        _failedCursor = null;
+        _failedPageIndex = null;
         _pageIndex = 0;
         _totalCount = 0;
         NotifyStateChanged();
@@ -397,7 +425,7 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         foreach (var property in new[]
         {
             nameof(HasOperation), nameof(IsExecutorEnabled), nameof(CanSubmit), nameof(CanMoveNext),
-            nameof(CanMovePrevious), nameof(BoundaryNotice), nameof(ConfirmationSummary),
+            nameof(CanMovePrevious), nameof(CanRetryPage), nameof(BoundaryNotice), nameof(ConfirmationSummary),
             nameof(ProgressSummary), nameof(CancellationDisclosure), nameof(RecoveryGuidance),
             nameof(HasRecoveryGuidance), nameof(RecoveryEvidenceSummary), nameof(RevisionStatus),
             nameof(PageStatus),
@@ -407,6 +435,7 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         }
         NextPageCommand.NotifyCanExecuteChanged();
         PreviousPageCommand.NotifyCanExecuteChanged();
+        RetryPageCommand.NotifyCanExecuteChanged();
     }
 
     private void CancelLifetime()

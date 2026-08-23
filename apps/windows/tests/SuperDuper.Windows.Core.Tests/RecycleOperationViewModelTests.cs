@@ -321,14 +321,54 @@ public sealed class RecycleOperationViewModelTests
         StringAssert.Contains(viewModel.ErrorMessage, "next recovery page is unavailable");
         StringAssert.Contains(viewModel.ErrorAnnouncement, "page error");
         Assert.IsTrue(viewModel.ErrorAnnouncementVersion > 0);
+        Assert.IsTrue(viewModel.CanRetryPage);
         Assert.IsTrue(viewModel.CanMoveNext);
         Assert.IsFalse(viewModel.CanMovePrevious);
 
-        await viewModel.NextPageCommand.ExecuteAsync(null);
+        await viewModel.RetryPageCommand.ExecuteAsync(null);
 
         StringAssert.Contains(viewModel.PageStatus, "showing items 101-101 of 101 unknown details");
         Assert.IsFalse(viewModel.HasError);
+        Assert.IsFalse(viewModel.CanRetryPage);
         Assert.IsTrue(viewModel.CanMovePrevious);
+    }
+
+    [TestMethod]
+    public async Task FailedInitialRecoveryPageCanRetryTheExactReadOnlyRequest()
+    {
+        var worker = CreatePagedRecoveryWorker();
+        var pageCalls = 0;
+        worker.RecycleOperationItemPageHandler = (query, _) =>
+        {
+            pageCalls++;
+            if (pageCalls == 1)
+            {
+                throw new InvalidOperationException("The initial recovery page is unavailable.");
+            }
+            return Task.FromResult(CreateRecoveryPage(query.RecycleOperationId, query.Cursor is null));
+        };
+        using var viewModel = new RecycleOperationViewModel(worker, new DisabledCapability());
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        Assert.AreEqual(8, viewModel.Operation?.Id);
+        Assert.AreEqual(0, viewModel.Items.Count);
+        StringAssert.Contains(viewModel.ErrorMessage, "initial recovery page is unavailable");
+        StringAssert.Contains(viewModel.ErrorAnnouncement, "page error");
+        Assert.IsTrue(viewModel.CanRetryPage);
+        Assert.IsFalse(viewModel.CanMoveNext);
+        Assert.IsFalse(viewModel.CanMovePrevious);
+
+        await viewModel.RetryPageCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(2, pageCalls);
+        Assert.AreEqual(100, viewModel.Items.Count);
+        StringAssert.Contains(viewModel.PageStatus, "showing items 1-100 of 101 unknown details");
+        StringAssert.Contains(viewModel.Announcement, viewModel.PageStatus);
+        Assert.IsFalse(viewModel.HasError);
+        Assert.IsFalse(viewModel.CanRetryPage);
+        Assert.IsTrue(viewModel.CanMoveNext);
     }
 
     [TestMethod]

@@ -431,6 +431,13 @@ public sealed class WpfSurfaceSmokeTests
                 "RecoveryEvidenceSummary",
                 BindingOperations.GetBinding(recoveryEvidence, TextBox.TextProperty)?.Path.Path);
             var recycleNext = FindByAutomationId<Button>(preflight, "RecycleOperationNextPageButton");
+            var recycleRetry = FindByAutomationId<Button>(preflight, "RecycleOperationRetryPageButton");
+            Assert.AreEqual(
+                "RetryPageCommand",
+                BindingOperations.GetBinding(recycleRetry, Button.CommandProperty)?.Path.Path);
+            StringAssert.Contains(
+                AutomationProperties.GetName(recycleRetry),
+                "does not retry the operation");
             Assert.IsTrue(recycleNext.Focusable && KeyboardNavigation.GetIsTabStop(recycleNext));
             var folderGroupStatus = FindByAutomationId<TextBlock>(folders, "FolderGroupCount");
             Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
