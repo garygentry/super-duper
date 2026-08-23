@@ -221,11 +221,13 @@ selectable, path-free recovery summary with the stable operation key, evidence r
 preflight, review revision, policy version, immutable preflight/intent signatures, lifecycle times,
 cancellation-request state, outcome counts, and stored error code for diagnostic handoff. The
 reconstructed result list is automatically filtered to the operation's stored `unknown` results so
-the operator does not have to page through known outcomes before physical inspection. Each row
-exposes its durable operation/preflight/batch identifiers, source snapshot context, result time,
-stable code, numeric Shell HRESULT, and recorded recycled-item-presence value for correlation. This
-reads durable evidence only; it does not inspect the filesystem, resolve an unknown item, or replace
-any Narrator/NVDA, high-contrast, or physical multi-monitor DPI observation above.
+the operator does not have to page through known outcomes before physical inspection. Page changes
+report and politely announce the exact item range and stored unknown total, allowing a bounded review
+to account for every result. Each row exposes its durable operation/preflight/batch identifiers,
+source snapshot context, result time, stable code, numeric Shell HRESULT, and recorded recycled-item-
+presence value for correlation. This reads durable evidence only; it does not inspect the filesystem,
+resolve an unknown item, or replace any Narrator/NVDA, high-contrast, or physical multi-monitor DPI
+observation above.
 
 ## Review boundary
 

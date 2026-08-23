@@ -19,6 +19,7 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
     private string? _cursor;
     private string? _nextCursor;
     private int _pageIndex;
+    private long _totalCount;
     private long _generation;
     private bool _isLoading;
     private string? _errorMessage;
@@ -174,8 +175,12 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             ? "No unknown operation item details on this page."
             : "No operation item details on this page."
         : Operation?.Status == "recovery_required"
-            ? $"Unknown operation item page {_pageIndex + 1:N0}, showing {Items.Count:N0} of {Operation.UnknownCount:N0} unknown details."
-            : $"Operation item page {_pageIndex + 1:N0}, showing {Items.Count:N0} details.";
+            ? $"Unknown operation item page {_pageIndex + 1:N0}, showing items {PageStart:N0}-{PageEnd:N0} of {_totalCount:N0} unknown details."
+            : $"Operation item page {_pageIndex + 1:N0}, showing items {PageStart:N0}-{PageEnd:N0} of {_totalCount:N0} details.";
+
+    private long PageStart => ((long)_pageIndex * PageSize) + 1;
+
+    private long PageEnd => PageStart + Items.Count - 1;
 
     public async Task ShowRunAsync(WorkerRun? run, CancellationToken cancellationToken = default)
     {
@@ -245,6 +250,7 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         }
         _history.Add(_cursor);
         await LoadPageAsync(_nextCursor, _generation, _lifetime.Token);
+        AnnouncePage();
     }
 
     private async Task PreviousPageAsync()
@@ -256,6 +262,7 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         var previous = _history[^1];
         _history.RemoveAt(_history.Count - 1);
         await LoadPageAsync(previous, _generation, _lifetime.Token);
+        AnnouncePage();
     }
 
     private async Task LoadPageAsync(string? cursor, long generation, CancellationToken token)
@@ -294,6 +301,7 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             _cursor = cursor;
             _nextCursor = page.NextCursor;
             _pageIndex = _history.Count;
+            _totalCount = page.Total;
             NotifyStateChanged();
         }
         finally
@@ -316,7 +324,14 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         _cursor = null;
         _nextCursor = null;
         _pageIndex = 0;
+        _totalCount = 0;
         NotifyStateChanged();
+    }
+
+    private void AnnouncePage()
+    {
+        Announcement = $"Recycle Bin operation results loaded. {PageStatus}";
+        AnnouncementVersion++;
     }
 
     private void NotifyStateChanged()

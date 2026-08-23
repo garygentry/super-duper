@@ -96,7 +96,7 @@ public sealed class RecycleOperationViewModelTests
         StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "unknown: 1");
         StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Error code: worker_interrupted");
         Assert.AreEqual("unknown", recoveryQuery?.ResultStatus);
-        StringAssert.Contains(viewModel.PageStatus, "showing 1 of 1 unknown details");
+        StringAssert.Contains(viewModel.PageStatus, "showing items 1-1 of 1 unknown details");
         StringAssert.Contains(viewModel.Items[0].EvidenceDetails, "Operation item 2; preflight item 2; batch 1");
         StringAssert.Contains(viewModel.Items[0].EvidenceDetails, "result unknown");
         StringAssert.Contains(viewModel.Items[0].EvidenceDetails, "Shell HRESULT none recorded");
@@ -172,6 +172,43 @@ public sealed class RecycleOperationViewModelTests
         Assert.AreEqual(22, viewModel.Operation?.Id);
         Assert.AreEqual(1, viewModel.Items.Count);
         Assert.IsTrue(pageCalls >= 8, "Evicted pages should be fetched again after the five-page cache bound.");
+    }
+
+    [TestMethod]
+    public async Task ReportsAndAnnouncesExactRecoveryPageRange()
+    {
+        var worker = new TestWorkerClient();
+        worker.LatestRecycleOperationHandler = (_, _) => Task.FromResult<WorkerRecycleOperation?>(
+            TestWorkerClient.CreateRecycleOperation(8, 12, 7, 4) with
+            {
+                Status = "recovery_required",
+                UnknownCount = 101,
+            });
+        worker.RecycleOperationItemPageHandler = (query, _) => Task.FromResult(
+            query.Cursor is null
+                ? new WorkerRecycleOperationItemPage(
+                    Enumerable.Range(1, 100)
+                        .Select(id => CreateItem(id, query.RecycleOperationId, $@"C:\fixture\unknown-{id}.bin"))
+                        .ToArray(),
+                    101,
+                    "next")
+                : new WorkerRecycleOperationItemPage(
+                    [CreateItem(101, query.RecycleOperationId, @"C:\fixture\unknown-101.bin")],
+                    101,
+                    null));
+        using var viewModel = new RecycleOperationViewModel(worker, new DisabledCapability());
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var initialAnnouncementVersion = viewModel.AnnouncementVersion;
+
+        StringAssert.Contains(viewModel.PageStatus, "showing items 1-100 of 101 unknown details");
+
+        await viewModel.NextPageCommand.ExecuteAsync(null);
+
+        StringAssert.Contains(viewModel.PageStatus, "showing items 101-101 of 101 unknown details");
+        StringAssert.Contains(viewModel.Announcement, viewModel.PageStatus);
+        Assert.IsTrue(viewModel.AnnouncementVersion > initialAnnouncementVersion);
     }
 
     private static WorkerRecycleOperationItem CreateItem(long id, long operationId, string path) =>
