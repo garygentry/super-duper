@@ -309,6 +309,51 @@ public sealed class RecycleOperationViewModelTests
         Assert.IsTrue(viewModel.CanMovePrevious);
     }
 
+    [TestMethod]
+    public async Task FailedPreviousPageAfterCacheEvictionPreservesCommittedPageAndCanRetry()
+    {
+        var worker = CreatePagedRecoveryWorker();
+        var failPrevious = false;
+        worker.RecycleOperationItemPageHandler = (query, _) =>
+        {
+            var pageIndex = query.Cursor is null ? 0 : int.Parse(query.Cursor);
+            if (pageIndex == 1 && failPrevious)
+            {
+                failPrevious = false;
+                throw new InvalidOperationException("The previous recovery page is unavailable.");
+            }
+            return Task.FromResult(CreateRecoveryPage(query.RecycleOperationId, pageIndex, 7));
+        };
+        using var viewModel = new RecycleOperationViewModel(worker, new DisabledCapability());
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        for (var page = 1; page < 7; page++)
+        {
+            await viewModel.NextPageCommand.ExecuteAsync(null);
+        }
+        failPrevious = true;
+        for (var page = 6; page > 2; page--)
+        {
+            await viewModel.PreviousPageCommand.ExecuteAsync(null);
+        }
+
+        await viewModel.PreviousPageCommand.ExecuteAsync(null);
+
+        StringAssert.Contains(viewModel.PageStatus, "showing items 201-300 of 700 unknown details");
+        StringAssert.Contains(viewModel.ErrorMessage, "previous recovery page is unavailable");
+        StringAssert.Contains(viewModel.Announcement, "page error");
+        Assert.IsTrue(viewModel.CanMoveNext);
+        Assert.IsTrue(viewModel.CanMovePrevious);
+
+        await viewModel.PreviousPageCommand.ExecuteAsync(null);
+
+        StringAssert.Contains(viewModel.PageStatus, "showing items 101-200 of 700 unknown details");
+        Assert.IsFalse(viewModel.HasError);
+        Assert.IsTrue(viewModel.CanMoveNext);
+        Assert.IsTrue(viewModel.CanMovePrevious);
+    }
+
     private static TestWorkerClient CreatePagedRecoveryWorker()
     {
         var worker = new TestWorkerClient();
@@ -335,6 +380,17 @@ public sealed class RecycleOperationViewModelTests
                 [CreateItem(101, operationId, @"C:\fixture\unknown-101.bin")],
                 101,
                 null);
+
+    private static WorkerRecycleOperationItemPage CreateRecoveryPage(
+        long operationId,
+        int pageIndex,
+        int pageCount) =>
+        new(
+            Enumerable.Range((pageIndex * 100) + 1, 100)
+                .Select(id => CreateItem(id, operationId, $@"C:\fixture\unknown-{id}.bin"))
+                .ToArray(),
+            pageCount * 100,
+            pageIndex + 1 < pageCount ? (pageIndex + 1).ToString() : null);
 
     private static WorkerRecycleOperationItem CreateItem(long id, long operationId, string path) =>
         new(

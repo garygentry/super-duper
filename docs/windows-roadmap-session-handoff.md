@@ -17,7 +17,7 @@ until the roadmap is complete, without treating evidence-gated work as locally c
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Preserve failed Recycle Bin page state` (this session's commit)
+- Latest completed slice: `Cover failed backward Recycle Bin paging` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 cloud safety: accepted
@@ -28,10 +28,9 @@ until the roadmap is complete, without treating evidence-gated work as locally c
   milestone is not complete
 - Milestone 12 live-state overlay: later work; do not pull it into a Milestone 11 slice implicitly
 
-The latest slice makes forward recovery-result navigation transactional. A current worker failure
-keeps the last committed page, cursor history, and navigation availability intact, publishes a page
-error, and permits retry of the same requested page. The retry regression also proves that a
-successful retry clears the error and commits the expected range.
+The latest slice proves that backward recovery-result navigation remains transactional after the
+bounded five-page cache evicts an older page. A worker failure keeps the committed range and both
+navigation directions intact; an exact retry clears the error and commits the requested older page.
 
 ## Immediate next step
 
@@ -109,10 +108,10 @@ required gates are open.
 
 The latest slice was verified as follows:
 
-- Focused `RecycleOperationViewModelTests`, Debug: 8/8 passed
-- Focused `RecycleOperationViewModelTests`, Release: 8/8 passed
+- Focused `RecycleOperationViewModelTests`, Debug: 9/9 passed
+- Focused `RecycleOperationViewModelTests`, Release: 9/9 passed
 - Full serialized Debug matrix:
-  - Core: 72/72 passed
+  - Core: 73/73 passed
   - Infrastructure: 56 passed, 5 intentional environment-gated skips
   - WPF smoke: 3/3 passed
 - Full serialized Release matrix: same totals and dispositions
@@ -148,4 +147,5 @@ For each session:
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
 | 2026-08-22 | `ec8da88` | Announce only committed Recycle Bin result pages; cover backward repeatability and stale/cancelled silence. | Re-audit for the next locally implementable Milestone 11 read-only/recovery gap; do not cross an evidence or recovery-design gate. |
-| 2026-08-22 | this session | Preserve the committed Recycle Bin recovery page and cursor history across a failed forward fetch; allow exact retry. | Re-audit for another local read-only contract gap; stop at physical/provider/performance or recovery-resolution gates. |
+| 2026-08-22 | `96a49af` | Preserve the committed Recycle Bin recovery page and cursor history across a failed forward fetch; allow exact retry. | Re-audit for another local read-only contract gap; stop at physical/provider/performance or recovery-resolution gates. |
+| 2026-08-22 | this session | Cover failed backward recovery paging after the bounded cache evicts an older page; preserve the committed page and exact retry. | Re-audit for another local read-only contract gap; stop at physical/provider/performance or recovery-resolution gates. |
