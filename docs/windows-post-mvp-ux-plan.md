@@ -3,8 +3,8 @@
 ## Status
 
 Active implementation roadmap for the Windows duplicate-review experience. Milestone 6
-release-acceptance remediation and the fail-closed Milestone 7 slice are complete, while the two
-Milestone 7 opt-in policies remain behind an explicit scope decision. Milestone 8's read-only code
+release-acceptance remediation and the required fail-closed Milestone 7 policy are complete; the
+two unavailable Milestone 7 opt-in policies are reviewed follow-ons. Milestone 8's read-only code
 criteria are accepted; representative query performance and physical Narrator/NVDA, high-contrast,
 and multi-monitor DPI evidence remain independent open gates. Milestone 9 is planned/not started
 except for its later-proven file/folder physical de-duplication criterion. All five Milestone 10
@@ -13,8 +13,9 @@ accepted preflight, durable operation contract, separately gated native executor
 and read-only recovery reconstruction, but production still injects the disabled executor and
 exposes no action. Its provider/physical/performance evidence, policy decisions, recovery
 resolution, and production-enablement gates remain open. Milestones 12 and 13 are planned/not
-implemented except for their earlier durable source-data hooks. Milestone 14 remains planned and
-its required/optional scope and final completion meaning await explicit review.
+implemented except for their earlier durable source-data hooks. Milestone 14 remains planned; its
+required scope and the roadmap completion contract are accepted, and four reviewed follow-ons are
+deferred.
 
 This is the durable planning source for post-MVP Windows UX work. Update this document when a
 milestone is refined, split, accepted, or superseded so future coding sessions do not have to
@@ -86,19 +87,22 @@ without changing product code. It maps every acceptance criterion and still-open
 Milestones 7-14, makes Milestone 9's status explicit, and separates agent-local, implementation,
 operator/provider/hardware, decision, blocked, and independently actionable lanes.
 
-Three scope choices deliberately remain ready rather than silently decided:
-`WPM7-opt-in-policy-scope`, `WPM14-required-scope`, and `WPM14-completion-contract`. The ledger
-recommends treating the unavailable cloud opt-ins and non-criterion Milestone 14 enhancements as
-reviewed follow-ons, and defining completion as operator accepted and production enabled for every
-required workflow. Those recommendations are not reviewed decisions and authorize no deferral or
-production wiring.
+The 2026-08-23 reviewed product decision accepts fail-closed `exclude_registered_roots` as the
+required Milestone 7 policy and defers `include_sync_roots_skip_placeholders` and
+`allow_cloud_access`. It requires Milestone 14 keyboard/accessibility completion; coherent
+empty/stale/dirty/unavailable/invalidated/resolved/partial states; query instrumentation; retained
+Release large-result, large-operation, and large-Activity verification; and end-to-end cloud
+safety. Saved filters/preferred-location profiles, export, run-to-run deltas, and cache-only Shell
+thumbnails are cited reviewed follow-ons and do not gate current closure.
 
-After `WPM14-completion-contract` is reviewed, the Windows post-MVP roadmap is complete only when
-every gate required by that contract is `accepted`, every excluded gate has an explicit reviewed
-`deferred` decision, milestone statuses and authoritative documents agree, production safety
-boundaries match the accepted evidence, and no active gate is hidden behind a broad milestone
-label. At that point, update `ROADMAP.md`, this plan, the handoff, and the `AGENTS.md` startup
-instruction together.
+The Windows post-MVP roadmap is complete only when every required gate is `accepted`, every
+excluded gate has an explicit reviewed `deferred` decision, every required workflow is operator
+accepted and production enabled, milestone statuses and authoritative documents agree, production
+safety boundaries match the accepted evidence, and no active gate is hidden behind a broad
+milestone label. `Code complete` is interim only. This contract does not pre-authorize
+`WPM11-production-wiring`: that gate remains blocked until every dependency accepts and the
+product/safety reviewer separately gives explicit authorization. At final closure, update
+`ROADMAP.md`, this plan, the handoff, and `AGENTS.md` together and remove the startup instruction.
 
 ## Completed prerequisite
 
@@ -210,9 +214,9 @@ language, plan summaries, live-state badges, and navigation.
 
 Status: The fail-closed `exclude_registered_roots` vertical slice is accepted after Debug/Release
 available-provider coverage and a Release provider-unavailable operator pass against a registered
-consumer OneDrive root. The accepted surface does not include the two opt-in policies:
-`include_sync_roots_skip_placeholders` and `allow_cloud_access` remain unavailable until their
-separate placeholder-state, hydration-confirmation, and real-provider gates are complete.
+consumer OneDrive root. The 2026-08-23 reviewed scope decision makes that fail-closed policy the
+required Milestone 7 surface. `include_sync_roots_skip_placeholders` and `allow_cloud_access` remain
+unavailable reviewed follow-ons and do not gate current roadmap closure.
 
 #### Refined implementation plan (2026-08-17)
 
@@ -246,12 +250,14 @@ validation, review decisions, deletion, or any use of `scanned_file.marked_delet
 
 - `exclude_registered_roots` is the default and the only enabled policy in this slice. Its
   effective exclusions are the union of registered sync roots and normalized manual exclusions.
-- `include_sync_roots_skip_placeholders` will allow ordinary local files below a sync root while
-  pruning every Cloud Files placeholder from directory-enumeration attribute/tag data. It remains
-  unavailable until `CfGetPlaceholderStateFromAttributeTag` integration is covered without
-  opening placeholder content.
-- `allow_cloud_access` will permit operations that may hydrate only after a separate explicit
-  confirmation scoped to the operation. It remains unavailable in this slice.
+- `include_sync_roots_skip_placeholders` is a deferred reviewed follow-on that would allow ordinary
+  local files below a sync root while pruning every Cloud Files placeholder from directory-
+  enumeration attribute/tag data. It must remain unavailable unless a future reviewed scope change
+  adds `CfGetPlaceholderStateFromAttributeTag`, no-opening, provider, UX, and operator-evidence
+  gates.
+- `allow_cloud_access` is a deferred reviewed follow-on that would permit operation-scoped,
+  explicitly confirmed hydration. It remains unavailable unless a future reviewed scope change
+  adds hydration disclosure/confirmation, provider, protocol, UX, and operator-evidence gates.
 - Manual exclusions are absolute location prefixes, normalized and de-duplicated independently of
   glob ignores. A parent exclusion subsumes its children.
 - If registered-root discovery is unsupported or unavailable, the default policy fails closed at
@@ -3603,25 +3609,35 @@ Milestone 13 delivers the complete user-facing Activity experience.
 
 ### Milestone 14 - UX and Scale Hardening
 
-Status: Planned. The four acceptance criteria remain open. The required/follow-on split for the
-nine scope bullets and whether roadmap completion means code complete, operator accepted, or
-production enabled are explicit ready design-decision gates; no scope item is deferred without
-their reviewed decision.
+Status: Planned. The four acceptance criteria and the additional required accessibility and query-
+instrumentation gates remain open. The 2026-08-23 reviewed decision fixes the required/follow-on
+split below and defines roadmap completion as operator accepted and production enabled for every
+required workflow; `code complete` remains interim.
 
-#### Scope
+#### Required scope
 
 - Complete keyboard-only review and deletion workflows.
 - Validate screen-reader names, high contrast, DPI behavior, focus restoration, and reduced-motion
   expectations.
 - Refine empty, stale, dirty, unavailable, invalidated, resolved, and partial-success states.
-- Add saved filters and reusable preferred-location profiles.
-- Export results, decisions, deletion outcomes, and activity in a documented format.
-- Add run-to-run deltas for new, changed, and resolved duplicate sets.
-- Add bounded cache-only Shell thumbnails only if they do not compromise cloud safety or UI
-  responsiveness.
 - Instrument review, facet, rule preview, plan, preflight, operation, reconciliation, and event
   queries.
-- Exercise large-result and large-operation fixtures in Release configuration.
+- Exercise large-result, large-operation, and large-Activity fixtures in Release configuration and
+  retain both passing and failing evidence.
+- Verify end-to-end cloud safety across scan, review, preview, validation, and production deletion.
+
+#### Reviewed follow-ons
+
+The following items are explicitly deferred by the 2026-08-23 reviewed product decision and do not
+gate current roadmap completion:
+
+- saved filters and reusable preferred-location profiles;
+- export of results, decisions, deletion outcomes, and Activity in a documented format;
+- run-to-run deltas for new, changed, and resolved duplicate sets; and
+- bounded cache-only Shell thumbnails.
+
+Reopening any item requires a future reviewed scope change and explicit implementation/evidence
+gates. In particular, thumbnails may never compromise cloud safety or UI responsiveness.
 
 #### Acceptance criteria
 
@@ -3676,17 +3692,16 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance exactly one coherent ready design-decision group:
-`WPM7-opt-in-policy-scope` + `WPM14-required-scope` + `WPM14-completion-contract`. Their dependencies
-are satisfied, they share the same product/safety review boundary, and their verifier is one
-committed decision update that either accepts each recommendation or adds the exact required gates.
-No exclusion becomes `deferred` without that review.
+Advance only `WPM11-recovery-workflow`. Its durable read-only outcome dependency is accepted. The
+next bounded action is to present the evidence-preserving, operator-assisted per-item recovery
+recommendation, alternatives, tradeoffs, downstream gates, and exact product/safety decision
+needed. Do not silently select or implement a recovery model.
 
-Non-goals for that slice are product code/tests, the separate `WPM11-recovery-workflow` decision,
-physical/provider/performance campaigns, Recycle Bin production wiring, and any change to
-`CanSubmit:false`, `DisabledRecycleOperationCapabilityExecutor`, or `executorEnabled:false`. Other
-ready independent lanes in Milestones 9, 12, and 13 remain visible in the ledger but are not
-substitute work under this authorization.
+Non-goals are product code/tests, recovery implementation, replay, live-filesystem inference,
+resolution of unknown outcomes, provider/physical/performance campaigns, Recycle Bin production
+wiring, and any change to `CanSubmit:false`, `DisabledRecycleOperationCapabilityExecutor`, or
+`executorEnabled:false`. Independent Milestones 9, 12, and 13 lanes remain visible in the ledger
+but are not substitute work under this authorization.
 
 ## Milestone Definition Template
 
@@ -3771,3 +3786,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-22 | Covered an exact operation-summary retry that resolves to no stored Recycle Bin intent. | Prove the valid empty completion replaces the prior load failure, clears its assertive payload without another error notification, and removes retry/navigation affordances without enabling execution, filesystem inspection, replay, or recovery resolution. |
 | 2026-08-23 | Replaced open-ended next-slice discovery with a finite gate-ledger execution model and explicit anti-spin rules. | Populate the closure ledger for Milestones 7-14 without product-code changes, reconcile scope/status ambiguities, then authorize future goals only against named ready gates. |
 | 2026-08-23 | Populated and accepted the 37-criterion Milestone 7-14 closure inventory, reconciled Milestone 9 and the implementation/evidence/production boundaries, and separated the critical path from independent lanes. | Keep ambiguous scope as reviewed decision gates rather than inferred deferrals; authorize only the coherent Milestone 7/14 scope-and-completion decision group next, with all product code, campaigns, recovery design, and Recycle Bin wiring out of scope. |
+| 2026-08-23 | Accepted the reviewed Milestone 7/14 required/deferred scope and operator-accepted plus production-enabled completion contract. | Keep both cloud opt-ins and four Milestone 14 follow-ons explicitly deferred; require accessibility, coherent states, instrumentation, retained Release scale evidence, and cloud safety; preserve separate explicit authorization for WPM11 production wiring; authorize only WPM11-recovery-workflow next. |

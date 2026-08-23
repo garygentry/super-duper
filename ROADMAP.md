@@ -116,15 +116,32 @@ longer gated on release remediation.
 
 The detailed post-MVP duplicate-review, cloud-safety, deletion, live-reconciliation, and Activity
 roadmap is maintained in
-[`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md). Milestone 7 cloud safety is
-accepted, the read-only Milestone 8 foundation is implemented with remaining operator acceptance
-gates tracked there, all four Milestone 10 review/rule slices are accepted, and the first bounded
+[`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md), with finite gate state in the
+[`Windows roadmap closure ledger`](docs/windows-roadmap-closure-ledger.md). The required Milestone 7
+surface is the accepted fail-closed `exclude_registered_roots` policy;
+`include_sync_roots_skip_placeholders` and `allow_cloud_access` are unavailable reviewed follow-ons.
+The read-only Milestone 8 foundation is implemented with remaining operator acceptance gates
+tracked there, all four Milestone 10 review/rule slices are accepted, and the first bounded
 Milestone 11 non-deleting preflight slice is accepted independently of the later Milestone 12
 live-state overlay. Its revision-bound Recycle Bin operation contract, strictly non-mutating durable
 foundation, separately gated native executor, and acceptance evidence tooling are implemented.
-Production execution remains disabled while provider, physical-accessibility, representative-
-performance, constants, residual-TOCTOU, and ambiguous-recovery gates remain open. Read-only
-recovery handoff includes path-free durable identifiers, signatures, lifecycle times, aggregate
-outcomes, and stored error codes. Recovery-required reconstruction pages only the stored unknown
-results for operator triage, reports and announces exact reviewed ranges, and exposes their durable
-item/batch/source/result correlation, but does not inspect or resolve ambiguous items.
+
+The reviewed Windows post-MVP completion contract requires every required workflow to be operator
+accepted and production enabled; `code complete` is interim only. Required Milestone 14 closure
+scope is keyboard/accessibility completion, coherent empty/stale/dirty/unavailable/invalidated/
+resolved/partial states, query instrumentation, retained Release large-result/large-operation/
+large-Activity verification, and end-to-end cloud safety. Saved filters/preferred-location
+profiles, export, run-to-run deltas, and cache-only Shell thumbnails are reviewed deferred
+follow-ons.
+
+Production Recycle Bin execution remains disabled while provider, physical-accessibility,
+representative-performance, constants, residual-TOCTOU, and ambiguous-recovery gates remain open.
+The completion contract does not authorize `WPM11-production-wiring`: after every dependency is
+accepted, that gate still requires separate explicit product/safety approval. Until then,
+`RecycleOperationViewModel.CanSubmit` remains false, production uses
+`DisabledRecycleOperationCapabilityExecutor`, every worker response reports
+`executorEnabled:false`, and no **Move to Recycle Bin now** action is exposed. Read-only recovery
+handoff includes path-free durable identifiers, signatures, lifecycle times, aggregate outcomes,
+and stored error codes. Recovery-required reconstruction pages only the stored unknown results for
+operator triage, reports and announces exact reviewed ranges, and exposes their durable item/batch/
+source/result correlation, but does not inspect or resolve ambiguous items.

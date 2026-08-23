@@ -18,10 +18,12 @@ active.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Populate Windows roadmap closure ledger` (this session's commit)
+- Latest completed slice: `Accept Windows roadmap scope and completion contract` (this session's
+  commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
-- Milestone 7 fail-closed cloud safety: accepted; unavailable opt-in policy scope awaits review
+- Milestone 7 required fail-closed cloud safety: accepted; both unavailable opt-in policies are
+  reviewed deferred follow-ons
 - Milestone 8 read-only criteria: accepted; representative query and three physical accessibility
   gates remain open
 - Milestone 9: planned/not started except accepted no-double-schedule evidence; three criteria open
@@ -32,25 +34,28 @@ active.
 - Milestone 12: planned; external invalidation, dirty/overflow, and coalescing lanes can advance
   independently, while in-app reconciliation depends on Milestone 11 production outcomes
 - Milestone 13: planned; bounded warning/Activity foundations can advance independently
-- Milestone 14: planned; required/follow-on scope and completion meaning await explicit review
+- Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
+  contract are accepted; four reviewed follow-ons are deferred
 
-The latest slice accepts the closure ledger as a finite documentation-control baseline. It maps all
-37 Milestone 7-14 acceptance bullets exactly once, records every known evidence/policy/recovery/
-production decision, reconciles milestone statuses, exposes the critical path and independent
-lanes, and selects one ready scope-decision group. Product code, tests, runtime behavior, and the
-production execution boundary are unchanged.
+The latest documentation-only slice accepts `WPM7-opt-in-policy-scope`, `WPM14-required-scope`, and
+`WPM14-completion-contract` from the explicit 2026-08-23 reviewed product decisions. It marks both
+Milestone 7 opt-ins and the four named Milestone 14 follow-ons deferred, creates explicit required
+Milestone 14 accessibility and query-instrumentation gates, and requires operator acceptance plus
+production enablement for every required workflow. `Code complete` is interim. The decision does
+not authorize `WPM11-production-wiring`; all production execution locks remain unchanged.
 
 ## Immediate next step
 
-Advance exactly the coherent design-decision group
-`WPM7-opt-in-policy-scope` + `WPM14-required-scope` + `WPM14-completion-contract`. Its dependencies
-are satisfied. Review the ledger's recommendations and tradeoffs, then commit a decision that
-either accepts each recommendation or adds exact required gates. A scope exclusion becomes
-`deferred` only through that cited review.
+Advance only `WPM11-recovery-workflow`. Its sole ledger dependency, `WPM11-durable-outcomes`, is
+accepted. The bounded next action is to present the recommended evidence-preserving,
+operator-assisted per-item recovery model, alternatives, tradeoffs, downstream gates, and the exact
+product/safety decision required. The gate should end `ready for user decision` unless the user
+supplies a reviewed choice; no choice may be inferred.
 
-Verifier: all three gates become `accepted` or yield named required implementation/evidence gates;
-the ledger, this plan, this handoff, and any affected `ROADMAP.md` control text agree. Explicit
-non-goals: no product-code/test changes; no `WPM11-recovery-workflow` decision; no provider,
+Verifier: the recorded decision package names every proposed state, authority, evidence source,
+action, transition, non-retry rule, alternative, tradeoff, and downstream dependency while
+preserving unknown results. Explicit non-goals: no product-code/test changes; no recovery
+implementation, replay, live-filesystem inference, or unknown-result resolution; no provider,
 physical-accessibility, or performance campaign; no Recycle Bin wiring; and no change to
 `CanSubmit:false`, disabled production injection, or `executorEnabled:false`. Other ready lanes are
 not substitute authority for that session.
@@ -123,9 +128,8 @@ decision:
 - `FOFX_ADDUNDORECORD`
 - Residual Shell TOCTOU
 - Ambiguous-recovery resolution workflow and physical recovery inspection
-- Whether the two unavailable Milestone 7 opt-in cloud policies are required or reviewed follow-ons
-- Required versus follow-on Milestone 14 scope
-- Whether final roadmap completion means code complete, operator accepted, or production enabled
+- Required Milestone 14 keyboard/accessibility, state, query-instrumentation, Release-scale, and
+  end-to-end cloud-safety gates
 
 Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains incomplete while its
 required gates are open.
@@ -134,12 +138,13 @@ required gates are open.
 
 The latest documentation-only slice was verified as follows:
 
-- all 37 acceptance bullets were counted from the authoritative Milestone 7-14 sections and mapped
-  once through `AC` labels in the closure ledger;
-- every ledger gate has a stable ID, disposition/state, dependencies, evidence, owner/prerequisite,
-  one bounded next action, and a completion check;
-- scaffold markers and populate prompts: none;
-- `git diff --check`: passed;
+- each of the three selected design-decision gates is `accepted` with the explicit reviewed product
+  decision cited;
+- both excluded Milestone 7 policies and all four excluded Milestone 14 items have explicit
+  `deferred` rows, while every required Milestone 14 item has a non-deferred gate;
+- the ledger, post-MVP plan, this handoff, and ROADMAP agree on the completion contract and separate
+  WPM11 production-wiring authorization;
+- documentation-control consistency checks and `git diff --check`: passed;
 - product code and tests: unchanged; no Rust/.NET build or test matrix run;
 - physical accessibility, provider, Shell mutation, performance, and recovery campaigns: not run.
 
@@ -190,4 +195,5 @@ For each session:
 | 2026-08-22 | `ce54d1a` | Announce a successful read-only operation reconstruction that finds no stored operation intent, without exposing retry or changing the execution boundary. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
 | 2026-08-22 | `c34eebb` | Cover an exact read-only operation-summary retry that resolves an earlier load failure to no stored operation intent. | Replace further open-ended gap discovery with a finite roadmap closure audit. |
 | 2026-08-23 | `8ff0b60` | Add the closure-ledger scaffold and tighten roadmap execution, edit authority, anti-spin, and stop rules. | Populate and accept every remaining Milestone 7-14 gate without product-code changes, then authorize only the first dependency-ready gate. |
-| 2026-08-23 | this session | Populate and accept the Milestone 7-14 closure inventory, reconcile statuses, and expose the critical path and independent lanes. | Review WPM7-opt-in-policy-scope + WPM14-required-scope + WPM14-completion-contract; do not substitute another ready gate. |
+| 2026-08-23 | `775417a` | Populate and accept the Milestone 7-14 closure inventory, reconcile statuses, and expose the critical path and independent lanes. | Review WPM7-opt-in-policy-scope + WPM14-required-scope + WPM14-completion-contract; do not substitute another ready gate. |
+| 2026-08-23 | this session | Accept the required/deferred Milestone 7/14 scope and operator-accepted plus production-enabled completion contract without authorizing Recycle Bin production wiring. | Advance only WPM11-recovery-workflow to an explicit product/safety decision boundary; do not substitute another ready gate. |
