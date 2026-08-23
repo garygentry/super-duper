@@ -64,6 +64,18 @@ public sealed class RecycleOperationViewModelTests
                 ErrorCode = "worker_interrupted",
                 ErrorDetail = "Shell result reporting was interrupted.",
             });
+        RecycleOperationItemQuery? recoveryQuery = null;
+        worker.RecycleOperationItemPageHandler = (query, _) =>
+        {
+            recoveryQuery = query;
+            return Task.FromResult(new WorkerRecycleOperationItemPage(
+                [CreateItem(2, query.RecycleOperationId, @"C:\fixture\unknown.bin") with
+                {
+                    ResultStatus = "unknown",
+                }],
+                1,
+                null));
+        };
         await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
             12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
 
@@ -83,6 +95,8 @@ public sealed class RecycleOperationViewModelTests
         StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Cancellation requested: true");
         StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "unknown: 1");
         StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Error code: worker_interrupted");
+        Assert.AreEqual("unknown", recoveryQuery?.ResultStatus);
+        StringAssert.Contains(viewModel.PageStatus, "showing 1 of 1 unknown details");
         Assert.IsFalse(viewModel.RecoveryEvidenceSummary.Contains(@"C:\", StringComparison.Ordinal));
         Assert.IsFalse(viewModel.RecoveryEvidenceSummary.Contains("Error detail", StringComparison.Ordinal));
         Assert.IsTrue(viewModel.HasRecoveryGuidance);

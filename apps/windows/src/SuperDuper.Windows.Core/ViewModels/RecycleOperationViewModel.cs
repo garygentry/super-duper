@@ -170,8 +170,12 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         : $"This operation is bound to review revision {Operation.ReviewRevision:N0}; the current revision is {Operation.CurrentReviewRevision:N0}.";
 
     public string PageStatus => Items.Count == 0
-        ? "No operation item details on this page."
-        : $"Operation item page {_pageIndex + 1:N0}, showing {Items.Count:N0} details.";
+        ? Operation?.Status == "recovery_required"
+            ? "No unknown operation item details on this page."
+            : "No operation item details on this page."
+        : Operation?.Status == "recovery_required"
+            ? $"Unknown operation item page {_pageIndex + 1:N0}, showing {Items.Count:N0} of {Operation.UnknownCount:N0} unknown details."
+            : $"Operation item page {_pageIndex + 1:N0}, showing {Items.Count:N0} details.";
 
     public async Task ShowRunAsync(WorkerRun? run, CancellationToken cancellationToken = default)
     {
@@ -267,7 +271,11 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             if (!_cache.TryGet(cursor, out var page))
             {
                 page = await _worker.GetRecycleOperationItemsAsync(
-                    new RecycleOperationItemQuery(operationId, PageSize, null, cursor), token);
+                    new RecycleOperationItemQuery(
+                        operationId,
+                        PageSize,
+                        Operation.Status == "recovery_required" ? "unknown" : null,
+                        cursor), token);
                 if (!IsCurrentGeneration(generation, token) || Operation?.Id != operationId)
                 {
                     return;

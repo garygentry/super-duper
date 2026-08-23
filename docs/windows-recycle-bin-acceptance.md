@@ -220,8 +220,10 @@ Core and STA coverage lock that contract while `CanSubmit` remains false. It als
 selectable, path-free recovery summary with the stable operation key, evidence record, run,
 preflight, review revision, policy version, immutable preflight/intent signatures, lifecycle times,
 cancellation-request state, outcome counts, and stored error code for diagnostic handoff. The
-summary does not inspect the filesystem, resolve an unknown item, or replace any Narrator/NVDA,
-high-contrast, or physical multi-monitor DPI observation above.
+reconstructed result list is automatically filtered to the operation's stored `unknown` results so
+the operator does not have to page through known outcomes before physical inspection. This reads
+durable evidence only; it does not inspect the filesystem, resolve an unknown item, or replace any
+Narrator/NVDA, high-contrast, or physical multi-monitor DPI observation above.
 
 ## Review boundary
 
