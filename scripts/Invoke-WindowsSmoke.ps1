@@ -790,6 +790,7 @@ public static class SmokeMouseInput
         Assert-True ($folderCardItems.Count -ge 2) 'The exact-folder relationship surface did not expose two side-by-side location cards.'
         $firstFolderCard = $folderCardItems[0]
         Assert-True $firstFolderCard.Current.AutomationId.StartsWith('FolderLocationCard-', [StringComparison]::Ordinal) 'The first folder location card did not expose a stable item automation ID.'
+        $firstFolderCardId = $firstFolderCard.Current.AutomationId
         Assert-True $firstFolderCard.Current.Name.Contains('different path segments', [StringComparison]::OrdinalIgnoreCase) 'The first folder location card did not explain its differentiated path segments.'
         $folderPathEditor = $firstFolderCard.FindFirst(
             [Windows.Automation.TreeScope]::Descendants,
@@ -804,7 +805,12 @@ public static class SmokeMouseInput
         $secondSelection = $folderCardItems[1].GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)
         Assert-True $secondSelection.Current.IsSelected 'Right Arrow did not move selection to the next folder location card.'
         Assert-True $folderCardItems[1].Current.HasKeyboardFocus 'Right Arrow did not preserve keyboard focus on the newly selected folder location card.'
-        $keepFolderButton = Find-DescendantButtonByNameFragment $folderMembers 'Keep folder copy '
+        Activate-SmokeWindow
+        [Windows.Forms.SendKeys]::SendWait('{HOME}')
+        Start-Sleep -Milliseconds 250
+        $firstSelection = $firstFolderCard.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)
+        Assert-True $firstSelection.Current.IsSelected 'Home did not return selection to the first folder location card.'
+        $keepFolderButton = Find-DescendantButtonByNameFragment $firstFolderCard 'Keep folder copy '
         Invoke-Element $keepFolderButton
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
             $folderReviewSummary = Find-Element AutomationId 'FolderSelectedReviewSummary' 1
@@ -815,8 +821,53 @@ public static class SmokeMouseInput
         }
         Assert-True ($folderReviewSummary.Current.Name.Contains('1 keep', [StringComparison]::OrdinalIgnoreCase)) 'The durable exact-folder review summary did not refresh after a Keep decision.'
         Assert-True ([IO.Directory]::Exists($keptFolderPath)) 'Recording an exact-folder review decision unexpectedly removed the disposable fixture directory.'
-        Invoke-Element (Find-DescendantButtonByNameFragment $folderMembers 'in Explorer')
+        $firstFolderCard = Find-Element AutomationId $firstFolderCardId
+        $firstSelection = $firstFolderCard.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)
+        $folderRevealButton = Find-DescendantButtonByNameFragment $firstFolderCard 'in Explorer'
+        Assert-True $folderRevealButton.Current.AutomationId.StartsWith('FolderReveal-', [StringComparison]::Ordinal) 'Folder reveal did not expose its stable member-scoped automation ID.'
+        Activate-SmokeWindow
+        $firstFolderCard.SetFocus()
+        [Windows.Forms.SendKeys]::SendWait('%e')
+        $folderExplorerStatus = $null
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            $statusCondition = [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::AutomationIdProperty,
+                'FolderExplorerStatus')
+            $candidateStatus = $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $statusCondition)
+            if ($null -ne $candidateStatus -and $candidateStatus.Current.Name.Contains('opened and selected', [StringComparison]::OrdinalIgnoreCase)) {
+                $folderExplorerStatus = $candidateStatus
+                break
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ($null -ne $folderExplorerStatus) 'Keyboard folder reveal did not reach terminal success state.'
+        Assert-True ($folderExplorerStatus.Current.Name.Contains('opened and selected', [StringComparison]::OrdinalIgnoreCase)) 'Keyboard folder reveal did not publish actionable success state.'
         Assert-NoVisibleDetailError 'FolderDetailError'
+        Assert-NoVisibleDetailError 'FolderExplorerError'
+
+        $movedFolderPath = "$keptFolderPath.explorer-failure"
+        $resolvedSmokeRoot = [IO.Path]::GetFullPath($smokeRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)
+        $resolvedKeptFolder = [IO.Path]::GetFullPath($keptFolderPath)
+        $resolvedMovedFolder = [IO.Path]::GetFullPath($movedFolderPath)
+        $comparisonKeptFolder = if ($resolvedKeptFolder.StartsWith('\\?\', [StringComparison]::Ordinal)) { $resolvedKeptFolder.Substring(4) } else { $resolvedKeptFolder }
+        $comparisonMovedFolder = if ($resolvedMovedFolder.StartsWith('\\?\', [StringComparison]::Ordinal)) { $resolvedMovedFolder.Substring(4) } else { $resolvedMovedFolder }
+        if (-not $comparisonKeptFolder.StartsWith($resolvedSmokeRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or
+            -not $comparisonMovedFolder.StartsWith($resolvedSmokeRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Refusing to move an Explorer failure fixture outside the disposable smoke root.'
+        }
+        Move-Item -LiteralPath $resolvedKeptFolder -Destination $resolvedMovedFolder
+        try {
+            Invoke-Element $folderRevealButton
+            $folderExplorerError = Find-Element AutomationId 'FolderExplorerError'
+            Assert-True ($folderExplorerError.Current.Name.Contains('Verify that the location is available, then try again', [StringComparison]::OrdinalIgnoreCase)) 'Missing-location folder reveal did not publish actionable retry guidance.'
+            Assert-True $firstSelection.Current.IsSelected 'A failed folder reveal replaced the selected immutable folder context.'
+        }
+        finally {
+            if ([IO.Directory]::Exists($resolvedMovedFolder) -and -not [IO.Directory]::Exists($resolvedKeptFolder)) {
+                Move-Item -LiteralPath $resolvedMovedFolder -Destination $resolvedKeptFolder
+            }
+        }
+        Assert-True ([IO.Directory]::Exists($keptFolderPath)) 'The disposable folder fixture was not restored after Explorer failure verification.'
 
         Select-Element (Find-Element AutomationId 'PreflightTab')
         $preflightPlan = Find-Element AutomationId 'PreflightPlanSummary'
@@ -905,7 +956,7 @@ $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
         $operationBoundary = Find-Element AutomationId 'RecycleOperationBoundaryNotice'
         Assert-True ($operationBoundary.Current.Name.Contains('execution is disabled', [StringComparison]::OrdinalIgnoreCase)) 'WPF did not disclose the disabled Recycle Bin executor boundary.'
         Assert-True ([IO.File]::Exists($exactPath)) 'WPF preflight unexpectedly removed a disposable fixture file.'
-        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, bounded side-by-side folder location cards with stable automation and Right Arrow focus, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
+        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, bounded side-by-side folder location cards with stable automation and Right Arrow focus, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, ordinary/long-path file reveal, and keyboard folder reveal success plus actionable missing-location failure."
     }
     catch {
         $automationFailure = $_

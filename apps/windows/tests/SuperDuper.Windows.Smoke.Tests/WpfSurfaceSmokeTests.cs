@@ -360,6 +360,11 @@ public sealed class WpfSurfaceSmokeTests
             Assert.IsTrue(folderReviewButtons.Take(3).All(button =>
                 AutomationProperties.GetHelpText(button).Contains("does not delete", StringComparison.OrdinalIgnoreCase)
                 || AutomationProperties.GetHelpText(button).Contains("Undecided", StringComparison.Ordinal)));
+            var folderReveal = folderReviewButtons.Single(button => Equals(button.Content, "Show in Explorer"));
+            Assert.AreEqual("FolderReveal-10", AutomationProperties.GetAutomationId(folderReveal));
+            StringAssert.Contains(AutomationProperties.GetName(folderReveal), "Archive");
+            StringAssert.Contains(AutomationProperties.GetHelpText(folderReveal), "Alt+E");
+            Assert.IsTrue(DuplicateFoldersView.IsRevealShortcut(Key.System, Key.E, ModifierKeys.Alt));
             var startPreflight = FindByAutomationId<Button>(preflight, "StartPreflightButton");
             StringAssert.Contains(
                 AutomationProperties.GetName(startPreflight),
@@ -511,6 +516,22 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual("DuplicateFolderMemberQuery",
                 AutomationNotificationBehavior.GetActivityId(folderDetailError));
             Assert.AreEqual(SystemColors.ControlTextBrush, folderDetailError.Foreground);
+            var folderExplorerStatus = FindByAutomationId<TextBlock>(folders, "FolderExplorerStatus");
+            Assert.AreEqual(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(folderExplorerStatus));
+            Assert.AreEqual(
+                AutomationNotificationKind.ActionCompleted,
+                AutomationNotificationBehavior.GetNotificationKind(folderExplorerStatus));
+            Assert.AreEqual(
+                "DuplicateFolderExplorerCommand",
+                AutomationNotificationBehavior.GetActivityId(folderExplorerStatus));
+            var folderExplorerError = FindByAutomationId<TextBlock>(folders, "FolderExplorerError");
+            Assert.AreEqual(AutomationLiveSetting.Assertive, AutomationProperties.GetLiveSetting(folderExplorerError));
+            Assert.AreEqual(
+                AutomationNotificationKind.ActionAborted,
+                AutomationNotificationBehavior.GetNotificationKind(folderExplorerError));
+            Assert.AreEqual(
+                "DuplicateFolderExplorerCommand",
+                AutomationNotificationBehavior.GetActivityId(folderExplorerError));
             AssertFolderFiltersFitSupportedMinimumWorkspace(folders);
 
             Assert.AreEqual("Scan sessions", AutomationProperties.GetName(
@@ -767,8 +788,34 @@ public sealed class WpfSurfaceSmokeTests
             var firstLocationCard = (ListBoxItem)locationCards.ItemContainerGenerator.ContainerFromIndex(0);
             Assert.AreEqual("FolderLocationCard-21", AutomationProperties.GetAutomationId(firstLocationCard));
             StringAssert.Contains(AutomationProperties.GetName(firstLocationCard), "different path segments");
-            focusHost.Close();
 
+            var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var operation = folders.ExecuteExplorerCommandAsync(() => release.Task);
+            var dispatcherAdvanced = false;
+            folders.Dispatcher.BeginInvoke(() => dispatcherAdvanced = true, DispatcherPriority.Normal);
+            DrainDispatcher();
+
+            Assert.IsFalse(operation.IsCompleted);
+            Assert.IsTrue(dispatcherAdvanced);
+
+            release.SetResult();
+            while (!operation.IsCompleted)
+            {
+                DrainDispatcher();
+            }
+            operation.GetAwaiter().GetResult();
+            Assert.IsTrue(locationCards.IsKeyboardFocusWithin);
+
+            var failed = folders.ExecuteExplorerCommandAsync(
+                () => Task.FromException(new InvalidOperationException("Actionable Shell failure.")));
+            while (!failed.IsCompleted)
+            {
+                DrainDispatcher();
+            }
+            Assert.ThrowsException<InvalidOperationException>(() => failed.GetAwaiter().GetResult());
+            Assert.IsTrue(locationCards.IsKeyboardFocusWithin);
+
+            focusHost.Close();
             app.Shutdown();
         });
     }

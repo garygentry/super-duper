@@ -37,6 +37,11 @@ public sealed class DuplicateFoldersViewModelTests
         await viewModel.RevealInExplorerCommand.ExecuteAsync(viewModel.Members[0]);
         Assert.AreEqual(@"C:\One", clipboard.Text);
         Assert.AreEqual(@"C:\One", explorer.RevealedPath);
+        Assert.AreEqual(
+            "File Explorer opened and selected One at C:.",
+            viewModel.ExplorerStatusMessage);
+        Assert.AreEqual(1, viewModel.ExplorerStatusAnnouncementVersion);
+        Assert.IsFalse(viewModel.IsExplorerCommandRunning);
     }
 
     [TestMethod]
@@ -198,7 +203,9 @@ public sealed class DuplicateFoldersViewModelTests
         Assert.AreEqual(1, viewModel.MemberStatusAnnouncementVersion);
         var repeatedAnnouncement = viewModel.MemberStatusAnnouncement;
         await viewModel.RevealInExplorerCommand.ExecuteAsync(viewModel.Members[0]);
-        Assert.IsTrue(viewModel.HasDetailError);
+        Assert.IsTrue(viewModel.HasExplorerError);
+        StringAssert.Contains(viewModel.ExplorerErrorMessage, "Verify that the location is available");
+        Assert.AreEqual(1, viewModel.ExplorerErrorAnnouncementVersion);
         Assert.AreEqual(0, viewModel.MemberErrorAnnouncementVersion);
         await viewModel.NextMemberPageCommand.ExecuteAsync(null);
         Assert.AreEqual(2, viewModel.MemberStatusAnnouncementVersion);
@@ -216,6 +223,96 @@ public sealed class DuplicateFoldersViewModelTests
         Assert.IsTrue(viewModel.HasDetailError);
         StringAssert.Contains(viewModel.DetailErrorMessage, "Worker folder-member query failed");
         Assert.AreEqual(3, viewModel.MemberStatusAnnouncementVersion);
+    }
+
+    [TestMethod]
+    public async Task ExplorerRevealPublishesBusyAndActionableFailureWithoutBlockingTheCaller()
+    {
+        var nativeCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var nativeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var explorer = new TestExplorer
+        {
+            Handler = async (_, _) =>
+            {
+                nativeStarted.SetResult();
+                await nativeCompletion.Task;
+                throw new IOException("The folder is offline.");
+            },
+        };
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderGroupPage([Group(1, query.RunId, @"C:\One")], 1, null, null)),
+            FolderMemberPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderMemberPage([new(1, query.GroupId, @"C:\One")], 1, null, null)),
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), explorer);
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(32, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        var reveal = viewModel.RevealInExplorerCommand.ExecuteAsync(viewModel.SelectedMember);
+        await nativeStarted.Task;
+
+        Assert.IsFalse(reveal.IsCompleted);
+        Assert.IsTrue(viewModel.IsExplorerCommandRunning);
+        StringAssert.Contains(viewModel.ExplorerStatusMessage, "Opening One at C:");
+
+        nativeCompletion.SetResult();
+        await reveal;
+
+        Assert.IsFalse(viewModel.IsExplorerCommandRunning);
+        Assert.IsFalse(viewModel.HasExplorerStatus);
+        StringAssert.Contains(viewModel.ExplorerErrorMessage, "Could not show One at C: in File Explorer");
+        StringAssert.Contains(viewModel.ExplorerErrorMessage, "Verify that the location is available, then try again");
+        StringAssert.Contains(viewModel.ExplorerErrorMessage, "The folder is offline");
+        Assert.AreEqual(1, viewModel.ExplorerErrorAnnouncementVersion);
+    }
+
+    [TestMethod]
+    public async Task ExplorerRevealLateFailureCannotReplaceNewerSelectedMemberContext()
+    {
+        var staleCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var staleStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var explorer = new TestExplorer
+        {
+            Handler = async (_, _) =>
+            {
+                staleStarted.SetResult();
+                await staleCompletion.Task;
+                throw new IOException("Late stale failure.");
+            },
+        };
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderGroupPage([Group(1, query.RunId, @"C:\One")], 1, null, null)),
+            FolderMemberPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderMemberPage(
+                    [new(1, query.GroupId, @"C:\One"), new(2, query.GroupId, @"D:\Two")],
+                    2,
+                    null,
+                    null)),
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), explorer);
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(33, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        var reveal = viewModel.RevealInExplorerCommand.ExecuteAsync(viewModel.Members[0]);
+        await staleStarted.Task;
+        viewModel.SelectedMember = viewModel.Members[1];
+
+        Assert.IsFalse(viewModel.IsExplorerCommandRunning);
+        Assert.IsFalse(viewModel.HasExplorerStatus);
+        Assert.IsFalse(viewModel.HasExplorerError);
+
+        staleCompletion.SetResult();
+        await reveal;
+
+        Assert.AreEqual(2, viewModel.SelectedMember.Id);
+        Assert.IsFalse(viewModel.HasExplorerStatus);
+        Assert.IsFalse(viewModel.HasExplorerError);
+        Assert.AreEqual(0, viewModel.ExplorerStatusAnnouncementVersion);
+        Assert.AreEqual(0, viewModel.ExplorerErrorAnnouncementVersion);
     }
 
     [TestMethod]

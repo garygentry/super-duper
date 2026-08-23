@@ -97,6 +97,8 @@ public sealed class DuplicateFolderMemberListItemViewModel
 
     public string RevealAutomationName => $"Show folder copy {LocationLabel} in Explorer";
 
+    public string RevealAutomationId => $"FolderReveal-{Id.ToString(CultureInfo.InvariantCulture)}";
+
     public string Decision => Member.Decision switch
     {
         "keep" => "Keep",

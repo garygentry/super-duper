@@ -7,6 +7,18 @@ namespace SuperDuper.Windows.Infrastructure;
 
 public sealed class WindowsExplorerService : IExplorerService
 {
+    private readonly Action<string> _reveal;
+
+    public WindowsExplorerService()
+        : this(Reveal)
+    {
+    }
+
+    internal WindowsExplorerService(Action<string> reveal)
+    {
+        _reveal = reveal;
+    }
+
     public Task RevealAsync(string path, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -14,14 +26,20 @@ public sealed class WindowsExplorerService : IExplorerService
         return RevealWithContextAsync(path, fullPath, cancellationToken);
     }
 
-    private static async Task RevealWithContextAsync(
+    private async Task RevealWithContextAsync(
         string requestedPath,
         string shellPath,
         CancellationToken cancellationToken)
     {
         try
         {
-            await Task.Run(() => Reveal(shellPath), cancellationToken).ConfigureAwait(false);
+            await Task.Run(
+                () =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    _reveal(shellPath);
+                },
+                cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

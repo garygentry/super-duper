@@ -740,13 +740,19 @@ internal sealed class TestExplorer : IExplorerService
 
     public Exception? Error { get; set; }
 
+    public Func<string, CancellationToken, Task>? Handler { get; set; }
+
     public Task RevealAsync(string path, CancellationToken cancellationToken = default)
     {
+        RevealedPath = path;
+        if (Handler is not null)
+        {
+            return Handler(path, cancellationToken);
+        }
         if (Error is not null)
         {
             return Task.FromException(Error);
         }
-        RevealedPath = path;
         return Task.CompletedTask;
     }
 }

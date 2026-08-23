@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using SuperDuper.Windows.Core.ViewModels;
 using SuperDuper.Windows.Core.Workers;
@@ -27,12 +29,96 @@ public partial class DuplicateFoldersView : UserControl
         await RestoreLocationCardFocusAsync();
     }
 
-    private void OnLocationCardsPreviewKeyDown(object sender, KeyEventArgs e)
+    private async void OnLocationCardsPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (IsRevealShortcut(e.Key, e.SystemKey, Keyboard.Modifiers))
+        {
+            e.Handled = true;
+            await RevealSelectedLocationAsync();
+            return;
+        }
+
         if (MoveLocationCardSelection(e.Key))
         {
             e.Handled = true;
         }
+    }
+
+    internal static bool IsRevealShortcut(Key key, Key systemKey, ModifierKeys modifiers) =>
+        (key == Key.System ? systemKey : key) == Key.E
+        && modifiers.HasFlag(ModifierKeys.Alt);
+
+    private async void OnRevealInExplorerClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: DuplicateFolderMemberListItemViewModel member })
+        {
+            return;
+        }
+
+        LocationCards.SelectedItem = member;
+        await RevealLocationAsync(member);
+    }
+
+    private async void OnLocationCardsMouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Left
+            || IsInteractiveDescendant(e.OriginalSource as DependencyObject))
+        {
+            return;
+        }
+
+        if (ItemsControl.ContainerFromElement(LocationCards, e.OriginalSource as DependencyObject)
+            is not ListBoxItem { DataContext: DuplicateFolderMemberListItemViewModel member })
+        {
+            return;
+        }
+
+        e.Handled = true;
+        LocationCards.SelectedItem = member;
+        await RevealLocationAsync(member);
+    }
+
+    internal Task RevealSelectedLocationAsync() =>
+        LocationCards.SelectedItem is DuplicateFolderMemberListItemViewModel member
+            ? RevealLocationAsync(member)
+            : Task.CompletedTask;
+
+    private Task RevealLocationAsync(DuplicateFolderMemberListItemViewModel member)
+    {
+        if (DataContext is not DuplicateFoldersViewModel viewModel)
+        {
+            return Task.CompletedTask;
+        }
+
+        return ExecuteExplorerCommandAsync(
+            () => viewModel.RevealInExplorerCommand.ExecuteAsync(member));
+    }
+
+    internal async Task ExecuteExplorerCommandAsync(Func<Task> operation)
+    {
+        try
+        {
+            await operation();
+        }
+        finally
+        {
+            await RestoreLocationCardFocusAsync();
+        }
+    }
+
+    private bool IsInteractiveDescendant(DependencyObject? source)
+    {
+        for (var current = source; current is not null && !ReferenceEquals(current, LocationCards);)
+        {
+            if (current is ButtonBase or TextBox)
+            {
+                return true;
+            }
+            current = current is Visual
+                ? VisualTreeHelper.GetParent(current)
+                : (current as FrameworkContentElement)?.Parent;
+        }
+        return false;
     }
 
     internal bool MoveLocationCardSelection(Key key)

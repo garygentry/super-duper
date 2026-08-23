@@ -18,15 +18,15 @@ active.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Accept WPM9 folder relationships` (this session's commit)
+- Latest completed slice: `Accept WPM9 Explorer responsiveness` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 required fail-closed cloud safety: accepted; both unavailable opt-in policies are
   reviewed deferred follow-ons
 - Milestone 8 read-only criteria: accepted; representative query and three physical accessibility
   gates remain open
-- Milestone 9: bounded folder relationships and no-double-schedule evidence are accepted; Explorer
-  responsiveness and parent-grouping remain open
+- Milestone 9: bounded folder relationships, responsive single-folder Explorer reveal, and
+  no-double-schedule evidence are accepted; parent-grouping remains open
 - Milestone 10 review/rule criteria: all accepted; no uncovered acceptance criterion remains
 - Milestone 11: non-deleting preflight, durable operation contract, separately gated native executor,
   and acceptance evidence tooling are implemented; production execution remains disabled and the
@@ -37,26 +37,28 @@ active.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The latest slice accepts `WPM9-folder-relationships`. The exact-folder detail surface now derives
-common and differing path context from only the current immutable worker page, defensively caps
-Core/WPF group and member collections at 200, preserves five-page cursor caches, and displays
-horizontally virtualized location cards with per-copy/recoverable metrics, selectable full paths,
-stable member-ID automation, Left/Right/Home/End navigation, and page-focus restoration. Focused
-Core and loaded-STA coverage plus real Debug/Release WPF smoke proved bounded paging, path
-differentiation, automation, keyboard focus, unchanged disposable folders, non-deleting Keep, and
-Explorer reveal. Existing file/folder overlap, nested/suppressed-set, and hard-link regressions
-passed without any review, protocol, storage, or scheduling change. The gate is
-`locally_exhausted`; every production execution lock remains unchanged.
+The latest slice accepts `WPM9-explorer-responsiveness` for the smallest complete AC2 surface: the
+existing single-folder **Show in Explorer** action over one current immutable-page member. Native
+Shell work is background-owned; Core exposes bounded busy, polite success, and assertive actionable
+failure state with cancellation and generation checks across selection/page/group/run/disposal
+changes. Stable member-scoped automation, Alt+E, card double-click, and success/failure focus
+restoration preserve the accepted location cards and copy/reveal behavior. Focused
+Infrastructure/Core/loaded-STA coverage and real Debug/Release WPF smoke proved native-thread and
+dispatcher responsiveness, actionable success/missing-location failure, stale-completion silence,
+keyboard access, stable selection, focus restoration, and restored unchanged disposable fixtures.
+No other Shell command was admitted. The gate is `locally_exhausted`; every production execution
+lock remains unchanged.
 
 ## Immediate next step
 
-Advance only `WPM9-explorer-responsiveness`. Define and implement one bounded background Explorer
-command slice over the accepted folder relationship surface.
+Advance only `WPM9-parent-grouping`. Add bounded multi-location Explorer selection grouped by parent
+directory over only the current immutable folder-member page.
 
-Verifier: focused Infrastructure/Core/STA success/failure and dispatcher-responsiveness tests plus
-real Debug/Release smoke pass for every command admitted by the slice. Do not add parent-grouped
-multi-selection, thumbnails, review mutation, deletion, provider/accessibility/performance
-campaigns, Milestone 12 behavior, or Recycle Bin production wiring.
+Verifier: deterministic Infrastructure/Core/STA grouping, one-background-call-per-parent, partial
+failure, stale-context, keyboard/focus, and dispatcher-responsiveness tests plus real Debug/Release
+selection smoke. Do not add open-all window spawning, thumbnails, full-result binding, review
+mutation, deletion, provider/accessibility/performance campaigns, Milestone 12 behavior, or Recycle
+Bin production wiring.
 
 ## Required startup audit
 
@@ -133,23 +135,21 @@ required gates are open.
 
 ## Latest verification baseline
 
-The latest folder-relationship slice was verified as follows:
+The latest Explorer-responsiveness slice was verified as follows:
 
-- focused Core folder relationship/paging/stale-generation/cache/overlap coverage: 11 passed in
-  Debug and the matching Release solution matrix passed;
-- loaded-STA folder-card virtualization, automation-notification, keyboard selection, and focus
-  coverage: passed in Debug and Release;
-- full Debug/Release solution matrices: each passed 96 Core, 59 Infrastructure, and 3 loaded-STA
+- focused Debug AC2 coverage: 13 Core, 3 Infrastructure, and all 3 loaded-STA tests passed, covering
+  busy/success/actionable failure, cancellation/stale context, native-thread ownership, dispatcher
+  progress, stable automation, Alt+E, and success/failure focus restoration;
+- full Debug/Release solution matrices: each passed 98 Core, 62 Infrastructure, and 3 loaded-STA
   tests; the same 5 explicitly gated provider/physical Shell tests were skipped in each;
-- real Debug and Release non-mutating worker/WPF smoke: passed with two side-by-side cards, stable
-  automation IDs/names, Right Arrow focus, non-deleting Keep, Explorer reveal, and unchanged
-  disposable fixture directories;
-- focused Rust file/folder-overlap, nested/suppressed-folder, and exact-folder hard-link regressions:
-  3 passed;
+- real Debug and Release non-mutating worker/WPF smoke: passed with bounded location cards,
+  stable member-scoped reveal automation, Alt+E terminal success, a real missing-location actionable
+  failure, stable selection, restored disposable fixtures, non-deleting Keep, and unchanged
+  production execution locks;
 - targeted .NET formatting, PowerShell parsing, `git diff --check`, and the production-lock audit
   passed;
-- provider, physical-accessibility, Recycle Bin/Shell-mutation, performance, and later-milestone
-  campaigns were deliberately skipped.
+- Rust, parent-grouping, provider, physical-accessibility, Recycle Bin/Shell-mutation, performance,
+  and later-milestone campaigns were deliberately skipped.
 
 Use proportional verification for the next slice. Run focused tests while iterating, then the
 relevant full matrix before commit when shared Core/WPF/Infrastructure behavior changes. Run Rust
@@ -205,4 +205,5 @@ For each session:
 | 2026-08-23 | `98d5558` | Implement and accept WPM11 recovery-review persistence/protocol with schema-v11 append-only observations, derived state, supersession, bounded paging, restart reconstruction, and matching non-UI client contracts while preserving every production lock. | Advance only WPM11-recovery-review-ui; keep automatic inspection/inference, replay, campaigns, Milestone 12 mutation, and production wiring out of scope. |
 | 2026-08-23 | `d7b62d7` | Implement and accept the bounded accessible WPM11 recovery-review UI with exact safe retries, explicit append-only correction, approved copy/navigation, focus/automation/announcements, and every production lock preserved. | Advance only WPM11-ambiguous-start; do not substitute another evidence, performance, provider, mutation, or production gate. |
 | 2026-08-23 | `16f6996` | Run and accept WPM11 ambiguous-start with disposable durable-start process loss, restart reconstruction, real WPF Option A observations/supersession, exact immutable-evidence verification, and retained passing/failing bundles. | Advance only WPM9-folder-relationships; preserve all execution locks and do not substitute another campaign or later milestone. |
-| 2026-08-23 | this session | Implement and accept bounded side-by-side WPM9 folder relationship cards from immutable paged data with common/differing path context, per-copy/recoverable metrics, stable automation, keyboard/focus behavior, and unchanged physical de-duplication. | Advance only WPM9-explorer-responsiveness; keep parent grouping, thumbnails, review mutation, deletion, later milestones, and production wiring separate. |
+| 2026-08-23 | `29b4256` | Implement and accept bounded side-by-side WPM9 folder relationship cards from immutable paged data with common/differing path context, per-copy/recoverable metrics, stable automation, keyboard/focus behavior, and unchanged physical de-duplication. | Advance only WPM9-explorer-responsiveness; keep parent grouping, thumbnails, review mutation, deletion, later milestones, and production wiring separate. |
+| 2026-08-23 | this session | Implement and accept responsive single-folder Explorer reveal over one immutable-page member with background native work, bounded actionable state, stale-context rejection, stable automation, Alt+E/double-click access, focus restoration, and real Debug/Release success/failure smoke. | Advance only WPM9-parent-grouping; keep open-all spawning, thumbnails, review mutation, deletion, later milestones, and production wiring separate. |

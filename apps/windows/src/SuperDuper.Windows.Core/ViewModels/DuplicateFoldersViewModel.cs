@@ -19,6 +19,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _groupCancellation;
     private CancellationTokenSource? _memberCancellation;
     private CancellationTokenSource? _reviewCancellation;
+    private CancellationTokenSource? _explorerCancellation;
     private WorkerRun? _run;
     private IReadOnlyList<DuplicateFolderGroupListItemViewModel> _groups = [];
     private IReadOnlyList<DuplicateFolderMemberListItemViewModel> _members = [];
@@ -33,6 +34,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     private long _groupGeneration;
     private long _memberGeneration;
     private long _reviewGeneration;
+    private long _explorerGeneration;
     private long _totalGroups;
     private long _totalMembers;
     private string _searchText = string.Empty;
@@ -40,6 +42,8 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     private string _stateMessage = "Select a completed run to browse duplicate folders.";
     private string? _errorMessage;
     private string? _detailErrorMessage;
+    private string? _explorerStatusMessage;
+    private string? _explorerErrorMessage;
     private string _groupStatusAnnouncement = "Duplicate folder results have not loaded.";
     private string _groupErrorAnnouncement = string.Empty;
     private string _memberStatusAnnouncement = "No exact duplicate folder group details have loaded.";
@@ -47,10 +51,13 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     private long _groupErrorAnnouncementVersion;
     private long _memberStatusAnnouncementVersion;
     private long _memberErrorAnnouncementVersion;
+    private long _explorerStatusAnnouncementVersion;
+    private long _explorerErrorAnnouncementVersion;
     private bool _isLoading;
     private bool _isDetailLoading;
     private bool _isReviewUpdating;
     private bool _isReviewLoaded;
+    private bool _isExplorerCommandRunning;
     private DuplicateFolderGroupSortField _sortField = DuplicateFolderGroupSortField.TotalBytes;
     private WorkerSortDirection _sortDirection = WorkerSortDirection.Descending;
     private bool _disposed;
@@ -69,7 +76,9 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         NextMemberPageCommand = new AsyncRelayCommand(NextMemberPageAsync, () => CanMoveMembersNext);
         PreviousMemberPageCommand = new AsyncRelayCommand(PreviousMemberPageAsync, () => CanMoveMembersPrevious);
         CopyPathCommand = new RelayCommand<DuplicateFolderMemberListItemViewModel>(CopyPath);
-        RevealInExplorerCommand = new AsyncRelayCommand<DuplicateFolderMemberListItemViewModel>(RevealAsync);
+        RevealInExplorerCommand = new AsyncRelayCommand<DuplicateFolderMemberListItemViewModel>(
+            RevealAsync,
+            CanRevealInExplorer);
         KeepFolderCommand = new AsyncRelayCommand<DuplicateFolderMemberListItemViewModel>(
             member => SetReviewDecisionAsync(member, "keep"),
             CanSetReviewDecision);
@@ -120,7 +129,14 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     public DuplicateFolderMemberListItemViewModel? SelectedMember
     {
         get => _selectedMember;
-        set => SetProperty(ref _selectedMember, value);
+        set
+        {
+            if (SetProperty(ref _selectedMember, value))
+            {
+                CancelExplorerCommand(clearFeedback: true);
+                RevealInExplorerCommand.NotifyCanExecuteChanged();
+            }
+        }
     }
     public string SearchText { get => _searchText; set => SetProperty(ref _searchText, value); }
     public string MinimumSizeText { get => _minimumSizeText; set => SetProperty(ref _minimumSizeText, value); }
@@ -134,6 +150,28 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     {
         get => _detailErrorMessage;
         private set { if (SetProperty(ref _detailErrorMessage, value)) OnPropertyChanged(nameof(HasDetailError)); }
+    }
+    public string? ExplorerStatusMessage
+    {
+        get => _explorerStatusMessage;
+        private set
+        {
+            if (SetProperty(ref _explorerStatusMessage, value))
+            {
+                OnPropertyChanged(nameof(HasExplorerStatus));
+            }
+        }
+    }
+    public string? ExplorerErrorMessage
+    {
+        get => _explorerErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _explorerErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasExplorerError));
+            }
+        }
     }
     public bool IsLoading
     {
@@ -167,6 +205,17 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
                 KeepFolderCommand.NotifyCanExecuteChanged();
                 RemoveFolderCommand.NotifyCanExecuteChanged();
                 UndecideFolderCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+    public bool IsExplorerCommandRunning
+    {
+        get => _isExplorerCommandRunning;
+        private set
+        {
+            if (SetProperty(ref _isExplorerCommandRunning, value))
+            {
+                RevealInExplorerCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -233,6 +282,8 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         ?? "Select an exact-folder set to compare its locations.";
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
     public bool HasDetailError => !string.IsNullOrWhiteSpace(DetailErrorMessage);
+    public bool HasExplorerStatus => !string.IsNullOrWhiteSpace(ExplorerStatusMessage);
+    public bool HasExplorerError => !string.IsNullOrWhiteSpace(ExplorerErrorMessage);
     public bool IsUnavailable => Run is null || Run.Status != "completed";
     public bool IsEmpty => Run?.Status == "completed" && !IsLoading && !HasError && TotalGroups == 0;
     public bool IsLoadingOverlayVisible => IsLoading && Groups.Count == 0;
@@ -277,6 +328,16 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     {
         get => _memberErrorAnnouncementVersion;
         private set => SetProperty(ref _memberErrorAnnouncementVersion, value);
+    }
+    public long ExplorerStatusAnnouncementVersion
+    {
+        get => _explorerStatusAnnouncementVersion;
+        private set => SetProperty(ref _explorerStatusAnnouncementVersion, value);
+    }
+    public long ExplorerErrorAnnouncementVersion
+    {
+        get => _explorerErrorAnnouncementVersion;
+        private set => SetProperty(ref _explorerErrorAnnouncementVersion, value);
     }
 
     public IAsyncRelayCommand ApplyFiltersCommand { get; }
@@ -382,6 +443,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
             PublishGroupErrorAnnouncement("Duplicate folder filters could not be applied.");
             return;
         }
+        CancelExplorerCommand(clearFeedback: true);
         CancelGroupQuery();
         CancelMemberQuery();
         _groupCache.Clear();
@@ -572,15 +634,33 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         await PrefetchMemberDirectionAsync(forward ? page.NextCursor : page.PreviousCursor, forward, remaining - 1, runId, groupId, generation, token);
     }
 
-    private Task NextMemberPageAsync() =>
-        Run is { } run && SelectedGroup is { } group && _currentMemberPage?.NextCursor is { } cursor && _memberCancellation is not null
-            ? LoadMemberPageAsync(cursor, run.Id, group.Id, _memberGeneration, _memberCancellation.Token, true)
-            : Task.CompletedTask;
+    private Task NextMemberPageAsync()
+    {
+        if (Run is not { } run
+            || SelectedGroup is not { } group
+            || _currentMemberPage?.NextCursor is not { } cursor
+            || _memberCancellation is null)
+        {
+            return Task.CompletedTask;
+        }
 
-    private Task PreviousMemberPageAsync() =>
-        Run is { } run && SelectedGroup is { } group && _currentMemberPage?.PreviousCursor is { } cursor && _memberCancellation is not null
-            ? LoadMemberPageAsync(cursor, run.Id, group.Id, _memberGeneration, _memberCancellation.Token, true)
-            : Task.CompletedTask;
+        CancelExplorerCommand(clearFeedback: true);
+        return LoadMemberPageAsync(cursor, run.Id, group.Id, _memberGeneration, _memberCancellation.Token, true);
+    }
+
+    private Task PreviousMemberPageAsync()
+    {
+        if (Run is not { } run
+            || SelectedGroup is not { } group
+            || _currentMemberPage?.PreviousCursor is not { } cursor
+            || _memberCancellation is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        CancelExplorerCommand(clearFeedback: true);
+        return LoadMemberPageAsync(cursor, run.Id, group.Id, _memberGeneration, _memberCancellation.Token, true);
+    }
 
     private bool CanSetReviewDecision(DuplicateFolderMemberListItemViewModel? member) =>
         member is not null
@@ -766,12 +846,95 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         catch (Exception exception) { DetailErrorMessage = exception.Message; }
     }
 
+    private bool CanRevealInExplorer(DuplicateFolderMemberListItemViewModel? member) =>
+        member is not null
+        && !IsExplorerCommandRunning
+        && Run?.Status == "completed"
+        && SelectedGroup is not null
+        && Members.Any(current => current.Id == member.Id && current.Path == member.Path);
+
     private async Task RevealAsync(DuplicateFolderMemberListItemViewModel? member)
     {
-        if (member is null) return;
-        try { await _explorer.RevealAsync(member.Path); DetailErrorMessage = null; }
-        catch (Exception exception) { DetailErrorMessage = exception.Message; }
+        if (!CanRevealInExplorer(member)
+            || member is null
+            || Run is not { } run
+            || SelectedGroup is not { } group)
+        {
+            return;
+        }
+
+        CancelExplorerCommand(clearFeedback: true);
+        _explorerCancellation = new CancellationTokenSource();
+        var cancellationToken = _explorerCancellation.Token;
+        var generation = _explorerGeneration;
+        var memberGeneration = _memberGeneration;
+        var runId = run.Id;
+        var groupId = group.Id;
+        IsExplorerCommandRunning = true;
+        ExplorerStatusMessage = $"Opening {member.LocationLabel} in File Explorer…";
+        try
+        {
+            await _explorer.RevealAsync(member.Path, cancellationToken);
+            if (!IsCurrentExplorerContext(
+                    member,
+                    runId,
+                    groupId,
+                    memberGeneration,
+                    generation,
+                    cancellationToken))
+            {
+                return;
+            }
+
+            ExplorerErrorMessage = null;
+            ExplorerStatusMessage = $"File Explorer opened and selected {member.LocationLabel}.";
+            ExplorerStatusAnnouncementVersion++;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (!IsCurrentExplorerContext(
+                    member,
+                    runId,
+                    groupId,
+                    memberGeneration,
+                    generation,
+                    cancellationToken))
+            {
+                return;
+            }
+
+            ExplorerStatusMessage = null;
+            ExplorerErrorMessage = $"Could not show {member.LocationLabel} in File Explorer. "
+                + $"Verify that the location is available, then try again. {exception.Message}";
+            ExplorerErrorAnnouncementVersion++;
+        }
+        finally
+        {
+            if (generation == _explorerGeneration)
+            {
+                IsExplorerCommandRunning = false;
+            }
+        }
     }
+
+    private bool IsCurrentExplorerContext(
+        DuplicateFolderMemberListItemViewModel member,
+        long runId,
+        long groupId,
+        long memberGeneration,
+        long explorerGeneration,
+        CancellationToken cancellationToken) =>
+        explorerGeneration == _explorerGeneration
+        && memberGeneration == _memberGeneration
+        && !cancellationToken.IsCancellationRequested
+        && Run?.Id == runId
+        && SelectedGroup?.Id == groupId
+        && SelectedMember?.Id == member.Id
+        && SelectedMember.Path == member.Path
+        && Members.Any(current => current.Id == member.Id && current.Path == member.Path);
 
     private void ResetQueries()
     {
@@ -807,10 +970,25 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
 
     private void CancelMemberQuery()
     {
+        CancelExplorerCommand(clearFeedback: true);
         _memberCancellation?.Cancel();
         _memberCancellation?.Dispose();
         _memberCancellation = null;
         _memberGeneration++;
+    }
+
+    private void CancelExplorerCommand(bool clearFeedback)
+    {
+        _explorerCancellation?.Cancel();
+        _explorerCancellation?.Dispose();
+        _explorerCancellation = null;
+        _explorerGeneration++;
+        IsExplorerCommandRunning = false;
+        if (clearFeedback)
+        {
+            ExplorerStatusMessage = null;
+            ExplorerErrorMessage = null;
+        }
     }
 
     private void CancelReviewQuery()

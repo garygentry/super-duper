@@ -2,7 +2,7 @@
 
 `scripts/Invoke-WindowsSmoke.ps1` creates a disposable deterministic filesystem fixture and drives
 the real worker protocol. On an interactive desktop it also launches the real WPF application and
-uses stable UI Automation IDs to exercise both result surfaces and invoke Explorer reveal.
+uses stable UI Automation IDs to exercise both result surfaces and invoke bounded Explorer reveal.
 
 ## Coverage
 
@@ -30,7 +30,8 @@ uses stable UI Automation IDs to exercise both result surfaces and invoke Explor
   row selection, exact-path and any/all extension/no-extension filtering, next/previous-set keyboard focus restoration, accessible selected-root and drive
   facets plus 1 GB-or-larger/minimum-copy-count/
   across-drives/review-summary/aggregate-location/set-explanation/location-span text, completed ordinary/
-  long-path file and folder Explorer reveal commands, and
+  long-path file reveal plus single-folder keyboard Explorer reveal success, actionable
+  missing-location failure, stable selection, and restored disposable fixtures, and
   deterministic result-loaded, repeated idle, startup-failure, and database-failure shutdown;
 - WPF preflight plan summary, explicit non-deleting metadata/content-read confirmation, keyboard Yes
   action, terminal summary and focus movement, virtualized observation details, and unchanged
@@ -138,8 +139,9 @@ runs, unchanged file/placeholder state, and `PROVIDER_TRANSFER_COUNTERS_UNCHANGE
 ## Expected Result
 
 The script prints `Windows smoke passed`. With WPF enabled it also prints that WPF automation
-passed, fails if either reveal action reports a detail error, verifies that owned workers do not
-survive the app, and may leave an Explorer window showing a selected disposable fixture item. By
+passed, fails if an admitted reveal lacks terminal success or actionable failure state, verifies
+that owned workers do not survive the app, and may leave an Explorer window showing a selected
+disposable fixture item. By
 default the fixture is removed after the app closes; `-KeepArtifacts` prints and retains its path.
 
 If UI Automation is blocked by a locked session, elevation boundary, or headless runner, rerun with

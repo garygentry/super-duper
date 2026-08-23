@@ -146,6 +146,7 @@
                      ItemsSource="{Binding Members}"
                      SelectedItem="{Binding SelectedMember, Mode=TwoWay}"
                      SelectionMode="Single"
+                     MouseDoubleClick="OnLocationCardsMouseDoubleClick"
                      PreviewKeyDown="OnLocationCardsPreviewKeyDown"
                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
                      ScrollViewer.VerticalScrollBarVisibility="Disabled"
@@ -231,9 +232,10 @@
                                             CommandParameter="{Binding}"
                                             Content="Copy path" />
                                     <Button Margin="6,0,0,0" Padding="7,2"
+                                            automation:AutomationProperties.AutomationId="{Binding RevealAutomationId}"
                                             automation:AutomationProperties.Name="{Binding RevealAutomationName}"
-                                            Command="{Binding DataContext.RevealInExplorerCommand, ElementName=Root}"
-                                            CommandParameter="{Binding}"
+                                            automation:AutomationProperties.HelpText="Shows only this immutable-page folder copy. Press Alt+E from its selected location card for the same action."
+                                            Click="OnRevealInExplorerClick"
                                             Content="Show in Explorer" />
                                 </WrapPanel>
                             </StackPanel>
@@ -249,7 +251,8 @@
             </ListBox>
             <Grid Grid.Row="2" Margin="0,8,0,0">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                <TextBlock VerticalAlignment="Center"
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock VerticalAlignment="Center"
                            Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
                            Text="{Binding DetailErrorMessage}"
                            TextTrimming="CharacterEllipsis"
@@ -261,6 +264,29 @@
                            accessibility:AutomationNotificationBehavior.NotificationProcessing="ImportantMostRecent"
                            accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFolderMemberQuery"
                            Visibility="{Binding HasDetailError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <TextBlock Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
+                               Text="{Binding ExplorerStatusMessage}"
+                               TextTrimming="CharacterEllipsis"
+                               automation:AutomationProperties.AutomationId="FolderExplorerStatus"
+                               automation:AutomationProperties.LiveSetting="Polite"
+                               automation:AutomationProperties.Name="{Binding ExplorerStatusMessage}"
+                               accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding ExplorerStatusAnnouncementVersion}"
+                               accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
+                               accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
+                               accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFolderExplorerCommand"
+                               Visibility="{Binding HasExplorerStatus, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <TextBlock Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
+                               Text="{Binding ExplorerErrorMessage}"
+                               TextTrimming="CharacterEllipsis"
+                               automation:AutomationProperties.AutomationId="FolderExplorerError"
+                               automation:AutomationProperties.LiveSetting="Assertive"
+                               automation:AutomationProperties.Name="{Binding ExplorerErrorMessage}"
+                               accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding ExplorerErrorAnnouncementVersion}"
+                               accessibility:AutomationNotificationBehavior.NotificationKind="ActionAborted"
+                               accessibility:AutomationNotificationBehavior.NotificationProcessing="ImportantMostRecent"
+                               accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFolderExplorerCommand"
+                               Visibility="{Binding HasExplorerError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                </StackPanel>
                 <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate folder member paging" Orientation="Horizontal">
                     <Button x:Name="PreviousFolderCardsButton" Padding="10,4"
                             automation:AutomationProperties.AutomationId="PreviousFolderCardsButton"

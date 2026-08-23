@@ -121,9 +121,10 @@ roadmap is maintained in
 surface is the accepted fail-closed `exclude_registered_roots` policy;
 `include_sync_roots_skip_placeholders` and `allow_cloud_access` are unavailable reviewed follow-ons.
 The read-only Milestone 8 foundation is implemented with remaining operator acceptance gates
-tracked there. Milestone 9 now has accepted bounded side-by-side exact-folder relationship cards
-and accepted physical-file de-duplication; Explorer responsiveness and parent-grouped selection
-remain separate gates. All four Milestone 10 review/rule slices are accepted, and the first bounded
+tracked there. Milestone 9 now has accepted bounded side-by-side exact-folder relationship cards,
+accepted responsive single-folder Explorer reveal, and accepted physical-file de-duplication;
+parent-grouped Explorer selection remains a separate gate. All four Milestone 10 review/rule slices
+are accepted, and the first bounded
 Milestone 11 non-deleting preflight slice is accepted independently of the later Milestone 12
 live-state overlay. Its revision-bound Recycle Bin operation contract, strictly non-mutating durable
 foundation, separately gated native executor, and acceptance evidence tooling are implemented.

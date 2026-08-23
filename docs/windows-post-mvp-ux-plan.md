@@ -7,8 +7,8 @@ release-acceptance remediation and the required fail-closed Milestone 7 policy a
 two unavailable Milestone 7 opt-in policies are reviewed follow-ons. Milestone 8's read-only code
 criteria are accepted; representative query performance and physical Narrator/NVDA, high-contrast,
 and multi-monitor DPI evidence remain independent open gates. Milestone 9 has accepted bounded
-side-by-side folder relationships and file/folder physical de-duplication; its Explorer
-responsiveness and parent-grouping gates remain open. All five Milestone 10
+side-by-side folder relationships, responsive single-folder Explorer reveal, and file/folder
+physical de-duplication; only its parent-grouping gate remains open. All five Milestone 10
 acceptance criteria are accepted through the first four review/rule slices. Milestone 11 has an
 accepted preflight, durable operation contract, separately gated native executor, evidence tooling,
 and read-only recovery reconstruction, but production still injects the disabled executor and
@@ -2038,9 +2038,9 @@ Milestone 10. Live-state badges, validation, and changed/resolved behavior begin
 
 ### Milestone 9 - Folder Intelligence and Windows Exploration
 
-Status: The bounded side-by-side folder relationship presentation and later-proven physical-target
-de-duplication criteria are accepted. Existing MVP reveal/copy behavior remains only a foundation
-for the separate Explorer responsiveness and parent-grouped selection gates.
+Status: The bounded side-by-side folder relationship presentation, responsive single-folder
+Explorer reveal, and later-proven physical-target de-duplication criteria are accepted.
+Parent-grouped Explorer selection remains separate.
 
 #### User outcome
 
@@ -2107,6 +2107,31 @@ no review rule, protocol, storage, physical de-duplication, or scheduling behavi
 Explorer command expansion, parent-grouped Shell selection, thumbnails, full-result binding,
 review-rule changes, filesystem mutation, and production Recycle Bin wiring remain outside this
 accepted slice.
+
+#### Explorer responsiveness acceptance result (2026-08-23)
+
+`WPM9-explorer-responsiveness` is accepted and `locally_exhausted` for the smallest complete AC2
+surface. The admitted command remains the existing single-folder **Show in Explorer** action over
+one member of the current immutable worker page; copy-path behavior and the accepted location cards
+remain unchanged. The command now exposes a bounded busy state, a polite terminal success, and an
+assertive actionable failure with retry guidance. Selection, member-page, group, run, and disposal
+changes cancel the command context, and generation checks prevent a late success or failure from
+replacing newer folder context.
+
+All `SHParseDisplayName`/`SHOpenFolderAndSelectItems` work runs through a background task. The card
+button has a stable member-scoped automation ID/name, Alt+E and card double-click invoke the same
+command, and completion restores focus to the selected virtualized card. Focused Infrastructure,
+Core, and loaded-STA tests prove native-thread isolation, busy/failure state, cancellation, stale
+completion rejection, dispatcher progress while Shell is pending, automation, keyboard access, and
+success/failure focus restoration. Full Debug and Release solution matrices and real disposable
+Debug/Release WPF smoke passed keyboard reveal success plus a missing-location failure with
+actionable guidance, stable selection, restored fixtures, and unchanged non-deleting behavior.
+
+Open normally, open parent, open all, Properties, and parent-grouped multi-selection were not
+admitted by this smallest AC2 slice. They require a separately authorized command expansion;
+`WPM9-parent-grouping` remains the next gate and may add only the parent-grouped selection required
+by AC3. No thumbnail, provider, physical-accessibility, performance, review mutation, filesystem
+mutation, deletion, Milestone 12, or Recycle Bin production behavior changed.
 
 ### Milestone 10 - Durable Review Plans and Preference Rules
 
@@ -3871,13 +3896,15 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance only `WPM9-explorer-responsiveness`. Define and implement one bounded Explorer command
-slice over the accepted folder relationship presentation.
+Advance only `WPM9-parent-grouping`. Add bounded multi-location Explorer selection grouped by
+parent directory over only the current immutable folder-member page.
 
-Verifier: focused Infrastructure/Core/STA tests plus real Debug/Release smoke prove every admitted
-command reports actionable failures and never blocks the dispatcher. Do not add parent-grouped
-multi-selection, thumbnails, review mutation, deletion, provider/accessibility/performance
-campaigns, Milestone 12 behavior, or any Recycle Bin production wiring.
+Verifier: deterministic Infrastructure/Core/STA tests prove one background Shell selection call per
+parent, bounded page ownership, actionable partial failures, stale-context rejection, keyboard and
+focus behavior, and dispatcher responsiveness; real Debug/Release smoke verifies the admitted
+selection. Do not add thumbnails, full-result binding, open-all window spawning, review mutation,
+deletion, provider/accessibility/performance campaigns, Milestone 12 behavior, or Recycle Bin
+production wiring.
 
 ## Milestone Definition Template
 
@@ -3969,3 +3996,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-23 | Implemented and accepted WPM11 recovery-review UI: bounded unknown/history paging, all states and observations, explicit supersession, exact safe retries, evidence/path copy, manual Recycle Bin and fresh-scan navigation, keyboard/focus/automation, and separate announcements. | Advance only WPM11-ambiguous-start; run no provider, physical-accessibility, Shell-mutation, performance, or production-wiring substitute. |
 | 2026-08-23 | Ran and accepted the controlled WPM11 ambiguous-start campaign with a disposable host, durable-start process loss, restart reconstruction, real WPF Option A accounting, explicit supersession, exact immutable-source comparison, and retained passing/failing evidence bundles. | Record the gate `locally_exhausted`; preserve every production lock and authorize only WPM9-folder-relationships next. |
 | 2026-08-23 | Implemented and accepted bounded side-by-side exact-folder relationship cards over immutable 200-item worker pages with common/differing path context, per-copy/recoverable metrics, stable automation, keyboard selection/focus restoration, unchanged non-deleting review actions, and real Debug/Release WPF smoke. | Record WPM9-folder-relationships `locally_exhausted`; preserve server paging, five-page caches, file/folder physical de-duplication, and every execution lock; authorize only WPM9-explorer-responsiveness next. |
+| 2026-08-23 | Implemented and accepted responsive single-folder Explorer reveal over the current immutable folder-member page with background native work, bounded busy/success/actionable-failure state, cancellation and stale-generation rejection, stable automation, Alt+E/double-click access, focus restoration, and real Debug/Release success/failure smoke. | Record WPM9-explorer-responsiveness `locally_exhausted`; preserve copy/reveal and folder cards, admit no other Shell command, retain every production lock, and authorize only WPM9-parent-grouping next. |
