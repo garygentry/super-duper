@@ -410,6 +410,44 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
             false,
             false));
 
+    public Task<WorkerRecoveryReviewResult> GetRecoveryReviewAsync(
+        long recycleOperationId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new WorkerRecoveryReviewResult(
+            new WorkerRecoveryReview(recycleOperationId, "not_started", 0, 0),
+            false));
+
+    public Task<WorkerRecoveryReviewObservationPage> GetRecoveryReviewObservationsAsync(
+        RecoveryReviewObservationQuery query,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new WorkerRecoveryReviewObservationPage([], 0, null, false));
+
+    public Task<WorkerRecoveryReviewMutationResult> RecordRecoveryReviewObservationAsync(
+        RecoveryReviewObservationRecord record,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new WorkerRecoveryReviewMutationResult(
+            new WorkerRecoveryReview(
+                record.RecycleOperationId,
+                "in_progress",
+                1,
+                1),
+            new WorkerRecoveryReviewObservation(
+                1,
+                record.RequestId,
+                record.RecycleOperationId,
+                record.ItemId,
+                record.Observation,
+                record.ObservedAt,
+                record.Note,
+                record.EvidenceVersion,
+                record.SupersedesObservationId,
+                record.CorrectionReason,
+                record.ObservedAt,
+                null,
+                true),
+            false,
+            false));
+
     public Task<WorkerPreferenceRulePage> ListPreferenceRulesAsync(
         long offset = 0,
         int limit = 200,

@@ -18,7 +18,7 @@ active.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Accept WPM11 recovery Option A` (this session's commit)
+- Latest completed slice: `Accept WPM11 recovery-review persistence` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 required fail-closed cloud safety: accepted; both unavailable opt-in policies are
@@ -36,27 +36,28 @@ active.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The latest documentation-only slice accepts Option A for `WPM11-recovery-workflow` through the
-user's explicit review. Original item `unknown`, batch `ambiguous`, and operation
-`recovery_required` evidence remains immutable; later code may add only append-only per-item
-operator observations and supersessions. The accepted downstream order is persistence/protocol,
-accessible WPF review, then controlled ambiguous-start evidence. The decision changes no product
-behavior. `WPM11-production-wiring` remains separately blocked, and all production execution locks
-remain unchanged.
+The latest slice accepts `WPM11-recovery-review-persistence`. Schema v11 adds one append-only
+operator-observation table, exact idempotent mutation, bounded current/history paging, supersession,
+restart reconstruction, three derived review states, and matching non-UI worker/Core/
+Infrastructure contracts. All five approved observations are supported. Complete review remains
+`review_complete_with_unresolved_evidence`; every original item `unknown`, batch `ambiguous`,
+operation `recovery_required`, and recovery row remains exactly unchanged. The implementation uses
+only SQLite and cannot inspect live source/provider/content/Recycle Bin state or invoke any
+operation transition. WPF has no review controls yet. `WPM11-production-wiring` remains separately
+blocked, and all production execution locks remain unchanged.
 
 ## Immediate next step
 
-Advance only `WPM11-recovery-review-persistence`. Its `WPM11-recovery-workflow` dependency is
-accepted, and the specific uncovered criterion is the absence of append-only recovery-review state
-and observation persistence/protocol. Implement one forward migration, storage/query/mutation
-contract, bounded worker methods, and matching non-UI client contracts for the five approved
-observations, three derived review states, and append-only supersession.
+Advance only `WPM11-recovery-review-ui`. Its persistence/protocol dependency is accepted, and the
+specific uncovered criterion is the absence of the accessible operator workflow over schema v11.
+Implement bounded Core/WPF review status, per-item observation/supersession, durable evidence copy,
+Recycle Bin navigation, and fresh-scan navigation with keyboard/focus/announcement coverage.
 
-Verifier: migration/rollback/unknown-schema, validation, idempotency/conflict, interruption,
-paging/bounds, supersession, restart, immutable-source, no-live-I/O, and no-replay coverage must pass
-in proportional Debug/Release Rust and .NET protocol matrices. Explicit non-goals: no WPF review
-controls; no live filesystem, provider, or Recycle Bin inspection; no recovery/physical/performance
-campaign; no resolution claim, execution, or Milestone 12 mutation; no Recycle Bin wiring; and no
+Verifier: affected Core/Infrastructure/WPF Debug/Release tests and real non-mutating smoke cover all
+states/transitions, stale responses, paging, append-only correction, keyboard/focus/announcements,
+and forbidden-action absence. Explicit non-goals: no automatic live filesystem/provider/Recycle
+Bin inspection or inference; no recovery/physical/performance campaign; no outcome mutation,
+operation replay, execution, or Milestone 12 mutation; no Recycle Bin production wiring; and no
 change to `CanSubmit:false`, disabled production injection, or `executorEnabled:false`. Other ready
 lanes are not substitute authority for that session.
 
@@ -127,8 +128,8 @@ decision:
 - Final freshness, confirmation, admission, and batch constants
 - `FOFX_ADDUNDORECORD`
 - Residual Shell TOCTOU
-- WPM11 recovery-review persistence/protocol and accessible WPF implementation
-- Physical ambiguous-start/process-loss inspection after both implementation gates accept
+- WPM11 accessible recovery-review WPF implementation
+- Physical ambiguous-start/process-loss inspection after the UI gate accepts
 - Required Milestone 14 keyboard/accessibility, state, query-instrumentation, Release-scale, and
   end-to-end cloud-safety gates
 
@@ -137,17 +138,22 @@ required gates are open.
 
 ## Latest verification baseline
 
-The latest documentation-only slice was verified as follows:
+The latest code slice was verified as follows:
 
-- the ledger marks `WPM11-recovery-workflow` accepted with the explicit Option A review cited and
-  adds the two named local-code gates plus the existing controlled ambiguous-start campaign in
-  dependency order;
-- the ledger, post-MVP plan, acceptance guide, ROADMAP, and this handoff agree on immutable original
-  evidence, append-only operator observations, no inference/replay/overwrite, and separate
-  production-wiring authorization;
-- documentation-control consistency checks and `git diff --check`: passed;
-- product code and tests: unchanged; no Rust/.NET build or test matrix run;
-- physical accessibility, provider, Shell mutation, performance, and recovery campaigns: not run.
+- focused schema-v11 storage tests and recovery-review worker protocol tests: passed;
+- focused Infrastructure JSON/non-UI client contract test: passed;
+- Debug `cargo build --workspace` and `cargo test --workspace`: passed (124 tests passed; three
+  explicit performance profiles ignored);
+- serialized Debug .NET solution tests: passed (141 passed; five explicit provider/Shell tests
+  skipped);
+- authoritative `Verify-WindowsRelease.ps1`: passed Release Rust tests/build, Release .NET
+  build/serialized tests, publish validation, worker protocol smoke, WPF automation, and shutdown
+  smoke;
+- targeted Rust formatting and `git diff --check`: passed;
+- full-row snapshots prove original operation/batch/item/recovery evidence unchanged; nonexistent-
+  path protocol fixtures and method-surface audit prove no live inspection or operation transition;
+- physical accessibility, provider, Shell-mutation, representative-performance, and controlled
+  recovery campaigns: deliberately not run.
 
 Use proportional verification for the next slice. Run focused tests while iterating, then the
 relevant full matrix before commit when shared Core/WPF/Infrastructure behavior changes. Run Rust
@@ -199,4 +205,5 @@ For each session:
 | 2026-08-23 | `775417a` | Populate and accept the Milestone 7-14 closure inventory, reconcile statuses, and expose the critical path and independent lanes. | Review WPM7-opt-in-policy-scope + WPM14-required-scope + WPM14-completion-contract; do not substitute another ready gate. |
 | 2026-08-23 | `d10ce7d` | Accept the required/deferred Milestone 7/14 scope and operator-accepted plus production-enabled completion contract without authorizing Recycle Bin production wiring. | Advance only WPM11-recovery-workflow to an explicit product/safety decision boundary; do not substitute another ready gate. |
 | 2026-08-23 | `a2f3b6c` | Prepare the complete WPM11 ambiguous-recovery decision package without selecting or implementing a model. | Keep WPM11-recovery-workflow as the only authorized gate until the user chooses Option A, Option B with the explicit per-item waiver, or a named revision. |
-| 2026-08-23 | this session | Accept WPM11 recovery Option A and create its exact persistence/protocol, accessible WPF, and controlled process-loss dependency chain without product-code changes. | Advance only WPM11-recovery-review-persistence; keep WPF, campaigns, live inference, replay, and production wiring out of scope. |
+| 2026-08-23 | `6d0182a` | Accept WPM11 recovery Option A and create its exact persistence/protocol, accessible WPF, and controlled process-loss dependency chain without product-code changes. | Advance only WPM11-recovery-review-persistence; keep WPF, campaigns, live inference, replay, and production wiring out of scope. |
+| 2026-08-23 | this session | Implement and accept WPM11 recovery-review persistence/protocol with schema-v11 append-only observations, derived state, supersession, bounded paging, restart reconstruction, and matching non-UI client contracts while preserving every production lock. | Advance only WPM11-recovery-review-ui; keep automatic inspection/inference, replay, campaigns, Milestone 12 mutation, and production wiring out of scope. |

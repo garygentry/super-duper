@@ -722,6 +722,54 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
             cancellationToken);
     }
 
+    public Task<WorkerRecoveryReviewResult> GetRecoveryReviewAsync(
+        long recycleOperationId,
+        CancellationToken cancellationToken = default) =>
+        InvokeAsync<WorkerRecoveryReviewResult>(
+            "recovery_review.get",
+            new { recycleOperationId },
+            cancellationToken);
+
+    public Task<WorkerRecoveryReviewObservationPage> GetRecoveryReviewObservationsAsync(
+        RecoveryReviewObservationQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        return InvokeAsync<WorkerRecoveryReviewObservationPage>(
+            "recovery_review.observation.page",
+            new
+            {
+                recycleOperationId = query.RecycleOperationId,
+                pageSize = query.PageSize,
+                currentOnly = query.CurrentOnly,
+                cursor = query.Cursor,
+            },
+            cancellationToken);
+    }
+
+    public Task<WorkerRecoveryReviewMutationResult> RecordRecoveryReviewObservationAsync(
+        RecoveryReviewObservationRecord record,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        ArgumentException.ThrowIfNullOrWhiteSpace(record.RequestId);
+        return InvokeAsync<WorkerRecoveryReviewMutationResult>(
+            "recovery_review.observation.record",
+            new
+            {
+                requestId = record.RequestId,
+                recycleOperationId = record.RecycleOperationId,
+                itemId = record.ItemId,
+                observation = record.Observation,
+                observedAt = record.ObservedAt,
+                note = record.Note,
+                evidenceVersion = record.EvidenceVersion,
+                supersedesObservationId = record.SupersedesObservationId,
+                correctionReason = record.CorrectionReason,
+            },
+            cancellationToken);
+    }
+
     public Task<WorkerPreferenceRulePage> ListPreferenceRulesAsync(
         long offset = 0,
         int limit = 200,

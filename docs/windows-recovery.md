@@ -31,7 +31,9 @@ troubleshooting. Set `SUPER_DUPER_LOG` to a Rust tracing filter such as
   excluded from affected duplicate results. A completed run can therefore have warnings.
 - V1 exposes a warning count and local diagnostics; `warning.page` remains reserved.
 - The WPF post-MVP review surface exposes non-deleting review decisions, preflight observations,
-  and read-only reconstruction of schema-v10 Recycle Bin operation intent/evidence. The production
+  and read-only reconstruction of schema-v10 Recycle Bin operation intent/evidence. Schema v11
+  adds append-only non-UI recovery-review persistence/protocol, but WPF observation controls remain
+  separately gated. The production
   executor is disabled: there is no Recycle Bin action or arbitrary filesystem mutation exposed by
   the app. A separately gated real executor exists only for explicit disposable acceptance tests.
   Deleting a session removes worker-owned history only when no operation lock requires its evidence;
@@ -66,8 +68,11 @@ startup. A test-injected operation in `submitted`, `executing`, or `cancelling` 
 `recovery_required`. Every pending item in a durable `shell_started` batch becomes `unknown` with a
 recovery record because mutation may have occurred before a result was persisted. Do not retry,
 edit, or clear that operation: its run/review remain locked to prevent repeating a potentially
-completed mutation. This build has no recovery-resolution UI. The production app cannot initiate
-Shell work, but the explicitly invoked disposable executor tests can exercise this boundary.
+completed mutation. Schema v11 can separately append one of the five approved operator
+observations per unknown item and preserve corrections as supersession history; even complete
+review remains explicitly unresolved and changes none of those original rows. This build has no
+recovery-review UI. The production app cannot initiate Shell work, but the explicitly invoked
+disposable executor tests can exercise this boundary.
 Preserve the timestamped evidence bundle produced by
 `Invoke-WindowsRecycleBinAcceptance.ps1` with the database and logs. The acceptance matrix in
 [`windows-recycle-bin-acceptance.md`](windows-recycle-bin-acceptance.md) requires numeric callback,
@@ -84,9 +89,10 @@ never proof that this app recycled it.
 5. To test a clean start without destroying evidence, move the complete database set aside and
    restart. Restore it only while the app is closed.
 
-Schema v10 has no in-place downgrade. Before a v9-to-v10 first open, close the app/worker and copy
-the database, `-wal`, and `-shm` as one set. To return to a v9 build, restore that complete backup
-while all processes are closed. Never lower `user_version` or manually drop operation tables.
+Schemas v10 and v11 have no in-place downgrade. Before a v9-to-v10 or v10-to-v11 first open, close
+the app/worker and copy the database, `-wal`, and `-shm` as one set. To return to an older build,
+restore the matching complete pre-migration backup while all processes are closed. Never lower
+`user_version` or manually drop operation/recovery-review tables.
 
 Unknown old schemas, newer schemas, migration failures, corruption, and inability to persist a
 consistent run are fatal by design; the worker does not truncate or silently recreate them.

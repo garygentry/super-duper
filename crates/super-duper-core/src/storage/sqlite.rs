@@ -4,7 +4,7 @@ use chrono::Utc;
 use rusqlite::{params, Connection, Error, Result};
 use tracing::{debug, info};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 10;
+pub const CURRENT_SCHEMA_VERSION: i64 = 11;
 
 pub struct Database {
     conn: Connection,
@@ -71,21 +71,28 @@ impl Database {
         let version = self.schema_version()?;
         match version {
             CURRENT_SCHEMA_VERSION => self.conn.execute_batch(include_str!("schema.sql"))?,
-            9 => self.migrate_v9_to_v10()?,
+            10 => self.migrate_v10_to_v11()?,
+            9 => {
+                self.migrate_v9_to_v10()?;
+                self.migrate_v10_to_v11()?;
+            }
             8 => {
                 self.migrate_v8_to_v9()?;
                 self.migrate_v9_to_v10()?;
+                self.migrate_v10_to_v11()?;
             }
             7 => {
                 self.migrate_v7_to_v8()?;
                 self.migrate_v8_to_v9()?;
                 self.migrate_v9_to_v10()?;
+                self.migrate_v10_to_v11()?;
             }
             6 => {
                 self.migrate_v6_to_v7()?;
                 self.migrate_v7_to_v8()?;
                 self.migrate_v8_to_v9()?;
                 self.migrate_v9_to_v10()?;
+                self.migrate_v10_to_v11()?;
             }
             5 => {
                 self.migrate_v5_to_v6()?;
@@ -93,6 +100,7 @@ impl Database {
                 self.migrate_v7_to_v8()?;
                 self.migrate_v8_to_v9()?;
                 self.migrate_v9_to_v10()?;
+                self.migrate_v10_to_v11()?;
             }
             4 => {
                 self.migrate_v4_to_v5()?;
@@ -101,6 +109,7 @@ impl Database {
                 self.migrate_v7_to_v8()?;
                 self.migrate_v8_to_v9()?;
                 self.migrate_v9_to_v10()?;
+                self.migrate_v10_to_v11()?;
             }
             3 => {
                 self.migrate_v3_to_v4()?;
@@ -110,6 +119,7 @@ impl Database {
                 self.migrate_v7_to_v8()?;
                 self.migrate_v8_to_v9()?;
                 self.migrate_v9_to_v10()?;
+                self.migrate_v10_to_v11()?;
             }
             2 => self.migrate_v2_to_v3()?,
             0 if !self.has_user_tables()? => self.conn.execute_batch(include_str!("schema.sql"))?,
@@ -854,6 +864,44 @@ impl Database {
              CREATE INDEX idx_recycle_operation_recovery_operation
                  ON recycle_operation_recovery(recycle_operation_id, id);
              PRAGMA user_version = 10;
+             COMMIT;",
+        );
+        if migration.is_err() {
+            let _ = self.conn.execute_batch("ROLLBACK;");
+        }
+        migration
+    }
+
+    fn migrate_v10_to_v11(&self) -> Result<()> {
+        info!("Migrating SQLite schema from version 10 to 11");
+        let migration = self.conn.execute_batch(
+            "BEGIN IMMEDIATE;
+             CREATE TABLE recovery_review_observation (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 request_id TEXT NOT NULL UNIQUE,
+                 payload_signature TEXT NOT NULL,
+                 recycle_operation_id INTEGER NOT NULL
+                     REFERENCES recycle_operation(id) ON DELETE CASCADE,
+                 item_id INTEGER NOT NULL REFERENCES recycle_operation_item(id) ON DELETE CASCADE,
+                 observation TEXT NOT NULL
+                     CHECK(observation IN ('observed_in_recycle_bin', 'observed_at_source',
+                                           'observed_in_both', 'observed_in_neither',
+                                           'deferred_unresolved')),
+                 observed_at TEXT NOT NULL,
+                 note TEXT,
+                 evidence_version INTEGER NOT NULL CHECK(evidence_version = 1),
+                 supersedes_observation_id INTEGER UNIQUE
+                     REFERENCES recovery_review_observation(id) ON DELETE CASCADE,
+                 correction_reason TEXT,
+                 created_at TEXT NOT NULL,
+                 CHECK((supersedes_observation_id IS NULL AND correction_reason IS NULL)
+                       OR (supersedes_observation_id IS NOT NULL AND correction_reason IS NOT NULL))
+             );
+             CREATE INDEX idx_recovery_review_operation_item
+                 ON recovery_review_observation(recycle_operation_id, item_id, id);
+             CREATE INDEX idx_recovery_review_supersession
+                 ON recovery_review_observation(supersedes_observation_id);
+             PRAGMA user_version = 11;
              COMMIT;",
         );
         if migration.is_err() {

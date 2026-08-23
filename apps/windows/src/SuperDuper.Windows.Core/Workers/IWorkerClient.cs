@@ -255,4 +255,16 @@ public interface IRecycleOperationWorkerClient
         long batchId,
         IReadOnlyList<RecycleItemResultObservation> items,
         CancellationToken cancellationToken = default);
+
+    Task<WorkerRecoveryReviewResult> GetRecoveryReviewAsync(
+        long recycleOperationId,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerRecoveryReviewObservationPage> GetRecoveryReviewObservationsAsync(
+        RecoveryReviewObservationQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerRecoveryReviewMutationResult> RecordRecoveryReviewObservationAsync(
+        RecoveryReviewObservationRecord record,
+        CancellationToken cancellationToken = default);
 }

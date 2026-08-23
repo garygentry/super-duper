@@ -1,4 +1,4 @@
-PRAGMA user_version = 10;
+PRAGMA user_version = 11;
 
 -- Reusable, user-owned scan definitions.
 CREATE TABLE IF NOT EXISTS scan_session (
@@ -505,6 +505,30 @@ CREATE TABLE IF NOT EXISTS recycle_operation_recovery (
     created_at TEXT NOT NULL
 );
 
+-- Append-only operator attestations for recovery-required unknown items. These records never
+-- rewrite Shell outcomes and contain no live filesystem or Recycle Bin inspection results.
+CREATE TABLE IF NOT EXISTS recovery_review_observation (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id TEXT NOT NULL UNIQUE,
+    payload_signature TEXT NOT NULL,
+    recycle_operation_id INTEGER NOT NULL
+        REFERENCES recycle_operation(id) ON DELETE CASCADE,
+    item_id INTEGER NOT NULL REFERENCES recycle_operation_item(id) ON DELETE CASCADE,
+    observation TEXT NOT NULL
+        CHECK(observation IN ('observed_in_recycle_bin', 'observed_at_source',
+                              'observed_in_both', 'observed_in_neither',
+                              'deferred_unresolved')),
+    observed_at TEXT NOT NULL,
+    note TEXT,
+    evidence_version INTEGER NOT NULL CHECK(evidence_version = 1),
+    supersedes_observation_id INTEGER UNIQUE
+        REFERENCES recovery_review_observation(id) ON DELETE CASCADE,
+    correction_reason TEXT,
+    created_at TEXT NOT NULL,
+    CHECK((supersedes_observation_id IS NULL AND correction_reason IS NULL)
+          OR (supersedes_observation_id IS NOT NULL AND correction_reason IS NOT NULL))
+);
+
 -- Structured, run-owned records for whole subtrees pruned before filesystem content access.
 CREATE TABLE IF NOT EXISTS run_exclusion (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -596,3 +620,7 @@ CREATE INDEX IF NOT EXISTS idx_recycle_operation_report_operation
     ON recycle_operation_report(recycle_operation_id, id);
 CREATE INDEX IF NOT EXISTS idx_recycle_operation_recovery_operation
     ON recycle_operation_recovery(recycle_operation_id, id);
+CREATE INDEX IF NOT EXISTS idx_recovery_review_operation_item
+    ON recovery_review_observation(recycle_operation_id, item_id, id);
+CREATE INDEX IF NOT EXISTS idx_recovery_review_supersession
+    ON recovery_review_observation(supersedes_observation_id);

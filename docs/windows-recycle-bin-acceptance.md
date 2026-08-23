@@ -261,13 +261,17 @@ the physical accessibility rows above.
 Attach the JSON, Markdown, logs, TRX, host description, and operator notes to a separate review.
 Production wiring may be considered only when every required row is supported by qualifying
 evidence, the constants and `FOFX_ADDUNDORECORD` have explicit reviewed decisions, ambiguous
-recovery has a product workflow, and independent Milestone 8 gates are dispositioned. Until then,
+recovery has an accepted accessible product workflow, and independent Milestone 8 gates are
+dispositioned. Until then,
 keep the real executor unwired and do not claim Milestone 11 complete.
 
 `WPM11-recovery-workflow` accepted Option A by explicit user review on 2026-08-23. Its
 [decision package](windows-post-mvp-ux-plan.md#wpm11-recovery-workflow-decision-package-2026-08-23)
 requires append-only per-item operator observations while leaving original `unknown`, `ambiguous`,
 and `recovery_required` evidence immutable. Automatic live-state inference, replay, and overwriting
-the original Shell outcome remain prohibited. `WPM11-recovery-review-persistence` and
-`WPM11-recovery-review-ui` must accept before the controlled ambiguous-start campaign runs. The
-decision and those implementation gates do not authorize production wiring.
+the original Shell outcome remain prohibited actions. `WPM11-recovery-review-persistence` is accepted:
+schema v11 supplies bounded append-only observation/supersession persistence, derived review state,
+restart reconstruction, worker methods, and non-UI client contracts without live inspection or
+source-evidence mutation. `WPM11-recovery-review-ui` remains the next required gate before the
+controlled ambiguous-start campaign runs. The decision and both implementation gates do not
+authorize production wiring.

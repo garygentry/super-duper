@@ -1,5 +1,5 @@
 use chrono::{Duration, Utc};
-use rusqlite::{params, Connection, Error as SqlError};
+use rusqlite::{params, types::Value as SqlValue, Connection, Error as SqlError};
 use serde::Serialize;
 use std::fs;
 use std::io::{BufWriter, Write};
@@ -15,11 +15,13 @@ use super_duper_core::storage::models::{
     DuplicateFileMemberPageQuery, DuplicateFileMemberSortField, DuplicateFilePathMatchMode,
     DuplicateFileSelectedRootFacetPageQuery, DuplicateFileSelectedRootFacetSortField,
     ExactFolderGroupInsert, PageCursor, PageCursorValue, PreferencePreviewScope,
+    RecoveryObservationKind, RecoveryReviewObservationInput, RecoveryReviewState,
     RecycleEligibilityObservation, RecycleItemResultObservation, RegisteredCloudLocation,
     ReviewDecisionKind, RunExclusionInsert, RunParameters, ScannedFile, SortDirection,
 };
 use super_duper_core::storage::preference::PreferenceError;
 use super_duper_core::storage::preflight::PreflightError;
+use super_duper_core::storage::recovery_review::RecoveryReviewError;
 use super_duper_core::storage::recycle_operation::RecycleOperationError;
 use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::sqlite::CURRENT_SCHEMA_VERSION;
@@ -43,13 +45,167 @@ static LARGE_FIXTURE_TEST_LOCK: Mutex<()> = Mutex::new(());
 fn drop_v10_operation_schema(db: &Database) {
     db.connection()
         .execute_batch(
-            "DROP TABLE recycle_operation_recovery;
+            "DROP TABLE recovery_review_observation;
+             DROP TABLE recycle_operation_recovery;
              DROP TABLE recycle_operation_report;
              DROP TABLE recycle_operation_item;
              DROP TABLE recycle_operation_batch;
              DROP TABLE recycle_operation;",
         )
         .unwrap();
+}
+
+fn recovery_review_fixture(db: &Database, unknown_count: usize) -> (i64, i64, Vec<i64>, i64) {
+    let (_, run_id) = session_and_run(db, "Recovery review", &["/persisted-only"]);
+    let now = Utc::now().to_rfc3339();
+    db.connection()
+        .execute(
+            "INSERT INTO review_plan (run_id, state, revision, created_at, updated_at)
+             VALUES (?1, 'active', 0, ?2, ?2)",
+            params![run_id, now],
+        )
+        .unwrap();
+    let plan_id = db.connection().last_insert_rowid();
+    db.connection()
+        .execute(
+            "INSERT INTO preflight
+                (operation_id, run_id, plan_id, review_revision, snapshot_signature, status,
+                 logical_removal_count, physical_removal_count, folder_removal_count,
+                 affected_group_count, planned_removal_bytes, total_item_count,
+                 processed_item_count, ready_count, changed_count, missing_count,
+                 unavailable_count, conflict_count, created_at, completed_at)
+             VALUES ('persisted-preflight', ?1, ?2, 0, 'persisted-snapshot', 'completed',
+                     ?3, ?3, 0, 0, ?3, ?3, ?3, ?3, 0, 0, 0, 0, ?4, ?4)",
+            params![run_id, plan_id, (unknown_count + 1) as i64, now],
+        )
+        .unwrap();
+    let preflight_id = db.connection().last_insert_rowid();
+    let mut preflight_item_ids = Vec::new();
+    for ordinal in 0..=unknown_count {
+        db.connection()
+            .execute(
+                "INSERT INTO preflight_item
+                    (preflight_id, ordinal, target_kind, target_role, physical_key,
+                     snapshot_path, outcome)
+                 VALUES (?1, ?2, 'file', 'remove', ?3, ?4, 'ready')",
+                params![
+                    preflight_id,
+                    ordinal as i64,
+                    format!("persisted-key-{ordinal}"),
+                    format!("Z:/path-that-is-never-inspected/item-{ordinal}.bin")
+                ],
+            )
+            .unwrap();
+        preflight_item_ids.push(db.connection().last_insert_rowid());
+    }
+    db.connection()
+        .execute(
+            "INSERT INTO recycle_operation
+                (operation_id, run_id, plan_id, preflight_id, review_revision,
+                 preflight_snapshot_signature, intent_signature, policy_version, status,
+                 logical_removal_count, shell_item_count, physical_item_count,
+                 folder_item_count, affected_group_count, planned_removal_bytes,
+                 prepared_at, completed_at)
+             VALUES ('persisted-recovery', ?1, ?2, ?3, 0, 'persisted-snapshot',
+                     'persisted-intent', 1, 'recovery_required', ?4, ?4, ?4,
+                     0, 0, ?4, ?5, ?5)",
+            params![
+                run_id,
+                plan_id,
+                preflight_id,
+                (unknown_count + 1) as i64,
+                now
+            ],
+        )
+        .unwrap();
+    let operation_id = db.connection().last_insert_rowid();
+    db.connection()
+        .execute(
+            "INSERT INTO recycle_operation_batch
+                (recycle_operation_id, ordinal, item_signature, status, started_at)
+             VALUES (?1, 0, 'persisted-batch', 'ambiguous', ?2)",
+            params![operation_id, now],
+        )
+        .unwrap();
+    let batch_id = db.connection().last_insert_rowid();
+    let mut unknown_ids = Vec::new();
+    let mut non_unknown_id = 0;
+    for (ordinal, preflight_item_id) in preflight_item_ids.into_iter().enumerate() {
+        let result_status = if ordinal < unknown_count {
+            "unknown"
+        } else {
+            "failed"
+        };
+        db.connection()
+            .execute(
+                "INSERT INTO recycle_operation_item
+                    (recycle_operation_id, batch_id, ordinal, preflight_item_id,
+                     target_kind, physical_key, snapshot_path, planned_bytes,
+                     eligibility_status, result_status, result_code, result_at)
+                 VALUES (?1, ?2, ?3, ?4, 'file', ?5, ?6, 1, 'eligible', ?7,
+                         'persisted_source_evidence', ?8)",
+                params![
+                    operation_id,
+                    batch_id,
+                    ordinal as i64,
+                    preflight_item_id,
+                    format!("persisted-key-{ordinal}"),
+                    format!("Z:/path-that-is-never-inspected/item-{ordinal}.bin"),
+                    result_status,
+                    now
+                ],
+            )
+            .unwrap();
+        let item_id = db.connection().last_insert_rowid();
+        if result_status == "unknown" {
+            unknown_ids.push(item_id);
+            db.connection()
+                .execute(
+                    "INSERT INTO recycle_operation_recovery
+                        (recycle_operation_id, batch_id, item_id, reason_code, detail, created_at)
+                     VALUES (?1, ?2, ?3, 'worker_interrupted_after_shell_start',
+                             'immutable recovery evidence', ?4)",
+                    params![operation_id, batch_id, item_id, now],
+                )
+                .unwrap();
+        } else {
+            non_unknown_id = item_id;
+        }
+    }
+    (run_id, operation_id, unknown_ids, non_unknown_id)
+}
+
+fn recovery_input(
+    request_id: &str,
+    operation_id: i64,
+    item_id: i64,
+    observation: RecoveryObservationKind,
+) -> RecoveryReviewObservationInput {
+    RecoveryReviewObservationInput {
+        request_id: request_id.to_owned(),
+        recycle_operation_id: operation_id,
+        item_id,
+        observation,
+        observed_at: "2026-08-23T17:00:00Z".to_owned(),
+        note: Some("operator-entered note".to_owned()),
+        evidence_version: 1,
+        supersedes_observation_id: None,
+        correction_reason: None,
+    }
+}
+
+fn persisted_rows(db: &Database, sql: &str) -> Vec<Vec<SqlValue>> {
+    let mut statement = db.connection().prepare(sql).unwrap();
+    let column_count = statement.column_count();
+    statement
+        .query_map([], |row| {
+            (0..column_count)
+                .map(|index| row.get(index))
+                .collect::<rusqlite::Result<Vec<SqlValue>>>()
+        })
+        .unwrap()
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .unwrap()
 }
 
 fn parameters(roots: &[&str], ignores: &[&str]) -> RunParameters {
@@ -141,6 +297,96 @@ fn live_file(run_id: i64, root: &Path, path: &Path) -> ScannedFile {
 fn schema_version_is_explicit_and_current() {
     let db = Database::open_in_memory().unwrap();
     assert_eq!(db.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+}
+
+#[test]
+fn version_ten_migrates_recovery_review_transactionally_and_cascades_cleanup() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("v10-recovery-review.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    db.connection()
+        .execute_batch(
+            "DROP TABLE recovery_review_observation;
+             PRAGMA user_version = 10;",
+        )
+        .unwrap();
+    drop(db);
+
+    let migrated = Database::open(path.to_str().unwrap()).unwrap();
+    assert_eq!(migrated.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+    let exists: bool = migrated
+        .connection()
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master
+                           WHERE type = 'table' AND name = 'recovery_review_observation')",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(exists);
+    let (run_id, operation_id, unknown_ids, _) = recovery_review_fixture(&migrated, 1);
+    let original = migrated
+        .record_recovery_review_observation(&recovery_input(
+            "migration-observation",
+            operation_id,
+            unknown_ids[0],
+            RecoveryObservationKind::DeferredUnresolved,
+        ))
+        .unwrap();
+    let mut correction = recovery_input(
+        "migration-correction",
+        operation_id,
+        unknown_ids[0],
+        RecoveryObservationKind::ObservedAtSource,
+    );
+    correction.supersedes_observation_id = Some(original.observation.id);
+    correction.correction_reason = Some("migration cleanup correction".to_owned());
+    migrated
+        .record_recovery_review_observation(&correction)
+        .unwrap();
+    migrated
+        .connection()
+        .execute("DELETE FROM scan_run WHERE id = ?1", params![run_id])
+        .unwrap();
+    let remaining: i64 = migrated
+        .connection()
+        .query_row(
+            "SELECT COUNT(*) FROM recovery_review_observation",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(remaining, 0);
+}
+
+#[test]
+fn version_ten_recovery_review_migration_rolls_back_on_failure() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("v10-recovery-review-rollback.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    db.connection()
+        .execute_batch(
+            "DROP TABLE recovery_review_observation;
+             CREATE TABLE recovery_review_observation (id INTEGER PRIMARY KEY);
+             PRAGMA user_version = 10;",
+        )
+        .unwrap();
+    drop(db);
+
+    assert!(Database::open(path.to_str().unwrap()).is_err());
+    let raw = Connection::open(&path).unwrap();
+    let version: i64 = raw
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 10);
+    let columns: i64 = raw
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('recovery_review_observation')",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(columns, 1);
 }
 
 #[test]
@@ -2838,6 +3084,271 @@ fn recycle_operation_is_revision_bound_idempotent_locked_and_restart_safe() {
     assert_eq!(
         fs::read(&survivor_path).unwrap(),
         b"non-mutating operation fixture"
+    );
+}
+
+#[test]
+fn recovery_review_is_append_only_bounded_paged_and_restart_safe() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("recovery-review.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    let (_, operation_id, unknown_ids, _) = recovery_review_fixture(&db, 5);
+    let immutable_source = [
+        format!("SELECT * FROM recycle_operation WHERE id = {operation_id}"),
+        format!(
+            "SELECT * FROM recycle_operation_batch WHERE recycle_operation_id = {operation_id} ORDER BY id"
+        ),
+        format!(
+            "SELECT * FROM recycle_operation_item WHERE recycle_operation_id = {operation_id} ORDER BY id"
+        ),
+        format!(
+            "SELECT * FROM recycle_operation_recovery WHERE recycle_operation_id = {operation_id} ORDER BY id"
+        ),
+    ]
+    .map(|sql| persisted_rows(&db, &sql));
+
+    let initial = db.get_recovery_review(operation_id).unwrap();
+    assert_eq!(initial.state, RecoveryReviewState::NotStarted);
+    assert_eq!(initial.unknown_item_count, 5);
+    assert_eq!(initial.observed_item_count, 0);
+
+    let kinds = [
+        RecoveryObservationKind::ObservedInRecycleBin,
+        RecoveryObservationKind::ObservedAtSource,
+        RecoveryObservationKind::ObservedInBoth,
+        RecoveryObservationKind::ObservedInNeither,
+        RecoveryObservationKind::DeferredUnresolved,
+    ];
+    let mut first = None;
+    for (index, (item_id, kind)) in unknown_ids.iter().zip(kinds).enumerate() {
+        let result = db
+            .record_recovery_review_observation(&recovery_input(
+                &format!("observation-{index}"),
+                operation_id,
+                *item_id,
+                kind,
+            ))
+            .unwrap();
+        assert!(!result.replayed);
+        assert_eq!(result.observation.observation, kind);
+        assert!(result.observation.is_current);
+        assert_eq!(
+            result.summary.state,
+            if index == 4 {
+                RecoveryReviewState::ReviewCompleteWithUnresolvedEvidence
+            } else {
+                RecoveryReviewState::InProgress
+            }
+        );
+        first.get_or_insert(result.observation.id);
+    }
+
+    let replay = db
+        .record_recovery_review_observation(&recovery_input(
+            "observation-0",
+            operation_id,
+            unknown_ids[0],
+            RecoveryObservationKind::ObservedInRecycleBin,
+        ))
+        .unwrap();
+    assert!(replay.replayed);
+    assert_eq!(replay.observation.id, first.unwrap());
+    let mut conflict = recovery_input(
+        "observation-0",
+        operation_id,
+        unknown_ids[0],
+        RecoveryObservationKind::ObservedInRecycleBin,
+    );
+    conflict.note = Some("a conflicting payload".to_owned());
+    assert!(matches!(
+        db.record_recovery_review_observation(&conflict),
+        Err(RecoveryReviewError::IdempotencyConflict { .. })
+    ));
+
+    let mut correction = recovery_input(
+        "observation-0-correction",
+        operation_id,
+        unknown_ids[0],
+        RecoveryObservationKind::ObservedAtSource,
+    );
+    correction.supersedes_observation_id = first;
+    correction.correction_reason = Some("operator corrected the selected observation".to_owned());
+    let correction = db.record_recovery_review_observation(&correction).unwrap();
+    assert_eq!(correction.observation.supersedes_observation_id, first);
+    assert_eq!(
+        correction.summary.state,
+        RecoveryReviewState::ReviewCompleteWithUnresolvedEvidence
+    );
+
+    let current = db
+        .page_recovery_review_observations(operation_id, 0, 2, true)
+        .unwrap();
+    assert_eq!(current.total, 5);
+    assert_eq!(current.observations.len(), 2);
+    assert!(current.has_more);
+    assert!(current.observations.iter().all(|value| value.is_current));
+    let history = db
+        .page_recovery_review_observations(operation_id, 0, 200, false)
+        .unwrap();
+    assert_eq!(history.total, 6);
+    let prior = history
+        .observations
+        .iter()
+        .find(|value| Some(value.id) == first)
+        .unwrap();
+    assert!(!prior.is_current);
+    assert_eq!(
+        prior.superseded_by_observation_id,
+        Some(correction.observation.id)
+    );
+    assert_eq!(
+        correction.observation.correction_reason.as_deref(),
+        Some("operator corrected the selected observation")
+    );
+
+    let unchanged_source = [
+        format!("SELECT * FROM recycle_operation WHERE id = {operation_id}"),
+        format!(
+            "SELECT * FROM recycle_operation_batch WHERE recycle_operation_id = {operation_id} ORDER BY id"
+        ),
+        format!(
+            "SELECT * FROM recycle_operation_item WHERE recycle_operation_id = {operation_id} ORDER BY id"
+        ),
+        format!(
+            "SELECT * FROM recycle_operation_recovery WHERE recycle_operation_id = {operation_id} ORDER BY id"
+        ),
+    ]
+    .map(|sql| persisted_rows(&db, &sql));
+    assert_eq!(unchanged_source, immutable_source);
+    drop(db);
+
+    let reopened = Database::open(path.to_str().unwrap()).unwrap();
+    let reconstructed = reopened.get_recovery_review(operation_id).unwrap();
+    assert_eq!(
+        reconstructed.state,
+        RecoveryReviewState::ReviewCompleteWithUnresolvedEvidence
+    );
+    assert_eq!(reconstructed.observed_item_count, 5);
+    assert_eq!(
+        reopened
+            .page_recovery_review_observations(operation_id, 0, 200, false)
+            .unwrap()
+            .total,
+        6
+    );
+}
+
+#[test]
+fn recovery_review_rejects_invalid_non_unknown_and_interrupted_supersession_writes() {
+    let db = Database::open_in_memory().unwrap();
+    let (_, operation_id, unknown_ids, non_unknown_id) = recovery_review_fixture(&db, 2);
+
+    let mut invalid_timestamp = recovery_input(
+        "invalid-time",
+        operation_id,
+        unknown_ids[0],
+        RecoveryObservationKind::DeferredUnresolved,
+    );
+    invalid_timestamp.observed_at = "not-a-timestamp".to_owned();
+    assert!(matches!(
+        db.record_recovery_review_observation(&invalid_timestamp),
+        Err(RecoveryReviewError::InvalidRequest { .. })
+    ));
+    let mut oversized_note = recovery_input(
+        "oversized-note",
+        operation_id,
+        unknown_ids[0],
+        RecoveryObservationKind::DeferredUnresolved,
+    );
+    oversized_note.note = Some("n".repeat(1_001));
+    assert!(matches!(
+        db.record_recovery_review_observation(&oversized_note),
+        Err(RecoveryReviewError::InvalidRequest { .. })
+    ));
+    let mut unsupported_version = recovery_input(
+        "future-version",
+        operation_id,
+        unknown_ids[0],
+        RecoveryObservationKind::DeferredUnresolved,
+    );
+    unsupported_version.evidence_version = 2;
+    assert!(matches!(
+        db.record_recovery_review_observation(&unsupported_version),
+        Err(RecoveryReviewError::InvalidRequest { .. })
+    ));
+    assert!(matches!(
+        db.record_recovery_review_observation(&recovery_input(
+            "non-unknown",
+            operation_id,
+            non_unknown_id,
+            RecoveryObservationKind::DeferredUnresolved,
+        )),
+        Err(RecoveryReviewError::NonUnknownItem { .. })
+    ));
+    assert!(matches!(
+        db.page_recovery_review_observations(operation_id, 0, 201, false),
+        Err(RecoveryReviewError::InvalidRequest { .. })
+    ));
+
+    let original = db
+        .record_recovery_review_observation(&recovery_input(
+            "original",
+            operation_id,
+            unknown_ids[0],
+            RecoveryObservationKind::ObservedInNeither,
+        ))
+        .unwrap();
+    assert!(matches!(
+        db.record_recovery_review_observation(&recovery_input(
+            "missing-supersession",
+            operation_id,
+            unknown_ids[0],
+            RecoveryObservationKind::ObservedAtSource,
+        )),
+        Err(RecoveryReviewError::CurrentObservationExists { .. })
+    ));
+    let mut missing_reason = recovery_input(
+        "missing-reason",
+        operation_id,
+        unknown_ids[0],
+        RecoveryObservationKind::ObservedAtSource,
+    );
+    missing_reason.supersedes_observation_id = Some(original.observation.id);
+    assert!(matches!(
+        db.record_recovery_review_observation(&missing_reason),
+        Err(RecoveryReviewError::InvalidRequest { .. })
+    ));
+
+    db.connection()
+        .execute_batch(
+            "CREATE TRIGGER interrupt_recovery_review
+             BEFORE INSERT ON recovery_review_observation
+             WHEN NEW.request_id = 'interrupted'
+             BEGIN
+                 SELECT RAISE(ABORT, 'injected interruption');
+             END;",
+        )
+        .unwrap();
+    let mut interrupted = recovery_input(
+        "interrupted",
+        operation_id,
+        unknown_ids[0],
+        RecoveryObservationKind::ObservedAtSource,
+    );
+    interrupted.supersedes_observation_id = Some(original.observation.id);
+    interrupted.correction_reason = Some("write interruption boundary".to_owned());
+    assert!(matches!(
+        db.record_recovery_review_observation(&interrupted),
+        Err(RecoveryReviewError::Database(_))
+    ));
+    let after_interruption = db
+        .page_recovery_review_observations(operation_id, 0, 200, false)
+        .unwrap();
+    assert_eq!(after_interruption.total, 1);
+    assert!(after_interruption.observations[0].is_current);
+    assert_eq!(
+        after_interruption.observations[0].id,
+        original.observation.id
     );
 }
 

@@ -1,5 +1,8 @@
 # Storage Schema v10
 
+Schema v11 retains every v10 table unchanged and adds only the separate append-only recovery-review
+table documented in [`storage-schema-v11.md`](storage-schema-v11.md).
+
 Schema version 10 adds Rust-owned durable records for a revision-bound Recycle Bin operation. The
 implemented operation surface remains disabled in production: it can prepare, classify, confirm,
 page, cancel, report outcomes, and reconstruct ambiguous state, while the WPF composition still

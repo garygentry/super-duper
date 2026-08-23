@@ -528,6 +528,60 @@ public sealed record RecycleEligibilityObservation(
     string Status,
     string? ReasonCode);
 
+public sealed record WorkerRecoveryReview(
+    long RecycleOperationId,
+    string State,
+    long UnknownItemCount,
+    long ObservedItemCount);
+
+public sealed record WorkerRecoveryReviewResult(
+    WorkerRecoveryReview Review,
+    bool ExecutorEnabled);
+
+public sealed record WorkerRecoveryReviewObservation(
+    long Id,
+    string RequestId,
+    long RecycleOperationId,
+    long ItemId,
+    string Observation,
+    string ObservedAt,
+    string? Note,
+    long EvidenceVersion,
+    long? SupersedesObservationId,
+    string? CorrectionReason,
+    string CreatedAt,
+    long? SupersededByObservationId,
+    bool IsCurrent);
+
+public sealed record RecoveryReviewObservationQuery(
+    long RecycleOperationId,
+    int PageSize,
+    bool CurrentOnly,
+    string? Cursor = null);
+
+public sealed record WorkerRecoveryReviewObservationPage(
+    IReadOnlyList<WorkerRecoveryReviewObservation> Observations,
+    long Total,
+    string? NextCursor,
+    bool ExecutorEnabled);
+
+public sealed record RecoveryReviewObservationRecord(
+    string RequestId,
+    long RecycleOperationId,
+    long ItemId,
+    string Observation,
+    string ObservedAt,
+    string? Note,
+    long EvidenceVersion,
+    long? SupersedesObservationId = null,
+    string? CorrectionReason = null);
+
+public sealed record WorkerRecoveryReviewMutationResult(
+    WorkerRecoveryReview Review,
+    WorkerRecoveryReviewObservation Observation,
+    bool Replayed,
+    bool ExecutorEnabled);
+
 public sealed record WorkerPreferenceRuleSummary(
     long Id,
     string Name,

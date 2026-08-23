@@ -1,4 +1,5 @@
 using System.Text.Json;
+using SuperDuper.Windows.Core.Workers;
 using SuperDuper.Windows.Infrastructure.Protocol;
 
 namespace SuperDuper.Windows.Infrastructure.Tests;
@@ -69,6 +70,71 @@ public sealed class JsonLineProtocolTests
         Assert.IsTrue(correlator.TryCancel("cancelled", source.Token));
         await Assert.ThrowsExceptionAsync<TaskCanceledException>(async () => await pending);
         Assert.IsTrue(correlator.TryComplete(Success("cancelled", 1)));
+    }
+
+    [TestMethod]
+    public void RecoveryReviewContracts_MatchAppendOnlyWorkerPayloads()
+    {
+        const string mutationJson = """
+            {
+              "review": {
+                "recycleOperationId": 9,
+                "state": "review_complete_with_unresolved_evidence",
+                "unknownItemCount": 1,
+                "observedItemCount": 1
+              },
+              "observation": {
+                "id": 12,
+                "requestId": "review-12",
+                "recycleOperationId": 9,
+                "itemId": 44,
+                "observation": "observed_at_source",
+                "observedAt": "2026-08-23T17:03:00Z",
+                "note": "operator note",
+                "evidenceVersion": 1,
+                "supersedesObservationId": 11,
+                "correctionReason": "corrected manual selection",
+                "createdAt": "2026-08-23T17:03:01Z",
+                "supersededByObservationId": null,
+                "isCurrent": true
+              },
+              "replayed": false,
+              "executorEnabled": false
+            }
+            """;
+
+        var result = JsonSerializer.Deserialize<WorkerRecoveryReviewMutationResult>(
+            mutationJson,
+            JsonLineProtocol.SerializerOptions);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual("review_complete_with_unresolved_evidence", result.Review.State);
+        Assert.AreEqual("observed_at_source", result.Observation.Observation);
+        Assert.AreEqual(11, result.Observation.SupersedesObservationId);
+        Assert.AreEqual("corrected manual selection", result.Observation.CorrectionReason);
+        Assert.IsTrue(result.Observation.IsCurrent);
+        Assert.IsFalse(result.Replayed);
+        Assert.IsFalse(result.ExecutorEnabled);
+
+        var request = new RecoveryReviewObservationRecord(
+            "review-12",
+            9,
+            44,
+            "observed_at_source",
+            "2026-08-23T17:03:00Z",
+            "operator note",
+            1,
+            11,
+            "corrected manual selection");
+        var frame = JsonLineProtocol.EncodeRequestFrame(
+            "review-12",
+            "recovery_review.observation.record",
+            request);
+        using var document = JsonDocument.Parse(frame);
+        var parameters = document.RootElement.GetProperty("params");
+        Assert.AreEqual("review-12", parameters.GetProperty("requestId").GetString());
+        Assert.AreEqual(11, parameters.GetProperty("supersedesObservationId").GetInt64());
+        Assert.AreEqual(1, parameters.GetProperty("evidenceVersion").GetInt64());
     }
 
     private static ResponseEnvelope Success(string id, int value)

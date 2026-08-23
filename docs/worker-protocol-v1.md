@@ -759,6 +759,55 @@ The evidence-only acceptance collector and its explicit non-mutating/provider/Sh
 documented in [`windows-recycle-bin-acceptance.md`](windows-recycle-bin-acceptance.md); it does not
 alter this disabled protocol surface or make `executorEnabled` true.
 
+## Recovery Review Persistence Commands
+
+These schema-v11 methods implement the accepted append-only operator-observation contract for an
+existing `recovery_required` operation. They read and write only SQLite records. They do not inspect
+a source path, provider, file content, or the Recycle Bin; infer an outcome; alter an operation,
+batch, item, or recovery row; submit/replay work; or expose restore or deletion. Every successful
+response includes `executorEnabled:false`.
+
+`recovery_review.get` accepts one positive `recycleOperationId` and derives coverage from current
+observations over the immutable `unknown` items:
+
+```json
+{"type":"request","id":"rr1","method":"recovery_review.get","params":{"recycleOperationId":4}}
+{"review":{"recycleOperationId":4,"state":"in_progress","unknownItemCount":3,"observedItemCount":1},"executorEnabled":false}
+```
+
+The only states are `not_started`, `in_progress`, and
+`review_complete_with_unresolved_evidence`. Completion means every unknown item has a current
+operator attestation; it does not resolve or rewrite Shell evidence.
+
+`recovery_review.observation.record` accepts a 1–128-character `requestId`, positive operation/item
+IDs, one of `observed_in_recycle_bin`, `observed_at_source`, `observed_in_both`,
+`observed_in_neither`, or `deferred_unresolved`, an RFC 3339 `observedAt` of at most 64 characters,
+optional `note` of at most 1,000 characters, and `evidenceVersion:1`. A first observation omits both
+supersession fields. A correction supplies the current `supersedesObservationId` for the same item
+and a 1–500-character `correctionReason`. The prior row remains in history. Exact request replay
+returns `replayed:true`; reuse with another payload returns `idempotency_conflict`. A second current
+observation without explicit supersession, a stale/cross-item prior, a non-unknown item, or any
+invalid bound writes nothing.
+
+```json
+{"type":"request","id":"rr2","method":"recovery_review.observation.record","params":{"requestId":"review-4-18","recycleOperationId":4,"itemId":18,"observation":"deferred_unresolved","observedAt":"2026-08-23T17:00:00Z","note":"Inspection unavailable","evidenceVersion":1}}
+```
+
+`recovery_review.observation.page` accepts a positive operation ID, `pageSize` 1–200,
+`currentOnly`, and an opaque forward cursor bound to both values. Current projection returns one
+unsuperseded row per observed item. History returns every append-only row with
+`supersedesObservationId`, `correctionReason`, `supersededByObservationId`, and `isCurrent` so the
+complete chain remains reconstructable after restart.
+
+```json
+{"type":"request","id":"rr3","method":"recovery_review.observation.page","params":{"recycleOperationId":4,"pageSize":100,"currentOnly":false,"cursor":null}}
+```
+
+Stable recovery-review errors include `recovery_review_invalid_state`,
+`recovery_review_item_not_unknown`, `recovery_review_observation_not_found`,
+`recovery_review_supersession_conflict`, and `recovery_review_current_observation_exists`, in
+addition to the existing not-found, cursor, request, database, and idempotency errors.
+
 ## Duplicate File Result Commands
 
 Duplicate-file results are immutable and queryable only when the addressed run has status

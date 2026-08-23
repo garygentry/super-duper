@@ -704,6 +704,110 @@ pub struct RecycleItemResultObservation {
     pub recycled_item_present: Option<bool>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryObservationKind {
+    ObservedInRecycleBin,
+    ObservedAtSource,
+    ObservedInBoth,
+    ObservedInNeither,
+    DeferredUnresolved,
+}
+
+impl RecoveryObservationKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::ObservedInRecycleBin => "observed_in_recycle_bin",
+            Self::ObservedAtSource => "observed_at_source",
+            Self::ObservedInBoth => "observed_in_both",
+            Self::ObservedInNeither => "observed_in_neither",
+            Self::DeferredUnresolved => "deferred_unresolved",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "observed_in_recycle_bin" => Some(Self::ObservedInRecycleBin),
+            "observed_at_source" => Some(Self::ObservedAtSource),
+            "observed_in_both" => Some(Self::ObservedInBoth),
+            "observed_in_neither" => Some(Self::ObservedInNeither),
+            "deferred_unresolved" => Some(Self::DeferredUnresolved),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecoveryReviewState {
+    NotStarted,
+    InProgress,
+    ReviewCompleteWithUnresolvedEvidence,
+}
+
+impl RecoveryReviewState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::NotStarted => "not_started",
+            Self::InProgress => "in_progress",
+            Self::ReviewCompleteWithUnresolvedEvidence => {
+                "review_complete_with_unresolved_evidence"
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecoveryReviewSummary {
+    pub recycle_operation_id: i64,
+    pub state: RecoveryReviewState,
+    pub unknown_item_count: i64,
+    pub observed_item_count: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecoveryReviewObservation {
+    pub id: i64,
+    pub request_id: String,
+    pub recycle_operation_id: i64,
+    pub item_id: i64,
+    pub observation: RecoveryObservationKind,
+    pub observed_at: String,
+    pub note: Option<String>,
+    pub evidence_version: i64,
+    pub supersedes_observation_id: Option<i64>,
+    pub correction_reason: Option<String>,
+    pub created_at: String,
+    pub superseded_by_observation_id: Option<i64>,
+    pub is_current: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecoveryReviewObservationInput {
+    pub request_id: String,
+    pub recycle_operation_id: i64,
+    pub item_id: i64,
+    pub observation: RecoveryObservationKind,
+    pub observed_at: String,
+    pub note: Option<String>,
+    pub evidence_version: i64,
+    pub supersedes_observation_id: Option<i64>,
+    pub correction_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecoveryReviewObservationPage {
+    pub observations: Vec<RecoveryReviewObservation>,
+    pub total: i64,
+    pub has_more: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecoveryReviewMutationResult {
+    pub summary: RecoveryReviewSummary,
+    pub observation: RecoveryReviewObservation,
+    pub replayed: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreferenceRule {
     pub id: i64,

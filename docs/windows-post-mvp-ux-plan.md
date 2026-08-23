@@ -3431,10 +3431,10 @@ Windows Undo decision remain unaccepted.
 
 ##### WPM11 recovery-workflow decision package (2026-08-23)
 
-Status: **Option A accepted by explicit user review on 2026-08-23; not yet implemented**. The
-approved model is append-only per-item operator observation with immutable original unknown
-evidence. This decision does not itself change schema, protocol, Core, WPF, tests, the live
-filesystem, Milestone 12 state, or production composition.
+Status: **Option A accepted; persistence/protocol implemented and accepted on 2026-08-23; WPF
+workflow not yet implemented**. Schema v11 and the non-UI worker/client contract now implement
+append-only per-item operator observations with immutable original unknown evidence. No WPF
+controls, live filesystem behavior, Milestone 12 state, or production composition changed.
 
 ###### Existing evidence boundary
 
@@ -3453,8 +3453,8 @@ filesystem, Milestone 12 state, or production composition.
 ###### Option A — append-only operator adjudication (accepted)
 
 Keep `recycle_operation_item.result_status = unknown`, the batch `ambiguous`, and the operation
-`recovery_required` immutable. The separately gated implementation will add a distinct append-only
-recovery-review record. The operator—not the app—will manually inspect the source location and
+`recovery_required` immutable. Schema v11 adds a distinct append-only recovery-review record. The
+operator—not the app—will manually inspect the source location and
 Windows Recycle Bin, then record one bounded observation per unknown item:
 
 - `observed_in_recycle_bin` — the operator identified a corresponding Recycle Bin entry;
@@ -3463,14 +3463,14 @@ Windows Recycle Bin, then record one bounded observation per unknown item:
 - `observed_in_neither` — neither was observed, which is not proof of deletion or recycling; or
 - `deferred_unresolved` — inspection was unavailable or deliberately deferred.
 
-These are operator attestations, not rewritten Shell outcomes. Every record will include the
+These are operator attestations, not rewritten Shell outcomes. Every record includes the
 durable operation/item IDs, observation kind, operator timestamp, bounded optional note, evidence
 version, and a link to the immutable source record. A superseding record would additionally name
 the prior observation and a bounded correction reason; no prior record could be edited or deleted.
 The app would not capture live file metadata, Recycle Bin search output, screenshots, or content as
 if they were authoritative operation evidence.
 
-The separate review status will transition `not started -> in progress` on the first current
+The separate derived review status transitions `not started -> in progress` on the first current
 per-item observation and `in progress -> review complete with unresolved evidence` only when every
 unknown item has one current observation. A superseding observation preserves the latter state when
 coverage remains complete; interrupted writes leave the prior current observation and review state
@@ -3491,8 +3491,8 @@ authority. Exact-folder unknowns remain whole-item ambiguous even if some descen
 hard-link and provider observations never imply physical identity. Milestone 12 may later consume
 positive durable outcomes, but this recovery review itself writes no working-state conclusion.
 
-This option preserves forensic truth and gives the operator an auditable checklist. Its costs are
-new persistence/UI/accessibility work, deliberate operator burden, and a truthful unresolved label
+This option preserves forensic truth and gives the operator an auditable checklist. Its remaining
+costs are UI/accessibility work, deliberate operator burden, and a truthful unresolved label
 even after review; it does not manufacture certainty from an interrupted Shell call.
 
 ###### Reviewed alternatives and tradeoffs
@@ -3518,9 +3518,9 @@ even after review; it does not manufacture certainty from an interrupted Shell c
 
 ###### Accepted decision and downstream gates
 
-The accepted decision creates `WPM11-recovery-review-persistence` for the append-only schema,
-storage, bounded worker protocol, and matching non-UI client contract, followed by
-`WPM11-recovery-review-ui` for the accessible WPF workflow. The existing
+The accepted and completed `WPM11-recovery-review-persistence` gate supplies the append-only schema,
+storage, bounded worker protocol, and matching non-UI client contract. The now-ready
+`WPM11-recovery-review-ui` gate supplies the accessible WPF workflow. The existing
 `WPM11-ambiguous-start` gate then supplies the controlled process-loss operator evidence. These
 records remain source evidence for later `WPM13-outcome-audit`, and
 `WPM11-crash-reconciliation` depends on all three downstream results.
@@ -3794,19 +3794,18 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance only `WPM11-recovery-review-persistence`. Option A and its durable-outcome dependency are
-accepted, and the uncovered criterion is the absence of append-only recovery-review state and
-observation persistence/protocol. Implement one forward migration, storage/query/mutation contract,
-bounded worker methods, and matching non-UI client contracts for the five observations, three
-derived review states, and append-only supersession.
+Advance only `WPM11-recovery-review-ui`. Its persistence/protocol dependency is accepted, and the
+uncovered criterion is the absence of the accessible operator workflow over schema v11. Implement
+bounded Core/WPF review status, per-item observation/supersession, durable evidence copy, Recycle
+Bin navigation, and fresh-scan navigation with keyboard/focus/announcement coverage.
 
-Verifier: migration/rollback/unknown-schema, validation, idempotency/conflict, interruption,
-paging/bounds, supersession, restart, immutable-source, no-live-I/O, and no-replay coverage pass in
-the proportional Debug/Release Rust and .NET protocol matrices. Non-goals are WPF review controls,
-live filesystem or Recycle Bin inspection, recovery campaigns, resolution claims, execution,
-Milestone 12 mutation, and any change to `CanSubmit:false`,
+Verifier: Core/Infrastructure/WPF Debug/Release tests and real non-mutating smoke cover all states,
+transitions, stale responses, paging, append-only correction, keyboard/focus/announcements, and
+forbidden-action absence. Non-goals are automatic live inspection/inference, operation replay or
+outcome mutation, recovery/provider/physical/performance campaigns, Milestone 12 mutation,
+production wiring, and any change to `CanSubmit:false`,
 `DisabledRecycleOperationCapabilityExecutor`, or `executorEnabled:false`. Other ready lanes are not
-substitute authority for this session.
+substitute authority for that session.
 
 ## Milestone Definition Template
 
@@ -3894,3 +3893,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-23 | Accepted the reviewed Milestone 7/14 required/deferred scope and operator-accepted plus production-enabled completion contract. | Keep both cloud opt-ins and four Milestone 14 follow-ons explicitly deferred; require accessibility, coherent states, instrumentation, retained Release scale evidence, and cloud safety; preserve separate explicit authorization for WPM11 production wiring; authorize only WPM11-recovery-workflow next. |
 | 2026-08-23 | Prepared the complete WPM11 ambiguous-recovery decision package and left it ready for user decision. | Recommend append-only operator observations without rewriting unknown Shell evidence; document preserve-only, automatic-inference, replay, and overwrite alternatives; require an explicit Option A, Option B-with-waiver, or named-revision choice before implementation. |
 | 2026-08-23 | Accepted WPM11 recovery Option A by explicit user review. | Preserve original unknown/ambiguous/recovery-required evidence; implement append-only persistence/protocol first, accessible WPF review second, and controlled process-loss evidence third; keep live inference, replay, outcome overwrite, and production wiring unauthorized. |
+| 2026-08-23 | Implemented and accepted WPM11 recovery-review persistence/protocol: schema v11, append-only operator observations and supersession, three derived states, bounded current/history paging, idempotent mutation, restart reconstruction, and matching non-UI worker/client contracts. | Keep every schema-v10 source-evidence row immutable and every execution lock disabled; advance only the accessible WPF recovery-review gate next, with live inspection/inference, replay, campaigns, Milestone 12 mutation, and production wiring out of scope. |
