@@ -2,6 +2,13 @@
 
 Guidance for fresh coding-agent sessions in this repository.
 
+## Active Session Handoff
+
+At the beginning of every coding session, read and follow
+`docs/windows-roadmap-session-handoff.md` before choosing or starting work. Treat it as the active
+cross-session checkpoint until the Windows roadmap described there is complete. Keep the handoff
+updated as required by that document; once the roadmap is complete, remove this startup instruction.
+
 ## Current State
 
 This branch contains the clean-slate Rust workspace and the new WPF/.NET 10 Windows MVP scaffold.

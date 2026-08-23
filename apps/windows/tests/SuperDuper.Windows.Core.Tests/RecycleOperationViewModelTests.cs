@@ -276,6 +276,39 @@ public sealed class RecycleOperationViewModelTests
         Assert.AreEqual(announcementVersion, viewModel.AnnouncementVersion);
     }
 
+    [TestMethod]
+    public async Task FailedNextPagePreservesCommittedPageAndCanRetry()
+    {
+        var worker = CreatePagedRecoveryWorker();
+        var failNext = true;
+        worker.RecycleOperationItemPageHandler = (query, _) =>
+        {
+            if (query.Cursor is not null && failNext)
+            {
+                failNext = false;
+                throw new InvalidOperationException("The next recovery page is unavailable.");
+            }
+            return Task.FromResult(CreateRecoveryPage(query.RecycleOperationId, query.Cursor is null));
+        };
+        using var viewModel = new RecycleOperationViewModel(worker, new DisabledCapability());
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        await viewModel.NextPageCommand.ExecuteAsync(null);
+
+        StringAssert.Contains(viewModel.PageStatus, "showing items 1-100 of 101 unknown details");
+        StringAssert.Contains(viewModel.ErrorMessage, "next recovery page is unavailable");
+        StringAssert.Contains(viewModel.Announcement, "page error");
+        Assert.IsTrue(viewModel.CanMoveNext);
+        Assert.IsFalse(viewModel.CanMovePrevious);
+
+        await viewModel.NextPageCommand.ExecuteAsync(null);
+
+        StringAssert.Contains(viewModel.PageStatus, "showing items 101-101 of 101 unknown details");
+        Assert.IsFalse(viewModel.HasError);
+        Assert.IsTrue(viewModel.CanMovePrevious);
+    }
+
     private static TestWorkerClient CreatePagedRecoveryWorker()
     {
         var worker = new TestWorkerClient();

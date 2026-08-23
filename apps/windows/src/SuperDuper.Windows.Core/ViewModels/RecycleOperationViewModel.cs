@@ -248,9 +248,13 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         {
             return;
         }
-        _history.Add(_cursor);
-        if (await LoadPageAsync(_nextCursor, _generation, _lifetime.Token))
+
+        var currentCursor = _cursor;
+        var nextCursor = _nextCursor;
+        if (await TryNavigateAsync(nextCursor, _pageIndex + 1, _generation, _lifetime.Token))
         {
+            _history.Add(currentCursor);
+            NotifyStateChanged();
             AnnouncePage();
         }
     }
@@ -262,14 +266,45 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             return;
         }
         var previous = _history[^1];
-        _history.RemoveAt(_history.Count - 1);
-        if (await LoadPageAsync(previous, _generation, _lifetime.Token))
+        if (await TryNavigateAsync(previous, _pageIndex - 1, _generation, _lifetime.Token))
         {
+            _history.RemoveAt(_history.Count - 1);
+            NotifyStateChanged();
             AnnouncePage();
         }
     }
 
-    private async Task<bool> LoadPageAsync(string? cursor, long generation, CancellationToken token)
+    private async Task<bool> TryNavigateAsync(
+        string? cursor,
+        int pageIndex,
+        long generation,
+        CancellationToken token)
+    {
+        try
+        {
+            return await LoadPageAsync(cursor, generation, token, pageIndex);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch (Exception exception)
+        {
+            if (IsCurrentGeneration(generation, token))
+            {
+                ErrorMessage = exception.Message;
+                Announcement = $"Recycle Bin operation page error. {exception.Message}";
+                AnnouncementVersion++;
+            }
+            return false;
+        }
+    }
+
+    private async Task<bool> LoadPageAsync(
+        string? cursor,
+        long generation,
+        CancellationToken token,
+        int? pageIndex = null)
     {
         if (_worker is null || Operation is null)
         {
@@ -304,8 +339,9 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             }
             _cursor = cursor;
             _nextCursor = page.NextCursor;
-            _pageIndex = _history.Count;
+            _pageIndex = pageIndex ?? _history.Count;
             _totalCount = page.Total;
+            ErrorMessage = null;
             NotifyStateChanged();
             return true;
         }

@@ -17,7 +17,7 @@ until the roadmap is complete, without treating evidence-gated work as locally c
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed commit: `ec8da88` (`Harden Recycle Bin paging announcements`)
+- Latest completed slice: `Preserve failed Recycle Bin page state` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 cloud safety: accepted
@@ -28,9 +28,10 @@ until the roadmap is complete, without treating evidence-gated work as locally c
   milestone is not complete
 - Milestone 12 live-state overlay: later work; do not pull it into a Milestone 11 slice implicitly
 
-The latest slice made recovery-result paging announcements conditional on a page actually committing.
-Previous-page navigation repeats the exact committed range; stale and cancelled responses remain
-silent. Core regressions cover both behaviors, and the acceptance/UX documentation records them.
+The latest slice makes forward recovery-result navigation transactional. A current worker failure
+keeps the last committed page, cursor history, and navigation availability intact, publishes a page
+error, and permits retry of the same requested page. The retry regression also proves that a
+successful retry clears the error and commits the expected range.
 
 ## Immediate next step
 
@@ -106,12 +107,12 @@ required gates are open.
 
 ## Latest verification baseline
 
-Commit `ec8da88` was verified as follows:
+The latest slice was verified as follows:
 
-- Focused `RecycleOperationViewModelTests`, Debug: 7/7 passed
-- Focused `RecycleOperationViewModelTests`, Release: 7/7 passed
+- Focused `RecycleOperationViewModelTests`, Debug: 8/8 passed
+- Focused `RecycleOperationViewModelTests`, Release: 8/8 passed
 - Full serialized Debug matrix:
-  - Core: 71/71 passed
+  - Core: 72/72 passed
   - Infrastructure: 56 passed, 5 intentional environment-gated skips
   - WPF smoke: 3/3 passed
 - Full serialized Release matrix: same totals and dispositions
@@ -147,3 +148,4 @@ For each session:
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
 | 2026-08-22 | `ec8da88` | Announce only committed Recycle Bin result pages; cover backward repeatability and stale/cancelled silence. | Re-audit for the next locally implementable Milestone 11 read-only/recovery gap; do not cross an evidence or recovery-design gate. |
+| 2026-08-22 | this session | Preserve the committed Recycle Bin recovery page and cursor history across a failed forward fetch; allow exact retry. | Re-audit for another local read-only contract gap; stop at physical/provider/performance or recovery-resolution gates. |
