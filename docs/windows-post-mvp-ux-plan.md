@@ -2848,9 +2848,9 @@ Status: The first bounded preflight slice is accepted. The second-slice revision
 contract, strictly non-mutating schema/protocol/Core/WPF foundation, separately gated dedicated-STA
 Windows executor, and acceptance evidence tooling are implemented. Disposable local Shell evidence
 exists, but production still injects the disabled executor and exposes no submission action.
-Provider/physical/performance campaigns, constants, Undo, residual TOCTOU, ambiguous-recovery
-resolution, and production enablement remain separate open gates. No Milestone 12 working-state
-mutation is implemented.
+Provider/physical/performance campaigns, constants, Undo, residual TOCTOU, and production
+enablement remain separate open gates. Option A persistence/UI and the development-host controlled
+ambiguous-start campaign are accepted. No Milestone 12 working-state mutation is implemented.
 
 #### Refined first-slice implementation plan (2026-08-20)
 
@@ -3524,10 +3524,10 @@ storage, bounded worker protocol, and matching non-UI client contract. The accep
 states, all five observation kinds, immutable unknown-item and history paging, explicit
 supersession with prior/reason visibility, stored evidence/path copy, manual Recycle Bin navigation,
 fresh-scan navigation, exact safe retries, generation/cancellation rejection, focus restoration,
-and separate success/error announcements. The existing `WPM11-ambiguous-start` gate next supplies
-the controlled process-loss operator evidence. These
-records remain source evidence for later `WPM13-outcome-audit`, and
-`WPM11-crash-reconciliation` depends on all three downstream results.
+and separate success/error announcements. The accepted `WPM11-ambiguous-start` gate supplies the
+controlled process-loss operator evidence described below. These records remain source evidence for
+later `WPM13-outcome-audit`, and `WPM11-crash-reconciliation` depends on all three downstream
+results.
 
 Options B-E were reviewed but not selected. Any future switch to preserve-only acknowledgement,
 automatic live inspection/inference, replay, or outcome overwrite requires a new explicit product/
@@ -3557,6 +3557,31 @@ dependency accepts.
   action/composition boundary, runs the serialized Debug solution matrix, then the authoritative
   Release matrix and real non-mutating smoke. Physical/provider/Shell-mutation/performance and
   controlled process-loss campaigns are deliberately outside it.
+
+###### Controlled ambiguous-start result (2026-08-23)
+
+- `scripts/Invoke-WindowsAmbiguousStartCampaign.ps1` created only a timestamped disposable host,
+  three unique local fixtures, an isolated hash cache, and an isolated database. The real executor
+  durably acknowledged `shell_started`, wrote a boundary marker, and blocked before
+  `IFileOperation.PerformOperations`; the campaign stopped only that host. Explorer, providers, the
+  database, and the worker were not killed.
+- Restart migrated/reopened the preserved schema-v11 database and reconstructed one
+  `recovery_required` operation, one `ambiguous` batch, two immutable `unknown` items, and both
+  recovery rows. Read-only worker reconstruction continued to return `executorEnabled:false`.
+- In the real WPF Option A checklist, the operator manually searched the Recycle Bin and viewed the
+  preserved source fixture folder. Two current `observed_at_source` records account for both items.
+  The first replaced an initial `deferred_unresolved` record through explicit supersession, retaining
+  the prior observation and correction reason. Review is complete only as
+  `review_complete_with_unresolved_evidence`.
+- `scripts/Verify-WindowsAmbiguousStartCampaign.ps1` passed against
+  `artifacts/windows-ambiguous-start/20260823-144048-588`. It compared every original operation,
+  batch, item, and recovery row unchanged and recorded no retry, replay, resubmission, inference,
+  restore, campaign deletion, copy-forward, production enablement, or Milestone 11 completion. The
+  earlier safe prepare failure at `artifacts/windows-ambiguous-start/20260823-143955-657` is retained
+  and never reached durable Shell start.
+- This accepted gate is `locally_exhausted`; after the exact verifier passed, no additional state
+  combinations or unrelated defects were sought. Provider, physical-accessibility, residual
+  Shell-mutation/TOCTOU, performance, and production-wiring campaigns remain separate and open.
 
 #### User outcome
 
@@ -3821,15 +3846,13 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance only `WPM11-ambiguous-start`. Both Option A implementation gates are accepted. Run the
-documented controlled process-loss campaign with a disposable test host and preserve the migrated
-database, logs, source/Recycle Bin manual observations, and append-only review records.
+Advance only `WPM9-folder-relationships`. Refine and implement the bounded folder-card/location
+presentation over the accepted Milestone 8 read-only workspace foundations.
 
-Verifier: restart shows `recovery_required`; every stored unknown is accounted for through the WPF
-Option A checklist; the original item `unknown`, batch `ambiguous`, operation `recovery_required`,
-and recovery rows remain unchanged; and no replay, inference, restore, deletion, or production
-wiring occurs. Do not substitute provider, physical-accessibility, performance, Shell-mutation, or
-Milestone 12 work for that separately authorized campaign.
+Verifier: focused Core/WPF folder relationship and paging tests, matching Debug/Release solution
+coverage, and real non-mutating smoke must pass without double-scheduling physical files. Do not add
+Explorer expansion, thumbnails, review mutation, deletion, provider/accessibility/performance
+campaigns, Milestone 12 behavior, or any Recycle Bin production wiring.
 
 ## Milestone Definition Template
 
@@ -3919,3 +3942,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-23 | Accepted WPM11 recovery Option A by explicit user review. | Preserve original unknown/ambiguous/recovery-required evidence; implement append-only persistence/protocol first, accessible WPF review second, and controlled process-loss evidence third; keep live inference, replay, outcome overwrite, and production wiring unauthorized. |
 | 2026-08-23 | Implemented and accepted WPM11 recovery-review persistence/protocol: schema v11, append-only operator observations and supersession, three derived states, bounded current/history paging, idempotent mutation, restart reconstruction, and matching non-UI worker/client contracts. | Keep every schema-v10 source-evidence row immutable and every execution lock disabled; advance only the accessible WPF recovery-review gate next, with live inspection/inference, replay, campaigns, Milestone 12 mutation, and production wiring out of scope. |
 | 2026-08-23 | Implemented and accepted WPM11 recovery-review UI: bounded unknown/history paging, all states and observations, explicit supersession, exact safe retries, evidence/path copy, manual Recycle Bin and fresh-scan navigation, keyboard/focus/automation, and separate announcements. | Advance only WPM11-ambiguous-start; run no provider, physical-accessibility, Shell-mutation, performance, or production-wiring substitute. |
+| 2026-08-23 | Ran and accepted the controlled WPM11 ambiguous-start campaign with a disposable host, durable-start process loss, restart reconstruction, real WPF Option A accounting, explicit supersession, exact immutable-source comparison, and retained passing/failing evidence bundles. | Record the gate `locally_exhausted`; preserve every production lock and authorize only WPM9-folder-relationships next. |

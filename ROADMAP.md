@@ -135,8 +135,10 @@ profiles, export, run-to-run deltas, and cache-only Shell thumbnails are reviewe
 follow-ons.
 
 Production Recycle Bin execution remains disabled while provider, physical-accessibility,
-representative-performance, constants, residual-TOCTOU, and controlled ambiguous-start evidence
-gates remain open. The accepted schema-v11 recovery-review workflow now provides bounded WPF
+representative-performance, constants, and residual-TOCTOU evidence gates remain open. The accepted
+development-host controlled ambiguous-start campaign proves restart reconstruction and the complete
+Option A checklist without retry, inference, or source-evidence mutation. The accepted schema-v11
+recovery-review workflow now provides bounded WPF
 unknown-item and append-only observation-history paging, all five manual observations, explicit
 supersession, evidence/path copy, Recycle Bin navigation, and fresh-scan navigation while preserving
 original unknown evidence; live-state inference, replay, and outcome overwrite remain prohibited.

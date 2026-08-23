@@ -100,7 +100,7 @@ still reject it lexically before target I/O, and provider-backed Shell mutation 
 | Provider HRESULTs | Stable unavailable/failure/paused mappings | Real provider outcomes without hydrating an excluded placeholder | Open |
 | Provider no hydration | Opt-in metadata/allocation/transfer-counter test | Qualifying registered provider and explicit fixtures | Environment-gated |
 | Residual Shell TOCTOU | Admission and `PreDeleteItem` identity/type/size/time checks | Controlled path swap inside the residual Shell interval | Open |
-| Ambiguous start | Durable `shell_started`, restart reconstruction, non-retry tests | Controlled process loss and manual Recycle Bin/source inspection | Open |
+| Ambiguous start | Durable `shell_started`, restart reconstruction, non-retry tests, and exact campaign verifier | Controlled process loss plus manual Recycle Bin/source inspection through WPF Option A | Accepted on the development host; retained evidence `artifacts/windows-ambiguous-start/20260823-144048-588` |
 | Large plan | Bounded database/protocol/UI caches and 32-entry validation | Representative disposable operation timing and memory | Open |
 | Physical accessibility | UI Automation, keyboard, narrow-layout tests | Narrator/NVDA, OS high contrast, 100/150/200% monitor transitions | Open |
 
@@ -128,9 +128,12 @@ evidence.
   campaign. Do not fill the system drive or permanently empty the Recycle Bin to manufacture it.
 - Provider: use provider-owned disposable files that are locally available. Offline/recall
   placeholders remain observation-only and must never be submitted to Shell.
-- Ambiguous start: after durable start, terminate only the disposable test host—not Explorer, the
-  provider, or the worker database—and preserve the v10 database/logs. Restart must show
-  `recovery_required`; the batch must never be replayed automatically.
+- Ambiguous start: run `Invoke-WindowsAmbiguousStartCampaign.ps1`; after its durable-start marker,
+  terminate only the disposable test host—not Explorer, a provider, or the worker database—and
+  preserve the migrated v11 database/logs. Complete the real WPF Option A checklist, close WPF
+  normally, then run `Verify-WindowsAmbiguousStartCampaign.ps1` against that evidence directory.
+  Restart must show `recovery_required`; the batch must never be retried or replayed. Failed
+  attempts remain separate timestamped bundles and never qualify as acceptance evidence.
 
 ## Performance and constants
 
@@ -277,6 +280,12 @@ reconstructs all three states, pages every immutable unknown item and append-onl
 records all five observations, shows superseded observations and correction reasons, copies stored
 evidence/path, opens the Recycle Bin without querying it, and navigates to a fresh scan without
 replay. Exact read and idempotent mutation retry, stale/cancelled/late rejection, keyboard/focus,
-automation names, and separate success/error announcements are covered by the named verifier. The
-controlled `WPM11-ambiguous-start` campaign is next and was not run by this gate. The decision and
-both implementation gates do not authorize production wiring.
+automation names, and separate success/error announcements are covered by the named verifier.
+`WPM11-ambiguous-start` is accepted on the development host from
+`artifacts/windows-ambiguous-start/20260823-144048-588`; its exact verifier retained two immutable
+unknowns, one ambiguous batch, one recovery-required operation, two recovery rows, three append-only
+observations, and the explicit supersession reason while proving the original source rows unchanged
+and all retry/replay/resubmit/inference/restore/delete/copy-forward flags false. The earlier safe
+prepare failure remains at `artifacts/windows-ambiguous-start/20260823-143955-657`. This evidence
+does not accept provider, residual-TOCTOU, performance, physical-accessibility, or production-wiring
+gates.

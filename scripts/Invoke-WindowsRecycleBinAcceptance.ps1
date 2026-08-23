@@ -538,9 +538,12 @@ Add-MatrixEntry 'Recycle Bin capacity/oversized item' 'open' `
 Add-MatrixEntry 'Provider-specific Shell HRESULTs' 'open' `
     'Provider unavailable/failure/paused mappings are automated.' `
     'Real provider outcomes remain required; no placeholder may be hydrated to induce them.'
-Add-MatrixEntry 'Residual Shell TOCTOU and ambiguous-start recovery' 'open' `
-    'Admission, durable-start, and non-retry seams are automated.' `
-    'A controlled real path-swap/process-loss campaign remains required.'
+Add-MatrixEntry 'Residual Shell TOCTOU' 'open' `
+    'Admission and PreDelete identity/type/size/time checks are automated.' `
+    'The separately reviewed controlled path-swap campaign remains required.'
+Add-MatrixEntry 'Ambiguous-start recovery' 'accepted' `
+    'The exact development-host process-loss verifier passed retained evidence at artifacts/windows-ambiguous-start/20260823-144048-588.' `
+    'Production remains disabled; this evidence does not accept provider, accessibility, performance, or TOCTOU gates.'
 Add-MatrixEntry 'Representative large-plan operation performance' 'open' `
     'No qualifying large disposable operation fixture was executed.' `
     'Small local Shell passes and review-query profiles cannot close this gate.'

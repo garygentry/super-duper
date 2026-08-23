@@ -79,6 +79,25 @@ scan** navigates to new scan authority and never replays an old operation. The a
 source/provider/content/Recycle Bin state, infer an outcome, restore, delete, clear evidence, or
 change any original status. The production app cannot initiate Shell work, but the explicitly
 invoked disposable executor tests can exercise this boundary.
+
+The accepted `WPM11-ambiguous-start` development-host campaign is retained at
+`artifacts/windows-ambiguous-start/20260823-144048-588`. Its disposable host stopped only after the
+durable `shell_started` marker and before `IFileOperation.PerformOperations`; Explorer, providers,
+the database, and its worker were not killed. Restart reconstructed two immutable `unknown` items,
+an `ambiguous` batch, a `recovery_required` operation, and both recovery rows. The operator then used
+the real WPF Option A checklist to append three observations for two items, including one explicit
+supersession with its prior record and correction reason retained. The exact verifier proved all
+source-evidence rows unchanged and no retry, replay, resubmission, inference, restore, deletion, or
+copy-forward. Run it only against the retained bundle after closing WPF normally:
+
+```powershell
+./scripts/Verify-WindowsAmbiguousStartCampaign.ps1 `
+  -EvidenceDirectory artifacts/windows-ambiguous-start/20260823-144048-588
+```
+
+The earlier safe prepare failure is retained separately at
+`artifacts/windows-ambiguous-start/20260823-143955-657`; it never reached durable Shell start.
+
 Preserve the timestamped evidence bundle produced by
 `Invoke-WindowsRecycleBinAcceptance.ps1` with the database and logs. The acceptance matrix in
 [`windows-recycle-bin-acceptance.md`](windows-recycle-bin-acceptance.md) requires numeric callback,

@@ -18,7 +18,7 @@ active.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Accept WPM11 recovery-review UI` (this session's commit)
+- Latest completed slice: `Accept WPM11 ambiguous-start campaign` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 required fail-closed cloud safety: accepted; both unavailable opt-in policies are
@@ -36,28 +36,25 @@ active.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The latest slice accepts `WPM11-recovery-review-ui`. Core/WPF now reconstructs all three derived
-states, pages every immutable unknown operation item and bounded append-only observation history,
-records all five approved manual observations, and explicitly supersedes a current observation
-while showing the prior record and correction reason. Exact failed reads and idempotent mutation
-retry, restart, stale/cancelled/late rejection, copy evidence/path, manual Recycle Bin navigation,
-fresh-scan navigation, focus, keyboard, automation names, and separate success/error announcements
-are covered. Complete review remains `review_complete_with_unresolved_evidence`; every original
-item `unknown`, batch `ambiguous`, operation `recovery_required`, and recovery row remains unchanged.
-`WPM11-production-wiring` remains separately blocked, and all production execution locks remain
-unchanged.
+The latest slice accepts `WPM11-ambiguous-start`. A disposable host durably recorded
+`shell_started` and blocked before `IFileOperation.PerformOperations`; only that host was stopped.
+Restart reconstructed two immutable unknowns, one ambiguous batch, one recovery-required operation,
+and both recovery rows from the preserved migrated database. The real WPF Option A checklist
+recorded three append-only observations for two items, including a retained superseded deferral and
+correction reason after independent Explorer/Recycle Bin review. The exact verifier proved every
+original source-evidence row unchanged and no retry, replay, resubmission, inference, restore,
+deletion, or copy-forward. Both the passing bundle and an earlier safe pre-start failure are
+retained. The gate is `locally_exhausted`; production execution and Milestone 12 remain unchanged.
 
 ## Immediate next step
 
-Advance only `WPM11-ambiguous-start`. Both Option A implementation gates are accepted. Run the
-documented controlled process-loss campaign with a disposable test host and permission to preserve
-the migrated database, logs, source/Recycle Bin observations, and append-only review records.
+Advance only `WPM9-folder-relationships`. Refine and implement the bounded folder-card/location
+presentation over the accepted Milestone 8 read-only workspace foundations.
 
-Verifier: restart reconstructs `recovery_required`; the accessible checklist accounts for every
-unknown through manual append-only observations; original operation/batch/item/recovery evidence
-remains unchanged; and no replay, inference, restore, deletion, or production wiring occurs.
-Provider, physical-accessibility, Shell-mutation, performance, and Milestone 12 campaigns remain
-separate and are not substitute authority.
+Verifier: focused folder relationship/paging tests, proportional Debug/Release solution coverage,
+and real non-mutating smoke pass without double-scheduling physical files. Do not add Explorer
+expansion, thumbnails, review mutation, deletion, provider/accessibility/performance campaigns,
+Milestone 12 behavior, or Recycle Bin production wiring.
 
 ## Required startup audit
 
@@ -120,13 +117,12 @@ decision:
 - Windows high-contrast acceptance
 - Physical 100/150/200% multi-monitor DPI acceptance
 - Real-provider no-hydration and provider-outcome campaigns
-- Controlled access-denied, disconnect, capacity, path-swap, and process-loss outcomes
+- Controlled access-denied, disconnect, capacity, and path-swap outcomes
 - Representative large-plan operation performance
 - Independent representative Milestone 8 query performance
 - Final freshness, confirmation, admission, and batch constants
 - `FOFX_ADDUNDORECORD`
 - Residual Shell TOCTOU
-- Physical ambiguous-start/process-loss inspection through the accepted recovery-review UI
 - Required Milestone 14 keyboard/accessibility, state, query-instrumentation, Release-scale, and
   end-to-end cloud-safety gates
 
@@ -135,21 +131,20 @@ required gates are open.
 
 ## Latest verification baseline
 
-The latest code slice was verified as follows:
+The latest evidence/tooling slice was verified as follows:
 
-- focused Core recovery-review/operation/Shell tests: passed, including all states/five choices,
-  restart, paging, stale/cancelled/late reads and mutations, exact safe retries, supersession,
-  copying/navigation, and focus;
-- focused Infrastructure JSON contract and Recycle Bin navigation tests: passed;
-- focused loaded-WPF automation test: passed with named keyboard controls, five choices, bounded
-  history virtualization, forbidden-action wording, and separate success/error notifications;
-- exact `Verify-WindowsRecoveryReviewUi.ps1`: passed the serialized Debug solution build/tests and
-  authoritative Release Rust/.NET/publish/worker/WPF/shutdown non-mutating smoke workflow;
-- targeted formatting and `git diff --check`: passed;
-- source/diff safety review proves `CanSubmit:false`, disabled production injection, every worker
-  response `executorEnabled:false`, no execution action, and no Rust/schema/source-evidence change;
-- physical accessibility, provider, Shell-mutation, representative-performance, and controlled
-  process-loss/recovery campaigns: deliberately not run.
+- focused Rust recovery-review and operation interruption/restart tests: passed;
+- exact `Verify-WindowsAmbiguousStartCampaign.ps1`: passed against retained evidence
+  `artifacts/windows-ambiguous-start/20260823-144048-588`; the earlier safe prepare failure remains
+  at `artifacts/windows-ambiguous-start/20260823-143955-657`;
+- the controlled campaign proved durable start, loss of only the disposable host, restart
+  reconstruction, 2/2 WPF observations, explicit supersession, and immutable original rows;
+- proportional Debug/Release solution coverage and real non-mutating smoke: passed through the
+  existing recovery-review verifier; the disposable campaign host also built in both configurations;
+- targeted Rust/.NET formatting, PowerShell parsing, `git diff --check`, and the production-lock
+  audit passed;
+- provider, physical-accessibility, unrelated Shell-mutation/TOCTOU, and performance campaigns were
+  deliberately skipped.
 
 Use proportional verification for the next slice. Run focused tests while iterating, then the
 relevant full matrix before commit when shared Core/WPF/Infrastructure behavior changes. Run Rust
@@ -203,4 +198,5 @@ For each session:
 | 2026-08-23 | `a2f3b6c` | Prepare the complete WPM11 ambiguous-recovery decision package without selecting or implementing a model. | Keep WPM11-recovery-workflow as the only authorized gate until the user chooses Option A, Option B with the explicit per-item waiver, or a named revision. |
 | 2026-08-23 | `6d0182a` | Accept WPM11 recovery Option A and create its exact persistence/protocol, accessible WPF, and controlled process-loss dependency chain without product-code changes. | Advance only WPM11-recovery-review-persistence; keep WPF, campaigns, live inference, replay, and production wiring out of scope. |
 | 2026-08-23 | `98d5558` | Implement and accept WPM11 recovery-review persistence/protocol with schema-v11 append-only observations, derived state, supersession, bounded paging, restart reconstruction, and matching non-UI client contracts while preserving every production lock. | Advance only WPM11-recovery-review-ui; keep automatic inspection/inference, replay, campaigns, Milestone 12 mutation, and production wiring out of scope. |
-| 2026-08-23 | this session | Implement and accept the bounded accessible WPM11 recovery-review UI with exact safe retries, explicit append-only correction, approved copy/navigation, focus/automation/announcements, and every production lock preserved. | Advance only WPM11-ambiguous-start; do not substitute another evidence, performance, provider, mutation, or production gate. |
+| 2026-08-23 | `d7b62d7` | Implement and accept the bounded accessible WPM11 recovery-review UI with exact safe retries, explicit append-only correction, approved copy/navigation, focus/automation/announcements, and every production lock preserved. | Advance only WPM11-ambiguous-start; do not substitute another evidence, performance, provider, mutation, or production gate. |
+| 2026-08-23 | this session | Run and accept WPM11 ambiguous-start with disposable durable-start process loss, restart reconstruction, real WPF Option A observations/supersession, exact immutable-evidence verification, and retained passing/failing bundles. | Advance only WPM9-folder-relationships; preserve all execution locks and do not substitute another campaign or later milestone. |
