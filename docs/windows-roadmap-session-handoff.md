@@ -17,7 +17,7 @@ until the roadmap is complete, without treating evidence-gated work as locally c
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Announce empty Recycle Bin operation reconstruction` (this session's commit)
+- Latest completed slice: `Cover empty Recycle Bin reconstruction retry` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 cloud safety: accepted
@@ -28,10 +28,10 @@ until the roadmap is complete, without treating evidence-gated work as locally c
   milestone is not complete
 - Milestone 12 live-state overlay: later work; do not pull it into a Milestone 11 slice implicitly
 
-The latest slice publishes a polite completion announcement when a successful read-only
-operation-summary reconstruction finds no stored operation intent for the selected completed run.
-It distinguishes the valid empty result from a load failure without exposing retry, replay,
-resolution, filesystem inspection, or any operation submission path.
+The latest slice proves that an exact read-only operation-summary retry may validly resolve an
+earlier load failure to no stored operation intent. The regression requires the polite empty-result
+announcement, clears the prior assertive payload without another error notification, and removes
+retry/navigation affordances without changing production behavior or the execution boundary.
 
 ## Immediate next step
 
@@ -109,12 +109,12 @@ required gates are open.
 
 The latest slice was verified as follows:
 
-- Focused `RecycleOperationViewModelTests`, Debug: 16/16 passed
-- Focused `RecycleOperationViewModelTests`, Release: 16/16 passed
-- Full Core suite, Debug: 80/80 passed
-- Full Core suite, Release: 80/80 passed
+- Focused `RecycleOperationViewModelTests`, Debug: 17/17 passed
+- Focused `RecycleOperationViewModelTests`, Release: 17/17 passed
+- Full Core suite, Debug: 81/81 passed
+- Full Core suite, Release: 81/81 passed
 - `git diff --check`: passed
-- Rust behavior: unchanged; Rust matrix not rerun
+- Production behavior and Rust behavior: unchanged; Rust matrix not rerun
 - Infrastructure/WPF behavior: unchanged; Infrastructure and WPF matrices not rerun
 - Performance profile: not rerun
 
@@ -158,4 +158,5 @@ For each session:
 | 2026-08-22 | `bd9e983` | Clear the resolved assertive Recycle Bin page-error payload after a successful exact retry without publishing another error notification. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
 | 2026-08-22 | `14649ea` | Prove a late failed exact page retry cannot replace newer run context, publish stale feedback, expose another retry, or mutate cursor history. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
 | 2026-08-22 | `37894b9` | Prove a late failed exact operation-summary retry cannot replace newer operation/page context, publish stale feedback, expose another retry, or change navigation. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
-| 2026-08-22 | this session | Announce a successful read-only operation reconstruction that finds no stored operation intent, without exposing retry or changing the execution boundary. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
+| 2026-08-22 | `ce54d1a` | Announce a successful read-only operation reconstruction that finds no stored operation intent, without exposing retry or changing the execution boundary. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
+| 2026-08-22 | this session | Cover an exact read-only operation-summary retry that resolves an earlier load failure to no stored operation intent. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |

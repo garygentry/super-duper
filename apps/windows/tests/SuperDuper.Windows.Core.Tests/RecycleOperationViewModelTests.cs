@@ -459,6 +459,45 @@ public sealed class RecycleOperationViewModelTests
     }
 
     [TestMethod]
+    public async Task RetriedOperationReconstructionAnnouncesWhenNoOperationIntentIsStored()
+    {
+        var operationCalls = 0;
+        var worker = new TestWorkerClient
+        {
+            LatestRecycleOperationHandler = (_, _) =>
+            {
+                operationCalls++;
+                if (operationCalls == 1)
+                {
+                    throw new InvalidOperationException("The Recycle Bin operation summary is unavailable.");
+                }
+                return Task.FromResult<WorkerRecycleOperation?>(null);
+            },
+        };
+        using var viewModel = new RecycleOperationViewModel(worker, new DisabledCapability());
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var errorAnnouncementVersion = viewModel.ErrorAnnouncementVersion;
+
+        await viewModel.RetryPageCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(2, operationCalls);
+        Assert.IsNull(viewModel.Operation);
+        Assert.AreEqual(0, viewModel.Items.Count);
+        StringAssert.Contains(viewModel.Announcement, "No Recycle Bin operation intent is stored");
+        StringAssert.Contains(viewModel.Announcement, "execution is disabled");
+        Assert.IsFalse(viewModel.HasError);
+        Assert.AreEqual(string.Empty, viewModel.ErrorAnnouncement);
+        Assert.AreEqual(errorAnnouncementVersion, viewModel.ErrorAnnouncementVersion,
+            "Resolving the load failure must not publish another assertive notification.");
+        Assert.IsFalse(viewModel.CanRetryPage);
+        Assert.IsFalse(viewModel.CanMovePrevious);
+        Assert.IsFalse(viewModel.CanMoveNext);
+        Assert.IsFalse(viewModel.CanSubmit);
+    }
+
+    [TestMethod]
     public async Task RetriedOperationReconstructionCannotReplaceANewerRunContext()
     {
         var worker = CreatePagedRecoveryWorker();

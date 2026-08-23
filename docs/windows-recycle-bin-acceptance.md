@@ -236,9 +236,10 @@ operation is returned, the same affordance retries the exact selected-run read a
 newer run context. A late failed operation-summary retry is likewise rejected with its stale run
 generation and cannot replace the newer committed operation/page context, publish feedback, expose
 another retry, or change navigation. A completed reconstruction read with no stored operation
-intent announces that empty result through the polite success channel and does not expose retry. A
-successfully committed page retry clears the prior assertive error payload without publishing a
-second assertive notification. Retrying detail loading never
+intent announces that empty result through the polite success channel and does not expose retry,
+including when an exact retry resolves an earlier operation-summary load failure. That successful
+empty retry clears the prior assertive error payload without publishing a second assertive
+notification. A successfully committed page retry does the same. Retrying detail loading never
 retries or resolves the operation. A late failed page retry is rejected with its stale run
 generation and cannot replace the newer committed page, publish an error or result announcement,
 expose another retry, or mutate the newer page's cursor history. Each row exposes
