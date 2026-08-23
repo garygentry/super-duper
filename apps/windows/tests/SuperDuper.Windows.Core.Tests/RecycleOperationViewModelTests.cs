@@ -318,7 +318,8 @@ public sealed class RecycleOperationViewModelTests
 
         StringAssert.Contains(viewModel.PageStatus, "showing items 1-100 of 101 unknown details");
         StringAssert.Contains(viewModel.ErrorMessage, "next recovery page is unavailable");
-        StringAssert.Contains(viewModel.Announcement, "page error");
+        StringAssert.Contains(viewModel.ErrorAnnouncement, "page error");
+        Assert.IsTrue(viewModel.ErrorAnnouncementVersion > 0);
         Assert.IsTrue(viewModel.CanMoveNext);
         Assert.IsFalse(viewModel.CanMovePrevious);
 
@@ -362,7 +363,8 @@ public sealed class RecycleOperationViewModelTests
 
         StringAssert.Contains(viewModel.PageStatus, "showing items 201-300 of 700 unknown details");
         StringAssert.Contains(viewModel.ErrorMessage, "previous recovery page is unavailable");
-        StringAssert.Contains(viewModel.Announcement, "page error");
+        StringAssert.Contains(viewModel.ErrorAnnouncement, "page error");
+        Assert.IsTrue(viewModel.ErrorAnnouncementVersion > 0);
         Assert.IsTrue(viewModel.CanMoveNext);
         Assert.IsTrue(viewModel.CanMovePrevious);
 

@@ -25,6 +25,8 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
     private string? _errorMessage;
     private string _announcement = string.Empty;
     private long _announcementVersion;
+    private string _errorAnnouncement = string.Empty;
+    private long _errorAnnouncementVersion;
 
     public RecycleOperationViewModel(
         IWorkerClient worker,
@@ -88,6 +90,18 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
     {
         get => _announcementVersion;
         private set => SetProperty(ref _announcementVersion, value);
+    }
+
+    public string ErrorAnnouncement
+    {
+        get => _errorAnnouncement;
+        private set => SetProperty(ref _errorAnnouncement, value);
+    }
+
+    public long ErrorAnnouncementVersion
+    {
+        get => _errorAnnouncementVersion;
+        private set => SetProperty(ref _errorAnnouncementVersion, value);
     }
 
     public bool HasOperation => Operation is not null;
@@ -191,6 +205,7 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         Operation = null;
         ErrorMessage = null;
         Announcement = string.Empty;
+        ErrorAnnouncement = string.Empty;
         ResetPages();
         if (run?.Status != "completed" || _worker is null)
         {
@@ -224,8 +239,8 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             if (IsCurrentGeneration(generation, token))
             {
                 ErrorMessage = exception.Message;
-                Announcement = $"Recycle Bin operation error. {exception.Message}";
-                AnnouncementVersion++;
+                ErrorAnnouncement = $"Recycle Bin operation error. {exception.Message}";
+                ErrorAnnouncementVersion++;
             }
         }
         finally
@@ -294,8 +309,8 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             if (IsCurrentGeneration(generation, token))
             {
                 ErrorMessage = exception.Message;
-                Announcement = $"Recycle Bin operation page error. {exception.Message}";
-                AnnouncementVersion++;
+                ErrorAnnouncement = $"Recycle Bin operation page error. {exception.Message}";
+                ErrorAnnouncementVersion++;
             }
             return false;
         }

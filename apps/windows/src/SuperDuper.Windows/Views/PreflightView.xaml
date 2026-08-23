@@ -195,11 +195,17 @@
                     <TextBlock Margin="0,8,0,0"
                                Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
                                AutomationProperties.AutomationId="RecycleOperationError"
+                               AutomationProperties.Name="{Binding ErrorAnnouncement}"
+                               AutomationProperties.LiveSetting="Assertive"
+                               accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding ErrorAnnouncementVersion}"
+                               accessibility:AutomationNotificationBehavior.NotificationKind="ActionAborted"
+                               accessibility:AutomationNotificationBehavior.NotificationProcessing="ImportantMostRecent"
+                               accessibility:AutomationNotificationBehavior.ActivityId="RecycleOperationError"
                                Text="{Binding ErrorMessage}" TextWrapping="Wrap"
                                Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}" />
                     <TextBlock Height="1" Opacity="0" AutomationProperties.Name="{Binding Announcement}"
                                accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding AnnouncementVersion}"
-                               accessibility:AutomationNotificationBehavior.NotificationKind="Other"
+                               accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
                                accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
                                accessibility:AutomationNotificationBehavior.ActivityId="RecycleOperation" />
                 </StackPanel>

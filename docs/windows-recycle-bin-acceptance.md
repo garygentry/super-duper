@@ -233,6 +233,11 @@ presence value for correlation. This reads durable evidence only; it does not in
 resolve an unknown item, or replace any Narrator/NVDA, high-contrast, or physical multi-monitor DPI
 observation above.
 
+The read-only automation surface routes reconstruction and paging failures through a dedicated
+assertive `ActionAborted`/`ImportantMostRecent` notification channel. Successful committed
+reconstruction and page changes remain separate repeatable `ActionCompleted` notifications. This
+automated contract does not close the physical accessibility rows above.
+
 ## Review boundary
 
 Attach the JSON, Markdown, logs, TRX, host description, and operator notes to a separate review.

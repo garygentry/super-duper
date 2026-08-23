@@ -396,6 +396,15 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 VirtualizationMode.Recycling,
                 VirtualizingPanel.GetVirtualizationMode(recycleItems));
+            var recycleError = FindByAutomationId<TextBlock>(preflight, "RecycleOperationError");
+            Assert.AreEqual(AutomationNotificationKind.ActionAborted,
+                AutomationNotificationBehavior.GetNotificationKind(recycleError));
+            Assert.AreEqual(AutomationNotificationProcessing.ImportantMostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(recycleError));
+            Assert.AreEqual(AutomationLiveSetting.Assertive,
+                AutomationProperties.GetLiveSetting(recycleError));
+            Assert.AreEqual("RecycleOperationError",
+                AutomationNotificationBehavior.GetActivityId(recycleError));
             var cancellationDisclosure = FindByAutomationId<TextBlock>(
                 preflight, "RecycleOperationCancellationDisclosure");
             Assert.AreEqual(
