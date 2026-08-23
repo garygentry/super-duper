@@ -135,7 +135,10 @@ profiles, export, run-to-run deltas, and cache-only Shell thumbnails are reviewe
 follow-ons.
 
 Production Recycle Bin execution remains disabled while provider, physical-accessibility,
-representative-performance, constants, residual-TOCTOU, and ambiguous-recovery gates remain open.
+representative-performance, constants, residual-TOCTOU, recovery-review implementation, and
+controlled ambiguous-start evidence gates remain open. The recovery product decision accepts
+append-only per-item operator observations while preserving original unknown evidence; live-state
+inference, replay, and outcome overwrite remain prohibited.
 The completion contract does not authorize `WPM11-production-wiring`: after every dependency is
 accepted, that gate still requires separate explicit product/safety approval. Until then,
 `RecycleOperationViewModel.CanSubmit` remains false, production uses

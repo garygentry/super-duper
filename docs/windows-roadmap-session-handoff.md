@@ -18,7 +18,7 @@ active.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Prepare WPM11 recovery workflow decision` (this session's commit)
+- Latest completed slice: `Accept WPM11 recovery Option A` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 required fail-closed cloud safety: accepted; both unavailable opt-in policies are
@@ -36,27 +36,29 @@ active.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The latest documentation-only slice advances only `WPM11-recovery-workflow` to `ready for user
-decision`. The committed package grounds the choice in the existing immutable unknown evidence and
-defines the recommended append-only per-item operator-observation model, preserve-only alternative,
-rejected automatic-inference/replay/overwrite alternatives, exact states/authority/evidence/
-actions/non-retry rules, downstream gates, and exact choice required. It selects no model and
-changes no product behavior. `WPM11-production-wiring` remains separately blocked, and all
-production execution locks remain unchanged.
+The latest documentation-only slice accepts Option A for `WPM11-recovery-workflow` through the
+user's explicit review. Original item `unknown`, batch `ambiguous`, and operation
+`recovery_required` evidence remains immutable; later code may add only append-only per-item
+operator observations and supersessions. The accepted downstream order is persistence/protocol,
+accessible WPF review, then controlled ambiguous-start evidence. The decision changes no product
+behavior. `WPM11-production-wiring` remains separately blocked, and all production execution locks
+remain unchanged.
 
 ## Immediate next step
 
-Keep only `WPM11-recovery-workflow` authorized and obtain the exact product/safety choice recorded
-in the decision package: approve Option A (append-only per-item operator observations), choose
-Option B and explicitly waive per-item adjudication, or revise a named state, authority, allowed
-action, evidence field, non-retry rule, or downstream gate. No choice may be inferred from silence.
+Advance only `WPM11-recovery-review-persistence`. Its `WPM11-recovery-workflow` dependency is
+accepted, and the specific uncovered criterion is the absence of append-only recovery-review state
+and observation persistence/protocol. Implement one forward migration, storage/query/mutation
+contract, bounded worker methods, and matching non-UI client contracts for the five approved
+observations, three derived review states, and append-only supersession.
 
-Verifier after a choice: commit the reviewed decision, mark the gate `accepted`, and add the exact
-downstream implementation/evidence gates selected by that choice. Explicit non-goals before then:
-no product-code/test changes; no recovery implementation, replay, live-filesystem inference,
-unknown-result resolution, or campaign; no Recycle Bin wiring; and no change to `CanSubmit:false`,
-disabled production injection, or `executorEnabled:false`. Other ready lanes are not substitute
-authority while this decision is pending.
+Verifier: migration/rollback/unknown-schema, validation, idempotency/conflict, interruption,
+paging/bounds, supersession, restart, immutable-source, no-live-I/O, and no-replay coverage must pass
+in proportional Debug/Release Rust and .NET protocol matrices. Explicit non-goals: no WPF review
+controls; no live filesystem, provider, or Recycle Bin inspection; no recovery/physical/performance
+campaign; no resolution claim, execution, or Milestone 12 mutation; no Recycle Bin wiring; and no
+change to `CanSubmit:false`, disabled production injection, or `executorEnabled:false`. Other ready
+lanes are not substitute authority for that session.
 
 ## Required startup audit
 
@@ -125,8 +127,8 @@ decision:
 - Final freshness, confirmation, admission, and batch constants
 - `FOFX_ADDUNDORECORD`
 - Residual Shell TOCTOU
-- WPM11 recovery-workflow choice: Option A, Option B with explicit per-item waiver, or named revision
-- Physical ambiguous-start/process-loss inspection after the workflow decision and implementation
+- WPM11 recovery-review persistence/protocol and accessible WPF implementation
+- Physical ambiguous-start/process-loss inspection after both implementation gates accept
 - Required Milestone 14 keyboard/accessibility, state, query-instrumentation, Release-scale, and
   end-to-end cloud-safety gates
 
@@ -137,13 +139,12 @@ required gates are open.
 
 The latest documentation-only slice was verified as follows:
 
-- the package names the existing durable state/evidence boundary, five recommended per-item
-  observation states, operator-only authority, allowed and forbidden actions, append-only
-  correction rule, fresh-scan/non-retry rule, four alternatives, tradeoffs, downstream gates, and
-  exact user choice;
-- the ledger, post-MVP plan, acceptance guide, and this handoff all retain
-  `WPM11-recovery-workflow` as ready rather than accepted and preserve separate WPM11 production-
-  wiring authorization;
+- the ledger marks `WPM11-recovery-workflow` accepted with the explicit Option A review cited and
+  adds the two named local-code gates plus the existing controlled ambiguous-start campaign in
+  dependency order;
+- the ledger, post-MVP plan, acceptance guide, ROADMAP, and this handoff agree on immutable original
+  evidence, append-only operator observations, no inference/replay/overwrite, and separate
+  production-wiring authorization;
 - documentation-control consistency checks and `git diff --check`: passed;
 - product code and tests: unchanged; no Rust/.NET build or test matrix run;
 - physical accessibility, provider, Shell mutation, performance, and recovery campaigns: not run.
@@ -197,4 +198,5 @@ For each session:
 | 2026-08-23 | `8ff0b60` | Add the closure-ledger scaffold and tighten roadmap execution, edit authority, anti-spin, and stop rules. | Populate and accept every remaining Milestone 7-14 gate without product-code changes, then authorize only the first dependency-ready gate. |
 | 2026-08-23 | `775417a` | Populate and accept the Milestone 7-14 closure inventory, reconcile statuses, and expose the critical path and independent lanes. | Review WPM7-opt-in-policy-scope + WPM14-required-scope + WPM14-completion-contract; do not substitute another ready gate. |
 | 2026-08-23 | `d10ce7d` | Accept the required/deferred Milestone 7/14 scope and operator-accepted plus production-enabled completion contract without authorizing Recycle Bin production wiring. | Advance only WPM11-recovery-workflow to an explicit product/safety decision boundary; do not substitute another ready gate. |
-| 2026-08-23 | this session | Prepare the complete WPM11 ambiguous-recovery decision package without selecting or implementing a model. | Keep WPM11-recovery-workflow as the only authorized gate until the user chooses Option A, Option B with the explicit per-item waiver, or a named revision. |
+| 2026-08-23 | `a2f3b6c` | Prepare the complete WPM11 ambiguous-recovery decision package without selecting or implementing a model. | Keep WPM11-recovery-workflow as the only authorized gate until the user chooses Option A, Option B with the explicit per-item waiver, or a named revision. |
+| 2026-08-23 | this session | Accept WPM11 recovery Option A and create its exact persistence/protocol, accessible WPF, and controlled process-loss dependency chain without product-code changes. | Advance only WPM11-recovery-review-persistence; keep WPF, campaigns, live inference, replay, and production wiring out of scope. |
