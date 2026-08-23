@@ -211,6 +211,98 @@ public sealed class RecycleOperationViewModelTests
         Assert.IsTrue(viewModel.AnnouncementVersion > initialAnnouncementVersion);
     }
 
+    [TestMethod]
+    public async Task PreviousRecoveryPageRepeatsItsAnnouncement()
+    {
+        var worker = CreatePagedRecoveryWorker();
+        using var viewModel = new RecycleOperationViewModel(worker, new DisabledCapability());
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        await viewModel.NextPageCommand.ExecuteAsync(null);
+        var nextPageAnnouncement = viewModel.Announcement;
+        var nextPageAnnouncementVersion = viewModel.AnnouncementVersion;
+
+        await viewModel.PreviousPageCommand.ExecuteAsync(null);
+
+        StringAssert.Contains(viewModel.PageStatus, "showing items 1-100 of 101 unknown details");
+        StringAssert.Contains(viewModel.Announcement, viewModel.PageStatus);
+        Assert.AreNotEqual(nextPageAnnouncement, viewModel.Announcement);
+        Assert.IsTrue(viewModel.AnnouncementVersion > nextPageAnnouncementVersion);
+    }
+
+    [TestMethod]
+    public async Task StaleOrCancelledPagingDoesNotAnnounce()
+    {
+        var worker = CreatePagedRecoveryWorker();
+        var pendingPage = new TaskCompletionSource<WorkerRecycleOperationItemPage>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        worker.RecycleOperationItemPageHandler = (query, _) => query.Cursor is null
+            ? Task.FromResult(CreateRecoveryPage(query.RecycleOperationId, firstPage: true))
+            : pendingPage.Task;
+        using var viewModel = new RecycleOperationViewModel(worker, new DisabledCapability());
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var announcementVersion = viewModel.AnnouncementVersion;
+        var stalePage = viewModel.NextPageCommand.ExecuteAsync(null);
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            13, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var replacementAnnouncement = viewModel.Announcement;
+        pendingPage.SetResult(CreateRecoveryPage(8, firstPage: false));
+        await stalePage;
+
+        Assert.AreEqual(replacementAnnouncement, viewModel.Announcement);
+        Assert.AreEqual(announcementVersion + 1, viewModel.AnnouncementVersion,
+            "Only the replacement run load should announce; the stale page must remain silent.");
+
+        var cancelledPage = new TaskCompletionSource<WorkerRecycleOperationItemPage>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        worker.RecycleOperationItemPageHandler = (query, _) => query.Cursor is null
+            ? Task.FromResult(CreateRecoveryPage(query.RecycleOperationId, firstPage: true))
+            : cancelledPage.Task;
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var announcement = viewModel.Announcement;
+        announcementVersion = viewModel.AnnouncementVersion;
+        var cancelled = viewModel.NextPageCommand.ExecuteAsync(null);
+
+        viewModel.Dispose();
+        cancelledPage.SetResult(CreateRecoveryPage(8, firstPage: false));
+        await cancelled;
+
+        Assert.AreEqual(announcement, viewModel.Announcement);
+        Assert.AreEqual(announcementVersion, viewModel.AnnouncementVersion);
+    }
+
+    private static TestWorkerClient CreatePagedRecoveryWorker()
+    {
+        var worker = new TestWorkerClient();
+        worker.LatestRecycleOperationHandler = (_, _) => Task.FromResult<WorkerRecycleOperation?>(
+            TestWorkerClient.CreateRecycleOperation(8, 12, 7, 4) with
+            {
+                Status = "recovery_required",
+                UnknownCount = 101,
+            });
+        worker.RecycleOperationItemPageHandler = (query, _) => Task.FromResult(
+            CreateRecoveryPage(query.RecycleOperationId, query.Cursor is null));
+        return worker;
+    }
+
+    private static WorkerRecycleOperationItemPage CreateRecoveryPage(long operationId, bool firstPage) =>
+        firstPage
+            ? new WorkerRecycleOperationItemPage(
+                Enumerable.Range(1, 100)
+                    .Select(id => CreateItem(id, operationId, $@"C:\fixture\unknown-{id}.bin"))
+                    .ToArray(),
+                101,
+                "next")
+            : new WorkerRecycleOperationItemPage(
+                [CreateItem(101, operationId, @"C:\fixture\unknown-101.bin")],
+                101,
+                null);
+
     private static WorkerRecycleOperationItem CreateItem(long id, long operationId, string path) =>
         new(
             id, operationId, 1, id - 1, id, null, "file", path, 1, null, null, id,

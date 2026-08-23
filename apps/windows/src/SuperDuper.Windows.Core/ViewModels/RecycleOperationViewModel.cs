@@ -249,8 +249,10 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             return;
         }
         _history.Add(_cursor);
-        await LoadPageAsync(_nextCursor, _generation, _lifetime.Token);
-        AnnouncePage();
+        if (await LoadPageAsync(_nextCursor, _generation, _lifetime.Token))
+        {
+            AnnouncePage();
+        }
     }
 
     private async Task PreviousPageAsync()
@@ -261,15 +263,17 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         }
         var previous = _history[^1];
         _history.RemoveAt(_history.Count - 1);
-        await LoadPageAsync(previous, _generation, _lifetime.Token);
-        AnnouncePage();
+        if (await LoadPageAsync(previous, _generation, _lifetime.Token))
+        {
+            AnnouncePage();
+        }
     }
 
-    private async Task LoadPageAsync(string? cursor, long generation, CancellationToken token)
+    private async Task<bool> LoadPageAsync(string? cursor, long generation, CancellationToken token)
     {
         if (_worker is null || Operation is null)
         {
-            return;
+            return false;
         }
         var operationId = Operation.Id;
         IsLoading = true;
@@ -285,13 +289,13 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
                         cursor), token);
                 if (!IsCurrentGeneration(generation, token) || Operation?.Id != operationId)
                 {
-                    return;
+                    return false;
                 }
                 _cache.Set(cursor, page);
             }
             if (!IsCurrentGeneration(generation, token) || Operation?.Id != operationId)
             {
-                return;
+                return false;
             }
             Items.Clear();
             foreach (var item in page.Items)
@@ -303,6 +307,7 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             _pageIndex = _history.Count;
             _totalCount = page.Total;
             NotifyStateChanged();
+            return true;
         }
         finally
         {
