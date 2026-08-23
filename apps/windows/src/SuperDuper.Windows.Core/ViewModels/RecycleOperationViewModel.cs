@@ -371,4 +371,21 @@ public sealed class RecycleOperationItemViewModel(WorkerRecycleOperationItem ite
         : Item.ResultStatus.Replace('_', ' ');
 
     public string Explanation => Item.ResultCode ?? Item.EligibilityCode ?? "No result has been recorded.";
+
+    public string EvidenceDetails =>
+        $"Operation item {Item.Id}; preflight item {Item.PreflightItemId}; batch {Item.BatchId}; "
+        + $"target {Item.TargetKind}; group {FormatId(Item.GroupId)}; folder group {FormatId(Item.FolderGroupId)}; "
+        + $"folder member {FormatId(Item.FolderMemberId)}; snapshot file {FormatId(Item.SnapshotFileId)}; "
+        + $"snapshot directory {FormatId(Item.SnapshotDirectoryId)}; result {Item.ResultStatus}; "
+        + $"code {Item.ResultCode ?? Item.EligibilityCode ?? "none recorded"}; "
+        + $"Shell HRESULT {FormatHresult(Item.ShellHresult)}; recycled item present {FormatBoolean(Item.RecycledItemPresent)}; "
+        + $"result time {Item.ResultAt ?? "none recorded"}.";
+
+    private static string FormatId(long? value) => value?.ToString() ?? "none";
+
+    private static string FormatBoolean(bool? value) => value?.ToString().ToLowerInvariant() ?? "unknown";
+
+    private static string FormatHresult(long? value) => value is null
+        ? "none recorded"
+        : $"0x{unchecked((uint)value.Value):X8}";
 }

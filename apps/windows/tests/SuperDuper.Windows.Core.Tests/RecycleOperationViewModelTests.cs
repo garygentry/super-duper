@@ -97,10 +97,38 @@ public sealed class RecycleOperationViewModelTests
         StringAssert.Contains(viewModel.RecoveryEvidenceSummary, "Error code: worker_interrupted");
         Assert.AreEqual("unknown", recoveryQuery?.ResultStatus);
         StringAssert.Contains(viewModel.PageStatus, "showing 1 of 1 unknown details");
+        StringAssert.Contains(viewModel.Items[0].EvidenceDetails, "Operation item 2; preflight item 2; batch 1");
+        StringAssert.Contains(viewModel.Items[0].EvidenceDetails, "result unknown");
+        StringAssert.Contains(viewModel.Items[0].EvidenceDetails, "Shell HRESULT none recorded");
+        StringAssert.Contains(viewModel.Items[0].EvidenceDetails, "recycled item present unknown");
         Assert.IsFalse(viewModel.RecoveryEvidenceSummary.Contains(@"C:\", StringComparison.Ordinal));
         Assert.IsFalse(viewModel.RecoveryEvidenceSummary.Contains("Error detail", StringComparison.Ordinal));
         Assert.IsTrue(viewModel.HasRecoveryGuidance);
         Assert.IsFalse(viewModel.CanSubmit);
+    }
+
+    [TestMethod]
+    public void FormatsDurableItemCorrelationAndNumericShellEvidence()
+    {
+        var item = CreateItem(3, 8, @"C:\fixture\failed.bin") with
+        {
+            GroupId = 17,
+            SnapshotFileId = 23,
+            ResultStatus = "failed",
+            ResultCode = "sharing_violation",
+            ShellHresult = unchecked((int)0x80270027),
+            RecycledItemPresent = false,
+            ResultAt = "2026-08-22T21:15:00.000Z",
+        };
+
+        var viewModel = new RecycleOperationItemViewModel(item);
+
+        StringAssert.Contains(viewModel.EvidenceDetails, "group 17");
+        StringAssert.Contains(viewModel.EvidenceDetails, "snapshot file 23");
+        StringAssert.Contains(viewModel.EvidenceDetails, "code sharing_violation");
+        StringAssert.Contains(viewModel.EvidenceDetails, "Shell HRESULT 0x80270027");
+        StringAssert.Contains(viewModel.EvidenceDetails, "recycled item present false");
+        StringAssert.Contains(viewModel.EvidenceDetails, "result time 2026-08-22T21:15:00.000Z");
     }
 
     [TestMethod]

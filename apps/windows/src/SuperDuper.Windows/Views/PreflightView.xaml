@@ -156,7 +156,8 @@
                                   VirtualizingPanel.VirtualizationMode="Recycling">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Margin="2,5">
+                                    <Grid Margin="2,5"
+                                          AutomationProperties.Name="{Binding EvidenceDetails}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="110" />
                                             <ColumnDefinition Width="2*" />
@@ -167,8 +168,11 @@
                                         <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Item.Path}"
                                                    TextTrimming="CharacterEllipsis" />
                                         <TextBlock Grid.Column="2" Margin="8,0,0,0" Text="{Binding Size}" />
-                                        <TextBlock Grid.Column="3" Margin="8,0,0,0" Text="{Binding Explanation}"
-                                                   TextWrapping="Wrap" />
+                                        <StackPanel Grid.Column="3" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding Explanation}" TextWrapping="Wrap" />
+                                            <TextBlock Margin="0,2,0,0"
+                                                       Text="{Binding EvidenceDetails}" TextWrapping="Wrap" />
+                                        </StackPanel>
                                     </Grid>
                                 </DataTemplate>
                             </ListView.ItemTemplate>

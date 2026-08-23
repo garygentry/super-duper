@@ -126,4 +126,5 @@ Production execution remains disabled while provider, physical-accessibility, re
 performance, constants, residual-TOCTOU, and ambiguous-recovery gates remain open. Read-only
 recovery handoff includes path-free durable identifiers, signatures, lifecycle times, aggregate
 outcomes, and stored error codes. Recovery-required reconstruction pages only the stored unknown
-results for operator triage, but does not inspect or resolve ambiguous items.
+results for operator triage and exposes their durable item/batch/source/result correlation, but does
+not inspect or resolve ambiguous items.
