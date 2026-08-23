@@ -56,6 +56,12 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
 
     public Func<RecycleOperationItemQuery, CancellationToken, Task<WorkerRecycleOperationItemPage>>? RecycleOperationItemPageHandler { get; set; }
 
+    public Func<long, CancellationToken, Task<WorkerRecoveryReviewResult>>? RecoveryReviewHandler { get; set; }
+
+    public Func<RecoveryReviewObservationQuery, CancellationToken, Task<WorkerRecoveryReviewObservationPage>>? RecoveryReviewPageHandler { get; set; }
+
+    public Func<RecoveryReviewObservationRecord, CancellationToken, Task<WorkerRecoveryReviewMutationResult>>? RecoveryReviewRecordHandler { get; set; }
+
     public Func<PreferencePreviewQuery, CancellationToken, Task<WorkerPreferencePreviewPage>>? PreferencePreviewHandler { get; set; }
 
     public Func<string, long, long, long, long, string, PreferencePreviewScope, CancellationToken, Task<WorkerPreferenceApplicationResult>>? PreferenceApplyHandler { get; set; }
@@ -413,19 +419,22 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
     public Task<WorkerRecoveryReviewResult> GetRecoveryReviewAsync(
         long recycleOperationId,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult(new WorkerRecoveryReviewResult(
+        RecoveryReviewHandler?.Invoke(recycleOperationId, cancellationToken)
+        ?? Task.FromResult(new WorkerRecoveryReviewResult(
             new WorkerRecoveryReview(recycleOperationId, "not_started", 0, 0),
             false));
 
     public Task<WorkerRecoveryReviewObservationPage> GetRecoveryReviewObservationsAsync(
         RecoveryReviewObservationQuery query,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult(new WorkerRecoveryReviewObservationPage([], 0, null, false));
+        RecoveryReviewPageHandler?.Invoke(query, cancellationToken)
+        ?? Task.FromResult(new WorkerRecoveryReviewObservationPage([], 0, null, false));
 
     public Task<WorkerRecoveryReviewMutationResult> RecordRecoveryReviewObservationAsync(
         RecoveryReviewObservationRecord record,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult(new WorkerRecoveryReviewMutationResult(
+        RecoveryReviewRecordHandler?.Invoke(record, cancellationToken)
+        ?? Task.FromResult(new WorkerRecoveryReviewMutationResult(
             new WorkerRecoveryReview(
                 record.RecycleOperationId,
                 "in_progress",

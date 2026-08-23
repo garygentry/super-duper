@@ -31,11 +31,11 @@ troubleshooting. Set `SUPER_DUPER_LOG` to a Rust tracing filter such as
   excluded from affected duplicate results. A completed run can therefore have warnings.
 - V1 exposes a warning count and local diagnostics; `warning.page` remains reserved.
 - The WPF post-MVP review surface exposes non-deleting review decisions, preflight observations,
-  and read-only reconstruction of schema-v10 Recycle Bin operation intent/evidence. Schema v11
-  adds append-only non-UI recovery-review persistence/protocol, but WPF observation controls remain
-  separately gated. The production
-  executor is disabled: there is no Recycle Bin action or arbitrary filesystem mutation exposed by
-  the app. A separately gated real executor exists only for explicit disposable acceptance tests.
+  and reconstruction of schema-v10 Recycle Bin operation intent/evidence. Schema v11 adds a bounded
+  append-only recovery-review checklist for manual operator observations and corrections. The production
+  executor is disabled: there is no Recycle Bin submission/mutation action or arbitrary filesystem
+  mutation exposed by the app. Opening the Recycle Bin is navigation for independent inspection
+  only. A separately gated real executor exists only for explicit disposable acceptance tests.
   Deleting a session removes worker-owned history only when no operation lock requires its evidence;
   it never deletes scanned files.
 - The database and hash cache use the worker working directory unless `SUPER_DUPER_DB_PATH` and
@@ -70,9 +70,15 @@ recovery record because mutation may have occurred before a result was persisted
 edit, or clear that operation: its run/review remain locked to prevent repeating a potentially
 completed mutation. Schema v11 can separately append one of the five approved operator
 observations per unknown item and preserve corrections as supersession history; even complete
-review remains explicitly unresolved and changes none of those original rows. This build has no
-recovery-review UI. The production app cannot initiate Shell work, but the explicitly invoked
-disposable executor tests can exercise this boundary.
+review remains explicitly unresolved and changes none of those original rows. In WPF, page every
+unknown item, copy its stored path/evidence, inspect the Windows Recycle Bin independently, record
+one of the five observations, and use an explicit correction to supersede a current observation.
+The prior record and correction reason remain in history. Failed reads and a failed observation
+request expose only exact safe retry; the latter reuses the same idempotent request. **Start a fresh
+scan** navigates to new scan authority and never replays an old operation. The app does not inspect
+source/provider/content/Recycle Bin state, infer an outcome, restore, delete, clear evidence, or
+change any original status. The production app cannot initiate Shell work, but the explicitly
+invoked disposable executor tests can exercise this boundary.
 Preserve the timestamped evidence bundle produced by
 `Invoke-WindowsRecycleBinAcceptance.ps1` with the database and logs. The acceptance matrix in
 [`windows-recycle-bin-acceptance.md`](windows-recycle-bin-acceptance.md) requires numeric callback,

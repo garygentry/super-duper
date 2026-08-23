@@ -22,6 +22,7 @@ public partial class App : Application
         services.AddSingleton<IUiDispatcher>(_ => new WpfUiDispatcher(Dispatcher));
         services.AddSingleton<IClipboardService, WpfClipboardService>();
         services.AddSingleton<IExplorerService, WindowsExplorerService>();
+        services.AddSingleton<IRecycleBinService, WindowsRecycleBinService>();
         services.AddSingleton<ICloudLocationService>(_ => CreateCloudLocationService());
         services.AddSingleton<IRecycleOperationCapabilityExecutor, DisabledRecycleOperationCapabilityExecutor>();
         services.AddSingleton<ShellViewModel>();

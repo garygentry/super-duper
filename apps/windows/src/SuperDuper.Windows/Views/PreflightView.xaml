@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:accessibility="clr-namespace:SuperDuper.Windows.Accessibility"
+             xmlns:viewModels="clr-namespace:SuperDuper.Windows.Core.ViewModels;assembly=SuperDuper.Windows.Core"
              AutomationProperties.AutomationId="PreflightWorkspace"
              AutomationProperties.Name="Preflight validation workspace"
              PreviewKeyDown="OnPreviewKeyDown">
@@ -148,10 +149,12 @@
                         <TextBlock Margin="0,4,0,0"
                                    Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
                                    Text="{Binding RevisionStatus}" TextWrapping="Wrap" />
-                        <ListView Margin="0,12,0,0" MinHeight="100" MaxHeight="280"
+                        <ListView x:Name="RecycleOperationItemsList" Margin="0,12,0,0" MinHeight="100" MaxHeight="280"
                                   AutomationProperties.AutomationId="RecycleOperationItemsList"
                                   AutomationProperties.Name="Recycle Bin operation result details; recovery-required operations show unknown items only"
-                                  ItemsSource="{Binding Items}" ScrollViewer.CanContentScroll="True"
+                                  ItemsSource="{Binding Items}"
+                                  SelectedItem="{Binding RecoveryReview.SelectedUnknownItem, Mode=TwoWay}"
+                                  ScrollViewer.CanContentScroll="True"
                                   VirtualizingPanel.IsVirtualizing="True"
                                   VirtualizingPanel.VirtualizationMode="Recycling">
                             <ListView.ItemTemplate>
@@ -191,6 +194,217 @@
                             <TextBlock Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Center"
                                        Text="{Binding PageStatus}" />
                         </Grid>
+                        <Border Margin="0,16,0,0" Padding="14"
+                                BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                                BorderThickness="1" CornerRadius="6"
+                                DataContext="{Binding RecoveryReview}"
+                                AutomationProperties.AutomationId="RecoveryReviewWorkspace"
+                                AutomationProperties.Name="Recovery review workspace; records operator observations without changing original evidence"
+                                Visibility="{Binding IsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <StackPanel>
+                                <TextBlock x:Name="RecoveryReviewStatusHeading" Focusable="True"
+                                           FontSize="18" FontWeight="SemiBold"
+                                           AutomationProperties.AutomationId="RecoveryReviewStatusHeading"
+                                           AutomationProperties.Name="{Binding ReviewStatus}"
+                                           Text="Recovery review" />
+                                <TextBlock Margin="0,5,0,0"
+                                           AutomationProperties.AutomationId="RecoveryReviewStatus"
+                                           AutomationProperties.Name="{Binding ReviewStatus}"
+                                           Text="{Binding ReviewStatus}" TextWrapping="Wrap" />
+                                <TextBlock Margin="0,5,0,0"
+                                           AutomationProperties.AutomationId="RecoveryReviewBoundary"
+                                           AutomationProperties.Name="{Binding ReviewBoundary}"
+                                           Text="{Binding ReviewBoundary}" TextWrapping="Wrap" />
+                                <WrapPanel Margin="0,10,0,0">
+                                    <Button Margin="0,0,8,8" Padding="12,6"
+                                            AutomationProperties.AutomationId="RecoveryReviewCopySummaryButton"
+                                            AutomationProperties.Name="Copy durable recovery review status"
+                                            Command="{Binding CopyReviewSummaryCommand}"
+                                            Content="Copy review status" />
+                                    <Button Margin="0,0,8,8" Padding="12,6"
+                                            AutomationProperties.AutomationId="RecoveryReviewOpenRecycleBinButton"
+                                            AutomationProperties.Name="Open Windows Recycle Bin for independent manual inspection"
+                                            Command="{Binding OpenRecycleBinCommand}"
+                                            Content="Open Recycle Bin" />
+                                    <Button Margin="0,0,8,8" Padding="12,6"
+                                            AutomationProperties.AutomationId="RecoveryReviewFreshScanButton"
+                                            AutomationProperties.Name="Navigate to start a fresh scan; do not retry this operation"
+                                            Command="{Binding NavigateToFreshScanCommand}"
+                                            Content="Start a fresh scan" />
+                                </WrapPanel>
+
+                                <TextBlock Margin="0,10,0,0" FontWeight="SemiBold"
+                                           Text="Selected immutable unknown item" />
+                                <TextBlock Margin="0,3,0,0"
+                                           AutomationProperties.AutomationId="RecoveryReviewSelectedEvidence"
+                                           AutomationProperties.Name="{Binding SelectedEvidence}"
+                                           Text="{Binding SelectedEvidence}" TextWrapping="Wrap" />
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button Margin="0,0,8,8" Padding="12,6"
+                                            AutomationProperties.AutomationId="RecoveryReviewCopyEvidenceButton"
+                                            AutomationProperties.Name="Copy durable evidence for the selected unknown item"
+                                            Command="{Binding CopyEvidenceCommand}"
+                                            Content="Copy evidence" />
+                                    <Button Margin="0,0,8,8" Padding="12,6"
+                                            AutomationProperties.AutomationId="RecoveryReviewCopyPathButton"
+                                            AutomationProperties.Name="Copy stored source path for independent inspection"
+                                            Command="{Binding CopyPathCommand}"
+                                            Content="Copy stored path" />
+                                </WrapPanel>
+
+                                <TextBlock Margin="0,12,0,0" FontWeight="SemiBold"
+                                           Text="Record an operator observation" />
+                                <TextBlock Margin="0,3,0,0"
+                                           Text="Select one unknown item above. Record only a manual observation; this does not resolve, retry, restore, or delete anything."
+                                           TextWrapping="Wrap" />
+                                <ComboBox x:Name="RecoveryReviewObservationKind" Margin="0,7,0,0"
+                                          MaxWidth="420" HorizontalAlignment="Stretch"
+                                          AutomationProperties.AutomationId="RecoveryReviewObservationKind"
+                                          AutomationProperties.Name="Operator observation kind"
+                                          ItemsSource="{Binding Source={x:Static viewModels:RecoveryReviewViewModel.ObservationChoices}}"
+                                          SelectedItem="{Binding SelectedObservationChoice, Mode=TwoWay}"
+                                          IsEnabled="{Binding CanEdit}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock AutomationProperties.Name="{Binding AutomationName}"
+                                                       Text="{Binding Label}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBox Margin="0,7,0,0" MinHeight="54" MaxLength="1000"
+                                         AcceptsReturn="True" TextWrapping="Wrap"
+                                         AutomationProperties.AutomationId="RecoveryReviewNote"
+                                         AutomationProperties.Name="Optional operator note, maximum 1000 characters"
+                                         IsEnabled="{Binding CanEdit}"
+                                         Text="{Binding Note, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <Border Margin="0,8,0,0" Padding="10"
+                                        BorderBrush="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
+                                        BorderThickness="1"
+                                        Visibility="{Binding IsCorrection, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <TextBlock FontWeight="SemiBold"
+                                                   AutomationProperties.AutomationId="RecoveryReviewCorrectionSummary"
+                                                   AutomationProperties.Name="{Binding CorrectionSummary}"
+                                                   Text="{Binding CorrectionSummary}" TextWrapping="Wrap" />
+                                        <TextBox Margin="0,7,0,0" MinHeight="54" MaxLength="500"
+                                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                                 AutomationProperties.AutomationId="RecoveryReviewCorrectionReason"
+                                                 AutomationProperties.Name="Required correction reason, maximum 500 characters"
+                                                 IsEnabled="{Binding CanEdit}"
+                                                 Text="{Binding CorrectionReason, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <Button Margin="0,7,0,0" Padding="12,6" HorizontalAlignment="Left"
+                                                AutomationProperties.AutomationId="RecoveryReviewCancelCorrectionButton"
+                                                AutomationProperties.Name="Cancel append-only correction"
+                                                Command="{Binding CancelCorrectionCommand}"
+                                                Content="Cancel correction" />
+                                    </StackPanel>
+                                </Border>
+                                <Button Margin="0,9,0,0" Padding="12,6" HorizontalAlignment="Left"
+                                        AutomationProperties.AutomationId="RecoveryReviewRecordButton"
+                                        AutomationProperties.Name="Record append-only operator observation; original evidence remains unchanged"
+                                        Command="{Binding RecordObservationCommand}"
+                                        Content="Record observation" />
+                                <Border Margin="0,9,0,0" Padding="10"
+                                        BorderBrush="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
+                                        BorderThickness="1"
+                                        AutomationProperties.AutomationId="RecoveryReviewLastRecordedObservation"
+                                        AutomationProperties.Name="{Binding LastRecordedSummary}"
+                                        Visibility="{Binding HasLastRecordedObservation, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock Text="{Binding LastRecordedSummary}" TextWrapping="Wrap" />
+                                </Border>
+
+                                <TextBlock x:Name="RecoveryReviewHistoryHeading" Margin="0,16,0,0"
+                                           Focusable="True" FontWeight="SemiBold"
+                                           AutomationProperties.AutomationId="RecoveryReviewHistoryHeading"
+                                           AutomationProperties.Name="Recovery review append-only history"
+                                           Text="Append-only observation history" />
+                                <TextBlock Margin="0,3,0,0"
+                                           Text="To append a correction, select a current history record and its matching immutable unknown item above. The prior record and correction reason remain visible."
+                                           TextWrapping="Wrap" />
+                                <ListView x:Name="RecoveryReviewHistoryList" Margin="0,7,0,0"
+                                          MinHeight="100" MaxHeight="260"
+                                          Focusable="True" KeyboardNavigation.IsTabStop="True"
+                                          AutomationProperties.AutomationId="RecoveryReviewHistoryList"
+                                          AutomationProperties.Name="Recovery review observation history with supersession details"
+                                          ItemsSource="{Binding Observations}"
+                                          SelectedItem="{Binding SelectedHistoryObservation, Mode=TwoWay}"
+                                          ScrollViewer.CanContentScroll="True"
+                                          VirtualizingPanel.IsVirtualizing="True"
+                                          VirtualizingPanel.VirtualizationMode="Recycling">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="2,5" AutomationProperties.Name="{Binding AutomationName}">
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding DisplayObservation}" />
+                                                <TextBlock Text="{Binding CurrentStatus}" />
+                                                <TextBlock Text="{Binding Correction}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button Margin="0,0,8,8" Padding="12,6"
+                                            AutomationProperties.AutomationId="RecoveryReviewPreviousHistoryButton"
+                                            AutomationProperties.Name="Previous recovery review history page; focus returns to history"
+                                            Command="{Binding PreviousHistoryPageCommand}"
+                                            Content="Previous history page" />
+                                    <Button Margin="0,0,8,8" Padding="12,6"
+                                            AutomationProperties.AutomationId="RecoveryReviewNextHistoryButton"
+                                            AutomationProperties.Name="Next recovery review history page; focus returns to history"
+                                            Command="{Binding NextHistoryPageCommand}"
+                                            Content="Next history page" />
+                                    <Button Margin="0,0,8,8" Padding="12,6"
+                                            AutomationProperties.AutomationId="RecoveryReviewBeginCorrectionButton"
+                                            AutomationProperties.Name="Correct the selected current observation for the selected immutable item; preserve the prior record"
+                                            Command="{Binding BeginCorrectionCommand}"
+                                            Content="Correct selected observation" />
+                                </WrapPanel>
+                                <TextBlock AutomationProperties.AutomationId="RecoveryReviewHistoryStatus"
+                                           AutomationProperties.Name="{Binding HistoryPageStatus}"
+                                           Text="{Binding HistoryPageStatus}" TextWrapping="Wrap" />
+
+                                <TextBlock Margin="0,8,0,0"
+                                           Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
+                                           AutomationProperties.AutomationId="RecoveryReviewReadError"
+                                           AutomationProperties.Name="{Binding ErrorAnnouncement}"
+                                           AutomationProperties.LiveSetting="Assertive"
+                                           Text="{Binding ReadErrorMessage}" TextWrapping="Wrap"
+                                           Visibility="{Binding HasReadError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                <Button Margin="0,7,0,0" Padding="12,6" HorizontalAlignment="Left"
+                                        AutomationProperties.AutomationId="RecoveryReviewRetryReadButton"
+                                        AutomationProperties.Name="Retry the exact failed recovery review read"
+                                        Command="{Binding RetryReadCommand}"
+                                        Content="Retry review read"
+                                        Visibility="{Binding CanRetryRead, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                <TextBlock Margin="0,8,0,0"
+                                           Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
+                                           AutomationProperties.AutomationId="RecoveryReviewMutationError"
+                                           AutomationProperties.Name="{Binding ErrorAnnouncement}"
+                                           AutomationProperties.LiveSetting="Assertive"
+                                           Text="{Binding MutationErrorMessage}" TextWrapping="Wrap"
+                                           Visibility="{Binding HasMutationError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                <Button x:Name="RecoveryReviewRetryMutationButton" Margin="0,7,0,0"
+                                        Padding="12,6" HorizontalAlignment="Left"
+                                        AutomationProperties.AutomationId="RecoveryReviewRetryMutationButton"
+                                        AutomationProperties.Name="Retry the exact failed append-only observation request; do not retry operation work"
+                                        Command="{Binding RetryMutationCommand}"
+                                        Content="Retry same observation request"
+                                        Visibility="{Binding CanRetryMutation, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                <TextBlock Height="1" Opacity="0"
+                                           AutomationProperties.AutomationId="RecoveryReviewAnnouncement"
+                                           AutomationProperties.Name="{Binding Announcement}"
+                                           accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding AnnouncementVersion}"
+                                           accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
+                                           accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
+                                           accessibility:AutomationNotificationBehavior.ActivityId="RecoveryReview" />
+                                <TextBlock Height="1" Opacity="0"
+                                           AutomationProperties.AutomationId="RecoveryReviewErrorAnnouncement"
+                                           AutomationProperties.Name="{Binding ErrorAnnouncement}"
+                                           accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding ErrorAnnouncementVersion}"
+                                           accessibility:AutomationNotificationBehavior.NotificationKind="ActionAborted"
+                                           accessibility:AutomationNotificationBehavior.NotificationProcessing="ImportantMostRecent"
+                                           accessibility:AutomationNotificationBehavior.ActivityId="RecoveryReviewError" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                     <TextBlock Margin="0,8,0,0"
                                Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"

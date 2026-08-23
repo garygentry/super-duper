@@ -22,6 +22,7 @@ public partial class MainWindow : Window
         ViewModel = viewModel;
         _workerClient = workerClient;
         DataContext = viewModel;
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         Closing += OnClosing;
     }
 
@@ -33,6 +34,18 @@ public partial class MainWindow : Window
     {
         _initialization = ViewModel.InitializeAsync(_lifetime.Token);
         return _initialization;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(ShellViewModel.FocusRequestVersion)
+            || ViewModel.FocusTarget != "start-scan")
+        {
+            return;
+        }
+        _ = Dispatcher.BeginInvoke(
+            () => StartScanButton.Focus(),
+            DispatcherPriority.Background);
     }
 
     private void OnClosing(object? sender, CancelEventArgs e)

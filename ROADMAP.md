@@ -135,10 +135,11 @@ profiles, export, run-to-run deltas, and cache-only Shell thumbnails are reviewe
 follow-ons.
 
 Production Recycle Bin execution remains disabled while provider, physical-accessibility,
-representative-performance, constants, residual-TOCTOU, accessible recovery-review UI, and
-controlled ambiguous-start evidence gates remain open. Schema v11 now implements the accepted
-append-only per-item operator-observation persistence/protocol while preserving original unknown
-evidence; live-state inference, replay, and outcome overwrite remain prohibited.
+representative-performance, constants, residual-TOCTOU, and controlled ambiguous-start evidence
+gates remain open. The accepted schema-v11 recovery-review workflow now provides bounded WPF
+unknown-item and append-only observation-history paging, all five manual observations, explicit
+supersession, evidence/path copy, Recycle Bin navigation, and fresh-scan navigation while preserving
+original unknown evidence; live-state inference, replay, and outcome overwrite remain prohibited.
 The completion contract does not authorize `WPM11-production-wiring`: after every dependency is
 accepted, that gate still requires separate explicit product/safety approval. Until then,
 `RecycleOperationViewModel.CanSubmit` remains false, production uses

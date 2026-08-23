@@ -28,6 +28,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     private bool _suppressSelection;
     private bool _disposed;
     private Task _savedHistoryLoad = Task.CompletedTask;
+    private string _focusTarget = string.Empty;
+    private long _focusRequestVersion;
 
     public ShellViewModel(
         IWorkerClient workerClient,
@@ -37,7 +39,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         IClipboardService clipboard,
         IExplorerService explorer,
         ICloudLocationService? cloudLocations = null,
-        IRecycleOperationCapabilityExecutor? recycleOperationExecutor = null)
+        IRecycleOperationCapabilityExecutor? recycleOperationExecutor = null,
+        IRecycleBinService? recycleBin = null)
     {
         _workerClient = workerClient;
         _restartableWorkerClient = workerClient as IRestartableWorkerClient;
@@ -55,7 +58,13 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         History = new RunHistoryViewModel(workerClient);
         DuplicateFiles = new DuplicateFilesViewModel(workerClient, clipboard, explorer);
         DuplicateFolders = new DuplicateFoldersViewModel(workerClient, clipboard, explorer);
-        Preflight = new PreflightViewModel(workerClient, confirmation, recycleOperationExecutor);
+        Preflight = new PreflightViewModel(
+            workerClient,
+            confirmation,
+            recycleOperationExecutor,
+            clipboard,
+            recycleBin,
+            NavigateToFreshScanAsync);
         DuplicateFiles.ReviewRevisionChanged += OnFileReviewRevisionChanged;
         DuplicateFolders.ReviewRevisionChanged += OnFolderReviewRevisionChanged;
 
@@ -176,6 +185,18 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     {
         get => _selectedTabIndex;
         set => SetProperty(ref _selectedTabIndex, value);
+    }
+
+    public string FocusTarget
+    {
+        get => _focusTarget;
+        private set => SetProperty(ref _focusTarget, value);
+    }
+
+    public long FocusRequestVersion
+    {
+        get => _focusRequestVersion;
+        private set => SetProperty(ref _focusRequestVersion, value);
     }
 
     public bool IsStarting => ConnectionState == WorkerConnectionState.Starting;
@@ -380,6 +401,14 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         SelectedTabIndex = 0;
         ContentErrorMessage = null;
         IsWorkspaceVisible = true;
+        return Task.CompletedTask;
+    }
+
+    private Task NavigateToFreshScanAsync()
+    {
+        SelectedTabIndex = 0;
+        FocusTarget = "start-scan";
+        FocusRequestVersion++;
         return Task.CompletedTask;
     }
 

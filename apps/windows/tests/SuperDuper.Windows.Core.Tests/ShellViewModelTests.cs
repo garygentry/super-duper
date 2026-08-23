@@ -88,6 +88,26 @@ public sealed class ShellViewModelTests
         Assert.AreEqual(23, cancelledId);
     }
 
+    [TestMethod]
+    public async Task RecoveryReviewFreshScanActionNavigatesToSetupAndRestoresStartFocus()
+    {
+        var client = new TestWorkerClient();
+        using var viewModel = CreateViewModel(client);
+        viewModel.SelectedTabIndex = 5;
+        await viewModel.Preflight.Operation.RecoveryReview.ShowOperationAsync(
+            TestWorkerClient.CreateRecycleOperation(8, 12, 7, 4) with
+            {
+                Status = "recovery_required",
+                UnknownCount = 1,
+            });
+
+        await viewModel.Preflight.Operation.RecoveryReview.NavigateToFreshScanCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(0, viewModel.SelectedTabIndex);
+        Assert.AreEqual("start-scan", viewModel.FocusTarget);
+        Assert.IsTrue(viewModel.FocusRequestVersion > 0);
+    }
+
     private static ShellViewModel CreateViewModel(IWorkerClient client) =>
         new(
             client,

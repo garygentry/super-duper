@@ -235,6 +235,8 @@ public sealed class RecycleOperationViewModelTests
         StringAssert.Contains(viewModel.PageStatus, "showing items 101-101 of 101 unknown details");
         StringAssert.Contains(viewModel.Announcement, viewModel.PageStatus);
         Assert.IsTrue(viewModel.AnnouncementVersion > initialAnnouncementVersion);
+        Assert.AreEqual("operation-items", viewModel.FocusTarget);
+        Assert.IsTrue(viewModel.FocusRequestVersion > 0);
     }
 
     [TestMethod]

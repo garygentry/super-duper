@@ -442,6 +442,47 @@ public sealed class WpfSurfaceSmokeTests
                 AutomationProperties.GetName(recycleRetry),
                 "does not retry the operation");
             Assert.IsTrue(recycleNext.Focusable && KeyboardNavigation.GetIsTabStop(recycleNext));
+            var recoveryReview = FindByAutomationId<Border>(preflight, "RecoveryReviewWorkspace");
+            StringAssert.Contains(AutomationProperties.GetName(recoveryReview), "original evidence");
+            var observationKind = FindByAutomationId<ComboBox>(preflight, "RecoveryReviewObservationKind");
+            Assert.AreEqual(5, observationKind.Items.Count);
+            Assert.AreEqual("Operator observation kind", AutomationProperties.GetName(observationKind));
+            var reviewHistory = FindByAutomationId<ListView>(preflight, "RecoveryReviewHistoryList");
+            Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(reviewHistory));
+            Assert.AreEqual(VirtualizationMode.Recycling,
+                VirtualizingPanel.GetVirtualizationMode(reviewHistory));
+            Assert.IsTrue(reviewHistory.Focusable && KeyboardNavigation.GetIsTabStop(reviewHistory));
+            StringAssert.Contains(
+                AutomationProperties.GetName(FindByAutomationId<Button>(preflight, "RecoveryReviewOpenRecycleBinButton")),
+                "independent manual inspection");
+            StringAssert.Contains(
+                AutomationProperties.GetName(FindByAutomationId<Button>(preflight, "RecoveryReviewFreshScanButton")),
+                "do not retry this operation");
+            StringAssert.Contains(
+                AutomationProperties.GetName(FindByAutomationId<Button>(preflight, "RecoveryReviewRecordButton")),
+                "original evidence remains unchanged");
+            StringAssert.Contains(
+                AutomationProperties.GetName(FindByAutomationId<Button>(preflight, "RecoveryReviewBeginCorrectionButton")),
+                "preserve the prior record");
+            StringAssert.Contains(
+                AutomationProperties.GetName(FindByAutomationId<Button>(preflight, "RecoveryReviewRetryMutationButton")),
+                "do not retry operation work");
+            var recoveryReviewAnnouncement = FindByAutomationId<TextBlock>(
+                preflight, "RecoveryReviewAnnouncement");
+            Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
+                AutomationNotificationBehavior.GetNotificationKind(recoveryReviewAnnouncement));
+            Assert.AreEqual(AutomationNotificationProcessing.MostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(recoveryReviewAnnouncement));
+            Assert.AreEqual("RecoveryReview",
+                AutomationNotificationBehavior.GetActivityId(recoveryReviewAnnouncement));
+            var recoveryReviewErrorAnnouncement = FindByAutomationId<TextBlock>(
+                preflight, "RecoveryReviewErrorAnnouncement");
+            Assert.AreEqual(AutomationNotificationKind.ActionAborted,
+                AutomationNotificationBehavior.GetNotificationKind(recoveryReviewErrorAnnouncement));
+            Assert.AreEqual(AutomationNotificationProcessing.ImportantMostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(recoveryReviewErrorAnnouncement));
+            Assert.AreEqual("RecoveryReviewError",
+                AutomationNotificationBehavior.GetActivityId(recoveryReviewErrorAnnouncement));
             var folderGroupStatus = FindByAutomationId<TextBlock>(folders, "FolderGroupCount");
             Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
                 AutomationNotificationBehavior.GetNotificationKind(folderGroupStatus));
@@ -668,6 +709,26 @@ public sealed class WpfSurfaceSmokeTests
                 Assert.AreEqual(recycleErrorAnnouncement, announcedText);
                 Assert.AreEqual(AutomationNotificationKind.ActionAborted, announcedKind);
                 Assert.AreEqual("RecycleOperationError", announcedActivityId);
+
+                const string recoveryReviewSuccess =
+                    "Recovery observation 12 appended as a correction to observation 11.";
+                AutomationProperties.SetName(recoveryReviewAnnouncement, recoveryReviewSuccess);
+                AutomationNotificationBehavior.SetAnnouncementVersion(recoveryReviewAnnouncement, 1);
+                DrainDispatcher();
+                Assert.AreSame(recoveryReviewAnnouncement, announcedElement);
+                Assert.AreEqual(recoveryReviewSuccess, announcedText);
+                Assert.AreEqual(AutomationNotificationKind.ActionCompleted, announcedKind);
+                Assert.AreEqual("RecoveryReview", announcedActivityId);
+
+                const string recoveryReviewError =
+                    "Recovery review mutation error. The response was interrupted.";
+                AutomationProperties.SetName(recoveryReviewErrorAnnouncement, recoveryReviewError);
+                AutomationNotificationBehavior.SetAnnouncementVersion(recoveryReviewErrorAnnouncement, 1);
+                DrainDispatcher();
+                Assert.AreSame(recoveryReviewErrorAnnouncement, announcedElement);
+                Assert.AreEqual(recoveryReviewError, announcedText);
+                Assert.AreEqual(AutomationNotificationKind.ActionAborted, announcedKind);
+                Assert.AreEqual("RecoveryReviewError", announcedActivityId);
 
                 focusHost.Content = files;
             }

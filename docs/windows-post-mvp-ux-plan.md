@@ -3431,10 +3431,10 @@ Windows Undo decision remain unaccepted.
 
 ##### WPM11 recovery-workflow decision package (2026-08-23)
 
-Status: **Option A accepted; persistence/protocol implemented and accepted on 2026-08-23; WPF
-workflow not yet implemented**. Schema v11 and the non-UI worker/client contract now implement
-append-only per-item operator observations with immutable original unknown evidence. No WPF
-controls, live filesystem behavior, Milestone 12 state, or production composition changed.
+Status: **Option A, persistence/protocol, and accessible WPF workflow accepted on 2026-08-23**.
+Schema v11 and the worker/client/Core/WPF contract implement bounded append-only per-item operator
+observations with immutable original unknown evidence. No live filesystem behavior, Milestone 12
+state, or production composition changed.
 
 ###### Existing evidence boundary
 
@@ -3519,9 +3519,13 @@ even after review; it does not manufacture certainty from an interrupted Shell c
 ###### Accepted decision and downstream gates
 
 The accepted and completed `WPM11-recovery-review-persistence` gate supplies the append-only schema,
-storage, bounded worker protocol, and matching non-UI client contract. The now-ready
-`WPM11-recovery-review-ui` gate supplies the accessible WPF workflow. The existing
-`WPM11-ambiguous-start` gate then supplies the controlled process-loss operator evidence. These
+storage, bounded worker protocol, and matching non-UI client contract. The accepted
+`WPM11-recovery-review-ui` gate supplies the bounded accessible WPF workflow: all three derived
+states, all five observation kinds, immutable unknown-item and history paging, explicit
+supersession with prior/reason visibility, stored evidence/path copy, manual Recycle Bin navigation,
+fresh-scan navigation, exact safe retries, generation/cancellation rejection, focus restoration,
+and separate success/error announcements. The existing `WPM11-ambiguous-start` gate next supplies
+the controlled process-loss operator evidence. These
 records remain source evidence for later `WPM13-outcome-audit`, and
 `WPM11-crash-reconciliation` depends on all three downstream results.
 
@@ -3530,6 +3534,29 @@ automatic live inspection/inference, replay, or outcome overwrite requires a new
 safety decision. None of the accepted downstream gates authorizes production execution;
 `WPM11-production-wiring` remains separately blocked and separately approval-gated after every
 dependency accepts.
+
+###### Accessible recovery-review result (2026-08-23)
+
+- Core owns a five-choice operator-attestation form, the three exact derived state descriptions,
+  bounded five-page observation-history cache, selected immutable unknown item, explicit current-
+  observation correction, and the prior-observation/correction-reason display. Operation items
+  retain the existing bounded unknown-only paging and exact failed-page retry.
+- Restart reconstruction loads the schema-v11 review summary and append-only history. Read summary
+  and history-page failures retry the exact operation/cursor; mutation failure retains the exact
+  request ID and payload for idempotent retry. Generation and cancellation checks reject late
+  reads, mutations, failures, announcements, and cursor transitions.
+- Approved non-authoritative actions copy the stored operation-item evidence or source path, open
+  `shell:RecycleBinFolder` for independent inspection, and navigate to Setup/Start scan with focus.
+  No action queries live state, classifies an outcome, reuses operation authority, or mutates
+  operation/batch/item/recovery evidence.
+- Native keyboard controls, named automation elements/choices/history, operation/history/status
+  focus restoration, and separate polite success/assertive error notifications are covered by Core
+  and loaded-STA tests. The physical Narrator/NVDA, high-contrast, and multi-monitor rows remain
+  open.
+- `scripts/Verify-WindowsRecoveryReviewUi.ps1` is the exact gate verifier. It locks the forbidden-
+  action/composition boundary, runs the serialized Debug solution matrix, then the authoritative
+  Release matrix and real non-mutating smoke. Physical/provider/Shell-mutation/performance and
+  controlled process-loss campaigns are deliberately outside it.
 
 #### User outcome
 
@@ -3794,18 +3821,15 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance only `WPM11-recovery-review-ui`. Its persistence/protocol dependency is accepted, and the
-uncovered criterion is the absence of the accessible operator workflow over schema v11. Implement
-bounded Core/WPF review status, per-item observation/supersession, durable evidence copy, Recycle
-Bin navigation, and fresh-scan navigation with keyboard/focus/announcement coverage.
+Advance only `WPM11-ambiguous-start`. Both Option A implementation gates are accepted. Run the
+documented controlled process-loss campaign with a disposable test host and preserve the migrated
+database, logs, source/Recycle Bin manual observations, and append-only review records.
 
-Verifier: Core/Infrastructure/WPF Debug/Release tests and real non-mutating smoke cover all states,
-transitions, stale responses, paging, append-only correction, keyboard/focus/announcements, and
-forbidden-action absence. Non-goals are automatic live inspection/inference, operation replay or
-outcome mutation, recovery/provider/physical/performance campaigns, Milestone 12 mutation,
-production wiring, and any change to `CanSubmit:false`,
-`DisabledRecycleOperationCapabilityExecutor`, or `executorEnabled:false`. Other ready lanes are not
-substitute authority for that session.
+Verifier: restart shows `recovery_required`; every stored unknown is accounted for through the WPF
+Option A checklist; the original item `unknown`, batch `ambiguous`, operation `recovery_required`,
+and recovery rows remain unchanged; and no replay, inference, restore, deletion, or production
+wiring occurs. Do not substitute provider, physical-accessibility, performance, Shell-mutation, or
+Milestone 12 work for that separately authorized campaign.
 
 ## Milestone Definition Template
 
@@ -3894,3 +3918,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-23 | Prepared the complete WPM11 ambiguous-recovery decision package and left it ready for user decision. | Recommend append-only operator observations without rewriting unknown Shell evidence; document preserve-only, automatic-inference, replay, and overwrite alternatives; require an explicit Option A, Option B-with-waiver, or named-revision choice before implementation. |
 | 2026-08-23 | Accepted WPM11 recovery Option A by explicit user review. | Preserve original unknown/ambiguous/recovery-required evidence; implement append-only persistence/protocol first, accessible WPF review second, and controlled process-loss evidence third; keep live inference, replay, outcome overwrite, and production wiring unauthorized. |
 | 2026-08-23 | Implemented and accepted WPM11 recovery-review persistence/protocol: schema v11, append-only operator observations and supersession, three derived states, bounded current/history paging, idempotent mutation, restart reconstruction, and matching non-UI worker/client contracts. | Keep every schema-v10 source-evidence row immutable and every execution lock disabled; advance only the accessible WPF recovery-review gate next, with live inspection/inference, replay, campaigns, Milestone 12 mutation, and production wiring out of scope. |
+| 2026-08-23 | Implemented and accepted WPM11 recovery-review UI: bounded unknown/history paging, all states and observations, explicit supersession, exact safe retries, evidence/path copy, manual Recycle Bin and fresh-scan navigation, keyboard/focus/automation, and separate announcements. | Advance only WPM11-ambiguous-start; run no provider, physical-accessibility, Shell-mutation, performance, or production-wiring substitute. |

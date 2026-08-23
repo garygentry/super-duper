@@ -45,7 +45,9 @@ Observation pages are limited to 1–200 rows and separately expose current proj
 history. All review methods use only persisted SQLite fields. They cannot inspect or infer live
 source, provider, content, or Recycle Bin state and cannot invoke any operation transition.
 
-Production execution remains disabled: WPF has no recovery-review controls in this gate,
+The persistence gate itself added no WPF controls. The separately accepted
+`WPM11-recovery-review-ui` workflow now uses this contract only for bounded manual observations and
+append-only corrections. Production execution remains disabled:
 `RecycleOperationViewModel.CanSubmit` remains false, composition still uses
-`DisabledRecycleOperationCapabilityExecutor`, and every new worker response reports
+`DisabledRecycleOperationCapabilityExecutor`, and every worker response reports
 `executorEnabled:false`.

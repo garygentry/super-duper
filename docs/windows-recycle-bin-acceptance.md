@@ -272,6 +272,11 @@ and `recovery_required` evidence immutable. Automatic live-state inference, repl
 the original Shell outcome remain prohibited actions. `WPM11-recovery-review-persistence` is accepted:
 schema v11 supplies bounded append-only observation/supersession persistence, derived review state,
 restart reconstruction, worker methods, and non-UI client contracts without live inspection or
-source-evidence mutation. `WPM11-recovery-review-ui` remains the next required gate before the
-controlled ambiguous-start campaign runs. The decision and both implementation gates do not
-authorize production wiring.
+source-evidence mutation. `WPM11-recovery-review-ui` is accepted: the bounded WPF checklist
+reconstructs all three states, pages every immutable unknown item and append-only history record,
+records all five observations, shows superseded observations and correction reasons, copies stored
+evidence/path, opens the Recycle Bin without querying it, and navigates to a fresh scan without
+replay. Exact read and idempotent mutation retry, stale/cancelled/late rejection, keyboard/focus,
+automation names, and separate success/error announcements are covered by the named verifier. The
+controlled `WPM11-ambiguous-start` campaign is next and was not run by this gate. The decision and
+both implementation gates do not authorize production wiring.

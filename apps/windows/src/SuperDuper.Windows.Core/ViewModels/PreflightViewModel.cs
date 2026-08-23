@@ -40,11 +40,19 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
     public PreflightViewModel(
         IWorkerClient worker,
         IUserConfirmationService confirmation,
-        IRecycleOperationCapabilityExecutor? recycleOperationExecutor = null)
+        IRecycleOperationCapabilityExecutor? recycleOperationExecutor = null,
+        IClipboardService? clipboard = null,
+        IRecycleBinService? recycleBin = null,
+        Func<Task>? navigateToFreshScan = null)
     {
         _worker = worker;
         _confirmation = confirmation;
-        Operation = new RecycleOperationViewModel(worker, recycleOperationExecutor);
+        Operation = new RecycleOperationViewModel(
+            worker,
+            recycleOperationExecutor,
+            clipboard,
+            recycleBin,
+            navigateToFreshScan);
         StartCommand = new AsyncRelayCommand(StartAsync, () => CanStart);
         CancelCommand = new AsyncRelayCommand(CancelAsync, () => CanCancel);
         NextPageCommand = new AsyncRelayCommand(NextPageAsync, () => CanMoveNext);

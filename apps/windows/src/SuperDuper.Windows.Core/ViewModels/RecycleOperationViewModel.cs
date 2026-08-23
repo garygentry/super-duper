@@ -31,19 +31,27 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
     private long _announcementVersion;
     private string _errorAnnouncement = string.Empty;
     private long _errorAnnouncementVersion;
+    private string _focusTarget = string.Empty;
+    private long _focusRequestVersion;
 
     public RecycleOperationViewModel(
         IWorkerClient worker,
-        IRecycleOperationCapabilityExecutor? executor = null)
+        IRecycleOperationCapabilityExecutor? executor = null,
+        IClipboardService? clipboard = null,
+        IRecycleBinService? recycleBin = null,
+        Func<Task>? navigateToFreshScan = null)
     {
         _worker = worker as IRecycleOperationWorkerClient;
         _executor = executor;
+        RecoveryReview = new RecoveryReviewViewModel(worker, clipboard, recycleBin, navigateToFreshScan);
         NextPageCommand = new AsyncRelayCommand(NextPageAsync, () => CanMoveNext);
         PreviousPageCommand = new AsyncRelayCommand(PreviousPageAsync, () => CanMovePrevious);
         RetryPageCommand = new AsyncRelayCommand(RetryPageAsync, () => CanRetryPage);
     }
 
     public ObservableCollection<RecycleOperationItemViewModel> Items { get; } = [];
+
+    public RecoveryReviewViewModel RecoveryReview { get; }
 
     public IAsyncRelayCommand NextPageCommand { get; }
 
@@ -109,6 +117,18 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
     {
         get => _errorAnnouncementVersion;
         private set => SetProperty(ref _errorAnnouncementVersion, value);
+    }
+
+    public string FocusTarget
+    {
+        get => _focusTarget;
+        private set => SetProperty(ref _focusTarget, value);
+    }
+
+    public long FocusRequestVersion
+    {
+        get => _focusRequestVersion;
+        private set => SetProperty(ref _focusRequestVersion, value);
     }
 
     public bool HasOperation => Operation is not null;
@@ -216,6 +236,7 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         _runId = run?.Status == "completed" && _worker is not null ? run.Id : null;
         _failedOperationLoad = false;
         Operation = null;
+        await RecoveryReview.ShowOperationAsync(null, token);
         ErrorMessage = null;
         Announcement = string.Empty;
         ErrorAnnouncement = string.Empty;
@@ -249,6 +270,11 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             }
             else
             {
+                await RecoveryReview.ShowOperationAsync(operation, token);
+                if (!IsCurrentGeneration(generation, token))
+                {
+                    return;
+                }
                 if (await TryNavigateAsync(null, 0, generation, token)
                     && IsCurrentGeneration(generation, token))
                 {
@@ -284,6 +310,7 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         CancelLifetime();
+        RecoveryReview.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -301,6 +328,7 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             _history.Add(currentCursor);
             NotifyStateChanged();
             AnnouncePage();
+            RequestFocus("operation-items");
         }
     }
 
@@ -316,6 +344,7 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             _history.RemoveAt(_history.Count - 1);
             NotifyStateChanged();
             AnnouncePage();
+            RequestFocus("operation-items");
         }
     }
 
@@ -352,6 +381,7 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             }
             NotifyStateChanged();
             AnnouncePage();
+            RequestFocus("operation-items");
         }
     }
 
@@ -462,6 +492,12 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
     {
         Announcement = $"Recycle Bin operation results loaded. {PageStatus}";
         AnnouncementVersion++;
+    }
+
+    private void RequestFocus(string target)
+    {
+        FocusTarget = target;
+        FocusRequestVersion++;
     }
 
     private void NotifyStateChanged()
