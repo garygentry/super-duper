@@ -6,8 +6,9 @@ Active implementation roadmap for the Windows duplicate-review experience. Miles
 release-acceptance remediation and the required fail-closed Milestone 7 policy are complete; the
 two unavailable Milestone 7 opt-in policies are reviewed follow-ons. Milestone 8's read-only code
 criteria are accepted; representative query performance and physical Narrator/NVDA, high-contrast,
-and multi-monitor DPI evidence remain independent open gates. Milestone 9 is planned/not started
-except for its later-proven file/folder physical de-duplication criterion. All five Milestone 10
+and multi-monitor DPI evidence remain independent open gates. Milestone 9 has accepted bounded
+side-by-side folder relationships and file/folder physical de-duplication; its Explorer
+responsiveness and parent-grouping gates remain open. All five Milestone 10
 acceptance criteria are accepted through the first four review/rule slices. Milestone 11 has an
 accepted preflight, durable operation contract, separately gated native executor, evidence tooling,
 and read-only recovery reconstruction, but production still injects the disabled executor and
@@ -2037,10 +2038,9 @@ Milestone 10. Live-state badges, validation, and changed/resolved behavior begin
 
 ### Milestone 9 - Folder Intelligence and Windows Exploration
 
-Status: Planned/not started. Existing MVP reveal/copy behavior is a foundation, not acceptance of
-the expanded folder-presentation and Explorer criteria. Later Milestone 10/11 overlap and
-physical-target de-duplication evidence accepts only the no-double-schedule criterion. The other
-three criteria remain named local gates in the closure ledger.
+Status: The bounded side-by-side folder relationship presentation and later-proven physical-target
+de-duplication criteria are accepted. Existing MVP reveal/copy behavior remains only a foundation
+for the separate Explorer responsiveness and parent-grouped selection gates.
 
 #### User outcome
 
@@ -2082,6 +2082,31 @@ long paths.
 - Explorer commands provide actionable failures and never freeze the UI.
 - Explorer selection groups items by parent directory.
 - Folder and file review decisions cannot silently schedule the same physical item twice.
+
+#### Folder relationship acceptance result (2026-08-23)
+
+`WPM9-folder-relationships` is accepted and `locally_exhausted`. The exact-folder detail surface now
+derives fixed relationship summaries from only the current immutable worker page, caps both Core
+group and member collections at 200, and retains the existing five-page cursor caches. Horizontally
+virtualized location cards show folder name and parent location, collapse common prefix/suffix
+context, highlight differing segments, retain a selectable full immutable path, and expose copy,
+reveal, and unchanged non-deleting review actions. The selected group separately reports copy
+count, files and bytes per copy, and recoverable bytes.
+
+Each card uses a durable member-ID automation ID and a location-based automation name. Left/Right,
+Home, and End move selection and keyboard focus; folder-page navigation restores focus to the
+selected card. Status announcements describe the bounded card page instead of requiring repeated
+representative-path listening. Focused Core coverage proves server-owned page-size requests, stale
+response rejection, five-page cache bounds, defensive 200-item collection caps, and path
+differentiation. Loaded-STA coverage proves virtualization, stable automation, keyboard selection,
+and focus. Real Debug and Release WPF smoke exercised two location cards, Right Arrow focus, a
+durable non-deleting folder Keep decision, Explorer reveal, and unchanged fixture directories.
+Existing exact-folder hard-link, file/folder overlap, and nested/suppressed-set regressions passed;
+no review rule, protocol, storage, physical de-duplication, or scheduling behavior changed.
+
+Explorer command expansion, parent-grouped Shell selection, thumbnails, full-result binding,
+review-rule changes, filesystem mutation, and production Recycle Bin wiring remain outside this
+accepted slice.
 
 ### Milestone 10 - Durable Review Plans and Preference Rules
 
@@ -3846,12 +3871,12 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance only `WPM9-folder-relationships`. Refine and implement the bounded folder-card/location
-presentation over the accepted Milestone 8 read-only workspace foundations.
+Advance only `WPM9-explorer-responsiveness`. Define and implement one bounded Explorer command
+slice over the accepted folder relationship presentation.
 
-Verifier: focused Core/WPF folder relationship and paging tests, matching Debug/Release solution
-coverage, and real non-mutating smoke must pass without double-scheduling physical files. Do not add
-Explorer expansion, thumbnails, review mutation, deletion, provider/accessibility/performance
+Verifier: focused Infrastructure/Core/STA tests plus real Debug/Release smoke prove every admitted
+command reports actionable failures and never blocks the dispatcher. Do not add parent-grouped
+multi-selection, thumbnails, review mutation, deletion, provider/accessibility/performance
 campaigns, Milestone 12 behavior, or any Recycle Bin production wiring.
 
 ## Milestone Definition Template
@@ -3943,3 +3968,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-23 | Implemented and accepted WPM11 recovery-review persistence/protocol: schema v11, append-only operator observations and supersession, three derived states, bounded current/history paging, idempotent mutation, restart reconstruction, and matching non-UI worker/client contracts. | Keep every schema-v10 source-evidence row immutable and every execution lock disabled; advance only the accessible WPF recovery-review gate next, with live inspection/inference, replay, campaigns, Milestone 12 mutation, and production wiring out of scope. |
 | 2026-08-23 | Implemented and accepted WPM11 recovery-review UI: bounded unknown/history paging, all states and observations, explicit supersession, exact safe retries, evidence/path copy, manual Recycle Bin and fresh-scan navigation, keyboard/focus/automation, and separate announcements. | Advance only WPM11-ambiguous-start; run no provider, physical-accessibility, Shell-mutation, performance, or production-wiring substitute. |
 | 2026-08-23 | Ran and accepted the controlled WPM11 ambiguous-start campaign with a disposable host, durable-start process loss, restart reconstruction, real WPF Option A accounting, explicit supersession, exact immutable-source comparison, and retained passing/failing evidence bundles. | Record the gate `locally_exhausted`; preserve every production lock and authorize only WPM9-folder-relationships next. |
+| 2026-08-23 | Implemented and accepted bounded side-by-side exact-folder relationship cards over immutable 200-item worker pages with common/differing path context, per-copy/recoverable metrics, stable automation, keyboard selection/focus restoration, unchanged non-deleting review actions, and real Debug/Release WPF smoke. | Record WPM9-folder-relationships `locally_exhausted`; preserve server paging, five-page caches, file/folder physical de-duplication, and every execution lock; authorize only WPM9-explorer-responsiveness next. |

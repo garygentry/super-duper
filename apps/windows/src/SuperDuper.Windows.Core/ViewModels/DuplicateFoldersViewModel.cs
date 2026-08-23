@@ -23,6 +23,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     private IReadOnlyList<DuplicateFolderGroupListItemViewModel> _groups = [];
     private IReadOnlyList<DuplicateFolderMemberListItemViewModel> _members = [];
     private DuplicateFolderGroupListItemViewModel? _selectedGroup;
+    private DuplicateFolderMemberListItemViewModel? _selectedMember;
     private WorkerDuplicateFolderGroupPage? _currentGroupPage;
     private WorkerDuplicateFolderMemberPage? _currentMemberPage;
     private WorkerReviewPlanView _reviewPlan = new(
@@ -89,7 +90,17 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _groups, value)) OnPropertyChanged(nameof(IsLoadingOverlayVisible));
         }
     }
-    public IReadOnlyList<DuplicateFolderMemberListItemViewModel> Members { get => _members; private set => SetProperty(ref _members, value); }
+    public IReadOnlyList<DuplicateFolderMemberListItemViewModel> Members
+    {
+        get => _members;
+        private set
+        {
+            if (SetProperty(ref _members, value))
+            {
+                OnPropertyChanged(nameof(MemberPageStatusText));
+            }
+        }
+    }
     public DuplicateFolderGroupListItemViewModel? SelectedGroup
     {
         get => _selectedGroup;
@@ -98,12 +109,18 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _selectedGroup, value))
             {
                 OnPropertyChanged(nameof(SelectedReviewSummaryText));
+                OnPropertyChanged(nameof(SelectedRelationshipSummaryText));
                 KeepFolderCommand.NotifyCanExecuteChanged();
                 RemoveFolderCommand.NotifyCanExecuteChanged();
                 UndecideFolderCommand.NotifyCanExecuteChanged();
                 _ = LoadSelectedGroupAsync(value);
             }
         }
+    }
+    public DuplicateFolderMemberListItemViewModel? SelectedMember
+    {
+        get => _selectedMember;
+        set => SetProperty(ref _selectedMember, value);
     }
     public string SearchText { get => _searchText; set => SetProperty(ref _searchText, value); }
     public string MinimumSizeText { get => _minimumSizeText; set => SetProperty(ref _minimumSizeText, value); }
@@ -188,6 +205,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _totalMembers, value))
             {
                 OnPropertyChanged(nameof(MemberCountText));
+                OnPropertyChanged(nameof(MemberPageStatusText));
                 OnPropertyChanged(nameof(IsDetailEmpty));
             }
         }
@@ -196,6 +214,8 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     public WorkerSortDirection SortDirection => _sortDirection;
     public string GroupCountText => $"{TotalGroups:N0} groups";
     public string MemberCountText => $"{TotalMembers:N0} folders";
+    public string MemberPageStatusText =>
+        $"Showing {Members.Count:N0} of {TotalMembers:N0} folder copies on this server-owned page";
     public string ReviewPlanSummaryText =>
         $"Combined review: {ReviewPlan.Summary.RemoveCount:N0} files and "
         + $"{ReviewPlan.Summary.FolderRemoveCount:N0} folders marked Remove · "
@@ -209,6 +229,8 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
             + (SelectedReviewSummary.IntactCopyCount == 1
                 ? "1 intact copy remains"
                 : $"{SelectedReviewSummary.IntactCopyCount:N0} intact copies remain");
+    public string SelectedRelationshipSummaryText => SelectedGroup?.RelationshipSummary
+        ?? "Select an exact-folder set to compare its locations.";
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
     public bool HasDetailError => !string.IsNullOrWhiteSpace(DetailErrorMessage);
     public bool IsUnavailable => Run is null || Run.Status != "completed";
@@ -417,7 +439,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     {
         _currentGroupPage = page;
         TotalGroups = page.Total;
-        Groups = page.Groups.Select(group => new DuplicateFolderGroupListItemViewModel(group)).ToArray();
+        Groups = page.Groups.Take(PageSize).Select(group => new DuplicateFolderGroupListItemViewModel(group)).ToArray();
         SelectedGroup = Groups.FirstOrDefault();
         RaiseGroupPaging();
     }
@@ -455,6 +477,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         _memberCache.Clear();
         _currentMemberPage = null;
         Members = [];
+        SelectedMember = null;
         TotalMembers = 0;
         SelectedReviewSummary = new WorkerReviewFolderGroupSummary(group?.Id ?? 0, 0, 0, 0, 0);
         DetailErrorMessage = null;
@@ -513,7 +536,9 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     {
         _currentMemberPage = page;
         TotalMembers = page.Total;
-        Members = page.Members.Select(member => new DuplicateFolderMemberListItemViewModel(member)).ToArray();
+        Members = DuplicateFolderMemberListItemViewModel.CreatePage(page.Members, PageSize);
+        SelectedMember = Members.FirstOrDefault();
+        OnPropertyChanged(nameof(MemberPageStatusText));
         SelectedReviewSummary = page.ReviewSummary;
         if (page.ReviewRevision >= ReviewPlan.Plan.Revision)
         {
@@ -760,6 +785,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         Groups = [];
         Members = [];
         SelectedGroup = null;
+        SelectedMember = null;
         TotalGroups = 0;
         TotalMembers = 0;
         _isReviewLoaded = false;
@@ -827,7 +853,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
 
     private void PublishMemberQueryAnnouncement()
     {
-        if (SelectedGroup is not { } group || Run?.Status != "completed")
+        if (SelectedGroup is null || Run?.Status != "completed")
         {
             return;
         }
@@ -839,9 +865,9 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         }
 
         MemberStatusAnnouncement = TotalMembers == 0
-            ? $"Selected exact duplicate folder group loaded: {group.RepresentativePath}. No folder copies to display."
-            : $"Selected exact duplicate folder group loaded: {group.RepresentativePath}. "
-                + $"{FormatCount(TotalMembers, "folder copy", "folder copies")}.";
+            ? "Selected exact duplicate folder group loaded. No folder copies to display."
+            : $"Selected exact duplicate folder group loaded. {MemberPageStatusText}. "
+                + "Use the side-by-side location cards; highlighted path segments differ among this page.";
         MemberStatusAnnouncementVersion++;
     }
 

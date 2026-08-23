@@ -29,7 +29,8 @@ public sealed class DuplicateFoldersViewModelTests
             viewModel.GroupStatusAnnouncement);
         Assert.AreEqual(1, viewModel.GroupStatusAnnouncementVersion);
         Assert.AreEqual(
-            @"Selected exact duplicate folder group loaded: C:\One. 1 folder copy.",
+            "Selected exact duplicate folder group loaded. Showing 1 of 1 folder copies on this server-owned page. "
+            + "Use the side-by-side location cards; highlighted path segments differ among this page.",
             viewModel.MemberStatusAnnouncement);
         Assert.AreEqual(1, viewModel.MemberStatusAnnouncementVersion);
         viewModel.CopyPathCommand.Execute(viewModel.Members[0]);
@@ -207,7 +208,7 @@ public sealed class DuplicateFoldersViewModelTests
         viewModel.SelectedGroup = viewModel.Groups[1];
         Assert.AreEqual(3, viewModel.MemberStatusAnnouncementVersion);
         Assert.AreEqual(
-            @"Selected exact duplicate folder group loaded: C:\empty. No folder copies to display.",
+            "Selected exact duplicate folder group loaded. No folder copies to display.",
             viewModel.MemberStatusAnnouncement);
 
         viewModel.SelectedGroup = viewModel.Groups[2];
@@ -256,7 +257,7 @@ public sealed class DuplicateFoldersViewModelTests
 
         viewModel.SelectedGroup = viewModel.Groups[1];
         Assert.AreEqual(1, viewModel.MemberStatusAnnouncementVersion);
-        StringAssert.Contains(viewModel.MemberStatusAnnouncement, @"C:\second");
+        StringAssert.Contains(viewModel.MemberStatusAnnouncement, "side-by-side location cards");
 
         staleResponse.SetResult(new WorkerDuplicateFolderMemberPage(
             [new(1, 1, @"C:\stale")],
@@ -269,6 +270,72 @@ public sealed class DuplicateFoldersViewModelTests
         Assert.AreEqual(@"C:\second", viewModel.Members.Single().Path);
         Assert.AreEqual(1, viewModel.MemberStatusAnnouncementVersion);
         Assert.AreEqual(0, viewModel.MemberErrorAnnouncementVersion);
+    }
+
+    [TestMethod]
+    public async Task FolderLocationCardsDifferentiatePagedPathsAndCapTheBoundCollection()
+    {
+        var returnedMembers = Enumerable.Range(0, DuplicateFoldersViewModel.PageSize + 5)
+            .Select(index => new WorkerDuplicateFolderMember(
+                index + 10,
+                1,
+                index == 0
+                    ? @"C:\Users\Gary\Primary\Photos\2026"
+                    : $@"D:\Archive\Location-{index}\Photos\2026"))
+            .ToArray();
+        var returnedGroups = Enumerable.Range(0, DuplicateFoldersViewModel.PageSize + 5)
+            .Select(index => new WorkerDuplicateFolderGroup(
+                index + 1,
+                41,
+                "2048",
+                12,
+                205,
+                returnedMembers[0].Path))
+            .ToArray();
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) =>
+            {
+                Assert.AreEqual(DuplicateFoldersViewModel.PageSize, query.PageSize);
+                return Task.FromResult(new WorkerDuplicateFolderGroupPage(
+                    returnedGroups,
+                    returnedGroups.Length,
+                    null,
+                    null));
+            },
+            FolderMemberPageHandler = (query, _) =>
+            {
+                Assert.AreEqual(DuplicateFoldersViewModel.PageSize, query.PageSize);
+                return Task.FromResult(new WorkerDuplicateFolderMemberPage(
+                    returnedMembers,
+                    returnedMembers.Length,
+                    "next",
+                    null));
+            },
+        };
+        using var viewModel = new DuplicateFoldersViewModel(
+            client,
+            new TestClipboard(),
+            new TestExplorer());
+
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(41, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        Assert.AreEqual(DuplicateFoldersViewModel.PageSize, viewModel.Groups.Count);
+        Assert.AreEqual(DuplicateFoldersViewModel.PageSize, viewModel.Members.Count);
+        Assert.AreEqual(viewModel.Members[0], viewModel.SelectedMember);
+        Assert.AreEqual(
+            "Showing 200 of 205 folder copies on this server-owned page",
+            viewModel.MemberPageStatusText);
+        Assert.AreEqual(
+            "205 folder copies · 12 files per copy · 2 KB per copy · 408 KB recoverable",
+            viewModel.SelectedRelationshipSummaryText);
+        Assert.AreEqual("Photos › 2026", viewModel.Members[0].SharedPathContext);
+        Assert.AreEqual("C: › Users › Gary › Primary", viewModel.Members[0].DifferingPathSegments);
+        Assert.AreEqual("FolderLocationCard-10", viewModel.Members[0].AutomationId);
+        StringAssert.Contains(viewModel.Members[0].AutomationName, "different path segments");
+        Assert.AreEqual(returnedMembers[0].Path, viewModel.Members[0].Path);
+        Assert.IsTrue(viewModel.CanMoveMembersNext);
     }
 
     [TestMethod]

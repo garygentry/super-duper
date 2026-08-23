@@ -114,7 +114,13 @@
             <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="Duplicate roots in selected group" />
+                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="Folder-copy locations" />
+                    <TextBlock Margin="0,3,0,0"
+                               Opacity="0.82"
+                               automation:AutomationProperties.AutomationId="FolderRelationshipSummary"
+                               automation:AutomationProperties.Name="Selected exact-folder relationship summary"
+                               Text="{Binding SelectedRelationshipSummaryText}"
+                               TextWrapping="Wrap" />
                     <TextBlock Margin="0,3,0,0"
                                Opacity="0.72"
                                automation:AutomationProperties.AutomationId="FolderSelectedReviewSummary"
@@ -131,54 +137,116 @@
                            accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
                            accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
                            accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFolderMemberQuery"
-                           Text="{Binding MemberCountText}" />
+                           Text="{Binding MemberPageStatusText}" />
             </Grid>
-            <DataGrid x:Name="MembersGrid" Grid.Row="1" AutoGenerateColumns="False" EnableColumnVirtualization="True" EnableRowVirtualization="True"
-                      automation:AutomationProperties.AutomationId="FolderMembersGrid"
-                      automation:AutomationProperties.Name="Folders in selected duplicate group"
-                      IsReadOnly="True" ItemsSource="{Binding Members}" SelectionMode="Single"
-                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Width="*" MinWidth="350" Header="Folder path" Binding="{Binding Path}" />
-                    <DataGridTextColumn Width="95" Header="Decision" Binding="{Binding Decision}" />
-                    <DataGridTemplateColumn Width="230" Header="Review decision">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <StackPanel Orientation="Horizontal">
+            <ListBox x:Name="LocationCards" Grid.Row="1"
+                     automation:AutomationProperties.AutomationId="FolderLocationCards"
+                     automation:AutomationProperties.Name="Side-by-side folder-copy location cards"
+                     automation:AutomationProperties.HelpText="Use Left and Right Arrow, Home, and End to compare the bounded current page. Highlighted path segments differ among these visible copies."
+                     ItemsSource="{Binding Members}"
+                     SelectedItem="{Binding SelectedMember, Mode=TwoWay}"
+                     SelectionMode="Single"
+                     PreviewKeyDown="OnLocationCardsPreviewKeyDown"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                     ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Margin" Value="0,0,10,0" />
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                        <Setter Property="automation:AutomationProperties.AutomationId" Value="{Binding AutomationId}" />
+                        <Setter Property="automation:AutomationProperties.Name" Value="{Binding AutomationName}" />
+                        <Setter Property="automation:AutomationProperties.HelpText" Value="Immutable folder-copy location card. The highlighted path segments differ from the other copies on this page." />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border x:Name="LocationCardBorder"
+                                Width="360"
+                                Padding="14"
+                                Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
+                                BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="{Binding FolderName}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="1" Margin="10,0,0,0" FontWeight="SemiBold" Text="{Binding Decision}" />
+                                </Grid>
+                                <TextBlock Margin="0,9,0,0" FontWeight="SemiBold" Text="Location" />
+                                <TextBlock Margin="0,2,0,0" Text="{Binding ParentLocation}" TextWrapping="Wrap" />
+                                <TextBlock Margin="0,9,0,0" FontWeight="SemiBold" Text="Shared path context" />
+                                <TextBlock Margin="0,2,0,0" Opacity="0.72" Text="{Binding SharedPathContext}" TextWrapping="Wrap" />
+                                <TextBlock Margin="0,9,0,3" FontWeight="SemiBold" Text="Differs here" />
+                                <Border Padding="7,4"
+                                        Background="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"
+                                        CornerRadius="4">
+                                    <TextBlock Foreground="{DynamicResource {x:Static SystemColors.HighlightTextBrushKey}}"
+                                               FontWeight="SemiBold"
+                                               Text="{Binding DifferingPathSegments}"
+                                               TextWrapping="Wrap" />
+                                </Border>
+                                <TextBlock Margin="0,9,0,3" FontWeight="SemiBold" Text="Full immutable path" />
+                                <TextBox Padding="5,3"
+                                         automation:AutomationProperties.Name="{Binding FullPathAutomationName}"
+                                         BorderThickness="1"
+                                         HorizontalScrollBarVisibility="Auto"
+                                         IsReadOnly="True"
+                                         IsTabStop="False"
+                                         Text="{Binding Path, Mode=OneWay}"
+                                         TextWrapping="NoWrap" />
+                                <WrapPanel Margin="0,12,0,0">
                                     <Button Padding="7,2"
-                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Keep folder copy {0}'}"
+                                            automation:AutomationProperties.Name="{Binding KeepAutomationName}"
                                             automation:AutomationProperties.HelpText="Records a review choice only; it does not delete or validate the folder."
                                             Command="{Binding DataContext.KeepFolderCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
                                             Content="Keep" />
                                     <Button Margin="6,0,0,0" Padding="7,2"
-                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Remove folder copy {0}'}"
+                                            automation:AutomationProperties.Name="{Binding RemoveAutomationName}"
                                             automation:AutomationProperties.HelpText="Records a review choice only; it does not delete or validate the folder."
                                             Command="{Binding DataContext.RemoveFolderCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
                                             Content="Remove" />
                                     <Button Margin="6,0,0,0" Padding="7,2"
-                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Clear folder decision for {0}'}"
+                                            automation:AutomationProperties.Name="{Binding UndecideAutomationName}"
                                             automation:AutomationProperties.HelpText="Returns this immutable folder copy to Undecided."
                                             Command="{Binding DataContext.UndecideFolderCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
                                             Content="Undecided" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Width="190" Header="Folder actions">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <StackPanel Orientation="Horizontal">
-                                    <Button Padding="7,2" Command="{Binding DataContext.CopyPathCommand, ElementName=Root}" CommandParameter="{Binding}" Content="Copy path" />
-                                    <Button Margin="6,0,0,0" Padding="7,2" Command="{Binding DataContext.RevealInExplorerCommand, ElementName=Root}" CommandParameter="{Binding}" Content="Show in Explorer" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                </DataGrid.Columns>
-            </DataGrid>
+                                </WrapPanel>
+                                <WrapPanel Margin="0,7,0,0">
+                                    <Button Padding="7,2"
+                                            automation:AutomationProperties.Name="{Binding CopyPathAutomationName}"
+                                            Command="{Binding DataContext.CopyPathCommand, ElementName=Root}"
+                                            CommandParameter="{Binding}"
+                                            Content="Copy path" />
+                                    <Button Margin="6,0,0,0" Padding="7,2"
+                                            automation:AutomationProperties.Name="{Binding RevealAutomationName}"
+                                            Command="{Binding DataContext.RevealInExplorerCommand, ElementName=Root}"
+                                            CommandParameter="{Binding}"
+                                            Content="Show in Explorer" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
+                                <Setter TargetName="LocationCardBorder" Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" />
+                                <Setter TargetName="LocationCardBorder" Property="BorderThickness" Value="3" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
             <Grid Grid.Row="2" Margin="0,8,0,0">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <TextBlock VerticalAlignment="Center"
@@ -194,8 +262,18 @@
                            accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFolderMemberQuery"
                            Visibility="{Binding HasDetailError, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate folder member paging" Orientation="Horizontal">
-                    <Button Padding="10,4" Command="{Binding PreviousMemberPageCommand}" Content="Previous folders" />
-                    <Button Margin="8,0,0,0" Padding="10,4" Command="{Binding NextMemberPageCommand}" Content="Next folders" />
+                    <Button x:Name="PreviousFolderCardsButton" Padding="10,4"
+                            automation:AutomationProperties.AutomationId="PreviousFolderCardsButton"
+                            automation:AutomationProperties.Name="Previous folder-copy location page"
+                            IsEnabled="{Binding CanMoveMembersPrevious}"
+                            Click="OnFolderCardPageClick"
+                            Content="Previous folders" />
+                    <Button x:Name="NextFolderCardsButton" Margin="8,0,0,0" Padding="10,4"
+                            automation:AutomationProperties.AutomationId="NextFolderCardsButton"
+                            automation:AutomationProperties.Name="Next folder-copy location page"
+                            IsEnabled="{Binding CanMoveMembersNext}"
+                            Click="OnFolderCardPageClick"
+                            Content="Next folders" />
                 </StackPanel>
             </Grid>
             <Border Grid.Row="1" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" Opacity="0.94"

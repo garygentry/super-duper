@@ -780,10 +780,31 @@ public static class SmokeMouseInput
         $folderSearch = Find-Element AutomationId 'FolderSearch'
         $folderSearch.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('original-set')
         Invoke-Element (Find-Element AutomationId 'FolderApplyFilters')
-        $folderMembers = Find-Element AutomationId 'FolderMembersGrid'
-        $null = Find-FirstDataItem $folderMembers
+        $folderMembers = Find-Element AutomationId 'FolderLocationCards'
+        Assert-True ($folderMembers.Current.Name -eq 'Side-by-side folder-copy location cards') 'The exact-folder relationship surface did not expose its stable automation name.'
+        $folderCardItems = $folderMembers.FindAll(
+            [Windows.Automation.TreeScope]::Descendants,
+            [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::ControlTypeProperty,
+                [Windows.Automation.ControlType]::ListItem))
+        Assert-True ($folderCardItems.Count -ge 2) 'The exact-folder relationship surface did not expose two side-by-side location cards.'
+        $firstFolderCard = $folderCardItems[0]
+        Assert-True $firstFolderCard.Current.AutomationId.StartsWith('FolderLocationCard-', [StringComparison]::Ordinal) 'The first folder location card did not expose a stable item automation ID.'
+        Assert-True $firstFolderCard.Current.Name.Contains('different path segments', [StringComparison]::OrdinalIgnoreCase) 'The first folder location card did not explain its differentiated path segments.'
+        $folderPathEditor = $firstFolderCard.FindFirst(
+            [Windows.Automation.TreeScope]::Descendants,
+            [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::ControlTypeProperty,
+                [Windows.Automation.ControlType]::Edit))
+        Assert-True ($null -ne $folderPathEditor) 'The first folder location card did not expose its selectable immutable path.'
+        $keptFolderPath = $folderPathEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value
+        $firstFolderCard.SetFocus()
+        [Windows.Forms.SendKeys]::SendWait('{RIGHT}')
+        Start-Sleep -Milliseconds 250
+        $secondSelection = $folderCardItems[1].GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)
+        Assert-True $secondSelection.Current.IsSelected 'Right Arrow did not move selection to the next folder location card.'
+        Assert-True $folderCardItems[1].Current.HasKeyboardFocus 'Right Arrow did not preserve keyboard focus on the newly selected folder location card.'
         $keepFolderButton = Find-DescendantButtonByNameFragment $folderMembers 'Keep folder copy '
-        $keptFolderPath = $keepFolderButton.Current.Name.Substring('Keep folder copy '.Length)
         Invoke-Element $keepFolderButton
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
             $folderReviewSummary = Find-Element AutomationId 'FolderSelectedReviewSummary' 1
@@ -794,7 +815,7 @@ public static class SmokeMouseInput
         }
         Assert-True ($folderReviewSummary.Current.Name.Contains('1 keep', [StringComparison]::OrdinalIgnoreCase)) 'The durable exact-folder review summary did not refresh after a Keep decision.'
         Assert-True ([IO.Directory]::Exists($keptFolderPath)) 'Recording an exact-folder review decision unexpectedly removed the disposable fixture directory.'
-        Invoke-Element (Find-DescendantByName $folderMembers 'Show in Explorer')
+        Invoke-Element (Find-DescendantButtonByNameFragment $folderMembers 'in Explorer')
         Assert-NoVisibleDetailError 'FolderDetailError'
 
         Select-Element (Find-Element AutomationId 'PreflightTab')
@@ -884,7 +905,7 @@ $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
         $operationBoundary = Find-Element AutomationId 'RecycleOperationBoundaryNotice'
         Assert-True ($operationBoundary.Current.Name.Contains('execution is disabled', [StringComparison]::OrdinalIgnoreCase)) 'WPF did not disclose the disabled Recycle Bin executor boundary.'
         Assert-True ([IO.File]::Exists($exactPath)) 'WPF preflight unexpectedly removed a disposable fixture file.'
-        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
+        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, bounded side-by-side folder location cards with stable automation and Right Arrow focus, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, and completed ordinary, long-path, and folder Explorer reveal commands."
     }
     catch {
         $automationFailure = $_

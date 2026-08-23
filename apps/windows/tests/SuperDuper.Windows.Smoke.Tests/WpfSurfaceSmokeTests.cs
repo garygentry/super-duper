@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using SuperDuper.Windows.Accessibility;
 using SuperDuper.Windows.Views;
+using SuperDuper.Windows.Core.ViewModels;
 using SuperDuper.Windows.Core.Workers;
 
 namespace SuperDuper.Windows.Smoke.Tests;
@@ -337,32 +338,26 @@ public sealed class WpfSurfaceSmokeTests
             Assert.IsTrue(reviewButtons.All(button => button.Focusable && KeyboardNavigation.GetIsTabStop(button)));
             Assert.IsTrue(reviewButtons.All(button =>
                 AutomationProperties.GetName(button).Contains(@"C:\Data\item.bin", StringComparison.Ordinal)));
-            AssertSurface(
-                folders,
-                "FolderSearch",
-                "FolderApplyFilters",
-                "FolderGroupsGrid",
-                "FolderMembersGrid");
+            AssertFolderSurface(folders);
             _ = FindByAutomationId<TextBlock>(folders, "FolderCombinedReviewSummary");
             _ = FindByAutomationId<TextBlock>(folders, "FolderSelectedReviewSummary");
-            var folderMemberHeaders = FindByAutomationId<DataGrid>(folders, "FolderMembersGrid")
-                .Columns.Select(column => column.Header?.ToString()).ToArray();
-            CollectionAssert.IsSubsetOf(
-                new[] { "Decision", "Review decision", "Folder actions" },
-                folderMemberHeaders);
-            var folderReviewColumn = (DataGridTemplateColumn)FindByAutomationId<DataGrid>(folders, "FolderMembersGrid")
-                .Columns.Single(column => Equals(column.Header, "Review decision"));
-            var folderReviewControls = (StackPanel)folderReviewColumn.CellTemplate.LoadContent();
-            folderReviewControls.DataContext = new { Path = @"C:\Archive\Copy" };
+            _ = FindByAutomationId<TextBlock>(folders, "FolderRelationshipSummary");
+            var locationCards = FindByAutomationId<ListBox>(folders, "FolderLocationCards");
+            var folderReviewControls = (Border)locationCards.ItemTemplate.LoadContent();
+            folderReviewControls.DataContext = DuplicateFolderMemberListItemViewModel.CreatePage(
+                [
+                    new WorkerDuplicateFolderMember(10, 1, @"C:\Archive\Primary\Photos"),
+                    new WorkerDuplicateFolderMember(11, 1, @"D:\Backup\Photos"),
+                ],
+                2)[0];
             DrainDispatcher();
-            var folderReviewButtons = folderReviewControls.Children.OfType<Button>().ToArray();
+            var folderReviewButtons = FindLogicalDescendants<Button>(folderReviewControls).ToArray();
             CollectionAssert.AreEqual(
-                new[] { "Keep", "Remove", "Undecided" },
+                new[] { "Keep", "Remove", "Undecided", "Copy path", "Show in Explorer" },
                 folderReviewButtons.Select(button => button.Content?.ToString()).ToArray());
             Assert.IsTrue(folderReviewButtons.All(button => button.Focusable && KeyboardNavigation.GetIsTabStop(button)));
-            Assert.IsTrue(folderReviewButtons.All(button =>
-                AutomationProperties.GetName(button).Contains(@"C:\Archive\Copy", StringComparison.Ordinal)));
-            Assert.IsTrue(folderReviewButtons.All(button =>
+            Assert.IsTrue(folderReviewButtons.All(button => !string.IsNullOrWhiteSpace(AutomationProperties.GetName(button))));
+            Assert.IsTrue(folderReviewButtons.Take(3).All(button =>
                 AutomationProperties.GetHelpText(button).Contains("does not delete", StringComparison.OrdinalIgnoreCase)
                 || AutomationProperties.GetHelpText(button).Contains("Undecided", StringComparison.Ordinal)));
             var startPreflight = FindByAutomationId<Button>(preflight, "StartPreflightButton");
@@ -668,7 +663,8 @@ public sealed class WpfSurfaceSmokeTests
                 Assert.AreEqual("DuplicateFolderGroupQuery", announcedActivityId);
 
                 const string folderMemberAnnouncement =
-                    @"Selected exact duplicate folder group loaded: C:\Archive. 2 folder copies.";
+                    "Selected exact duplicate folder group loaded. Showing 2 of 2 folder copies on this server-owned page. "
+                    + "Use the side-by-side location cards; highlighted path segments differ among this page.";
                 AutomationProperties.SetName(folderMemberStatus, folderMemberAnnouncement);
                 AutomationNotificationBehavior.SetAnnouncementVersion(folderMemberStatus, 1);
                 DrainDispatcher();
@@ -744,6 +740,33 @@ public sealed class WpfSurfaceSmokeTests
             DrainDispatcher();
             Assert.IsTrue(fileGroups.IsKeyboardFocusWithin);
             Assert.IsInstanceOfType<DataGridCell>(Keyboard.FocusedElement);
+
+            focusHost.Content = folders;
+            locationCards.ItemsSource = DuplicateFolderMemberListItemViewModel.CreatePage(
+                [
+                    new WorkerDuplicateFolderMember(21, 1, @"C:\Users\Gary\Photos\2026"),
+                    new WorkerDuplicateFolderMember(22, 1, @"D:\Archive\Photos\2026"),
+                ],
+                2);
+            locationCards.SelectedIndex = 0;
+            focusHost.UpdateLayout();
+            DrainDispatcher();
+            Assert.IsTrue(FindByAutomationId<Button>(folders, "NextFolderCardsButton").Focus());
+            var restoredCardFocus = folders.RestoreLocationCardFocusAsync();
+            while (!restoredCardFocus.IsCompleted)
+            {
+                DrainDispatcher();
+            }
+            Assert.IsTrue(restoredCardFocus.GetAwaiter().GetResult());
+            Assert.IsTrue(locationCards.IsKeyboardFocusWithin);
+            Assert.IsTrue(folders.MoveLocationCardSelection(Key.Right));
+            Assert.AreEqual(1, locationCards.SelectedIndex);
+            Assert.IsTrue(locationCards.IsKeyboardFocusWithin);
+            Assert.IsTrue(folders.MoveLocationCardSelection(Key.Home));
+            Assert.AreEqual(0, locationCards.SelectedIndex);
+            var firstLocationCard = (ListBoxItem)locationCards.ItemContainerGenerator.ContainerFromIndex(0);
+            Assert.AreEqual("FolderLocationCard-21", AutomationProperties.GetAutomationId(firstLocationCard));
+            StringAssert.Contains(AutomationProperties.GetName(firstLocationCard), "different path segments");
             focusHost.Close();
 
             app.Shutdown();
@@ -770,6 +793,30 @@ public sealed class WpfSurfaceSmokeTests
         Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(groups));
         Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(members));
         Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(members));
+    }
+
+    private static void AssertFolderSurface(DuplicateFoldersView folders)
+    {
+        var search = FindByAutomationId<TextBox>(folders, "FolderSearch");
+        var apply = FindByAutomationId<Button>(folders, "FolderApplyFilters");
+        var groups = FindByAutomationId<DataGrid>(folders, "FolderGroupsGrid");
+        var cards = FindByAutomationId<ListBox>(folders, "FolderLocationCards");
+
+        Assert.IsFalse(string.IsNullOrWhiteSpace(AutomationProperties.GetName(search)));
+        Assert.IsFalse(string.IsNullOrWhiteSpace(AutomationProperties.GetName(groups)));
+        Assert.AreEqual("Side-by-side folder-copy location cards", AutomationProperties.GetName(cards));
+        StringAssert.Contains(AutomationProperties.GetHelpText(cards), "Left and Right Arrow");
+        Assert.AreEqual("Apply filters", apply.Content);
+        Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(groups));
+        Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(groups));
+        Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(cards));
+        Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(cards));
+        Assert.AreEqual(
+            "Previous folder-copy location page",
+            AutomationProperties.GetName(FindByAutomationId<Button>(folders, "PreviousFolderCardsButton")));
+        Assert.AreEqual(
+            "Next folder-copy location page",
+            AutomationProperties.GetName(FindByAutomationId<Button>(folders, "NextFolderCardsButton")));
     }
 
     private static void AssertPrimaryFileFiltersReflow(DuplicateFilesView files)
@@ -921,6 +968,22 @@ public sealed class WpfSurfaceSmokeTests
         }
         Assert.Fail($"Could not find {typeof(T).Name} with automation ID {automationId}.");
         return null!;
+    }
+
+    private static IEnumerable<T> FindLogicalDescendants<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            if (child is T match)
+            {
+                yield return match;
+            }
+            foreach (var descendant in FindLogicalDescendants<T>(child))
+            {
+                yield return descendant;
+            }
+        }
     }
 
     private static void RunOnSta(Action action)

@@ -18,14 +18,15 @@ active.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Accept WPM11 ambiguous-start campaign` (this session's commit)
+- Latest completed slice: `Accept WPM9 folder relationships` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 required fail-closed cloud safety: accepted; both unavailable opt-in policies are
   reviewed deferred follow-ons
 - Milestone 8 read-only criteria: accepted; representative query and three physical accessibility
   gates remain open
-- Milestone 9: planned/not started except accepted no-double-schedule evidence; three criteria open
+- Milestone 9: bounded folder relationships and no-double-schedule evidence are accepted; Explorer
+  responsiveness and parent-grouping remain open
 - Milestone 10 review/rule criteria: all accepted; no uncovered acceptance criterion remains
 - Milestone 11: non-deleting preflight, durable operation contract, separately gated native executor,
   and acceptance evidence tooling are implemented; production execution remains disabled and the
@@ -36,25 +37,26 @@ active.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The latest slice accepts `WPM11-ambiguous-start`. A disposable host durably recorded
-`shell_started` and blocked before `IFileOperation.PerformOperations`; only that host was stopped.
-Restart reconstructed two immutable unknowns, one ambiguous batch, one recovery-required operation,
-and both recovery rows from the preserved migrated database. The real WPF Option A checklist
-recorded three append-only observations for two items, including a retained superseded deferral and
-correction reason after independent Explorer/Recycle Bin review. The exact verifier proved every
-original source-evidence row unchanged and no retry, replay, resubmission, inference, restore,
-deletion, or copy-forward. Both the passing bundle and an earlier safe pre-start failure are
-retained. The gate is `locally_exhausted`; production execution and Milestone 12 remain unchanged.
+The latest slice accepts `WPM9-folder-relationships`. The exact-folder detail surface now derives
+common and differing path context from only the current immutable worker page, defensively caps
+Core/WPF group and member collections at 200, preserves five-page cursor caches, and displays
+horizontally virtualized location cards with per-copy/recoverable metrics, selectable full paths,
+stable member-ID automation, Left/Right/Home/End navigation, and page-focus restoration. Focused
+Core and loaded-STA coverage plus real Debug/Release WPF smoke proved bounded paging, path
+differentiation, automation, keyboard focus, unchanged disposable folders, non-deleting Keep, and
+Explorer reveal. Existing file/folder overlap, nested/suppressed-set, and hard-link regressions
+passed without any review, protocol, storage, or scheduling change. The gate is
+`locally_exhausted`; every production execution lock remains unchanged.
 
 ## Immediate next step
 
-Advance only `WPM9-folder-relationships`. Refine and implement the bounded folder-card/location
-presentation over the accepted Milestone 8 read-only workspace foundations.
+Advance only `WPM9-explorer-responsiveness`. Define and implement one bounded background Explorer
+command slice over the accepted folder relationship surface.
 
-Verifier: focused folder relationship/paging tests, proportional Debug/Release solution coverage,
-and real non-mutating smoke pass without double-scheduling physical files. Do not add Explorer
-expansion, thumbnails, review mutation, deletion, provider/accessibility/performance campaigns,
-Milestone 12 behavior, or Recycle Bin production wiring.
+Verifier: focused Infrastructure/Core/STA success/failure and dispatcher-responsiveness tests plus
+real Debug/Release smoke pass for every command admitted by the slice. Do not add parent-grouped
+multi-selection, thumbnails, review mutation, deletion, provider/accessibility/performance
+campaigns, Milestone 12 behavior, or Recycle Bin production wiring.
 
 ## Required startup audit
 
@@ -131,20 +133,23 @@ required gates are open.
 
 ## Latest verification baseline
 
-The latest evidence/tooling slice was verified as follows:
+The latest folder-relationship slice was verified as follows:
 
-- focused Rust recovery-review and operation interruption/restart tests: passed;
-- exact `Verify-WindowsAmbiguousStartCampaign.ps1`: passed against retained evidence
-  `artifacts/windows-ambiguous-start/20260823-144048-588`; the earlier safe prepare failure remains
-  at `artifacts/windows-ambiguous-start/20260823-143955-657`;
-- the controlled campaign proved durable start, loss of only the disposable host, restart
-  reconstruction, 2/2 WPF observations, explicit supersession, and immutable original rows;
-- proportional Debug/Release solution coverage and real non-mutating smoke: passed through the
-  existing recovery-review verifier; the disposable campaign host also built in both configurations;
-- targeted Rust/.NET formatting, PowerShell parsing, `git diff --check`, and the production-lock
-  audit passed;
-- provider, physical-accessibility, unrelated Shell-mutation/TOCTOU, and performance campaigns were
-  deliberately skipped.
+- focused Core folder relationship/paging/stale-generation/cache/overlap coverage: 11 passed in
+  Debug and the matching Release solution matrix passed;
+- loaded-STA folder-card virtualization, automation-notification, keyboard selection, and focus
+  coverage: passed in Debug and Release;
+- full Debug/Release solution matrices: each passed 96 Core, 59 Infrastructure, and 3 loaded-STA
+  tests; the same 5 explicitly gated provider/physical Shell tests were skipped in each;
+- real Debug and Release non-mutating worker/WPF smoke: passed with two side-by-side cards, stable
+  automation IDs/names, Right Arrow focus, non-deleting Keep, Explorer reveal, and unchanged
+  disposable fixture directories;
+- focused Rust file/folder-overlap, nested/suppressed-folder, and exact-folder hard-link regressions:
+  3 passed;
+- targeted .NET formatting, PowerShell parsing, `git diff --check`, and the production-lock audit
+  passed;
+- provider, physical-accessibility, Recycle Bin/Shell-mutation, performance, and later-milestone
+  campaigns were deliberately skipped.
 
 Use proportional verification for the next slice. Run focused tests while iterating, then the
 relevant full matrix before commit when shared Core/WPF/Infrastructure behavior changes. Run Rust
@@ -199,4 +204,5 @@ For each session:
 | 2026-08-23 | `6d0182a` | Accept WPM11 recovery Option A and create its exact persistence/protocol, accessible WPF, and controlled process-loss dependency chain without product-code changes. | Advance only WPM11-recovery-review-persistence; keep WPF, campaigns, live inference, replay, and production wiring out of scope. |
 | 2026-08-23 | `98d5558` | Implement and accept WPM11 recovery-review persistence/protocol with schema-v11 append-only observations, derived state, supersession, bounded paging, restart reconstruction, and matching non-UI client contracts while preserving every production lock. | Advance only WPM11-recovery-review-ui; keep automatic inspection/inference, replay, campaigns, Milestone 12 mutation, and production wiring out of scope. |
 | 2026-08-23 | `d7b62d7` | Implement and accept the bounded accessible WPM11 recovery-review UI with exact safe retries, explicit append-only correction, approved copy/navigation, focus/automation/announcements, and every production lock preserved. | Advance only WPM11-ambiguous-start; do not substitute another evidence, performance, provider, mutation, or production gate. |
-| 2026-08-23 | this session | Run and accept WPM11 ambiguous-start with disposable durable-start process loss, restart reconstruction, real WPF Option A observations/supersession, exact immutable-evidence verification, and retained passing/failing bundles. | Advance only WPM9-folder-relationships; preserve all execution locks and do not substitute another campaign or later milestone. |
+| 2026-08-23 | `16f6996` | Run and accept WPM11 ambiguous-start with disposable durable-start process loss, restart reconstruction, real WPF Option A observations/supersession, exact immutable-evidence verification, and retained passing/failing bundles. | Advance only WPM9-folder-relationships; preserve all execution locks and do not substitute another campaign or later milestone. |
+| 2026-08-23 | this session | Implement and accept bounded side-by-side WPM9 folder relationship cards from immutable paged data with common/differing path context, per-copy/recoverable metrics, stable automation, keyboard/focus behavior, and unchanged physical de-duplication. | Advance only WPM9-explorer-responsiveness; keep parent grouping, thumbnails, review mutation, deletion, later milestones, and production wiring separate. |
