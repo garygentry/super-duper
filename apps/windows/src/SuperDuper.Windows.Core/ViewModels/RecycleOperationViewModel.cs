@@ -226,7 +226,8 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
                 await LoadPageAsync(null, generation, token);
                 if (IsCurrentGeneration(generation, token))
                 {
-                    Announcement = $"Recycle Bin operation reconstructed. {ProgressSummary} {BoundaryNotice}";
+                    Announcement =
+                        $"Recycle Bin operation reconstructed. {ProgressSummary} {PageStatus} {BoundaryNotice}";
                     AnnouncementVersion++;
                 }
             }

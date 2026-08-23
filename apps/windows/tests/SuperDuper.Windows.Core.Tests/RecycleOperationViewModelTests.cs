@@ -203,6 +203,7 @@ public sealed class RecycleOperationViewModelTests
         var initialAnnouncementVersion = viewModel.AnnouncementVersion;
 
         StringAssert.Contains(viewModel.PageStatus, "showing items 1-100 of 101 unknown details");
+        StringAssert.Contains(viewModel.Announcement, viewModel.PageStatus);
 
         await viewModel.NextPageCommand.ExecuteAsync(null);
 

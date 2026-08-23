@@ -17,7 +17,7 @@ until the roadmap is complete, without treating evidence-gated work as locally c
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Exercise loaded Recycle Bin notification channels` (this session's commit)
+- Latest completed slice: `Announce the initial Recycle Bin recovery result range` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 cloud safety: accepted
@@ -28,9 +28,9 @@ until the roadmap is complete, without treating evidence-gated work as locally c
   milestone is not complete
 - Milestone 12 live-state overlay: later work; do not pull it into a Milestone 11 slice implicitly
 
-The latest slice gives the successful Recycle Bin result channel a stable automation ID and proves
-through loaded WPF automation peers that it raises `ActionCompleted` independently from the error
-channel's assertive `ActionAborted` event. It changes no operation state or execution boundary.
+The latest slice includes the first committed unknown-result page's exact range and total in the
+successful reconstruction notification, aligning initial recovery load with forward and backward
+page announcements. It changes no operation state or execution boundary.
 
 ## Immediate next step
 
@@ -108,8 +108,8 @@ required gates are open.
 
 The latest slice was verified as follows:
 
-- Focused WPF smoke/automation surface, Debug: 3/3 passed
-- Focused WPF smoke/automation surface, Release: 3/3 passed
+- Focused `RecycleOperationViewModelTests`, Debug: 10/10 passed
+- Focused `RecycleOperationViewModelTests`, Release: 10/10 passed
 - Full serialized Debug matrix:
   - Core: 74/74 passed
   - Infrastructure: 56 passed, 5 intentional environment-gated skips
@@ -151,4 +151,5 @@ For each session:
 | 2026-08-22 | `a476af3` | Cover failed backward recovery paging after the bounded cache evicts an older page; preserve the committed page and exact retry. | Re-audit for another local read-only contract gap; stop at physical/provider/performance or recovery-resolution gates. |
 | 2026-08-22 | `a022588` | Clear stale Recycle Bin UI Automation announcement text when the selected run context changes without publishing an empty notification. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
 | 2026-08-22 | `35ee281` | Separate assertive Recycle Bin operation/page failures from polite committed-result notifications. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
-| 2026-08-22 | this session | Exercise the separate Recycle Bin success/error channels through loaded WPF automation peers. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
+| 2026-08-22 | `45f6a09` | Exercise the separate Recycle Bin success/error channels through loaded WPF automation peers. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
+| 2026-08-22 | this session | Announce the exact first committed unknown-result range during Recycle Bin reconstruction. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
