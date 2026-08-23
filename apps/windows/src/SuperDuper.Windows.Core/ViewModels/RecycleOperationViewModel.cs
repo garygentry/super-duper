@@ -190,6 +190,7 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         var generation = ++_generation;
         Operation = null;
         ErrorMessage = null;
+        Announcement = string.Empty;
         ResetPages();
         if (run?.Status != "completed" || _worker is null)
         {

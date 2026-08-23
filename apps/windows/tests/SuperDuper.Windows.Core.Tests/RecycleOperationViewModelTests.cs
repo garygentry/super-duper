@@ -277,6 +277,26 @@ public sealed class RecycleOperationViewModelTests
     }
 
     [TestMethod]
+    public async Task ChangingContextClearsStaleAnnouncementWithoutPublishingAnotherNotification()
+    {
+        var worker = CreatePagedRecoveryWorker();
+        using var viewModel = new RecycleOperationViewModel(worker, new DisabledCapability());
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var announcementVersion = viewModel.AnnouncementVersion;
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            13, 1, "running", "hashing", DateTimeOffset.UtcNow));
+
+        Assert.IsFalse(viewModel.HasOperation);
+        Assert.AreEqual(0, viewModel.Items.Count);
+        Assert.AreEqual(string.Empty, viewModel.Announcement);
+        Assert.AreEqual(announcementVersion, viewModel.AnnouncementVersion,
+            "Clearing stale automation text must not announce the empty replacement context.");
+    }
+
+    [TestMethod]
     public async Task FailedNextPagePreservesCommittedPageAndCanRetry()
     {
         var worker = CreatePagedRecoveryWorker();

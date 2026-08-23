@@ -17,7 +17,7 @@ until the roadmap is complete, without treating evidence-gated work as locally c
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Cover failed backward Recycle Bin paging` (this session's commit)
+- Latest completed slice: `Clear stale Recycle Bin automation text` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 cloud safety: accepted
@@ -28,9 +28,9 @@ until the roadmap is complete, without treating evidence-gated work as locally c
   milestone is not complete
 - Milestone 12 live-state overlay: later work; do not pull it into a Milestone 11 slice implicitly
 
-The latest slice proves that backward recovery-result navigation remains transactional after the
-bounded five-page cache evicts an older page. A worker failure keeps the committed range and both
-navigation directions intact; an exact retry clears the error and commits the requested older page.
+The latest slice clears the hidden UI Automation announcement text whenever the selected run context
+changes. A replacement context with no reconstructible operation therefore cannot retain a prior
+operation or recovery message, and the reset does not publish a misleading empty notification.
 
 ## Immediate next step
 
@@ -108,10 +108,10 @@ required gates are open.
 
 The latest slice was verified as follows:
 
-- Focused `RecycleOperationViewModelTests`, Debug: 9/9 passed
-- Focused `RecycleOperationViewModelTests`, Release: 9/9 passed
+- Focused `RecycleOperationViewModelTests`, Debug: 10/10 passed
+- Focused `RecycleOperationViewModelTests`, Release: 10/10 passed
 - Full serialized Debug matrix:
-  - Core: 73/73 passed
+  - Core: 74/74 passed
   - Infrastructure: 56 passed, 5 intentional environment-gated skips
   - WPF smoke: 3/3 passed
 - Full serialized Release matrix: same totals and dispositions
@@ -148,4 +148,5 @@ For each session:
 |---|---|---|---|
 | 2026-08-22 | `ec8da88` | Announce only committed Recycle Bin result pages; cover backward repeatability and stale/cancelled silence. | Re-audit for the next locally implementable Milestone 11 read-only/recovery gap; do not cross an evidence or recovery-design gate. |
 | 2026-08-22 | `96a49af` | Preserve the committed Recycle Bin recovery page and cursor history across a failed forward fetch; allow exact retry. | Re-audit for another local read-only contract gap; stop at physical/provider/performance or recovery-resolution gates. |
-| 2026-08-22 | this session | Cover failed backward recovery paging after the bounded cache evicts an older page; preserve the committed page and exact retry. | Re-audit for another local read-only contract gap; stop at physical/provider/performance or recovery-resolution gates. |
+| 2026-08-22 | `a476af3` | Cover failed backward recovery paging after the bounded cache evicts an older page; preserve the committed page and exact retry. | Re-audit for another local read-only contract gap; stop at physical/provider/performance or recovery-resolution gates. |
+| 2026-08-22 | this session | Clear stale Recycle Bin UI Automation announcement text when the selected run context changes without publishing an empty notification. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
