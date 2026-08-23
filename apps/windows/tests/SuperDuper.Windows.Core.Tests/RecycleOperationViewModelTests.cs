@@ -475,6 +475,57 @@ public sealed class RecycleOperationViewModelTests
     }
 
     [TestMethod]
+    public async Task FailedOperationReconstructionRetryCannotReplaceANewerRunContext()
+    {
+        var worker = CreatePagedRecoveryWorker();
+        var retry = new TaskCompletionSource<WorkerRecycleOperation?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var run12Calls = 0;
+        worker.LatestRecycleOperationHandler = (runId, _) =>
+        {
+            if (runId == 12)
+            {
+                run12Calls++;
+                if (run12Calls == 1)
+                {
+                    throw new InvalidOperationException("The Recycle Bin operation summary is unavailable.");
+                }
+                return retry.Task;
+            }
+            return Task.FromResult<WorkerRecycleOperation?>(
+                TestWorkerClient.CreateRecycleOperation(13, runId, 7, 4) with
+                {
+                    Status = "recovery_required",
+                    UnknownCount = 101,
+                });
+        };
+        using var viewModel = new RecycleOperationViewModel(worker, new DisabledCapability());
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var staleRetry = viewModel.RetryPageCommand.ExecuteAsync(null);
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            13, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var replacementAnnouncement = viewModel.Announcement;
+        var replacementAnnouncementVersion = viewModel.AnnouncementVersion;
+        retry.SetException(new InvalidOperationException("The stale operation retry also failed."));
+        await staleRetry;
+
+        Assert.AreEqual(13, viewModel.Operation?.Id);
+        Assert.AreEqual(100, viewModel.Items.Count);
+        StringAssert.Contains(viewModel.PageStatus, "showing items 1-100 of 101 unknown details");
+        Assert.AreEqual(replacementAnnouncement, viewModel.Announcement);
+        Assert.AreEqual(replacementAnnouncementVersion, viewModel.AnnouncementVersion,
+            "The stale failed operation retry must not announce or replace the newer run context.");
+        Assert.IsFalse(viewModel.HasError);
+        Assert.AreEqual(string.Empty, viewModel.ErrorAnnouncement);
+        Assert.IsFalse(viewModel.CanRetryPage);
+        Assert.IsFalse(viewModel.CanMovePrevious);
+        Assert.IsTrue(viewModel.CanMoveNext);
+    }
+
+    [TestMethod]
     public async Task FailedPageRetryCannotReplaceANewerRunContext()
     {
         var worker = CreatePagedRecoveryWorker();
