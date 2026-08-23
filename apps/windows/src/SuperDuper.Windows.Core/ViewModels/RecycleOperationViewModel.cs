@@ -423,6 +423,7 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             _failedCursor = null;
             _failedPageIndex = null;
             ErrorMessage = null;
+            ErrorAnnouncement = string.Empty;
             NotifyStateChanged();
             return true;
         }

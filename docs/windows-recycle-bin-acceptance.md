@@ -233,7 +233,9 @@ retry, including when an older page was evicted from the bounded cache. A failed
 preserves the durable operation and recovery summaries and exposes an explicitly read-only retry of
 that exact detail request. If operation-summary reconstruction itself fails before a durable
 operation is returned, the same affordance retries the exact selected-run read and cannot replace a
-newer run context. Retrying detail loading never retries or resolves the operation. Each row exposes
+newer run context. A successfully committed page retry clears the prior assertive error payload
+without publishing a second assertive notification. Retrying detail loading never retries or
+resolves the operation. Each row exposes
 its durable operation/preflight/batch identifiers,
 source snapshot context, result time, stable code, numeric Shell HRESULT, and recorded recycled-item-
 presence value for correlation. This reads durable evidence only; it does not inspect the filesystem,

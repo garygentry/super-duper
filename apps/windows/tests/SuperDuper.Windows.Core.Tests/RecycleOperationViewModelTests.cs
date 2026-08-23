@@ -321,6 +321,7 @@ public sealed class RecycleOperationViewModelTests
         StringAssert.Contains(viewModel.ErrorMessage, "next recovery page is unavailable");
         StringAssert.Contains(viewModel.ErrorAnnouncement, "page error");
         Assert.IsTrue(viewModel.ErrorAnnouncementVersion > 0);
+        var errorAnnouncementVersion = viewModel.ErrorAnnouncementVersion;
         Assert.IsTrue(viewModel.CanRetryPage);
         Assert.IsTrue(viewModel.CanMoveNext);
         Assert.IsFalse(viewModel.CanMovePrevious);
@@ -329,6 +330,9 @@ public sealed class RecycleOperationViewModelTests
 
         StringAssert.Contains(viewModel.PageStatus, "showing items 101-101 of 101 unknown details");
         Assert.IsFalse(viewModel.HasError);
+        Assert.AreEqual(string.Empty, viewModel.ErrorAnnouncement);
+        Assert.AreEqual(errorAnnouncementVersion, viewModel.ErrorAnnouncementVersion,
+            "Clearing stale page-error text must not publish another assertive notification.");
         Assert.IsFalse(viewModel.CanRetryPage);
         Assert.IsTrue(viewModel.CanMovePrevious);
 
@@ -362,6 +366,7 @@ public sealed class RecycleOperationViewModelTests
         Assert.AreEqual(0, viewModel.Items.Count);
         StringAssert.Contains(viewModel.ErrorMessage, "initial recovery page is unavailable");
         StringAssert.Contains(viewModel.ErrorAnnouncement, "page error");
+        var errorAnnouncementVersion = viewModel.ErrorAnnouncementVersion;
         Assert.IsTrue(viewModel.CanRetryPage);
         Assert.IsFalse(viewModel.CanMoveNext);
         Assert.IsFalse(viewModel.CanMovePrevious);
@@ -373,6 +378,9 @@ public sealed class RecycleOperationViewModelTests
         StringAssert.Contains(viewModel.PageStatus, "showing items 1-100 of 101 unknown details");
         StringAssert.Contains(viewModel.Announcement, viewModel.PageStatus);
         Assert.IsFalse(viewModel.HasError);
+        Assert.AreEqual(string.Empty, viewModel.ErrorAnnouncement);
+        Assert.AreEqual(errorAnnouncementVersion, viewModel.ErrorAnnouncementVersion,
+            "Clearing stale page-error text must not publish another assertive notification.");
         Assert.IsFalse(viewModel.CanRetryPage);
         Assert.IsTrue(viewModel.CanMoveNext);
     }

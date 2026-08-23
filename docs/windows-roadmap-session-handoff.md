@@ -17,7 +17,7 @@ until the roadmap is complete, without treating evidence-gated work as locally c
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Retry failed Recycle Bin operation-summary reconstruction` (this session's commit)
+- Latest completed slice: `Clear resolved Recycle Bin page-error announcement text` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 cloud safety: accepted
@@ -28,11 +28,10 @@ until the roadmap is complete, without treating evidence-gated work as locally c
   milestone is not complete
 - Milestone 12 live-state overlay: later work; do not pull it into a Milestone 11 slice implicitly
 
-The latest slice extends the explicitly read-only Recycle Bin detail retry to a failed operation-
-summary reconstruction request. It retains the selected completed-run identity and reuses the
-existing generation/cancellation boundary, so a successful retry reconstructs the durable summary
-and first page while a late retry cannot replace a newer context. It does not replay, resolve, or
-otherwise change the durable operation or execution boundary.
+The latest slice clears the stale assertive page-error payload after an exact read-only retry
+successfully commits its requested page. The error notification version is deliberately unchanged,
+so resolving the error does not publish a misleading second assertive notification. It does not
+replay, resolve, or otherwise change the durable operation or execution boundary.
 
 ## Immediate next step
 
@@ -112,8 +111,6 @@ The latest slice was verified as follows:
 
 - Focused `RecycleOperationViewModelTests`, Debug: 13/13 passed
 - Focused `RecycleOperationViewModelTests`, Release: 13/13 passed
-- Focused WPF smoke/automation surface, Debug: 3/3 passed
-- Focused WPF smoke/automation surface, Release: 3/3 passed
 - Full serialized Debug matrix:
   - Core: 77/77 passed
   - Infrastructure: 56 passed, 5 intentional environment-gated skips
@@ -159,4 +156,5 @@ For each session:
 | 2026-08-22 | `d971119` | Announce the exact first committed unknown-result range during Recycle Bin reconstruction. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
 | 2026-08-22 | `306972e` | Retry the exact failed read-only Recycle Bin detail request, including the initial recovery page, without retrying the operation. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
 | 2026-08-22 | `d0b0362` | Commit the matching forward or backward cursor-history transition after a successful exact Recycle Bin detail retry. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
-| 2026-08-22 | this session | Retry a failed read-only Recycle Bin operation-summary reconstruction request for the exact selected completed run without allowing a stale retry to replace newer context. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
+| 2026-08-22 | `bd7efa6` | Retry a failed read-only Recycle Bin operation-summary reconstruction request for the exact selected completed run without allowing a stale retry to replace newer context. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
+| 2026-08-22 | this session | Clear the resolved assertive Recycle Bin page-error payload after a successful exact retry without publishing another error notification. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
