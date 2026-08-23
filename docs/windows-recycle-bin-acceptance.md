@@ -236,7 +236,9 @@ observation above.
 The read-only automation surface routes reconstruction and paging failures through a dedicated
 assertive `ActionAborted`/`ImportantMostRecent` notification channel. Successful committed
 reconstruction and page changes remain separate repeatable `ActionCompleted` notifications. This
-automated contract does not close the physical accessibility rows above.
+automated contract includes a loaded-STA regression that raises both channels through UI Automation
+peers and verifies their distinct payload, event kind, and activity identifier. It does not close
+the physical accessibility rows above.
 
 ## Review boundary
 

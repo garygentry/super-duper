@@ -203,7 +203,9 @@
                                accessibility:AutomationNotificationBehavior.ActivityId="RecycleOperationError"
                                Text="{Binding ErrorMessage}" TextWrapping="Wrap"
                                Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                    <TextBlock Height="1" Opacity="0" AutomationProperties.Name="{Binding Announcement}"
+                    <TextBlock Height="1" Opacity="0"
+                               AutomationProperties.AutomationId="RecycleOperationAnnouncement"
+                               AutomationProperties.Name="{Binding Announcement}"
                                accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding AnnouncementVersion}"
                                accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
                                accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"

@@ -405,6 +405,14 @@ public sealed class WpfSurfaceSmokeTests
                 AutomationProperties.GetLiveSetting(recycleError));
             Assert.AreEqual("RecycleOperationError",
                 AutomationNotificationBehavior.GetActivityId(recycleError));
+            var recycleAnnouncement = FindByAutomationId<TextBlock>(
+                preflight, "RecycleOperationAnnouncement");
+            Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
+                AutomationNotificationBehavior.GetNotificationKind(recycleAnnouncement));
+            Assert.AreEqual(AutomationNotificationProcessing.MostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(recycleAnnouncement));
+            Assert.AreEqual("RecycleOperation",
+                AutomationNotificationBehavior.GetActivityId(recycleAnnouncement));
             var cancellationDisclosure = FindByAutomationId<TextBlock>(
                 preflight, "RecycleOperationCancellationDisclosure");
             Assert.AreEqual(
@@ -628,6 +636,28 @@ public sealed class WpfSurfaceSmokeTests
                 Assert.AreEqual(folderDetailErrorAnnouncement, announcedText);
                 Assert.AreEqual(AutomationNotificationKind.ActionAborted, announcedKind);
                 Assert.AreEqual("DuplicateFolderMemberQuery", announcedActivityId);
+
+                focusHost.Content = preflight;
+                const string recycleAnnouncementText =
+                    "Recycle Bin operation results loaded. Unknown operation item page 2, showing items 101-101 of 101 unknown details.";
+                AutomationProperties.SetName(recycleAnnouncement, recycleAnnouncementText);
+                AutomationNotificationBehavior.SetAnnouncementVersion(recycleAnnouncement, 1);
+                DrainDispatcher();
+                Assert.AreSame(recycleAnnouncement, announcedElement);
+                Assert.AreEqual(recycleAnnouncementText, announcedText);
+                Assert.AreEqual(AutomationNotificationKind.ActionCompleted, announcedKind);
+                Assert.AreEqual("RecycleOperation", announcedActivityId);
+
+                const string recycleErrorAnnouncement =
+                    "Recycle Bin operation page error. The next recovery page is unavailable.";
+                recycleError.Visibility = Visibility.Visible;
+                AutomationProperties.SetName(recycleError, recycleErrorAnnouncement);
+                AutomationNotificationBehavior.SetAnnouncementVersion(recycleError, 1);
+                DrainDispatcher();
+                Assert.AreSame(recycleError, announcedElement);
+                Assert.AreEqual(recycleErrorAnnouncement, announcedText);
+                Assert.AreEqual(AutomationNotificationKind.ActionAborted, announcedKind);
+                Assert.AreEqual("RecycleOperationError", announcedActivityId);
 
                 focusHost.Content = files;
             }
