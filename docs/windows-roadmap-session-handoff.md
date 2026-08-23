@@ -18,34 +18,42 @@ active.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Tighten Windows roadmap execution controls` (this session's commit)
+- Latest completed slice: `Populate Windows roadmap closure ledger` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
-- Milestone 7 cloud safety: accepted
-- Milestone 8 read-only foundation: implemented; independent operator/performance gates remain open
-- Milestone 9 status and remaining scope: must be reconciled by the closure-ledger bootstrap
-- Milestone 10 review/rule slices: accepted
+- Milestone 7 fail-closed cloud safety: accepted; unavailable opt-in policy scope awaits review
+- Milestone 8 read-only criteria: accepted; representative query and three physical accessibility
+  gates remain open
+- Milestone 9: planned/not started except accepted no-double-schedule evidence; three criteria open
+- Milestone 10 review/rule criteria: all accepted; no uncovered acceptance criterion remains
 - Milestone 11: non-deleting preflight, durable operation contract, separately gated native executor,
   and acceptance evidence tooling are implemented; production execution remains disabled and the
   milestone is not complete
-- Milestone 12 live-state overlay: later work; do not pull it into a Milestone 11 slice implicitly
+- Milestone 12: planned; external invalidation, dirty/overflow, and coalescing lanes can advance
+  independently, while in-app reconciliation depends on Milestone 11 production outcomes
+- Milestone 13: planned; bounded warning/Activity foundations can advance independently
+- Milestone 14: planned; required/follow-on scope and completion meaning await explicit review
 
-The latest slice replaces open-ended local-gap discovery with a durable closure-ledger scaffold,
-finite gate dispositions, dependency-based work selection, explicit locally-exhausted handling, and
-anti-spin stop conditions. Product code and the production execution boundary are unchanged.
+The latest slice accepts the closure ledger as a finite documentation-control baseline. It maps all
+37 Milestone 7-14 acceptance bullets exactly once, records every known evidence/policy/recovery/
+production decision, reconciles milestone statuses, exposes the critical path and independent
+lanes, and selects one ready scope-decision group. Product code, tests, runtime behavior, and the
+production execution boundary are unchanged.
 
 ## Immediate next step
 
-Populate and accept `docs/windows-roadmap-closure-ledger.md` before selecting another product-code
-slice. Inventory every Milestone 7-14 acceptance criterion and still-open decision, cite existing
-evidence, assign a stable gate ID/disposition/state/dependency/owner/next action/completion check,
-reconcile Milestone 9 and optional/deferred scope, and produce a dependency-ordered queue. This is a
-documentation and repository-audit slice only.
+Advance exactly the coherent design-decision group
+`WPM7-opt-in-policy-scope` + `WPM14-required-scope` + `WPM14-completion-contract`. Its dependencies
+are satisfied. Review the ledger's recommendations and tradeoffs, then commit a decision that
+either accepts each recommendation or adds exact required gates. A scope exclusion becomes
+`deferred` only through that cited review.
 
-Do not change product code, add tests, run physical/provider/performance campaigns, or search for
-another Milestone 11 retry/recovery edge case during the bootstrap. Stop and report any scope choice
-that requires user review rather than silently selecting it. The first accepted ready gate in the
-ledger becomes the only implementation authority for the following session.
+Verifier: all three gates become `accepted` or yield named required implementation/evidence gates;
+the ledger, this plan, this handoff, and any affected `ROADMAP.md` control text agree. Explicit
+non-goals: no product-code/test changes; no `WPM11-recovery-workflow` decision; no provider,
+physical-accessibility, or performance campaign; no Recycle Bin wiring; and no change to
+`CanSubmit:false`, disabled production injection, or `executorEnabled:false`. Other ready lanes are
+not substitute authority for that session.
 
 ## Required startup audit
 
@@ -115,22 +123,25 @@ decision:
 - `FOFX_ADDUNDORECORD`
 - Residual Shell TOCTOU
 - Ambiguous-recovery resolution workflow and physical recovery inspection
+- Whether the two unavailable Milestone 7 opt-in cloud policies are required or reviewed follow-ons
+- Required versus follow-on Milestone 14 scope
+- Whether final roadmap completion means code complete, operator accepted, or production enabled
 
 Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains incomplete while its
 required gates are open.
 
 ## Latest verification baseline
 
-The latest slice was verified as follows:
+The latest documentation-only slice was verified as follows:
 
-- Focused `RecycleOperationViewModelTests`, Debug: 17/17 passed
-- Focused `RecycleOperationViewModelTests`, Release: 17/17 passed
-- Full Core suite, Debug: 81/81 passed
-- Full Core suite, Release: 81/81 passed
-- `git diff --check`: passed
-- Production behavior and Rust behavior: unchanged; Rust matrix not rerun
-- Infrastructure/WPF behavior: unchanged; Infrastructure and WPF matrices not rerun
-- Performance profile: not rerun
+- all 37 acceptance bullets were counted from the authoritative Milestone 7-14 sections and mapped
+  once through `AC` labels in the closure ledger;
+- every ledger gate has a stable ID, disposition/state, dependencies, evidence, owner/prerequisite,
+  one bounded next action, and a completion check;
+- scaffold markers and populate prompts: none;
+- `git diff --check`: passed;
+- product code and tests: unchanged; no Rust/.NET build or test matrix run;
+- physical accessibility, provider, Shell mutation, performance, and recovery campaigns: not run.
 
 Use proportional verification for the next slice. Run focused tests while iterating, then the
 relevant full matrix before commit when shared Core/WPF/Infrastructure behavior changes. Run Rust
@@ -178,4 +189,5 @@ For each session:
 | 2026-08-22 | `37894b9` | Prove a late failed exact operation-summary retry cannot replace newer operation/page context, publish stale feedback, expose another retry, or change navigation. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
 | 2026-08-22 | `ce54d1a` | Announce a successful read-only operation reconstruction that finds no stored operation intent, without exposing retry or changing the execution boundary. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
 | 2026-08-22 | `c34eebb` | Cover an exact read-only operation-summary retry that resolves an earlier load failure to no stored operation intent. | Replace further open-ended gap discovery with a finite roadmap closure audit. |
-| 2026-08-23 | this session | Add the closure-ledger scaffold and tighten roadmap execution, edit authority, anti-spin, and stop rules. | Populate and accept every remaining Milestone 7-14 gate without product-code changes, then authorize only the first dependency-ready gate. |
+| 2026-08-23 | `8ff0b60` | Add the closure-ledger scaffold and tighten roadmap execution, edit authority, anti-spin, and stop rules. | Populate and accept every remaining Milestone 7-14 gate without product-code changes, then authorize only the first dependency-ready gate. |
+| 2026-08-23 | this session | Populate and accept the Milestone 7-14 closure inventory, reconcile statuses, and expose the critical path and independent lanes. | Review WPM7-opt-in-policy-scope + WPM14-required-scope + WPM14-completion-contract; do not substitute another ready gate. |

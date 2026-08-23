@@ -2,86 +2,219 @@
 
 ## Status
 
-Scaffold only. The next roadmap-control goal must populate and verify this ledger before another
-product-code slice is selected. This file does not authorize implementation, physical acceptance,
-provider campaigns, production Recycle Bin execution, or a claim that any unlisted gate is closed.
+Accepted closure-control baseline as of 2026-08-23. This ledger maps all 37 acceptance bullets in
+Milestones 7-14 and every explicitly open scope, evidence, policy, recovery, and production gate
+known to the authoritative plans. Acceptance of this ledger accepts the inventory and work-control
+model; it does not accept gates whose state is not `accepted`, authorize a physical/provider/
+performance campaign, or enable Recycle Bin execution.
 
-The authoritative product criteria remain in `windows-post-mvp-ux-plan.md`. The active checkpoint
-and one-session authorization remain in `windows-roadmap-session-handoff.md`.
+The authoritative product criteria remain in
+[`windows-post-mvp-ux-plan.md`](windows-post-mvp-ux-plan.md). The active checkpoint and one-session
+authorization remain in
+[`windows-roadmap-session-handoff.md`](windows-roadmap-session-handoff.md). Historical iteration
+slices are cited only as evidence for a criterion or prerequisite; they are not separate gates.
 
 ## Completion contract
 
-The bootstrap goal must define the exact Windows post-MVP completion boundary for Milestones 7-14,
-including whether completion means code complete, operator accepted, or production enabled. It must
-also resolve:
+Roadmap completion is unresolved until `WPM14-completion-contract` receives explicit review. The
+recommended contract is **operator accepted and production enabled for every required Milestone
+7-14 workflow**; `code complete` is an interim status, not roadmap completion. This is the most
+conservative reading of the product goal because it includes Recycle Bin execution, live
+reconciliation, and auditable Activity. Its cost is that external hardware/provider evidence and
+production-enablement policy stay on the critical path. Choosing `code complete` would shorten the
+path but leave the advertised workflow unavailable; choosing `operator accepted` without
+production enablement would validate a separately gated executor without shipping it.
 
-- the current Milestone 9 status and remaining work;
-- whether unavailable Milestone 7 opt-in cloud policies are required or reviewed follow-ons;
-- which Milestone 14 items are required closure work versus optional follow-ons; and
-- how independent Milestone 8 gates constrain Milestone 11 production enablement.
+No optional item is silently deferred. `WPM7-opt-in-policy-scope` and `WPM14-required-scope` record
+recommendations, alternatives, and tradeoffs and remain `ready` for explicit review. Until those
+decisions are accepted, the conservative dependency graph retains the larger scope and the roadmap
+cannot be declared complete.
 
-The roadmap is not complete until every required gate below is `accepted`, every excluded gate has
-a cited reviewed `deferred` decision, and all authoritative milestone statuses agree.
-
-## Field definitions
+## Field and coverage rules
 
 | Field | Required content |
 |---|---|
 | Gate ID | Stable `WPM<Milestone>-<short-name>` identifier; never renumber a published gate. |
-| Milestone | Owning Milestone 7-14. |
-| Criterion or decision | Exact acceptance bullet, open decision, or required closure outcome. |
+| Criterion or decision | One exact acceptance bullet, one explicitly open decision/evidence prerequisite, or one separately verifiable clause split from a criterion. |
 | Disposition | `local_audit`, `local_code`, `operator_evidence`, `design_decision`, `blocked`, `deferred`, or `accepted`. |
 | State | `open`, `ready`, `in_progress`, `locally_exhausted`, `blocked`, `deferred`, or `accepted`. |
 | Dependencies | Gate IDs or named external prerequisites that must be satisfied first. |
-| Evidence | Commit, test, report, artifact, operator record, or reviewed decision; never inference alone. |
+| Evidence | Commit, test/report artifact, operator record, or reviewed decision; never inference alone. |
 | Owner/prerequisite | Agent-local, operator, provider fixture, representative hardware, or explicit reviewer. |
-| Next action | One concrete bounded action; never "find another gap". |
+| Next action | One concrete bounded action; never “find another gap.” |
 | Completion check | Command, artifact, observation, or reviewed decision that closes the gate. |
+
+Each acceptance bullet is labeled `AC<n>` in exactly one criterion row below. Split clauses use
+`AC<n>a`/`AC<n>b` and together are the single representation of that bullet. Prerequisite and
+decision rows do not restate an acceptance bullet. The inventory is 5/5/4/5/5/5/4/4 acceptance
+bullets for Milestones 7-14 respectively, totaling 37.
 
 ## Gate ledger
 
-Populate one row for every acceptance criterion and still-open decision in Milestones 7-14. Split a
-criterion only when its parts have different dependencies, owners, or verifiers. Group work only
-when the rows share one implementation boundary and completion check.
+### Milestone 7 — Cloud-Safe Scan Policies
 
-| Gate ID | Milestone | Criterion or decision | Disposition | State | Dependencies | Evidence | Owner/prerequisite | Next action | Completion check |
-|---|---:|---|---|---|---|---|---|---|---|
-| _Bootstrap required_ | - | Inventory and classify all remaining criteria and decisions. | `local_audit` | `ready` | None | Authoritative plans and current repository | Agent-local audit | Populate this ledger without product-code changes. | Every Milestone 7-14 criterion and decision is represented and cross-checked. |
+| Gate ID | Criterion or decision | Disposition | State | Dependencies | Evidence | Owner/prerequisite | One bounded next action | Verifiable completion check |
+|---|---|---|---|---|---|---|---|---|
+| WPM7-no-hydration | AC1: “Excluding a OneDrive subtree causes no content reads, hashes, thumbnail extraction, or hydration.” | `accepted` | `accepted` | None | `67b0adc`; accepted OneDrive available/unavailable Release records summarized in the [Milestone 7 hardening result](windows-post-mvp-ux-plan.md#acceptance-hardening-result-2026-08-17) | Accepted operator evidence | Preserve the pre-I/O exclusion boundary. | Existing accepted provider records show unchanged placeholder/allocation/transfer state and zero discovered files. |
+| WPM7-explicit-root-detection | AC2: “An explicitly selected cloud root is detected before scan start.” | `accepted` | `accepted` | None | `67b0adc`; explicit-root operator pass in the Milestone 7 hardening result | Accepted implementation/evidence | Preserve fail-closed start validation. | Accepted explicit-root run records one exclusion and zero discovered files. |
+| WPM7-exclusion-explanation | AC3: “Completed-run summary and Activity data explain every excluded cloud subtree.” | `accepted` | `accepted` | None | `67b0adc`; bounded `run_exclusion.page` and accepted WPF smoke described in the [Milestone 7 plan](windows-post-mvp-ux-plan.md#milestone-7---cloud-safe-scan-policies) | Accepted implementation/evidence | Preserve bounded aggregate exclusion records. | Accepted storage/protocol/WPF coverage reconstructs the run-owned explanation. |
+| WPM7-integration-matrix | AC4: “Windows integration tests cover placeholders, ordinary local files inside a sync root, explicit cloud roots, broad ancestor roots, and an unavailable provider.” | `accepted` | `accepted` | None | `67b0adc`; Debug/Release automated coverage plus available/unavailable OneDrive operator passes | Accepted automated/operator evidence | Retain the evidence and fixture boundaries. | Every named fixture class has cited accepted coverage. |
+| WPM7-platform-neutral | AC5: “Non-Windows core behavior remains UI-agnostic and platform-neutral.” | `accepted` | `accepted` | None | `67b0adc`; Rust accepts platform-neutral exclusions while Windows registration discovery remains in Infrastructure | Accepted architecture/test evidence | Preserve layer ownership. | Accepted Debug/Release Rust matrix and documented layer boundary remain intact. |
+| WPM7-opt-in-policy-scope | Decide whether `include_sync_roots_skip_placeholders` and `allow_cloud_access` are required roadmap scope or reviewed follow-ons. Recommendation: follow-ons, because the fail-closed user outcome is accepted and opt-in exposure adds placeholder-state, hydration-confirmation, and real-provider gates; requiring them gives more cloud flexibility but lengthens the safety critical path. | `design_decision` | `ready` | None | Both policies are explicitly unavailable in the [Milestone 7 status](windows-post-mvp-ux-plan.md#milestone-7---cloud-safe-scan-policies); no reviewed deferral exists | Product/safety reviewer | Accept “reviewed follow-ons” or require one/both policies with their evidence prerequisites. | A committed reviewed decision names included policies; excluded policies become `deferred` only then, or required implementation/evidence gates are added. |
 
-## Milestone reconciliation decisions
+### Milestone 8 — Duplicate Review Workspace
 
-Record the reviewed scope/status decision for each milestone, with links to its gates and evidence.
+| Gate ID | Criterion or decision | Disposition | State | Dependencies | Evidence | Owner/prerequisite | One bounded next action | Verifiable completion check |
+|---|---|---|---|---|---|---|---|---|
+| WPM8-continuous-review | AC1: “A user can inspect thousands of sets without losing selection, focus, or filter state.” | `accepted` | `accepted` | None | `67b0adc` through `abddc1f`, plus deterministic focus follow-up `90a1eb9`; accepted bounded paging/focus smoke | Accepted implementation/evidence | Preserve selection, generation, and focus contracts. | Existing Core/STA/real-smoke evidence covers bounded navigation and focus restoration. |
+| WPM8-representative-query-performance | AC2a: “A 100,000-group fixture stays responsive” on representative Windows 11 x64 hardware at the unchanged 100 ms warm first-page p95 target. | `operator_evidence` | `blocked` | Designated representative Windows 11 x64 machine under normal load | `90a091c`, `e4fbc7c`, and `90a1eb9` retain passing and failing development-host runs; the [closure audit](windows-post-mvp-ux-plan.md#read-only-milestone-closure-audit-2026-08-19) explicitly says they do not qualify | Representative-hardware operator | Run one retained 100-sample Release profile on the designated machine without retry-only acceptance. | Evidence artifact retains all samples/host context and all result, root-facet, drive-facet, plan, and review-group p95 values satisfy 100 ms. |
+| WPM8-bounded-memory | AC2b: “memory remains bounded by page/cache settings.” | `accepted` | `accepted` | None | `90a091c`; five-page cache/two-page prefetch/200-row collection tests and 815,104-byte profile growth | Accepted automated/profile evidence | Preserve bounds as later caches are added. | Existing cache assertions plus the explicit profile remain below the 32 MiB repeated-query bound. |
+| WPM8-no-full-binding | AC3: “No UI operation binds the complete result or facet dataset.” | `accepted` | `accepted` | None | `67b0adc`–`abddc1f`; worker-owned pages/facets and bounded WPF collections | Accepted implementation/evidence | Preserve worker-owned paging. | Existing cache/virtualization tests prove only bounded current pages are bound. |
+| WPM8-stale-response-safety | AC4: “Late result or facet responses cannot replace a newer query generation.” | `accepted` | `accepted` | None | `67b0adc`–`0cbd88b`; generation/cancellation regressions across group/member/facet channels | Accepted automated evidence | Preserve independent generations. | Existing late-response tests reject superseded group, member, and both facet results. |
+| WPM8-accessibility-contract | AC5: “Accessibility names and keyboard actions cover all read-only review navigation and actions.” | `accepted` | `accepted` | None | `ca6e0f2`, `a9d034a`, `4e01b6e`, `0cbd88b`, `2934b94`, `68e1331`, `abddc1f`, `90a1eb9`; Core/STA/real-smoke automation evidence | Accepted automated evidence | Preserve names, actions, notification channels, and focus. | Existing automation matrices cover file/folder queries, facets, paging, copy/reveal actions, and focus. |
+| WPM8-narrator-nvda | Remaining operator gate: physical Narrator and NVDA listening pass for the read-only workspace. | `operator_evidence` | `blocked` | Interactive Windows 11 x64 desktop with Narrator and NVDA | [Accessibility findings](windows-post-mvp-ux-plan.md#accessibility-findings-and-remaining-operator-evidence) explicitly report no listening pass | Accessibility operator | Run the documented keyboard workflow separately with Narrator and NVDA and retain notes. | Accepted record contains spoken order/coalescing, focus, errors, and no stale/duplicate/inaccessible action. |
+| WPM8-high-contrast | Remaining operator gate: physical Windows high-contrast visual pass. | `operator_evidence` | `blocked` | Interactive desktop where the OS theme may be changed | Dynamic-brush inspection/STA tests exist, but the closure audit explicitly reports no physical pass | Accessibility operator | Run Setup/File/Folder review at default and minimum size under high contrast. | Accepted screenshots/notes show readable controls, focus, errors, and no color-only meaning. |
+| WPM8-multi-monitor-dpi | Remaining operator gate: physical 100/150/200% per-monitor DPI transitions. | `operator_evidence` | `blocked` | Physical differently scaled monitors | Available desktop was 96 DPI only; DIP regressions are not physical evidence | Accessibility/hardware operator | Move all read-only surfaces between 100/150/200% monitors at default and minimum size. | Accepted record shows no clipping, focus loss, popup displacement, or unreachable control. |
+| WPM8-optional-rich-filters | Confirmed scope boundary: file-type classification and boundary-aware canonical/selected-root-relative path modes are optional future Milestone 8 work, not uncovered acceptance criteria. | `accepted` | `accepted` | None | Reviewed status/control text added by `5188dcc` and retained in the [Milestone 8 status](windows-post-mvp-ux-plan.md#milestone-8---duplicate-review-workspace) | Accepted roadmap decision | Do not pull these filters into closure without a new reviewed scope decision. | The five acceptance bullets above have no uncovered filter requirement. |
 
-| Milestone | Current authoritative status | Required completion meaning | Remaining gate IDs | Reviewed disposition |
+### Milestone 9 — Folder Intelligence and Windows Exploration
+
+| Gate ID | Criterion or decision | Disposition | State | Dependencies | Evidence | Owner/prerequisite | One bounded next action | Verifiable completion check |
+|---|---|---|---|---|---|---|---|---|
+| WPM9-folder-relationships | AC1: “The relationship between folder copies is understandable without repeatedly reading full path strings.” | `local_code` | `ready` | WPM8-continuous-review, WPM8-no-full-binding, WPM8-stale-response-safety | The [Milestone 9 folder UX](windows-post-mvp-ux-plan.md#milestone-9---folder-intelligence-and-windows-exploration) is specified; no implementation acceptance slice is recorded | Agent-local implementation | Refine and implement one bounded side-by-side folder-location presentation using immutable paged data. | Focused Core/STA tests and real Debug/Release WPF smoke prove cards/path differentiation remain bounded, keyboard accessible, and understandable without full-path comparison. |
+| WPM9-explorer-responsiveness | AC2: “Explorer commands provide actionable failures and never freeze the UI.” | `local_code` | `open` | WPM9-folder-relationships | MVP reveal exists, but Milestone 9 open/open-parent/open-all/properties command acceptance is not recorded | Agent-local implementation | Define one bounded Explorer command slice with background Shell ownership and actionable error UI. | Focused Infrastructure/Core/STA tests plus real smoke prove success/failure and dispatcher responsiveness for every command admitted by that slice. |
+| WPM9-parent-grouping | AC3: “Explorer selection groups items by parent directory.” | `local_code` | `open` | WPM9-explorer-responsiveness | The criterion is specified but has no cited implementation/evidence | Agent-local implementation | Add parent-grouped multi-location selection only after the command contract exists. | Deterministic tests verify grouping and one Shell selection call per parent; real smoke verifies selection. |
+| WPM9-no-double-schedule | AC4: “Folder and file review decisions cannot silently schedule the same physical item twice.” | `accepted` | `accepted` | None | `34639a2`, `84ce3d0`, `b4a9a00`, `f73f461`, and `8b7c358` enforce effective-union de-duplication through review, preflight, intent, and batch admission | Accepted implementation/evidence | Preserve logical/physical de-duplication. | Existing storage/worker acceptance covers folder/file overlap, nested folders, and hard-link aliases without duplicate schedule entries. |
+
+### Milestone 10 — Durable Review Plans and Preference Rules
+
+| Gate ID | Criterion or decision | Disposition | State | Dependencies | Evidence | Owner/prerequisite | One bounded next action | Verifiable completion check |
+|---|---|---|---|---|---|---|---|---|
+| WPM10-restart-persistence | AC1: “Decisions survive application and worker restart.” | `accepted` | `accepted` | None | `fcf2456`, `34639a2`, `0bf209f`, `84ce3d0`; accepted real Debug/Release non-deleting smoke | Accepted implementation/evidence | Preserve durable reconstruction. | Existing storage/worker/smoke tests reconstruct manual, folder, rule, application, and reversal state. |
+| WPM10-preview-first | AC2: “Applying a rule always produces a preview first.” | `accepted` | `accepted` | None | `0bf209f`, `84ce3d0`; preview signature/revision binding and WPF confirmation | Accepted implementation/evidence | Preserve exact preview binding. | Apply rejects missing, partial, stale, or mismatched preview signatures. |
+| WPM10-order-independent-summary | AC3: “The same plan summary is obtained regardless of result-page navigation order.” | `accepted` | `accepted` | None | `fcf2456`, `34639a2`, `84ce3d0`; SQLite-owned fixed summaries and bounded page caches | Accepted automated/profile evidence | Preserve server-owned summaries. | Existing large-plan tests derive fixed summaries independently of WPF navigation. |
+| WPM10-actionable-safety | AC4: “Conflicting and unsafe decisions are blocked with actionable explanations.” | `accepted` | `accepted` | None | `fcf2456`, `34639a2`, `84ce3d0`; overlap/survivor/idempotency errors and assertive WPF surfaces | Accepted implementation/evidence | Preserve cross-kind invariants and structured errors. | Existing tests cover last-survivor, folder/file overlap, hard links, stale revisions, and rule overlap. |
+| WPM10-bounded-plan-queries | AC5: “Review-plan queries remain bounded for large plans.” | `accepted` | `accepted` | None | `fcf2456`, `34639a2`, `0bf209f`, `84ce3d0`; 100,000-set profiles and five-page caches | Accepted automated/profile evidence | Preserve page/cache and fixed-summary bounds. | Accepted optimized profiles remain within documented development-host ceilings without full materialization. |
+
+### Milestone 11 — Preflight and Recycle Bin Execution
+
+| Gate ID | Criterion or decision | Disposition | State | Dependencies | Evidence | Owner/prerequisite | One bounded next action | Verifiable completion check |
+|---|---|---|---|---|---|---|---|---|
+| WPM11-stale-target-safety | AC1: “A stale or changed target cannot be recycled from historical data alone.” | `blocked` | `blocked` | WPM11-provider-no-hydration, WPM11-shell-toctou-decision, WPM11-production-wiring | `b4a9a00`, `8b7c358` implement preflight/fresh admission/PreDelete checks; residual Shell interval and production path remain unaccepted | Product/safety review plus qualifying evidence | After prerequisite decisions/evidence, verify the enabled path cannot bypass current admission. | Accepted end-to-end operator record covers changed/path-swapped/provider targets and no historical-only submission. |
+| WPM11-folder-drift-block | AC2: “Folder deletion is blocked when its current tree differs from the verified scan tree.” | `accepted` | `accepted` | None | `b4a9a00`, `8b7c358`; full-tree preflight/admission tests and opt-in disposable exact-folder pass | Accepted implementation/evidence | Preserve full-tree revalidation and isolated folder batches. | Existing tests block added/removed/renamed/changed/type/reparse descendants before Shell. |
+| WPM11-durable-outcomes | AC3: “Per-item success, failure, cancellation, and unknown outcomes are durable.” | `accepted` | `accepted` | None | `f73f461`, `8b7c358`, `a16626a`, and read-only recovery commits `b5e6eae`–`c34eebb` | Accepted storage/protocol/real-local evidence | Preserve append-safe results and bounded reconstruction. | Existing migration/replay/restart tests and local positive/locked/cancel evidence reconstruct every outcome class. |
+| WPM11-crash-reconciliation | AC4: “Crash recovery can reconcile prepared, executing, completed, partially completed, and unknown operations.” | `blocked` | `blocked` | WPM11-ambiguous-start, WPM11-recovery-workflow, WPM11-production-wiring | `f73f461` plus `b5e6eae`–`c34eebb` preserve/reconstruct ambiguity but explicitly do not resolve it | Product/safety reviewer and recovery operator | Accept a recovery workflow, implement it without replay/inference, then run controlled process-loss acceptance. | Restart evidence covers every named state and an accepted workflow resolves or explicitly preserves every unknown without replay. |
+| WPM11-no-permanent-delete | AC5: “No permanent-delete path is reachable from the Windows app.” | `accepted` | `accepted` | None | `f73f461`, `8b7c358`, `a16626a`; recycle-only flags, no fallback, disabled production injection, `CanSubmit:false` | Accepted architecture/test evidence | Preserve every Recycle Bin-only boundary. | Flag/composition/UI tests prove no permanent-delete API or fallback is reachable. |
+| WPM11-local-capability | Positive Recycle Bin capability across each supported fixed/removable filesystem. | `operator_evidence` | `blocked` | Representative supported-filesystem fixtures | Local development-host pass only in the [acceptance matrix](windows-recycle-bin-acceptance.md#acceptance-matrix) | Windows/filesystem operator | Repeat non-opening classification and `SHQueryRecycleBinW` evidence on the supported matrix. | Reviewed artifacts identify each filesystem/build and record positive capability without mutation fallback. |
+| WPM11-callback-abort | Real success callback/finish/outer/abort behavior across supported builds/filesystems. | `operator_evidence` | `blocked` | WPM11-local-capability; supported-build fixtures | Local development-host pass only; deterministic adapter cannot close this gate | Windows operator | Run disposable positive campaigns on the supported matrix. | Evidence records callback order, recycled item, finish/outer HRESULTs, and abort flag for each supported case. |
+| WPM11-cancellation-evidence | Delayed/current-item and provider cancellation observations. | `operator_evidence` | `blocked` | WPM11-callback-abort; controllable provider/STA timing fixture | Queued and local `PreDeleteItem` cancellation exist; broader operator row is open | Windows/provider operator | Run one reviewed cancellation campaign at each documented boundary. | Evidence distinguishes pre-start, current Shell, between-batch, provider, source/survivor, and Recycle Bin outcomes. |
+| WPM11-locked-evidence | Locked/sharing-violation behavior across supported filesystems/providers. | `operator_evidence` | `blocked` | WPM11-local-capability; disposable lock fixtures | Local `0x80270027` pass only | Windows/provider operator | Repeat the locked-source campaign on the supported matrix. | Reviewed artifacts retain numeric HRESULTs and unchanged source/survivor evidence. |
+| WPM11-access-denied | Controlled access-denied/elevation outcome. | `operator_evidence` | `blocked` | Disposable reversible ACL fixture and operator authority | Stable mappings only; campaign is open | Windows security/operator | Run the documented reversible ACL campaign. | Evidence shows expected stable mapping, unchanged source bytes/identity, and restored ACL. |
+| WPM11-root-disconnect | Controlled removable/mapped/provider disconnect after durable begin. | `operator_evidence` | `blocked` | Non-production root with prior positive capability and controlled disconnect | Stable mappings only; campaign is open | Hardware/provider operator | Run the documented disconnect campaign after durable begin. | Evidence retains callback/HRESULT/abort/source/survivor/Recycle Bin state with no fallback. |
+| WPM11-capacity | Controlled capacity/oversized-item outcome. | `operator_evidence` | `blocked` | Disposable volume/account with safe capacity constraint | Stable mappings only; campaign is open | Windows operator | Run the documented capacity campaign without filling the system drive. | Evidence shows stable capacity mapping, intact source, no prompt, and no permanent fallback. |
+| WPM11-provider-outcomes | Real provider unavailable/failure/paused HRESULT outcomes. | `operator_evidence` | `blocked` | Provider-owned disposable locally available files | Stable mappings only; campaign is open | Provider operator | Run separately reviewed provider outcome campaigns. | Evidence records real HRESULT/callback/abort state without submitting an offline placeholder. |
+| WPM11-provider-no-hydration | Real-provider capability inspection causes no hydration or provider transfer. | `operator_evidence` | `blocked` | Registered provider, explicit local/offline fixtures, quiescent provider | Collector/test exist; no qualifying provider fixture was available | Provider operator | Run `-RunProviderNoHydration` with explicit fixtures. | Before/after attributes/allocation/time/process set/counters match and offline allocation remains zero. |
+| WPM11-shell-toctou-evidence | Controlled path swap inside the residual Shell interval. | `operator_evidence` | `blocked` | Disposable deterministic path-swap harness/fixture | Admission and `PreDeleteItem` checks exist; physical interval is open | Windows safety operator | Run a reviewed path-swap campaign without weakening identity checks. | Evidence records whether Shell mutates the admitted identity and preserves all ambiguous evidence. |
+| WPM11-shell-toctou-decision | Decide whether to accept, further mitigate, or block production on the residual Shell TOCTOU risk. Recommendation: keep production blocked unless controlled evidence supports an explicitly documented residual-risk acceptance; added mitigation improves assurance but may require a different native execution design. | `design_decision` | `blocked` | WPM11-shell-toctou-evidence | Risk is explicit in the second-slice design; no reviewed disposition exists | Product/safety reviewer | Review the controlled evidence and select acceptance, mitigation, or prohibition. | Committed decision states the residual interval, supported evidence, compensating controls, and production consequence. |
+| WPM11-ambiguous-start | Controlled process loss after durable `shell_started` plus physical source/Recycle Bin inspection. | `operator_evidence` | `blocked` | Disposable test host and permission to preserve v10 DB/logs | State-machine/non-retry tests exist; physical process-loss campaign is open | Recovery operator | Run the documented process-loss campaign without killing Explorer/provider/worker DB. | Restart shows `recovery_required`, no replay occurs, and physical observations plus preserved evidence are reviewed. |
+| WPM11-large-plan | Representative large-plan operation timing, memory, paging, and cancellation evidence. | `operator_evidence` | `blocked` | Representative hardware and disposable admitted large plan | Bounded caches/32-entry tests exist; no representative operation profile exists | Performance/operator owner | Run the metric set specified in [Performance and constants](windows-recycle-bin-acceptance.md#performance-and-constants). | Reviewed artifact contains every required time, p50/p95/max, memory, cancellation, plan-shape, and filesystem/provider metric. |
+| WPM11-operation-accessibility | Physical accessibility acceptance for confirmation, progress, cancellation, partial/unknown, and recovery states. | `operator_evidence` | `blocked` | Interactive AT/high-contrast/multi-monitor environment; production-like disposable operation surface | Automated Core/STA contract exists; no physical pass | Accessibility/operator owner | Run the documented Narrator, NVDA, high-contrast, and 100/150/200% workflow. | Reviewed notes cover wording, focus, announcement order/coalescing, clipping, popup placement, and keyboard-only access. |
+| WPM11-constants | Decide final five-minute preflight, 60-second confirmation, 30-second admission, and 32-entry batch bounds. Recommendation: keep current bounds unless representative evidence supports tightening; loosening requires a versioned freshness-policy safety review. | `design_decision` | `blocked` | WPM11-large-plan, WPM11-operation-accessibility | Automated enforcement exists; usability/representative evidence is missing | Product/safety/performance reviewer | Review representative timing and comprehension evidence and approve exact constants. | Committed decision cites measurements, operator comprehension, version, and any compatible tightening or reviewed loosening. |
+| WPM11-add-undo-record | Decide whether `FOFX_ADDUNDORECORD` remains omitted. Recommendation: keep it omitted unless cross-build positive/partial/cancelled/ambiguous/provider evidence shows benefit without implying app-owned restore or erasing recovery evidence. | `design_decision` | `blocked` | WPM11-callback-abort, WPM11-cancellation-evidence, WPM11-provider-outcomes, WPM11-ambiguous-start | Exact current flag tests prove omission; no final review exists | Product/safety reviewer | Compare the required real outcomes and accept omission or addition. | Committed decision states the flag set, supported builds, UI language, and evidence-preservation rule. |
+| WPM11-recovery-workflow | Decide and specify the ambiguous-recovery resolution workflow. Recommendation: an explicit operator-assisted, evidence-preserving per-item workflow that never infers from path absence and never replays unknown work; tradeoff is higher operator burden versus unsafe automatic certainty. | `design_decision` | `ready` | WPM11-durable-outcomes | `b5e6eae`–`c34eebb` provide bounded read-only evidence handoff only; resolution is explicitly absent | Product/safety reviewer | Accept a recovery model with states, authority, evidence, actions, and non-retry rules. | Committed design names every transition/check and preserves unknown evidence, production locks, and no-replay/no-live-inference boundaries. |
+| WPM11-production-wiring | Decide and implement whether/when production may replace `DisabledRecycleOperationCapabilityExecutor`, expose submission, and report `executorEnabled:true`. | `blocked` | `blocked` | WPM8-representative-query-performance, WPM8-narrator-nvda, WPM8-high-contrast, WPM8-multi-monitor-dpi, WPM11-local-capability, WPM11-callback-abort, WPM11-cancellation-evidence, WPM11-locked-evidence, WPM11-access-denied, WPM11-root-disconnect, WPM11-capacity, WPM11-provider-outcomes, WPM11-provider-no-hydration, WPM11-shell-toctou-decision, WPM11-ambiguous-start, WPM11-large-plan, WPM11-operation-accessibility, WPM11-constants, WPM11-add-undo-record, WPM11-recovery-workflow, WPM14-completion-contract | Production is intentionally disabled in `f73f461`, `8b7c358`, `a16626a`; review boundary requires all prerequisites | Product/safety reviewer plus agent-local implementation after approval | When every dependency is accepted, approve and implement only the reviewed production composition/UI boundary. | Full Debug/Release matrices, disposable operator acceptance, evidence review, exact flag/constants/policy decision, `executorEnabled:true`, enabled submission, and no permanent-delete/no-hydration regression all pass. |
+
+### Milestone 12 — Live Reconciliation and External Filesystem Changes
+
+| Gate ID | Criterion or decision | Disposition | State | Dependencies | Evidence | Owner/prerequisite | One bounded next action | Verifiable completion check |
+|---|---|---|---|---|---|---|---|---|
+| WPM12-in-app-reconciliation | AC1: “In-app removals update working lists and summaries without a complete rescan.” | `blocked` | `blocked` | WPM11-production-wiring | The [Milestone 12 plan](windows-post-mvp-ux-plan.md#milestone-12---live-reconciliation-and-external-filesystem-changes) is design only; Milestone 11 writes no live state | Agent-local after production outcome authority exists | Apply known durable operation outcomes to a separate live-state overlay. | Tests/smoke show in-app outcomes update working counts/Resolved while immutable scan queries remain unchanged. |
+| WPM12-external-invalidation | AC2: “External deletion and modification invalidate affected review decisions.” | `local_code` | `ready` | WPM10-restart-persistence, WPM10-actionable-safety | Required behavior is specified; no live overlay is implemented | Agent-local implementation | Design and implement the first bounded selection/visible-page validation overlay without filesystem watchers. | Disposable tests show external deletion/modification invalidates working decisions without rewriting history or touching excluded placeholders. |
+| WPM12-watcher-overflow | AC3: “Watcher overflow results in a visible dirty/reconciliation state, never silent trust.” | `local_code` | `ready` | WPM10-restart-persistence | Required behavior and fallback are specified; no implementation acceptance exists | Agent-local implementation | Define the bounded dirty-root state and overflow protocol before adding watcher optimization. | Injected overflow tests and WPF smoke show a durable/visible dirty state and bounded reconciliation request. |
+| WPM12-event-coalescing | AC4: “Mass changes do not generate one WPF dispatcher update per filesystem event.” | `local_code` | `ready` | WPM10-bounded-plan-queries | At-most-10-per-second guardrail is specified; no reconciliation channel exists | Agent-local implementation | Design bounded worker batching/coalescing for live-state notifications. | Load tests prove bounded frames/cache and at most ten UI updates per second under mass events. |
+| WPM12-history-reproducibility | AC5: “Historical-run queries remain reproducible regardless of live state.” | `local_code` | `open` | WPM12-in-app-reconciliation, WPM12-external-invalidation, WPM12-watcher-overflow, WPM12-event-coalescing | Immutable-run architecture is accepted, but no live overlay exists to verify separation against | Agent-local implementation | Add cross-overlay regression coverage as each live-state mutation path lands. | Full tests show original-scan queries are byte-for-byte stable across every accepted live-state transition and restart. |
+
+### Milestone 13 — Activity and Issues Workspace
+
+| Gate ID | Criterion or decision | Disposition | State | Dependencies | Evidence | Owner/prerequisite | One bounded next action | Verifiable completion check |
+|---|---|---|---|---|---|---|---|---|
+| WPM13-warning-drilldown | AC1: “Every run warning count is drillable or explicitly represented by an aggregate with examples.” | `local_code` | `ready` | WPM7-exclusion-explanation | `run_exclusion.page` is an accepted early hook; the plan says `warning.page` is not implemented | Agent-local implementation | Refine and implement one bounded run-warning/event persistence and page slice. | Storage/protocol/Core/WPF tests plus smoke drill from the run warning count to bounded rows/aggregates with examples. |
+| WPM13-action-navigation | AC2: “An actionable event navigates to the relevant item, duplicate set, plan, or session setting.” | `local_code` | `open` | WPM13-warning-drilldown, WPM9-folder-relationships, WPM10-restart-persistence, WPM12-external-invalidation | Activity UX is specified; no accepted workspace exists | Agent-local implementation | Add actions incrementally only for event categories with stable target IDs. | Tests/smoke prove each exposed action reaches its immutable or working target and reports stale/missing targets actionably. |
+| WPM13-bounded-memory | AC3: “Activity memory use is independent of total event count.” | `local_code` | `ready` | WPM7-exclusion-explanation | Worker paging/batching/cache rules are specified; no full event model exists | Agent-local implementation | Bind the first event slice to keyset paging, bounded inserts, and a fixed Core cache. | 100,000-event Release fixture proves stable pages/sorts, bounded memory, and no full WPF collection. |
+| WPM13-outcome-audit | AC4: “Deletion and reconciliation outcomes can be audited after restart.” | `blocked` | `blocked` | WPM11-crash-reconciliation, WPM12-history-reproducibility, WPM13-warning-drilldown | Durable operation evidence exists; live reconciliation and Activity projection do not | Agent-local after prerequisites | Project durable operation/live-state outcomes into restart-safe Activity without rewriting source records. | Restart smoke accounts for success/failure/cancel/unknown and external reconciliation through stable event/source IDs. |
+
+### Milestone 14 — UX and Scale Hardening
+
+| Gate ID | Criterion or decision | Disposition | State | Dependencies | Evidence | Owner/prerequisite | One bounded next action | Verifiable completion check |
+|---|---|---|---|---|---|---|---|---|
+| WPM14-keyboard-workflow | AC1: “The full workflow is usable without a mouse.” | `blocked` | `blocked` | WPM9-folder-relationships, WPM9-explorer-responsiveness, WPM9-parent-grouping, WPM11-production-wiring, WPM12-history-reproducibility, WPM13-outcome-audit, WPM8-narrator-nvda, WPM11-operation-accessibility | Earlier automated keyboard evidence is partial; later workflows do not exist/are disabled | Accessibility/operator owner | After required workflow gates land, run one end-to-end keyboard-only acceptance. | Accepted operator record completes scan/review/rule/preflight/delete/reconcile/Activity/recovery without a mouse or inaccessible action. |
+| WPM14-state-coherence | AC2: “UI state remains coherent through cancellation, partial failure, worker restart, and drive loss.” | `blocked` | `blocked` | WPM11-crash-reconciliation, WPM11-root-disconnect, WPM12-history-reproducibility, WPM13-outcome-audit | Component contracts exist, but production mutation/reconciliation/Activity end-to-end evidence is missing | Operator plus agent-local fixes if defects reproduce | Run the named failure-state matrix only after dependent workflows exist. | Reviewed matrix shows coherent focus/state/action availability and durable reconstruction for every named transition. |
+| WPM14-bounded-scale | AC3: “Performance remains bounded for 100,000 duplicate groups, large member sets, large review plans, and large Activity histories.” | `blocked` | `blocked` | WPM8-representative-query-performance, WPM10-bounded-plan-queries, WPM11-large-plan, WPM13-bounded-memory | Development-host regressions exist; representative query, operation, and Activity evidence remain incomplete | Performance/operator owner | Run the combined Release evidence matrix after all component gates accept. | Reviewed artifacts satisfy unchanged query/cache/update bounds for every named scale dimension without retry-only passes. |
+| WPM14-cloud-end-to-end | AC4: “Cloud-safe behavior remains true for scan, review, preview, validation, and deletion.” | `blocked` | `blocked` | WPM7-no-hydration, WPM7-opt-in-policy-scope, WPM11-provider-no-hydration, WPM11-provider-outcomes, WPM11-production-wiring, WPM12-history-reproducibility | Scan exclusion is accepted; review is read-only, but production validation/deletion evidence is open | Provider/operator owner | After scope and production prerequisites, run one end-to-end explicit-fixture cloud-safety campaign. | Evidence shows no excluded-placeholder content access/hydration/transfer at every named phase and no unsupported provider mutation. |
+| WPM14-required-scope | Decide required versus optional Milestone 14 scope. Recommendation: require keyboard/accessibility; complete state refinement; query instrumentation; Release large-result/operation/Activity fixtures; and cloud-safety hardening because they directly verify AC1-AC4. Recommend saved filters/profiles, export, run-to-run deltas, and cache-only thumbnails as follow-ons; requiring them expands product value but is not necessary to prove the four acceptance bullets. | `design_decision` | `ready` | None | All nine scope bullets and four acceptance bullets are listed in the [Milestone 14 plan](windows-post-mvp-ux-plan.md#milestone-14---ux-and-scale-hardening); no reviewed split exists | Product reviewer | Accept or revise the required/follow-on mapping. | Committed decision maps each scope bullet; excluded items become `deferred` only with this cited review, and required items have gate dependencies. |
+| WPM14-completion-contract | Decide whether roadmap completion means code complete, operator accepted, or production enabled. Recommendation: operator accepted **and** production enabled for all required workflows; code complete remains an interim status. | `design_decision` | `ready` | None | Current documents distinguish implemented code, evidence acceptance, and disabled production but do not select one final meaning | Product/safety reviewer | Accept one completion meaning and its production/evidence consequences. | Committed decision updates this ledger, post-MVP plan, handoff, ROADMAP, and eventually AGENTS when every required gate meets the chosen contract. |
+
+## Milestone reconciliation
+
+| Milestone | Reconciled current status | Required completion meaning | Remaining gates | Disposition |
 |---:|---|---|---|---|
-| 7 | _Populate_ | _Populate_ | _Populate_ | _Populate_ |
-| 8 | _Populate_ | _Populate_ | _Populate_ | _Populate_ |
-| 9 | _Populate_ | _Populate_ | _Populate_ | _Populate_ |
-| 10 | _Populate_ | _Populate_ | _Populate_ | _Populate_ |
-| 11 | _Populate_ | _Populate_ | _Populate_ | _Populate_ |
-| 12 | _Populate_ | _Populate_ | _Populate_ | _Populate_ |
-| 13 | _Populate_ | _Populate_ | _Populate_ | _Populate_ |
-| 14 | _Populate_ | _Populate_ | _Populate_ | _Populate_ |
+| 7 | Fail-closed policy accepted; opt-in policies unavailable. | Accepted fail-closed surface plus reviewed opt-in scope. | WPM7-opt-in-policy-scope | No opt-in policy is deferred until the reviewer accepts that decision. |
+| 8 | Read-only implementation accepted; independent query and physical accessibility evidence remains open. | Code-complete read-only criteria plus representative performance and physical operator acceptance. | WPM8-representative-query-performance, WPM8-narrator-nvda, WPM8-high-contrast, WPM8-multi-monitor-dpi | Additional rich filters are reviewed optional work, not uncovered criteria. |
+| 9 | Planned/not started except accepted file/folder physical de-duplication. | Implementation and automated/real-smoke acceptance of AC1-AC4. | WPM9-folder-relationships, WPM9-explorer-responsiveness, WPM9-parent-grouping | The previous unstated status is now explicit; three criteria are uncovered. |
+| 10 | All four implementation slices and all five acceptance criteria accepted. | Code complete and accepted non-deleting review workflow. | None | No uncovered criterion remains; richer rule kinds in narrative scope are not acceptance requirements. |
+| 11 | Preflight, durable operation contract, gated native executor, evidence tooling, and read-only recovery are implemented; production execution is disabled. | Implementation **plus** physical/provider/performance evidence, reviewed constants/Undo/TOCTOU/recovery policy, and production enablement if the recommended completion contract is accepted. | All non-accepted WPM11 gates | Code-complete components do not imply evidence acceptance, recovery resolution, or production enablement. |
+| 12 | Planned/not implemented. | Accepted live-state overlay/reconciliation while immutable history remains reproducible. | WPM12-in-app-reconciliation through WPM12-history-reproducibility | External validation, dirty-state, and coalescing work can advance before Milestone 11 production enablement. |
+| 13 | Planned/not implemented; only early exclusion/operation source records exist. | Accepted bounded Activity workspace and restart audit. | WPM13-warning-drilldown through WPM13-outcome-audit | Warning persistence/paging and bounded memory can advance independently of deletion/reconciliation completion. |
+| 14 | Planned; required/optional split and completion meaning unresolved. | The reviewed closure contract. | WPM14-keyboard-workflow through WPM14-completion-contract | Nothing is deferred until WPM14-required-scope is reviewed. |
 
 ## Dependency-ordered queue
 
-After populating the ledger, list only ready or externally blocked work in dependency order. The
-first ready row becomes the only gate authorized by the next session handoff.
+Only the first row is authorized for the next session. Other `ready` gates are explicit independent
+lanes, not substitute work under that authorization.
 
-| Order | Gate ID or coherent gate group | Why it is next | Required verifier or prerequisite |
-|---:|---|---|---|
-| 1 | _Populate_ | _Populate_ | _Populate_ |
+| Order | Lane | Gate or coherent group | Dependency status | Next action and verifier |
+|---:|---|---|---|---|
+| 1 | Design decisions — **first authorized group** | WPM7-opt-in-policy-scope + WPM14-required-scope + WPM14-completion-contract | All dependencies satisfied; same product/safety reviewer and one roadmap-scope verifier | Review the three recommendations and commit the decisions. Verifier: each gate becomes `accepted` or produces named required gates; any exclusion becomes `deferred` only with the cited decision. Non-goals: no product code/tests, provider/physical/performance campaign, Recycle Bin wiring, or recovery-design decision. |
+| 2 | Agent-local audits | None ready | The closure bootstrap is accepted; the open-ended Milestone 11 recovery audit is `locally_exhausted` | Do not repeat either audit until the anti-spin record's named reopen condition occurs. |
+| 3 | Design decisions | WPM11-recovery-workflow | Durable read-only outcome evidence accepted | Review and commit an evidence-preserving, no-replay/no-live-inference recovery design. |
+| 4 | Local implementation | WPM9-folder-relationships | M8 bounded read-only dependencies accepted | Refine and implement the bounded folder-card/location presentation; do not add Explorer expansion, thumbnails, review mutation, or deletion. |
+| 5 | Local implementation | WPM12-external-invalidation + WPM12-watcher-overflow + WPM12-event-coalescing | M10 review foundations accepted; independent of production deletion | Advance one explicitly selected gate only, with disposable validation/overflow/load tests and immutable-history non-goals. |
+| 6 | Local implementation | WPM13-warning-drilldown + WPM13-bounded-memory | M7 exclusion records accepted; independent of M11/M12 completion | Implement a bounded first Activity event slice and 100,000-event verifier without pulling deletion/reconciliation categories forward. |
+| 7 | Operator/provider/hardware evidence | WPM8-representative-query-performance; WPM8-narrator-nvda; WPM8-high-contrast; WPM8-multi-monitor-dpi; WPM11-local-capability through WPM11-operation-accessibility | Blocked on the exact fixtures/operators/hardware named in each row | Run only a separately authorized campaign with qualifying prerequisites and retain failures. |
+| 8 | Blocked local/production work | WPM11-stale-target-safety; WPM11-crash-reconciliation; WPM11-production-wiring; WPM12-in-app-reconciliation; WPM13-outcome-audit; WPM14 AC gates | One or more evidence, design, or earlier implementation dependencies remain unaccepted | Do not implement or enable until every listed dependency accepts. |
+
+### Critical path
+
+Assuming the recommended production-enabled completion contract, the critical path is:
+
+`roadmap scope/completion decisions` → `Milestone 8 representative/physical evidence` →
+`Milestone 11 physical/provider/performance campaigns` → `TOCTOU/constants/Undo/recovery decisions`
+→ `Milestone 11 production wiring and operator acceptance` → `Milestone 12 in-app reconciliation`
+→ `Milestone 13 deletion/reconciliation audit` → `Milestone 14 end-to-end keyboard/state/scale/cloud
+acceptance`.
+
+### Independent lanes while external prerequisites are unavailable
+
+- Milestone 9 folder relationship and Explorer work can advance from the accepted bounded
+  read-only foundation.
+- Milestone 12 external deletion/modification validation, dirty/overflow state, and notification
+  coalescing can advance without production Recycle Bin execution.
+- Milestone 13 run-warning persistence/paging and bounded Activity memory can advance from existing
+  run exclusions without claiming deletion or reconciliation categories.
+- The Milestone 11 recovery-workflow design can advance from durable read-only evidence without a
+  provider, representative hardware, or production executor wiring.
 
 ## Audit and anti-spin record
 
-For each bounded audit that finds no local work, record the gate, inspected evidence, date, and
-`locally_exhausted` conclusion. Do not repeat the audit until named new evidence, code, or a reviewed
-decision changes its boundary.
-
-| Date | Gate ID | Evidence inspected | Conclusion | Reopen condition |
+| Date | Gate | Evidence inspected | Conclusion | Reopen condition |
 |---|---|---|---|---|
+| 2026-08-23 | WPM8-optional-rich-filters | Milestone 8 status, closure audit, five acceptance bullets, `5188dcc` | `accepted`: file-type and boundary-aware path modes are optional and are not uncovered acceptance criteria. | A reviewed scope change adds them to the required contract. |
+| 2026-08-23 | WPM10-restart-persistence through WPM10-bounded-plan-queries | Four accepted slice results, iteration log, commits `fcf2456`, `34639a2`, `0bf209f`, `84ce3d0` | `accepted`: all five criteria are covered; no local Milestone 10 gap is authorized. | A reproducible regression or reviewed new criterion appears. |
+| 2026-08-23 | Milestone 9 status | Milestone text, iteration log, Git history | Three criteria remain uncovered; only WPM9-no-double-schedule has qualifying later-milestone evidence. | An implementation/evidence commit closes a named WPM9 gate. |
+| 2026-08-23 | Milestone 11 read-only recovery surface | `b5e6eae`–`c34eebb`, acceptance guide, handoff | `locally_exhausted` for open-ended recovery edge-case search; remaining work is the named design/evidence/production gates above. | New evidence, a reviewed recovery design, or a reproducible defect changes the boundary. |
 
 ## Decision log
 
-| Date | Gate ID(s) | Decision or evidence accepted | Resulting next gate |
+| Date | Gate(s) | Decision or evidence accepted | Resulting next gate |
 |---|---|---|---|
+| 2026-08-23 | All ledger rows | Accepted the finite criterion/decision inventory and reconciled milestone statuses; no open gate was inferred passed or deferred. | WPM7-opt-in-policy-scope + WPM14-required-scope + WPM14-completion-contract |

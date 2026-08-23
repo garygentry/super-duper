@@ -3,21 +3,18 @@
 ## Status
 
 Active implementation roadmap for the Windows duplicate-review experience. Milestone 6
-release-acceptance remediation and the fail-closed Milestone 7 slice are complete. The first twelve
-read-only Milestone 8 slices and the first eight bounded accessibility-remediation slices are
-implemented and accepted; the broader milestone remains in progress and is gated by the remaining
-criteria below. The first four Milestone 10 slices are accepted: durable manual file decisions,
-durable manual exact-folder decisions, the read-only ordered preferred scan-root rule preview, and
-bounded ordered-rule application/reversal provenance. The first bounded Milestone 11 preflight
-slice is also accepted. The second Milestone 11 slice now has a refined revision-bound Recycle Bin
-operation design, its strictly non-mutating foundation, and a separately gated real Windows
-executor. Schema v10, bounded protocol/Core contracts, restart evidence, read-only WPF
-reconstruction, and explicit disposable Shell acceptance exist. Production still injects the
-disabled executor and exposes no action; provider/physical/performance gates, recovery resolution,
-and Milestone 12 changed/resolved working-state mutation remain unimplemented or unaccepted. A
-read-only query-plan stabilization slice reduced the duplicate-group warm baseline, but
-representative-hardware acceptance remains open because this development host still shows
-simultaneous cross-query tail-latency spikes.
+release-acceptance remediation and the fail-closed Milestone 7 slice are complete, while the two
+Milestone 7 opt-in policies remain behind an explicit scope decision. Milestone 8's read-only code
+criteria are accepted; representative query performance and physical Narrator/NVDA, high-contrast,
+and multi-monitor DPI evidence remain independent open gates. Milestone 9 is planned/not started
+except for its later-proven file/folder physical de-duplication criterion. All five Milestone 10
+acceptance criteria are accepted through the first four review/rule slices. Milestone 11 has an
+accepted preflight, durable operation contract, separately gated native executor, evidence tooling,
+and read-only recovery reconstruction, but production still injects the disabled executor and
+exposes no action. Its provider/physical/performance evidence, policy decisions, recovery
+resolution, and production-enablement gates remain open. Milestones 12 and 13 are planned/not
+implemented except for their earlier durable source-data hooks. Milestone 14 remains planned and
+its required/optional scope and final completion meaning await explicit review.
 
 This is the durable planning source for post-MVP Windows UX work. Update this document when a
 milestone is refined, split, accepted, or superseded so future coding sessions do not have to
@@ -82,20 +79,26 @@ not trigger speculative tests or continued gap mining.
   gate state, evidence paths, unresolved blockers, and the next concrete action in the ledger and
   handoff.
 
-### Closure-ledger bootstrap and roadmap completion
+### Closure ledger and roadmap completion
 
-The first control goal must populate the closure ledger without changing product code. It must map
-every acceptance criterion and still-open decision in Milestones 7-14, reconcile the currently
-unstated Milestone 9 disposition, decide whether unavailable Milestone 7 opt-in cloud policies are
-required or deferred, separate required Milestone 14 closure work from optional follow-ons, and
-define whether the completion contract means code complete, operator accepted, or production
-enabled.
+The closure ledger was populated and accepted as a finite work-control baseline on 2026-08-23
+without changing product code. It maps every acceptance criterion and still-open decision in
+Milestones 7-14, makes Milestone 9's status explicit, and separates agent-local, implementation,
+operator/provider/hardware, decision, blocked, and independently actionable lanes.
 
-The Windows post-MVP roadmap is complete only when every required ledger gate is `accepted`, every
-excluded gate has an explicit reviewed `deferred` decision, milestone statuses and authoritative
-documents agree, production safety boundaries match the accepted evidence, and no active gate is
-hidden behind a broad milestone label. At that point, update `ROADMAP.md`, this plan, the handoff,
-and the `AGENTS.md` startup instruction together.
+Three scope choices deliberately remain ready rather than silently decided:
+`WPM7-opt-in-policy-scope`, `WPM14-required-scope`, and `WPM14-completion-contract`. The ledger
+recommends treating the unavailable cloud opt-ins and non-criterion Milestone 14 enhancements as
+reviewed follow-ons, and defining completion as operator accepted and production enabled for every
+required workflow. Those recommendations are not reviewed decisions and authorize no deferral or
+production wiring.
+
+After `WPM14-completion-contract` is reviewed, the Windows post-MVP roadmap is complete only when
+every gate required by that contract is `accepted`, every excluded gate has an explicit reviewed
+`deferred` decision, milestone statuses and authoritative documents agree, production safety
+boundaries match the accepted evidence, and no active gate is hidden behind a broad milestone
+label. At that point, update `ROADMAP.md`, this plan, the handoff, and the `AGENTS.md` startup
+instruction together.
 
 ## Completed prerequisite
 
@@ -2028,6 +2031,11 @@ Milestone 10. Live-state badges, validation, and changed/resolved behavior begin
 
 ### Milestone 9 - Folder Intelligence and Windows Exploration
 
+Status: Planned/not started. Existing MVP reveal/copy behavior is a foundation, not acceptance of
+the expanded folder-presentation and Explorer criteria. Later Milestone 10/11 overlap and
+physical-target de-duplication evidence accepts only the no-double-schedule criterion. The other
+three criteria remain named local gates in the closure ledger.
+
 #### User outcome
 
 Exact duplicate folders are presented as redundant locations or trees, not merely as rows with
@@ -2070,6 +2078,12 @@ long paths.
 - Folder and file review decisions cannot silently schedule the same physical item twice.
 
 ### Milestone 10 - Durable Review Plans and Preference Rules
+
+Status: Complete and accepted for its five criteria. Durable manual file/folder decisions,
+preview-first ordered preferred-root rules, reversible application provenance, actionable safety,
+restart reconstruction, and bounded large-plan queries are covered by the four accepted slices.
+Additional rule kinds listed below are product directions, not uncovered Milestone 10 acceptance
+criteria.
 
 #### User outcome
 
@@ -2824,10 +2838,13 @@ live state, and execution state must remain distinct.
 
 ### Milestone 11 - Preflight and Recycle Bin Execution
 
-Status: The first bounded slice is implemented and accepted. The second-slice design is refined and
-its first strictly non-mutating foundation is implemented below. It adds durable operation-domain
-state and reconstruction, but deliberately exposes no scheduling, Recycle Bin/Shell mutation, real
-partial execution, recovery action, or Milestone 12 working-state mutation.
+Status: The first bounded preflight slice is accepted. The second-slice revision-bound operation
+contract, strictly non-mutating schema/protocol/Core/WPF foundation, separately gated dedicated-STA
+Windows executor, and acceptance evidence tooling are implemented. Disposable local Shell evidence
+exists, but production still injects the disabled executor and exposes no submission action.
+Provider/physical/performance campaigns, constants, Undo, residual TOCTOU, ambiguous-recovery
+resolution, and production enablement remain separate open gates. No Milestone 12 working-state
+mutation is implemented.
 
 #### Refined first-slice implementation plan (2026-08-20)
 
@@ -3453,6 +3470,10 @@ that Windows will place eligible items in the Recycle Bin.
 
 ### Milestone 12 - Live Reconciliation and External Filesystem Changes
 
+Status: Planned/not implemented. In-app outcome application is blocked on the Milestone 11
+production boundary. External deletion/modification validation, dirty/overflow state, and bounded
+notification coalescing are independently actionable and must preserve immutable historical runs.
+
 #### User outcome
 
 The working results stay understandable after in-app deletion, Explorer deletion, rename, file
@@ -3509,6 +3530,10 @@ the immutable snapshot with the latest validated live state.
 ## Wave 3 - Explain What Happened
 
 ### Milestone 13 - Activity and Issues Workspace
+
+Status: Planned/not implemented. Run-exclusion rows and durable operation records are source-data
+hooks, not an accepted Activity workspace. Bounded warning persistence/paging and Activity memory
+can advance independently; deletion/reconciliation audit remains blocked on Milestones 11 and 12.
 
 #### User outcome
 
@@ -3578,6 +3603,11 @@ Milestone 13 delivers the complete user-facing Activity experience.
 
 ### Milestone 14 - UX and Scale Hardening
 
+Status: Planned. The four acceptance criteria remain open. The required/follow-on split for the
+nine scope bullets and whether roadmap completion means code complete, operator accepted, or
+production enabled are explicit ready design-decision gates; no scope item is deferred without
+their reviewed decision.
+
 #### Scope
 
 - Complete keyboard-only review and deletion workflows.
@@ -3646,23 +3676,17 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Populate and accept `windows-roadmap-closure-ledger.md` before selecting another product-code slice.
-This is a documentation and repository-audit goal: it must not change production code, add
-speculative tests, run physical/provider/performance campaigns, enable Recycle Bin execution, or
-claim that an open evidence gate passed. The ledger must expose the dependency-ordered critical
-path and identify which independent work can advance while operator or hardware prerequisites are
-unavailable.
+Advance exactly one coherent ready design-decision group:
+`WPM7-opt-in-policy-scope` + `WPM14-required-scope` + `WPM14-completion-contract`. Their dependencies
+are satisfied, they share the same product/safety review boundary, and their verifier is one
+committed decision update that either accepts each recommendation or adds the exact required gates.
+No exclusion becomes `deferred` without that review.
 
-After the ledger is accepted, choose the first ready gate rather than resuming open-ended Milestone
-11 gap discovery. Keep the remaining physical Narrator/NVDA, high-contrast, multi-monitor DPI, and
-representative-hardware Milestone 8 procedures operator-gated. Use the Recycle Bin evidence
-collector only for a named ready campaign with qualifying prerequisites. Decide
-`FOFX_ADDUNDORECORD`, provisional constants, residual TOCTOU, and ambiguous recovery only through
-their named decision gates. Do not expose **Move to Recycle Bin now** or replace
-`executorEnabled:false` until every production-enablement dependency is accepted. Keep Milestone 12
-changed/resolved mutation separate, and preserve rule configuration, application provenance,
-manual review state, preflight observations, operation state, and immutable scan history as
-distinct sources of truth.
+Non-goals for that slice are product code/tests, the separate `WPM11-recovery-workflow` decision,
+physical/provider/performance campaigns, Recycle Bin production wiring, and any change to
+`CanSubmit:false`, `DisabledRecycleOperationCapabilityExecutor`, or `executorEnabled:false`. Other
+ready independent lanes in Milestones 9, 12, and 13 remain visible in the ledger but are not
+substitute work under this authorization.
 
 ## Milestone Definition Template
 
@@ -3746,3 +3770,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-22 | Announced a successful empty read-only Recycle Bin operation reconstruction. | Distinguish a completed read with no stored operation intent from a load failure through the existing polite completion channel, without exposing retry, execution, filesystem inspection, replay, recovery resolution, or changing any physical/provider/performance/design gate. |
 | 2026-08-22 | Covered an exact operation-summary retry that resolves to no stored Recycle Bin intent. | Prove the valid empty completion replaces the prior load failure, clears its assertive payload without another error notification, and removes retry/navigation affordances without enabling execution, filesystem inspection, replay, or recovery resolution. |
 | 2026-08-23 | Replaced open-ended next-slice discovery with a finite gate-ledger execution model and explicit anti-spin rules. | Populate the closure ledger for Milestones 7-14 without product-code changes, reconcile scope/status ambiguities, then authorize future goals only against named ready gates. |
+| 2026-08-23 | Populated and accepted the 37-criterion Milestone 7-14 closure inventory, reconciled Milestone 9 and the implementation/evidence/production boundaries, and separated the critical path from independent lanes. | Keep ambiguous scope as reviewed decision gates rather than inferred deferrals; authorize only the coherent Milestone 7/14 scope-and-completion decision group next, with all product code, campaigns, recovery design, and Recycle Bin wiring out of scope. |
