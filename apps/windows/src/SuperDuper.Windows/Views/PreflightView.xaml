@@ -205,7 +205,7 @@
                                Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}" />
                     <Button Margin="0,8,0,0" Padding="12,6" HorizontalAlignment="Left"
                             AutomationProperties.AutomationId="RecycleOperationRetryPageButton"
-                            AutomationProperties.Name="Retry loading the same Recycle Bin operation details page; this does not retry the operation"
+                            AutomationProperties.Name="Retry loading the same Recycle Bin operation details request; this does not retry the operation"
                             Command="{Binding RetryPageCommand}"
                             Content="Retry loading operation details"
                             Visibility="{Binding CanRetryPage, Converter={StaticResource BooleanToVisibilityConverter}}" />

@@ -378,6 +378,95 @@ public sealed class RecycleOperationViewModelTests
     }
 
     [TestMethod]
+    public async Task FailedOperationReconstructionCanRetryTheSameReadOnlyRunRequest()
+    {
+        var worker = CreatePagedRecoveryWorker();
+        var operationCalls = 0;
+        worker.LatestRecycleOperationHandler = (_, _) =>
+        {
+            operationCalls++;
+            if (operationCalls == 1)
+            {
+                throw new InvalidOperationException("The Recycle Bin operation summary is unavailable.");
+            }
+            return Task.FromResult<WorkerRecycleOperation?>(
+                TestWorkerClient.CreateRecycleOperation(8, 12, 7, 4) with
+                {
+                    Status = "recovery_required",
+                    UnknownCount = 101,
+                });
+        };
+        using var viewModel = new RecycleOperationViewModel(worker, new DisabledCapability());
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        Assert.IsNull(viewModel.Operation);
+        Assert.AreEqual(0, viewModel.Items.Count);
+        StringAssert.Contains(viewModel.ErrorMessage, "operation summary is unavailable");
+        StringAssert.Contains(viewModel.ErrorAnnouncement, "operation error");
+        var errorAnnouncementVersion = viewModel.ErrorAnnouncementVersion;
+        Assert.IsTrue(viewModel.CanRetryPage);
+        Assert.IsFalse(viewModel.CanMoveNext);
+        Assert.IsFalse(viewModel.CanMovePrevious);
+
+        await viewModel.RetryPageCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(2, operationCalls);
+        Assert.AreEqual(8, viewModel.Operation?.Id);
+        Assert.AreEqual(100, viewModel.Items.Count);
+        StringAssert.Contains(viewModel.Announcement, "operation reconstructed");
+        StringAssert.Contains(viewModel.Announcement, viewModel.PageStatus);
+        Assert.IsFalse(viewModel.HasError);
+        Assert.AreEqual(string.Empty, viewModel.ErrorAnnouncement);
+        Assert.AreEqual(errorAnnouncementVersion, viewModel.ErrorAnnouncementVersion,
+            "Clearing stale error text must not publish another assertive notification.");
+        Assert.IsFalse(viewModel.CanRetryPage);
+        Assert.IsTrue(viewModel.CanMoveNext);
+    }
+
+    [TestMethod]
+    public async Task RetriedOperationReconstructionCannotReplaceANewerRunContext()
+    {
+        var worker = CreatePagedRecoveryWorker();
+        var retry = new TaskCompletionSource<WorkerRecycleOperation?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var run12Calls = 0;
+        worker.LatestRecycleOperationHandler = (runId, _) =>
+        {
+            if (runId == 12)
+            {
+                run12Calls++;
+                if (run12Calls == 1)
+                {
+                    throw new InvalidOperationException("The Recycle Bin operation summary is unavailable.");
+                }
+                return retry.Task;
+            }
+            return Task.FromResult<WorkerRecycleOperation?>(
+                TestWorkerClient.CreateRecycleOperation(13, runId, 7, 4));
+        };
+        using var viewModel = new RecycleOperationViewModel(worker, new DisabledCapability());
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var staleRetry = viewModel.RetryPageCommand.ExecuteAsync(null);
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            13, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var replacementAnnouncement = viewModel.Announcement;
+        var replacementAnnouncementVersion = viewModel.AnnouncementVersion;
+        retry.SetResult(TestWorkerClient.CreateRecycleOperation(8, 12, 7, 4));
+        await staleRetry;
+
+        Assert.AreEqual(13, viewModel.Operation?.Id);
+        Assert.AreEqual(replacementAnnouncement, viewModel.Announcement);
+        Assert.AreEqual(replacementAnnouncementVersion, viewModel.AnnouncementVersion,
+            "The stale retry must remain silent after the selected run changes.");
+        Assert.IsFalse(viewModel.CanRetryPage);
+    }
+
+    [TestMethod]
     public async Task FailedPreviousPageAfterCacheEvictionPreservesCommittedPageAndCanRetry()
     {
         var worker = CreatePagedRecoveryWorker();

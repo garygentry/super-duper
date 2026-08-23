@@ -20,6 +20,8 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
     private string? _nextCursor;
     private string? _failedCursor;
     private int? _failedPageIndex;
+    private long? _runId;
+    private bool _failedOperationLoad;
     private int _pageIndex;
     private long _totalCount;
     private long _generation;
@@ -121,7 +123,9 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
 
     public bool CanMovePrevious => !IsLoading && _pageIndex > 0;
 
-    public bool CanRetryPage => !IsLoading && Operation is not null && _failedPageIndex is not null;
+    public bool CanRetryPage => !IsLoading
+        && ((_failedOperationLoad && _runId is not null)
+            || (Operation is not null && _failedPageIndex is not null));
 
     public string BoundaryNotice => IsExecutorEnabled
         ? "A separately reviewed executor is present, but this surface still does not submit Shell work."
@@ -209,24 +213,34 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         _lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var token = _lifetime.Token;
         var generation = ++_generation;
+        _runId = run?.Status == "completed" && _worker is not null ? run.Id : null;
+        _failedOperationLoad = false;
         Operation = null;
         ErrorMessage = null;
         Announcement = string.Empty;
         ErrorAnnouncement = string.Empty;
         ResetPages();
-        if (run?.Status != "completed" || _worker is null)
+        if (_runId is not long runId)
         {
             return;
         }
 
+        await LoadOperationAsync(runId, generation, token);
+    }
+
+    private async Task LoadOperationAsync(long runId, long generation, CancellationToken token)
+    {
         IsLoading = true;
         try
         {
-            var operation = await _worker.GetLatestRecycleOperationAsync(run.Id, token);
+            var operation = await _worker!.GetLatestRecycleOperationAsync(runId, token);
             if (!IsCurrentGeneration(generation, token))
             {
                 return;
             }
+            _failedOperationLoad = false;
+            ErrorMessage = null;
+            ErrorAnnouncement = string.Empty;
             Operation = operation;
             if (operation is not null)
             {
@@ -246,9 +260,11 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         {
             if (IsCurrentGeneration(generation, token))
             {
+                _failedOperationLoad = true;
                 ErrorMessage = exception.Message;
                 ErrorAnnouncement = $"Recycle Bin operation error. {exception.Message}";
                 ErrorAnnouncementVersion++;
+                NotifyStateChanged();
             }
         }
         finally
@@ -300,7 +316,18 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
 
     private async Task RetryPageAsync()
     {
-        if (_lifetime is null || _failedPageIndex is not int failedPageIndex)
+        if (_lifetime is null)
+        {
+            return;
+        }
+
+        if (_failedOperationLoad && _runId is long runId)
+        {
+            await LoadOperationAsync(runId, _generation, _lifetime.Token);
+            return;
+        }
+
+        if (_failedPageIndex is not int failedPageIndex)
         {
             return;
         }
