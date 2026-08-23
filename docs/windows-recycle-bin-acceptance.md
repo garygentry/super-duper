@@ -235,7 +235,9 @@ that exact detail request. If operation-summary reconstruction itself fails befo
 operation is returned, the same affordance retries the exact selected-run read and cannot replace a
 newer run context. A successfully committed page retry clears the prior assertive error payload
 without publishing a second assertive notification. Retrying detail loading never retries or
-resolves the operation. Each row exposes
+resolves the operation. A late failed page retry is rejected with its stale run generation and
+cannot replace the newer committed page, publish an error or result announcement, expose another
+retry, or mutate the newer page's cursor history. Each row exposes
 its durable operation/preflight/batch identifiers,
 source snapshot context, result time, stable code, numeric Shell HRESULT, and recorded recycled-item-
 presence value for correlation. This reads durable evidence only; it does not inspect the filesystem,

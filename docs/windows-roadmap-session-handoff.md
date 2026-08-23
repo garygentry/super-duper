@@ -17,7 +17,7 @@ until the roadmap is complete, without treating evidence-gated work as locally c
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Clear resolved Recycle Bin page-error announcement text` (this session's commit)
+- Latest completed slice: `Reject stale failed Recycle Bin page retries` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 cloud safety: accepted
@@ -28,10 +28,11 @@ until the roadmap is complete, without treating evidence-gated work as locally c
   milestone is not complete
 - Milestone 12 live-state overlay: later work; do not pull it into a Milestone 11 slice implicitly
 
-The latest slice clears the stale assertive page-error payload after an exact read-only retry
-successfully commits its requested page. The error notification version is deliberately unchanged,
-so resolving the error does not publish a misleading second assertive notification. It does not
-replay, resolve, or otherwise change the durable operation or execution boundary.
+The latest slice adds a regression for an exact read-only page retry that fails after the selected
+run changes. The existing generation boundary rejects the stale failure without replacing the
+newer committed page, publishing an announcement or error, exposing another retry, or mutating the
+newer page's cursor history. It does not replay, resolve, or otherwise change the durable operation
+or execution boundary.
 
 ## Immediate next step
 
@@ -109,15 +110,13 @@ required gates are open.
 
 The latest slice was verified as follows:
 
-- Focused `RecycleOperationViewModelTests`, Debug: 13/13 passed
-- Focused `RecycleOperationViewModelTests`, Release: 13/13 passed
-- Full serialized Debug matrix:
-  - Core: 77/77 passed
-  - Infrastructure: 56 passed, 5 intentional environment-gated skips
-  - WPF smoke: 3/3 passed
-- Full serialized Release matrix: same totals and dispositions
+- Focused `RecycleOperationViewModelTests`, Debug: 14/14 passed
+- Focused `RecycleOperationViewModelTests`, Release: 14/14 passed
+- Full Core suite, Debug: 78/78 passed
+- Full Core suite, Release: 78/78 passed
 - `git diff --check`: passed
 - Rust behavior: unchanged; Rust matrix not rerun
+- Infrastructure/WPF behavior: unchanged; Infrastructure and WPF matrices not rerun
 - Performance profile: not rerun
 
 Use proportional verification for the next slice. Run focused tests while iterating, then the
@@ -157,4 +156,5 @@ For each session:
 | 2026-08-22 | `306972e` | Retry the exact failed read-only Recycle Bin detail request, including the initial recovery page, without retrying the operation. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
 | 2026-08-22 | `d0b0362` | Commit the matching forward or backward cursor-history transition after a successful exact Recycle Bin detail retry. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
 | 2026-08-22 | `bd7efa6` | Retry a failed read-only Recycle Bin operation-summary reconstruction request for the exact selected completed run without allowing a stale retry to replace newer context. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
-| 2026-08-22 | this session | Clear the resolved assertive Recycle Bin page-error payload after a successful exact retry without publishing another error notification. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
+| 2026-08-22 | `bd9e983` | Clear the resolved assertive Recycle Bin page-error payload after a successful exact retry without publishing another error notification. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
+| 2026-08-22 | this session | Prove a late failed exact page retry cannot replace newer run context, publish stale feedback, expose another retry, or mutate cursor history. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |

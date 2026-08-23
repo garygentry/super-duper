@@ -475,6 +475,60 @@ public sealed class RecycleOperationViewModelTests
     }
 
     [TestMethod]
+    public async Task FailedPageRetryCannotReplaceANewerRunContext()
+    {
+        var worker = CreatePagedRecoveryWorker();
+        worker.LatestRecycleOperationHandler = (runId, _) => Task.FromResult<WorkerRecycleOperation?>(
+            TestWorkerClient.CreateRecycleOperation(runId == 12 ? 8 : 13, runId, 7, 4) with
+            {
+                Status = "recovery_required",
+                UnknownCount = 101,
+            });
+        var failNext = true;
+        var retry = new TaskCompletionSource<WorkerRecycleOperationItemPage>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        worker.RecycleOperationItemPageHandler = (query, _) =>
+        {
+            if (query.Cursor is null)
+            {
+                return Task.FromResult(CreateRecoveryPage(query.RecycleOperationId, firstPage: true));
+            }
+            if (failNext)
+            {
+                failNext = false;
+                throw new InvalidOperationException("The next recovery page is unavailable.");
+            }
+            return retry.Task;
+        };
+        using var viewModel = new RecycleOperationViewModel(worker, new DisabledCapability());
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        await viewModel.NextPageCommand.ExecuteAsync(null);
+        var staleRetry = viewModel.RetryPageCommand.ExecuteAsync(null);
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            13, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var replacementAnnouncement = viewModel.Announcement;
+        var replacementAnnouncementVersion = viewModel.AnnouncementVersion;
+        retry.SetException(new InvalidOperationException("The stale retry also failed."));
+        await staleRetry;
+
+        Assert.AreEqual(13, viewModel.Operation?.Id);
+        Assert.AreEqual(100, viewModel.Items.Count);
+        StringAssert.Contains(viewModel.PageStatus, "showing items 1-100 of 101 unknown details");
+        Assert.AreEqual(replacementAnnouncement, viewModel.Announcement);
+        Assert.AreEqual(replacementAnnouncementVersion, viewModel.AnnouncementVersion,
+            "The stale failed retry must not announce or replace the newer run's committed page.");
+        Assert.IsFalse(viewModel.HasError);
+        Assert.AreEqual(string.Empty, viewModel.ErrorAnnouncement);
+        Assert.IsFalse(viewModel.CanRetryPage);
+        Assert.IsFalse(viewModel.CanMovePrevious,
+            "The stale failed retry must not commit its forward cursor-history transition.");
+        Assert.IsTrue(viewModel.CanMoveNext);
+    }
+
+    [TestMethod]
     public async Task FailedPreviousPageAfterCacheEvictionPreservesCommittedPageAndCanRetry()
     {
         var worker = CreatePagedRecoveryWorker();
