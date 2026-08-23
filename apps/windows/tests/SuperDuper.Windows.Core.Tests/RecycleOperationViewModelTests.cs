@@ -331,6 +331,12 @@ public sealed class RecycleOperationViewModelTests
         Assert.IsFalse(viewModel.HasError);
         Assert.IsFalse(viewModel.CanRetryPage);
         Assert.IsTrue(viewModel.CanMovePrevious);
+
+        await viewModel.PreviousPageCommand.ExecuteAsync(null);
+
+        StringAssert.Contains(viewModel.PageStatus, "showing items 1-100 of 101 unknown details");
+        Assert.IsFalse(viewModel.CanMovePrevious);
+        Assert.IsTrue(viewModel.CanMoveNext);
     }
 
     [TestMethod]
@@ -409,10 +415,18 @@ public sealed class RecycleOperationViewModelTests
         Assert.IsTrue(viewModel.CanMoveNext);
         Assert.IsTrue(viewModel.CanMovePrevious);
 
-        await viewModel.PreviousPageCommand.ExecuteAsync(null);
+        Assert.IsTrue(viewModel.CanRetryPage);
+        await viewModel.RetryPageCommand.ExecuteAsync(null);
 
         StringAssert.Contains(viewModel.PageStatus, "showing items 101-200 of 700 unknown details");
         Assert.IsFalse(viewModel.HasError);
+        Assert.IsFalse(viewModel.CanRetryPage);
+        Assert.IsTrue(viewModel.CanMoveNext);
+        Assert.IsTrue(viewModel.CanMovePrevious);
+
+        await viewModel.NextPageCommand.ExecuteAsync(null);
+
+        StringAssert.Contains(viewModel.PageStatus, "showing items 201-300 of 700 unknown details");
         Assert.IsTrue(viewModel.CanMoveNext);
         Assert.IsTrue(viewModel.CanMovePrevious);
     }

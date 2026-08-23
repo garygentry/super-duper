@@ -306,8 +306,19 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
         }
 
         var failedCursor = _failedCursor;
+        var committedCursor = _cursor;
+        var committedPageIndex = _pageIndex;
         if (await TryNavigateAsync(failedCursor, failedPageIndex, _generation, _lifetime.Token))
         {
+            if (failedPageIndex == committedPageIndex + 1)
+            {
+                _history.Add(committedCursor);
+            }
+            else if (failedPageIndex == committedPageIndex - 1 && _history.Count > 0)
+            {
+                _history.RemoveAt(_history.Count - 1);
+            }
+            NotifyStateChanged();
             AnnouncePage();
         }
     }

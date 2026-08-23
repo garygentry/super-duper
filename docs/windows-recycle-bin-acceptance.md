@@ -227,10 +227,12 @@ to account for every result. Initial reconstruction announces the first committe
 previous-page navigation repeats the committed range announcement; stale or cancelled page
 responses remain silent. A failed forward or cache-evicted backward page fetch retains the last
 committed range and navigation history, reports an assertive page error, and can be retried without
-skipping the requested page. A failed initial fetch preserves the durable operation and recovery
-summaries and exposes an explicitly read-only retry of that exact detail request; retrying detail
-loading never retries or resolves the operation. Each row exposes its durable operation/preflight/
-batch identifiers,
+skipping the requested page. A successful exact retry commits the same cursor-history transition as
+the original forward or backward request, so both navigation directions remain repeatable after the
+retry, including when an older page was evicted from the bounded cache. A failed initial fetch
+preserves the durable operation and recovery summaries and exposes an explicitly read-only retry of
+that exact detail request; retrying detail loading never retries or resolves the operation. Each row
+exposes its durable operation/preflight/batch identifiers,
 source snapshot context, result time, stable code, numeric Shell HRESULT, and recorded recycled-item-
 presence value for correlation. This reads durable evidence only; it does not inspect the filesystem,
 resolve an unknown item, or replace any Narrator/NVDA, high-contrast, or physical multi-monitor DPI
