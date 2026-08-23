@@ -17,7 +17,7 @@ until the roadmap is complete, without treating evidence-gated work as locally c
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Reject stale failed Recycle Bin operation retries` (this session's commit)
+- Latest completed slice: `Announce empty Recycle Bin operation reconstruction` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 cloud safety: accepted
@@ -28,11 +28,10 @@ until the roadmap is complete, without treating evidence-gated work as locally c
   milestone is not complete
 - Milestone 12 live-state overlay: later work; do not pull it into a Milestone 11 slice implicitly
 
-The latest slice adds a regression for an exact read-only operation-summary retry that fails after
-the selected run changes. The existing generation boundary rejects the stale failure without
-replacing the newer committed operation/page context, publishing an announcement or error,
-exposing another retry, or changing navigation. It does not replay, resolve, or otherwise change
-the durable operation or execution boundary.
+The latest slice publishes a polite completion announcement when a successful read-only
+operation-summary reconstruction finds no stored operation intent for the selected completed run.
+It distinguishes the valid empty result from a load failure without exposing retry, replay,
+resolution, filesystem inspection, or any operation submission path.
 
 ## Immediate next step
 
@@ -110,10 +109,10 @@ required gates are open.
 
 The latest slice was verified as follows:
 
-- Focused `RecycleOperationViewModelTests`, Debug: 15/15 passed
-- Focused `RecycleOperationViewModelTests`, Release: 15/15 passed
-- Full Core suite, Debug: 79/79 passed
-- Full Core suite, Release: 79/79 passed
+- Focused `RecycleOperationViewModelTests`, Debug: 16/16 passed
+- Focused `RecycleOperationViewModelTests`, Release: 16/16 passed
+- Full Core suite, Debug: 80/80 passed
+- Full Core suite, Release: 80/80 passed
 - `git diff --check`: passed
 - Rust behavior: unchanged; Rust matrix not rerun
 - Infrastructure/WPF behavior: unchanged; Infrastructure and WPF matrices not rerun
@@ -158,4 +157,5 @@ For each session:
 | 2026-08-22 | `bd7efa6` | Retry a failed read-only Recycle Bin operation-summary reconstruction request for the exact selected completed run without allowing a stale retry to replace newer context. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
 | 2026-08-22 | `bd9e983` | Clear the resolved assertive Recycle Bin page-error payload after a successful exact retry without publishing another error notification. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
 | 2026-08-22 | `14649ea` | Prove a late failed exact page retry cannot replace newer run context, publish stale feedback, expose another retry, or mutate cursor history. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
-| 2026-08-22 | this session | Prove a late failed exact operation-summary retry cannot replace newer operation/page context, publish stale feedback, expose another retry, or change navigation. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
+| 2026-08-22 | `37894b9` | Prove a late failed exact operation-summary retry cannot replace newer operation/page context, publish stale feedback, expose another retry, or change navigation. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
+| 2026-08-22 | this session | Announce a successful read-only operation reconstruction that finds no stored operation intent, without exposing retry or changing the execution boundary. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |

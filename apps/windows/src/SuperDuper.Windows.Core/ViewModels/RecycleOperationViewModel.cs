@@ -242,7 +242,12 @@ public sealed class RecycleOperationViewModel : ObservableObject, IDisposable
             ErrorMessage = null;
             ErrorAnnouncement = string.Empty;
             Operation = operation;
-            if (operation is not null)
+            if (operation is null)
+            {
+                Announcement = $"No Recycle Bin operation intent is stored for this completed run. {BoundaryNotice}";
+                AnnouncementVersion++;
+            }
+            else
             {
                 if (await TryNavigateAsync(null, 0, generation, token)
                     && IsCurrentGeneration(generation, token))

@@ -37,6 +37,31 @@ public sealed class RecycleOperationViewModelTests
     }
 
     [TestMethod]
+    public async Task AnnouncesCompletedReadWhenNoOperationIntentIsStored()
+    {
+        var worker = new TestWorkerClient
+        {
+            LatestRecycleOperationHandler = (_, _) =>
+                Task.FromResult<WorkerRecycleOperation?>(null),
+        };
+        using var viewModel = new RecycleOperationViewModel(worker, new DisabledCapability());
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(
+            12, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        Assert.IsNull(viewModel.Operation);
+        Assert.AreEqual(0, viewModel.Items.Count);
+        StringAssert.Contains(viewModel.Announcement, "No Recycle Bin operation intent is stored");
+        StringAssert.Contains(viewModel.Announcement, "execution is disabled");
+        Assert.IsTrue(viewModel.AnnouncementVersion > 0);
+        Assert.IsFalse(viewModel.HasError);
+        Assert.IsFalse(viewModel.CanRetryPage);
+        Assert.IsFalse(viewModel.CanMovePrevious);
+        Assert.IsFalse(viewModel.CanMoveNext);
+        Assert.IsFalse(viewModel.CanSubmit);
+    }
+
+    [TestMethod]
     public async Task ExplainsActiveCancellationBoundaryAndAmbiguousRecoveryWithoutOfferingRetry()
     {
         var worker = new TestWorkerClient();
