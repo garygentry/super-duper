@@ -23,6 +23,80 @@ This is the durable planning source for post-MVP Windows UX work. Update this do
 milestone is refined, split, accepted, or superseded so future coding sessions do not have to
 reconstruct product and architecture decisions from conversation history.
 
+## Roadmap Execution Control
+
+The Windows post-MVP completion effort covers Milestones 7-14 in this document. Unrelated engine,
+CLI, FFI, packaging, or cross-platform backlog in `ROADMAP.md` is outside this completion effort
+unless a reviewed milestone dependency explicitly brings it into scope.
+
+Use three durable sources of truth instead of relying on conversation history or agent memory:
+
+1. This plan owns product intent, milestone boundaries, and acceptance criteria.
+2. `windows-roadmap-closure-ledger.md` maps every remaining criterion and reviewed decision to a
+   finite gate, dependency, disposition, verifier, and next action.
+3. `windows-roadmap-session-handoff.md` records the current checkpoint and the one gate authorized
+   for the next bounded session.
+
+The closure ledger is the work-selection authority after its first accepted population. Every gate
+must have a stable ID, milestone, criterion or decision source, disposition, current state,
+dependencies, evidence, owner or prerequisite, next action, and verifiable completion condition.
+Allowed dispositions are:
+
+- `local_audit`: repository inspection or documentation can close the gate without product-code
+  changes;
+- `local_code`: implementation or automated verification can close the gate in this repository;
+- `operator_evidence`: qualifying physical, provider, or representative-hardware evidence is
+  required;
+- `design_decision`: implementation must wait for an explicit reviewed product or safety decision;
+- `blocked`: a named external prerequisite currently prevents useful progress;
+- `deferred`: a reviewed scope decision removes the gate from the current completion contract; and
+- `accepted`: cited evidence or a cited reviewed decision closes the gate.
+
+`open` is a gate state, not evidence. `locally_exhausted` may be recorded as a state when one bounded
+audit finds no reproducible defect or uncovered local criterion; it does not mean accepted and must
+not trigger speculative tests or continued gap mining.
+
+### Work-selection and anti-spin rules
+
+- Use one goal for one gate or one explicitly named coherent group of gates that share the same
+  implementation boundary and verifier. Do not use one goal for the entire remaining roadmap.
+- Select only a ledger gate whose dependencies are satisfied and whose next action is concrete.
+- Product-code changes require a named `local_code` gate plus either a reproducible defect, a
+  failing test, or a specific uncovered acceptance criterion. An invitation to "look for another
+  gap" is not authorization to edit.
+- A test-only slice must close a named criterion or protect a concrete defect discovered while
+  advancing that criterion. Do not enumerate progressively narrower state combinations merely
+  because more combinations can be imagined.
+- Audit a surface once per gate unless new evidence, code, or a reviewed decision changes the
+  boundary. If that audit finds no actionable local gap, record `locally_exhausted` and stop local
+  work on that gate.
+- After two consecutive attempts with the same blocking condition and no new evidence, stop the
+  goal, preserve the diagnostic evidence, and report the blocker and smallest next experiment.
+- Missing hardware, provider fixtures, operator access, or product decisions are stopping
+  conditions. They do not authorize substitute code work under the same goal.
+- Do not search unrelated TODOs, perform opportunistic refactors, or expand into a later milestone
+  to keep a goal running.
+- Run focused verification while iterating and the relevant full matrix once before acceptance.
+  Retain failed performance and physical evidence; never rerun merely until green.
+- Before context compaction or session handoff, externalize completed actions, active assumptions,
+  gate state, evidence paths, unresolved blockers, and the next concrete action in the ledger and
+  handoff.
+
+### Closure-ledger bootstrap and roadmap completion
+
+The first control goal must populate the closure ledger without changing product code. It must map
+every acceptance criterion and still-open decision in Milestones 7-14, reconcile the currently
+unstated Milestone 9 disposition, decide whether unavailable Milestone 7 opt-in cloud policies are
+required or deferred, separate required Milestone 14 closure work from optional follow-ons, and
+define whether the completion contract means code complete, operator accepted, or production
+enabled.
+
+The Windows post-MVP roadmap is complete only when every required ledger gate is `accepted`, every
+excluded gate has an explicit reviewed `deferred` decision, milestone statuses and authoritative
+documents agree, production safety boundaries match the accepted evidence, and no active gate is
+hidden behind a broad milestone label. At that point, update `ROADMAP.md`, this plan, the handoff,
+and the `AGENTS.md` startup instruction together.
+
 ## Completed prerequisite
 
 The release blockers in
@@ -3570,22 +3644,25 @@ Initial targets should be measured and refined on representative Windows 11 hard
 - no full-result materialization for rule preview or plan summary;
 - no content read, thumbnail extraction, or validation of excluded cloud placeholders.
 
-## Recommended Next Implementation Slice
+## Recommended Next Roadmap Control Slice
 
-Keep the remaining physical Narrator/NVDA, high-contrast, multi-monitor DPI, and representative-
-hardware Milestone 8 procedures operator-gated; they can close independently from later review
-work. The non-mutating foundation and separately gated dedicated-STA executor are implemented, but
-the disabled production composition remains intentional. Use the evidence collector and dedicated
-operator guide to collect real local access/disappearance/capacity and representative provider
-evidence, run the explicit-fixture Cloud Files no-hydration procedure, profile a representative
-large admitted plan, decide
-`FOFX_ADDUNDORECORD`/the provisional constants, and complete operator review of final confirmation,
-progress, cancellation, partial/unknown, and recovery wording. Do not expose `Move to Recycle Bin
-now` or replace `executorEnabled:false` until those gates and ambiguous-start non-retry are accepted.
-Keep
-Milestone 12 changed/resolved mutation separate, and preserve rule configuration, application
-provenance, manual review state, preflight observations, operation state, and immutable scan
-history as distinct sources of truth.
+Populate and accept `windows-roadmap-closure-ledger.md` before selecting another product-code slice.
+This is a documentation and repository-audit goal: it must not change production code, add
+speculative tests, run physical/provider/performance campaigns, enable Recycle Bin execution, or
+claim that an open evidence gate passed. The ledger must expose the dependency-ordered critical
+path and identify which independent work can advance while operator or hardware prerequisites are
+unavailable.
+
+After the ledger is accepted, choose the first ready gate rather than resuming open-ended Milestone
+11 gap discovery. Keep the remaining physical Narrator/NVDA, high-contrast, multi-monitor DPI, and
+representative-hardware Milestone 8 procedures operator-gated. Use the Recycle Bin evidence
+collector only for a named ready campaign with qualifying prerequisites. Decide
+`FOFX_ADDUNDORECORD`, provisional constants, residual TOCTOU, and ambiguous recovery only through
+their named decision gates. Do not expose **Move to Recycle Bin now** or replace
+`executorEnabled:false` until every production-enablement dependency is accepted. Keep Milestone 12
+changed/resolved mutation separate, and preserve rule configuration, application provenance,
+manual review state, preflight observations, operation state, and immutable scan history as
+distinct sources of truth.
 
 ## Milestone Definition Template
 
@@ -3668,3 +3745,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-22 | Covered late failure of an exact read-only Recycle Bin operation-summary retry after the selected run changes. | Lock the operation-reconstruction generation boundary so the stale failure cannot replace the newer committed operation/page context, publish feedback, expose another retry, or change navigation; execution, filesystem inspection, replay, recovery resolution, and every physical/provider/performance/design gate remain unchanged. |
 | 2026-08-22 | Announced a successful empty read-only Recycle Bin operation reconstruction. | Distinguish a completed read with no stored operation intent from a load failure through the existing polite completion channel, without exposing retry, execution, filesystem inspection, replay, recovery resolution, or changing any physical/provider/performance/design gate. |
 | 2026-08-22 | Covered an exact operation-summary retry that resolves to no stored Recycle Bin intent. | Prove the valid empty completion replaces the prior load failure, clears its assertive payload without another error notification, and removes retry/navigation affordances without enabling execution, filesystem inspection, replay, or recovery resolution. |
+| 2026-08-23 | Replaced open-ended next-slice discovery with a finite gate-ledger execution model and explicit anti-spin rules. | Populate the closure ledger for Milestones 7-14 without product-code changes, reconcile scope/status ambiguities, then authorize future goals only against named ready gates. |

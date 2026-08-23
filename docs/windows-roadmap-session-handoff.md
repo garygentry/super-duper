@@ -8,44 +8,44 @@ linked plans remain authoritative.
 
 ## Session objective
 
-Continue the Windows post-MVP roadmap from the current worktree. Reassess the boundary, implement
-only the next smallest coherent and locally verifiable slice, verify in proportion to risk, update
-the authoritative documentation and this handoff, and commit the slice as one focused commit before
-ending the session. Do not leave completed session work uncommitted. Repeat across future sessions
-until the roadmap is complete, without treating evidence-gated work as locally complete.
+Continue the Windows post-MVP roadmap from the current worktree by advancing one named closure-ledger
+gate or one explicitly named coherent gate group. Verify in proportion to risk, update the closure
+ledger, authoritative documentation, and this handoff, and commit the bounded slice as one focused
+commit before ending the session. Do not leave completed session work uncommitted. Do not replace a
+blocked or exhausted gate with progressively narrower speculative work merely to keep a session
+active.
 
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Cover empty Recycle Bin reconstruction retry` (this session's commit)
+- Latest completed slice: `Tighten Windows roadmap execution controls` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 cloud safety: accepted
 - Milestone 8 read-only foundation: implemented; independent operator/performance gates remain open
+- Milestone 9 status and remaining scope: must be reconciled by the closure-ledger bootstrap
 - Milestone 10 review/rule slices: accepted
 - Milestone 11: non-deleting preflight, durable operation contract, separately gated native executor,
   and acceptance evidence tooling are implemented; production execution remains disabled and the
   milestone is not complete
 - Milestone 12 live-state overlay: later work; do not pull it into a Milestone 11 slice implicitly
 
-The latest slice proves that an exact read-only operation-summary retry may validly resolve an
-earlier load failure to no stored operation intent. The regression requires the polite empty-result
-announcement, clears the prior assertive payload without another error notification, and removes
-retry/navigation affordances without changing production behavior or the execution boundary.
+The latest slice replaces open-ended local-gap discovery with a durable closure-ledger scaffold,
+finite gate dispositions, dependency-based work selection, explicit locally-exhausted handling, and
+anti-spin stop conditions. Product code and the production execution boundary are unchanged.
 
 ## Immediate next step
 
-Start by auditing the repository and the authoritative plans. Reassess whether another small,
-locally implementable Milestone 11 read-only/recovery contract gap exists. Prefer a bounded test or
-correctness slice that strengthens existing behavior without enabling execution. If the audit shows
-that remaining Milestone 11 work requires physical, provider, controlled-failure, representative-
-performance, constants, TOCTOU, Undo, or recovery-resolution evidence/decisions, do not manufacture
-a code slice or claim completion. Clearly identify the gate and move only to the next roadmap item
-whose prerequisites and product boundary permit local implementation.
+Populate and accept `docs/windows-roadmap-closure-ledger.md` before selecting another product-code
+slice. Inventory every Milestone 7-14 acceptance criterion and still-open decision, cite existing
+evidence, assign a stable gate ID/disposition/state/dependency/owner/next action/completion check,
+reconcile Milestone 9 and optional/deferred scope, and produce a dependency-ordered queue. This is a
+documentation and repository-audit slice only.
 
-No specific unreviewed implementation is pre-authorized by this handoff. The next session must
-derive the smallest slice from current code, tests, plans, and history rather than continuing by
-momentum.
+Do not change product code, add tests, run physical/provider/performance campaigns, or search for
+another Milestone 11 retry/recovery edge case during the bootstrap. Stop and report any scope choice
+that requires user review rather than silently selecting it. The first accepted ready gate in the
+ledger becomes the only implementation authority for the following session.
 
 ## Required startup audit
 
@@ -57,10 +57,12 @@ Before editing:
    - `docs/windows-mvp-plan.md`
    - `docs/windows-post-mvp-ux-plan.md`
    - `docs/windows-recycle-bin-acceptance.md`
+   - `docs/windows-roadmap-closure-ledger.md`
 3. Confirm that the checkpoint above still matches `HEAD` and the worktree.
-4. Inspect the code and existing tests for the proposed slice before choosing it.
-5. State why the chosen slice is the next smallest coherent local step and which gates it does not
-   attempt to close.
+4. Identify the exact authorized gate ID from the closure ledger and confirm its dependencies are
+   satisfied. During the bootstrap only, inventory gates instead of selecting implementation.
+5. Inspect code and tests only for the authorized gate, then state the evidence that permits edits,
+   the verifier that closes it, and which gates remain outside the slice.
 
 If newer commits exist, treat Git and the authoritative plans as truth, then update this document
 before committing the next slice.
@@ -80,6 +82,18 @@ before committing the next slice.
 - Do not claim physical hardware, provider, Narrator/NVDA, high-contrast, multi-monitor DPI,
   recovery-resolution, or representative-performance acceptance without qualifying evidence.
 - Keep physical/operator/provider/performance gates distinct from locally implementable work.
+- Do not edit product code without a named `local_code` gate and a reproducible defect, failing
+  test, or specific uncovered acceptance criterion.
+- Do not add a test-only slice unless it closes a named criterion or protects a concrete defect
+  discovered while advancing that criterion.
+- Audit a surface once per gate. If no local gap is found, record `locally_exhausted` and do not
+  repeat the audit until new evidence, code, or a reviewed decision changes the boundary.
+- After two consecutive attempts with the same blocker and no new evidence, stop the goal and
+  preserve the diagnostic result instead of trying adjacent speculative changes.
+- Missing hardware, provider fixtures, operator access, or product decisions are stopping
+  conditions, not authorization to substitute unrelated work.
+- Do not search unrelated TODOs, refactor opportunistically, or pull a later milestone forward to
+  keep a goal active.
 - Keep `super-duper-core` UI-agnostic.
 - Keep WPF views in the executable, application contracts/view models in Core, and process/native
   concerns in Infrastructure.
@@ -128,18 +142,22 @@ and prerequisites genuinely call for them.
 For each session:
 
 1. Audit current state and preserve unrelated work.
-2. Select one smallest coherent slice.
-3. Implement only that slice.
-4. Add regression coverage for the intended contract and important stale/error/cancellation paths.
-5. Update the relevant authoritative plan/acceptance documentation without overstating acceptance.
-6. Run proportional verification and `git diff --check`.
-7. Review the final diff against every boundary above.
-8. Commit one focused commit.
-9. Update this handoff's checkpoint, immediate next step, verification baseline, and decision log as
-   part of that commit.
-10. Confirm `HEAD` contains every completed in-scope change from the session and the worktree is
+2. Select one ready named gate or coherent gate group from the closure ledger.
+3. Confirm its dependencies, evidence for edits, completion check, and explicit non-goals.
+4. Implement only that gate. If a prerequisite is missing or the gate is locally exhausted, update
+   the ledger and stop without manufacturing a code slice.
+5. Add regression coverage required by the named criterion; do not enumerate unrelated edge cases.
+6. Update the ledger and relevant authoritative plan/acceptance documentation without overstating
+   acceptance.
+7. Run proportional verification and `git diff --check`.
+8. Review the final diff against every boundary above.
+9. Commit one focused commit.
+10. Update this handoff's checkpoint, immediate next gate, verification baseline, and decision log
+    as part of that commit.
+11. Confirm `HEAD` contains every completed in-scope change from the session and the worktree is
     clean. A session with completed changes is not finished until its commit succeeds.
-11. Report the commit, verification, skipped gates, and best next step.
+12. Report the commit, gate disposition, verification, skipped gates, blocker or next ready gate,
+    and any user decision required.
 
 ## Handoff decision log
 
@@ -159,4 +177,5 @@ For each session:
 | 2026-08-22 | `14649ea` | Prove a late failed exact page retry cannot replace newer run context, publish stale feedback, expose another retry, or mutate cursor history. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
 | 2026-08-22 | `37894b9` | Prove a late failed exact operation-summary retry cannot replace newer operation/page context, publish stale feedback, expose another retry, or change navigation. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
 | 2026-08-22 | `ce54d1a` | Announce a successful read-only operation reconstruction that finds no stored operation intent, without exposing retry or changing the execution boundary. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
-| 2026-08-22 | this session | Cover an exact read-only operation-summary retry that resolves an earlier load failure to no stored operation intent. | Re-audit for another local read-only contract gap; stop at physical accessibility, provider, performance, or recovery-resolution gates. |
+| 2026-08-22 | `c34eebb` | Cover an exact read-only operation-summary retry that resolves an earlier load failure to no stored operation intent. | Replace further open-ended gap discovery with a finite roadmap closure audit. |
+| 2026-08-23 | this session | Add the closure-ledger scaffold and tighten roadmap execution, edit authority, anti-spin, and stop rules. | Populate and accept every remaining Milestone 7-14 gate without product-code changes, then authorize only the first dependency-ready gate. |
