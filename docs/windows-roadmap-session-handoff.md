@@ -18,8 +18,7 @@ active.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Accept Windows roadmap scope and completion contract` (this session's
-  commit)
+- Latest completed slice: `Prepare WPM11 recovery workflow decision` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 required fail-closed cloud safety: accepted; both unavailable opt-in policies are
@@ -37,28 +36,27 @@ active.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The latest documentation-only slice accepts `WPM7-opt-in-policy-scope`, `WPM14-required-scope`, and
-`WPM14-completion-contract` from the explicit 2026-08-23 reviewed product decisions. It marks both
-Milestone 7 opt-ins and the four named Milestone 14 follow-ons deferred, creates explicit required
-Milestone 14 accessibility and query-instrumentation gates, and requires operator acceptance plus
-production enablement for every required workflow. `Code complete` is interim. The decision does
-not authorize `WPM11-production-wiring`; all production execution locks remain unchanged.
+The latest documentation-only slice advances only `WPM11-recovery-workflow` to `ready for user
+decision`. The committed package grounds the choice in the existing immutable unknown evidence and
+defines the recommended append-only per-item operator-observation model, preserve-only alternative,
+rejected automatic-inference/replay/overwrite alternatives, exact states/authority/evidence/
+actions/non-retry rules, downstream gates, and exact choice required. It selects no model and
+changes no product behavior. `WPM11-production-wiring` remains separately blocked, and all
+production execution locks remain unchanged.
 
 ## Immediate next step
 
-Advance only `WPM11-recovery-workflow`. Its sole ledger dependency, `WPM11-durable-outcomes`, is
-accepted. The bounded next action is to present the recommended evidence-preserving,
-operator-assisted per-item recovery model, alternatives, tradeoffs, downstream gates, and the exact
-product/safety decision required. The gate should end `ready for user decision` unless the user
-supplies a reviewed choice; no choice may be inferred.
+Keep only `WPM11-recovery-workflow` authorized and obtain the exact product/safety choice recorded
+in the decision package: approve Option A (append-only per-item operator observations), choose
+Option B and explicitly waive per-item adjudication, or revise a named state, authority, allowed
+action, evidence field, non-retry rule, or downstream gate. No choice may be inferred from silence.
 
-Verifier: the recorded decision package names every proposed state, authority, evidence source,
-action, transition, non-retry rule, alternative, tradeoff, and downstream dependency while
-preserving unknown results. Explicit non-goals: no product-code/test changes; no recovery
-implementation, replay, live-filesystem inference, or unknown-result resolution; no provider,
-physical-accessibility, or performance campaign; no Recycle Bin wiring; and no change to
-`CanSubmit:false`, disabled production injection, or `executorEnabled:false`. Other ready lanes are
-not substitute authority for that session.
+Verifier after a choice: commit the reviewed decision, mark the gate `accepted`, and add the exact
+downstream implementation/evidence gates selected by that choice. Explicit non-goals before then:
+no product-code/test changes; no recovery implementation, replay, live-filesystem inference,
+unknown-result resolution, or campaign; no Recycle Bin wiring; and no change to `CanSubmit:false`,
+disabled production injection, or `executorEnabled:false`. Other ready lanes are not substitute
+authority while this decision is pending.
 
 ## Required startup audit
 
@@ -127,7 +125,8 @@ decision:
 - Final freshness, confirmation, admission, and batch constants
 - `FOFX_ADDUNDORECORD`
 - Residual Shell TOCTOU
-- Ambiguous-recovery resolution workflow and physical recovery inspection
+- WPM11 recovery-workflow choice: Option A, Option B with explicit per-item waiver, or named revision
+- Physical ambiguous-start/process-loss inspection after the workflow decision and implementation
 - Required Milestone 14 keyboard/accessibility, state, query-instrumentation, Release-scale, and
   end-to-end cloud-safety gates
 
@@ -138,12 +137,13 @@ required gates are open.
 
 The latest documentation-only slice was verified as follows:
 
-- each of the three selected design-decision gates is `accepted` with the explicit reviewed product
-  decision cited;
-- both excluded Milestone 7 policies and all four excluded Milestone 14 items have explicit
-  `deferred` rows, while every required Milestone 14 item has a non-deferred gate;
-- the ledger, post-MVP plan, this handoff, and ROADMAP agree on the completion contract and separate
-  WPM11 production-wiring authorization;
+- the package names the existing durable state/evidence boundary, five recommended per-item
+  observation states, operator-only authority, allowed and forbidden actions, append-only
+  correction rule, fresh-scan/non-retry rule, four alternatives, tradeoffs, downstream gates, and
+  exact user choice;
+- the ledger, post-MVP plan, acceptance guide, and this handoff all retain
+  `WPM11-recovery-workflow` as ready rather than accepted and preserve separate WPM11 production-
+  wiring authorization;
 - documentation-control consistency checks and `git diff --check`: passed;
 - product code and tests: unchanged; no Rust/.NET build or test matrix run;
 - physical accessibility, provider, Shell mutation, performance, and recovery campaigns: not run.
@@ -196,4 +196,5 @@ For each session:
 | 2026-08-22 | `c34eebb` | Cover an exact read-only operation-summary retry that resolves an earlier load failure to no stored operation intent. | Replace further open-ended gap discovery with a finite roadmap closure audit. |
 | 2026-08-23 | `8ff0b60` | Add the closure-ledger scaffold and tighten roadmap execution, edit authority, anti-spin, and stop rules. | Populate and accept every remaining Milestone 7-14 gate without product-code changes, then authorize only the first dependency-ready gate. |
 | 2026-08-23 | `775417a` | Populate and accept the Milestone 7-14 closure inventory, reconcile statuses, and expose the critical path and independent lanes. | Review WPM7-opt-in-policy-scope + WPM14-required-scope + WPM14-completion-contract; do not substitute another ready gate. |
-| 2026-08-23 | this session | Accept the required/deferred Milestone 7/14 scope and operator-accepted plus production-enabled completion contract without authorizing Recycle Bin production wiring. | Advance only WPM11-recovery-workflow to an explicit product/safety decision boundary; do not substitute another ready gate. |
+| 2026-08-23 | `d10ce7d` | Accept the required/deferred Milestone 7/14 scope and operator-accepted plus production-enabled completion contract without authorizing Recycle Bin production wiring. | Advance only WPM11-recovery-workflow to an explicit product/safety decision boundary; do not substitute another ready gate. |
+| 2026-08-23 | this session | Prepare the complete WPM11 ambiguous-recovery decision package without selecting or implementing a model. | Keep WPM11-recovery-workflow as the only authorized gate until the user chooses Option A, Option B with the explicit per-item waiver, or a named revision. |

@@ -263,3 +263,11 @@ Production wiring may be considered only when every required row is supported by
 evidence, the constants and `FOFX_ADDUNDORECORD` have explicit reviewed decisions, ambiguous
 recovery has a product workflow, and independent Milestone 8 gates are dispositioned. Until then,
 keep the real executor unwired and do not claim Milestone 11 complete.
+
+`WPM11-recovery-workflow` is currently **ready for user decision**, not accepted. Its complete
+[decision package](windows-post-mvp-ux-plan.md#wpm11-recovery-workflow-decision-package-2026-08-23)
+recommends append-only per-item operator observations while leaving original `unknown`,
+`ambiguous`, and `recovery_required` evidence immutable. Preserve-only acknowledgement is the
+documented alternative. Automatic live-state inference, replay, and overwriting the original Shell
+outcome are not recommended. No recovery implementation or campaign is authorized until the
+reviewed choice is committed, and that choice cannot authorize production wiring.

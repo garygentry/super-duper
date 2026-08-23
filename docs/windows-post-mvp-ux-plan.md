@@ -3429,6 +3429,112 @@ campaign, representative large-plan operation profile, or physical accessibility
 available merely by adding this tooling. Those rows remain open and the provisional constants and
 Windows Undo decision remain unaccepted.
 
+##### WPM11 recovery-workflow decision package (2026-08-23)
+
+Status: **ready for user decision; not accepted or implemented**. The durable read-only dependency
+is accepted, but no product authority exists to resolve `unknown` results. This package does not
+change schema, protocol, Core, WPF, tests, the live filesystem, Milestone 12 state, or production
+composition.
+
+###### Existing evidence boundary
+
+- An acknowledged `shell_started` batch without a complete durable report becomes `ambiguous`; its
+  pending items become `unknown`; and its operation becomes terminal `recovery_required`.
+- The original operation, batch, item, report, and recovery rows preserve operation/run/preflight/
+  revision IDs, signatures, lifecycle times, source-snapshot identity/size/time, batch/Shell-attempt
+  correlation, stable reason codes, numeric Shell HRESULTs, and recorded recycled-item presence.
+- WPF reconstructs only stored evidence, pages every unknown item, supports exact retry of failed
+  read-only loads, and explicitly says not to retry the operation. It does not inspect source or
+  Recycle Bin state, resolve an item, or change the original result.
+- Path absence, path presence, a missing Recycle Bin entry, or a same-named entry is not proof of
+  what the interrupted Shell call did. Providers, replacement files, hard links, folder partials,
+  external moves, and Recycle Bin behavior make automatic inference unsafe.
+
+###### Option A — append-only operator adjudication (recommended)
+
+Keep `recycle_operation_item.result_status = unknown`, the batch `ambiguous`, and the operation
+`recovery_required` immutable. If approved, a later implementation would add a separate append-only
+recovery-review record. The operator—not the app—would manually inspect the source location and
+Windows Recycle Bin, then record one bounded observation per unknown item:
+
+- `observed_in_recycle_bin` — the operator identified a corresponding Recycle Bin entry;
+- `observed_at_source` — the operator identified the expected source item;
+- `observed_in_both` — both were observed, so replacement/copy/alias ambiguity remains;
+- `observed_in_neither` — neither was observed, which is not proof of deletion or recycling; or
+- `deferred_unresolved` — inspection was unavailable or deliberately deferred.
+
+These are operator attestations, not rewritten Shell outcomes. Every record would include the
+durable operation/item IDs, observation kind, operator timestamp, bounded optional note, evidence
+version, and a link to the immutable source record. A superseding record would additionally name
+the prior observation and a bounded correction reason; no prior record could be edited or deleted.
+The app would not capture live file metadata, Recycle Bin search output, screenshots, or content as
+if they were authoritative operation evidence.
+
+The separate review status would transition `not started -> in progress` on the first current
+per-item observation and `in progress -> review complete with unresolved evidence` only when every
+unknown item has one current observation. A superseding observation preserves the latter state when
+coverage remains complete; interrupted writes leave the prior current observation and review state
+intact. No review transition changes the operation, batch, or item status. `Review complete` means
+the operator accounted for every unknown item, not that every Shell outcome is known.
+
+Allowed application actions would be limited to copying the durable evidence/path for independent
+inspection, opening the Windows Recycle Bin, recording/superseding an observation, and navigating
+to a fresh scan. Those actions grant no inference authority and must not inspect live source
+metadata, read content, query provider state, or search/classify Recycle Bin items on the operator's
+behalf. There would be no retry/resubmit/resolve-as-success/resolve-as-failure, restore, permanent-
+delete, evidence-clear, or live-state mutation action.
+
+If an operator wants to reconsider an item still visible at its source, the only deletion path
+would start from a new scan snapshot, new review decision, new preflight, and new operation ID. No
+old operation, batch, Shell attempt, or item may be replayed or copied forward as execution
+authority. Exact-folder unknowns remain whole-item ambiguous even if some descendants are observed;
+hard-link and provider observations never imply physical identity. Milestone 12 may later consume
+positive durable outcomes, but this recovery review itself writes no working-state conclusion.
+
+This option preserves forensic truth and gives the operator an auditable checklist. Its costs are
+new persistence/UI/accessibility work, deliberate operator burden, and a truthful unresolved label
+even after review; it does not manufacture certainty from an interrupted Shell call.
+
+###### Alternatives and tradeoffs
+
+1. **Option B — preserve-only acknowledgement.** Keep the existing read-only reconstruction and
+   allow only a single operation-level acknowledgement that the evidence was reviewed. This is the
+   smallest and safest product surface, but it cannot account for per-item review, gives weak
+   restart audit value, and may be insufficient for operator acceptance of a production-enabled
+   workflow.
+2. **Option C — automatic source/Recycle Bin inspection and classification.** The app would query
+   live source paths or Recycle Bin contents and infer recycled/not-recycled results. This reduces
+   operator effort but is not recommended: absence/presence is not authoritative, lookup can race
+   external changes, provider inspection can violate no-hydration boundaries, and reclassification
+   would overstate the durable Shell evidence.
+3. **Option D — retry or replay unknown work.** The app would resubmit the old item/batch/operation.
+   This is not recommended and conflicts with the accepted safety contract because an unknown item
+   may already have been recycled; repeating it could act on a replacement path or duplicate a
+   completed mutation.
+4. **Option E — overwrite `unknown` with an operator-selected success/failure.** This is simpler to
+   display than a separate review record but is not recommended because it erases the distinction
+   between Shell evidence and human observation and makes later audit/reconciliation falsely
+   certain.
+
+###### Downstream gates and exact decision required
+
+If Option A is approved, add separate bounded local-code gates for append-only recovery-review
+persistence/protocol and its accessible WPF workflow, followed by a controlled process-loss
+operator-evidence gate. Update `WPM11-crash-reconciliation` to depend on those gates and preserve the
+records for later `WPM13-outcome-audit`. None of those gates authorizes production execution;
+`WPM11-production-wiring` remains separately blocked and separately approval-gated after every
+dependency accepts.
+
+If Option B is approved, the reviewer must explicitly decide whether per-item dispositions are not
+required for Milestone 11 AC4 and final operator acceptance; physical process-loss and
+accessibility evidence would still be required. Options C-E require an explicit exception to the
+current no-live-inference/no-replay/evidence-preservation boundaries and are not recommended.
+
+The exact decision requested is: **approve Option A as written, choose Option B and explicitly waive
+per-item adjudication, or revise a named state, authority, allowed action, evidence field, non-retry
+rule, or downstream gate.** Silence does not select an option, and no implementation may begin
+until the reviewed choice is committed.
+
 #### User outcome
 
 The user can execute a reviewed plan with strong assurance that the files still match the scan and
@@ -3692,10 +3798,10 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance only `WPM11-recovery-workflow`. Its durable read-only outcome dependency is accepted. The
-next bounded action is to present the evidence-preserving, operator-assisted per-item recovery
-recommendation, alternatives, tradeoffs, downstream gates, and exact product/safety decision
-needed. Do not silently select or implement a recovery model.
+Keep only `WPM11-recovery-workflow` authorized. Its decision package is complete and the gate is
+`ready for user decision`. Approve Option A, choose Option B with the explicit per-item-adjudication
+waiver, or revise a named state, authority, allowed action, evidence field, non-retry rule, or
+downstream gate. Do not infer a choice from silence or implement either model before review.
 
 Non-goals are product code/tests, recovery implementation, replay, live-filesystem inference,
 resolution of unknown outcomes, provider/physical/performance campaigns, Recycle Bin production
@@ -3787,3 +3893,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-23 | Replaced open-ended next-slice discovery with a finite gate-ledger execution model and explicit anti-spin rules. | Populate the closure ledger for Milestones 7-14 without product-code changes, reconcile scope/status ambiguities, then authorize future goals only against named ready gates. |
 | 2026-08-23 | Populated and accepted the 37-criterion Milestone 7-14 closure inventory, reconciled Milestone 9 and the implementation/evidence/production boundaries, and separated the critical path from independent lanes. | Keep ambiguous scope as reviewed decision gates rather than inferred deferrals; authorize only the coherent Milestone 7/14 scope-and-completion decision group next, with all product code, campaigns, recovery design, and Recycle Bin wiring out of scope. |
 | 2026-08-23 | Accepted the reviewed Milestone 7/14 required/deferred scope and operator-accepted plus production-enabled completion contract. | Keep both cloud opt-ins and four Milestone 14 follow-ons explicitly deferred; require accessibility, coherent states, instrumentation, retained Release scale evidence, and cloud safety; preserve separate explicit authorization for WPM11 production wiring; authorize only WPM11-recovery-workflow next. |
+| 2026-08-23 | Prepared the complete WPM11 ambiguous-recovery decision package and left it ready for user decision. | Recommend append-only operator observations without rewriting unknown Shell evidence; document preserve-only, automatic-inference, replay, and overwrite alternatives; require an explicit Option A, Option B-with-waiver, or named-revision choice before implementation. |
