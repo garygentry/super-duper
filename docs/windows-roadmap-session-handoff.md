@@ -18,7 +18,8 @@ active.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Accept WPM13 action navigation` (this session's commit)
+- Latest completed slice: retain the blocked `WPM8-representative-query-performance` evidence-path
+  attempt (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 required fail-closed cloud safety: accepted; both unavailable opt-in policies are
@@ -40,7 +41,16 @@ active.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The latest slice accepts `WPM13-action-navigation` for exactly one existing family:
+The current evidence-only slice leaves `WPM8-representative-query-performance` blocked. On the
+explicitly confirmed designated Windows 11 x64 machine under normal load, the one authorized
+collector invocation created `artifacts/windows-representative-query/20260824-161340-948` and then
+failed before measurement because the execution sandbox denied the Release Infrastructure build
+access to `C:\Users\gary\AppData\Local\Microsoft SDKs`. The retained schema-v2 report and build log
+contain the exact command, exit code, host fallback, and error, but there are 0/500 query intervals,
+no host JSONL, no process snapshots, and no p95 metrics. No retry, substitute campaign, product-code
+change, or acceptance occurred.
+
+The preceding slice accepts `WPM13-action-navigation` for exactly one existing family:
 `scan/hash_recoverable_warning`. Its server-owned `runId` resolves through `run.get` to the same
 completed immutable duplicate-file set before navigation. Core/Shell cancel explicit requests,
 reject changed run/page context, and keep one missing target actionable without changing schema-v14
@@ -57,10 +67,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance only `WPM8-representative-query-performance`, and only on the designated representative
-Windows 11 x64 machine under normal load. Run its single retained 100-sample Release profile without
-retry-only acceptance. If that machine is not available, preserve the blocker and stop; do not
-substitute a provider, physical-accessibility, mutation, outcome, broad-performance, or later gate.
+Advance only `WPM8-representative-query-performance`. Preserve the failed pre-measurement bundle at
+`artifacts/windows-representative-query/20260824-161340-948`. The smallest separately authorized
+experiment is one unchanged collector invocation in a new evidence directory from a desktop
+execution context that can read the installed Windows SDK, after reconfirming that the designated
+Windows 11 x64 machine is under normal load. Do not rerun merely for a pass or substitute a provider,
+physical-accessibility, mutation, outcome, broad-performance, or later gate.
 
 ## Required startup audit
 
@@ -136,6 +148,15 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+The WPM8 attempt retained `acceptance-evidence.json`, `acceptance-report.md`, and
+`infrastructure-build.log` at `artifacts/windows-representative-query/20260824-161340-948`. The
+Release Infrastructure build exited 1 after 874.08 ms because Windows SDK discovery could not read
+`C:\Users\gary\AppData\Local\Microsoft SDKs`. The collector recorded `productionEnabled:false` and
+`milestone11Complete:false`; it did not reach deterministic contracts or the profile and therefore
+retained 0/500 intervals, 0/101 process snapshots, no host JSONL, and no p95 metrics. All full,
+provider, physical-accessibility, mutation, outcome, broad-performance, and later-gate campaigns
+were deliberately skipped.
 
 The action-navigation slice passed `Verify-WindowsActionNavigation.ps1`; its final passing bundle is
 `artifacts/windows-action-navigation/20260824-185741-521`, while failed zero-match verifier evidence
@@ -232,3 +253,4 @@ For each session:
 | 2026-08-24 | this session | Implement and accept schema-v14 bounded run-warning aggregates/examples, opaque server paging, fixed Core cache, restart reconstruction, immutable terminal history, cancellation/stale rejection, and accessible Run-history drilldown/focus. | Advance only WPM13-bounded-memory; exclude new Activity categories, navigation, outcomes, mutation, and external campaigns. |
 | 2026-08-24 | this session | Implement and accept indexed stable warning sorting/keyset paging, sort-bound cursors, one retained 100,000-aggregate Release proof, fixed five-page Core caching, 25-row virtualized WPF binding, cancellation/stale rejection, dispatcher responsiveness, and keyboard/focus restoration. | Advance only WPM13-action-navigation; preserve schema-v14 accounting/examples, immutable history, every production lock, and all excluded campaigns. |
 | 2026-08-24 | this session | Implement and accept the single existing completed-run hash-warning action with stable run-ID resolution, exact immutable duplicate-set navigation, cancellation/stale-context rejection, actionable missing-target feedback, Alt+O/automation, and focus restoration without changing bounded warning history or production locks. | Advance only WPM8-representative-query-performance on the designated representative Windows 11 x64 machine; otherwise preserve that blocker and stop. |
+| 2026-08-24 | this session | Retain the single designated-host WPM8 query attempt at `artifacts/windows-representative-query/20260824-161340-948`; the Release prerequisite build failed on sandbox-denied Windows SDK access before any query measurement. | Keep WPM8-representative-query-performance blocked; separately authorize one unchanged new-directory collector invocation from a desktop context with installed-Windows-SDK access after reconfirming normal load. Do not substitute another gate. |

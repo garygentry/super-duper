@@ -4002,6 +4002,19 @@ outcome audit, broad-performance, and later-gate campaigns were deliberately ski
 authorized gate is `WPM8-representative-query-performance`, contingent on the designated
 representative Windows 11 x64 machine.
 
+#### Representative-query evidence-path result (2026-08-24)
+
+The designated Windows 11 x64 machine and normal-load prerequisite were explicitly confirmed, and
+the one authorized collector invocation is retained at
+`artifacts/windows-representative-query/20260824-161340-948`. It failed before the warm profile when
+the Release Infrastructure build could not read `C:\Users\gary\AppData\Local\Microsoft SDKs` from
+the execution sandbox. The retained schema-v2 report records the command, exit code, host fallback,
+and exact build error, but contains 0/500 intervals, no host JSONL, no process snapshots, and no p95
+metrics. This is diagnostic evidence rather than a valid performance failure; the gate remains
+`blocked`, no retry or substitute campaign ran, and no product code changed. The smallest separately
+authorized experiment is one unchanged collector invocation in a new evidence directory from a
+desktop execution context with installed-Windows-SDK read access, after reconfirming normal load.
+
 ### Milestone 14 - UX and Scale Hardening
 
 Status: Planned. The four acceptance criteria and the additional required accessibility and query-
@@ -4087,14 +4100,16 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance only `WPM8-representative-query-performance`, and only on the designated representative
-Windows 11 x64 machine under normal load. Run the single retained 100-sample Release profile without
-retry-only acceptance. If the designated machine is unavailable, preserve the blocker and stop; do
-not substitute a provider, physical-accessibility, mutation, outcome, broad-performance, or later
-gate.
+Advance only `WPM8-representative-query-performance`. The designated representative Windows 11 x64
+host attempt at `artifacts/windows-representative-query/20260824-161340-948` failed before
+measurement because the execution sandbox could not read the installed Windows SDK. Preserve that
+bundle. Only after separate authorization, reconfirm normal load and run the unchanged collector
+once in a new evidence directory from a desktop execution context with Windows SDK access. Do not
+substitute a provider, physical-accessibility, mutation, outcome, broad-performance, or later gate.
 
-Verifier: the retained artifact contains all 100 samples and host context; every result, root-facet,
-drive-facet, plan, and review-group p95 meets the unchanged 100 ms target on that machine.
+Verifier: the retained artifact contains all 500 intervals, host context, and 101 process snapshots;
+every result, root-facet, drive-facet, plan, and review-group p95 meets the unchanged 100 ms target
+on that machine.
 
 ## Milestone Definition Template
 
@@ -4194,3 +4209,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-24 | Implemented and accepted schema-v14 bounded run-warning aggregates/examples, opaque `warning.page` paging, restart reconstruction, immutable terminal history, and the accessible cancellable Run-history drilldown with stale-context rejection and focus restoration. | Record WPM13-warning-drilldown `locally_exhausted`; preserve every production lock and exclude general Activity/navigation/outcomes. Authorize only WPM13-bounded-memory next. |
 | 2026-08-24 | Implemented and accepted indexed stable warning sorting/keyset paging, sort-bound cursors, one retained 100,000-aggregate Release proof, fixed five-page Core caching, 25-row virtualized WPF binding, cancellation/stale rejection, dispatcher responsiveness, and keyboard/focus restoration. | Record WPM13-bounded-memory `locally_exhausted`; preserve schema-v14 exact accounting/examples, immutable history, and every production lock. Authorize only WPM13-action-navigation next. |
 | 2026-08-24 | Implemented and accepted the single existing completed-run `scan/hash_recoverable_warning` action with exact stable-run resolution, immutable duplicate-set navigation, cancellation/stale-context rejection, actionable missing-target handling, Alt+O/automation, dispatcher responsiveness, and focus restoration. | Record WPM13-action-navigation `locally_exhausted`; preserve schema-v14 accounting/examples, paging/cache/binding bounds, immutable history, and every production lock. Authorize only WPM8-representative-query-performance on its designated representative machine; otherwise stop at that blocker. |
+| 2026-08-24 | Retained the single designated-host WPM8 query attempt at `artifacts/windows-representative-query/20260824-161340-948`; its Release prerequisite build failed on sandbox-denied Windows SDK access before measurement. | Keep WPM8-representative-query-performance blocked with 0/500 intervals and no p95 metrics. Do not rerun or substitute work; separately authorize one unchanged new-directory collector invocation from a desktop context with Windows SDK access after reconfirming normal load. |

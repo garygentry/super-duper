@@ -188,6 +188,17 @@ The heavier initial formatted-counter sampler was then replaced by the persisten
 sampler described above; a separate read-only probe verified its CPU/I/O ranking. Do not rerun the
 profile merely to replace this retained failure with a pass.
 
+The first designated-representative-host attempt on 2026-08-24 is retained at
+`artifacts/windows-representative-query/20260824-161340-948`. The collector stopped during its
+Release Infrastructure prerequisite build because the execution sandbox denied access to
+`C:\Users\gary\AppData\Local\Microsoft SDKs`. The schema-v2 evidence and build log are valid
+diagnostics, but this is not a valid measurement: it contains 0 of 500 query intervals, no host
+JSONL, no process snapshots, and no p95 metrics. It neither passes nor numerically fails the gate.
+Do not overwrite or rerun it merely for a pass. The smallest separately authorized experiment is
+one unchanged collector invocation in a new evidence directory from a desktop execution context
+that can read the installed Windows SDK, after reconfirming that the designated machine is under
+normal load.
+
 A qualifying large-plan operation run must record at least preflight-completion-to-prepare time,
 operator confirmation reading time, confirmation submission age, per-batch fresh-admission time,
 capability inspection time, durable-begin-to-report time, batch/result paging p50/p95/max, retained
