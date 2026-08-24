@@ -6,9 +6,10 @@ Active implementation roadmap for the Windows duplicate-review experience. Miles
 release-acceptance remediation and the required fail-closed Milestone 7 policy are complete; the
 two unavailable Milestone 7 opt-in policies are reviewed follow-ons. Milestone 8's read-only code
 criteria are accepted; representative query performance and physical Narrator/NVDA, high-contrast,
-and multi-monitor DPI evidence remain independent open gates. Milestone 9 has accepted bounded
-side-by-side folder relationships, responsive single-folder Explorer reveal, and file/folder
-physical de-duplication; only its parent-grouping gate remains open. All five Milestone 10
+and multi-monitor DPI evidence remain independent open gates. All four Milestone 9 criteria are
+accepted: bounded side-by-side folder relationships, responsive single-folder Explorer reveal,
+bounded current-page parent-grouped Explorer selection, and file/folder physical de-duplication.
+All five Milestone 10
 acceptance criteria are accepted through the first four review/rule slices. Milestone 11 has an
 accepted preflight, durable operation contract, separately gated native executor, evidence tooling,
 and read-only recovery reconstruction, but production still injects the disabled executor and
@@ -2038,9 +2039,9 @@ Milestone 10. Live-state badges, validation, and changed/resolved behavior begin
 
 ### Milestone 9 - Folder Intelligence and Windows Exploration
 
-Status: The bounded side-by-side folder relationship presentation, responsive single-folder
-Explorer reveal, and later-proven physical-target de-duplication criteria are accepted.
-Parent-grouped Explorer selection remains separate.
+Status: Complete and accepted. The bounded side-by-side folder relationship presentation,
+responsive single-folder Explorer reveal, current-page parent-grouped Explorer selection, and
+later-proven physical-target de-duplication criteria are accepted.
 
 #### User outcome
 
@@ -2132,6 +2133,35 @@ admitted by this smallest AC2 slice. They require a separately authorized comman
 `WPM9-parent-grouping` remains the next gate and may add only the parent-grouped selection required
 by AC3. No thumbnail, provider, physical-accessibility, performance, review mutation, filesystem
 mutation, deletion, Milestone 12, or Recycle Bin production behavior changed.
+
+#### Parent-grouping acceptance result (2026-08-23)
+
+`WPM9-parent-grouping` is accepted and `locally_exhausted`. One explicit **Select page in Explorer**
+command freezes only the current immutable folder-member page, whose Core and Infrastructure bounds
+are both 200 items. It neither follows page cursors nor requests another worker page. Infrastructure
+normalizes and deterministically groups those paths by case-insensitive parent, sorts each group,
+and makes exactly one `SHOpenFolderAndSelectItems` call per parent from background work. A failed
+parent does not prevent later parent groups from being attempted.
+
+Core exposes bounded aggregate busy and terminal state: complete success reports selected items and
+parents, while partial failure preserves the successful counts and reports failed item/parent
+counts plus at most three compact parent-specific errors and retry guidance. Selection, member-page,
+group, run, and disposal changes cancel the owning context; exact page/member generations reject a
+late success or failure. The existing single-folder reveal, copy-path commands, folder cards, and
+review actions remain unchanged.
+
+The button exposes stable `FolderSelectPageInExplorer` automation, an explicit name/help contract,
+Alt+G access, and bounded focus restoration to the selected virtualized card after success or
+failure. Focused Debug tests passed 16 Core, 7 Infrastructure, and all 3 loaded-STA tests. Full
+Debug and Release solution matrices each passed 101 Core, 66 Infrastructure, and 3 loaded-STA tests,
+with the same 5 explicit provider/physical Shell skips. Real disposable Debug and Release WPF smoke
+proved two-parent/three-item aggregate success, actionable partial failure after one location became
+unavailable, unchanged/restored fixtures, keyboard access, stable selection, focus restoration,
+dispatcher responsiveness, and unchanged production execution locks.
+
+Open normally, open parent, open all, Properties, Explorer extensions, thumbnails, full-result
+binding, review mutation, filesystem mutation, deletion, Milestone 12 behavior, and Recycle Bin
+production wiring remain outside this accepted slice. AC3 has no remaining local gap.
 
 ### Milestone 10 - Durable Review Plans and Preference Rules
 
@@ -3896,15 +3926,13 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance only `WPM9-parent-grouping`. Add bounded multi-location Explorer selection grouped by
-parent directory over only the current immutable folder-member page.
+Advance only `WPM12-external-invalidation`. Design and implement the first bounded selection/visible-
+page validation overlay for external deletion and modification without adding filesystem watchers.
 
-Verifier: deterministic Infrastructure/Core/STA tests prove one background Shell selection call per
-parent, bounded page ownership, actionable partial failures, stale-context rejection, keyboard and
-focus behavior, and dispatcher responsiveness; real Debug/Release smoke verifies the admitted
-selection. Do not add thumbnails, full-result binding, open-all window spawning, review mutation,
-deletion, provider/accessibility/performance campaigns, Milestone 12 behavior, or Recycle Bin
-production wiring.
+Verifier: disposable storage/protocol/Core/STA tests plus real non-mutating Debug/Release smoke prove
+that visible working decisions become invalidated without rewriting immutable history, binding full
+results, accessing excluded placeholders, or adding watcher/overflow/coalescing, deletion, Activity,
+or Recycle Bin production behavior.
 
 ## Milestone Definition Template
 
@@ -3997,3 +4025,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-23 | Ran and accepted the controlled WPM11 ambiguous-start campaign with a disposable host, durable-start process loss, restart reconstruction, real WPF Option A accounting, explicit supersession, exact immutable-source comparison, and retained passing/failing evidence bundles. | Record the gate `locally_exhausted`; preserve every production lock and authorize only WPM9-folder-relationships next. |
 | 2026-08-23 | Implemented and accepted bounded side-by-side exact-folder relationship cards over immutable 200-item worker pages with common/differing path context, per-copy/recoverable metrics, stable automation, keyboard selection/focus restoration, unchanged non-deleting review actions, and real Debug/Release WPF smoke. | Record WPM9-folder-relationships `locally_exhausted`; preserve server paging, five-page caches, file/folder physical de-duplication, and every execution lock; authorize only WPM9-explorer-responsiveness next. |
 | 2026-08-23 | Implemented and accepted responsive single-folder Explorer reveal over the current immutable folder-member page with background native work, bounded busy/success/actionable-failure state, cancellation and stale-generation rejection, stable automation, Alt+E/double-click access, focus restoration, and real Debug/Release success/failure smoke. | Record WPM9-explorer-responsiveness `locally_exhausted`; preserve copy/reveal and folder cards, admit no other Shell command, retain every production lock, and authorize only WPM9-parent-grouping next. |
+| 2026-08-23 | Implemented and accepted bounded current-page parent-grouped Explorer selection with deterministic one-call-per-parent background work, aggregate success/actionable partial failure, cancellation/stale-page rejection, Alt+G, stable automation, focus restoration, and real Debug/Release smoke. | Record WPM9-parent-grouping `locally_exhausted`; Milestone 9 is complete. Authorize only WPM12-external-invalidation next, without watchers, later Milestone 12 lanes, or production wiring. |

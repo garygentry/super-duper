@@ -1,3 +1,4 @@
+using SuperDuper.Windows.Core.Services;
 using SuperDuper.Windows.Core.ViewModels;
 using SuperDuper.Windows.Core.Workers;
 
@@ -307,6 +308,136 @@ public sealed class DuplicateFoldersViewModelTests
 
         staleCompletion.SetResult();
         await reveal;
+
+        Assert.AreEqual(2, viewModel.SelectedMember.Id);
+        Assert.IsFalse(viewModel.HasExplorerStatus);
+        Assert.IsFalse(viewModel.HasExplorerError);
+        Assert.AreEqual(0, viewModel.ExplorerStatusAnnouncementVersion);
+        Assert.AreEqual(0, viewModel.ExplorerErrorAnnouncementVersion);
+    }
+
+    [TestMethod]
+    public async Task ExplorerPageSelectionUsesOnlyTheBoundedCurrentMemberPage()
+    {
+        var memberQueryCount = 0;
+        var explorer = new TestExplorer();
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderGroupPage([Group(1, query.RunId, @"C:\Shared\One")], 1, null, null)),
+            FolderMemberPageHandler = (query, _) =>
+            {
+                memberQueryCount++;
+                return Task.FromResult(new WorkerDuplicateFolderMemberPage(
+                    [
+                        new(1, query.GroupId, @"C:\Shared\One"),
+                        new(2, query.GroupId, @"C:\Shared\Two"),
+                        new(3, query.GroupId, @"D:\Other\Three"),
+                    ],
+                    999,
+                    null,
+                    null));
+            },
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), explorer);
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(34, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        Assert.IsTrue(viewModel.CanSelectPageInExplorer);
+        await viewModel.SelectPageInExplorerCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, memberQueryCount);
+        Assert.AreEqual(1, explorer.SelectionCallCount);
+        CollectionAssert.AreEqual(
+            new[] { @"C:\Shared\One", @"C:\Shared\Two", @"D:\Other\Three" },
+            explorer.SelectedPaths!.ToArray());
+        Assert.AreEqual(
+            "File Explorer selected 3 folder copies in 2 parent locations from this page.",
+            viewModel.ExplorerStatusMessage);
+        Assert.AreEqual(1, viewModel.ExplorerStatusAnnouncementVersion);
+        Assert.IsFalse(viewModel.HasExplorerError);
+        Assert.IsFalse(viewModel.IsExplorerCommandRunning);
+    }
+
+    [TestMethod]
+    public async Task ExplorerPageSelectionPublishesActionableAggregatePartialFailure()
+    {
+        var explorer = new TestExplorer
+        {
+            SelectionHandler = (_, _) => Task.FromResult(new ExplorerSelectionResult(
+                3,
+                2,
+                2,
+                [new ExplorerParentSelectionFailure(@"D:\Offline", 1, "The parent is offline.")])),
+        };
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderGroupPage([Group(1, query.RunId, @"C:\Shared\One")], 1, null, null)),
+            FolderMemberPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFolderMemberPage(
+                [
+                    new(1, query.GroupId, @"C:\Shared\One"),
+                    new(2, query.GroupId, @"C:\Shared\Two"),
+                    new(3, query.GroupId, @"D:\Offline\Three"),
+                ],
+                3,
+                null,
+                null)),
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), explorer);
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(35, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        await viewModel.SelectPageInExplorerCommand.ExecuteAsync(null);
+
+        StringAssert.Contains(viewModel.ExplorerStatusMessage, "selected 2 of 3 folder copies");
+        StringAssert.Contains(viewModel.ExplorerStatusMessage, "1 of 2 parent locations");
+        StringAssert.Contains(viewModel.ExplorerErrorMessage, "could not select 1 folder copy");
+        StringAssert.Contains(viewModel.ExplorerErrorMessage, @"D:\Offline");
+        StringAssert.Contains(viewModel.ExplorerErrorMessage, "try this current page again");
+        Assert.AreEqual(1, viewModel.ExplorerStatusAnnouncementVersion);
+        Assert.AreEqual(1, viewModel.ExplorerErrorAnnouncementVersion);
+    }
+
+    [TestMethod]
+    public async Task ExplorerPageSelectionLateResultCannotReplaceNewerSelectionContext()
+    {
+        var selectionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var selectionCompletion = new TaskCompletionSource<ExplorerSelectionResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var explorer = new TestExplorer
+        {
+            SelectionHandler = async (_, _) =>
+            {
+                selectionStarted.SetResult();
+                return await selectionCompletion.Task;
+            },
+        };
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderGroupPage([Group(1, query.RunId, @"C:\Shared\One")], 1, null, null)),
+            FolderMemberPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFolderMemberPage(
+                [new(1, query.GroupId, @"C:\Shared\One"), new(2, query.GroupId, @"C:\Shared\Two")],
+                2,
+                null,
+                null)),
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), explorer);
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(36, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        var selection = viewModel.SelectPageInExplorerCommand.ExecuteAsync(null);
+        await selectionStarted.Task;
+        Assert.IsTrue(viewModel.IsExplorerCommandRunning);
+        viewModel.SelectedMember = viewModel.Members[1];
+
+        Assert.IsFalse(viewModel.IsExplorerCommandRunning);
+        Assert.IsFalse(viewModel.HasExplorerStatus);
+        Assert.IsFalse(viewModel.HasExplorerError);
+
+        selectionCompletion.SetResult(new ExplorerSelectionResult(2, 1, 2, []));
+        await selection;
 
         Assert.AreEqual(2, viewModel.SelectedMember.Id);
         Assert.IsFalse(viewModel.HasExplorerStatus);

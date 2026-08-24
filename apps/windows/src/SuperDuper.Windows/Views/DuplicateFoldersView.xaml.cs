@@ -29,6 +29,20 @@ public partial class DuplicateFoldersView : UserControl
         await RestoreLocationCardFocusAsync();
     }
 
+    private async void OnSelectFolderPageInExplorerClick(object sender, RoutedEventArgs e) =>
+        await SelectCurrentPageInExplorerAsync();
+
+    internal Task SelectCurrentPageInExplorerAsync()
+    {
+        if (DataContext is not DuplicateFoldersViewModel viewModel)
+        {
+            return Task.CompletedTask;
+        }
+
+        return ExecuteExplorerCommandAsync(
+            () => viewModel.SelectPageInExplorerCommand.ExecuteAsync(null));
+    }
+
     private async void OnLocationCardsPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (IsRevealShortcut(e.Key, e.SystemKey, Keyboard.Modifiers))

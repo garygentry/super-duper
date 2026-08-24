@@ -705,6 +705,28 @@ public sealed class WpfSurfaceSmokeTests
                 Assert.AreEqual(AutomationNotificationKind.ActionAborted, announcedKind);
                 Assert.AreEqual("DuplicateFolderMemberQuery", announcedActivityId);
 
+                const string folderExplorerSelectionAnnouncement =
+                    "File Explorer selected 3 folder copies in 2 parent locations from this page.";
+                folderExplorerStatus.Visibility = Visibility.Visible;
+                AutomationProperties.SetName(folderExplorerStatus, folderExplorerSelectionAnnouncement);
+                AutomationNotificationBehavior.SetAnnouncementVersion(folderExplorerStatus, 1);
+                DrainDispatcher();
+                Assert.AreSame(folderExplorerStatus, announcedElement);
+                Assert.AreEqual(folderExplorerSelectionAnnouncement, announcedText);
+                Assert.AreEqual(AutomationNotificationKind.ActionCompleted, announcedKind);
+                Assert.AreEqual("DuplicateFolderExplorerCommand", announcedActivityId);
+
+                const string folderExplorerPartialFailureAnnouncement =
+                    "File Explorer could not select 1 folder copy in 1 of 2 parent locations.";
+                folderExplorerError.Visibility = Visibility.Visible;
+                AutomationProperties.SetName(folderExplorerError, folderExplorerPartialFailureAnnouncement);
+                AutomationNotificationBehavior.SetAnnouncementVersion(folderExplorerError, 1);
+                DrainDispatcher();
+                Assert.AreSame(folderExplorerError, announcedElement);
+                Assert.AreEqual(folderExplorerPartialFailureAnnouncement, announcedText);
+                Assert.AreEqual(AutomationNotificationKind.ActionAborted, announcedKind);
+                Assert.AreEqual("DuplicateFolderExplorerCommand", announcedActivityId);
+
                 focusHost.Content = preflight;
                 const string recycleAnnouncementText =
                     "Recycle Bin operation results loaded. Unknown operation item page 2, showing items 101-101 of 101 unknown details.";
@@ -864,6 +886,13 @@ public sealed class WpfSurfaceSmokeTests
         Assert.AreEqual(
             "Next folder-copy location page",
             AutomationProperties.GetName(FindByAutomationId<Button>(folders, "NextFolderCardsButton")));
+        var selectPage = FindByAutomationId<Button>(folders, "FolderSelectPageInExplorer");
+        Assert.AreEqual("Select current folder-copy page in Explorer", AutomationProperties.GetName(selectPage));
+        Assert.AreEqual("Alt+G", AutomationProperties.GetAccessKey(selectPage));
+        StringAssert.Contains(AutomationProperties.GetHelpText(selectPage), "bounded current immutable");
+        StringAssert.Contains(AutomationProperties.GetHelpText(selectPage), "one Explorer selection per parent");
+        StringAssert.Contains(selectPage.Content?.ToString(), "_g");
+        Assert.IsTrue(selectPage.Focusable && KeyboardNavigation.GetIsTabStop(selectPage));
     }
 
     private static void AssertPrimaryFileFiltersReflow(DuplicateFilesView files)

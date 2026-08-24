@@ -288,6 +288,14 @@
                                Visibility="{Binding HasExplorerError, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate folder member paging" Orientation="Horizontal">
+                    <Button x:Name="SelectFolderPageInExplorerButton" Margin="0,0,8,0" Padding="10,4"
+                            automation:AutomationProperties.AccessKey="Alt+G"
+                            automation:AutomationProperties.AutomationId="FolderSelectPageInExplorer"
+                            automation:AutomationProperties.Name="Select current folder-copy page in Explorer"
+                            automation:AutomationProperties.HelpText="Selects only the bounded current immutable folder-copy page, making one Explorer selection per parent location. Alt+G."
+                            IsEnabled="{Binding CanSelectPageInExplorer}"
+                            Click="OnSelectFolderPageInExplorerClick"
+                            Content="Select pa_ge in Explorer" />
                     <Button x:Name="PreviousFolderCardsButton" Padding="10,4"
                             automation:AutomationProperties.AutomationId="PreviousFolderCardsButton"
                             automation:AutomationProperties.Name="Previous folder-copy location page"

@@ -742,6 +742,12 @@ internal sealed class TestExplorer : IExplorerService
 
     public Func<string, CancellationToken, Task>? Handler { get; set; }
 
+    public Func<IReadOnlyList<string>, CancellationToken, Task<ExplorerSelectionResult>>? SelectionHandler { get; set; }
+
+    public IReadOnlyList<string>? SelectedPaths { get; private set; }
+
+    public int SelectionCallCount { get; private set; }
+
     public Task RevealAsync(string path, CancellationToken cancellationToken = default)
     {
         RevealedPath = path;
@@ -754,5 +760,27 @@ internal sealed class TestExplorer : IExplorerService
             return Task.FromException(Error);
         }
         return Task.CompletedTask;
+    }
+
+    public Task<ExplorerSelectionResult> SelectByParentAsync(
+        IReadOnlyList<string> paths,
+        CancellationToken cancellationToken = default)
+    {
+        SelectionCallCount++;
+        SelectedPaths = paths.ToArray();
+        if (SelectionHandler is not null)
+        {
+            return SelectionHandler(paths, cancellationToken);
+        }
+
+        var parentCount = paths
+            .Select(path => Path.GetDirectoryName(path) ?? string.Empty)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+        return Task.FromResult(new ExplorerSelectionResult(
+            paths.Count,
+            parentCount,
+            paths.Count,
+            []));
     }
 }

@@ -49,8 +49,8 @@ function New-SmokeFixture([string]$Root) {
     [IO.File]::WriteAllText((Join-Path $results 'no-extension-a'), 'no extension smoke')
     [IO.File]::WriteAllText((Join-Path $results 'no-extension-b'), 'no extension smoke')
 
-    foreach ($folder in @('original-set', 'renamed-set')) {
-        $folderRoot = Join-Path $results "folders/$folder"
+    foreach ($folder in @('alternate/third-set', 'folders/original-set', 'folders/renamed-set')) {
+        $folderRoot = Join-Path $results $folder
         [IO.Directory]::CreateDirectory((Join-Path $folderRoot 'nested')) | Out-Null
         [IO.File]::WriteAllText((Join-Path $folderRoot 'readme.txt'), 'exact folder smoke')
         [IO.File]::WriteAllBytes((Join-Path $folderRoot 'nested/data.bin'), [byte[]](1..64))
@@ -787,7 +787,20 @@ public static class SmokeMouseInput
             [Windows.Automation.PropertyCondition]::new(
                 [Windows.Automation.AutomationElement]::ControlTypeProperty,
                 [Windows.Automation.ControlType]::ListItem))
-        Assert-True ($folderCardItems.Count -ge 2) 'The exact-folder relationship surface did not expose two side-by-side location cards.'
+        Assert-True ($folderCardItems.Count -ge 3) 'The exact-folder relationship surface did not expose the three bounded location cards needed for parent grouping.'
+        $folderCardPaths = @()
+        foreach ($folderCardItem in $folderCardItems) {
+            $pathEditor = $folderCardItem.FindFirst(
+                [Windows.Automation.TreeScope]::Descendants,
+                [Windows.Automation.PropertyCondition]::new(
+                    [Windows.Automation.AutomationElement]::ControlTypeProperty,
+                    [Windows.Automation.ControlType]::Edit))
+            Assert-True ($null -ne $pathEditor) 'A folder location card did not expose its selectable immutable path.'
+            $folderCardPaths += $pathEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value
+        }
+        $folderParentGroups = @($folderCardPaths | Group-Object { [IO.Path]::GetDirectoryName($_) })
+        Assert-True ($folderParentGroups.Count -ge 2) 'The grouped-selection fixture did not expose multiple Explorer parents.'
+        Assert-True (($folderParentGroups | Where-Object Count -ge 2).Count -ge 1) 'The grouped-selection fixture did not expose sibling folders sharing one Explorer parent.'
         $firstFolderCard = $folderCardItems[0]
         Assert-True $firstFolderCard.Current.AutomationId.StartsWith('FolderLocationCard-', [StringComparison]::Ordinal) 'The first folder location card did not expose a stable item automation ID.'
         $firstFolderCardId = $firstFolderCard.Current.AutomationId
@@ -823,6 +836,31 @@ public static class SmokeMouseInput
         Assert-True ([IO.Directory]::Exists($keptFolderPath)) 'Recording an exact-folder review decision unexpectedly removed the disposable fixture directory.'
         $firstFolderCard = Find-Element AutomationId $firstFolderCardId
         $firstSelection = $firstFolderCard.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)
+        $selectFolderPageButton = Find-Element AutomationId 'FolderSelectPageInExplorer'
+        Assert-True ($selectFolderPageButton.Current.Name -eq 'Select current folder-copy page in Explorer') 'Grouped Explorer selection did not expose its stable automation name.'
+        Assert-True $selectFolderPageButton.Current.IsEnabled 'Grouped Explorer selection was not enabled for the bounded multi-location page.'
+        Activate-SmokeWindow
+        $firstFolderCard.SetFocus()
+        [Windows.Forms.SendKeys]::SendWait('%g')
+        $folderExplorerStatus = $null
+        for ($attempt = 0; $attempt -lt 80; $attempt++) {
+            $statusCondition = [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::AutomationIdProperty,
+                'FolderExplorerStatus')
+            $candidateStatus = $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $statusCondition)
+            if ($null -ne $candidateStatus -and
+                $candidateStatus.Current.Name.Contains("selected $($folderCardItems.Count) folder copies", [StringComparison]::OrdinalIgnoreCase) -and
+                $candidateStatus.Current.Name.Contains("in $($folderParentGroups.Count) parent locations from this page", [StringComparison]::OrdinalIgnoreCase)) {
+                $folderExplorerStatus = $candidateStatus
+                break
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ($null -ne $folderExplorerStatus) 'Keyboard grouped Explorer selection did not reach terminal aggregate success state.'
+        Assert-True $firstSelection.Current.IsSelected 'Grouped Explorer selection replaced the selected immutable folder context.'
+        Assert-True $firstFolderCard.Current.HasKeyboardFocus 'Grouped Explorer selection did not restore focus to the selected folder card.'
+        Assert-NoVisibleDetailError 'FolderExplorerError'
+
         $folderRevealButton = Find-DescendantButtonByNameFragment $firstFolderCard 'in Explorer'
         Assert-True $folderRevealButton.Current.AutomationId.StartsWith('FolderReveal-', [StringComparison]::Ordinal) 'Folder reveal did not expose its stable member-scoped automation ID.'
         Activate-SmokeWindow
@@ -857,6 +895,28 @@ public static class SmokeMouseInput
         }
         Move-Item -LiteralPath $resolvedKeptFolder -Destination $resolvedMovedFolder
         try {
+            Invoke-Element $selectFolderPageButton
+            $groupedExplorerError = $null
+            for ($attempt = 0; $attempt -lt 80; $attempt++) {
+                $errorCondition = [Windows.Automation.PropertyCondition]::new(
+                    [Windows.Automation.AutomationElement]::AutomationIdProperty,
+                    'FolderExplorerError')
+                $candidateError = $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $errorCondition)
+                if ($null -ne $candidateError -and
+                    $candidateError.Current.Name.Contains('could not select', [StringComparison]::OrdinalIgnoreCase) -and
+                    $candidateError.Current.Name.Contains('parent locations', [StringComparison]::OrdinalIgnoreCase) -and
+                    $candidateError.Current.Name.Contains('try this current page again', [StringComparison]::OrdinalIgnoreCase)) {
+                    $groupedExplorerError = $candidateError
+                    break
+                }
+                Start-Sleep -Milliseconds 100
+            }
+            Assert-True ($null -ne $groupedExplorerError) 'Grouped Explorer selection did not publish actionable aggregate partial-failure guidance.'
+            $partialExplorerStatus = Find-Element AutomationId 'FolderExplorerStatus'
+            Assert-True ($partialExplorerStatus.Current.Name.Contains(' of ', [StringComparison]::OrdinalIgnoreCase)) 'Grouped Explorer partial failure did not retain its successful aggregate count.'
+            Assert-True $firstSelection.Current.IsSelected 'Grouped Explorer partial failure replaced the selected immutable folder context.'
+            Assert-True $firstFolderCard.Current.HasKeyboardFocus 'Grouped Explorer partial failure did not restore folder-card focus.'
+
             Invoke-Element $folderRevealButton
             $folderExplorerError = Find-Element AutomationId 'FolderExplorerError'
             Assert-True ($folderExplorerError.Current.Name.Contains('Verify that the location is available, then try again', [StringComparison]::OrdinalIgnoreCase)) 'Missing-location folder reveal did not publish actionable retry guidance.'
@@ -956,7 +1016,7 @@ $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
         $operationBoundary = Find-Element AutomationId 'RecycleOperationBoundaryNotice'
         Assert-True ($operationBoundary.Current.Name.Contains('execution is disabled', [StringComparison]::OrdinalIgnoreCase)) 'WPF did not disclose the disabled Recycle Bin executor boundary.'
         Assert-True ([IO.File]::Exists($exactPath)) 'WPF preflight unexpectedly removed a disposable fixture file.'
-        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, bounded side-by-side folder location cards with stable automation and Right Arrow focus, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, ordinary/long-path file reveal, and keyboard folder reveal success plus actionable missing-location failure."
+        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, bounded side-by-side folder location cards with stable automation and Right Arrow focus, current-page parent-grouped Explorer selection with keyboard access, aggregate success, actionable partial failure, and focus restoration, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, ordinary/long-path file reveal, and keyboard folder reveal success plus actionable missing-location failure."
     }
     catch {
         $automationFailure = $_
@@ -1333,7 +1393,7 @@ try {
     $threeCopyFiles = Send-WorkerRequest $restored 'duplicate_file_group.page' @{
         runId = $run.id; pageSize = 25
         sort = @{ field = 'copyCount'; direction = 'descending' }
-        filter = @{ search = ''; minimumSize = '0'; minimumCopyCount = 3 }; cursor = $null
+        filter = @{ search = 'group010'; minimumSize = '0'; minimumCopyCount = 3 }; cursor = $null
     }
     Assert-True ($threeCopyFiles.total -eq 1) 'Minimum-copy-count filter did not isolate the three-copy smoke set.'
     Assert-True ($threeCopyFiles.summary.matchingGroupCount -eq $threeCopyFiles.total) 'Minimum-copy-count summary diverged from its result total.'
@@ -1342,13 +1402,13 @@ try {
     $threeCopyRootFacets = Send-WorkerRequest $restored 'duplicate_file_selected_root_facet.page' @{
         runId = $run.id; pageSize = 25
         sort = @{ field = 'matchingGroupCount'; direction = 'descending' }
-        filter = @{ search = ''; minimumSize = '0'; minimumCopyCount = 3; acrossDrives = $false }; cursor = $null
+        filter = @{ search = 'group010'; minimumSize = '0'; minimumCopyCount = 3; acrossDrives = $false }; cursor = $null
     }
     Assert-True ($threeCopyRootFacets.facets[0].matchingGroupCount -eq 1) 'Selected-root facet did not apply the minimum-copy-count filter.'
     $threeCopyDriveFacets = Send-WorkerRequest $restored 'duplicate_file_drive_facet.page' @{
         runId = $run.id; pageSize = 25
         sort = @{ field = 'matchingGroupCount'; direction = 'descending' }
-        filter = @{ search = ''; minimumSize = '0'; minimumCopyCount = 3; acrossDrives = $false }; cursor = $null
+        filter = @{ search = 'group010'; minimumSize = '0'; minimumCopyCount = 3; acrossDrives = $false }; cursor = $null
     }
     Assert-True ($threeCopyDriveFacets.facets[0].matchingGroupCount -eq 1) 'Drive facet did not apply the minimum-copy-count filter.'
     $extensionFiles = Send-WorkerRequest $restored 'duplicate_file_group.page' @{
@@ -1441,7 +1501,7 @@ try {
         sort = @{ field = 'path'; direction = 'ascending' }
         filter = @{ search = '' }; cursor = $null
     }
-    Assert-True ($folderMembers.total -ge 2) 'Exact-folder member browsing did not return both roots.'
+    Assert-True ($folderMembers.total -ge 3) 'Exact-folder member browsing did not return all three parent-grouping roots.'
     $reviewPlan = Send-WorkerRequest $restored 'review_plan.get' @{ runId = $run.id }
     $folderReviewPage = Send-WorkerRequest $restored 'review_folder_group.page' @{
         runId = $run.id; pageSize = 25; cursor = $null

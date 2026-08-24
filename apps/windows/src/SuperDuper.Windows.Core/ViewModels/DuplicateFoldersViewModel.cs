@@ -79,6 +79,9 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         RevealInExplorerCommand = new AsyncRelayCommand<DuplicateFolderMemberListItemViewModel>(
             RevealAsync,
             CanRevealInExplorer);
+        SelectPageInExplorerCommand = new AsyncRelayCommand(
+            SelectPageInExplorerAsync,
+            () => CanSelectPageInExplorer);
         KeepFolderCommand = new AsyncRelayCommand<DuplicateFolderMemberListItemViewModel>(
             member => SetReviewDecisionAsync(member, "keep"),
             CanSetReviewDecision);
@@ -107,6 +110,9 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _members, value))
             {
                 OnPropertyChanged(nameof(MemberPageStatusText));
+                OnPropertyChanged(nameof(CanSelectPageInExplorer));
+                RevealInExplorerCommand.NotifyCanExecuteChanged();
+                SelectPageInExplorerCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -216,6 +222,8 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _isExplorerCommandRunning, value))
             {
                 RevealInExplorerCommand.NotifyCanExecuteChanged();
+                SelectPageInExplorerCommand.NotifyCanExecuteChanged();
+                OnPropertyChanged(nameof(CanSelectPageInExplorer));
             }
         }
     }
@@ -348,6 +356,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     public IAsyncRelayCommand PreviousMemberPageCommand { get; }
     public IRelayCommand<DuplicateFolderMemberListItemViewModel> CopyPathCommand { get; }
     public IAsyncRelayCommand<DuplicateFolderMemberListItemViewModel> RevealInExplorerCommand { get; }
+    public IAsyncRelayCommand SelectPageInExplorerCommand { get; }
     public IAsyncRelayCommand<DuplicateFolderMemberListItemViewModel> KeepFolderCommand { get; }
     public IAsyncRelayCommand<DuplicateFolderMemberListItemViewModel> RemoveFolderCommand { get; }
     public IAsyncRelayCommand<DuplicateFolderMemberListItemViewModel> UndecideFolderCommand { get; }
@@ -920,6 +929,154 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         }
     }
 
+    public bool CanSelectPageInExplorer =>
+        !IsExplorerCommandRunning
+        && Run?.Status == "completed"
+        && SelectedGroup is not null
+        && Members.Count is > 1 and <= IExplorerService.MaximumSelectionItems;
+
+    private async Task SelectPageInExplorerAsync()
+    {
+        if (!CanSelectPageInExplorer
+            || Run is not { } run
+            || SelectedGroup is not { } group)
+        {
+            return;
+        }
+
+        var page = Members
+            .Take(IExplorerService.MaximumSelectionItems)
+            .Select(member => new ExplorerPageMember(member.Id, member.Path))
+            .ToArray();
+        var selectedMember = SelectedMember is { } selected
+            ? new ExplorerPageMember(selected.Id, selected.Path)
+            : null;
+        CancelExplorerCommand(clearFeedback: true);
+        _explorerCancellation = new CancellationTokenSource();
+        var cancellationToken = _explorerCancellation.Token;
+        var generation = _explorerGeneration;
+        var memberGeneration = _memberGeneration;
+        var runId = run.Id;
+        var groupId = group.Id;
+        IsExplorerCommandRunning = true;
+        ExplorerStatusMessage =
+            $"Selecting {FormatCount(page.Length, "folder copy", "folder copies")} from this server-owned page in File Explorer…";
+        try
+        {
+            var result = await _explorer.SelectByParentAsync(
+                page.Select(member => member.Path).ToArray(),
+                cancellationToken);
+            if (!IsCurrentExplorerPageContext(
+                    page,
+                    selectedMember,
+                    runId,
+                    groupId,
+                    memberGeneration,
+                    generation,
+                    cancellationToken))
+            {
+                return;
+            }
+
+            PublishExplorerSelectionResult(result);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (!IsCurrentExplorerPageContext(
+                    page,
+                    selectedMember,
+                    runId,
+                    groupId,
+                    memberGeneration,
+                    generation,
+                    cancellationToken))
+            {
+                return;
+            }
+
+            ExplorerStatusMessage = null;
+            ExplorerErrorMessage = "Could not select this folder-copy page in File Explorer. "
+                + $"Verify that its parent locations are available, then try again. {exception.Message}";
+            ExplorerErrorAnnouncementVersion++;
+        }
+        finally
+        {
+            if (generation == _explorerGeneration)
+            {
+                IsExplorerCommandRunning = false;
+            }
+        }
+    }
+
+    private void PublishExplorerSelectionResult(ExplorerSelectionResult result)
+    {
+        if (result.Failures.Count == 0)
+        {
+            ExplorerErrorMessage = null;
+            ExplorerStatusMessage =
+                $"File Explorer selected {FormatCount(result.SelectedItemCount, "folder copy", "folder copies")} "
+                + $"in {FormatCount(result.ParentCount, "parent location", "parent locations")} from this page.";
+            ExplorerStatusAnnouncementVersion++;
+            return;
+        }
+
+        ExplorerStatusMessage = result.SelectedItemCount == 0
+            ? null
+            : $"File Explorer selected {result.SelectedItemCount:N0} of {result.RequestedItemCount:N0} folder copies "
+                + $"in {result.SuccessfulParentCount:N0} of {result.ParentCount:N0} parent locations from this page.";
+        if (ExplorerStatusMessage is not null)
+        {
+            ExplorerStatusAnnouncementVersion++;
+        }
+
+        var failureDetails = string.Join(
+            "; ",
+            result.Failures.Take(3).Select(failure =>
+                $"{CompactExplorerDetail(failure.ParentPath)} ({CompactExplorerDetail(failure.ErrorMessage)})"));
+        if (result.Failures.Count > 3)
+        {
+            failureDetails += $"; plus {result.Failures.Count - 3:N0} more parent locations";
+        }
+        ExplorerErrorMessage = result.SelectedItemCount == 0
+            ? $"File Explorer could not select any of the {FormatCount(result.RequestedItemCount, "folder copy", "folder copies")} "
+                + $"in {result.ParentCount:N0} parent locations. Failed locations: {failureDetails}. "
+                + "Verify that the locations are available, then try this current page again."
+            : $"File Explorer could not select {FormatCount(result.FailedItemCount, "folder copy", "folder copies")} "
+                + $"in {result.Failures.Count:N0} of {result.ParentCount:N0} parent locations. "
+                + $"Failed locations: {failureDetails}. Verify that the locations are available, "
+                + "then try this current page again.";
+        ExplorerErrorAnnouncementVersion++;
+    }
+
+    private bool IsCurrentExplorerPageContext(
+        IReadOnlyList<ExplorerPageMember> page,
+        ExplorerPageMember? selectedMember,
+        long runId,
+        long groupId,
+        long memberGeneration,
+        long explorerGeneration,
+        CancellationToken cancellationToken) =>
+        explorerGeneration == _explorerGeneration
+        && memberGeneration == _memberGeneration
+        && !cancellationToken.IsCancellationRequested
+        && Run?.Id == runId
+        && SelectedGroup?.Id == groupId
+        && SelectedMember?.Id == selectedMember?.Id
+        && SelectedMember?.Path == selectedMember?.Path
+        && Members.Count == page.Count
+        && Members.Select(member => new ExplorerPageMember(member.Id, member.Path)).SequenceEqual(page);
+
+    private static string CompactExplorerDetail(string value)
+    {
+        const int maximumLength = 160;
+        return value.Length <= maximumLength
+            ? value
+            : $"…{value[^(maximumLength - 1)..]}";
+    }
+
     private bool IsCurrentExplorerContext(
         DuplicateFolderMemberListItemViewModel member,
         long runId,
@@ -1051,6 +1208,8 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
 
     private static string FormatCount(long value, string singular, string plural) =>
         $"{value:N0} {(value == 1 ? singular : plural)}";
+
+    private sealed record ExplorerPageMember(long Id, string Path);
 
     private void RaiseState()
     {
