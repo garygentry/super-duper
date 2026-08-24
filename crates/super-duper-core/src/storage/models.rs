@@ -500,6 +500,65 @@ pub struct ReviewLiveValidationResult {
     pub items: Vec<ReviewLiveValidationItem>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewLiveRootState {
+    pub run_id: i64,
+    pub root_path: String,
+    pub state: String,
+    pub dirty_revision: i64,
+    pub reason_code: String,
+    pub dirty_at: String,
+    pub reconciliation_cursor_file_id: Option<i64>,
+    pub reconciled_item_count: i64,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewLiveRootOverflowRequest {
+    pub operation_id: String,
+    pub run_id: i64,
+    pub root_path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewLiveRootOverflowResult {
+    pub root: ReviewLiveRootState,
+    pub replayed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewLiveRootReconciliationRequest {
+    pub operation_id: String,
+    pub run_id: i64,
+    pub root_path: String,
+    pub expected_dirty_revision: i64,
+    pub expected_review_revision: i64,
+    pub page_size: i64,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReviewLiveRootReconciliationSummary {
+    pub item_count: i64,
+    pub present_count: i64,
+    pub changed_count: i64,
+    pub missing_count: i64,
+    pub unavailable_count: i64,
+    pub invalidated_decision_count: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewLiveRootReconciliationResult {
+    pub reconciliation_id: i64,
+    pub run_id: i64,
+    pub root_path: String,
+    pub dirty_revision: i64,
+    pub review_revision: i64,
+    pub replayed: bool,
+    pub summary: ReviewLiveRootReconciliationSummary,
+    pub items: Vec<ReviewLiveValidationItem>,
+    pub root: ReviewLiveRootState,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ReviewFolderGroupSummary {
     pub folder_group_id: i64,

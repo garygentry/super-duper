@@ -42,7 +42,56 @@ use winapi::um::winnt::IO_COUNTERS;
 
 static LARGE_FIXTURE_TEST_LOCK: Mutex<()> = Mutex::new(());
 
+fn drop_v13_root_reconciliation_schema(db: &Database) {
+    db.connection()
+        .execute_batch(
+            "DROP VIEW effective_review_decision;
+             DROP INDEX idx_review_live_file_state_invalidated;
+             ALTER TABLE review_live_file_state RENAME TO review_live_file_state_v13;
+             CREATE TABLE review_live_file_state (
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 file_id INTEGER NOT NULL REFERENCES scanned_file(id) ON DELETE CASCADE,
+                 validation_id INTEGER NOT NULL REFERENCES review_live_validation(id) ON DELETE CASCADE,
+                 state TEXT NOT NULL CHECK(state IN ('present', 'changed', 'missing', 'unavailable')),
+                 reason_code TEXT NOT NULL,
+                 observed_file_identity TEXT,
+                 observed_file_size INTEGER CHECK(observed_file_size IS NULL OR observed_file_size >= 0),
+                 observed_last_modified INTEGER,
+                 os_error INTEGER,
+                 decision_invalidated INTEGER NOT NULL CHECK(decision_invalidated IN (0, 1)),
+                 invalidated_decision TEXT CHECK(invalidated_decision IS NULL OR invalidated_decision IN ('keep', 'remove')),
+                 observed_at TEXT NOT NULL,
+                 PRIMARY KEY(run_id, file_id)
+             );
+             INSERT INTO review_live_file_state
+                 (run_id, file_id, validation_id, state, reason_code,
+                  observed_file_identity, observed_file_size, observed_last_modified, os_error,
+                  decision_invalidated, invalidated_decision, observed_at)
+             SELECT run_id, file_id, validation_id, state, reason_code,
+                    observed_file_identity, observed_file_size, observed_last_modified, os_error,
+                    decision_invalidated, invalidated_decision, observed_at
+             FROM review_live_file_state_v13 WHERE validation_id IS NOT NULL;
+             DROP TABLE review_live_file_state_v13;
+             CREATE VIEW effective_review_decision AS
+             SELECT recorded.plan_id, recorded.group_id, recorded.file_id, recorded.decision,
+                    recorded.provenance, recorded.decided_at, recorded.application_id
+             FROM recorded_review_decision recorded
+             JOIN review_plan plan ON plan.id = recorded.plan_id
+             LEFT JOIN review_live_file_state live
+               ON live.run_id = plan.run_id AND live.file_id = recorded.file_id
+             WHERE live.decision_invalidated IS NULL OR live.decision_invalidated = 0;
+             CREATE INDEX idx_review_live_file_state_invalidated
+                 ON review_live_file_state(run_id, decision_invalidated, file_id);
+             DROP TABLE review_live_root_reconciliation_item;
+             DROP TABLE review_live_root_reconciliation;
+             DROP TABLE review_live_root_overflow;
+             DROP TABLE review_live_root_state;",
+        )
+        .unwrap();
+}
+
 fn drop_v12_live_validation_schema(db: &Database) {
+    drop_v13_root_reconciliation_schema(db);
     db.connection()
         .execute_batch(
             "DROP VIEW effective_review_decision;
@@ -357,6 +406,39 @@ fn version_eleven_migrates_live_validation_overlay_transactionally() {
         "review_live_validation_item",
         "review_live_file_state",
         "recorded_review_decision",
+        "effective_review_decision",
+    ] {
+        let exists: bool = migrated
+            .connection()
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name = ?1)",
+                params![object],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(exists, "missing migrated object {object}");
+    }
+}
+
+#[test]
+fn version_twelve_migrates_dirty_root_reconciliation_transactionally() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("v12-dirty-root.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    drop_v13_root_reconciliation_schema(&db);
+    db.connection()
+        .execute_batch("PRAGMA user_version = 12;")
+        .unwrap();
+    drop(db);
+
+    let migrated = Database::open(path.to_str().unwrap()).unwrap();
+    assert_eq!(migrated.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+    for object in [
+        "review_live_root_state",
+        "review_live_root_overflow",
+        "review_live_root_reconciliation",
+        "review_live_root_reconciliation_item",
+        "review_live_file_state",
         "effective_review_decision",
     ] {
         let exists: bool = migrated

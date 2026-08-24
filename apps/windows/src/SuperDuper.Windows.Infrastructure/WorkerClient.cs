@@ -509,6 +509,33 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
             cancellationToken);
     }
 
+    public Task<WorkerReviewLiveRootPage> GetDirtyReviewRootsAsync(
+        long runId,
+        CancellationToken cancellationToken = default) =>
+        InvokeAsync<WorkerReviewLiveRootPage>(
+            "review_live_root.list",
+            new { runId },
+            cancellationToken);
+
+    public Task<WorkerReviewLiveRootReconciliationResult> ReconcileDirtyReviewRootAsync(
+        ReviewLiveRootReconciliationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return InvokeAsync<WorkerReviewLiveRootReconciliationResult>(
+            "review_live_root.reconcile",
+            new
+            {
+                operationId = request.OperationId,
+                runId = request.RunId,
+                rootPath = request.RootPath,
+                expectedDirtyRevision = request.ExpectedDirtyRevision,
+                expectedReviewRevision = request.ExpectedReviewRevision,
+                pageSize = request.PageSize,
+            },
+            cancellationToken);
+    }
+
     public Task<WorkerReviewFolderGroupPage> GetReviewFolderGroupsAsync(
         long runId,
         int pageSize,
@@ -1155,11 +1182,11 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
 
     private static string SelectedRootFacetSortField(
         DuplicateFileSelectedRootFacetSortField field) => field switch
-    {
-        DuplicateFileSelectedRootFacetSortField.MatchingGroupCount => "matchingGroupCount",
-        DuplicateFileSelectedRootFacetSortField.Value => "value",
-        _ => throw new ArgumentOutOfRangeException(nameof(field)),
-    };
+        {
+            DuplicateFileSelectedRootFacetSortField.MatchingGroupCount => "matchingGroupCount",
+            DuplicateFileSelectedRootFacetSortField.Value => "value",
+            _ => throw new ArgumentOutOfRangeException(nameof(field)),
+        };
 
     private static string DriveFacetSortField(DuplicateFileDriveFacetSortField field) => field switch
     {

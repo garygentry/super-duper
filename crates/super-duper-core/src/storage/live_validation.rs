@@ -45,25 +45,25 @@ pub enum ReviewLiveValidationError {
 }
 
 #[derive(Clone)]
-struct ValidationSnapshot {
-    file_id: i64,
-    path: String,
-    identity: Option<String>,
-    size: i64,
-    modified: i64,
-    recorded_decision: Option<ReviewDecisionKind>,
-    prior_invalidated: bool,
-    prior_invalidated_decision: Option<ReviewDecisionKind>,
+pub(super) struct ValidationSnapshot {
+    pub(super) file_id: i64,
+    pub(super) path: String,
+    pub(super) identity: Option<String>,
+    pub(super) size: i64,
+    pub(super) modified: i64,
+    pub(super) recorded_decision: Option<ReviewDecisionKind>,
+    pub(super) prior_invalidated: bool,
+    pub(super) prior_invalidated_decision: Option<ReviewDecisionKind>,
 }
 
 #[derive(Clone)]
-struct Observation {
-    state: &'static str,
-    reason_code: &'static str,
-    observed_identity: Option<String>,
-    observed_size: Option<i64>,
-    observed_modified: Option<i64>,
-    os_error: Option<i64>,
+pub(super) struct Observation {
+    pub(super) state: &'static str,
+    pub(super) reason_code: &'static str,
+    pub(super) observed_identity: Option<String>,
+    pub(super) observed_size: Option<i64>,
+    pub(super) observed_modified: Option<i64>,
+    pub(super) os_error: Option<i64>,
 }
 
 impl Database {
@@ -227,12 +227,13 @@ impl Database {
             )?;
             tx.execute(
                 "INSERT INTO review_live_file_state
-                    (run_id, file_id, validation_id, state, reason_code,
+                    (run_id, file_id, validation_id, reconciliation_id, state, reason_code,
                      observed_file_identity, observed_file_size, observed_last_modified, os_error,
                      decision_invalidated, invalidated_decision, observed_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                 VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
                  ON CONFLICT(run_id, file_id) DO UPDATE SET
                      validation_id = excluded.validation_id,
+                     reconciliation_id = NULL,
                      state = excluded.state,
                      reason_code = excluded.reason_code,
                      observed_file_identity = excluded.observed_file_identity,
@@ -530,7 +531,7 @@ fn ensure_current_context(
     Ok(())
 }
 
-fn validate_path(snapshot: &ValidationSnapshot) -> Observation {
+pub(super) fn validate_path(snapshot: &ValidationSnapshot) -> Observation {
     let path = Path::new(&snapshot.path);
     match platform::classify_path_without_open(path) {
         Ok(PathSafety::Missing) => observation("missing", "path_missing"),
@@ -601,7 +602,7 @@ fn unavailable(reason_code: &'static str, error: &io::Error) -> Observation {
     }
 }
 
-fn count_state(items: &[ReviewLiveValidationItem], state: &str) -> i64 {
+pub(super) fn count_state(items: &[ReviewLiveValidationItem], state: &str) -> i64 {
     items.iter().filter(|item| item.state == state).count() as i64
 }
 
@@ -621,7 +622,7 @@ fn request_signature(request: &ReviewLiveValidationRequest) -> String {
     )
 }
 
-fn path_is_within(path: &str, root: &str) -> bool {
+pub(super) fn path_is_within(path: &str, root: &str) -> bool {
     let path = normalize_path(path);
     let root = normalize_path(root).trim_end_matches('/').to_owned();
     path == root
@@ -630,7 +631,7 @@ fn path_is_within(path: &str, root: &str) -> bool {
             .is_some_and(|suffix| suffix.starts_with('/'))
 }
 
-fn normalize_path(path: &str) -> String {
+pub(super) fn normalize_path(path: &str) -> String {
     path.replace('\\', "/").to_lowercase()
 }
 

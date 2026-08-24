@@ -18,7 +18,7 @@ active.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Accept WPM12 external invalidation` (this session's commit)
+- Latest completed slice: `Accept WPM12 watcher overflow` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 required fail-closed cloud safety: accepted; both unavailable opt-in policies are
@@ -32,36 +32,42 @@ active.
 - Milestone 11: non-deleting preflight, durable operation contract, separately gated native executor,
   and acceptance evidence tooling are implemented; production execution remains disabled and the
   milestone is not complete
-- Milestone 12: bounded external deletion/modification invalidation is accepted; dirty/overflow and
-  coalescing remain independent, while in-app reconciliation depends on Milestone 11 outcomes
+- Milestone 12: bounded external deletion/modification invalidation and durable watcher-overflow
+  dirty-root reconciliation are accepted; event coalescing remains independent, while in-app
+  deletion outcomes depend on Milestone 11 outcomes
 - Milestone 13: planned; bounded warning/Activity foundations can advance independently
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The latest slice accepts `WPM12-external-invalidation`. Schema v12 stores an idempotent validation
-ledger and separate latest-state overlay while immutable scan rows and recorded manual/rule choices
-remain unchanged. The worker accepts only 1–200 explicit IDs from one selected set/current member
-page, has no cursor, repeats revision and ownership checks at commit, and classifies excluded paths
-before metadata/identity validation. Missing/changed files invalidate working Keep/Remove choices;
-a restored Present file retains actionable prior intent until a fresh decision or Undecided.
+The latest slice accepts `WPM12-watcher-overflow`. Schema v13 adds idempotent overflow and bounded
+reconciliation ledgers plus one durable latest dirty-root state per completed run/root. A watcher
+overflow increments a monotonic dirty revision, resets its server cursor, survives restart, and is
+never silently treated as clean. The worker lists at most 64 dirty roots and accepts one explicit
+1-200-item reconciliation request; the server owns membership and cursor advancement, repeats dirty
+and review generation checks at commit, and clears the dirty marker only after the final batch.
 
-Core/WPF freeze only bound rows, never fetch another page, cancel and reject stale contexts, expose
-actionable live state, and provide stable automation, Alt+V, explicit cancellation, announcements,
-dispatcher responsiveness, and grid-focus restoration. Focused storage/protocol/Core/loaded-STA
-tests, full Debug/Release matrices, and real disposable Debug/Release smoke proved external deletion
-and modification, excluded-placeholder safety, immutable history, bounded ownership, restart,
-stale/cancelled response rejection, and fresh-decision recovery. The gate is `locally_exhausted`;
-watchers, overflow/coalescing, Activity, provider/performance/physical campaigns, mutation, and every
-production execution path remain untouched.
+The existing schema-v12 external-validation overlay remains the sole derived working-copy state:
+reconciliation observations update it without rewriting immutable scan rows or recorded manual/rule
+history. Core/WPF load durable trust state with each completed run, expose an assertive visible
+warning, Alt+X, explicit cancellation, bounded progress, stale-context rejection, and copy-grid
+focus restoration. One response produces one dirty-root binding update and refreshes only the
+current member page plus its bounded neighbor cache. Focused storage/protocol/Core/loaded-STA tests,
+full proportional matrices, and real disposable Debug/Release smoke proved restart reconstruction,
+visible dirty state, bounded ownership, immutable history, cancellation/stale response rejection,
+dispatcher responsiveness, keyboard/automation access, and unchanged production locks. The gate is
+`locally_exhausted`; event coalescing, Activity, provider/performance/physical campaigns, mutation,
+and every production execution path remain untouched.
 
 ## Immediate next step
 
-Advance only `WPM12-watcher-overflow`. Define the bounded dirty-root/overflow protocol and visible
-reconciliation-required state without event coalescing, filesystem mutation, or production deletion.
+Advance only `WPM12-event-coalescing`. Define the bounded watcher-event coalescing contract without
+adding Activity UI, deletion outcomes, provider hydration, filesystem mutation, or production
+deletion.
 
-Verifier: injected overflow storage/protocol/Core/STA tests plus real non-mutating Debug/Release
-smoke prove a durable/visible dirty state and bounded explicit reconciliation request, with no silent
-trust, full-result binding, watcher-event UI fan-out, or immutable-history rewrite.
+Verifier: deterministic burst/coalescing storage/protocol/Core/STA coverage proves bounded aggregate
+updates and dispatcher responsiveness without one update per filesystem event; retain the accepted
+dirty-root/reconciliation, external-validation, immutable-history, restart, and production-lock
+evidence.
 
 ## Required startup audit
 
@@ -138,22 +144,24 @@ required gates are open.
 
 ## Latest verification baseline
 
-The latest external-invalidation slice was verified as follows:
+The latest watcher-overflow slice was verified as follows:
 
-- `Verify-WindowsExternalInvalidation.ps1` passed 3 focused schema/storage tests, 1 worker-protocol
-  test, 2 Core page/cancellation tests, and 1 loaded-STA dispatcher/automation/focus test, plus XAML
-  and PowerShell parsing, diff hygiene, and every production lock;
-- the full Debug Rust workspace passed 82 Core/scan/storage tests, 32 FFI tests, and 14 worker tests;
+- `Verify-WindowsWatcherOverflow.ps1` passed 1 focused dirty-root storage/reconciliation test, 1
+  schema-v13 migration test, 1 worker protocol/restart/stale-generation test, 4 Core
+  overflow/cancellation/external-validation tests, and 1 loaded-STA dispatcher/automation/focus test,
+  plus XAML and PowerShell parsing, diff hygiene, and every production lock;
+- the full Debug Rust workspace passed 84 Core/scan/storage tests, 32 FFI tests, and 15 worker tests;
   the same 3 explicit operator performance profiles remained ignored; optimized Release passed the
-  3 focused storage/migration and 1 worker-protocol validation tests;
-- full Debug/Release solution matrices each passed 103 Core, 66 Infrastructure, and 3 loaded-STA
+  3 focused storage/migration tests and 1 worker-protocol test;
+- full Debug/Release solution matrices each passed 105 Core, 66 Infrastructure, and 3 loaded-STA
   tests; the same 5 explicitly gated provider/physical Shell tests were skipped in each;
-- real Debug and Release non-mutating worker/WPF smoke passed one-ID external deletion invalidation
-  and restart, external modification/focus/actionable state, immutable history, restored-file sticky
-  invalidation and fresh decision, unchanged/restored fixtures, and unchanged production locks;
+- real Debug and Release non-mutating worker/WPF smoke passed injected overflow, restart-reconstructed
+  visible dirty state, one explicit bounded reconciliation batch, current-grid focus restoration,
+  external deletion/modification invalidation, immutable history, unchanged/restored fixtures, and
+  unchanged production locks;
 - targeted Rust/.NET formatting, PowerShell/XAML parsing, `git diff --check`, and the production-lock
   audit passed;
-- watcher, overflow/coalescing, provider, physical-accessibility, Recycle Bin/Shell-mutation,
+- event-coalescing load campaigns, provider, physical-accessibility, Recycle Bin/Shell-mutation,
   performance, Activity, and later-milestone campaigns were deliberately skipped.
 
 Use proportional verification for the next slice. Run focused tests while iterating, then the
@@ -214,3 +222,4 @@ For each session:
 | 2026-08-23 | `e578fd3` | Implement and accept responsive single-folder Explorer reveal over one immutable-page member with background native work, bounded actionable state, stale-context rejection, stable automation, Alt+E/double-click access, focus restoration, and real Debug/Release success/failure smoke. | Advance only WPM9-parent-grouping; keep open-all spawning, thumbnails, review mutation, deletion, later milestones, and production wiring separate. |
 | 2026-08-23 | `5f79de8` | Implement and accept bounded current-page parent-grouped Explorer selection with deterministic one-call-per-parent background work, aggregate success/actionable partial failure, cancellation/stale-page rejection, Alt+G, stable automation, focus restoration, and real Debug/Release smoke. | Advance only WPM12-external-invalidation; exclude watchers, overflow/coalescing, Activity, deletion, and production wiring. |
 | 2026-08-23 | this session | Implement and accept the schema-v12 bounded selection/visible-page external validation overlay with deletion/modification invalidation, sticky prior intent, exclusion-before-access, immutable history, restart, cancellation/stale-context rejection, stable keyboard/automation/focus state, and real Debug/Release smoke. | Advance only WPM12-watcher-overflow; exclude event coalescing, Activity, mutation, provider/physical/performance campaigns, later gates, and production wiring. |
+| 2026-08-23 | this session | Implement and accept schema-v13 durable watcher-overflow dirty roots with bounded server-owned reconciliation, visible no-silent-trust WPF state, restart/cancellation/stale-generation protection, immutable-history preservation, one response-level UI update, keyboard/automation/focus support, and real Debug/Release smoke. | Advance only WPM12-event-coalescing; exclude Activity, deletion outcomes/mutation, provider/physical/performance campaigns, later gates, and production wiring. |

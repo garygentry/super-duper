@@ -193,6 +193,8 @@ public sealed class ShellViewModelTests
         public Task<WorkerReviewDecisionMutation> SetReviewDecisionAsync(string operationId, long runId, long groupId, long fileId, string decision, long expectedRevision, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<WorkerReviewLiveValidationResult> ValidateReviewFilesAsync(ReviewLiveValidationRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<WorkerReviewLiveRootPage> GetDirtyReviewRootsAsync(long runId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<WorkerReviewLiveRootReconciliationResult> ReconcileDirtyReviewRootAsync(ReviewLiveRootReconciliationRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<WorkerReviewFolderGroupPage> GetReviewFolderGroupsAsync(long runId, int pageSize, string? cursor = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 

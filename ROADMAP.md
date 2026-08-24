@@ -128,8 +128,11 @@ accepted, and the first bounded
 Milestone 11 non-deleting preflight slice is accepted. The first Milestone 12 live-state gate is
 also accepted: bounded selected-set/visible-page metadata validation invalidates working review
 choices after external deletion or modification while preserving immutable scan and recorded-decision
-history and excluding placeholders before access. Watcher overflow, event coalescing, in-app outcome
-reconciliation, and historical cross-overlay closure remain separate gates. Milestone 11's
+history and excluding placeholders before access. Durable schema-v13 watcher-overflow state now
+marks affected immutable selected roots visibly dirty across restart and advances explicit server-
+cursor reconciliation in batches of at most 200 duplicate members without binding full results.
+Event coalescing, in-app outcome reconciliation, and historical cross-overlay closure remain
+separate gates. Milestone 11's
 revision-bound Recycle Bin operation contract, strictly non-mutating durable foundation, separately
 gated native executor, and acceptance evidence tooling are implemented.
 

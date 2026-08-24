@@ -14,8 +14,10 @@ acceptance criteria are accepted through the first four review/rule slices. Mile
 accepted preflight, durable operation contract, separately gated native executor, evidence tooling,
 and read-only recovery reconstruction, but production still injects the disabled executor and
 exposes no action. Its provider/physical/performance evidence, policy decisions, recovery
-resolution, and production-enablement gates remain open. Milestones 12 and 13 are planned/not
-implemented except for their earlier durable source-data hooks. Milestone 14 remains planned; its
+resolution, and production-enablement gates remain open. Milestone 12 now has accepted bounded
+external invalidation and durable watcher-overflow/dirty-root reconciliation foundations; event
+coalescing and in-app outcomes remain separate. Milestone 13 is planned except for earlier durable
+source-data hooks. Milestone 14 remains planned; its
 required scope and the roadmap completion contract are accepted, and four reviewed follow-ons are
 deferred.
 
@@ -3710,10 +3712,11 @@ that Windows will place eligible items in the Recycle Bin.
 
 ### Milestone 12 - Live Reconciliation and External Filesystem Changes
 
-Status: External deletion/modification invalidation is implemented and accepted as the first
-bounded live-state overlay. In-app outcome application remains blocked on the Milestone 11
-production boundary. Dirty/overflow state and bounded notification coalescing remain separate later
-gates, and every live-state lane must preserve immutable historical runs.
+Status: External deletion/modification invalidation and durable watcher-overflow/dirty-root
+reconciliation are implemented and accepted as the first two bounded live-state foundations.
+In-app outcome application remains blocked on the Milestone 11 production boundary. Bounded
+notification coalescing remains a separate gate, and every live-state lane must preserve immutable
+historical runs.
 
 #### User outcome
 
@@ -3799,6 +3802,36 @@ Filesystem watchers, dirty/overflow behavior, event coalescing, in-app deletion 
 resolved-set inference, full-plan validation, filesystem mutation, provider campaigns, Activity,
 performance campaigns, physical accessibility campaigns, and production Recycle Bin/Shell wiring
 were deliberately not admitted. `WPM12-watcher-overflow` is the only next authorized gate.
+
+#### Watcher overflow acceptance result (2026-08-24)
+
+`WPM12-watcher-overflow` is accepted and `locally_exhausted`. Schema v13 adds one durable latest
+state per immutable selected run root plus idempotent overflow and reconciliation ledgers. An
+overflow report owns one completed run/root, increments a monotonic dirty revision, resets bounded
+progress, and survives restart. Opening a completed run reconstructs at most its 64 selected roots;
+query failure is visible as trust-state unavailable rather than silently clean.
+
+One explicit reconciliation request owns one exact dirty and review revision, resumes from the
+server's durable file-ID cursor, and validates at most 200 duplicate members under that root. It
+classifies schema-v12 exclusions before access, returns only the bounded batch, refreshes only the
+current member page through its preserved cursor/cache, and keeps the root dirty until the final
+batch commits. Completed-run, root, dirty-revision, review-revision, and cursor checks repeat in the
+commit transaction, so concurrent overflow, review mutation, another batch, cancellation, or a
+late WPF response cannot silently replace newer context.
+
+The WPF surface presents a high-visibility dirty/reconciliation-required banner, stable automation,
+Alt+X, explicit cancellation, polite/assertive announcements, dispatcher responsiveness, and copy-
+grid focus restoration. It updates root binding once per initial list or explicit reconciliation
+response; no watcher event channel or per-event dispatcher fan-out exists in this gate. Focused
+schema/storage/protocol/Core/loaded-STA tests, full Debug/Release matrices, and real non-mutating
+Debug/Release smoke prove durable dirty state, restart reconstruction, bounded progress/ownership,
+immutable history, paging/review preservation, stale/cancelled response rejection, and unchanged
+production locks.
+
+Watcher registration/event delivery, notification coalescing/load campaigns, in-app deletion
+outcomes, filesystem mutation, provider/performance/physical campaigns, Activity, and production
+Recycle Bin/Shell wiring were deliberately not admitted. `WPM12-event-coalescing` is the only next
+authorized gate.
 
 ## Wave 3 - Explain What Happened
 
@@ -3959,13 +3992,13 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance only `WPM12-watcher-overflow`. Define the bounded dirty-root/overflow protocol and visible
-reconciliation-required state without adding event coalescing or production filesystem mutation.
+Advance only `WPM12-event-coalescing`. Define bounded watcher-event batching/coalescing without
+adding Activity UI, in-app deletion outcomes, provider hydration, or production filesystem mutation.
 
-Verifier: injected overflow storage/protocol/Core/STA tests plus real non-mutating Debug/Release
-smoke prove a durable/visible dirty state and bounded explicit reconciliation request, with no silent
-trust, full-result binding, event-per-dispatcher-update behavior, immutable-history rewrite,
-deletion, Activity, or Recycle Bin production behavior.
+Verifier: deterministic mass-event storage/protocol/Core/STA coverage proves bounded frames/cache
+and at most ten UI updates per second while preserving accepted dirty-root reconciliation,
+external-validation, immutable-history, restart, cancellation/stale-context, dispatcher, and
+production-lock behavior.
 
 ## Milestone Definition Template
 
@@ -4060,3 +4093,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-23 | Implemented and accepted responsive single-folder Explorer reveal over the current immutable folder-member page with background native work, bounded busy/success/actionable-failure state, cancellation and stale-generation rejection, stable automation, Alt+E/double-click access, focus restoration, and real Debug/Release success/failure smoke. | Record WPM9-explorer-responsiveness `locally_exhausted`; preserve copy/reveal and folder cards, admit no other Shell command, retain every production lock, and authorize only WPM9-parent-grouping next. |
 | 2026-08-23 | Implemented and accepted bounded current-page parent-grouped Explorer selection with deterministic one-call-per-parent background work, aggregate success/actionable partial failure, cancellation/stale-page rejection, Alt+G, stable automation, focus restoration, and real Debug/Release smoke. | Record WPM9-parent-grouping `locally_exhausted`; Milestone 9 is complete. Authorize only WPM12-external-invalidation next, without watchers, later Milestone 12 lanes, or production wiring. |
 | 2026-08-23 | Implemented and accepted the schema-v12 bounded selection/visible-page external validation overlay with explicit 1–200-ID ownership, exclusion-before-access, missing/changed working-decision invalidation, immutable recorded history, restart reconstruction, cancellation/stale-context rejection, actionable keyboard/automation/focus state, and real Debug/Release smoke. | Record WPM12-external-invalidation `locally_exhausted`; preserve accepted paging/review/folder/Explorer behavior and every production lock. Authorize only WPM12-watcher-overflow next; event coalescing, Activity, provider/physical/performance campaigns, mutation, and later gates remain excluded. |
+| 2026-08-24 | Implemented and accepted schema-v13 durable watcher-overflow dirty roots with explicit bounded server-owned reconciliation, visible no-silent-trust state, restart/cancellation/stale-generation protection, immutable-history preservation, one response-level binding update, keyboard/automation/focus behavior, and real Debug/Release smoke. | Record WPM12-watcher-overflow `locally_exhausted`; preserve the accepted external overlay and every production lock. Authorize only WPM12-event-coalescing next; Activity, deletion outcomes/mutation, provider/physical/performance campaigns, and later gates remain excluded. |

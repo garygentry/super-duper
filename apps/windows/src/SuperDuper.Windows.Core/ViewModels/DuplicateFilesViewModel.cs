@@ -31,6 +31,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _driveFacetCancellation;
     private CancellationTokenSource? _reviewCancellation;
     private CancellationTokenSource? _liveValidationCancellation;
+    private CancellationTokenSource? _dirtyRootCancellation;
     private WorkerRun? _run;
     private IReadOnlyList<DuplicateFileGroupListItemViewModel> _groups = [];
     private IReadOnlyList<DuplicateFileMemberListItemViewModel> _members = [];
@@ -42,6 +43,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private DuplicateFileDriveFacetListItemViewModel? _selectedDriveFacet;
     private WorkerDuplicateFileGroupPage? _currentGroupPage;
     private WorkerDuplicateFileMemberPage? _currentMemberPage;
+    private string? _currentMemberCursor;
     private WorkerDuplicateFileSelectedRootFacetPage? _currentRootFacetPage;
     private WorkerDuplicateFileDriveFacetPage? _currentDriveFacetPage;
     private WorkerDuplicateFileReviewSummary _summary = new(0, 0, "0", "0");
@@ -55,6 +57,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private long _driveFacetGeneration;
     private long _reviewGeneration;
     private long _liveValidationGeneration;
+    private long _dirtyRootGeneration;
     private string _searchText = string.Empty;
     private bool _exactPathMatch;
     private string _extensionText = string.Empty;
@@ -75,6 +78,12 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private bool _isLiveValidationRunning;
     private string? _liveValidationStatusMessage;
     private string? _liveValidationErrorMessage;
+    private IReadOnlyList<WorkerReviewLiveRootState> _dirtyRoots = [];
+    private bool _isDirtyRootReconciliationRunning;
+    private string? _dirtyRootStatusMessage;
+    private string? _dirtyRootErrorMessage;
+    private long _dirtyRootStatusAnnouncementVersion;
+    private long _dirtyRootErrorAnnouncementVersion;
     private DuplicateFileGroupSortField _sortField = DuplicateFileGroupSortField.RecoverableBytes;
     private WorkerSortDirection _sortDirection = WorkerSortDirection.Descending;
     private DuplicateFileSelectedRootFacetSortField _rootFacetSortField =
@@ -165,6 +174,12 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         CancelLiveValidationCommand = new RelayCommand(
             CancelLiveValidation,
             () => IsLiveValidationRunning);
+        ReconcileDirtyRootCommand = new AsyncRelayCommand(
+            ReconcileDirtyRootAsync,
+            () => CanReconcileDirtyRoot);
+        CancelDirtyRootReconciliationCommand = new RelayCommand(
+            CancelDirtyRootReconciliation,
+            () => IsDirtyRootReconciliationRunning);
     }
 
     public WorkerRun? Run
@@ -353,6 +368,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _isDetailLoading, value))
             {
                 RaiseMemberPagingProperties();
+                OnPropertyChanged(nameof(CanReconcileDirtyRoot));
+                ReconcileDirtyRootCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -548,6 +565,83 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(HasLiveValidationError));
             }
         }
+    }
+
+    public IReadOnlyList<WorkerReviewLiveRootState> DirtyRoots
+    {
+        get => _dirtyRoots;
+        private set
+        {
+            if (SetProperty(ref _dirtyRoots, value))
+            {
+                OnPropertyChanged(nameof(HasDirtyRoots));
+                OnPropertyChanged(nameof(DirtyRootWarningMessage));
+                OnPropertyChanged(nameof(CanReconcileDirtyRoot));
+                ReconcileDirtyRootCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsDirtyRootReconciliationRunning
+    {
+        get => _isDirtyRootReconciliationRunning;
+        private set
+        {
+            if (SetProperty(ref _isDirtyRootReconciliationRunning, value))
+            {
+                OnPropertyChanged(nameof(CanReconcileDirtyRoot));
+                ReconcileDirtyRootCommand.NotifyCanExecuteChanged();
+                CancelDirtyRootReconciliationCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public string? DirtyRootStatusMessage
+    {
+        get => _dirtyRootStatusMessage;
+        private set
+        {
+            if (SetProperty(ref _dirtyRootStatusMessage, value))
+            {
+                OnPropertyChanged(nameof(HasDirtyRootStatus));
+            }
+        }
+    }
+
+    public string? DirtyRootErrorMessage
+    {
+        get => _dirtyRootErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _dirtyRootErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasDirtyRootError));
+            }
+        }
+    }
+
+    public bool HasDirtyRoots => DirtyRoots.Count > 0;
+
+    public string? DirtyRootWarningMessage => DirtyRoots.FirstOrDefault() is { } root
+        ? $"Working results are dirty and reconciliation is required after a filesystem watcher overflow. "
+            + $"Affected root: {root.RootPath}. {DirtyRoots.Count:N0} root(s) require attention; "
+            + "original scan history is unchanged. Each explicit request checks at most 200 server-owned duplicate copies."
+        : null;
+
+    public bool HasDirtyRootStatus => !string.IsNullOrWhiteSpace(DirtyRootStatusMessage);
+
+    public bool HasDirtyRootError => !string.IsNullOrWhiteSpace(DirtyRootErrorMessage);
+
+    public long DirtyRootStatusAnnouncementVersion
+    {
+        get => _dirtyRootStatusAnnouncementVersion;
+        private set => SetProperty(ref _dirtyRootStatusAnnouncementVersion, value);
+    }
+
+    public long DirtyRootErrorAnnouncementVersion
+    {
+        get => _dirtyRootErrorAnnouncementVersion;
+        private set => SetProperty(ref _dirtyRootErrorAnnouncementVersion, value);
     }
 
     public DuplicateFileGroupSortField SortField => _sortField;
@@ -750,6 +844,12 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         && SelectedGroup is not null
         && Members.Count is > 0 and <= PageSize;
 
+    public bool CanReconcileDirtyRoot =>
+        !IsDetailLoading
+        && !IsDirtyRootReconciliationRunning
+        && Run?.Status == "completed"
+        && DirtyRoots.Count > 0;
+
     public bool CanMoveRootFacetsNext => !IsRootFacetLoading && _currentRootFacetPage?.NextCursor is not null;
 
     public bool CanMoveRootFacetsPrevious => !IsRootFacetLoading && _currentRootFacetPage?.PreviousCursor is not null;
@@ -812,6 +912,10 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 
     public IRelayCommand CancelLiveValidationCommand { get; }
 
+    public IAsyncRelayCommand ReconcileDirtyRootCommand { get; }
+
+    public IRelayCommand CancelDirtyRootReconciliationCommand { get; }
+
     public PreferenceRulesViewModel PreferenceRules { get; }
 
     public async Task ShowRunAsync(WorkerRun? run, CancellationToken cancellationToken = default)
@@ -823,12 +927,14 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         CancelDriveFacetQuery();
         CancelReviewQuery();
         CancelLiveValidation(clearFeedback: true);
+        CancelDirtyRootWork(clearFeedback: true);
         _groupCache.Clear();
         _memberCache.Clear();
         _rootFacetCache.Clear();
         _driveFacetCache.Clear();
         _currentGroupPage = null;
         _currentMemberPage = null;
+        _currentMemberCursor = null;
         _currentRootFacetPage = null;
         _currentDriveFacetPage = null;
         Groups = [];
@@ -851,6 +957,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         DetailErrorMessage = null;
         RootFacetErrorMessage = null;
         DriveFacetErrorMessage = null;
+        DirtyRoots = [];
         OnPropertyChanged(nameof(IsUnavailable));
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(HasGroups));
@@ -873,9 +980,12 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         StateMessage = "No duplicate files matched this run and filter.";
         _reviewCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var reviewGeneration = ++_reviewGeneration;
+        _dirtyRootCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var dirtyRootGeneration = ++_dirtyRootGeneration;
         await Task.WhenAll(
             ResetAndLoadGroupsAsync(cancellationToken),
-            LoadReviewPlanAsync(run.Id, reviewGeneration, _reviewCancellation.Token));
+            LoadReviewPlanAsync(run.Id, reviewGeneration, _reviewCancellation.Token),
+            LoadDirtyRootsAsync(run.Id, dirtyRootGeneration, _dirtyRootCancellation.Token));
         await PreferenceRules.ShowRunAsync(run, cancellationToken);
     }
 
@@ -951,6 +1061,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         CancelRootFacetQuery();
         CancelDriveFacetQuery();
         CancelReviewQuery();
+        CancelLiveValidation(clearFeedback: true);
+        CancelDirtyRootWork(clearFeedback: true);
         PreferenceRules.ReviewRevisionChanged -= OnPreferenceReviewRevisionChanged;
         PreferenceRules.Dispose();
     }
@@ -1016,6 +1128,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         _driveFacetCache.Clear();
         _currentGroupPage = null;
         _currentMemberPage = null;
+        _currentMemberCursor = null;
         _currentRootFacetPage = null;
         _currentDriveFacetPage = null;
         if (!preserveDisplayedResults)
@@ -1738,6 +1851,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         CancelMemberQuery();
         _memberCache.Clear();
         _currentMemberPage = null;
+        _currentMemberCursor = null;
         Members = [];
         TotalMembers = 0;
         DetailErrorMessage = null;
@@ -1764,7 +1878,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             if (display && generation == _memberGeneration)
             {
                 DetailErrorMessage = null;
-                DisplayMemberPage(cached);
+                DisplayMemberPage(cached, cursor);
                 PublishSelectedSetQueryAnnouncement();
                 _ = PrefetchMemberNeighborsAsync(cached, runId, groupId, generation, cancellationToken);
             }
@@ -1794,7 +1908,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             _memberCache.Set(cursor, page);
             if (display)
             {
-                DisplayMemberPage(page);
+                DisplayMemberPage(page, cursor);
                 _ = PrefetchMemberNeighborsAsync(page, runId, groupId, generation, cancellationToken);
             }
         }
@@ -1819,9 +1933,10 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void DisplayMemberPage(WorkerDuplicateFileMemberPage page)
+    private void DisplayMemberPage(WorkerDuplicateFileMemberPage page, string? cursor)
     {
         _currentMemberPage = page;
+        _currentMemberCursor = cursor;
         TotalMembers = page.Total;
         Members = page.Members.Select(member => new DuplicateFileMemberListItemViewModel(member)).ToArray();
         SelectedReviewSummary = page.ReviewSummary;
@@ -2322,6 +2437,199 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         _reviewCancellation = null;
         _reviewGeneration++;
         IsReviewUpdating = false;
+    }
+
+    private async Task LoadDirtyRootsAsync(
+        long runId,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        DirtyRootStatusMessage = "Checking durable filesystem trust state for this historical run…";
+        DirtyRootErrorMessage = null;
+        try
+        {
+            var page = await _workerClient.GetDirtyReviewRootsAsync(runId, cancellationToken);
+            if (generation != _dirtyRootGeneration
+                || cancellationToken.IsCancellationRequested
+                || Run?.Id != runId)
+            {
+                return;
+            }
+            DirtyRoots = page.Roots.Take(64).ToArray();
+            DirtyRootStatusMessage = null;
+            if (DirtyRoots.Count > 0)
+            {
+                DirtyRootStatusAnnouncementVersion++;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (generation == _dirtyRootGeneration && Run?.Id == runId)
+            {
+                DirtyRoots = [];
+                DirtyRootStatusMessage = null;
+                DirtyRootErrorMessage =
+                    "Filesystem trust state could not be loaded, so working results are not trusted. "
+                    + $"Retry by reopening this run or validate only the selected page. {exception.Message}";
+                DirtyRootErrorAnnouncementVersion++;
+            }
+        }
+    }
+
+    private async Task ReconcileDirtyRootAsync()
+    {
+        if (!CanReconcileDirtyRoot
+            || Run is not { Status: "completed" } run
+            || DirtyRoots.FirstOrDefault() is not { } dirtyRoot)
+        {
+            return;
+        }
+        var reviewRevision = ReviewPlan.Plan.Revision;
+        var memberGeneration = _memberGeneration;
+        var selectedGroupId = SelectedGroup?.Id;
+        var memberCursor = _currentMemberCursor;
+        CancelDirtyRootWork(clearFeedback: false);
+        _dirtyRootCancellation = new CancellationTokenSource();
+        var cancellationToken = _dirtyRootCancellation.Token;
+        var generation = _dirtyRootGeneration;
+        IsDirtyRootReconciliationRunning = true;
+        DirtyRootErrorMessage = null;
+        DirtyRootStatusMessage =
+            $"Reconciling at most {PageSize:N0} server-owned duplicate copies under {dirtyRoot.RootPath}. "
+            + "No full result set will be bound and scan history will not change…";
+        try
+        {
+            var result = await _workerClient.ReconcileDirtyReviewRootAsync(
+                new ReviewLiveRootReconciliationRequest(
+                    Guid.NewGuid().ToString("N"),
+                    run.Id,
+                    dirtyRoot.RootPath,
+                    dirtyRoot.DirtyRevision,
+                    reviewRevision,
+                    PageSize),
+                cancellationToken);
+            if (!IsCurrentDirtyRootContext(
+                    run.Id, dirtyRoot, reviewRevision, generation, cancellationToken))
+            {
+                return;
+            }
+            DirtyRoots = result.Root.ReconciliationRequired
+                ? DirtyRoots.Select(root =>
+                    root.RootPath.Equals(dirtyRoot.RootPath, StringComparison.OrdinalIgnoreCase)
+                        ? result.Root
+                        : root).ToArray()
+                : DirtyRoots.Where(root =>
+                    !root.RootPath.Equals(dirtyRoot.RootPath, StringComparison.OrdinalIgnoreCase)).ToArray();
+
+            var summary = result.Summary;
+            DirtyRootStatusMessage = result.Root.ReconciliationRequired
+                ? $"Checked {summary.ItemCount:N0} bounded copies under {result.RootPath}; "
+                    + $"{result.Root.ReconciledItemCount:N0} checked for this dirty revision and more remain. "
+                    + "The root remains dirty; choose Reconcile next batch to continue."
+                : $"Reconciliation checked the final {summary.ItemCount:N0} bounded copies under {result.RootPath}; "
+                    + $"{result.Root.ReconciledItemCount:N0} total checked. The overflow dirty marker is cleared. "
+                    + "Original scan history was not changed.";
+            if (summary.ChangedCount + summary.MissingCount + summary.UnavailableCount > 0)
+            {
+                DirtyRootStatusMessage +=
+                    $" This batch found {summary.MissingCount:N0} missing, {summary.ChangedCount:N0} changed, "
+                    + $"and {summary.UnavailableCount:N0} unavailable copies; "
+                    + $"{summary.InvalidatedDecisionCount:N0} working choices are invalidated.";
+            }
+            DirtyRootStatusAnnouncementVersion++;
+
+            var planTask = _workerClient.GetReviewPlanAsync(run.Id, cancellationToken);
+            if (selectedGroupId is long groupId
+                && SelectedGroup?.Id == groupId
+                && memberGeneration == _memberGeneration
+                && _memberCancellation is not null)
+            {
+                _memberCache.Clear();
+                await LoadMemberPageAsync(
+                    memberCursor,
+                    run.Id,
+                    groupId,
+                    memberGeneration,
+                    _memberCancellation.Token,
+                    display: true);
+            }
+            var plan = await planTask;
+            if (generation == _dirtyRootGeneration
+                && !cancellationToken.IsCancellationRequested
+                && Run?.Id == run.Id
+                && ReviewPlan.Plan.Revision == reviewRevision)
+            {
+                ReviewPlan = plan;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (generation == _dirtyRootGeneration
+                && Run?.Id == run.Id
+                && DirtyRoots.Any(root => root.RootPath.Equals(
+                    dirtyRoot.RootPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                DirtyRootStatusMessage = null;
+                DirtyRootErrorMessage =
+                    $"Reconciliation failed and {dirtyRoot.RootPath} remains dirty. "
+                    + $"Retry the same bounded root action. {exception.Message}";
+                DirtyRootErrorAnnouncementVersion++;
+            }
+        }
+        finally
+        {
+            if (generation == _dirtyRootGeneration)
+            {
+                IsDirtyRootReconciliationRunning = false;
+            }
+        }
+    }
+
+    private bool IsCurrentDirtyRootContext(
+        long runId,
+        WorkerReviewLiveRootState dirtyRoot,
+        long reviewRevision,
+        long generation,
+        CancellationToken cancellationToken) =>
+        generation == _dirtyRootGeneration
+        && !cancellationToken.IsCancellationRequested
+        && Run?.Id == runId
+        && ReviewPlan.Plan.Revision == reviewRevision
+        && DirtyRoots.Any(root =>
+            root.DirtyRevision == dirtyRoot.DirtyRevision
+            && root.RootPath.Equals(dirtyRoot.RootPath, StringComparison.OrdinalIgnoreCase));
+
+    private void CancelDirtyRootReconciliation()
+    {
+        if (!IsDirtyRootReconciliationRunning)
+        {
+            return;
+        }
+        CancelDirtyRootWork(clearFeedback: false);
+        DirtyRootErrorMessage = null;
+        DirtyRootStatusMessage =
+            "Bounded reconciliation was cancelled. The durable root remains dirty and working results remain reconciliation-required.";
+        DirtyRootStatusAnnouncementVersion++;
+    }
+
+    private void CancelDirtyRootWork(bool clearFeedback)
+    {
+        _dirtyRootCancellation?.Cancel();
+        _dirtyRootCancellation?.Dispose();
+        _dirtyRootCancellation = null;
+        _dirtyRootGeneration++;
+        IsDirtyRootReconciliationRunning = false;
+        if (clearFeedback)
+        {
+            DirtyRootStatusMessage = null;
+            DirtyRootErrorMessage = null;
+        }
     }
 
     private async Task ValidateVisiblePageAsync()

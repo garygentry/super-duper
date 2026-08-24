@@ -607,6 +607,64 @@
         </StackPanel>
 
         <StackPanel Grid.Row="1" Margin="0,0,0,14">
+            <Border Margin="0,0,0,10"
+                    Padding="12,9"
+                    BorderBrush="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
+                    BorderThickness="2"
+                    CornerRadius="6"
+                    Visibility="{Binding HasDirtyRoots, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <DockPanel LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Right" Margin="12,0,0,0" Orientation="Horizontal">
+                        <Button x:Name="ReconcileDirtyRootButton"
+                                Padding="10,4"
+                                KeyboardNavigation.TabIndex="28"
+                                automation:AutomationProperties.AccessKey="Alt+X"
+                                automation:AutomationProperties.AutomationId="FileReconcileDirtyRoot"
+                                automation:AutomationProperties.Name="Reconcile next bounded dirty-root batch; access key Alt+X; focus returns to the copy grid"
+                                automation:AutomationProperties.HelpText="Checks at most 200 server-owned duplicate copies for one durable dirty root. It does not bind full results, follow watcher events, or change immutable scan history."
+                                Click="OnReconcileDirtyRootClick"
+                                Content="Reconcile ne_xt batch"
+                                IsEnabled="{Binding CanReconcileDirtyRoot}" />
+                        <Button Margin="8,0,0,0"
+                                Padding="10,4"
+                                KeyboardNavigation.TabIndex="29"
+                                automation:AutomationProperties.AutomationId="FileCancelDirtyRootReconciliation"
+                                automation:AutomationProperties.Name="Cancel bounded dirty-root reconciliation"
+                                Command="{Binding CancelDirtyRootReconciliationCommand}"
+                                Content="Cancel reconciliation" />
+                    </StackPanel>
+                    <TextBlock VerticalAlignment="Center"
+                               automation:AutomationProperties.AutomationId="FileDirtyRootWarning"
+                               automation:AutomationProperties.LiveSetting="Assertive"
+                               automation:AutomationProperties.Name="{Binding DirtyRootWarningMessage}"
+                               FontWeight="SemiBold"
+                               Text="{Binding DirtyRootWarningMessage}"
+                               TextWrapping="Wrap" />
+                </DockPanel>
+            </Border>
+            <TextBlock Margin="0,0,0,8"
+                       automation:AutomationProperties.AutomationId="FileDirtyRootStatus"
+                       automation:AutomationProperties.LiveSetting="Polite"
+                       automation:AutomationProperties.Name="{Binding DirtyRootStatusMessage}"
+                       accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding DirtyRootStatusAnnouncementVersion}"
+                       accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
+                       accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
+                       accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFileDirtyRootReconciliation"
+                       Text="{Binding DirtyRootStatusMessage}"
+                       TextWrapping="Wrap"
+                       Visibility="{Binding HasDirtyRootStatus, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            <TextBlock Margin="0,0,0,8"
+                       automation:AutomationProperties.AutomationId="FileDirtyRootError"
+                       automation:AutomationProperties.LiveSetting="Assertive"
+                       automation:AutomationProperties.Name="{Binding DirtyRootErrorMessage}"
+                       accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding DirtyRootErrorAnnouncementVersion}"
+                       accessibility:AutomationNotificationBehavior.NotificationKind="ActionAborted"
+                       accessibility:AutomationNotificationBehavior.NotificationProcessing="ImportantMostRecent"
+                       accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFileDirtyRootReconciliation"
+                       Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
+                       Text="{Binding DirtyRootErrorMessage}"
+                       TextWrapping="Wrap"
+                       Visibility="{Binding HasDirtyRootError, Converter={StaticResource BooleanToVisibilityConverter}}" />
             <UniformGrid automation:AutomationProperties.AutomationId="FileReviewSummary"
                          automation:AutomationProperties.Name="Duplicate file review summary"
                          Columns="4">

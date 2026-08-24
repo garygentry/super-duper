@@ -4,7 +4,7 @@ use chrono::Utc;
 use rusqlite::{params, Connection, Error, Result};
 use tracing::{debug, info};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 12;
+pub const CURRENT_SCHEMA_VERSION: i64 = 13;
 
 pub struct Database {
     conn: Connection,
@@ -71,21 +71,28 @@ impl Database {
         let version = self.schema_version()?;
         match version {
             CURRENT_SCHEMA_VERSION => self.conn.execute_batch(include_str!("schema.sql"))?,
-            11 => self.migrate_v11_to_v12()?,
+            12 => self.migrate_v12_to_v13()?,
+            11 => {
+                self.migrate_v11_to_v12()?;
+                self.migrate_v12_to_v13()?;
+            }
             10 => {
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
+                self.migrate_v12_to_v13()?;
             }
             9 => {
                 self.migrate_v9_to_v10()?;
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
+                self.migrate_v12_to_v13()?;
             }
             8 => {
                 self.migrate_v8_to_v9()?;
                 self.migrate_v9_to_v10()?;
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
+                self.migrate_v12_to_v13()?;
             }
             7 => {
                 self.migrate_v7_to_v8()?;
@@ -93,6 +100,7 @@ impl Database {
                 self.migrate_v9_to_v10()?;
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
+                self.migrate_v12_to_v13()?;
             }
             6 => {
                 self.migrate_v6_to_v7()?;
@@ -101,6 +109,7 @@ impl Database {
                 self.migrate_v9_to_v10()?;
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
+                self.migrate_v12_to_v13()?;
             }
             5 => {
                 self.migrate_v5_to_v6()?;
@@ -110,6 +119,7 @@ impl Database {
                 self.migrate_v9_to_v10()?;
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
+                self.migrate_v12_to_v13()?;
             }
             4 => {
                 self.migrate_v4_to_v5()?;
@@ -120,6 +130,7 @@ impl Database {
                 self.migrate_v9_to_v10()?;
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
+                self.migrate_v12_to_v13()?;
             }
             3 => {
                 self.migrate_v3_to_v4()?;
@@ -131,6 +142,7 @@ impl Database {
                 self.migrate_v9_to_v10()?;
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
+                self.migrate_v12_to_v13()?;
             }
             2 => self.migrate_v2_to_v3()?,
             0 if !self.has_user_tables()? => self.conn.execute_batch(include_str!("schema.sql"))?,
@@ -1015,6 +1027,143 @@ impl Database {
              CREATE INDEX idx_review_live_file_state_invalidated
                  ON review_live_file_state(run_id, decision_invalidated, file_id);
              PRAGMA user_version = 12;
+             COMMIT;",
+        );
+        if migration.is_err() {
+            let _ = self.conn.execute_batch("ROLLBACK;");
+        }
+        migration
+    }
+
+    fn migrate_v12_to_v13(&self) -> Result<()> {
+        info!("Migrating SQLite schema from version 12 to 13");
+        let migration = self.conn.execute_batch(
+            "BEGIN IMMEDIATE;
+             CREATE TABLE IF NOT EXISTS scanned_file (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 root_path TEXT NOT NULL DEFAULT '',
+                 canonical_path TEXT NOT NULL,
+                 relative_path TEXT NOT NULL DEFAULT '',
+                 file_name TEXT NOT NULL,
+                 extension_key TEXT,
+                 parent_dir TEXT NOT NULL,
+                 drive_letter TEXT NOT NULL DEFAULT '',
+                 file_size INTEGER NOT NULL,
+                 last_modified INTEGER NOT NULL,
+                 partial_hash INTEGER,
+                 content_hash INTEGER,
+                 file_identity TEXT,
+                 warning_message TEXT,
+                 marked_deleted INTEGER NOT NULL DEFAULT 0,
+                 UNIQUE(run_id, canonical_path)
+             );
+             CREATE TABLE review_live_root_state (
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 root_path TEXT NOT NULL,
+                 state TEXT NOT NULL CHECK(state IN ('dirty', 'clean')),
+                 dirty_revision INTEGER NOT NULL CHECK(dirty_revision > 0),
+                 reason_code TEXT NOT NULL CHECK(reason_code = 'watcher_overflow'),
+                 dirty_at TEXT NOT NULL,
+                 reconciliation_cursor_file_id INTEGER REFERENCES scanned_file(id) ON DELETE SET NULL,
+                 reconciled_item_count INTEGER NOT NULL DEFAULT 0 CHECK(reconciled_item_count >= 0),
+                 updated_at TEXT NOT NULL,
+                 PRIMARY KEY(run_id, root_path)
+             );
+             CREATE TABLE review_live_root_overflow (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 operation_id TEXT NOT NULL UNIQUE,
+                 request_signature TEXT NOT NULL,
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 root_path TEXT NOT NULL,
+                 dirty_revision INTEGER NOT NULL CHECK(dirty_revision > 0),
+                 created_at TEXT NOT NULL
+             );
+             CREATE TABLE review_live_root_reconciliation (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 operation_id TEXT NOT NULL UNIQUE,
+                 request_signature TEXT NOT NULL,
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 root_path TEXT NOT NULL,
+                 dirty_revision INTEGER NOT NULL CHECK(dirty_revision > 0),
+                 expected_review_revision INTEGER NOT NULL CHECK(expected_review_revision >= 0),
+                 start_after_file_id INTEGER,
+                 item_count INTEGER NOT NULL CHECK(item_count BETWEEN 0 AND 200),
+                 present_count INTEGER NOT NULL CHECK(present_count >= 0),
+                 changed_count INTEGER NOT NULL CHECK(changed_count >= 0),
+                 missing_count INTEGER NOT NULL CHECK(missing_count >= 0),
+                 unavailable_count INTEGER NOT NULL CHECK(unavailable_count >= 0),
+                 invalidated_decision_count INTEGER NOT NULL CHECK(invalidated_decision_count >= 0),
+                 next_cursor_file_id INTEGER,
+                 reconciliation_required INTEGER NOT NULL CHECK(reconciliation_required IN (0, 1)),
+                 reconciled_item_count INTEGER NOT NULL CHECK(reconciled_item_count >= 0),
+                 created_at TEXT NOT NULL
+             );
+             CREATE TABLE review_live_root_reconciliation_item (
+                 reconciliation_id INTEGER NOT NULL
+                     REFERENCES review_live_root_reconciliation(id) ON DELETE CASCADE,
+                 ordinal INTEGER NOT NULL CHECK(ordinal >= 0 AND ordinal < 200),
+                 file_id INTEGER NOT NULL REFERENCES scanned_file(id) ON DELETE CASCADE,
+                 state TEXT NOT NULL CHECK(state IN ('present', 'changed', 'missing', 'unavailable')),
+                 reason_code TEXT NOT NULL,
+                 observed_file_identity TEXT,
+                 observed_file_size INTEGER CHECK(observed_file_size IS NULL OR observed_file_size >= 0),
+                 observed_last_modified INTEGER,
+                 os_error INTEGER,
+                 decision_invalidated INTEGER NOT NULL CHECK(decision_invalidated IN (0, 1)),
+                 invalidated_decision TEXT
+                     CHECK(invalidated_decision IS NULL OR invalidated_decision IN ('keep', 'remove')),
+                 observed_at TEXT NOT NULL,
+                 PRIMARY KEY(reconciliation_id, ordinal),
+                 UNIQUE(reconciliation_id, file_id)
+             );
+             DROP VIEW effective_review_decision;
+             DROP INDEX idx_review_live_file_state_invalidated;
+             ALTER TABLE review_live_file_state RENAME TO review_live_file_state_v12;
+             CREATE TABLE review_live_file_state (
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 file_id INTEGER NOT NULL REFERENCES scanned_file(id) ON DELETE CASCADE,
+                 validation_id INTEGER REFERENCES review_live_validation(id) ON DELETE CASCADE,
+                 reconciliation_id INTEGER REFERENCES review_live_root_reconciliation(id) ON DELETE CASCADE,
+                 state TEXT NOT NULL CHECK(state IN ('present', 'changed', 'missing', 'unavailable')),
+                 reason_code TEXT NOT NULL,
+                 observed_file_identity TEXT,
+                 observed_file_size INTEGER CHECK(observed_file_size IS NULL OR observed_file_size >= 0),
+                 observed_last_modified INTEGER,
+                 os_error INTEGER,
+                 decision_invalidated INTEGER NOT NULL CHECK(decision_invalidated IN (0, 1)),
+                 invalidated_decision TEXT CHECK(invalidated_decision IS NULL OR invalidated_decision IN ('keep', 'remove')),
+                 observed_at TEXT NOT NULL,
+                 PRIMARY KEY(run_id, file_id),
+                 CHECK((validation_id IS NOT NULL AND reconciliation_id IS NULL)
+                       OR (validation_id IS NULL AND reconciliation_id IS NOT NULL))
+             );
+             INSERT INTO review_live_file_state
+                 (run_id, file_id, validation_id, reconciliation_id, state, reason_code,
+                  observed_file_identity, observed_file_size, observed_last_modified, os_error,
+                  decision_invalidated, invalidated_decision, observed_at)
+             SELECT run_id, file_id, validation_id, NULL, state, reason_code,
+                    observed_file_identity, observed_file_size, observed_last_modified, os_error,
+                    decision_invalidated, invalidated_decision, observed_at
+             FROM review_live_file_state_v12;
+             DROP TABLE review_live_file_state_v12;
+             CREATE VIEW effective_review_decision AS
+             SELECT recorded.plan_id, recorded.group_id, recorded.file_id, recorded.decision,
+                    recorded.provenance, recorded.decided_at, recorded.application_id
+             FROM recorded_review_decision recorded
+             JOIN review_plan plan ON plan.id = recorded.plan_id
+             LEFT JOIN review_live_file_state live
+               ON live.run_id = plan.run_id AND live.file_id = recorded.file_id
+             WHERE live.decision_invalidated IS NULL OR live.decision_invalidated = 0;
+             CREATE INDEX idx_review_live_file_state_invalidated
+                 ON review_live_file_state(run_id, decision_invalidated, file_id);
+             CREATE INDEX idx_review_live_root_state_dirty
+                 ON review_live_root_state(run_id, state, dirty_revision, root_path COLLATE UNICODE_NOCASE);
+             CREATE INDEX idx_review_live_root_reconciliation_run
+                 ON review_live_root_reconciliation(run_id, root_path COLLATE UNICODE_NOCASE, id DESC);
+             CREATE INDEX idx_review_live_root_reconciliation_item_file
+                 ON review_live_root_reconciliation_item(file_id, reconciliation_id DESC);
+             PRAGMA user_version = 13;
              COMMIT;",
         );
         if migration.is_err() {

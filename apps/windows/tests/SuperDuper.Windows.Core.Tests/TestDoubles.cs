@@ -39,6 +39,10 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
     public Func<string, long, long, long, string, long, CancellationToken, Task<WorkerReviewDecisionMutation>>? ReviewDecisionHandler { get; set; }
     public Func<ReviewLiveValidationRequest, CancellationToken, Task<WorkerReviewLiveValidationResult>>? ReviewLiveValidationHandler { get; set; }
 
+    public Func<long, CancellationToken, Task<WorkerReviewLiveRootPage>>? DirtyReviewRootsHandler { get; set; }
+
+    public Func<ReviewLiveRootReconciliationRequest, CancellationToken, Task<WorkerReviewLiveRootReconciliationResult>>? DirtyRootReconciliationHandler { get; set; }
+
     public Func<long, int, string?, CancellationToken, Task<WorkerReviewFolderGroupPage>>? ReviewFolderGroupPageHandler { get; set; }
 
     public Func<string, long, long, long, string, long, CancellationToken, Task<WorkerReviewFolderDecisionMutation>>? ReviewFolderDecisionHandler { get; set; }
@@ -293,6 +297,38 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
             new WorkerReviewLiveValidationSummary(request.FileIds.Count, request.FileIds.Count, 0, 0, 0, 0),
             request.FileIds.Select(id => new WorkerReviewLiveValidationItem(
                 id, "present", "matched_snapshot", false, null, "2026-08-24T00:00:00Z")).ToArray()));
+
+    public Task<WorkerReviewLiveRootPage> GetDirtyReviewRootsAsync(
+        long runId,
+        CancellationToken cancellationToken = default) =>
+        DirtyReviewRootsHandler?.Invoke(runId, cancellationToken)
+        ?? Task.FromResult(new WorkerReviewLiveRootPage(runId, [], 0, false));
+
+    public Task<WorkerReviewLiveRootReconciliationResult> ReconcileDirtyReviewRootAsync(
+        ReviewLiveRootReconciliationRequest request,
+        CancellationToken cancellationToken = default) =>
+        DirtyRootReconciliationHandler?.Invoke(request, cancellationToken)
+        ?? Task.FromResult(new WorkerReviewLiveRootReconciliationResult(
+            1,
+            request.RunId,
+            request.RootPath,
+            request.ExpectedDirtyRevision,
+            request.ExpectedReviewRevision,
+            false,
+            new WorkerReviewLiveValidationSummary(0, 0, 0, 0, 0, 0),
+            [],
+            new WorkerReviewLiveRootState(
+                request.RunId,
+                request.RootPath,
+                "clean",
+                request.ExpectedDirtyRevision,
+                "watcher_overflow",
+                "2026-08-24T00:00:00Z",
+                null,
+                0,
+                "2026-08-24T00:00:00Z",
+                false),
+            false));
 
     public Task<WorkerReviewFolderGroupPage> GetReviewFolderGroupsAsync(
         long runId,

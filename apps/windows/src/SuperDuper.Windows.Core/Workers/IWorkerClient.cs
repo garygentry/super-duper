@@ -101,6 +101,14 @@ public interface IWorkerClient : IAsyncDisposable
         ReviewLiveValidationRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<WorkerReviewLiveRootPage> GetDirtyReviewRootsAsync(
+        long runId,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerReviewLiveRootReconciliationResult> ReconcileDirtyReviewRootAsync(
+        ReviewLiveRootReconciliationRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<WorkerReviewFolderGroupPage> GetReviewFolderGroupsAsync(
         long runId,
         int pageSize,

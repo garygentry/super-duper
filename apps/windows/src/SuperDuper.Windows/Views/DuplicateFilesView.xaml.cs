@@ -113,6 +113,19 @@ public partial class DuplicateFilesView : UserControl
             () => viewModel.ValidateVisiblePageCommand.ExecuteAsync(null));
     }
 
+    private async void OnReconcileDirtyRootClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DuplicateFilesViewModel viewModel)
+        {
+            return;
+        }
+        await ExecuteDirtyRootReconciliationCommandAsync(
+            () => viewModel.ReconcileDirtyRootCommand.ExecuteAsync(null));
+    }
+
+    internal Task ExecuteDirtyRootReconciliationCommandAsync(Func<Task> operation) =>
+        ExecuteLiveValidationCommandAsync(operation);
+
     internal async Task ExecuteLiveValidationCommandAsync(Func<Task> operation)
     {
         try

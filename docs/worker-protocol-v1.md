@@ -443,6 +443,62 @@ working projection, so an invalidated recorded choice appears `undecided` withou
 history. Validation does not follow member-page cursors, enumerate a folder, register watchers,
 mutate files, invoke Shell/Recycle Bin, or enable an executor.
 
+### `review_live_root.overflow`
+
+```json
+{"type":"request","id":"overflow1","method":"review_live_root.overflow","params":{"operationId":"70f0c338a5634a62bf82b45d222301d6","runId":19,"rootPath":"D:\\Archive"}}
+```
+
+The request reports that watcher coverage for one exact immutable selected root was lost because
+its notification buffer overflowed. The completed run and root are storage-owned; a session's newer
+edited roots are not accepted. The response returns the latest root state, `replayed`, and
+`executorEnabled:false`. The first report makes the root `dirty`, increments `dirtyRevision`, resets
+its reconciliation cursor/count, and persists `reasonCode=watcher_overflow`. Exact operation replay
+does not increment the revision; a conflicting payload returns `idempotency_conflict`.
+
+This is a loss-of-trust report, not an authoritative filesystem event. It emits no WPF event,
+validates no path, and performs no filesystem or Shell mutation.
+
+### `review_live_root.list`
+
+```json
+{"type":"request","id":"dirty1","method":"review_live_root.list","params":{"runId":19}}
+```
+
+```json
+{"runId":19,"roots":[{"runId":19,"rootPath":"D:\\Archive","state":"dirty","dirtyRevision":2,"reasonCode":"watcher_overflow","dirtyAt":"2026-08-24T01:00:00Z","reconciliationCursorFileId":null,"reconciledItemCount":0,"updatedAt":"2026-08-24T01:00:00Z","reconciliationRequired":true}],"total":1,"executorEnabled":false}
+```
+
+Only dirty roots are returned, ordered by root path. A run contains at most 64 immutable roots, so
+the response is bounded and has no cursor. WPF uses this command when a completed run opens or
+reopens; failure must be shown as trust-state unavailable, never as silently clean.
+
+### `review_live_root.reconcile`
+
+```json
+{"type":"request","id":"reconcile1","method":"review_live_root.reconcile","params":{"operationId":"e7759b80bbd54534b4aad923edb1718b","runId":19,"rootPath":"D:\\Archive","expectedDirtyRevision":2,"expectedReviewRevision":5,"pageSize":200}}
+```
+
+One explicit request validates the next 1–200 server-owned duplicate members under the exact root,
+starting after the durable root cursor. It never accepts a client file-ID list or result cursor,
+enumerates a directory, follows member-page cursors, or returns/binds a full result set. The response
+contains the bounded batch summary/items, latest root state, `replayed`, and
+`executorEnabled:false`. WPF may merge only matching already-bound rows and refresh its exact
+current member page through the accepted bounded cache.
+
+Storage repeats completed-run, root, dirty-revision, review-revision, and durable-cursor checks at
+commit. A concurrent overflow returns `dirty_generation_conflict`; a review mutation returns
+`review_generation_conflict`; another committed batch returns `dirty_reconciliation_conflict`.
+Exact replay returns the stored batch. Missing/changed observations retain immutable and recorded
+history while invalidating working choices under the schema-v12 rules. Excluded locations are
+classified before metadata access.
+
+If another batch exists, `root.reconciliationRequired` remains true and the durable cursor/count
+advance. Only the transaction that commits the final bounded batch sets the root clean. Client
+cancellation or stale UI context suppresses binding/announcements; it never turns an unverified
+root clean. No command registers a watcher, emits per-event UI updates, mutates files, invokes
+Shell/Recycle Bin, or enables an executor.
+
 ### `review_folder_group.page`
 
 Params are `runId`, optional `pageSize` (default 200, maximum 500), and an optional forward-only

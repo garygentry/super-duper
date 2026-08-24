@@ -271,6 +271,26 @@ public sealed class WpfSurfaceSmokeTests
             StringAssert.Contains(validatePage.Content?.ToString(), "_Validate");
             Assert.AreEqual("Cancel visible-page validation", AutomationProperties.GetName(
                 FindByAutomationId<Button>(files, "FileCancelValidation")));
+            var dirtyWarning = FindByAutomationId<TextBlock>(files, "FileDirtyRootWarning");
+            Assert.AreEqual(AutomationLiveSetting.Assertive, AutomationProperties.GetLiveSetting(dirtyWarning));
+            var dirtyStatus = FindByAutomationId<TextBlock>(files, "FileDirtyRootStatus");
+            Assert.AreEqual(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(dirtyStatus));
+            Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
+                AutomationNotificationBehavior.GetNotificationKind(dirtyStatus));
+            Assert.AreEqual("DuplicateFileDirtyRootReconciliation",
+                AutomationNotificationBehavior.GetActivityId(dirtyStatus));
+            var dirtyError = FindByAutomationId<TextBlock>(files, "FileDirtyRootError");
+            Assert.AreEqual(AutomationLiveSetting.Assertive, AutomationProperties.GetLiveSetting(dirtyError));
+            Assert.AreEqual(AutomationNotificationKind.ActionAborted,
+                AutomationNotificationBehavior.GetNotificationKind(dirtyError));
+            var reconcileDirtyRoot = FindByAutomationId<Button>(files, "FileReconcileDirtyRoot");
+            Assert.AreEqual("Alt+X", AutomationProperties.GetAccessKey(reconcileDirtyRoot));
+            StringAssert.Contains(AutomationProperties.GetName(reconcileDirtyRoot), "focus returns");
+            StringAssert.Contains(AutomationProperties.GetHelpText(reconcileDirtyRoot), "at most 200");
+            StringAssert.Contains(AutomationProperties.GetHelpText(reconcileDirtyRoot), "does not bind full results");
+            StringAssert.Contains(reconcileDirtyRoot.Content?.ToString(), "_x");
+            Assert.AreEqual("Cancel bounded dirty-root reconciliation", AutomationProperties.GetName(
+                FindByAutomationId<Button>(files, "FileCancelDirtyRootReconciliation")));
             Assert.AreEqual(
                 SystemColors.ControlTextBrush,
                 FindByAutomationId<Border>(files, "FileGroupError").BorderBrush);
@@ -823,6 +843,24 @@ public sealed class WpfSurfaceSmokeTests
                 DrainDispatcher();
             }
             validationOperation.GetAwaiter().GetResult();
+            Assert.IsTrue(fileMembers.IsKeyboardFocusWithin);
+
+            var reconciliationRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var reconciliationOperation = files.ExecuteDirtyRootReconciliationCommandAsync(
+                () => reconciliationRelease.Task);
+            var reconciliationDispatcherAdvanced = false;
+            files.Dispatcher.BeginInvoke(
+                () => reconciliationDispatcherAdvanced = true,
+                DispatcherPriority.Normal);
+            DrainDispatcher();
+            Assert.IsFalse(reconciliationOperation.IsCompleted);
+            Assert.IsTrue(reconciliationDispatcherAdvanced);
+            reconciliationRelease.SetResult();
+            while (!reconciliationOperation.IsCompleted)
+            {
+                DrainDispatcher();
+            }
+            reconciliationOperation.GetAwaiter().GetResult();
             Assert.IsTrue(fileMembers.IsKeyboardFocusWithin);
 
             focusHost.Content = folders;

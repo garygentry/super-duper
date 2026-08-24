@@ -442,6 +442,7 @@ public static class SmokeMouseInput
         Assert-True (-not $cloudStatus.Current.Name.Contains('unavailable', [StringComparison]::OrdinalIgnoreCase)) 'Cloud registration discovery remained unavailable in the normal WPF smoke.'
         Assert-True ((Find-Element AutomationId 'StartScanButton').Current.IsEnabled) 'Start scan did not become enabled after successful cloud registration discovery.'
         Select-Element (Find-Element AutomationId 'DuplicateFilesTab')
+        $initialDirtyRootWarning = Find-Element AutomationId 'FileDirtyRootWarning'
         $oneGigabyteOrLarger = Find-Element AutomationId 'FileOneGigabyteOrLarger'
         Assert-True ($oneGigabyteOrLarger.Current.Name -eq 'Show only duplicate sets whose one-copy size is at least 1 GB, 1,073,741,824 bytes') 'One-gigabyte size preset was not accessible.'
         $threeOrMoreCopies = Find-Element AutomationId 'FileThreeOrMoreCopies'
@@ -645,6 +646,56 @@ public static class SmokeMouseInput
         Assert-True ($locationSummary.Current.Name.Contains('drive', [StringComparison]::OrdinalIgnoreCase)) 'Filtered location summary did not expose drive coverage.'
         Assert-True ($selectedSetExplanation.Current.Name.Contains('not identify an original', [StringComparison]::OrdinalIgnoreCase)) 'Selected-set explanation was not accessible.'
         Assert-True ($selectedSetLocations.Current.Name.Contains('selected root', [StringComparison]::OrdinalIgnoreCase)) 'Selected-set location span was not accessible.'
+        $dirtyRootWarning = $null
+        for ($attempt = 0; $attempt -lt 40 -and $null -eq $dirtyRootWarning; $attempt++) {
+            $dirtyRootWarning = $window.FindFirst(
+                [Windows.Automation.TreeScope]::Descendants,
+                [Windows.Automation.PropertyCondition]::new(
+                    [Windows.Automation.AutomationElement]::AutomationIdProperty,
+                    'FileDirtyRootWarning'))
+            if ($null -eq $dirtyRootWarning) { Start-Sleep -Milliseconds 250 }
+        }
+        if ($null -eq $dirtyRootWarning) {
+            $trustError = $window.FindFirst(
+                [Windows.Automation.TreeScope]::Descendants,
+                [Windows.Automation.PropertyCondition]::new(
+                    [Windows.Automation.AutomationElement]::AutomationIdProperty,
+                    'FileDirtyRootError'))
+            $trustStatus = $window.FindFirst(
+                [Windows.Automation.TreeScope]::Descendants,
+                [Windows.Automation.PropertyCondition]::new(
+                    [Windows.Automation.AutomationElement]::AutomationIdProperty,
+                    'FileDirtyRootStatus'))
+            $trustErrorText = if ($null -eq $trustError) { '<not exposed>' } else { $trustError.Current.Name }
+            $trustStatusText = if ($null -eq $trustStatus) { '<not exposed>' } else { $trustStatus.Current.Name }
+            throw "Watcher overflow did not reconstruct as a visible dirty warning. Trust error: $trustErrorText Trust status: $trustStatusText"
+        }
+        Assert-True ($dirtyRootWarning.Current.Name.Contains('dirty and reconciliation is required', [StringComparison]::OrdinalIgnoreCase)) 'Watcher overflow did not reconstruct as a visible dirty/reconciliation-required WPF state.'
+        Assert-True ($dirtyRootWarning.Current.Name.Contains('at most 200', [StringComparison]::OrdinalIgnoreCase)) 'Dirty-root WPF state did not disclose its bounded reconciliation ownership.'
+        Invoke-Element (Find-Element AutomationId 'FileReconcileDirtyRoot')
+        for ($attempt = 0; $attempt -lt 80; $attempt++) {
+            $dirtyRootStatus = Find-Element AutomationId 'FileDirtyRootStatus' 1
+            if ($dirtyRootStatus.Current.Name.Contains('checked', [StringComparison]::OrdinalIgnoreCase) -and
+                (Test-IsAutomationDescendant $fileMembers ([Windows.Automation.AutomationElement]::FocusedElement))) {
+                break
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ($dirtyRootStatus.Current.Name.Contains('checked', [StringComparison]::OrdinalIgnoreCase)) 'The explicit bounded dirty-root reconciliation request did not commit visible progress.'
+        Assert-True (Test-IsAutomationDescendant $fileMembers ([Windows.Automation.AutomationElement]::FocusedElement)) 'Dirty-root reconciliation did not restore focus to the current copy grid.'
+        $remainingDirtyRootWarning = $window.FindFirst(
+            [Windows.Automation.TreeScope]::Descendants,
+            [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::AutomationIdProperty,
+                'FileDirtyRootWarning'))
+        if ($null -eq $remainingDirtyRootWarning) {
+            Assert-True ($dirtyRootStatus.Current.Name.Contains('dirty marker is cleared', [StringComparison]::OrdinalIgnoreCase)) 'The final bounded reconciliation batch did not visibly clear the dirty marker.'
+        }
+        else {
+            Assert-True ($dirtyRootStatus.Current.Name.Contains('more remain', [StringComparison]::OrdinalIgnoreCase)) 'A partially reconciled root was not kept visibly dirty.'
+        }
+        $fileMembers = Find-Element AutomationId 'FileMembersGrid'
+        $memberRow = Find-FirstDataItem $fileMembers
         $pathCell = Find-DescendantByHelpTextPrefix $memberRow 'Complete path: '
         $exactPath = $pathCell.Current.HelpText.Substring('Complete path: '.Length)
         Invoke-Element (Find-DescendantButtonByNameFragment $fileMembers 'records intent only and does not delete')
@@ -1083,7 +1134,7 @@ $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
         $operationBoundary = Find-Element AutomationId 'RecycleOperationBoundaryNotice'
         Assert-True ($operationBoundary.Current.Name.Contains('execution is disabled', [StringComparison]::OrdinalIgnoreCase)) 'WPF did not disclose the disabled Recycle Bin executor boundary.'
         Assert-True ([IO.File]::Exists($exactPath)) 'WPF preflight unexpectedly removed a disposable fixture file.'
-        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, bounded external-modification validation with immutable history, sticky decision invalidation, fresh-choice recovery, and copy-grid focus restoration, bounded side-by-side folder location cards with stable automation and Right Arrow focus, current-page parent-grouped Explorer selection with keyboard access, aggregate success, actionable partial failure, and focus restoration, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, ordinary/long-path file reveal, and keyboard folder reveal success plus actionable missing-location failure."
+        Write-Output "WPF automation passed for restored run $RunId, including durable watcher-overflow warning and one explicit bounded reconciliation batch with copy-grid focus restoration, durable non-deleting file Remove and exact-folder Keep review decisions, bounded external-modification validation with immutable history, sticky decision invalidation, fresh-choice recovery, bounded side-by-side folder location cards with stable automation and Right Arrow focus, current-page parent-grouped Explorer selection with keyboard access, aggregate success, actionable partial failure, and focus restoration, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, ordinary/long-path file reveal, and keyboard folder reveal success plus actionable missing-location failure."
     }
     catch {
         $automationFailure = $_
@@ -1844,6 +1895,22 @@ try {
     }
     Assert-True ($restoredValidation.summary.presentCount -eq 1 -and $restoredValidation.summary.invalidatedDecisionCount -eq 1) 'Restored external-deletion fixture did not become present while retaining its sticky invalidation.'
     Assert-True ([IO.File]::Exists($liveTarget.path)) 'Live validation or restart unexpectedly removed the restored fixture file.'
+    $overflow = Send-WorkerRequest $restored 'review_live_root.overflow' @{
+        operationId = [Guid]::NewGuid().ToString('N')
+        runId = $run.id
+        rootPath = $liveTarget.rootPath
+    }
+    Assert-True ($overflow.root.state -eq 'dirty' -and $overflow.root.reconciliationRequired) 'Injected watcher overflow did not durably mark its selected root dirty.'
+    Assert-True (-not $overflow.executorEnabled) 'Watcher overflow unexpectedly enabled production execution.'
+    $queryDiagnostics += Stop-SmokeWorker $restored
+    $restored = Start-SmokeWorker
+    $null = Send-WorkerRequest $restored 'hello' @{
+        protocolVersions = @(1)
+        client = @{ name = 'windows-smoke-overflow-restart'; version = '1.0.0' }
+    }
+    $dirtyRoots = Send-WorkerRequest $restored 'review_live_root.list' @{ runId = $run.id }
+    Assert-True ($dirtyRoots.total -eq 1 -and $dirtyRoots.roots[0].dirtyRevision -eq $overflow.root.dirtyRevision) 'Watcher overflow dirty state did not reconstruct after worker restart.'
+    Assert-True (-not $dirtyRoots.executorEnabled) 'Dirty-root reconstruction unexpectedly enabled production execution.'
     $queryDiagnostics += Stop-SmokeWorker $restored
     $restored = $null
 

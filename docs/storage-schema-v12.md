@@ -54,3 +54,8 @@ unchanged.
 Production execution remains disabled: `RecycleOperationViewModel.CanSubmit` is false, composition
 uses `DisabledRecycleOperationCapabilityExecutor`, every worker operation response reports
 `executorEnabled:false`, and no **Move to Recycle Bin now** action exists.
+
+Schema v13 builds on this accepted overlay with a separate dirty-root/overflow and bounded
+reconciliation contract; see [`storage-schema-v13.md`](storage-schema-v13.md). The v12 validation
+ledger, sticky invalidation rules, effective-decision projection, and immutable-history boundary
+remain unchanged.

@@ -28,6 +28,7 @@ use super_duper_core::storage::models::{
     RecoveryReviewSummary, RecycleEligibilityObservation, RecycleItemResultObservation,
     RecycleOperation, RecycleOperationBatch, RecycleOperationItem, RecycleOperationView,
     RegisteredCloudLocation, ReviewDecisionKind, ReviewFolderGroupSummary, ReviewGroupSummary,
+    ReviewLiveRootOverflowRequest, ReviewLiveRootReconciliationRequest, ReviewLiveRootState,
     ReviewLiveValidationRequest, ReviewPlanSummary, ReviewPlanView, RunExclusion, RunParameters,
     ScanRun, ScanSession, SortDirection,
 };
@@ -36,6 +37,7 @@ use super_duper_core::storage::preflight::PreflightError;
 use super_duper_core::storage::recovery_review::RecoveryReviewError;
 use super_duper_core::storage::recycle_operation::RecycleOperationError;
 use super_duper_core::storage::review::ReviewError;
+use super_duper_core::storage::root_reconciliation::ReviewLiveRootError;
 use super_duper_core::storage::Database;
 use super_duper_core::{AppConfig, ScanEngine};
 
@@ -530,6 +532,32 @@ struct ReviewLiveValidationParameters {
     expected_review_revision: i64,
     scope: String,
     file_ids: Vec<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReviewLiveRootOverflowParameters {
+    operation_id: String,
+    run_id: i64,
+    root_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReviewLiveRootListParameters {
+    run_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReviewLiveRootReconcileParameters {
+    operation_id: String,
+    run_id: i64,
+    root_path: String,
+    expected_dirty_revision: i64,
+    expected_review_revision: i64,
+    #[serde(default = "default_result_page_size")]
+    page_size: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1408,6 +1436,9 @@ impl WorkerSession {
             "duplicate_file_drive_facet.page" => self.duplicate_file_drive_facet_page(request),
             "duplicate_file_group.members" => self.duplicate_file_group_members(request),
             "review_live_validation.run" => self.review_live_validation_run(request),
+            "review_live_root.overflow" => self.review_live_root_overflow(request),
+            "review_live_root.list" => self.review_live_root_list(request),
+            "review_live_root.reconcile" => self.review_live_root_reconcile(request),
             "duplicate_folder_group.page" => self.duplicate_folder_group_page(request),
             "duplicate_folder_group.members" => self.duplicate_folder_group_members(request),
             _ => Err(ProtocolFailure::new(
@@ -2156,6 +2187,97 @@ impl WorkerSession {
                 "invalidatedDecision": item.invalidated_decision.map(ReviewDecisionKind::as_str),
                 "observedAt": item.observed_at,
             })).collect::<Vec<_>>(),
+        }))
+    }
+
+    fn review_live_root_overflow(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: ReviewLiveRootOverflowParameters = parse_parameters(request)?;
+        let result = self
+            .state
+            .database()?
+            .mark_review_root_overflow(&ReviewLiveRootOverflowRequest {
+                operation_id: parameters.operation_id,
+                run_id: parameters.run_id,
+                root_path: parameters.root_path,
+            })
+            .map_err(review_live_root_error)?;
+        Ok(json!({
+            "root": review_live_root_dto(&result.root),
+            "replayed": result.replayed,
+            "executorEnabled": false,
+        }))
+    }
+
+    fn review_live_root_list(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let parameters: ReviewLiveRootListParameters = parse_parameters(request)?;
+        let started = Instant::now();
+        let roots = self
+            .state
+            .database()?
+            .list_dirty_review_roots(parameters.run_id)
+            .map_err(review_live_root_error)?;
+        log_result_query(
+            "review_live_root.list",
+            parameters.run_id,
+            None,
+            64,
+            roots.len(),
+            roots.len() as i64,
+            started.elapsed(),
+        );
+        Ok(json!({
+            "runId": parameters.run_id,
+            "roots": roots.iter().map(review_live_root_dto).collect::<Vec<_>>(),
+            "total": roots.len(),
+            "executorEnabled": false,
+        }))
+    }
+
+    fn review_live_root_reconcile(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: ReviewLiveRootReconcileParameters = parse_parameters(request)?;
+        let result = self
+            .state
+            .database()?
+            .reconcile_review_root(&ReviewLiveRootReconciliationRequest {
+                operation_id: parameters.operation_id,
+                run_id: parameters.run_id,
+                root_path: parameters.root_path,
+                expected_dirty_revision: parameters.expected_dirty_revision,
+                expected_review_revision: parameters.expected_review_revision,
+                page_size: parameters.page_size,
+            })
+            .map_err(review_live_root_error)?;
+        Ok(json!({
+            "reconciliationId": result.reconciliation_id,
+            "runId": result.run_id,
+            "rootPath": result.root_path,
+            "dirtyRevision": result.dirty_revision,
+            "reviewRevision": result.review_revision,
+            "replayed": result.replayed,
+            "summary": {
+                "itemCount": result.summary.item_count,
+                "presentCount": result.summary.present_count,
+                "changedCount": result.summary.changed_count,
+                "missingCount": result.summary.missing_count,
+                "unavailableCount": result.summary.unavailable_count,
+                "invalidatedDecisionCount": result.summary.invalidated_decision_count,
+            },
+            "items": result.items.into_iter().map(|item| json!({
+                "fileId": item.file_id,
+                "state": item.state,
+                "reasonCode": item.reason_code,
+                "decisionInvalidated": item.decision_invalidated,
+                "invalidatedDecision": item.invalidated_decision.map(ReviewDecisionKind::as_str),
+                "observedAt": item.observed_at,
+            })).collect::<Vec<_>>(),
+            "root": review_live_root_dto(&result.root),
+            "executorEnabled": false,
         }))
     }
 
@@ -5530,6 +5652,21 @@ fn run_exclusion_dto(exclusion: RunExclusion) -> RunExclusionDto {
     }
 }
 
+fn review_live_root_dto(root: &ReviewLiveRootState) -> Value {
+    json!({
+        "runId": root.run_id,
+        "rootPath": root.root_path,
+        "state": root.state,
+        "dirtyRevision": root.dirty_revision,
+        "reasonCode": root.reason_code,
+        "dirtyAt": root.dirty_at,
+        "reconciliationCursorFileId": root.reconciliation_cursor_file_id,
+        "reconciledItemCount": root.reconciled_item_count,
+        "updatedAt": root.updated_at,
+        "reconciliationRequired": root.state == "dirty",
+    })
+}
+
 fn internal_database_error(error: rusqlite::Error) -> ProtocolFailure {
     ProtocolFailure::new(
         "internal_error",
@@ -6392,6 +6529,58 @@ fn review_live_validation_error(error: ReviewLiveValidationError) -> ProtocolFai
     }
 }
 
+fn review_live_root_error(error: ReviewLiveRootError) -> ProtocolFailure {
+    match error {
+        ReviewLiveRootError::Database(error) => internal_database_error(error),
+        ReviewLiveRootError::InvalidRequest { message } => {
+            ProtocolFailure::new("invalid_request", message)
+        }
+        ReviewLiveRootError::RunNotFound { run_id } => {
+            ProtocolFailure::new("run_not_found", format!("Run {run_id} was not found"))
+                .with_details(json!({"runId":run_id}))
+        }
+        ReviewLiveRootError::RunNotCompleted { run_id, status } => ProtocolFailure::new(
+            "invalid_state",
+            "Dirty-root reconciliation is available only for completed runs",
+        )
+        .with_details(json!({"runId":run_id,"status":status})),
+        ReviewLiveRootError::RootNotFound { run_id, root_path } => ProtocolFailure::new(
+            "review_root_not_found",
+            "The requested path is not an immutable selected root for this run",
+        )
+        .with_details(json!({"runId":run_id,"rootPath":root_path})),
+        ReviewLiveRootError::RootNotDirty { run_id, root_path } => ProtocolFailure::new(
+            "review_root_not_dirty",
+            "The requested root no longer requires reconciliation",
+        )
+        .with_details(json!({"runId":run_id,"rootPath":root_path})),
+        ReviewLiveRootError::StaleDirtyRevision { expected, actual } => ProtocolFailure::new(
+            "dirty_generation_conflict",
+            "Another overflow changed the dirty root before reconciliation committed",
+        )
+        .with_details(json!({"expectedDirtyRevision":expected,"currentDirtyRevision":actual})),
+        ReviewLiveRootError::StaleReviewRevision { expected, actual } => ProtocolFailure::new(
+            "review_generation_conflict",
+            "Review choices changed before root reconciliation committed",
+        )
+        .with_details(json!({"expectedRevision":expected,"currentRevision":actual})),
+        ReviewLiveRootError::StaleReconciliationCursor => ProtocolFailure::new(
+            "dirty_reconciliation_conflict",
+            "Another bounded request advanced this dirty root; reload its current state",
+        ),
+        ReviewLiveRootError::IdempotencyConflict { operation_id } => ProtocolFailure::new(
+            "idempotency_conflict",
+            "The operationId was already used for another dirty-root request",
+        )
+        .with_details(json!({"operationId":operation_id})),
+        ReviewLiveRootError::InvalidRunParameters { run_id } => ProtocolFailure::new(
+            "invalid_run_snapshot",
+            "The immutable run parameter snapshot could not be decoded",
+        )
+        .with_details(json!({"runId":run_id})),
+    }
+}
+
 fn request_id(object: &Map<String, Value>) -> Result<&str, WorkerError> {
     object
         .get("id")
@@ -6968,6 +7157,217 @@ mod tests {
             "SELECT canonical_path, file_size, last_modified FROM scanned_file WHERE run_id = ?1 ORDER BY id"
         ).unwrap().query_map(params![run_id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?)))
             .unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+        assert_eq!(immutable_after, immutable_before);
+    }
+
+    #[test]
+    fn watcher_overflow_protocol_is_durable_visible_bounded_and_generation_bound() {
+        let temp = TempDir::new().unwrap();
+        let database_path = temp.path().join("worker.db");
+        let root = fs::canonicalize(temp.path()).unwrap();
+        let root_path = root.to_string_lossy().into_owned();
+        let paths = (0..3)
+            .map(|index| root.join(format!("overflow-copy-{index}.bin")))
+            .collect::<Vec<_>>();
+        for path in &paths {
+            fs::write(path, b"same overflow bytes").unwrap();
+        }
+        let db = Database::open(database_path.to_str().unwrap()).unwrap();
+        let session_id = db
+            .create_session("Overflow protocol", std::slice::from_ref(&root_path), &[])
+            .unwrap();
+        let run_id = db
+            .create_scan_run(
+                session_id,
+                &RunParameters {
+                    roots: vec![root_path.clone()],
+                    ignore_patterns: Vec::new(),
+                    directory_similarity_threshold_millis: 500,
+                    cloud_policy: CloudPolicy::ExcludeRegisteredRoots,
+                    manual_location_exclusions: Vec::new(),
+                    registered_cloud_locations: Vec::new(),
+                    cloud_detection_status: CloudDetectionStatus::Complete,
+                },
+                "test",
+            )
+            .unwrap();
+        db.start_scan_run(run_id).unwrap();
+        let snapshots = paths
+            .iter()
+            .map(|path| {
+                let metadata = fs::metadata(path).unwrap();
+                ScannedFile {
+                    id: 0,
+                    run_id,
+                    root_path: root_path.clone(),
+                    canonical_path: path.to_string_lossy().into_owned(),
+                    relative_path: path.file_name().unwrap().to_string_lossy().into_owned(),
+                    file_name: path.file_name().unwrap().to_string_lossy().into_owned(),
+                    parent_dir: root_path.clone(),
+                    drive_letter: String::new(),
+                    file_size: metadata.len() as i64,
+                    last_modified: metadata
+                        .modified()
+                        .unwrap()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_nanos()
+                        .min(i64::MAX as u128) as i64,
+                    partial_hash: None,
+                    content_hash: Some(44),
+                    file_identity: platform::file_identity(path).unwrap(),
+                    warning_message: None,
+                    marked_deleted: false,
+                }
+            })
+            .collect::<Vec<_>>();
+        db.insert_scanned_files(&snapshots).unwrap();
+        db.insert_duplicate_groups(
+            run_id,
+            &[(
+                44,
+                snapshots[0].file_size,
+                snapshots
+                    .iter()
+                    .map(|file| file.canonical_path.clone())
+                    .collect(),
+            )],
+        )
+        .unwrap();
+        db.complete_scan_run(
+            run_id,
+            3,
+            snapshots[0].file_size * 3,
+            3,
+            1,
+            0,
+            snapshots[0].file_size * 2,
+            0,
+        )
+        .unwrap();
+        let immutable_before = db
+            .connection()
+            .prepare(
+                "SELECT canonical_path, file_size, last_modified
+                 FROM scanned_file WHERE run_id = ?1 ORDER BY id",
+            )
+            .unwrap()
+            .query_map(params![run_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        drop(db);
+        let encoded_root = serde_json::to_string(&root_path).unwrap();
+        let overflow_request = format!(
+            r#"{{"type":"request","id":"overflow","method":"review_live_root.overflow","params":{{"operationId":"watcher-overflow-1","runId":{run_id},"rootPath":{encoded_root}}}}}"#
+        );
+        let first_frames = execute(
+            &temp,
+            &[
+                HELLO.to_owned(),
+                overflow_request.clone(),
+                overflow_request.replace("\"id\":\"overflow\"", "\"id\":\"overflow-replay\""),
+                format!(
+                    r#"{{"type":"request","id":"dirty-list","method":"review_live_root.list","params":{{"runId":{run_id}}}}}"#
+                ),
+                format!(
+                    r#"{{"type":"request","id":"reconcile-first","method":"review_live_root.reconcile","params":{{"operationId":"reconcile-root-1","runId":{run_id},"rootPath":{encoded_root},"expectedDirtyRevision":1,"expectedReviewRevision":0,"pageSize":2}}}}"#
+                ),
+            ],
+        );
+        assert_eq!(
+            response(&first_frames, "overflow")["result"]["root"]["state"],
+            "dirty"
+        );
+        assert_eq!(
+            response(&first_frames, "overflow")["result"]["executorEnabled"],
+            false
+        );
+        assert_eq!(
+            response(&first_frames, "overflow-replay")["result"]["replayed"],
+            true
+        );
+        assert_eq!(response(&first_frames, "dirty-list")["result"]["total"], 1);
+        let first = &response(&first_frames, "reconcile-first")["result"];
+        assert_eq!(first["summary"]["itemCount"], 2);
+        assert_eq!(first["root"]["reconciliationRequired"], true);
+        assert_eq!(first["root"]["reconciledItemCount"], 2);
+        assert_eq!(first["executorEnabled"], false);
+
+        let second_frames = execute(
+            &temp,
+            &[
+                HELLO.to_owned(),
+                format!(
+                    r#"{{"type":"request","id":"restart-list","method":"review_live_root.list","params":{{"runId":{run_id}}}}}"#
+                ),
+                format!(
+                    r#"{{"type":"request","id":"reconcile-second","method":"review_live_root.reconcile","params":{{"operationId":"reconcile-root-2","runId":{run_id},"rootPath":{encoded_root},"expectedDirtyRevision":1,"expectedReviewRevision":0,"pageSize":2}}}}"#
+                ),
+                format!(
+                    r#"{{"type":"request","id":"clean-list","method":"review_live_root.list","params":{{"runId":{run_id}}}}}"#
+                ),
+                format!(
+                    r#"{{"type":"request","id":"oversized-reconcile","method":"review_live_root.reconcile","params":{{"operationId":"reconcile-root-oversized","runId":{run_id},"rootPath":{encoded_root},"expectedDirtyRevision":1,"expectedReviewRevision":0,"pageSize":201}}}}"#
+                ),
+                format!(
+                    r#"{{"type":"request","id":"overflow-2","method":"review_live_root.overflow","params":{{"operationId":"watcher-overflow-2","runId":{run_id},"rootPath":{encoded_root}}}}}"#
+                ),
+                format!(
+                    r#"{{"type":"request","id":"stale-reconcile","method":"review_live_root.reconcile","params":{{"operationId":"stale-reconcile","runId":{run_id},"rootPath":{encoded_root},"expectedDirtyRevision":1,"expectedReviewRevision":0,"pageSize":2}}}}"#
+                ),
+            ],
+        );
+        assert_eq!(
+            response(&second_frames, "restart-list")["result"]["total"],
+            1
+        );
+        assert_eq!(
+            response(&second_frames, "restart-list")["result"]["roots"][0]["reconciledItemCount"],
+            2
+        );
+        let second = &response(&second_frames, "reconcile-second")["result"];
+        assert_eq!(second["summary"]["itemCount"], 1);
+        assert_eq!(second["root"]["reconciliationRequired"], false);
+        assert_eq!(second["root"]["reconciledItemCount"], 3);
+        assert_eq!(response(&second_frames, "clean-list")["result"]["total"], 0);
+        assert_eq!(
+            response(&second_frames, "oversized-reconcile")["error"]["code"],
+            "invalid_request"
+        );
+        assert_eq!(
+            response(&second_frames, "overflow-2")["result"]["root"]["dirtyRevision"],
+            2
+        );
+        assert_eq!(
+            response(&second_frames, "stale-reconcile")["error"]["code"],
+            "dirty_generation_conflict"
+        );
+
+        let reopened = Database::open(database_path.to_str().unwrap()).unwrap();
+        let immutable_after = reopened
+            .connection()
+            .prepare(
+                "SELECT canonical_path, file_size, last_modified
+                 FROM scanned_file WHERE run_id = ?1 ORDER BY id",
+            )
+            .unwrap()
+            .query_map(params![run_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
         assert_eq!(immutable_after, immutable_before);
     }
 

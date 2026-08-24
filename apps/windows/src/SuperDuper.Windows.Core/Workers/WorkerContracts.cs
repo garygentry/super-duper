@@ -371,6 +371,44 @@ public sealed record WorkerReviewLiveValidationResult(
     WorkerReviewLiveValidationSummary Summary,
     IReadOnlyList<WorkerReviewLiveValidationItem> Items);
 
+public sealed record WorkerReviewLiveRootState(
+    long RunId,
+    string RootPath,
+    string State,
+    long DirtyRevision,
+    string ReasonCode,
+    string DirtyAt,
+    long? ReconciliationCursorFileId,
+    long ReconciledItemCount,
+    string UpdatedAt,
+    bool ReconciliationRequired);
+
+public sealed record WorkerReviewLiveRootPage(
+    long RunId,
+    IReadOnlyList<WorkerReviewLiveRootState> Roots,
+    long Total,
+    bool ExecutorEnabled);
+
+public sealed record ReviewLiveRootReconciliationRequest(
+    string OperationId,
+    long RunId,
+    string RootPath,
+    long ExpectedDirtyRevision,
+    long ExpectedReviewRevision,
+    int PageSize);
+
+public sealed record WorkerReviewLiveRootReconciliationResult(
+    long ReconciliationId,
+    long RunId,
+    string RootPath,
+    long DirtyRevision,
+    long ReviewRevision,
+    bool Replayed,
+    WorkerReviewLiveValidationSummary Summary,
+    IReadOnlyList<WorkerReviewLiveValidationItem> Items,
+    WorkerReviewLiveRootState Root,
+    bool ExecutorEnabled);
+
 public sealed record WorkerReviewFolderGroupSummary(
     long FolderGroupId,
     long KeepCount,

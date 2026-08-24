@@ -1165,6 +1165,156 @@ public sealed class DuplicateFilesViewModelTests
         Assert.IsFalse(viewModel.HasLiveValidationError);
     }
 
+    [TestMethod]
+    public async Task DirtyRootReconstructionReconcilesOneBoundedBatchAndPreservesMemberCursor()
+    {
+        const string rootPath = @"C:\Data";
+        var dirty = new WorkerReviewLiveRootState(
+            50, rootPath, "dirty", 3, "watcher_overflow", "2026-08-24T00:00:00Z",
+            null, 0, "2026-08-24T00:00:00Z", true);
+        ReviewLiveRootReconciliationRequest? captured = null;
+        var reconciled = false;
+        var memberCursors = new List<string?>();
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileGroupPage([Group(1, query.RunId, "item.bin")], 1, null, null)),
+            MemberPageHandler = (query, _) =>
+            {
+                memberCursors.Add(query.Cursor);
+                var id = query.Cursor is null ? 1 : 2;
+                var member = Member(id, query.GroupId, $@"C:\Data\copy-{id}.bin") with
+                {
+                    ValidationState = reconciled && id == 2 ? "missing" : null,
+                    ValidationReasonCode = reconciled && id == 2 ? "path_missing" : null,
+                    ValidationObservedAt = reconciled && id == 2 ? "2026-08-24T00:01:00Z" : null,
+                };
+                return Task.FromResult(new WorkerDuplicateFileMemberPage(
+                    [member],
+                    2,
+                    query.Cursor is null ? "next-page" : null,
+                    query.Cursor is null ? null : "previous-page"));
+            },
+            DirtyReviewRootsHandler = (runId, _) => Task.FromResult(
+                new WorkerReviewLiveRootPage(runId, [dirty with { RunId = runId }], 1, false)),
+            DirtyRootReconciliationHandler = (request, _) =>
+            {
+                captured = request;
+                reconciled = true;
+                var clean = dirty with
+                {
+                    RunId = request.RunId,
+                    State = "clean",
+                    ReconciledItemCount = 2,
+                    UpdatedAt = "2026-08-24T00:01:00Z",
+                    ReconciliationRequired = false,
+                };
+                return Task.FromResult(new WorkerReviewLiveRootReconciliationResult(
+                    7,
+                    request.RunId,
+                    request.RootPath,
+                    request.ExpectedDirtyRevision,
+                    request.ExpectedReviewRevision,
+                    false,
+                    new WorkerReviewLiveValidationSummary(2, 1, 0, 1, 0, 0),
+                    [new WorkerReviewLiveValidationItem(
+                        2, "missing", "path_missing", false, null, "2026-08-24T00:01:00Z")],
+                    clean,
+                    false));
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(50, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        Assert.IsTrue(viewModel.HasDirtyRoots);
+        StringAssert.Contains(viewModel.DirtyRootWarningMessage, "dirty and reconciliation is required");
+        StringAssert.Contains(viewModel.DirtyRootWarningMessage, "at most 200");
+        var dirtyRootDispatcherUpdates = 0;
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(DuplicateFilesViewModel.DirtyRoots))
+            {
+                dirtyRootDispatcherUpdates++;
+            }
+        };
+        await viewModel.NextMemberPageCommand.ExecuteAsync(null);
+        Assert.AreEqual(2, viewModel.Members.Single().Id);
+        var queryCountBefore = memberCursors.Count;
+
+        await viewModel.ReconcileDirtyRootCommand.ExecuteAsync(null);
+
+        Assert.IsNotNull(captured);
+        Assert.AreEqual(DuplicateFilesViewModel.PageSize, captured.PageSize);
+        Assert.AreEqual(rootPath, captured.RootPath);
+        Assert.AreEqual(3, captured.ExpectedDirtyRevision);
+        var reconciliationQueries = memberCursors.Skip(queryCountBefore).ToArray();
+        Assert.AreEqual(1, reconciliationQueries.Count(cursor => cursor == "next-page"),
+            "The explicit reconciliation did not refresh exactly the committed member page.");
+        Assert.IsTrue(reconciliationQueries.Length <= 2,
+            "Reconciliation escaped the accepted current-plus-neighbor bounded member cache.");
+        Assert.AreEqual(2, viewModel.Members.Single().Id);
+        Assert.AreEqual("Missing", viewModel.Members.Single().LiveState);
+        Assert.IsFalse(viewModel.HasDirtyRoots);
+        Assert.AreEqual(1, dirtyRootDispatcherUpdates,
+            "One explicit reconciliation response should produce one root-state binding update, not watcher-event fan-out.");
+        StringAssert.Contains(viewModel.DirtyRootStatusMessage, "dirty marker is cleared");
+        StringAssert.Contains(viewModel.DirtyRootStatusMessage, "Original scan history was not changed");
+        Assert.IsFalse(viewModel.IsDirtyRootReconciliationRunning);
+    }
+
+    [TestMethod]
+    public async Task DirtyRootCancellationAndLateResponseCannotReplaceNewerRunContext()
+    {
+        var late = new TaskCompletionSource<WorkerReviewLiveRootReconciliationResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken observedToken = default;
+        var dirty = new WorkerReviewLiveRootState(
+            51, @"C:\Data", "dirty", 1, "watcher_overflow", "2026-08-24T00:00:00Z",
+            null, 0, "2026-08-24T00:00:00Z", true);
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileGroupPage([Group(query.RunId, query.RunId, $"run-{query.RunId}.bin")], 1, null, null)),
+            MemberPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFileMemberPage(
+                [Member(query.RunId, query.GroupId, $@"C:\Data\run-{query.RunId}.bin")], 1, null, null)),
+            DirtyReviewRootsHandler = (runId, _) => Task.FromResult(
+                runId == 51
+                    ? new WorkerReviewLiveRootPage(runId, [dirty], 1, false)
+                    : new WorkerReviewLiveRootPage(runId, [], 0, false)),
+            DirtyRootReconciliationHandler = (request, token) =>
+            {
+                observedToken = token;
+                return late.Task;
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(51, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var pending = viewModel.ReconcileDirtyRootCommand.ExecuteAsync(null);
+        Assert.IsTrue(viewModel.IsDirtyRootReconciliationRunning);
+
+        viewModel.CancelDirtyRootReconciliationCommand.Execute(null);
+        Assert.IsTrue(observedToken.IsCancellationRequested);
+        Assert.IsFalse(viewModel.IsDirtyRootReconciliationRunning);
+        Assert.IsTrue(viewModel.HasDirtyRoots);
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(52, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        late.SetResult(new WorkerReviewLiveRootReconciliationResult(
+            8, 51, dirty.RootPath, 1, 0, false,
+            new WorkerReviewLiveValidationSummary(1, 1, 0, 0, 0, 0),
+            [],
+            dirty with { State = "clean", ReconciliationRequired = false },
+            false));
+        await pending;
+
+        Assert.AreEqual(52, viewModel.Run!.Id);
+        Assert.IsFalse(viewModel.HasDirtyRoots);
+        Assert.IsFalse(viewModel.HasDirtyRootStatus);
+        Assert.IsFalse(viewModel.HasDirtyRootError);
+        Assert.AreEqual("run-52.bin", viewModel.Groups.Single().RepresentativeName);
+    }
+
     private static WorkerDuplicateFileGroup Group(long id, long runId, string name) =>
         new(id, runId, "1024", 2, "1024", name, ".bin")
         {

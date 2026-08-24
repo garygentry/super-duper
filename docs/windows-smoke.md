@@ -146,9 +146,14 @@ runs, unchanged file/placeholder state, and `PROVIDER_TRANSFER_COUNTERS_UNCHANGE
 
 ## Expected Result
 
-The script prints `Windows smoke passed`. With WPF enabled it also prints that WPF automation
-passed, fails if an admitted reveal or grouped selection lacks terminal aggregate success or
-actionable failure state, verifies that owned workers do not survive the app, and may leave
+The script prints `Windows smoke passed`. It injects one watcher overflow without changing a
+fixture, proves the dirty root survives a worker restart, and requires every overflow/list response
+to retain `executorEnabled:false`. With WPF enabled it also proves the durable root appears as a
+visible dirty/reconciliation-required warning, invokes one explicit at-most-200-item batch, keeps a
+partial root visibly dirty or clears only the final batch, restores copy-grid focus, and leaves
+immutable scan history and fixtures unchanged. WPF automation also fails if an admitted reveal or
+grouped selection lacks terminal aggregate success or actionable failure state, verifies that owned
+workers do not survive the app, and may leave
 Explorer windows showing selected disposable fixture items grouped by parent. By
 default the fixture is removed after the app closes; `-KeepArtifacts` prints and retains its path.
 
@@ -168,9 +173,14 @@ If UI Automation is blocked by a locked session, elevation boundary, or headless
    selected-root and drive facets, clear them, then choose Show in Explorer.
 3. Open Duplicate Folders, sort Representative folder, filter for `original-set`, select the group,
    and reveal a folder in Explorer.
-4. On a disposable reviewed copy, change its length outside the app, choose **Validate page**, and
+4. Before changing a file, confirm the injected watcher overflow appears as a dirty/
+   reconciliation-required root warning. Choose **Reconcile next batch** (Alt+X), confirm the action
+   reports at most 200 checked copies, and confirm focus returns to the current copy grid. If more
+   work remains, the warning must remain; otherwise the final status must explicitly say the dirty
+   marker was cleared. No file should move or disappear.
+5. On a disposable reviewed copy, change its length outside the app, choose **Validate page**, and
    confirm the row reports Changed and its prior decision is invalidated without deleting the file.
    Restore the exact bytes and timestamp, validate again, confirm Present retains the prior-intent
    warning, then record a fresh decision. Do not use a provider placeholder for this manual step.
-5. Close and reopen the app and confirm completed/cancelled history, completed results, and the
+6. Close and reopen the app and confirm completed/cancelled history, completed results, and the
    latest live-validation overlay restore.

@@ -1,4 +1,4 @@
-PRAGMA user_version = 12;
+PRAGMA user_version = 13;
 
 -- Reusable, user-owned scan definitions.
 CREATE TABLE IF NOT EXISTS scan_session (
@@ -343,10 +343,76 @@ CREATE TABLE IF NOT EXISTS review_live_validation_item (
     UNIQUE(validation_id, file_id)
 );
 
+-- Watcher overflow is a durable root-level loss-of-trust marker. The latest row is bounded by the
+-- immutable run root count (maximum 64), while request ledgers provide idempotent retry evidence.
+CREATE TABLE IF NOT EXISTS review_live_root_state (
+    run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+    root_path TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('dirty', 'clean')),
+    dirty_revision INTEGER NOT NULL CHECK(dirty_revision > 0),
+    reason_code TEXT NOT NULL CHECK(reason_code = 'watcher_overflow'),
+    dirty_at TEXT NOT NULL,
+    reconciliation_cursor_file_id INTEGER REFERENCES scanned_file(id) ON DELETE SET NULL,
+    reconciled_item_count INTEGER NOT NULL DEFAULT 0 CHECK(reconciled_item_count >= 0),
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY(run_id, root_path)
+);
+
+CREATE TABLE IF NOT EXISTS review_live_root_overflow (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation_id TEXT NOT NULL UNIQUE,
+    request_signature TEXT NOT NULL,
+    run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+    root_path TEXT NOT NULL,
+    dirty_revision INTEGER NOT NULL CHECK(dirty_revision > 0),
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS review_live_root_reconciliation (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation_id TEXT NOT NULL UNIQUE,
+    request_signature TEXT NOT NULL,
+    run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+    root_path TEXT NOT NULL,
+    dirty_revision INTEGER NOT NULL CHECK(dirty_revision > 0),
+    expected_review_revision INTEGER NOT NULL CHECK(expected_review_revision >= 0),
+    start_after_file_id INTEGER,
+    item_count INTEGER NOT NULL CHECK(item_count BETWEEN 0 AND 200),
+    present_count INTEGER NOT NULL CHECK(present_count >= 0),
+    changed_count INTEGER NOT NULL CHECK(changed_count >= 0),
+    missing_count INTEGER NOT NULL CHECK(missing_count >= 0),
+    unavailable_count INTEGER NOT NULL CHECK(unavailable_count >= 0),
+    invalidated_decision_count INTEGER NOT NULL CHECK(invalidated_decision_count >= 0),
+    next_cursor_file_id INTEGER,
+    reconciliation_required INTEGER NOT NULL CHECK(reconciliation_required IN (0, 1)),
+    reconciled_item_count INTEGER NOT NULL CHECK(reconciled_item_count >= 0),
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS review_live_root_reconciliation_item (
+    reconciliation_id INTEGER NOT NULL
+        REFERENCES review_live_root_reconciliation(id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL CHECK(ordinal >= 0 AND ordinal < 200),
+    file_id INTEGER NOT NULL REFERENCES scanned_file(id) ON DELETE CASCADE,
+    state TEXT NOT NULL CHECK(state IN ('present', 'changed', 'missing', 'unavailable')),
+    reason_code TEXT NOT NULL,
+    observed_file_identity TEXT,
+    observed_file_size INTEGER CHECK(observed_file_size IS NULL OR observed_file_size >= 0),
+    observed_last_modified INTEGER,
+    os_error INTEGER,
+    decision_invalidated INTEGER NOT NULL CHECK(decision_invalidated IN (0, 1)),
+    invalidated_decision TEXT
+        CHECK(invalidated_decision IS NULL OR invalidated_decision IN ('keep', 'remove')),
+    observed_at TEXT NOT NULL,
+    PRIMARY KEY(reconciliation_id, ordinal),
+    UNIQUE(reconciliation_id, file_id)
+);
+
 CREATE TABLE IF NOT EXISTS review_live_file_state (
     run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
     file_id INTEGER NOT NULL REFERENCES scanned_file(id) ON DELETE CASCADE,
-    validation_id INTEGER NOT NULL REFERENCES review_live_validation(id) ON DELETE CASCADE,
+    validation_id INTEGER REFERENCES review_live_validation(id) ON DELETE CASCADE,
+    reconciliation_id INTEGER REFERENCES review_live_root_reconciliation(id) ON DELETE CASCADE,
     state TEXT NOT NULL CHECK(state IN ('present', 'changed', 'missing', 'unavailable')),
     reason_code TEXT NOT NULL,
     observed_file_identity TEXT,
@@ -356,7 +422,9 @@ CREATE TABLE IF NOT EXISTS review_live_file_state (
     decision_invalidated INTEGER NOT NULL CHECK(decision_invalidated IN (0, 1)),
     invalidated_decision TEXT CHECK(invalidated_decision IS NULL OR invalidated_decision IN ('keep', 'remove')),
     observed_at TEXT NOT NULL,
-    PRIMARY KEY(run_id, file_id)
+    PRIMARY KEY(run_id, file_id),
+    CHECK((validation_id IS NOT NULL AND reconciliation_id IS NULL)
+          OR (validation_id IS NULL AND reconciliation_id IS NOT NULL))
 );
 
 CREATE VIEW IF NOT EXISTS recorded_review_decision AS
@@ -639,6 +707,12 @@ CREATE INDEX IF NOT EXISTS idx_review_live_validation_item_file
     ON review_live_validation_item(file_id, validation_id DESC);
 CREATE INDEX IF NOT EXISTS idx_review_live_file_state_invalidated
     ON review_live_file_state(run_id, decision_invalidated, file_id);
+CREATE INDEX IF NOT EXISTS idx_review_live_root_state_dirty
+    ON review_live_root_state(run_id, state, dirty_revision, root_path COLLATE UNICODE_NOCASE);
+CREATE INDEX IF NOT EXISTS idx_review_live_root_reconciliation_run
+    ON review_live_root_reconciliation(run_id, root_path COLLATE UNICODE_NOCASE, id DESC);
+CREATE INDEX IF NOT EXISTS idx_review_live_root_reconciliation_item_file
+    ON review_live_root_reconciliation_item(file_id, reconciliation_id DESC);
 CREATE INDEX IF NOT EXISTS idx_review_command_plan_operation
     ON review_command(plan_id, operation_id);
 CREATE INDEX IF NOT EXISTS idx_review_folder_decision_plan_group
