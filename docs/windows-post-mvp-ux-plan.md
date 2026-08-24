@@ -5,7 +5,7 @@
 Active implementation roadmap for the Windows duplicate-review experience. Milestone 6
 release-acceptance remediation and the required fail-closed Milestone 7 policy are complete; the
 two unavailable Milestone 7 opt-in policies are reviewed follow-ons. Milestone 8's read-only code
-criteria are accepted; representative query performance and physical Narrator/NVDA, high-contrast,
+criteria and representative query performance are accepted; physical Narrator/NVDA, high-contrast,
 and multi-monitor DPI evidence remain independent open gates. All four Milestone 9 criteria are
 accepted: bounded side-by-side folder relationships, responsive single-folder Explorer reveal,
 bounded current-page parent-grouped Explorer selection, and file/folder physical de-duplication.
@@ -408,8 +408,9 @@ for the current duplicate-file query, immutable member location context, bounded
 selected-root/drive span, a worker-owned across-drives entry point, and aggregate location coverage
 plus bounded selected-root and drive facets with exact filters without introducing review
 decisions, live filesystem state, or deletion behavior. The seventh slice adds a worker-owned
-minimum-copy-count filter through the same bounded group and cross-facet query paths. Full
-Milestone 8 remains in progress. The eighth slice adds a precise, accessible 1 GB-or-larger entry
+minimum-copy-count filter through the same bounded group and cross-facet query paths. Milestone 8
+remains in progress only for its three physical accessibility gates. The eighth slice adds a
+precise, accessible 1 GB-or-larger entry
 point over the existing indexed worker-owned one-copy-size predicate. The ninth slice adds bounded
 next/previous-set navigation and returns keyboard focus to the selected virtualized group row. The
 tenth slice adds indexed exact canonical-member-path matching while retaining the existing literal
@@ -4015,6 +4016,16 @@ metrics. This is diagnostic evidence rather than a valid performance failure; th
 authorized experiment is one unchanged collector invocation in a new evidence directory from a
 desktop execution context with installed-Windows-SDK read access, after reconfirming normal load.
 
+The separately authorized desktop-context collector run passed on the same designated machine and
+is retained at `artifacts/windows-representative-query/20260824-162843-832`. It retains all 500
+ordered intervals, 101 process snapshots, and 12 valid host samples with none invalid/unavailable.
+The unchanged 100 ms p95 target passed at 62.57 ms group/summary, 32.03 ms selected-root facet,
+32.07 ms drive facet, 17.00 ms review plan, and 4.69 ms review groups; private growth was 929,792
+bytes. The Release build, 31 deterministic Infrastructure contracts, and exact Rust profile passed,
+while production remained disabled. This accepts `WPM8-representative-query-performance` and records
+it `locally_exhausted`; the earlier pre-measurement failure remains retained, and no excluded
+campaign or product change occurred.
+
 ### Milestone 14 - UX and Scale Hardening
 
 Status: Planned. The four acceptance criteria and the additional required accessibility and query-
@@ -4100,16 +4111,12 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance only `WPM8-representative-query-performance`. The designated representative Windows 11 x64
-host attempt at `artifacts/windows-representative-query/20260824-161340-948` failed before
-measurement because the execution sandbox could not read the installed Windows SDK. Preserve that
-bundle. Only after separate authorization, reconfirm normal load and run the unchanged collector
-once in a new evidence directory from a desktop execution context with Windows SDK access. Do not
-substitute a provider, physical-accessibility, mutation, outcome, broad-performance, or later gate.
-
-Verifier: the retained artifact contains all 500 intervals, host context, and 101 process snapshots;
-every result, root-facet, drive-facet, plan, and review-group p95 meets the unchanged 100 ms target
-on that machine.
+Advance only `WPM8-narrator-nvda`, and only when an accessibility operator has an interactive
+Windows 11 x64 desktop with both Narrator and NVDA available. Run the documented read-only keyboard
+workflow separately with each screen reader and retain spoken order/coalescing, focus, error, stale/
+duplicate, and action-access notes. If those physical prerequisites are unavailable, preserve the
+blocker and stop; do not substitute high contrast, multi-monitor DPI, provider, mutation, outcome,
+broad-performance, or later work.
 
 ## Milestone Definition Template
 
@@ -4210,3 +4217,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-24 | Implemented and accepted indexed stable warning sorting/keyset paging, sort-bound cursors, one retained 100,000-aggregate Release proof, fixed five-page Core caching, 25-row virtualized WPF binding, cancellation/stale rejection, dispatcher responsiveness, and keyboard/focus restoration. | Record WPM13-bounded-memory `locally_exhausted`; preserve schema-v14 exact accounting/examples, immutable history, and every production lock. Authorize only WPM13-action-navigation next. |
 | 2026-08-24 | Implemented and accepted the single existing completed-run `scan/hash_recoverable_warning` action with exact stable-run resolution, immutable duplicate-set navigation, cancellation/stale-context rejection, actionable missing-target handling, Alt+O/automation, dispatcher responsiveness, and focus restoration. | Record WPM13-action-navigation `locally_exhausted`; preserve schema-v14 accounting/examples, paging/cache/binding bounds, immutable history, and every production lock. Authorize only WPM8-representative-query-performance on its designated representative machine; otherwise stop at that blocker. |
 | 2026-08-24 | Retained the single designated-host WPM8 query attempt at `artifacts/windows-representative-query/20260824-161340-948`; its Release prerequisite build failed on sandbox-denied Windows SDK access before measurement. | Keep WPM8-representative-query-performance blocked with 0/500 intervals and no p95 metrics. Do not rerun or substitute work; separately authorize one unchanged new-directory collector invocation from a desktop context with Windows SDK access after reconfirming normal load. |
+| 2026-08-24 | Accepted the designated-host Release profile at `artifacts/windows-representative-query/20260824-162843-832` with all 500 intervals, 101 process snapshots, 12 valid host samples, 929,792 bytes private growth, and p95 values of 62.57/32.03/32.07/17.00/4.69 ms against the unchanged 100 ms target. | Record WPM8-representative-query-performance `locally_exhausted`; preserve both passing and pre-measurement bundles and every production lock. Authorize only WPM8-narrator-nvda next, contingent on its physical operator prerequisites. |

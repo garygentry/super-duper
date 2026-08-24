@@ -199,6 +199,19 @@ one unchanged collector invocation in a new evidence directory from a desktop ex
 that can read the installed Windows SDK, after reconfirming that the designated machine is under
 normal load.
 
+The separately authorized desktop-context run on the same designated representative Windows 11
+x64 machine under normal load passed and is retained at
+`artifacts/windows-representative-query/20260824-162843-832`. It contains all 500 ordered query
+intervals, 101 process snapshots, and 12 valid host-context samples with none invalid or unavailable.
+The unchanged 100 ms p95 target passed for group/summary at 62.57 ms, selected-root facet at
+32.03 ms, drive facet at 32.07 ms, review plan at 17.00 ms, and review groups at 4.69 ms. Group p50
+and p99 were 54.29 and 65.70 ms; retained private growth was 929,792 bytes. The Release build,
+31 deterministic Infrastructure contracts, and the exact ignored Rust profile all passed while
+`productionEnabled:false` and `milestone11Complete:false` remained recorded. This accepts only
+`WPM8-representative-query-performance`; it is `locally_exhausted` and must not be rerun merely for
+another pass. It does not close representative large-plan operation performance or any provider,
+mutation, physical-accessibility, outcome, or later gate.
+
 A qualifying large-plan operation run must record at least preflight-completion-to-prepare time,
 operator confirmation reading time, confirmation submission age, per-batch fresh-admission time,
 capability inspection time, durable-begin-to-report time, batch/result paging p50/p95/max, retained

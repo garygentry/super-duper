@@ -120,8 +120,9 @@ roadmap is maintained in
 [`Windows roadmap closure ledger`](docs/windows-roadmap-closure-ledger.md). The required Milestone 7
 surface is the accepted fail-closed `exclude_registered_roots` policy;
 `include_sync_roots_skip_placeholders` and `allow_cloud_access` are unavailable reviewed follow-ons.
-The read-only Milestone 8 foundation is implemented with remaining operator acceptance gates
-tracked there. All four Milestone 9 criteria are accepted: bounded side-by-side exact-folder
+The read-only Milestone 8 foundation and representative 100,000-group warm-query performance gate
+are accepted; three physical accessibility gates remain tracked there. All four Milestone 9
+criteria are accepted: bounded side-by-side exact-folder
 relationship cards, responsive single-folder Explorer reveal, bounded current-page parent-grouped
 Explorer selection, and physical-file de-duplication. All four Milestone 10 review/rule slices are
 accepted, and the first bounded
