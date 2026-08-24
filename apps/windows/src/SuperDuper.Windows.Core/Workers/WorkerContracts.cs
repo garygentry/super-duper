@@ -371,6 +371,27 @@ public sealed record WorkerReviewLiveValidationResult(
     WorkerReviewLiveValidationSummary Summary,
     IReadOnlyList<WorkerReviewLiveValidationItem> Items);
 
+public sealed record WorkerReviewLiveHintItem(long FileId, long GroupId, string Path);
+
+public sealed class WorkerResultStateChangedEventArgs : EventArgs
+{
+    public required string Kind { get; init; }
+
+    public required long RunId { get; init; }
+
+    public required string RootPath { get; init; }
+
+    public required long EventCount { get; init; }
+
+    public required long CoalescedPathCount { get; init; }
+
+    public IReadOnlyList<WorkerReviewLiveHintItem> Items { get; init; } = [];
+
+    public WorkerReviewLiveRootState? Root { get; init; }
+
+    public required bool ExecutorEnabled { get; init; }
+}
+
 public sealed record WorkerReviewLiveRootState(
     long RunId,
     string RootPath,

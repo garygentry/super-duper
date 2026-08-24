@@ -213,6 +213,13 @@ public interface IRestartableWorkerClient : IWorkerClient
     Task<WorkerHelloResult> RestartAsync(CancellationToken cancellationToken = default);
 }
 
+public interface IReviewLiveStateWorkerClient
+{
+    event EventHandler<WorkerResultStateChangedEventArgs>? ResultStateChanged;
+
+    void ObserveReviewLiveState(WorkerRun? run);
+}
+
 public interface IRecycleOperationWorkerClient
 {
     Task<WorkerRecycleOperationResult> PrepareRecycleOperationAsync(

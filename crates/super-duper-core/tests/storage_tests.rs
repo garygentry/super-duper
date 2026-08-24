@@ -8,6 +8,7 @@ use std::sync::{atomic::AtomicBool, Mutex};
 use std::time::{Instant, UNIX_EPOCH};
 use super_duper_core::hasher::xxhash::hash_file_streaming;
 use super_duper_core::platform;
+use super_duper_core::storage::live_hints::ReviewLiveHintError;
 use super_duper_core::storage::models::{
     CloudDetectionStatus, CloudPolicy, DuplicateFileDriveFacetPageQuery,
     DuplicateFileDriveFacetSortField, DuplicateFileExtensionMatchMode, DuplicateFileGroupFilter,
@@ -17,7 +18,8 @@ use super_duper_core::storage::models::{
     ExactFolderGroupInsert, PageCursor, PageCursorValue, PreferencePreviewScope,
     RecoveryObservationKind, RecoveryReviewObservationInput, RecoveryReviewState,
     RecycleEligibilityObservation, RecycleItemResultObservation, RegisteredCloudLocation,
-    ReviewDecisionKind, RunExclusionInsert, RunParameters, ScannedFile, SortDirection,
+    ReviewDecisionKind, ReviewLiveHintRequest, RunExclusionInsert, RunParameters, ScannedFile,
+    SortDirection,
 };
 use super_duper_core::storage::preference::PreferenceError;
 use super_duper_core::storage::preflight::PreflightError;
@@ -386,6 +388,93 @@ fn live_file(run_id: i64, root: &Path, path: &Path) -> ScannedFile {
 fn schema_version_is_explicit_and_current() {
     let db = Database::open_in_memory().unwrap();
     assert_eq!(db.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+}
+
+#[test]
+fn live_hint_burst_resolves_one_bounded_read_without_mutating_history() {
+    let db = Database::open_in_memory().unwrap();
+    let (_, run_id) = session_and_run(&db, "Live hint burst", &["/root"]);
+    let files = [
+        file(run_id, "/root/one.bin", 100, 77),
+        file(run_id, "/root/two.bin", 100, 77),
+        file(run_id, "/root/not-duplicate.bin", 10, 88),
+    ];
+    db.insert_scanned_files(&files).unwrap();
+    db.insert_duplicate_groups(
+        run_id,
+        &[(
+            77,
+            100,
+            vec!["/root/one.bin".to_owned(), "/root/two.bin".to_owned()],
+        )],
+    )
+    .unwrap();
+    db.complete_scan_run(run_id, 3, 210, 3, 1, 0, 100, 0)
+        .unwrap();
+    let immutable_before = db
+        .connection()
+        .prepare(
+            "SELECT id, canonical_path, file_size, last_modified FROM scanned_file ORDER BY id",
+        )
+        .unwrap()
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, i64>(3)?,
+            ))
+        })
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+
+    let result = db
+        .resolve_review_live_hints(&ReviewLiveHintRequest {
+            run_id,
+            root_path: "/root".to_owned(),
+            event_count: 1_000,
+            paths: vec![
+                "/root/one.bin".to_owned(),
+                "/root/two.bin".to_owned(),
+                "/root/not-duplicate.bin".to_owned(),
+            ],
+        })
+        .unwrap();
+    assert_eq!(result.event_count, 1_000);
+    assert_eq!(result.coalesced_path_count, 3);
+    assert_eq!(result.items.len(), 2);
+    assert_eq!(result.items[0].path, "/root/one.bin");
+
+    let immutable_after = db
+        .connection()
+        .prepare(
+            "SELECT id, canonical_path, file_size, last_modified FROM scanned_file ORDER BY id",
+        )
+        .unwrap()
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, i64>(3)?,
+            ))
+        })
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert_eq!(immutable_after, immutable_before);
+
+    let oversized = (0..201).map(|index| format!("/root/{index}.bin")).collect();
+    assert!(matches!(
+        db.resolve_review_live_hints(&ReviewLiveHintRequest {
+            run_id,
+            root_path: "/root".to_owned(),
+            event_count: 201,
+            paths: oversized,
+        }),
+        Err(ReviewLiveHintError::InvalidRequest { .. })
+    ));
 }
 
 #[test]

@@ -78,6 +78,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private bool _isLiveValidationRunning;
     private string? _liveValidationStatusMessage;
     private string? _liveValidationErrorMessage;
+    private string? _liveHintStatusMessage;
+    private long _liveHintAnnouncementVersion;
     private IReadOnlyList<WorkerReviewLiveRootState> _dirtyRoots = [];
     private bool _isDirtyRootReconciliationRunning;
     private string? _dirtyRootStatusMessage;
@@ -567,6 +569,24 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         }
     }
 
+    public string? LiveHintStatusMessage
+    {
+        get => _liveHintStatusMessage;
+        private set
+        {
+            if (SetProperty(ref _liveHintStatusMessage, value))
+            {
+                OnPropertyChanged(nameof(HasLiveHintStatus));
+            }
+        }
+    }
+
+    public long LiveHintAnnouncementVersion
+    {
+        get => _liveHintAnnouncementVersion;
+        private set => SetProperty(ref _liveHintAnnouncementVersion, value);
+    }
+
     public IReadOnlyList<WorkerReviewLiveRootState> DirtyRoots
     {
         get => _dirtyRoots;
@@ -803,6 +823,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 
     public bool HasLiveValidationError => !string.IsNullOrWhiteSpace(LiveValidationErrorMessage);
 
+    public bool HasLiveHintStatus => !string.IsNullOrWhiteSpace(LiveHintStatusMessage);
+
     public bool HasRootFacetError => !string.IsNullOrWhiteSpace(RootFacetErrorMessage);
 
     public bool HasDriveFacetError => !string.IsNullOrWhiteSpace(DriveFacetErrorMessage);
@@ -958,6 +980,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         RootFacetErrorMessage = null;
         DriveFacetErrorMessage = null;
         DirtyRoots = [];
+        LiveHintStatusMessage = null;
         OnPropertyChanged(nameof(IsUnavailable));
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(HasGroups));
@@ -1047,6 +1070,59 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         {
             _ = ShowRunAsync(run);
         }
+    }
+
+    public void ApplyLiveStateChanged(WorkerResultStateChangedEventArgs stateChanged)
+    {
+        ArgumentNullException.ThrowIfNull(stateChanged);
+        if (_disposed
+            || Run is not { Status: "completed" } run
+            || run.Id != stateChanged.RunId
+            || stateChanged.ExecutorEnabled)
+        {
+            return;
+        }
+        if (stateChanged.Kind == "overflow" && stateChanged.Root is { } dirtyRoot)
+        {
+            DirtyRoots = DirtyRoots
+                .Where(root => !root.RootPath.Equals(
+                    dirtyRoot.RootPath, StringComparison.OrdinalIgnoreCase))
+                .Append(dirtyRoot)
+                .OrderBy(root => root.RootPath, StringComparer.OrdinalIgnoreCase)
+                .Take(64)
+                .ToArray();
+            DirtyRootStatusMessage =
+                $"Watcher coverage overflowed under {dirtyRoot.RootPath}. The durable root is dirty; "
+                + "use bounded reconciliation before trusting working results.";
+            DirtyRootStatusAnnouncementVersion++;
+            return;
+        }
+        if (stateChanged.Kind != "hints")
+        {
+            return;
+        }
+
+        _memberCache.Clear();
+        var hintedIds = stateChanged.Items.Select(item => item.FileId).ToHashSet();
+        var visibleCount = Members.Count(member => hintedIds.Contains(member.Id));
+        if (visibleCount > 0)
+        {
+            Members = Members.Select(member => hintedIds.Contains(member.Id)
+                ? new DuplicateFileMemberListItemViewModel(member.Member with
+                {
+                    ValidationState = "validation_pending",
+                    ValidationReasonCode = "watcher_hint",
+                    ValidationObservedAt = null,
+                })
+                : member).ToArray();
+        }
+        LiveHintStatusMessage =
+            $"Coalesced {stateChanged.EventCount:N0} filesystem events into "
+            + $"{stateChanged.CoalescedPathCount:N0} bounded path hints under {stateChanged.RootPath}. "
+            + (visibleCount > 0
+                ? $"{visibleCount:N0} visible duplicate copies are pending validation; choose Validate page."
+                : "No currently visible duplicate copy was bound for these hints.");
+        LiveHintAnnouncementVersion++;
     }
 
     public void Dispose()

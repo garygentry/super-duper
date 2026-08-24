@@ -698,6 +698,34 @@ public static class SmokeMouseInput
         $memberRow = Find-FirstDataItem $fileMembers
         $pathCell = Find-DescendantByHelpTextPrefix $memberRow 'Complete path: '
         $exactPath = $pathCell.Current.HelpText.Substring('Complete path: '.Length)
+        $hintPath = Join-Path ([IO.Path]::GetDirectoryName($exactPath)) '.super-duper-live-hint.tmp'
+        try {
+            for ($hintIndex = 0; $hintIndex -lt 100; $hintIndex++) {
+                [IO.File]::WriteAllText($hintPath, "coalesced watcher hint $hintIndex")
+            }
+            $liveHintStatus = $null
+            for ($attempt = 0; $attempt -lt 60; $attempt++) {
+                $liveHintStatus = $window.FindFirst(
+                    [Windows.Automation.TreeScope]::Descendants,
+                    [Windows.Automation.PropertyCondition]::new(
+                        [Windows.Automation.AutomationElement]::AutomationIdProperty,
+                        'FileLiveHintStatus'))
+                if ($null -ne $liveHintStatus -and
+                    $liveHintStatus.Current.Name.Contains('Coalesced', [StringComparison]::OrdinalIgnoreCase) -and
+                    $liveHintStatus.Current.Name.Contains('bounded path hints', [StringComparison]::OrdinalIgnoreCase)) {
+                    break
+                }
+                Start-Sleep -Milliseconds 100
+            }
+            Assert-True ($null -ne $liveHintStatus) 'The real watcher burst did not produce a visible WPF live-hint status.'
+            Assert-True ($liveHintStatus.Current.Name.Contains('filesystem events', [StringComparison]::OrdinalIgnoreCase)) 'The real watcher burst did not reach WPF as a coalesced event count.'
+            Assert-True ($liveHintStatus.Current.Name.Contains('bounded path hints', [StringComparison]::OrdinalIgnoreCase)) 'The real watcher burst did not expose its bounded hint batch.'
+        }
+        finally {
+            if (Test-Path -LiteralPath $hintPath) {
+                Remove-Item -LiteralPath $hintPath -Force
+            }
+        }
         Invoke-Element (Find-DescendantButtonByNameFragment $fileMembers 'records intent only and does not delete')
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
             $memberCountStatus = Find-Element AutomationId 'FileMemberCount' 1
@@ -1134,7 +1162,7 @@ $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
         $operationBoundary = Find-Element AutomationId 'RecycleOperationBoundaryNotice'
         Assert-True ($operationBoundary.Current.Name.Contains('execution is disabled', [StringComparison]::OrdinalIgnoreCase)) 'WPF did not disclose the disabled Recycle Bin executor boundary.'
         Assert-True ([IO.File]::Exists($exactPath)) 'WPF preflight unexpectedly removed a disposable fixture file.'
-        Write-Output "WPF automation passed for restored run $RunId, including durable watcher-overflow warning and one explicit bounded reconciliation batch with copy-grid focus restoration, durable non-deleting file Remove and exact-folder Keep review decisions, bounded external-modification validation with immutable history, sticky decision invalidation, fresh-choice recovery, bounded side-by-side folder location cards with stable automation and Right Arrow focus, current-page parent-grouped Explorer selection with keyboard access, aggregate success, actionable partial failure, and focus restoration, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, ordinary/long-path file reveal, and keyboard folder reveal success plus actionable missing-location failure."
+        Write-Output "WPF automation passed for restored run $RunId, including a real coalesced watcher burst with bounded live-state hints, durable watcher-overflow warning and one explicit bounded reconciliation batch with copy-grid focus restoration, durable non-deleting file Remove and exact-folder Keep review decisions, bounded external-modification validation with immutable history, sticky decision invalidation, fresh-choice recovery, bounded side-by-side folder location cards with stable automation and Right Arrow focus, current-page parent-grouped Explorer selection with keyboard access, aggregate success, actionable partial failure, and focus restoration, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, ordinary/long-path file reveal, and keyboard folder reveal success plus actionable missing-location failure."
     }
     catch {
         $automationFailure = $_
@@ -1895,6 +1923,15 @@ try {
     }
     Assert-True ($restoredValidation.summary.presentCount -eq 1 -and $restoredValidation.summary.invalidatedDecisionCount -eq 1) 'Restored external-deletion fixture did not become present while retaining its sticky invalidation.'
     Assert-True ([IO.File]::Exists($liveTarget.path)) 'Live validation or restart unexpectedly removed the restored fixture file.'
+    $liveHints = Send-WorkerRequest $restored 'review_live_hint.batch' @{
+        runId = $run.id
+        rootPath = $liveTarget.rootPath
+        eventCount = 1000
+        paths = @($liveTarget.path)
+    }
+    Assert-True ($liveHints.eventCount -eq 1000 -and $liveHints.coalescedPathCount -eq 1) 'The bounded worker hint frame did not aggregate the deterministic mass-event count.'
+    Assert-True ($liveHints.items.Count -eq 1 -and $liveHints.items[0].fileId -eq $liveTarget.id) 'The bounded worker hint frame did not resolve only the immutable duplicate member.'
+    Assert-True (-not $liveHints.executorEnabled) 'Live-state hints unexpectedly enabled production execution.'
     $overflow = Send-WorkerRequest $restored 'review_live_root.overflow' @{
         operationId = [Guid]::NewGuid().ToString('N')
         runId = $run.id

@@ -1,3 +1,4 @@
+pub mod live_hints;
 pub mod live_validation;
 pub mod models;
 pub mod preference;

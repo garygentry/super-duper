@@ -6,7 +6,8 @@ using SuperDuper.Windows.Infrastructure.Protocol;
 
 namespace SuperDuper.Windows.Infrastructure;
 
-public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWorkerClient, IDisposable
+public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWorkerClient,
+    IReviewLiveStateWorkerClient, IDisposable
 {
     private static readonly TimeSpan DefaultStartupTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(2);
@@ -23,6 +24,8 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
     private CancellationTokenSource _lifetime = new();
     private readonly StringBuilder _standardError = new();
     private readonly object _standardErrorLock = new();
+    private readonly object _liveWatchLock = new();
+    private readonly List<FileSystemWatcher> _liveWatchers = [];
 
     private Process? _process;
     private StreamWriter? _standardInput;
@@ -33,6 +36,8 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
     private long _nextRequestId;
     private int _disposed;
     private int _stopping;
+    private ReviewLiveHintBatcher? _liveHintBatcher;
+    private long? _observedLiveRunId;
 
     public WorkerClient(string executablePath)
         : this(executablePath, DefaultStartupTimeout)
@@ -83,7 +88,51 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
 
     public event EventHandler<WorkerUnexpectedExitEventArgs>? UnexpectedExit;
 
+    public event EventHandler<WorkerResultStateChangedEventArgs>? ResultStateChanged;
+
     internal int? OwnedProcessId => _process?.Id;
+
+    public void ObserveReviewLiveState(WorkerRun? run)
+    {
+        lock (_liveWatchLock)
+        {
+            StopLiveWatchers();
+            if (run is not { Status: "completed" })
+            {
+                return;
+            }
+            _observedLiveRunId = run.Id;
+            _liveHintBatcher = new ReviewLiveHintBatcher(run.Id, SendLiveHintBatchAsync);
+            foreach (var rootPath in run.Parameters.Roots.Take(ReviewLiveHintBatcher.MaximumPendingRoots))
+            {
+                try
+                {
+                    var watcher = new FileSystemWatcher(rootPath)
+                    {
+                        IncludeSubdirectories = true,
+                        NotifyFilter = NotifyFilters.FileName
+                            | NotifyFilters.DirectoryName
+                            | NotifyFilters.LastWrite
+                            | NotifyFilters.Size
+                            | NotifyFilters.CreationTime,
+                        InternalBufferSize = 16 * 1024,
+                    };
+                    watcher.Changed += (_, e) => _liveHintBatcher?.Enqueue(rootPath, e.FullPath);
+                    watcher.Created += (_, e) => _liveHintBatcher?.Enqueue(rootPath, e.FullPath);
+                    watcher.Deleted += (_, e) => _liveHintBatcher?.Enqueue(rootPath, e.FullPath);
+                    watcher.Renamed += (_, e) =>
+                        _liveHintBatcher?.EnqueueRename(rootPath, e.OldFullPath, e.FullPath);
+                    watcher.Error += (_, _) => _liveHintBatcher?.EnqueueOverflow(rootPath);
+                    watcher.EnableRaisingEvents = true;
+                    _liveWatchers.Add(watcher);
+                }
+                catch
+                {
+                    _liveHintBatcher.EnqueueOverflow(rootPath);
+                }
+            }
+        }
+    }
 
     public async Task<WorkerHelloResult> ConnectAsync(CancellationToken cancellationToken = default)
     {
@@ -991,6 +1040,10 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
             return;
         }
 
+        lock (_liveWatchLock)
+        {
+            StopLiveWatchers();
+        }
         await StopProcessAsync().ConfigureAwait(false);
         _lifetime.Dispose();
         _connectionGate.Dispose();
@@ -1109,6 +1162,66 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
 
         return result.Deserialize<TResult>(JsonLineProtocol.SerializerOptions)
             ?? throw new WorkerProtocolException($"{method} response has no readable result.");
+    }
+
+    private async Task SendLiveHintBatchAsync(
+        ReviewLiveHintBatch batch,
+        CancellationToken cancellationToken)
+    {
+        if (batch.Overflow)
+        {
+            await ReportLiveHintOverflowAsync(batch, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        try
+        {
+            _ = await InvokeAsync<WorkerResultStateChangedEventArgs>(
+                "review_live_hint.batch",
+                new
+                {
+                    runId = batch.RunId,
+                    rootPath = batch.RootPath,
+                    eventCount = batch.EventCount,
+                    paths = batch.Paths,
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            await ReportLiveHintOverflowAsync(batch, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task ReportLiveHintOverflowAsync(
+        ReviewLiveHintBatch batch,
+        CancellationToken cancellationToken)
+    {
+        _ = await InvokeAsync<WorkerResultStateChangedEventArgs>(
+            "review_live_root.overflow",
+            new
+            {
+                operationId = Guid.NewGuid().ToString("N"),
+                runId = batch.RunId,
+                rootPath = batch.RootPath,
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private void StopLiveWatchers()
+    {
+        _observedLiveRunId = null;
+        foreach (var watcher in _liveWatchers)
+        {
+            watcher.EnableRaisingEvents = false;
+            watcher.Dispose();
+        }
+        _liveWatchers.Clear();
+        _liveHintBatcher?.Dispose();
+        _liveHintBatcher = null;
     }
 
     private static string GroupSortField(DuplicateFileGroupSortField field) => field switch
@@ -1265,6 +1378,25 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
                             EventName = frame.Name,
                             Run = lifecycle.Run,
                         });
+                    break;
+
+                case "result.state_changed":
+                    var stateChanged = frame.Data.Deserialize<WorkerResultStateChangedEventArgs>(
+                        JsonLineProtocol.SerializerOptions)
+                        ?? throw new WorkerProtocolException(
+                            "result.state_changed event data is invalid.");
+                    if (stateChanged.ExecutorEnabled)
+                    {
+                        throw new WorkerProtocolException(
+                            "result.state_changed unexpectedly enabled production execution.");
+                    }
+                    lock (_liveWatchLock)
+                    {
+                        if (_observedLiveRunId == stateChanged.RunId)
+                        {
+                            ResultStateChanged?.Invoke(this, stateChanged);
+                        }
+                    }
                     break;
             }
         }

@@ -119,6 +119,7 @@ public sealed class DuplicateFileMemberListItemViewModel(WorkerDuplicateFileMemb
         "missing" => $"Missing{InvalidatedSuffix}",
         "changed" => $"Changed since scan{InvalidatedSuffix}",
         "unavailable" => "Unavailable; decision retained until validation can complete",
+        "validation_pending" => "Validation pending after a coalesced filesystem hint",
         _ => "Not validated in this working view",
     };
 

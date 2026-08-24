@@ -59,3 +59,11 @@ opens file content, mutates the filesystem, invokes Shell or Recycle Bin, or aut
 execution. `RecycleOperationViewModel.CanSubmit` remains false, production composition uses
 `DisabledRecycleOperationCapabilityExecutor`, every worker operation response reports
 `executorEnabled:false`, and no **Move to Recycle Bin now** action exists.
+
+`WPM12-event-coalescing` intentionally adds no schema-v14 objects. Watcher callbacks are transient,
+non-authoritative hints. The bounded `review_live_hint.batch` query maps at most 200 coalesced paths
+to immutable duplicate-member IDs and performs no insert, update, metadata/content access, or cache
+write. Durable trust loss continues to use the v13 overflow/root-state ledger, while authoritative
+metadata observations continue to use the v12 validation overlay. Restart therefore reconstructs
+accepted dirty roots and validated working state without pretending that hints received before app
+shutdown are durable observations.

@@ -10,6 +10,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 {
     private readonly IWorkerClient _workerClient;
     private readonly IRestartableWorkerClient? _restartableWorkerClient;
+    private readonly IReviewLiveStateWorkerClient? _reviewLiveStateWorkerClient;
     private readonly IUiDispatcher _dispatcher;
     private readonly IUserConfirmationService _confirmation;
     private CancellationTokenSource? _selectionCancellation;
@@ -44,6 +45,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     {
         _workerClient = workerClient;
         _restartableWorkerClient = workerClient as IRestartableWorkerClient;
+        _reviewLiveStateWorkerClient = workerClient as IReviewLiveStateWorkerClient;
         _confirmation = confirmation;
         _dispatcher = dispatcher;
 
@@ -79,6 +81,10 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         if (_restartableWorkerClient is not null)
         {
             _restartableWorkerClient.UnexpectedExit += OnUnexpectedWorkerExit;
+        }
+        if (_reviewLiveStateWorkerClient is not null)
+        {
+            _reviewLiveStateWorkerClient.ResultStateChanged += OnResultStateChanged;
         }
 
         StartRunCommand = new AsyncRelayCommand(StartRunAsync, () => CanStartRun);
@@ -361,6 +367,11 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         History.SelectedRunChanged -= OnSelectedRunChanged;
         _workerClient.RunProgress -= OnRunProgress;
         _workerClient.RunLifecycleChanged -= OnRunLifecycleChanged;
+        if (_reviewLiveStateWorkerClient is not null)
+        {
+            _reviewLiveStateWorkerClient.ResultStateChanged -= OnResultStateChanged;
+            _reviewLiveStateWorkerClient.ObserveReviewLiveState(null);
+        }
         if (_restartableWorkerClient is not null)
         {
             _restartableWorkerClient.UnexpectedExit -= OnUnexpectedWorkerExit;
@@ -588,6 +599,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
     private void OnSelectedRunChanged(object? sender, WorkerRun? run)
     {
+        _reviewLiveStateWorkerClient?.ObserveReviewLiveState(run);
         Progress.ShowRun(run);
         _ = DuplicateFiles.ShowRunAsync(run);
         _ = DuplicateFolders.ShowRunAsync(run);
@@ -622,6 +634,9 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
     private void OnRunLifecycleChanged(object? sender, WorkerRunLifecycleEventArgs lifecycle) =>
         _dispatcher.Post(() => HandleLifecycle(lifecycle.Run));
+
+    private void OnResultStateChanged(object? sender, WorkerResultStateChangedEventArgs stateChanged) =>
+        _dispatcher.Post(() => DuplicateFiles.ApplyLiveStateChanged(stateChanged));
 
     private void OnUnexpectedWorkerExit(object? sender, WorkerUnexpectedExitEventArgs exit) =>
         _dispatcher.Post(() => HandleUnexpectedWorkerExit(exit));

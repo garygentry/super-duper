@@ -15,8 +15,8 @@ accepted preflight, durable operation contract, separately gated native executor
 and read-only recovery reconstruction, but production still injects the disabled executor and
 exposes no action. Its provider/physical/performance evidence, policy decisions, recovery
 resolution, and production-enablement gates remain open. Milestone 12 now has accepted bounded
-external invalidation and durable watcher-overflow/dirty-root reconciliation foundations; event
-coalescing and in-app outcomes remain separate. Milestone 13 is planned except for earlier durable
+external invalidation, durable watcher-overflow/dirty-root reconciliation, and watcher-event
+coalescing foundations; in-app outcomes remain blocked. Milestone 13 is planned except for earlier durable
 source-data hooks. Milestone 14 remains planned; its
 required scope and the roadmap completion contract are accepted, and four reviewed follow-ons are
 deferred.
@@ -3712,11 +3712,10 @@ that Windows will place eligible items in the Recycle Bin.
 
 ### Milestone 12 - Live Reconciliation and External Filesystem Changes
 
-Status: External deletion/modification invalidation and durable watcher-overflow/dirty-root
-reconciliation are implemented and accepted as the first two bounded live-state foundations.
-In-app outcome application remains blocked on the Milestone 11 production boundary. Bounded
-notification coalescing remains a separate gate, and every live-state lane must preserve immutable
-historical runs.
+Status: External deletion/modification invalidation, durable watcher-overflow/dirty-root
+reconciliation, and bounded watcher-event coalescing are implemented and accepted as three
+live-state foundations. In-app outcome application remains blocked on the Milestone 11 production
+boundary, and every live-state lane must preserve immutable historical runs.
 
 #### User outcome
 
@@ -3832,6 +3831,38 @@ Watcher registration/event delivery, notification coalescing/load campaigns, in-
 outcomes, filesystem mutation, provider/performance/physical campaigns, Activity, and production
 Recycle Bin/Shell wiring were deliberately not admitted. `WPM12-event-coalescing` is the only next
 authorized gate.
+
+#### Event coalescing acceptance result (2026-08-24)
+
+`WPM12-event-coalescing` is accepted and `locally_exhausted`. Infrastructure registers at most the
+64 immutable selected roots for only the completed run currently shown. Raw create/change/delete/
+rename callbacks feed one global coalescer and never call Core or the WPF dispatcher directly. The
+coalescer waits 100 ms before every drain, collapses repeats, owns at most 200 distinct paths for one
+root, and therefore cannot produce more than ten worker/UI batches per second across all roots.
+Watcher errors or a 201st distinct pending path discard the incomplete hints and issue one accepted
+durable schema-v13 overflow request.
+
+The worker's `review_live_hint.batch` performs one bounded read-only mapping from coalesced paths to
+immutable duplicate-member IDs, emits one `result.state_changed` frame, and writes no schema or
+cache state. Core rejects old-run frames, clears its bounded member cache once, binds matching
+visible rows once as `validation_pending`, and posts one polite WPF/automation update. Hints do not
+change scan history, recorded review/rule history, or the schema-v12 authoritative observation
+overlay; explicit selection/page/plan/manual validation and schema-v13 restart reconstruction remain
+the correctness fallbacks.
+
+The named verifier passed deterministic 1,000-event de-duplication, 201-path overflow, eleven global
+drains requiring 1,100 ms of fake time, bounded storage/protocol frames, one cache/binding/dispatcher
+update per coalesced response, stale-run rejection, overflow/restart/cancellation preservation, and
+loaded-STA automation/dispatcher responsiveness. Real Debug/Release non-mutating smoke generated a
+watcher burst against one disposable non-result file, observed the bounded WPF hint status, removed
+that file without changing the scan fixtures, and preserved the dirty-root and external-validation
+workflows plus every production lock.
+
+Activity, in-app deletion outcomes, filesystem mutation, provider/physical/performance campaigns,
+later Milestone 12 gates, and production Recycle Bin/Shell wiring were deliberately not admitted.
+After the exact verifier passed, no additional watcher state, layout, command, or timing combination
+was sought. The gate is `locally_exhausted`; `WPM13-warning-drilldown` is the only next authorized
+gate.
 
 ## Wave 3 - Explain What Happened
 
@@ -3992,13 +4023,13 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance only `WPM12-event-coalescing`. Define bounded watcher-event batching/coalescing without
-adding Activity UI, in-app deletion outcomes, provider hydration, or production filesystem mutation.
+Advance only `WPM13-warning-drilldown`. Refine and implement one bounded run-warning/event
+persistence and paging slice without deletion/reconciliation outcome projection or later Activity
+categories.
 
-Verifier: deterministic mass-event storage/protocol/Core/STA coverage proves bounded frames/cache
-and at most ten UI updates per second while preserving accepted dirty-root reconciliation,
-external-validation, immutable-history, restart, cancellation/stale-context, dispatcher, and
-production-lock behavior.
+Verifier: storage/protocol/Core/STA coverage plus Debug/Release smoke drills from the run warning
+count to bounded rows or an explicit aggregate with representative examples while preserving the
+accepted live-state, immutable-history, dispatcher, and production-lock behavior.
 
 ## Milestone Definition Template
 
@@ -4094,3 +4125,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-23 | Implemented and accepted bounded current-page parent-grouped Explorer selection with deterministic one-call-per-parent background work, aggregate success/actionable partial failure, cancellation/stale-page rejection, Alt+G, stable automation, focus restoration, and real Debug/Release smoke. | Record WPM9-parent-grouping `locally_exhausted`; Milestone 9 is complete. Authorize only WPM12-external-invalidation next, without watchers, later Milestone 12 lanes, or production wiring. |
 | 2026-08-23 | Implemented and accepted the schema-v12 bounded selection/visible-page external validation overlay with explicit 1–200-ID ownership, exclusion-before-access, missing/changed working-decision invalidation, immutable recorded history, restart reconstruction, cancellation/stale-context rejection, actionable keyboard/automation/focus state, and real Debug/Release smoke. | Record WPM12-external-invalidation `locally_exhausted`; preserve accepted paging/review/folder/Explorer behavior and every production lock. Authorize only WPM12-watcher-overflow next; event coalescing, Activity, provider/physical/performance campaigns, mutation, and later gates remain excluded. |
 | 2026-08-24 | Implemented and accepted schema-v13 durable watcher-overflow dirty roots with explicit bounded server-owned reconciliation, visible no-silent-trust state, restart/cancellation/stale-generation protection, immutable-history preservation, one response-level binding update, keyboard/automation/focus behavior, and real Debug/Release smoke. | Record WPM12-watcher-overflow `locally_exhausted`; preserve the accepted external overlay and every production lock. Authorize only WPM12-event-coalescing next; Activity, deletion outcomes/mutation, provider/physical/performance campaigns, and later gates remain excluded. |
+| 2026-08-24 | Implemented and accepted one global 100 ms watcher-event coalescer with 200-path batches, deterministic at-most-ten-UI-updates-per-second bounds, one read-only worker event/cache/binding/dispatcher update per batch, durable overflow fallback, stale-run rejection, accessible pending state, and real Debug/Release non-mutating burst smoke. | Record WPM12-event-coalescing `locally_exhausted`; preserve schema-v12/v13 authority, immutable history, every production lock, and the excluded campaigns. Authorize only WPM13-warning-drilldown next. |

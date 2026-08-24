@@ -263,6 +263,14 @@ public sealed class WpfSurfaceSmokeTests
                 AutomationNotificationBehavior.GetNotificationKind(liveValidationError));
             Assert.AreEqual("DuplicateFileLiveValidation",
                 AutomationNotificationBehavior.GetActivityId(liveValidationError));
+            var liveHintStatus = FindByAutomationId<TextBlock>(files, "FileLiveHintStatus");
+            Assert.AreEqual(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(liveHintStatus));
+            Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
+                AutomationNotificationBehavior.GetNotificationKind(liveHintStatus));
+            Assert.AreEqual(AutomationNotificationProcessing.MostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(liveHintStatus));
+            Assert.AreEqual("DuplicateFileLiveHints",
+                AutomationNotificationBehavior.GetActivityId(liveHintStatus));
             var validatePage = FindByAutomationId<Button>(files, "FileValidateVisiblePage");
             Assert.AreEqual("Alt+V", AutomationProperties.GetAccessKey(validatePage));
             StringAssert.Contains(AutomationProperties.GetName(validatePage), "focus returns");
@@ -630,6 +638,21 @@ public sealed class WpfSurfaceSmokeTests
                 Assert.AreEqual(announcement, announcedText);
                 Assert.AreEqual(AutomationNotificationKind.ActionCompleted, announcedKind);
                 Assert.AreEqual("DuplicateFileGroupQuery", announcedActivityId);
+                const string liveHintAnnouncement =
+                    "Coalesced 1,000 filesystem events into 20 bounded path hints.";
+                AutomationProperties.SetName(liveHintStatus, liveHintAnnouncement);
+                AutomationNotificationBehavior.SetAnnouncementVersion(liveHintStatus, 1);
+                DrainDispatcher();
+                Assert.AreSame(liveHintStatus, announcedElement);
+                Assert.AreEqual(liveHintAnnouncement, announcedText);
+                Assert.AreEqual(AutomationNotificationKind.ActionCompleted, announcedKind);
+                Assert.AreEqual("DuplicateFileLiveHints", announcedActivityId);
+                var liveHintDispatcherAdvanced = false;
+                files.Dispatcher.BeginInvoke(
+                    () => liveHintDispatcherAdvanced = true,
+                    DispatcherPriority.Normal);
+                DrainDispatcher();
+                Assert.IsTrue(liveHintDispatcherAdvanced);
 
                 const string groupErrorAnnouncement =
                     "Duplicate file results could not be loaded. Worker group query failed.";

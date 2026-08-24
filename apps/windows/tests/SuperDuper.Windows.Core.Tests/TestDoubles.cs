@@ -3,7 +3,8 @@ using SuperDuper.Windows.Core.Workers;
 
 namespace SuperDuper.Windows.Core.Tests;
 
-internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOperationWorkerClient
+internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOperationWorkerClient,
+    IReviewLiveStateWorkerClient
 {
     private long _nextSessionId;
     private long _nextRunId;
@@ -13,6 +14,8 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
     public event EventHandler<WorkerRunLifecycleEventArgs>? RunLifecycleChanged;
 
     public event EventHandler<WorkerUnexpectedExitEventArgs>? UnexpectedExit;
+
+    public event EventHandler<WorkerResultStateChangedEventArgs>? ResultStateChanged;
 
     public string ExecutablePath => @"C:\test\super-duper-worker.exe";
 
@@ -82,6 +85,10 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
     public Func<DuplicateFolderMemberQuery, CancellationToken, Task<WorkerDuplicateFolderMemberPage>>? FolderMemberPageHandler { get; set; }
 
     public int RestartCount { get; private set; }
+
+    public WorkerRun? ObservedLiveRun { get; private set; }
+
+    public void ObserveReviewLiveState(WorkerRun? run) => ObservedLiveRun = run;
 
     public Task<WorkerHelloResult> ConnectAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(new WorkerHelloResult(1, "test-worker", "test-engine"));
@@ -656,6 +663,9 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
     }
 
     public void RaiseProgress(WorkerRunProgressEventArgs progress) => RunProgress?.Invoke(this, progress);
+
+    public void RaiseResultStateChanged(WorkerResultStateChangedEventArgs stateChanged) =>
+        ResultStateChanged?.Invoke(this, stateChanged);
 
     public void RaiseLifecycle(string eventName, WorkerRun run)
     {

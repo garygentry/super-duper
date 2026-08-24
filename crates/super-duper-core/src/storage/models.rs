@@ -501,6 +501,30 @@ pub struct ReviewLiveValidationResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewLiveHintRequest {
+    pub run_id: i64,
+    pub root_path: String,
+    pub event_count: i64,
+    pub paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewLiveHintTarget {
+    pub file_id: i64,
+    pub group_id: i64,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewLiveHintResult {
+    pub run_id: i64,
+    pub root_path: String,
+    pub event_count: i64,
+    pub coalesced_path_count: i64,
+    pub items: Vec<ReviewLiveHintTarget>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReviewLiveRootState {
     pub run_id: i64,
     pub root_path: String,

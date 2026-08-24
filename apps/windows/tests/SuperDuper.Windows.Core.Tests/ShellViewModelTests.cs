@@ -108,6 +108,40 @@ public sealed class ShellViewModelTests
         Assert.IsTrue(viewModel.FocusRequestVersion > 0);
     }
 
+    [TestMethod]
+    public async Task OneCoalescedWorkerFrameProducesOneDispatcherUpdate()
+    {
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileGroupPage([], 0, null, null)),
+        };
+        var dispatcher = new CountingDispatcher();
+        using var viewModel = new ShellViewModel(
+            client,
+            new TestFolderPicker(),
+            new TestConfirmation(),
+            dispatcher,
+            new TestClipboard(),
+            new TestExplorer(),
+            new TestCloudLocationService());
+        await viewModel.DuplicateFiles.ShowRunAsync(
+            TestWorkerClient.CreateRun(70, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        client.RaiseResultStateChanged(new WorkerResultStateChangedEventArgs
+        {
+            Kind = "hints",
+            RunId = 70,
+            RootPath = @"C:\Data",
+            EventCount = 10_000,
+            CoalescedPathCount = 200,
+            ExecutorEnabled = false,
+        });
+
+        Assert.AreEqual(1, dispatcher.PostCount);
+        StringAssert.Contains(viewModel.DuplicateFiles.LiveHintStatusMessage, "10,000 filesystem events");
+    }
+
     private static ShellViewModel CreateViewModel(IWorkerClient client) =>
         new(
             client,
@@ -133,6 +167,17 @@ public sealed class ShellViewModelTests
     private sealed class ImmediateDispatcher : IUiDispatcher
     {
         public void Post(Action action) => action();
+    }
+
+    private sealed class CountingDispatcher : IUiDispatcher
+    {
+        public int PostCount { get; private set; }
+
+        public void Post(Action action)
+        {
+            PostCount++;
+            action();
+        }
     }
 
     private sealed class FakeWorkerClient(

@@ -665,6 +665,17 @@
                        Text="{Binding DirtyRootErrorMessage}"
                        TextWrapping="Wrap"
                        Visibility="{Binding HasDirtyRootError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            <TextBlock Margin="0,0,0,8"
+                       automation:AutomationProperties.AutomationId="FileLiveHintStatus"
+                       automation:AutomationProperties.LiveSetting="Polite"
+                       automation:AutomationProperties.Name="{Binding LiveHintStatusMessage}"
+                       accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding LiveHintAnnouncementVersion}"
+                       accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
+                       accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
+                       accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFileLiveHints"
+                       Text="{Binding LiveHintStatusMessage}"
+                       TextWrapping="Wrap"
+                       Visibility="{Binding HasLiveHintStatus, Converter={StaticResource BooleanToVisibilityConverter}}" />
             <UniformGrid automation:AutomationProperties.AutomationId="FileReviewSummary"
                          automation:AutomationProperties.Name="Duplicate file review summary"
                          Columns="4">

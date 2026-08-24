@@ -1315,6 +1315,69 @@ public sealed class DuplicateFilesViewModelTests
         Assert.AreEqual("run-52.bin", viewModel.Groups.Single().RepresentativeName);
     }
 
+    [TestMethod]
+    public async Task CoalescedLiveHintsProduceOneCacheBindingAndRejectStaleContext()
+    {
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileGroupPage([Group(1, query.RunId, "item.bin")], 1, null, null)),
+            MemberPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFileMemberPage(
+                [
+                    Member(1, query.GroupId, @"C:\Data\one.bin"),
+                    Member(2, query.GroupId, @"C:\Data\two.bin"),
+                ],
+                2,
+                null,
+                null)),
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(60, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var memberBindingUpdates = 0;
+        var statusBindingUpdates = 0;
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            memberBindingUpdates += args.PropertyName == nameof(DuplicateFilesViewModel.Members) ? 1 : 0;
+            statusBindingUpdates += args.PropertyName == nameof(DuplicateFilesViewModel.LiveHintStatusMessage) ? 1 : 0;
+        };
+
+        viewModel.ApplyLiveStateChanged(new WorkerResultStateChangedEventArgs
+        {
+            Kind = "hints",
+            RunId = 60,
+            RootPath = @"C:\Data",
+            EventCount = 1_000,
+            CoalescedPathCount = 20,
+            Items = [new WorkerReviewLiveHintItem(1, 1, @"C:\Data\one.bin")],
+            ExecutorEnabled = false,
+        });
+
+        Assert.AreEqual(1, memberBindingUpdates);
+        Assert.AreEqual(1, statusBindingUpdates);
+        Assert.AreEqual(
+            "Validation pending after a coalesced filesystem hint",
+            viewModel.Members[0].LiveState);
+        Assert.AreEqual("Not validated in this working view", viewModel.Members[1].LiveState);
+        StringAssert.Contains(viewModel.LiveHintStatusMessage, "Coalesced 1,000 filesystem events");
+        StringAssert.Contains(viewModel.LiveHintStatusMessage, "20 bounded path hints");
+
+        viewModel.ApplyLiveStateChanged(new WorkerResultStateChangedEventArgs
+        {
+            Kind = "overflow",
+            RunId = 59,
+            RootPath = @"C:\Old",
+            EventCount = 0,
+            CoalescedPathCount = 0,
+            Root = new WorkerReviewLiveRootState(
+                59, @"C:\Old", "dirty", 1, "watcher_overflow", "now", null, 0, "now", true),
+            ExecutorEnabled = false,
+        });
+        Assert.IsFalse(viewModel.HasDirtyRoots);
+        Assert.AreEqual(1, memberBindingUpdates);
+        Assert.AreEqual(1, statusBindingUpdates);
+    }
+
     private static WorkerDuplicateFileGroup Group(long id, long runId, string name) =>
         new(id, runId, "1024", 2, "1024", name, ".bin")
         {

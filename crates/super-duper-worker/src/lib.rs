@@ -10,6 +10,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 use super_duper_core::progress::ProgressReporter;
+use super_duper_core::storage::live_hints::ReviewLiveHintError;
 use super_duper_core::storage::live_validation::ReviewLiveValidationError;
 use super_duper_core::storage::models::{
     CloudDetectionStatus, CloudPolicy, DuplicateFileDriveFacetPageQuery,
@@ -28,9 +29,9 @@ use super_duper_core::storage::models::{
     RecoveryReviewSummary, RecycleEligibilityObservation, RecycleItemResultObservation,
     RecycleOperation, RecycleOperationBatch, RecycleOperationItem, RecycleOperationView,
     RegisteredCloudLocation, ReviewDecisionKind, ReviewFolderGroupSummary, ReviewGroupSummary,
-    ReviewLiveRootOverflowRequest, ReviewLiveRootReconciliationRequest, ReviewLiveRootState,
-    ReviewLiveValidationRequest, ReviewPlanSummary, ReviewPlanView, RunExclusion, RunParameters,
-    ScanRun, ScanSession, SortDirection,
+    ReviewLiveHintRequest, ReviewLiveRootOverflowRequest, ReviewLiveRootReconciliationRequest,
+    ReviewLiveRootState, ReviewLiveValidationRequest, ReviewPlanSummary, ReviewPlanView,
+    RunExclusion, RunParameters, ScanRun, ScanSession, SortDirection,
 };
 use super_duper_core::storage::preference::PreferenceError;
 use super_duper_core::storage::preflight::PreflightError;
@@ -532,6 +533,15 @@ struct ReviewLiveValidationParameters {
     expected_review_revision: i64,
     scope: String,
     file_ids: Vec<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReviewLiveHintParameters {
+    run_id: i64,
+    root_path: String,
+    event_count: i64,
+    paths: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1436,6 +1446,7 @@ impl WorkerSession {
             "duplicate_file_drive_facet.page" => self.duplicate_file_drive_facet_page(request),
             "duplicate_file_group.members" => self.duplicate_file_group_members(request),
             "review_live_validation.run" => self.review_live_validation_run(request),
+            "review_live_hint.batch" => self.review_live_hint_batch(request),
             "review_live_root.overflow" => self.review_live_root_overflow(request),
             "review_live_root.list" => self.review_live_root_list(request),
             "review_live_root.reconcile" => self.review_live_root_reconcile(request),
@@ -2190,6 +2201,35 @@ impl WorkerSession {
         }))
     }
 
+    fn review_live_hint_batch(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let parameters: ReviewLiveHintParameters = parse_parameters(request)?;
+        let result = self
+            .state
+            .database()?
+            .resolve_review_live_hints(&ReviewLiveHintRequest {
+                run_id: parameters.run_id,
+                root_path: parameters.root_path,
+                event_count: parameters.event_count,
+                paths: parameters.paths,
+            })
+            .map_err(review_live_hint_error)?;
+        let data = json!({
+            "kind": "hints",
+            "runId": result.run_id,
+            "rootPath": result.root_path,
+            "eventCount": result.event_count,
+            "coalescedPathCount": result.coalesced_path_count,
+            "items": result.items.into_iter().map(|item| json!({
+                "fileId": item.file_id,
+                "groupId": item.group_id,
+                "path": item.path,
+            })).collect::<Vec<_>>(),
+            "executorEnabled": false,
+        });
+        self.state.emit("result.state_changed", &data);
+        Ok(data)
+    }
+
     fn review_live_root_overflow(
         &self,
         request: &RequestEnvelope,
@@ -2204,11 +2244,19 @@ impl WorkerSession {
                 root_path: parameters.root_path,
             })
             .map_err(review_live_root_error)?;
-        Ok(json!({
+        let data = json!({
+            "kind": "overflow",
+            "runId": result.root.run_id,
+            "rootPath": result.root.root_path,
+            "eventCount": 0,
+            "coalescedPathCount": 0,
+            "items": [],
             "root": review_live_root_dto(&result.root),
             "replayed": result.replayed,
             "executorEnabled": false,
-        }))
+        });
+        self.state.emit("result.state_changed", &data);
+        Ok(data)
     }
 
     fn review_live_root_list(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
@@ -6529,6 +6577,34 @@ fn review_live_validation_error(error: ReviewLiveValidationError) -> ProtocolFai
     }
 }
 
+fn review_live_hint_error(error: ReviewLiveHintError) -> ProtocolFailure {
+    match error {
+        ReviewLiveHintError::Database(error) => internal_database_error(error),
+        ReviewLiveHintError::InvalidRequest { message } => {
+            ProtocolFailure::new("invalid_request", message)
+        }
+        ReviewLiveHintError::RunNotFound { run_id } => {
+            ProtocolFailure::new("run_not_found", format!("Run {run_id} was not found"))
+                .with_details(json!({"runId":run_id}))
+        }
+        ReviewLiveHintError::RunNotCompleted { run_id, status } => ProtocolFailure::new(
+            "invalid_state",
+            "Live hints are available only for completed runs",
+        )
+        .with_details(json!({"runId":run_id,"status":status})),
+        ReviewLiveHintError::RootNotFound { run_id, root_path } => ProtocolFailure::new(
+            "review_root_not_found",
+            "The hinted path is not under an immutable selected root for this run",
+        )
+        .with_details(json!({"runId":run_id,"rootPath":root_path})),
+        ReviewLiveHintError::InvalidRunParameters { run_id } => ProtocolFailure::new(
+            "invalid_run_snapshot",
+            "The immutable run parameter snapshot could not be decoded",
+        )
+        .with_details(json!({"runId":run_id})),
+    }
+}
+
 fn review_live_root_error(error: ReviewLiveRootError) -> ProtocolFailure {
     match error {
         ReviewLiveRootError::Database(error) => internal_database_error(error),
@@ -7264,6 +7340,34 @@ mod tests {
             .unwrap();
         drop(db);
         let encoded_root = serde_json::to_string(&root_path).unwrap();
+        let encoded_paths = serde_json::to_string(
+            &paths
+                .iter()
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+        let hint_frames = execute(
+            &temp,
+            &[
+                HELLO.to_owned(),
+                format!(
+                    r#"{{"type":"request","id":"hint-burst","method":"review_live_hint.batch","params":{{"runId":{run_id},"rootPath":{encoded_root},"eventCount":1000,"paths":{encoded_paths}}}}}"#
+                ),
+            ],
+        );
+        let hint_result = &response(&hint_frames, "hint-burst")["result"];
+        assert_eq!(hint_result["eventCount"], 1000);
+        assert_eq!(hint_result["coalescedPathCount"], 3);
+        assert_eq!(hint_result["items"].as_array().unwrap().len(), 3);
+        assert_eq!(hint_result["executorEnabled"], false);
+        let hint_events = hint_frames
+            .iter()
+            .filter(|frame| frame["event"] == "result.state_changed")
+            .collect::<Vec<_>>();
+        assert_eq!(hint_events.len(), 1);
+        assert_eq!(hint_events[0]["data"]["eventCount"], 1000);
+        assert_eq!(hint_events[0]["data"]["items"].as_array().unwrap().len(), 3);
         let overflow_request = format!(
             r#"{{"type":"request","id":"overflow","method":"review_live_root.overflow","params":{{"operationId":"watcher-overflow-1","runId":{run_id},"rootPath":{encoded_root}}}}}"#
         );

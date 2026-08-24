@@ -443,6 +443,40 @@ working projection, so an invalidated recorded choice appears `undecided` withou
 history. Validation does not follow member-page cursors, enumerate a folder, register watchers,
 mutate files, invoke Shell/Recycle Bin, or enable an executor.
 
+### `review_live_hint.batch` and `result.state_changed`
+
+```json
+{"type":"request","id":"hint1","method":"review_live_hint.batch","params":{"runId":19,"rootPath":"D:\\Archive","eventCount":1000,"paths":["D:\\Archive\\copy-a.bin","D:\\Archive\\copy-b.bin"]}}
+```
+
+Infrastructure watches at most the immutable 64 selected roots for the one completed run currently
+shown. Raw create/change/delete/rename callbacks enter one global coalescer; they never call Core or
+the WPF dispatcher directly. The coalescer waits 100 ms before every drain, collapses repeated paths,
+and sends at most 200 distinct paths for one root. Therefore it can produce at most ten batches—and
+at most ten UI-producing worker events—per second across all roots. A rename counts as one raw event
+and may contribute its old and new path.
+
+The worker requires one completed run, one exact immutable selected root, a positive aggregate event
+count, and 1–200 distinct paths inside that root. One read-only query maps only paths belonging to
+immutable duplicate members. It performs no metadata/content access and no storage mutation. The
+response and the single event data have the same bounded payload:
+
+```json
+{"kind":"hints","runId":19,"rootPath":"D:\\Archive","eventCount":1000,"coalescedPathCount":2,"items":[{"fileId":44,"groupId":7,"path":"D:\\Archive\\copy-a.bin"}],"executorEnabled":false}
+```
+
+Core rejects a frame for a non-current run, clears its bounded member cache once, binds the current
+visible member list at most once with matching rows marked `validation_pending`, and posts one
+polite WPF status/automation update. A hint never changes a recorded decision or schema-v12 live
+observation. The user must still validate the selected/visible page; selection-time, page-time,
+plan-time, manual, and restart fallbacks remain authoritative.
+
+If a watcher reports an error or more than 200 distinct paths collect before a drain, Infrastructure
+drops the incomplete hint set and sends one idempotent `review_live_root.overflow` request. Its
+`result.state_changed` event uses `kind=overflow` and includes the durable schema-v13 root. Switching
+runs or disposing the client cancels queued batches, and late old-run events are rejected. Failed
+hint delivery attempts the same overflow fallback; a worker disconnect remains separately visible.
+
 ### `review_live_root.overflow`
 
 ```json
@@ -456,8 +490,9 @@ edited roots are not accepted. The response returns the latest root state, `repl
 its reconciliation cursor/count, and persists `reasonCode=watcher_overflow`. Exact operation replay
 does not increment the revision; a conflicting payload returns `idempotency_conflict`.
 
-This is a loss-of-trust report, not an authoritative filesystem event. It emits no WPF event,
-validates no path, and performs no filesystem or Shell mutation.
+This is a loss-of-trust report, not an authoritative filesystem event. It emits one bounded
+`result.state_changed` overflow event so the currently selected matching run becomes visibly dirty;
+it validates no path and performs no filesystem or Shell mutation.
 
 ### `review_live_root.list`
 

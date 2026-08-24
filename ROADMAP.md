@@ -131,8 +131,10 @@ choices after external deletion or modification while preserving immutable scan 
 history and excluding placeholders before access. Durable schema-v13 watcher-overflow state now
 marks affected immutable selected roots visibly dirty across restart and advances explicit server-
 cursor reconciliation in batches of at most 200 duplicate members without binding full results.
-Event coalescing, in-app outcome reconciliation, and historical cross-overlay closure remain
-separate gates. Milestone 11's
+A single 100 ms Infrastructure coalescer now collapses watcher bursts into read-only worker hints of
+at most 200 distinct paths, producing at most ten Core/WPF updates per second and routing capacity or
+watcher failure to the durable dirty-root fallback. In-app outcome reconciliation and historical
+cross-overlay closure remain separate gates. Milestone 11's
 revision-bound Recycle Bin operation contract, strictly non-mutating durable foundation, separately
 gated native executor, and acceptance evidence tooling are implemented.
 
