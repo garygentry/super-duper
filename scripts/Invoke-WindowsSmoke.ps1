@@ -212,9 +212,41 @@ using System.Runtime.InteropServices;
 public static class SmokeMouseInput
 {
     [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr windowHandle, IntPtr processId);
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")]
+    private static extern bool AttachThreadInput(uint sourceThreadId, uint targetThreadId, bool attach);
+    [DllImport("user32.dll")]
+    private static extern bool BringWindowToTop(IntPtr windowHandle);
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr windowHandle);
+    [DllImport("user32.dll")]
     public static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")]
     public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
+
+    public static bool ForceForegroundWindow(IntPtr windowHandle)
+    {
+        uint currentThread = GetCurrentThreadId();
+        uint foregroundThread = GetWindowThreadProcessId(GetForegroundWindow(), IntPtr.Zero);
+        bool attached = foregroundThread != 0 && foregroundThread != currentThread
+            && AttachThreadInput(currentThread, foregroundThread, true);
+        try
+        {
+            BringWindowToTop(windowHandle);
+            return SetForegroundWindow(windowHandle);
+        }
+        finally
+        {
+            if (attached)
+            {
+                AttachThreadInput(currentThread, foregroundThread, false);
+            }
+        }
+    }
 }
 '@
     }
@@ -241,7 +273,16 @@ public static class SmokeMouseInput
         $automationShell = New-Object -ComObject WScript.Shell
         function Activate-SmokeWindow {
             for ($attempt = 0; $attempt -lt 20; $attempt++) {
-                if ($automationShell.AppActivate($process.Id)) {
+                $shellActivated = $automationShell.AppActivate($process.Id)
+                $nativeActivated = [SmokeMouseInput]::ForceForegroundWindow([IntPtr]$process.MainWindowHandle)
+                if ($shellActivated -or $nativeActivated) {
+                    $bounds = $window.Current.BoundingRectangle
+                    $titleX = [int]($bounds.Left + ($bounds.Width / 2))
+                    $titleY = [int]($bounds.Top + 10)
+                    if ([SmokeMouseInput]::SetCursorPos($titleX, $titleY)) {
+                        [SmokeMouseInput]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+                        [SmokeMouseInput]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+                    }
                     Start-Sleep -Milliseconds 100
                     return
                 }
@@ -273,6 +314,20 @@ public static class SmokeMouseInput
                 Start-Sleep -Milliseconds 250
             }
             throw "UI Automation element $Property=$Value was not found."
+        }
+
+        function Set-SmokeElementFocus([string]$AutomationId) {
+            for ($attempt = 0; $attempt -lt 20; $attempt++) {
+                $element = Find-Element AutomationId $AutomationId 1
+                try {
+                    $element.SetFocus()
+                    return $element
+                }
+                catch {
+                    Start-Sleep -Milliseconds 100
+                }
+            }
+            throw "UI Automation element AutomationId=$AutomationId did not accept keyboard focus."
         }
 
         function Get-AutomationCount($Element) {
@@ -457,14 +512,24 @@ public static class SmokeMouseInput
             [Windows.Automation.PropertyCondition]::new(
                 [Windows.Automation.AutomationElement]::ControlTypeProperty,
                 [Windows.Automation.ControlType]::DataItem)).Count -ge 1)) 'WPF warning drilldown exposed no aggregate rows.'
+        Activate-SmokeWindow
         Invoke-Element (Find-Element AutomationId 'CloseRunWarnings')
+        Activate-SmokeWindow
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
             $focused = [Windows.Automation.AutomationElement]::FocusedElement
             $historyGrid = Find-Element AutomationId 'RunHistoryGrid' 1
             if ($null -ne $focused -and (Test-IsAutomationDescendant $historyGrid $focused)) { break }
+            Activate-SmokeWindow
             Start-Sleep -Milliseconds 50
         }
-        Assert-True (Test-IsAutomationDescendant $historyGrid $focused) 'Closing warning drilldown did not restore focus to run history.'
+        $focusedDescription = if ($null -eq $focused) {
+            '<none>'
+        }
+        else {
+            "id=$($focused.Current.AutomationId); name=$($focused.Current.Name); type=$($focused.Current.ControlType.ProgrammaticName)"
+        }
+        Assert-True (Test-IsAutomationDescendant $historyGrid $focused) `
+            "Closing warning drilldown did not restore focus to run history. Focused element: $focusedDescription"
         Select-Element (Find-Element AutomationId 'DuplicateFilesTab')
         $initialDirtyRootWarning = Find-Element AutomationId 'FileDirtyRootWarning'
         $oneGigabyteOrLarger = Find-Element AutomationId 'FileOneGigabyteOrLarger'
@@ -492,6 +557,10 @@ public static class SmokeMouseInput
         $null = Find-Element AutomationId 'FilePreviousDriveFacets'
         $null = Find-Element AutomationId 'FileNextDriveFacets'
         Invoke-Element (Find-Element AutomationId 'FileRootFacetNameSort')
+        $rootFacet = Find-Element AutomationId 'FileSelectedRootFacet'
+        Assert-True $rootFacet.Current.IsKeyboardFocusable 'Selected-root facet was not keyboard focusable.'
+        Activate-SmokeWindow
+        $rootFacet = Set-SmokeElementFocus 'FileSelectedRootFacet'
         try {
             $rootFacet.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
         }
@@ -500,9 +569,6 @@ public static class SmokeMouseInput
         }
         Start-Sleep -Milliseconds 250
         $rootOption = Find-FacetOption $rootFacet 'All selected roots'
-        Assert-True $rootFacet.Current.IsKeyboardFocusable 'Selected-root facet was not keyboard focusable.'
-        Activate-SmokeWindow
-        $rootFacet.SetFocus()
         $rootOption.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
         Start-Sleep -Milliseconds 400
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
@@ -511,6 +577,9 @@ public static class SmokeMouseInput
         Invoke-Element (Find-Element AutomationId 'FileClearFilters')
         Invoke-Element (Find-Element AutomationId 'FileDriveFacetNameSort')
         $driveFacet = Find-Element AutomationId 'FileDriveFacet'
+        Assert-True $driveFacet.Current.IsKeyboardFocusable 'Drive facet was not keyboard focusable.'
+        Activate-SmokeWindow
+        $driveFacet = Set-SmokeElementFocus 'FileDriveFacet'
         try {
             $driveFacet.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
         }
@@ -519,9 +588,6 @@ public static class SmokeMouseInput
         }
         Start-Sleep -Milliseconds 250
         $driveOption = Find-FacetOption $driveFacet 'All drives'
-        Assert-True $driveFacet.Current.IsKeyboardFocusable 'Drive facet was not keyboard focusable.'
-        Activate-SmokeWindow
-        $driveFacet.SetFocus()
         $driveOption.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
         Start-Sleep -Milliseconds 400
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
@@ -982,7 +1048,8 @@ public static class SmokeMouseInput
                 [Windows.Automation.ControlType]::Edit))
         Assert-True ($null -ne $folderPathEditor) 'The first folder location card did not expose its selectable immutable path.'
         $keptFolderPath = $folderPathEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value
-        $firstFolderCard.SetFocus()
+        Activate-SmokeWindow
+        $firstFolderCard = Set-SmokeElementFocus $firstFolderCardId
         [Windows.Forms.SendKeys]::SendWait('{RIGHT}')
         Start-Sleep -Milliseconds 250
         $secondSelection = $folderCardItems[1].GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)
@@ -1010,7 +1077,7 @@ public static class SmokeMouseInput
         Assert-True ($selectFolderPageButton.Current.Name -eq 'Select current folder-copy page in Explorer') 'Grouped Explorer selection did not expose its stable automation name.'
         Assert-True $selectFolderPageButton.Current.IsEnabled 'Grouped Explorer selection was not enabled for the bounded multi-location page.'
         Activate-SmokeWindow
-        $firstFolderCard.SetFocus()
+        $firstFolderCard = Set-SmokeElementFocus $firstFolderCardId
         [Windows.Forms.SendKeys]::SendWait('%g')
         $folderExplorerStatus = $null
         for ($attempt = 0; $attempt -lt 80; $attempt++) {
@@ -1034,7 +1101,7 @@ public static class SmokeMouseInput
         $folderRevealButton = Find-DescendantButtonByNameFragment $firstFolderCard 'in Explorer'
         Assert-True $folderRevealButton.Current.AutomationId.StartsWith('FolderReveal-', [StringComparison]::Ordinal) 'Folder reveal did not expose its stable member-scoped automation ID.'
         Activate-SmokeWindow
-        $firstFolderCard.SetFocus()
+        $firstFolderCard = Set-SmokeElementFocus $firstFolderCardId
         [Windows.Forms.SendKeys]::SendWait('%e')
         $folderExplorerStatus = $null
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
@@ -1175,11 +1242,23 @@ $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
             Start-Sleep -Milliseconds 100
         }
         Assert-True ($preflightStatus.Current.Name.Contains('Completed', [StringComparison]::OrdinalIgnoreCase)) 'WPF preflight did not announce a completed summary.'
-        $preflightHeading = Find-Element AutomationId 'PreflightSummaryHeading'
-        for ($attempt = 0; $attempt -lt 40 -and -not $preflightHeading.Current.HasKeyboardFocus; $attempt++) {
+        Activate-SmokeWindow
+        $preflightHeading = $null
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            $preflightHeading = Find-Element AutomationId 'PreflightSummaryHeading' 1
+            if ($preflightHeading.Current.HasKeyboardFocus) { break }
+            Activate-SmokeWindow
             Start-Sleep -Milliseconds 100
         }
-        Assert-True $preflightHeading.Current.HasKeyboardFocus 'Completed preflight did not move keyboard focus to its summary heading.'
+        $focusedAfterPreflight = [Windows.Automation.AutomationElement]::FocusedElement
+        $preflightFocusDescription = if ($null -eq $focusedAfterPreflight) {
+            '<none>'
+        }
+        else {
+            "id=$($focusedAfterPreflight.Current.AutomationId); name=$($focusedAfterPreflight.Current.Name); type=$($focusedAfterPreflight.Current.ControlType.ProgrammaticName)"
+        }
+        Assert-True $preflightHeading.Current.HasKeyboardFocus `
+            "Completed preflight did not move keyboard focus to its summary heading. Focused element: $preflightFocusDescription"
         Assert-True ($preflightStatus.Current.Name.Contains('changed 0', [StringComparison]::OrdinalIgnoreCase) -and
             $preflightStatus.Current.Name.Contains('conflicts 0', [StringComparison]::OrdinalIgnoreCase)) 'Unchanged WPF preflight did not expose a clean structured summary.'
         Assert-True ($null -ne (Find-FirstListItem (Find-Element AutomationId 'PreflightItemsList'))) 'WPF preflight did not expose its bounded observation details.'

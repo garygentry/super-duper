@@ -91,6 +91,20 @@ public sealed record WorkerRunWarningPage(
     string? NextCursor,
     bool ExecutorEnabled);
 
+public enum RunWarningSortField
+{
+    Phase,
+    OccurrenceCount,
+    Message,
+}
+
+public sealed record RunWarningQuery(
+    long RunId,
+    int PageSize,
+    RunWarningSortField SortField,
+    WorkerSortDirection SortDirection,
+    string? Cursor = null);
+
 public enum WorkerSortDirection
 {
     Ascending,

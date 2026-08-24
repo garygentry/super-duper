@@ -713,6 +713,12 @@ CREATE INDEX IF NOT EXISTS idx_folder_group_member_directory
     ON duplicate_folder_group_member(directory_id, group_id, id);
 CREATE INDEX IF NOT EXISTS idx_run_exclusion_run_path ON run_exclusion(run_id, path COLLATE NOCASE, id);
 CREATE INDEX IF NOT EXISTS idx_run_warning_run_id ON run_warning_aggregate(run_id, id);
+CREATE INDEX IF NOT EXISTS idx_run_warning_run_phase
+    ON run_warning_aggregate(run_id, phase COLLATE UNICODE_NOCASE, id);
+CREATE INDEX IF NOT EXISTS idx_run_warning_run_occurrence
+    ON run_warning_aggregate(run_id, occurrence_count, id);
+CREATE INDEX IF NOT EXISTS idx_run_warning_run_message
+    ON run_warning_aggregate(run_id, message COLLATE UNICODE_NOCASE, id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_review_plan_one_active_run
     ON review_plan(run_id) WHERE state = 'active';
 CREATE INDEX IF NOT EXISTS idx_review_decision_plan_group

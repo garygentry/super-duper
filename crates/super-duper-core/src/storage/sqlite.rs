@@ -1214,6 +1214,12 @@ impl Database {
                     COALESCE(completed_at, started_at, created_at)
              FROM scan_run WHERE warning_count > 0;
              CREATE INDEX IF NOT EXISTS idx_run_warning_run_id ON run_warning_aggregate(run_id, id);
+             CREATE INDEX IF NOT EXISTS idx_run_warning_run_phase
+                 ON run_warning_aggregate(run_id, phase COLLATE UNICODE_NOCASE, id);
+             CREATE INDEX IF NOT EXISTS idx_run_warning_run_occurrence
+                 ON run_warning_aggregate(run_id, occurrence_count, id);
+             CREATE INDEX IF NOT EXISTS idx_run_warning_run_message
+                 ON run_warning_aggregate(run_id, message COLLATE UNICODE_NOCASE, id);
              PRAGMA user_version = 14;
              COMMIT;",
         );

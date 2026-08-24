@@ -200,14 +200,12 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
         CancellationToken cancellationToken = default) =>
         Task.FromResult(new WorkerRunExclusionPage([], 0));
 
-    public Func<long, int, string?, CancellationToken, Task<WorkerRunWarningPage>>? RunWarningsHandler { get; set; }
+    public Func<RunWarningQuery, CancellationToken, Task<WorkerRunWarningPage>>? RunWarningsHandler { get; set; }
 
     public Task<WorkerRunWarningPage> GetRunWarningsAsync(
-        long runId,
-        int pageSize,
-        string? cursor = null,
+        RunWarningQuery query,
         CancellationToken cancellationToken = default) =>
-        RunWarningsHandler?.Invoke(runId, pageSize, cursor, cancellationToken)
+        RunWarningsHandler?.Invoke(query, cancellationToken)
         ?? Task.FromResult(new WorkerRunWarningPage([], 0, 0, 0, null, false));
 
     public Task<WorkerRun> StartRunAsync(long sessionId, CancellationToken cancellationToken = default)

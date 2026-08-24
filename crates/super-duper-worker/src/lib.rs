@@ -31,7 +31,8 @@ use super_duper_core::storage::models::{
     RegisteredCloudLocation, ReviewDecisionKind, ReviewFolderGroupSummary, ReviewGroupSummary,
     ReviewLiveHintRequest, ReviewLiveRootOverflowRequest, ReviewLiveRootReconciliationRequest,
     ReviewLiveRootState, ReviewLiveValidationRequest, ReviewPlanSummary, ReviewPlanView,
-    RunExclusion, RunParameters, RunWarningAggregate, ScanRun, ScanSession, SortDirection,
+    RunExclusion, RunParameters, RunWarningAggregate, RunWarningPageQuery, RunWarningSortField,
+    ScanRun, ScanSession, SortDirection,
 };
 use super_duper_core::storage::preference::PreferenceError;
 use super_duper_core::storage::preflight::PreflightError;
@@ -217,7 +218,27 @@ struct WarningPageParameters {
     #[serde(default = "default_result_page_size")]
     page_size: i64,
     #[serde(default)]
+    sort: WarningSortParameters,
+    #[serde(default)]
     cursor: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WarningSortParameters {
+    #[serde(default = "default_warning_sort_field")]
+    field: String,
+    #[serde(default = "default_descending")]
+    direction: String,
+}
+
+impl Default for WarningSortParameters {
+    fn default() -> Self {
+        Self {
+            field: default_warning_sort_field(),
+            direction: default_descending(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -1639,27 +1660,33 @@ impl WorkerSession {
                 "warning.page requires a positive runId and pageSize between 1 and 500",
             ));
         }
-        let signature = parameters.run_id.to_string();
+        let sort_field = parse_warning_sort_field(&parameters.sort.field)?;
+        let sort_direction = parse_sort_direction(&parameters.sort.direction)?;
+        let signature = format!(
+            "{}|{}|{}",
+            parameters.run_id,
+            warning_sort_name(sort_field),
+            direction_name(sort_direction)
+        );
         let cursor = decode_cursor(parameters.cursor.as_deref(), "run-warnings", &signature)?;
-        validate_cursor_value(cursor.as_ref(), false)?;
-        if cursor
-            .as_ref()
-            .is_some_and(|cursor| cursor.id != parameters.run_id || cursor.before)
-        {
+        validate_cursor_value(
+            cursor.as_ref(),
+            sort_field != RunWarningSortField::OccurrenceCount,
+        )?;
+        if cursor.as_ref().is_some_and(|cursor| cursor.before) {
             return Err(invalid_cursor());
         }
-        let after_id = cursor
-            .as_ref()
-            .and_then(|cursor| match cursor.value {
-                PageCursorValue::Integer(value) => Some(value),
-                PageCursorValue::Text(_) => None,
-            })
-            .unwrap_or(0);
         let db = self.state.database()?;
         let run = get_run(&db, parameters.run_id)?;
         let query_started = Instant::now();
         let (mut warnings, total, accounted_warning_count) = db
-            .page_run_warning_aggregates(parameters.run_id, after_id, parameters.page_size + 1)
+            .page_run_warning_aggregates(&RunWarningPageQuery {
+                run_id: parameters.run_id,
+                limit: parameters.page_size + 1,
+                sort_field,
+                sort_direction,
+                cursor,
+            })
             .map_err(internal_database_error)?;
         let has_more = warnings.len() > parameters.page_size as usize;
         if has_more {
@@ -1675,18 +1702,10 @@ impl WorkerSession {
             query_started.elapsed(),
         );
         let next_cursor = if has_more {
-            let last_id = warnings
+            warnings
                 .last()
-                .map(|warning| warning.id)
-                .unwrap_or(after_id);
-            Some(encode_cursor(CursorPayload {
-                version: 1,
-                kind: "run-warnings".to_owned(),
-                query: signature,
-                before: false,
-                value: CursorScalar::Integer(last_id.to_string()),
-                id: parameters.run_id,
-            })?)
+                .map(|warning| encode_warning_cursor(warning, sort_field, &signature))
+                .transpose()?
         } else {
             None
         };
@@ -4538,6 +4557,22 @@ fn parse_group_sort_field(value: &str) -> Result<DuplicateFileGroupSortField, Pr
     }
 }
 
+fn parse_warning_sort_field(value: &str) -> Result<RunWarningSortField, ProtocolFailure> {
+    match value {
+        "phase" => Ok(RunWarningSortField::Phase),
+        "occurrenceCount" => Ok(RunWarningSortField::OccurrenceCount),
+        "message" => Ok(RunWarningSortField::Message),
+        _ => Err(ProtocolFailure::new(
+            "invalid_request",
+            "sort.field is not allowed for run warnings",
+        )
+        .with_details(json!({
+            "field":"sort.field",
+            "allowed":["phase","occurrenceCount","message"]
+        }))),
+    }
+}
+
 fn parse_selected_root_facet_sort_field(
     value: &str,
 ) -> Result<DuplicateFileSelectedRootFacetSortField, ProtocolFailure> {
@@ -4904,6 +4939,28 @@ fn encode_group_cursor(
         before,
         value,
         id: group.id,
+    })
+}
+
+fn encode_warning_cursor(
+    warning: &RunWarningAggregate,
+    sort_field: RunWarningSortField,
+    signature: &str,
+) -> Result<String, ProtocolFailure> {
+    let value = match sort_field {
+        RunWarningSortField::Phase => CursorScalar::Text(warning.phase.clone()),
+        RunWarningSortField::OccurrenceCount => {
+            CursorScalar::Integer(warning.occurrence_count.to_string())
+        }
+        RunWarningSortField::Message => CursorScalar::Text(warning.message.clone()),
+    };
+    encode_cursor(CursorPayload {
+        version: 1,
+        kind: "run-warnings".to_owned(),
+        query: signature.to_owned(),
+        before: false,
+        value,
+        id: warning.id,
     })
 }
 
@@ -5308,6 +5365,14 @@ fn group_sort_name(field: DuplicateFileGroupSortField) -> &'static str {
         DuplicateFileGroupSortField::GroupSize => "groupSize",
         DuplicateFileGroupSortField::CopyCount => "copyCount",
         DuplicateFileGroupSortField::RepresentativeName => "representativeName",
+    }
+}
+
+fn warning_sort_name(field: RunWarningSortField) -> &'static str {
+    match field {
+        RunWarningSortField::Phase => "phase",
+        RunWarningSortField::OccurrenceCount => "occurrenceCount",
+        RunWarningSortField::Message => "message",
     }
 }
 
@@ -6838,6 +6903,10 @@ fn default_result_page_size() -> i64 {
 
 fn default_group_sort_field() -> String {
     "recoverableBytes".to_owned()
+}
+
+fn default_warning_sort_field() -> String {
+    "occurrenceCount".to_owned()
 }
 
 fn default_selected_root_facet_sort_field() -> String {
@@ -9942,6 +10011,7 @@ mod tests {
         assert_eq!(first["result"]["accountedWarningCount"], 8);
         assert_eq!(first["result"]["total"], 2);
         assert_eq!(first["result"]["warnings"].as_array().unwrap().len(), 1);
+        assert_eq!(first["result"]["warnings"][0]["code"], "one");
         assert_eq!(first["result"]["executorEnabled"], false);
         let cursor = first["result"]["nextCursor"].as_str().unwrap();
         let next_request = json!({
@@ -9951,6 +10021,26 @@ mod tests {
         let next: Value =
             serde_json::from_str(&session.handle_line(&next_request.to_string()).unwrap()).unwrap();
         assert_eq!(next["result"]["warnings"].as_array().unwrap().len(), 1);
+        assert_eq!(next["result"]["warnings"][0]["code"], "two");
+        let changed_sort_request = json!({
+            "type":"request", "id":"changed-sort", "method":"warning.page",
+            "params":{"runId":1,"pageSize":1,"sort":{"field":"phase","direction":"ascending"},"cursor":cursor}
+        });
+        let changed_sort: Value = serde_json::from_str(
+            &session
+                .handle_line(&changed_sort_request.to_string())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(changed_sort["error"]["code"], "invalid_cursor");
+        let sorted_request = json!({
+            "type":"request", "id":"sorted", "method":"warning.page",
+            "params":{"runId":1,"pageSize":1,"sort":{"field":"phase","direction":"descending"}}
+        });
+        let sorted: Value =
+            serde_json::from_str(&session.handle_line(&sorted_request.to_string()).unwrap())
+                .unwrap();
+        assert_eq!(sorted["result"]["warnings"][0]["code"], "two");
         let stale_request = json!({
             "type":"request", "id":"stale", "method":"warning.page",
             "params":{"runId":2,"pageSize":1,"cursor":cursor}

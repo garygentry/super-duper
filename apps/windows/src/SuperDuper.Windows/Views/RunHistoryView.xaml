@@ -101,13 +101,14 @@
                           EnableRowVirtualization="True"
                           IsReadOnly="True"
                           ItemsSource="{Binding Warnings}"
+                          Sorting="OnWarningsSorting"
                           VirtualizingPanel.IsVirtualizing="True"
                           VirtualizingPanel.VirtualizationMode="Recycling">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Width="120" Header="Phase" Binding="{Binding Phase}" />
-                        <DataGridTextColumn Width="90" Header="Count" Binding="{Binding OccurrenceCount}" />
-                        <DataGridTextColumn Width="2*" Header="Warning" Binding="{Binding Message}" />
-                        <DataGridTemplateColumn Width="3*" Header="Representative examples">
+                        <DataGridTextColumn Width="120" Header="Phase" SortMemberPath="Phase" Binding="{Binding Phase}" />
+                        <DataGridTextColumn Width="90" Header="Count" SortMemberPath="OccurrenceCount" SortDirection="Descending" Binding="{Binding OccurrenceCount}" />
+                        <DataGridTextColumn Width="2*" Header="Warning" SortMemberPath="Message" Binding="{Binding Message}" />
+                        <DataGridTemplateColumn Width="3*" Header="Representative examples" CanUserSort="False">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <ItemsControl ItemsSource="{Binding Examples}">

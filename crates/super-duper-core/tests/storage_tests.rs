@@ -19,7 +19,8 @@ use super_duper_core::storage::models::{
     RecoveryObservationKind, RecoveryReviewObservationInput, RecoveryReviewState,
     RecycleEligibilityObservation, RecycleItemResultObservation, RegisteredCloudLocation,
     ReviewDecisionKind, ReviewLiveHintRequest, RunExclusionInsert, RunParameters,
-    RunWarningAggregateInsert, ScannedFile, SortDirection,
+    RunWarningAggregateInsert, RunWarningPageQuery, RunWarningSortField, ScannedFile,
+    SortDirection,
 };
 use super_duper_core::storage::preference::PreferenceError;
 use super_duper_core::storage::preflight::PreflightError;
@@ -43,6 +44,16 @@ use winapi::um::winbase::GetProcessIoCounters;
 use winapi::um::winnt::IO_COUNTERS;
 
 static LARGE_FIXTURE_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+fn warning_page_query(run_id: i64, limit: i64, cursor: Option<PageCursor>) -> RunWarningPageQuery {
+    RunWarningPageQuery {
+        run_id,
+        limit,
+        sort_field: RunWarningSortField::Phase,
+        sort_direction: SortDirection::Ascending,
+        cursor,
+    }
+}
 
 fn drop_v13_root_reconciliation_schema(db: &Database) {
     db.connection()
@@ -409,7 +420,9 @@ fn version_thirteen_migrates_warning_counts_to_explicit_legacy_aggregates() {
 
     let migrated = Database::open_connection(path.to_str().unwrap()).unwrap();
     assert_eq!(migrated.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
-    let (warnings, total, accounted) = migrated.page_run_warning_aggregates(run_id, 0, 25).unwrap();
+    let (warnings, total, accounted) = migrated
+        .page_run_warning_aggregates(&warning_page_query(run_id, 25, None))
+        .unwrap();
     assert_eq!(total, 1);
     assert_eq!(accounted, 4);
     assert_eq!(warnings[0].code, "legacy_unstructured_warning");
@@ -442,11 +455,21 @@ fn warning_aggregates_are_bounded_paged_restart_safe_and_terminally_immutable() 
     ];
     db.replace_run_warning_aggregates(run_id, &warnings)
         .unwrap();
-    let (first, total, accounted) = db.page_run_warning_aggregates(run_id, 0, 1).unwrap();
+    let (first, total, accounted) = db
+        .page_run_warning_aggregates(&warning_page_query(run_id, 1, None))
+        .unwrap();
     assert_eq!((total, accounted), (2, 9));
     assert_eq!(first.len(), 1);
     let (second, _, _) = db
-        .page_run_warning_aggregates(run_id, first[0].id, 1)
+        .page_run_warning_aggregates(&warning_page_query(
+            run_id,
+            1,
+            Some(PageCursor {
+                value: PageCursorValue::Text(first[0].phase.clone()),
+                id: first[0].id,
+                before: false,
+            }),
+        ))
         .unwrap();
     assert_eq!(second.len(), 1);
     assert_ne!(first[0].code, second[0].code);
@@ -458,7 +481,9 @@ fn warning_aggregates_are_bounded_paged_restart_safe_and_terminally_immutable() 
     drop(db);
 
     let reopened = Database::open(path.to_str().unwrap()).unwrap();
-    let (restored, total, accounted) = reopened.page_run_warning_aggregates(run_id, 0, 25).unwrap();
+    let (restored, total, accounted) = reopened
+        .page_run_warning_aggregates(&warning_page_query(run_id, 25, None))
+        .unwrap();
     assert_eq!((restored.len() as i64, total, accounted), (2, 2, 9));
 }
 
@@ -467,10 +492,183 @@ fn terminal_completion_accounts_for_unclassified_warning_counts() {
     let db = Database::open_in_memory().unwrap();
     let (_, run_id) = session_and_run(&db, "Fallback warnings", &["/root"]);
     db.complete_scan_run(run_id, 0, 0, 0, 0, 0, 0, 3).unwrap();
-    let (warnings, total, accounted) = db.page_run_warning_aggregates(run_id, 0, 25).unwrap();
+    let (warnings, total, accounted) = db
+        .page_run_warning_aggregates(&warning_page_query(run_id, 25, None))
+        .unwrap();
     assert_eq!((total, accounted), (1, 3));
     assert_eq!(warnings[0].code, "unclassified_recoverable_warning");
     assert_eq!(warnings[0].examples.len(), 1);
+}
+
+#[test]
+#[ignore = "retained WPM13 Release scale fixture; run optimized with --ignored --nocapture"]
+fn warning_hundred_thousand_aggregate_release_fixture_stays_bounded() {
+    assert!(
+        !cfg!(debug_assertions),
+        "the retained 100,000-warning fixture must run in Release"
+    );
+    let _large_fixture_guard = LARGE_FIXTURE_TEST_LOCK.lock().unwrap();
+    let db = Database::open_in_memory().unwrap();
+    let (_, run_id) = session_and_run(&db, "Warning aggregate scale", &["/root"]);
+    let transaction = db.connection().unchecked_transaction().unwrap();
+    transaction
+        .execute(
+            "WITH digits(d) AS (VALUES(0),(1),(2),(3),(4),(5),(6),(7),(8),(9)),
+             numbers(n) AS (
+                 SELECT a.d * 10000 + b.d * 1000 + c.d * 100 + d.d * 10 + e.d
+                 FROM digits a CROSS JOIN digits b CROSS JOIN digits c
+                 CROSS JOIN digits d CROSS JOIN digits e
+             )
+             INSERT INTO run_warning_aggregate
+                (run_id, phase, category, code, severity, message, occurrence_count,
+                 examples_json, created_at, updated_at)
+             SELECT ?1, 'hashing', 'scan', printf('bounded-warning-%06d', n), 'warning',
+                    printf('Bounded warning %06d', n), (n % 100) + 1,
+                    printf('[\"/root/example-%06d.bin\"]', n),
+                    '2026-08-24T00:00:00Z', '2026-08-24T00:00:00Z'
+             FROM numbers",
+            params![run_id],
+        )
+        .unwrap();
+    transaction
+        .execute(
+            "UPDATE scan_run SET warning_count = 5050000 WHERE id = ?1",
+            params![run_id],
+        )
+        .unwrap();
+    transaction.commit().unwrap();
+    db.complete_scan_run(run_id, 0, 0, 0, 0, 0, 0, 5_050_000)
+        .unwrap();
+    db.connection()
+        .execute_batch("PRAGMA shrink_memory;")
+        .unwrap();
+
+    #[cfg(windows)]
+    let baseline_private_bytes = current_process_private_bytes();
+    #[cfg(windows)]
+    let mut peak_private_bytes = baseline_private_bytes;
+    let profile_started = Instant::now();
+    let mut query_durations = Vec::with_capacity(500);
+    let mut cursor = None;
+    let mut previous: Option<(i64, i64)> = None;
+    let mut seen = 0_i64;
+    let mut occurrence_total = 0_i64;
+    let mut page_count = 0_i64;
+    loop {
+        let started = Instant::now();
+        let (mut warnings, total, accounted) = db
+            .page_run_warning_aggregates(&RunWarningPageQuery {
+                run_id,
+                limit: 201,
+                sort_field: RunWarningSortField::OccurrenceCount,
+                sort_direction: SortDirection::Descending,
+                cursor,
+            })
+            .unwrap();
+        query_durations.push(started.elapsed());
+        assert_eq!((total, accounted), (100_000, 5_050_000));
+        let has_more = warnings.len() > 200;
+        warnings.truncate(200);
+        assert!(!warnings.is_empty());
+        for warning in &warnings {
+            if let Some((previous_count, previous_id)) = previous {
+                assert!(
+                    warning.occurrence_count < previous_count
+                        || (warning.occurrence_count == previous_count && warning.id > previous_id),
+                    "warning sort/keyset order was unstable"
+                );
+            }
+            previous = Some((warning.occurrence_count, warning.id));
+            occurrence_total += warning.occurrence_count;
+        }
+        seen += warnings.len() as i64;
+        page_count += 1;
+        #[cfg(windows)]
+        {
+            peak_private_bytes = peak_private_bytes.max(current_process_private_bytes());
+        }
+        if !has_more {
+            break;
+        }
+        let last = warnings.last().unwrap();
+        cursor = Some(PageCursor {
+            value: PageCursorValue::Integer(last.occurrence_count),
+            id: last.id,
+            before: false,
+        });
+    }
+    assert_eq!(
+        (seen, occurrence_total, page_count),
+        (100_000, 5_050_000, 500)
+    );
+
+    for (field, direction) in [
+        (RunWarningSortField::Phase, SortDirection::Ascending),
+        (RunWarningSortField::Message, SortDirection::Descending),
+    ] {
+        let (warnings, total, accounted) = db
+            .page_run_warning_aggregates(&RunWarningPageQuery {
+                run_id,
+                limit: 200,
+                sort_field: field,
+                sort_direction: direction,
+                cursor: None,
+            })
+            .unwrap();
+        assert_eq!(
+            (warnings.len() as i64, total, accounted),
+            (200, 100_000, 5_050_000)
+        );
+    }
+
+    query_durations.sort_unstable();
+    let query_p95 = query_durations[((query_durations.len() * 95).div_ceil(100)) - 1];
+    #[cfg(windows)]
+    let private_growth_bytes = peak_private_bytes.saturating_sub(baseline_private_bytes);
+    #[cfg(not(windows))]
+    let private_growth_bytes = 0_u64;
+    assert!(
+        query_p95 < std::time::Duration::from_millis(100),
+        "100,000-aggregate warning-page p95 {query_p95:?} exceeded the unchanged 100 ms guardrail"
+    );
+    #[cfg(windows)]
+    assert!(
+        private_growth_bytes < 32 * 1024 * 1024,
+        "bounded warning paging grew private memory by {private_growth_bytes} bytes"
+    );
+
+    let evidence = serde_json::json!({
+        "schemaVersion": 1,
+        "gate": "WPM13-bounded-memory",
+        "configuration": "Release",
+        "aggregateCount": seen,
+        "accountedWarningCount": occurrence_total,
+        "pageSize": 200,
+        "pageCount": page_count,
+        "querySamples": query_durations.len(),
+        "queryP95Microseconds": query_p95.as_micros() as u64,
+        "queryGuardrailMicroseconds": 100_000,
+        "privateGrowthBytes": private_growth_bytes,
+        "privateGrowthGuardrailBytes": 32 * 1024 * 1024,
+        "elapsedMicroseconds": profile_started.elapsed().as_micros() as u64,
+        "fullHistoryMaterialized": false,
+        "executorEnabled": false,
+    });
+    if let Ok(path) = std::env::var("SUPER_DUPER_WPM13_EVIDENCE_PATH") {
+        let file = fs::File::create(&path)
+            .unwrap_or_else(|error| panic!("failed to create WPM13 evidence {path}: {error}"));
+        let mut writer = BufWriter::new(file);
+        serde_json::to_writer_pretty(&mut writer, &evidence)
+            .expect("failed to serialize WPM13 evidence");
+        writeln!(writer).expect("failed to finish WPM13 evidence");
+    }
+    eprintln!(
+        "wpm13-bounded-memory aggregates={} pages={} query-p95={:.2}ms private-growth={} bytes",
+        seen,
+        page_count,
+        query_p95.as_secs_f64() * 1000.0,
+        private_growth_bytes
+    );
 }
 
 #[test]

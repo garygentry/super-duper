@@ -332,10 +332,12 @@ introduced here are `registered_cloud_root_excluded` and `manual_location_exclus
 
 ### `warning.page`
 
-Params are `runId`, `pageSize` (1–500, default 200), and an optional opaque `cursor`:
+Params are `runId`, `pageSize` (1–500, default 200), optional `sort`, and an optional opaque
+`cursor`. `sort.field` is `phase`, `occurrenceCount`, or `message`; `sort.direction` is `ascending`
+or `descending`. The default is occurrence count descending:
 
 ```json
-{"type":"request","id":"w1","method":"warning.page","params":{"runId":19,"pageSize":25}}
+{"type":"request","id":"w1","method":"warning.page","params":{"runId":19,"pageSize":25,"sort":{"field":"occurrenceCount","direction":"descending"}}}
 ```
 
 The result contains bounded aggregate rows, the exact persisted run count, the count accounted for
@@ -350,7 +352,8 @@ occurrence. Discovery, hashing/cache, post-discovery snapshot change, and exact-
 are the selected categories. A terminal fallback accounts for any otherwise unclassified warning.
 Pre-v14 runs migrate to an explicit legacy aggregate stating that original examples were not
 retained. Rows are immutable after the run becomes terminal, paging performs no filesystem access,
-and a cursor is bound to its exact run; reuse for another run returns `invalid_cursor`.
+and a cursor is bound to its exact run, sort field, and direction. Every order uses aggregate ID as
+the stable final tie-breaker. Reuse with another run or sort returns `invalid_cursor`.
 
 ## Run Events and Ordering
 

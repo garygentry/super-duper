@@ -8,10 +8,44 @@ namespace SuperDuper.Windows.Views;
 
 public partial class PreflightView : UserControl
 {
+    private System.Windows.FrameworkElement? _pendingPreflightFocus;
+    private System.Windows.Window? _focusWindow;
+
     public PreflightView()
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnLoaded(object sender, System.Windows.RoutedEventArgs e)
+    {
+        _focusWindow = System.Windows.Window.GetWindow(this);
+        if (_focusWindow is not null)
+        {
+            _focusWindow.Activated += OnFocusWindowActivated;
+        }
+    }
+
+    private void OnUnloaded(object sender, System.Windows.RoutedEventArgs e)
+    {
+        LayoutUpdated -= OnPendingFocusLayoutUpdated;
+        if (_focusWindow is not null)
+        {
+            _focusWindow.Activated -= OnFocusWindowActivated;
+            _focusWindow = null;
+        }
+    }
+
+    private void OnFocusWindowActivated(object? sender, EventArgs e)
+    {
+        _ = Dispatcher.BeginInvoke(TryRestorePendingPreflightFocus, DispatcherPriority.Background);
+    }
+
+    private void OnPendingFocusLayoutUpdated(object? sender, EventArgs e)
+    {
+        TryRestorePendingPreflightFocus();
     }
 
     private void OnDataContextChanged(object sender, System.Windows.DependencyPropertyChangedEventArgs e)
@@ -87,11 +121,11 @@ public partial class PreflightView : UserControl
             {
                 if (viewModel.FocusTarget == "progress")
                 {
-                    PreflightProgressBar.Focus();
+                    RequestPreflightFocus(PreflightProgressBar);
                 }
                 else if (viewModel.FocusTarget == "summary")
                 {
-                    PreflightSummaryHeading.Focus();
+                    RequestPreflightFocus(PreflightSummaryHeading);
                 }
             },
             DispatcherPriority.Background);
@@ -101,8 +135,45 @@ public partial class PreflightView : UserControl
     {
         if (e.Key == Key.Home && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
         {
-            PreflightSummaryHeading.Focus();
+            RestorePreflightFocus(PreflightSummaryHeading);
             e.Handled = true;
+        }
+    }
+
+    internal static void RestorePreflightFocus(System.Windows.FrameworkElement target)
+    {
+        target.BringIntoView();
+        var focusScope = FocusManager.GetFocusScope(target);
+        FocusManager.SetFocusedElement(focusScope, target);
+        target.Focus();
+        Keyboard.Focus(target);
+    }
+
+    private void RequestPreflightFocus(System.Windows.FrameworkElement target)
+    {
+        _pendingPreflightFocus = target;
+        LayoutUpdated -= OnPendingFocusLayoutUpdated;
+        LayoutUpdated += OnPendingFocusLayoutUpdated;
+        _ = Dispatcher.BeginInvoke(TryRestorePendingPreflightFocus, DispatcherPriority.Background);
+    }
+
+    private void TryRestorePendingPreflightFocus()
+    {
+        if (_pendingPreflightFocus is not { } target)
+        {
+            return;
+        }
+
+        if (!target.IsLoaded || !target.IsVisible)
+        {
+            return;
+        }
+
+        RestorePreflightFocus(target);
+        if (target.IsKeyboardFocusWithin)
+        {
+            _pendingPreflightFocus = null;
+            LayoutUpdated -= OnPendingFocusLayoutUpdated;
         }
     }
 }

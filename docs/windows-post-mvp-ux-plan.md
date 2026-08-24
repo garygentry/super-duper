@@ -3963,6 +3963,23 @@ mutation, broad performance, general Activity, action navigation, outcome audit,
 campaigns were deliberately skipped. The exact criterion is locally exhausted; the next authorized
 gate is `WPM13-bounded-memory`.
 
+#### Bounded-memory acceptance result (2026-08-24)
+
+`WPM13-bounded-memory` is accepted and `locally_exhausted`. Schema-v14 warning paging now provides
+indexed, stable server-owned Phase, Occurrence-count, and Message sorting with aggregate ID as the
+final keyset tie-breaker. Opaque cursors bind run, sort field, and direction. Core keeps exactly five
+25-row pages, WPF binds only the current 25-row virtualized page, and cancellation, stale context,
+exact accounting, restart reconstruction, immutable terminal history, keyboard access, focus
+restoration, and dispatcher responsiveness remain enforced.
+
+`Verify-WindowsBoundedMemory.ps1` retained the single 100,000-aggregate Release fixture at
+`artifacts/windows-bounded-memory/20260824-143725-472`: 500 pages of 200, 15.906 ms query p95, and
+4,096 bytes private growth against unchanged 100 ms and 32 MiB guards, with no full-history
+materialization. Full Debug/Release Rust and Windows matrices and real non-mutating Debug/Release
+smoke preserve schema-v14 accounting/examples and every execution lock. Provider, physical-
+accessibility, mutation, outcome, unrelated Activity, broader performance, and later-gate campaigns
+were deliberately skipped. The next authorized gate is `WPM13-action-navigation`.
+
 ### Milestone 14 - UX and Scale Hardening
 
 Status: Planned. The four acceptance criteria and the additional required accessibility and query-
@@ -4048,12 +4065,12 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance only `WPM13-bounded-memory`. Add the named retained 100,000-event/aggregate Release fixture
-and prove stable server pages plus fixed Core/WPF memory independently of total history. Do not add
-Activity categories, action navigation, outcome audit, mutation, or production wiring.
+Advance only `WPM13-action-navigation`. Add the first bounded navigation slice only for an existing
+event category with a stable target ID, including actionable stale/missing-target handling. Do not
+add warning categories, outcome audit, mutation, production wiring, or later gates.
 
-Verifier: retained Release storage/protocol/Core evidence plus proportional loaded-STA and real
-non-mutating smoke proves stable paging and the five-page cache without full-history binding.
+Verifier: focused protocol/Core/loaded-STA and real non-mutating smoke proves the exposed action
+reaches its immutable or working target and rejects stale or missing targets actionably.
 
 ## Milestone Definition Template
 
@@ -4151,3 +4168,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-24 | Implemented and accepted schema-v13 durable watcher-overflow dirty roots with explicit bounded server-owned reconciliation, visible no-silent-trust state, restart/cancellation/stale-generation protection, immutable-history preservation, one response-level binding update, keyboard/automation/focus behavior, and real Debug/Release smoke. | Record WPM12-watcher-overflow `locally_exhausted`; preserve the accepted external overlay and every production lock. Authorize only WPM12-event-coalescing next; Activity, deletion outcomes/mutation, provider/physical/performance campaigns, and later gates remain excluded. |
 | 2026-08-24 | Implemented and accepted one global 100 ms watcher-event coalescer with 200-path batches, deterministic at-most-ten-UI-updates-per-second bounds, one read-only worker event/cache/binding/dispatcher update per batch, durable overflow fallback, stale-run rejection, accessible pending state, and real Debug/Release non-mutating burst smoke. | Record WPM12-event-coalescing `locally_exhausted`; preserve schema-v12/v13 authority, immutable history, every production lock, and the excluded campaigns. Authorize only WPM13-warning-drilldown next. |
 | 2026-08-24 | Implemented and accepted schema-v14 bounded run-warning aggregates/examples, opaque `warning.page` paging, restart reconstruction, immutable terminal history, and the accessible cancellable Run-history drilldown with stale-context rejection and focus restoration. | Record WPM13-warning-drilldown `locally_exhausted`; preserve every production lock and exclude general Activity/navigation/outcomes. Authorize only WPM13-bounded-memory next. |
+| 2026-08-24 | Implemented and accepted indexed stable warning sorting/keyset paging, sort-bound cursors, one retained 100,000-aggregate Release proof, fixed five-page Core caching, 25-row virtualized WPF binding, cancellation/stale rejection, dispatcher responsiveness, and keyboard/focus restoration. | Record WPM13-bounded-memory `locally_exhausted`; preserve schema-v14 exact accounting/examples, immutable history, and every production lock. Authorize only WPM13-action-navigation next. |

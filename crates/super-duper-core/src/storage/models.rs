@@ -149,6 +149,22 @@ pub struct RunWarningAggregateInsert {
     pub examples: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunWarningSortField {
+    Phase,
+    OccurrenceCount,
+    Message,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunWarningPageQuery {
+    pub run_id: i64,
+    pub limit: i64,
+    pub sort_field: RunWarningSortField,
+    pub sort_direction: SortDirection,
+    pub cursor: Option<PageCursor>,
+}
+
 #[derive(Debug, Clone)]
 pub struct ScannedFile {
     pub id: i64,

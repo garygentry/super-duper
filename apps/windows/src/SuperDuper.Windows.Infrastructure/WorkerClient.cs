@@ -361,13 +361,27 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
             cancellationToken);
 
     public Task<WorkerRunWarningPage> GetRunWarningsAsync(
-        long runId,
-        int pageSize,
-        string? cursor = null,
+        RunWarningQuery query,
         CancellationToken cancellationToken = default) =>
         InvokeAsync<WorkerRunWarningPage>(
             "warning.page",
-            new { runId, pageSize, cursor },
+            new
+            {
+                runId = query.RunId,
+                pageSize = query.PageSize,
+                sort = new
+                {
+                    field = query.SortField switch
+                    {
+                        RunWarningSortField.Phase => "phase",
+                        RunWarningSortField.OccurrenceCount => "occurrenceCount",
+                        RunWarningSortField.Message => "message",
+                        _ => throw new ArgumentOutOfRangeException(nameof(query)),
+                    },
+                    direction = SortDirection(query.SortDirection),
+                },
+                cursor = query.Cursor,
+            },
             cancellationToken);
 
     public async Task<WorkerRun> StartRunAsync(

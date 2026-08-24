@@ -1672,24 +1672,48 @@ impl Database {
 
     pub fn page_run_warning_aggregates(
         &self,
-        run_id: i64,
-        after_id: i64,
-        limit: i64,
+        query: &RunWarningPageQuery,
     ) -> Result<(Vec<RunWarningAggregate>, i64, i64)> {
         let (total, accounted): (i64, i64) = self.connection().query_row(
             "SELECT COUNT(*), COALESCE(SUM(occurrence_count), 0)
              FROM run_warning_aggregate WHERE run_id = ?1",
-            params![run_id],
+            params![query.run_id],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
-        let mut statement = self.connection().prepare(
+        let sort_expression = match query.sort_field {
+            RunWarningSortField::Phase => "phase COLLATE UNICODE_NOCASE",
+            RunWarningSortField::OccurrenceCount => "occurrence_count",
+            RunWarningSortField::Message => "message COLLATE UNICODE_NOCASE",
+        };
+        let mut parameters = vec![SqlValue::Integer(query.run_id)];
+        let mut cursor_clause = String::new();
+        if let Some(cursor) = &query.cursor {
+            let comparator = cursor_comparator(query.sort_direction, cursor.before);
+            let id_comparator = cursor_comparator(SortDirection::Ascending, cursor.before);
+            cursor_clause = format!(
+                "AND ({sort_expression} {comparator} ? OR
+                       ({sort_expression} = ? AND id {id_comparator} ?))"
+            );
+            push_cursor_parameters(
+                &mut parameters,
+                cursor,
+                query.sort_field != RunWarningSortField::OccurrenceCount,
+            )?;
+        }
+        parameters.push(SqlValue::Integer(query.limit));
+        let before = query.cursor.as_ref().is_some_and(|cursor| cursor.before);
+        let order = effective_order(query.sort_direction, before);
+        let id_order = effective_order(SortDirection::Ascending, before);
+        let mut statement = self.connection().prepare(&format!(
             "SELECT id, run_id, phase, category, code, severity, message, occurrence_count,
                     examples_json
              FROM run_warning_aggregate
-             WHERE run_id = ?1 AND id > ?2 ORDER BY id LIMIT ?3",
-        )?;
+             WHERE run_id = ? {cursor_clause}
+             ORDER BY {sort_expression} {order}, id {id_order}
+             LIMIT ?"
+        ))?;
         let warnings = statement
-            .query_map(params![run_id, after_id, limit], |row| {
+            .query_map(params_from_iter(parameters.iter()), |row| {
                 let examples_json: String = row.get(8)?;
                 let examples = serde_json::from_str(&examples_json).map_err(|error| {
                     Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::new(error))

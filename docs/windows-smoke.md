@@ -154,7 +154,10 @@ runs, unchanged file/placeholder state, and `PROVIDER_TRANSFER_COUNTERS_UNCHANGE
 The script prints `Windows smoke passed`. It first proves the locked-file warning count is exactly
 accounted for by bounded `warning.page` aggregates with one to three examples, survives worker
 restart, remains `executorEnabled:false`, and opens from Run history through an accessible WPF
-drilldown whose close action restores history-grid focus. It sends one deterministic bounded worker hint frame with
+drilldown whose server-owned count ordering is exposed accessibly, whose virtualized grid binds only
+the current bounded page, and whose close action restores history-grid focus. The automation harness
+reacquires stable automation IDs before keyboard focus and foregrounds only its disposable WPF
+window. It sends one deterministic bounded worker hint frame with
 an aggregate count of 1,000, and the real WPF pass rapidly rewrites one disposable non-result file
 under the selected root, observes one coalesced/bounded live-hint status, removes that file, and
 leaves the scan fixtures unchanged. It also injects one watcher overflow without changing a fixture,

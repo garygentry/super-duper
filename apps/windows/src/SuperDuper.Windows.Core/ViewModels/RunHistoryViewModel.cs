@@ -25,6 +25,8 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
     private long _warningAnnouncementVersion;
     private string _focusTarget = string.Empty;
     private long _focusRequestVersion;
+    private RunWarningSortField _warningSortField = RunWarningSortField.OccurrenceCount;
+    private WorkerSortDirection _warningSortDirection = WorkerSortDirection.Descending;
     private readonly Dictionary<string, WorkerRunWarningPage> _warningCache = [];
     private readonly Queue<string> _warningCacheOrder = [];
 
@@ -146,6 +148,10 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
 
     public bool CanLoadNextWarningPage => IsWarningDrilldownOpen && !IsWarningLoading && _nextWarningCursor is not null;
 
+    public RunWarningSortField WarningSortField => _warningSortField;
+
+    public WorkerSortDirection WarningSortDirection => _warningSortDirection;
+
     public long WarningAnnouncementVersion
     {
         get => _warningAnnouncementVersion;
@@ -223,6 +229,28 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsEmpty));
     }
 
+    public async Task ApplyWarningSortAsync(
+        RunWarningSortField field,
+        WorkerSortDirection direction)
+    {
+        if (_warningSortField == field && _warningSortDirection == direction)
+        {
+            return;
+        }
+        _warningCancellation?.Cancel();
+        _warningSortField = field;
+        _warningSortDirection = direction;
+        OnPropertyChanged(nameof(WarningSortField));
+        OnPropertyChanged(nameof(WarningSortDirection));
+        _nextWarningCursor = null;
+        _warningCache.Clear();
+        _warningCacheOrder.Clear();
+        if (IsWarningDrilldownOpen)
+        {
+            await LoadWarningPageAsync(null, opening: false);
+        }
+    }
+
     public void Upsert(WorkerRun run, bool select)
     {
         if (SessionId != run.SessionId)
@@ -272,13 +300,24 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         WarningErrorMessage = null;
         try
         {
-            var key = cursor ?? string.Empty;
+            var key = $"{_warningSortField}|{_warningSortDirection}|{cursor ?? string.Empty}";
             if (!_warningCache.TryGetValue(key, out var page))
             {
-                page = await _workerClient.GetRunWarningsAsync(run.Id, WarningPageSize, cursor, token);
-                if (page.ExecutorEnabled || page.WarningCount != page.AccountedWarningCount)
+                page = await _workerClient.GetRunWarningsAsync(
+                    new RunWarningQuery(
+                        run.Id,
+                        WarningPageSize,
+                        _warningSortField,
+                        _warningSortDirection,
+                        cursor),
+                    token);
+                if (page.ExecutorEnabled
+                    || page.WarningCount != page.AccountedWarningCount
+                    || page.Warnings.Count > WarningPageSize
+                    || page.Total < page.Warnings.Count
+                    || page.Warnings.Any(warning => warning.RunId != run.Id))
                 {
-                    throw new InvalidOperationException("The worker returned an unsafe or incomplete warning accounting page.");
+                    throw new InvalidOperationException("The worker returned an unsafe, unbounded, or incomplete warning accounting page.");
                 }
                 CacheWarningPage(key, page);
             }
@@ -295,7 +334,7 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
             IsWarningDrilldownOpen = true;
             WarningStatusMessage = page.Total == 0
                 ? "No persisted warning aggregates are available."
-                : $"Showing {Warnings.Count:N0} of {page.Total:N0} bounded warning aggregates accounting for {page.AccountedWarningCount:N0} warnings.";
+                : $"Showing {Warnings.Count:N0} of {page.Total:N0} bounded warning aggregates accounting for {page.AccountedWarningCount:N0} warnings, {WarningSortDescription()}.";
             WarningAnnouncementVersion++;
             RequestFocus("warnings");
         }
@@ -356,6 +395,16 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         FocusTarget = target;
         FocusRequestVersion++;
     }
+
+    private string WarningSortDescription() => (_warningSortField, _warningSortDirection) switch
+    {
+        (RunWarningSortField.OccurrenceCount, WorkerSortDirection.Descending) => "highest count first",
+        (RunWarningSortField.OccurrenceCount, _) => "lowest count first",
+        (RunWarningSortField.Phase, WorkerSortDirection.Ascending) => "phase A to Z",
+        (RunWarningSortField.Phase, _) => "phase Z to A",
+        (RunWarningSortField.Message, WorkerSortDirection.Ascending) => "warning text A to Z",
+        _ => "warning text Z to A",
+    };
 
     public void Dispose()
     {

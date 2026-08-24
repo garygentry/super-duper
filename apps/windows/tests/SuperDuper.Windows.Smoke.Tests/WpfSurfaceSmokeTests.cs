@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Windows;
@@ -416,6 +417,11 @@ public sealed class WpfSurfaceSmokeTests
             StringAssert.Contains(AutomationProperties.GetHelpText(folderReveal), "Alt+E");
             Assert.IsTrue(DuplicateFoldersView.IsRevealShortcut(Key.System, Key.E, ModifierKeys.Alt));
             var startPreflight = FindByAutomationId<Button>(preflight, "StartPreflightButton");
+            var preflightSummaryHeading = FindByAutomationId<TextBlock>(preflight, "PreflightSummaryHeading");
+            PreflightView.RestorePreflightFocus(preflightSummaryHeading);
+            Assert.AreSame(
+                preflightSummaryHeading,
+                FocusManager.GetFocusedElement(FocusManager.GetFocusScope(preflightSummaryHeading)));
             StringAssert.Contains(
                 AutomationProperties.GetName(startPreflight),
                 "no files will be deleted");
@@ -609,9 +615,16 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 "Review persisted warnings for the selected run",
                 AutomationProperties.GetName(FindByAutomationId<Button>(history, "OpenRunWarnings")));
+            var warningGrid = FindByAutomationId<DataGrid>(history, "RunWarningGrid");
             Assert.AreEqual(
                 "Persisted run warning aggregates",
-                AutomationProperties.GetName(FindByAutomationId<DataGrid>(history, "RunWarningGrid")));
+                AutomationProperties.GetName(warningGrid));
+            Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(warningGrid));
+            Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(warningGrid));
+            Assert.AreEqual(ListSortDirection.Descending,
+                warningGrid.Columns.Single(column => Equals(column.Header, "Count")).SortDirection);
+            Assert.IsFalse(warningGrid.Columns.Single(
+                column => Equals(column.Header, "Representative examples")).CanUserSort);
             Assert.AreEqual(
                 "Load the next bounded warning aggregate page",
                 AutomationProperties.GetName(FindByAutomationId<Button>(history, "NextRunWarningPage")));
@@ -621,6 +634,25 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 "Close run warning details and return to run history",
                 AutomationProperties.GetName(FindByAutomationId<Button>(history, "CloseRunWarnings")));
+            warningGrid.ItemsSource = Enumerable.Range(1, RunHistoryViewModel.WarningPageSize).ToArray();
+            var historyGrid = FindByAutomationId<DataGrid>(history, "RunHistoryGrid");
+            historyGrid.ItemsSource = new[] { "completed run" };
+            historyGrid.SelectedIndex = 0;
+            var historyFocusHost = new Window { Width = 900, Height = 600, Content = history };
+            historyFocusHost.Show();
+            historyFocusHost.Activate();
+            DrainDispatcher();
+            var historyFocus = history.RestoreHistoryGridFocusAsync();
+            while (!historyFocus.IsCompleted)
+            {
+                DrainDispatcher();
+            }
+            Assert.IsTrue(historyFocus.GetAwaiter().GetResult());
+            Assert.IsTrue(historyGrid.IsKeyboardFocusWithin,
+                "Run warning close focus did not return inside the realized history grid.");
+            Assert.AreEqual(RunHistoryViewModel.WarningPageSize, warningGrid.Items.Count,
+                "The loaded warning grid bound more than its fixed Core page size.");
+            historyFocusHost.Close();
 
             var focusHost = new Window { Width = 1200, Height = 800, Content = files };
             focusHost.Show();

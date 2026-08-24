@@ -11,17 +11,24 @@ public sealed class RunHistoryViewModelTests
     public async Task WarningDrilldownPagesBoundsCacheAndRestoresFocus()
     {
         var worker = new TestWorkerClient();
-        worker.Runs.Add(TestWorkerClient.CreateRun(7, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
-        var page = 0;
-        worker.RunWarningsHandler = (runId, pageSize, cursor, _) =>
+        worker.Runs.Add(TestWorkerClient.CreateRun(7, 3, "completed", "finalizing", DateTimeOffset.UtcNow) with
         {
-            Assert.AreEqual(7, runId);
-            Assert.AreEqual(RunHistoryViewModel.WarningPageSize, pageSize);
-            var index = page++;
+            WarningCount = 100_000,
+        });
+        var queries = new List<RunWarningQuery>();
+        worker.RunWarningsHandler = (query, _) =>
+        {
+            queries.Add(query);
+            Assert.AreEqual(7, query.RunId);
+            Assert.AreEqual(RunHistoryViewModel.WarningPageSize, query.PageSize);
+            var index = query.Cursor is null ? 0 : int.Parse(query.Cursor[7..]);
+            var firstId = index * RunHistoryViewModel.WarningPageSize + 1;
             return Task.FromResult(new WorkerRunWarningPage(
-                [new WorkerRunWarningAggregate(index + 1, runId, "discovering", "scan",
-                    $"warning-{index}", "warning", $"Warning {index}", 1, [$"Example {index}"])],
-                7, 1, 1, index < 6 ? $"cursor-{index + 1}" : null, false));
+                Enumerable.Range(firstId, RunHistoryViewModel.WarningPageSize)
+                    .Select(id => new WorkerRunWarningAggregate(id, query.RunId, "discovering", "scan",
+                        $"warning-{id}", "warning", $"Warning {id}", 1, [$"Example {id}"]))
+                    .ToArray(),
+                100_000, 100_000, 100_000, $"cursor-{index + 1}", false));
         };
         using var viewModel = new RunHistoryViewModel(worker);
         await viewModel.LoadAsync(3);
@@ -33,12 +40,23 @@ public sealed class RunHistoryViewModelTests
         }
 
         Assert.IsTrue(viewModel.IsWarningDrilldownOpen);
-        Assert.AreEqual("warning-6", viewModel.Warnings.Single().Code);
+        Assert.AreEqual(RunHistoryViewModel.WarningPageSize, viewModel.Warnings.Count);
+        Assert.AreEqual("warning-151", viewModel.Warnings[0].Code);
         Assert.AreEqual("warnings", viewModel.FocusTarget);
         var cache = (System.Collections.IDictionary)typeof(RunHistoryViewModel)
             .GetField("_warningCache", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(viewModel)!;
         Assert.AreEqual(RunHistoryViewModel.WarningCachePageLimit, cache.Count);
+        Assert.IsTrue(queries.All(query => query.SortField == RunWarningSortField.OccurrenceCount));
+        Assert.IsTrue(queries.All(query => query.SortDirection == WorkerSortDirection.Descending));
+        StringAssert.Contains(viewModel.WarningStatusMessage, "25 of 100,000");
+
+        await viewModel.ApplyWarningSortAsync(RunWarningSortField.Phase, WorkerSortDirection.Ascending);
+        Assert.AreEqual(RunWarningSortField.Phase, queries[^1].SortField);
+        Assert.AreEqual(WorkerSortDirection.Ascending, queries[^1].SortDirection);
+        Assert.IsNull(queries[^1].Cursor);
+        Assert.AreEqual(RunHistoryViewModel.WarningPageSize, viewModel.Warnings.Count);
+        Assert.AreEqual(1, cache.Count);
 
         viewModel.CloseWarningsCommand.Execute(null);
         Assert.IsFalse(viewModel.IsWarningDrilldownOpen);
@@ -53,7 +71,7 @@ public sealed class RunHistoryViewModelTests
         worker.Runs.Add(TestWorkerClient.CreateRun(7, 3, "completed", "finalizing", DateTimeOffset.UtcNow.AddMinutes(-1)));
         var completion = new TaskCompletionSource<WorkerRunWarningPage>(TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationToken observedToken = default;
-        worker.RunWarningsHandler = (_, _, _, token) =>
+        worker.RunWarningsHandler = (_, token) =>
         {
             observedToken = token;
             return completion.Task;
@@ -80,7 +98,7 @@ public sealed class RunHistoryViewModelTests
     {
         var worker = new TestWorkerClient();
         worker.Runs.Add(TestWorkerClient.CreateRun(7, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
-        worker.RunWarningsHandler = (_, _, _, _) => Task.FromResult(
+        worker.RunWarningsHandler = (_, _) => Task.FromResult(
             new WorkerRunWarningPage([], 0, 1, 0, null, true));
         using var viewModel = new RunHistoryViewModel(worker);
         await viewModel.LoadAsync(3);
@@ -89,6 +107,6 @@ public sealed class RunHistoryViewModelTests
 
         Assert.IsTrue(viewModel.IsWarningDrilldownOpen);
         Assert.IsTrue(viewModel.HasWarningError);
-        StringAssert.Contains(viewModel.WarningErrorMessage, "unsafe or incomplete");
+        StringAssert.Contains(viewModel.WarningErrorMessage, "unsafe");
     }
 }
