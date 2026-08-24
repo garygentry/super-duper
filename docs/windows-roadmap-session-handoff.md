@@ -18,7 +18,7 @@ active.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept `WPM8-representative-query-performance` (this session's commit)
+- Latest completed slice: retain the blocked `WPM8-narrator-nvda` bootstrap (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 required fail-closed cloud safety: accepted; both unavailable opt-in policies are
@@ -40,7 +40,16 @@ active.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The current evidence-only slice accepts `WPM8-representative-query-performance` from the explicitly
+The current evidence-only slice retains `artifacts/windows-narrator-nvda/20260824-171812-501` and
+leaves `WPM8-narrator-nvda` blocked. The operator confirmed an interactive Windows 11 x64 desktop,
+physical listening availability, and both readers. An isolated copy of the existing immutable-
+result database was prepared and Narrator started. Before any keyboard-workflow input, the control
+helper returned `failed to activate captured window`; fresh enumeration again returned exactly one
+Super Duper window and the one permitted activation retry failed identically. No valid physical
+observation or product defect was produced, and NVDA was not started. No product code, smoke,
+provider, mutation, high-contrast, DPI, outcome, performance, or later campaign ran.
+
+The preceding evidence-only slice accepted `WPM8-representative-query-performance` from the explicitly
 confirmed designated Windows 11 x64 machine under normal load. The retained Release bundle is
 `artifacts/windows-representative-query/20260824-162843-832`: all 500 ordered intervals, 101 process
 snapshots, and 12 valid host samples are present with none invalid/unavailable. The unchanged 100 ms
@@ -69,11 +78,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance only `WPM8-narrator-nvda`, and only when an accessibility operator has an interactive
-Windows 11 x64 desktop with both Narrator and NVDA available. Run the documented read-only keyboard
-workflow separately with each screen reader and retain notes. If either physical prerequisite is
-missing, preserve the blocker and stop; do not substitute high contrast, multi-monitor DPI,
-provider, mutation, outcome, broad-performance, or later work.
+Keep only `WPM8-narrator-nvda` authorized, but do not rerun it without separate authorization.
+Preserve `artifacts/windows-narrator-nvda/20260824-171812-501`. The smallest experiment is one new-
+directory attempt where the physical operator starts the requested reader and manually foregrounds
+the unchanged isolated Super Duper window; bind without `activate_window` and run the unchanged
+keyboard workflow only after focus is physically confirmed. Do not substitute high contrast,
+multi-monitor DPI, provider, mutation, outcome, broad-performance, or later work.
 
 ## Required startup audit
 
@@ -148,6 +158,14 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+The blocked WPM8 physical-reader bundle
+`artifacts/windows-narrator-nvda/20260824-171812-501` retains `manifest.json`,
+`operator-observations.md`, the isolated database copy, and hash-cache directory. Narrator startup
+succeeded, but both the initial and one fresh-window activation attempt failed with
+`failed to activate captured window` before any workflow key. Therefore there are no valid
+Narrator/NVDA observations, no product result, and no acceptance. Only proportional documentation,
+production-lock, and diff checks followed; every excluded campaign remained skipped.
 
 The accepted WPM8 bundle `artifacts/windows-representative-query/20260824-162843-832` retains
 `acceptance-evidence.json`, `acceptance-report.md`, the Release build and 31-test deterministic
@@ -264,3 +282,4 @@ For each session:
 | 2026-08-24 | this session | Implement and accept the single existing completed-run hash-warning action with stable run-ID resolution, exact immutable duplicate-set navigation, cancellation/stale-context rejection, actionable missing-target feedback, Alt+O/automation, and focus restoration without changing bounded warning history or production locks. | Advance only WPM8-representative-query-performance on the designated representative Windows 11 x64 machine; otherwise preserve that blocker and stop. |
 | 2026-08-24 | this session | Retain the single designated-host WPM8 query attempt at `artifacts/windows-representative-query/20260824-161340-948`; the Release prerequisite build failed on sandbox-denied Windows SDK access before any query measurement. | Keep WPM8-representative-query-performance blocked; separately authorize one unchanged new-directory collector invocation from a desktop context with installed-Windows-SDK access after reconfirming normal load. Do not substitute another gate. |
 | 2026-08-24 | this session | Accept the designated-host WPM8 Release profile at `artifacts/windows-representative-query/20260824-162843-832` with all 500 intervals, 101 process snapshots, 12 valid host samples, 929,792 bytes private growth, and five p95 values below the unchanged 100 ms target. | Record WPM8-representative-query-performance `locally_exhausted`; preserve both bundles and every production lock. Advance only WPM8-narrator-nvda, contingent on its physical operator prerequisites. |
+| 2026-08-24 | this session | Retain the blocked WPM8 physical-reader bootstrap at `artifacts/windows-narrator-nvda/20260824-171812-501`; Narrator started, but both app-activation attempts failed before any workflow key, so no valid listening pass or product observation occurred and NVDA was not started. | Keep WPM8-narrator-nvda blocked. Require separate authorization for exactly one new-directory manual-foreground bootstrap; do not substitute another gate. |

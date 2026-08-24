@@ -240,6 +240,15 @@ and location/detail pages are open. Record focus, announcement order/coalescing,
 placement, and keyboard-only access. Automated WPF tests cannot be used to mark these physical rows
 passed.
 
+The first separately authorized physical-reader bootstrap is retained at
+`artifacts/windows-narrator-nvda/20260824-171812-501`. The physical prerequisites were confirmed and
+Narrator started, but the control helper returned `failed to activate captured window` before the
+first workflow key; a fresh enumeration returned one Super Duper window and the one permitted retry
+failed identically. No valid listening observation or product defect was produced, and NVDA was not
+started. The gate remains blocked. The smallest separately authorized experiment is one new-
+directory attempt where the operator manually foregrounds the isolated app before the agent binds
+without `activate_window`; no other accessibility or acceptance campaign may substitute for it.
+
 The read-only WPF reconstruction now exposes state-specific cancellation wording and an assertive
 `recovery_required` warning that forbids retry, directs the operator to inspect every unknown source
 and Recycle Bin item, and states that this build cannot resolve or replay the operation. Automated

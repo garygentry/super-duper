@@ -1982,6 +1982,14 @@ XAML change.
   the session rejected `SendKeys.SendWait` with `The operation completed successfully.` Both
   headless Debug/Release worker smokes and all three STA tests passed. This is the documented
   input-injection restriction, not evidence for the remaining assistive-technology gate.
+- The first separately authorized physical-reader attempt is retained at
+  `artifacts/windows-narrator-nvda/20260824-171812-501`. The operator confirmed the interactive
+  Windows 11 x64 desktop and both readers, and Narrator started, but the control helper returned
+  `failed to activate captured window` before any workflow input. Fresh window enumeration again
+  returned exactly one Super Duper window; the one permitted activation retry failed identically.
+  No valid listening observation or product defect was produced, NVDA was not started, and the
+  gate remains blocked. The smallest separately authorized experiment is a new-directory attempt
+  where the operator manually foregrounds the isolated app before binding without `activate_window`.
 - To close the operator accessibility gate, use an interactive Windows 11 x64 desktop with
   Narrator or NVDA, a Windows high-contrast theme, and physical 100%, 150%, and 200% monitor scales.
   At both the default and 900-by-600-DIP minimum sizes, traverse Setup, Duplicate files, and
@@ -4111,12 +4119,14 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance only `WPM8-narrator-nvda`, and only when an accessibility operator has an interactive
-Windows 11 x64 desktop with both Narrator and NVDA available. Run the documented read-only keyboard
-workflow separately with each screen reader and retain spoken order/coalescing, focus, error, stale/
-duplicate, and action-access notes. If those physical prerequisites are unavailable, preserve the
-blocker and stop; do not substitute high contrast, multi-monitor DPI, provider, mutation, outcome,
-broad-performance, or later work.
+Keep only `WPM8-narrator-nvda` authorized. Preserve
+`artifacts/windows-narrator-nvda/20260824-171812-501`, which failed before input when the control
+helper could not activate the uniquely returned app window. A new attempt requires separate
+authorization for the smallest experiment: create a new evidence directory, have the operator start
+the reader and manually foreground the isolated app, bind without `activate_window`, and run the
+unchanged read-only keyboard workflow only after focus is physically confirmed. Do not rerun merely
+for a pass or substitute high contrast, multi-monitor DPI, provider, mutation, outcome, broad-
+performance, or later work.
 
 ## Milestone Definition Template
 
@@ -4218,3 +4228,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-24 | Implemented and accepted the single existing completed-run `scan/hash_recoverable_warning` action with exact stable-run resolution, immutable duplicate-set navigation, cancellation/stale-context rejection, actionable missing-target handling, Alt+O/automation, dispatcher responsiveness, and focus restoration. | Record WPM13-action-navigation `locally_exhausted`; preserve schema-v14 accounting/examples, paging/cache/binding bounds, immutable history, and every production lock. Authorize only WPM8-representative-query-performance on its designated representative machine; otherwise stop at that blocker. |
 | 2026-08-24 | Retained the single designated-host WPM8 query attempt at `artifacts/windows-representative-query/20260824-161340-948`; its Release prerequisite build failed on sandbox-denied Windows SDK access before measurement. | Keep WPM8-representative-query-performance blocked with 0/500 intervals and no p95 metrics. Do not rerun or substitute work; separately authorize one unchanged new-directory collector invocation from a desktop context with Windows SDK access after reconfirming normal load. |
 | 2026-08-24 | Accepted the designated-host Release profile at `artifacts/windows-representative-query/20260824-162843-832` with all 500 intervals, 101 process snapshots, 12 valid host samples, 929,792 bytes private growth, and p95 values of 62.57/32.03/32.07/17.00/4.69 ms against the unchanged 100 ms target. | Record WPM8-representative-query-performance `locally_exhausted`; preserve both passing and pre-measurement bundles and every production lock. Authorize only WPM8-narrator-nvda next, contingent on its physical operator prerequisites. |
+| 2026-08-24 | Retained the blocked physical-reader bootstrap at `artifacts/windows-narrator-nvda/20260824-171812-501`: prerequisites were confirmed and Narrator started, but the initial and one fresh-window activation attempt both failed with `failed to activate captured window` before any workflow key; NVDA was not started. | Keep WPM8-narrator-nvda blocked. Separately authorize only one new-directory manual-foreground bootstrap; do not rerun merely for a pass or substitute another physical, provider, mutation, outcome, performance, or later gate. |
