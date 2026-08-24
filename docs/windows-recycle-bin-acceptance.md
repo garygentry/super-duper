@@ -249,6 +249,11 @@ started. The gate remains blocked. The smallest separately authorized experiment
 directory attempt where the operator manually foregrounds the isolated app before the agent binds
 without `activate_window`; no other accessibility or acceptance campaign may substitute for it.
 
+The operator subsequently marked Narrator `skipped_by_operator` and authorized proceeding from
+that retained record. NVDA remains `not_run`; neither status is a physical screen-reader pass or a
+waiver of the reviewed completion requirement. Only the independent `WPM8-high-contrast` gate is
+authorized next, and it cannot close either screen-reader row.
+
 The read-only WPF reconstruction now exposes state-specific cancellation wording and an assertive
 `recovery_required` warning that forbids retry, directs the operator to inspect every unknown source
 and Recycle Bin item, and states that this build cannot resolve or replay the operation. Automated
