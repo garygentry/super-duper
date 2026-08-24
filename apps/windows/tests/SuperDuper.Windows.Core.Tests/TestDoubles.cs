@@ -190,8 +190,11 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
         return Task.FromResult(new WorkerRunPage(matching.Skip((int)offset).Take(limit).ToArray(), matching.Length));
     }
 
+    public Func<long, CancellationToken, Task<WorkerRun>>? GetRunHandler { get; set; }
+
     public Task<WorkerRun> GetRunAsync(long runId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Runs.Single(run => run.Id == runId));
+        GetRunHandler?.Invoke(runId, cancellationToken)
+        ?? Task.FromResult(Runs.Single(run => run.Id == runId));
 
     public Task<WorkerRunExclusionPage> GetRunExclusionsAsync(
         long runId,

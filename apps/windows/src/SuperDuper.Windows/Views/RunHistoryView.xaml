@@ -108,6 +108,32 @@
                         <DataGridTextColumn Width="120" Header="Phase" SortMemberPath="Phase" Binding="{Binding Phase}" />
                         <DataGridTextColumn Width="90" Header="Count" SortMemberPath="OccurrenceCount" SortDirection="Descending" Binding="{Binding OccurrenceCount}" />
                         <DataGridTextColumn Width="2*" Header="Warning" SortMemberPath="Message" Binding="{Binding Message}" />
+                        <DataGridTemplateColumn Width="170" Header="Action" CanUserSort="False">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button AutomationProperties.AutomationId="{Binding Id, StringFormat=RunWarningHashResults-{0}}"
+                                            AutomationProperties.Name="Open immutable duplicate-file results for this hash warning"
+                                            Command="{Binding DataContext.NavigateWarningCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"
+                                            Content="_Open duplicate results">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding Category}" Value="scan" />
+                                                            <Condition Binding="{Binding Code}" Value="hash_recoverable_warning" />
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTemplateColumn Width="3*" Header="Representative examples" CanUserSort="False">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
@@ -130,6 +156,11 @@
                            Text="{Binding WarningStatusMessage}"
                            TextWrapping="Wrap" />
                 <TextBlock AutomationProperties.AutomationId="RunWarningError"
+                           AutomationProperties.LiveSetting="Assertive"
+                           accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding WarningErrorAnnouncementVersion}"
+                           accessibility:AutomationNotificationBehavior.NotificationKind="ActionAborted"
+                           accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
+                           accessibility:AutomationNotificationBehavior.ActivityId="RunWarningNavigation"
                            Margin="0,8,0,0"
                            Foreground="#C84B31"
                            Text="{Binding WarningErrorMessage}"
@@ -145,6 +176,12 @@
                             AutomationProperties.Name="Cancel loading run warnings"
                             Command="{Binding CancelWarningLoadCommand}"
                             Content="Cancel load" />
+                    <Button Margin="8,0,0,0"
+                            AutomationProperties.AutomationId="CancelRunWarningNavigation"
+                            AutomationProperties.Name="Cancel opening immutable duplicate-file results"
+                            Command="{Binding CancelWarningNavigationCommand}"
+                            Content="_Cancel navigation"
+                            Visibility="{Binding IsWarningNavigationPending, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </StackPanel>
             </StackPanel>
         </Border>

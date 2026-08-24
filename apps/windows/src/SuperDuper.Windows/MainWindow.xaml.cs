@@ -38,14 +38,20 @@ public partial class MainWindow : Window
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(ShellViewModel.FocusRequestVersion)
-            || ViewModel.FocusTarget != "start-scan")
+        if (e.PropertyName != nameof(ShellViewModel.FocusRequestVersion))
         {
             return;
         }
-        _ = Dispatcher.BeginInvoke(
-            () => StartScanButton.Focus(),
-            DispatcherPriority.Background);
+        if (ViewModel.FocusTarget == "start-scan")
+        {
+            _ = Dispatcher.BeginInvoke(
+                () => StartScanButton.Focus(),
+                DispatcherPriority.Background);
+        }
+        else if (ViewModel.FocusTarget == "duplicate-file-groups")
+        {
+            _ = DuplicateFilesWorkspace.RestoreGroupGridFocusAsync();
+        }
     }
 
     private void OnClosing(object? sender, CancelEventArgs e)

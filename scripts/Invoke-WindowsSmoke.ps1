@@ -201,7 +201,7 @@ function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw "Smoke assertion failed: $Message" }
 }
 
-function Invoke-WpfAutomation([long]$RunId) {
+function Invoke-WpfAutomation([long]$RunId, [long]$WarningAggregateId) {
     Add-Type -AssemblyName UIAutomationClient
     Add-Type -AssemblyName UIAutomationTypes
     Add-Type -AssemblyName System.Windows.Forms
@@ -512,7 +512,29 @@ public static class SmokeMouseInput
             [Windows.Automation.PropertyCondition]::new(
                 [Windows.Automation.AutomationElement]::ControlTypeProperty,
                 [Windows.Automation.ControlType]::DataItem)).Count -ge 1)) 'WPF warning drilldown exposed no aggregate rows.'
+        $warningAction = Find-Element AutomationId "RunWarningHashResults-$WarningAggregateId"
+        Assert-True ($warningAction.Current.AutomationId.StartsWith('RunWarningHashResults-', [StringComparison]::Ordinal)) `
+            'Hash warning navigation did not expose its stable aggregate-scoped automation ID.'
         Activate-SmokeWindow
+        $warningAction.SetFocus()
+        [Windows.Forms.SendKeys]::SendWait('%o')
+        $duplicateFilesTab = Find-Element AutomationId 'DuplicateFilesTab'
+        for ($attempt = 0; $attempt -lt 80; $attempt++) {
+            $duplicateFilesTab = Find-Element AutomationId 'DuplicateFilesTab' 1
+            $groupGrid = Find-Element AutomationId 'FileGroupsGrid' 1
+            $focused = [Windows.Automation.AutomationElement]::FocusedElement
+            $selected = $duplicateFilesTab.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected
+            if ($selected -and $null -ne $focused -and (Test-IsAutomationDescendant $groupGrid $focused)) { break }
+            Activate-SmokeWindow
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True $selected 'Hash warning action did not navigate to the immutable duplicate-file result set.'
+        Assert-True (Test-IsAutomationDescendant $groupGrid $focused) `
+            'Hash warning action did not restore focus inside the immutable duplicate-set grid.'
+        Select-Element (Find-Element AutomationId 'RunHistoryTab')
+        $warningStatus = Find-Element AutomationId 'RunWarningStatus'
+        Assert-True ($warningStatus.Current.Name.Contains('Opened immutable duplicate-file results', [StringComparison]::OrdinalIgnoreCase)) `
+            'Hash warning action did not report its stable run-target navigation.'
         Invoke-Element (Find-Element AutomationId 'CloseRunWarnings')
         Activate-SmokeWindow
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
@@ -1265,7 +1287,7 @@ $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
         $operationBoundary = Find-Element AutomationId 'RecycleOperationBoundaryNotice'
         Assert-True ($operationBoundary.Current.Name.Contains('execution is disabled', [StringComparison]::OrdinalIgnoreCase)) 'WPF did not disclose the disabled Recycle Bin executor boundary.'
         Assert-True ([IO.File]::Exists($exactPath)) 'WPF preflight unexpectedly removed a disposable fixture file.'
-        Write-Output "WPF automation passed for restored run $RunId, including a real coalesced watcher burst with bounded live-state hints, durable watcher-overflow warning and one explicit bounded reconciliation batch with copy-grid focus restoration, durable non-deleting file Remove and exact-folder Keep review decisions, bounded external-modification validation with immutable history, sticky decision invalidation, fresh-choice recovery, bounded side-by-side folder location cards with stable automation and Right Arrow focus, current-page parent-grouped Explorer selection with keyboard access, aggregate success, actionable partial failure, and focus restoration, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, ordinary/long-path file reveal, and keyboard folder reveal success plus actionable missing-location failure."
+        Write-Output "WPF automation passed for restored run $RunId, including stable-ID hash-warning navigation by Alt+O to the exact immutable duplicate-file set with group-grid focus and unchanged warning history, a real coalesced watcher burst with bounded live-state hints, durable watcher-overflow warning and one explicit bounded reconciliation batch with copy-grid focus restoration, durable non-deleting file Remove and exact-folder Keep review decisions, bounded external-modification validation with immutable history, sticky decision invalidation, fresh-choice recovery, bounded side-by-side folder location cards with stable automation and Right Arrow focus, current-page parent-grouped Explorer selection with keyboard access, aggregate success, actionable partial failure, and focus restoration, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, ordinary/long-path file reveal, and keyboard folder reveal success plus actionable missing-location failure."
     }
     catch {
         $automationFailure = $_
@@ -1532,6 +1554,9 @@ try {
     Assert-True ($warningPage.warningCount -eq $completed.warningCount) 'Warning drilldown count did not match the completed run.'
     Assert-True ($warningPage.accountedWarningCount -eq $completed.warningCount) 'Warning aggregates did not account for every completed-run warning.'
     Assert-True ($warningPage.warnings.Count -eq 1) 'Warning drilldown did not return one bounded first-page aggregate.'
+    Assert-True ($warningPage.warnings[0].category -eq 'scan' -and
+        $warningPage.warnings[0].code -eq 'hash_recoverable_warning') `
+        'The smoke warning is not the single admitted hash action family.'
     Assert-True ($warningPage.warnings[0].examples.Count -ge 1 -and $warningPage.warnings[0].examples.Count -le 3) 'Warning aggregate examples were not bounded to 1..3.'
     Assert-True (-not $warningPage.executorEnabled) 'Warning drilldown unexpectedly enabled production execution.'
     $exclusive.Dispose()
@@ -2082,7 +2107,7 @@ try {
     }
 
     if (-not $SkipWpf) {
-        Invoke-WpfAutomation $run.id
+        Invoke-WpfAutomation $run.id $warningPage.warnings[0].id
         Assert-WpfCloudFailClosedScenario $database
         $idleDatabase = Join-Path $smokeRoot 'idle-close.db'
         Assert-WpfCloseScenario 'idle connected close 1' $idleDatabase $worker $false

@@ -75,7 +75,7 @@
                             <views:RunHistoryView DataContext="{Binding History}" />
                         </TabItem>
                         <TabItem AutomationProperties.AutomationId="DuplicateFilesTab" Header="Duplicate files">
-                            <views:DuplicateFilesView DataContext="{Binding DuplicateFiles}" />
+                            <views:DuplicateFilesView x:Name="DuplicateFilesWorkspace" DataContext="{Binding DuplicateFiles}" />
                         </TabItem>
                         <TabItem AutomationProperties.AutomationId="DuplicateFoldersTab" Header="Duplicate folders">
                             <views:DuplicateFoldersView DataContext="{Binding DuplicateFolders}" />

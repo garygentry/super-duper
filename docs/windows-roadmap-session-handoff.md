@@ -18,7 +18,7 @@ active.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Accept WPM13 bounded memory` (this session's commit)
+- Latest completed slice: `Accept WPM13 action navigation` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 required fail-closed cloud safety: accepted; both unavailable opt-in policies are
@@ -35,29 +35,32 @@ active.
 - Milestone 12: bounded external deletion/modification invalidation, durable watcher-overflow
   dirty-root reconciliation, and bounded watcher-event coalescing are accepted; in-app deletion
   outcomes depend on Milestone 11 outcomes
-- Milestone 13: bounded warning drilldown and retained 100,000-aggregate memory evidence accepted;
-  action navigation and outcome audit remain
+- Milestone 13: bounded warning drilldown, retained 100,000-aggregate memory evidence, and the first
+  stable-target warning action are accepted; outcome audit remains blocked
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The latest slice accepts `WPM13-bounded-memory`. Schema-v14 warning queries now provide indexed
-server-owned Phase, Occurrence-count, and Message ordering with ID tie-breaks; opaque cursors bind
-the run and exact sort. The retained 100,000-aggregate Release fixture walked 500 pages of 200 at
-15.906 ms p95 and 4,096 bytes private growth against unchanged 100 ms/32 MiB guards without full-
-history materialization. Core caches five 25-row pages and WPF binds one virtualized page while
-preserving exact accounting/examples, restart reconstruction, immutable terminal history,
-cancellation, stale-context rejection, dispatcher responsiveness, keyboard access, and focus.
+The latest slice accepts `WPM13-action-navigation` for exactly one existing family:
+`scan/hash_recoverable_warning`. Its server-owned `runId` resolves through `run.get` to the same
+completed immutable duplicate-file set before navigation. Core/Shell cancel explicit requests,
+reject changed run/page context, and keep one missing target actionable without changing schema-v14
+accounting/examples, cursors, five-page/25-row bounds, restart reconstruction, or terminal history.
+WPF provides one aggregate-scoped automation ID, Alt+O, explicit cancellation, assertive error
+feedback, exact-action focus recovery, and group-grid focus on success.
 
-`Verify-WindowsBoundedMemory.ps1`, the full Debug/Release Rust and Windows matrices, and real non-
-mutating Debug/Release smoke prove the gate and every production lock. The gate is
-`locally_exhausted`; provider/physical-accessibility, mutation, general Activity/outcomes, broader
+`Verify-WindowsActionNavigation.ps1`, the full Debug/Release Rust and Windows matrices, and real
+non-mutating Debug/Release smoke prove the gate and every production lock. One initial verifier
+bundle is retained as failed because its Cargo filter matched zero tests; two pre-acceptance Debug
+smoke failures record the reproduced virtualized-column and fixture-family defects. The final gate
+is `locally_exhausted`; provider/physical-accessibility, mutation, general Activity/outcomes, broad
 performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance only `WPM13-action-navigation`. Add the first bounded action-navigation slice only for an
-existing event category with a stable target ID and actionable stale/missing-target handling. Do
-not add categories, outcome audit, mutation, production wiring, or later gates.
+Advance only `WPM8-representative-query-performance`, and only on the designated representative
+Windows 11 x64 machine under normal load. Run its single retained 100-sample Release profile without
+retry-only acceptance. If that machine is not available, preserve the blocker and stop; do not
+substitute a provider, physical-accessibility, mutation, outcome, broad-performance, or later gate.
 
 ## Required startup audit
 
@@ -134,15 +137,17 @@ required gates are open.
 
 ## Latest verification baseline
 
-The bounded-memory slice passed `Verify-WindowsBoundedMemory.ps1` and retained
-`artifacts/windows-bounded-memory/20260824-143725-472`. Its single Release fixture proved 100,000
-aggregates/5,050,000 occurrences over 500 pages at 15.906 ms p95 and 4,096 bytes private growth,
-with no full-history materialization. Full Debug/Release Rust passed 51 storage tests with 4
-explicit performance ignores, 32 FFI tests, and 16 worker tests. Each serialized Debug/Release
-solution passed 110 Core, 69 Infrastructure, and 3 loaded-STA tests with 5 provider/physical Shell
-tests skipped. Real Debug/Release non-mutating smoke passed stable warning paging/binding/focus and
-all prior behavior; retained fixtures end in `cf345216b63e495c80304993b147e203` (Debug) and
-`bd8a59190c714ba3a6692c1c94f78eee` (Release).
+The action-navigation slice passed `Verify-WindowsActionNavigation.ps1`; its final passing bundle is
+`artifacts/windows-action-navigation/20260824-185741-521`, while failed zero-match verifier evidence
+remains at `artifacts/windows-action-navigation/20260824-183642-262`. Focused evidence passed 1 worker protocol
+test, 12 Release Core navigation/Shell tests, and 1 loaded-STA automation/dispatcher/focus test. Full
+Debug/Release Rust passed 51 storage tests with 4 explicit performance ignores, 32 FFI tests, and
+16 worker tests. Each serialized Debug/Release solution passed 113 Core, 69 Infrastructure, and 3
+loaded-STA tests with 5 provider/physical Shell tests skipped. Real Debug/Release non-mutating smoke
+passed stable hash-warning navigation, Alt+O, exact completed-run targeting, group-grid focus,
+unchanged warning history/bounds, and all prior behavior; disposable fixtures ended in
+`a083f70cdab544e1810bc93e4fb54af3` (Debug) and `421cae07aaa7492988d9988feedcd1f1`
+(Release).
 
 The latest event-coalescing slice was verified as follows:
 
@@ -226,3 +231,4 @@ For each session:
 | 2026-08-24 | this session | Implement and accept one global 100 ms/200-path watcher-event coalescer with deterministic at-most-ten-UI-updates-per-second bounds, one read-only worker event/cache/binding/dispatcher update per batch, durable overflow fallback, stale-run rejection, accessible pending state, and real Debug/Release non-mutating burst smoke. | Advance only WPM13-warning-drilldown; preserve every accepted live-state/history/production boundary and exclude later Activity categories, mutation, and external campaigns. |
 | 2026-08-24 | this session | Implement and accept schema-v14 bounded run-warning aggregates/examples, opaque server paging, fixed Core cache, restart reconstruction, immutable terminal history, cancellation/stale rejection, and accessible Run-history drilldown/focus. | Advance only WPM13-bounded-memory; exclude new Activity categories, navigation, outcomes, mutation, and external campaigns. |
 | 2026-08-24 | this session | Implement and accept indexed stable warning sorting/keyset paging, sort-bound cursors, one retained 100,000-aggregate Release proof, fixed five-page Core caching, 25-row virtualized WPF binding, cancellation/stale rejection, dispatcher responsiveness, and keyboard/focus restoration. | Advance only WPM13-action-navigation; preserve schema-v14 accounting/examples, immutable history, every production lock, and all excluded campaigns. |
+| 2026-08-24 | this session | Implement and accept the single existing completed-run hash-warning action with stable run-ID resolution, exact immutable duplicate-set navigation, cancellation/stale-context rejection, actionable missing-target feedback, Alt+O/automation, and focus restoration without changing bounded warning history or production locks. | Advance only WPM8-representative-query-performance on the designated representative Windows 11 x64 machine; otherwise preserve that blocker and stop. |

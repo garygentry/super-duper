@@ -625,6 +625,7 @@ public sealed class WpfSurfaceSmokeTests
                 warningGrid.Columns.Single(column => Equals(column.Header, "Count")).SortDirection);
             Assert.IsFalse(warningGrid.Columns.Single(
                 column => Equals(column.Header, "Representative examples")).CanUserSort);
+            Assert.IsFalse(warningGrid.Columns.Single(column => Equals(column.Header, "Action")).CanUserSort);
             Assert.AreEqual(
                 "Load the next bounded warning aggregate page",
                 AutomationProperties.GetName(FindByAutomationId<Button>(history, "NextRunWarningPage")));
@@ -634,7 +635,32 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 "Close run warning details and return to run history",
                 AutomationProperties.GetName(FindByAutomationId<Button>(history, "CloseRunWarnings")));
-            warningGrid.ItemsSource = Enumerable.Range(1, RunHistoryViewModel.WarningPageSize).ToArray();
+            Assert.AreEqual(
+                "Cancel opening immutable duplicate-file results",
+                AutomationProperties.GetName(FindByAutomationId<Button>(history, "CancelRunWarningNavigation")));
+            var hashWarning = new WorkerRunWarningAggregate(
+                811,
+                19,
+                "hashing",
+                "scan",
+                RunHistoryViewModel.HashWarningCode,
+                "warning",
+                "Some candidate files could not be hashed.",
+                1,
+                ["bounded example"]);
+            warningGrid.ItemsSource = new[] { hashWarning }
+                .Concat(Enumerable.Range(1, RunHistoryViewModel.WarningPageSize - 1)
+                    .Select(id => new WorkerRunWarningAggregate(
+                        811 + id,
+                        19,
+                        "hashing",
+                        "scan",
+                        $"non-actionable-{id}",
+                        "warning",
+                        $"Warning {id}",
+                        1,
+                        [$"Example {id}"])))
+                .ToArray();
             var historyGrid = FindByAutomationId<DataGrid>(history, "RunHistoryGrid");
             historyGrid.ItemsSource = new[] { "completed run" };
             historyGrid.SelectedIndex = 0;
@@ -642,6 +668,25 @@ public sealed class WpfSurfaceSmokeTests
             historyFocusHost.Show();
             historyFocusHost.Activate();
             DrainDispatcher();
+            var dispatcherResponsive = false;
+            _ = history.Dispatcher.BeginInvoke(
+                () => dispatcherResponsive = true,
+                DispatcherPriority.Input);
+            var warningActionFocus = history.RestoreWarningActionFocusAsync(hashWarning.Id);
+            while (!warningActionFocus.IsCompleted)
+            {
+                DrainDispatcher();
+            }
+            Assert.IsTrue(warningActionFocus.GetAwaiter().GetResult());
+            var hashAction = Keyboard.FocusedElement as Button;
+            Assert.IsNotNull(hashAction);
+            Assert.AreEqual("RunWarningHashResults-811", AutomationProperties.GetAutomationId(hashAction));
+            Assert.AreEqual(
+                "Open immutable duplicate-file results for this hash warning",
+                AutomationProperties.GetName(hashAction));
+            Assert.AreEqual("_Open duplicate results", hashAction.Content);
+            Assert.IsTrue(hashAction.IsKeyboardFocused);
+            Assert.IsTrue(dispatcherResponsive, "Warning action focus starved a queued dispatcher input callback.");
             var historyFocus = history.RestoreHistoryGridFocusAsync();
             while (!historyFocus.IsCompleted)
             {

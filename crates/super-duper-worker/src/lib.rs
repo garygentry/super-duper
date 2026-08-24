@@ -9975,15 +9975,15 @@ mod tests {
             run_id,
             &[
                 RunWarningAggregateInsert {
-                    phase: "discovering".into(),
+                    phase: "hashing".into(),
                     category: "scan".into(),
-                    code: "one".into(),
+                    code: "hash_recoverable_warning".into(),
                     message: "First aggregate".into(),
                     occurrence_count: 5,
                     examples: vec!["example one".into()],
                 },
                 RunWarningAggregateInsert {
-                    phase: "hashing".into(),
+                    phase: "persisting".into(),
                     category: "scan".into(),
                     code: "two".into(),
                     message: "Second aggregate".into(),
@@ -10011,7 +10011,12 @@ mod tests {
         assert_eq!(first["result"]["accountedWarningCount"], 8);
         assert_eq!(first["result"]["total"], 2);
         assert_eq!(first["result"]["warnings"].as_array().unwrap().len(), 1);
-        assert_eq!(first["result"]["warnings"][0]["code"], "one");
+        assert_eq!(first["result"]["warnings"][0]["runId"], run_id);
+        assert_eq!(first["result"]["warnings"][0]["category"], "scan");
+        assert_eq!(
+            first["result"]["warnings"][0]["code"],
+            "hash_recoverable_warning"
+        );
         assert_eq!(first["result"]["executorEnabled"], false);
         let cursor = first["result"]["nextCursor"].as_str().unwrap();
         let next_request = json!({

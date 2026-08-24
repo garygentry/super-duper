@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -49,7 +50,54 @@ public partial class RunHistoryView : UserControl
             {
                 _ = RestoreHistoryGridFocusAsync();
             }
+            else if (viewModel.FocusTarget.StartsWith("warning-action:", StringComparison.Ordinal)
+                && long.TryParse(viewModel.FocusTarget["warning-action:".Length..], out var warningId))
+            {
+                _ = RestoreWarningActionFocusAsync(warningId);
+            }
         });
+    }
+
+    internal async Task<bool> RestoreWarningActionFocusAsync(long warningId)
+    {
+        for (var attempt = 0; attempt < FocusAttemptLimit; attempt++)
+        {
+            if (await Dispatcher.InvokeAsync(
+                    () => RestoreWarningActionFocus(warningId),
+                    DispatcherPriority.Background))
+            {
+                return true;
+            }
+            await Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
+        }
+        return false;
+    }
+
+    internal bool RestoreWarningActionFocus(long warningId)
+    {
+        var warning = RunWarningGrid.Items
+            .OfType<WorkerRunWarningAggregate>()
+            .FirstOrDefault(item => item.Id == warningId);
+        if (warning is null)
+        {
+            return false;
+        }
+        RunWarningGrid.ScrollIntoView(warning);
+        if (RunWarningGrid.Columns.FirstOrDefault(column => Equals(column.Header, "Action")) is { } actionColumn)
+        {
+            RunWarningGrid.CurrentCell = new DataGridCellInfo(warning, actionColumn);
+            RunWarningGrid.ScrollIntoView(warning, actionColumn);
+        }
+        RunWarningGrid.UpdateLayout();
+        if (RunWarningGrid.ItemContainerGenerator.ContainerFromItem(warning) is not DataGridRow row)
+        {
+            return false;
+        }
+        var automationId = $"RunWarningHashResults-{warningId}";
+        var action = FindVisualDescendant<Button>(
+            row,
+            button => AutomationProperties.GetAutomationId(button) == automationId);
+        return action is not null && action.Focus();
     }
 
     internal async Task<bool> RestoreHistoryGridFocusAsync()
@@ -102,6 +150,24 @@ public partial class RunHistoryView : UserControl
             if (current is T match)
             {
                 return match;
+            }
+        }
+        return null;
+    }
+
+    private static T? FindVisualDescendant<T>(DependencyObject parent, Func<T, bool> predicate)
+        where T : DependencyObject
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, index);
+            if (child is T match && predicate(match))
+            {
+                return match;
+            }
+            if (FindVisualDescendant(child, predicate) is { } descendant)
+            {
+                return descendant;
             }
         }
         return null;

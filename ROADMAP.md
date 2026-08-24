@@ -137,7 +137,10 @@ watcher failure to the durable dirty-root fallback. Schema v14 now accounts for 
 warning through immutable bounded aggregates with at most three examples, opaque sort-bound worker
 paging, and an accessible cancellable Run-history drilldown that reconstructs after restart. A
 retained 100,000-aggregate Release fixture accepts the unchanged query/memory guards while Core
-caches only five pages and WPF binds only the current virtualized page. In-app outcome reconciliation and historical
+caches only five pages and WPF binds only the current virtualized page. The existing
+`scan/hash_recoverable_warning` family now resolves its stable run ID before opening that completed
+run's immutable duplicate-file set, with cancellable stale-context rejection and actionable missing-
+target feedback. In-app outcome reconciliation and historical
 cross-overlay closure remain separate gates. Milestone 11's
 revision-bound Recycle Bin operation contract, strictly non-mutating durable foundation, separately
 gated native executor, and acceptance evidence tooling are implemented.

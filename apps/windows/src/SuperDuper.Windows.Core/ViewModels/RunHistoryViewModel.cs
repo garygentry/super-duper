@@ -8,9 +8,11 @@ namespace SuperDuper.Windows.Core.ViewModels;
 public sealed class RunHistoryViewModel : ObservableObject, IDisposable
 {
     private const int PageSize = 500;
+    public const string HashWarningCode = "hash_recoverable_warning";
     public const int WarningPageSize = 25;
     public const int WarningCachePageLimit = 5;
     private readonly IWorkerClient _workerClient;
+    private readonly Func<WorkerRun, CancellationToken, Task>? _navigateToDuplicateSet;
     private long? _sessionId;
     private RunListItemViewModel? _selectedRun;
     private bool _isLoading;
@@ -21,6 +23,10 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
     private bool _isWarningLoading;
     private string? _warningErrorMessage;
     private string? _warningStatusMessage;
+    private CancellationTokenSource? _warningNavigationCancellation;
+    private long _warningNavigationGeneration;
+    private bool _isWarningNavigationPending;
+    private long _warningErrorAnnouncementVersion;
     private string? _nextWarningCursor;
     private long _warningAnnouncementVersion;
     private string _focusTarget = string.Empty;
@@ -30,13 +36,22 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
     private readonly Dictionary<string, WorkerRunWarningPage> _warningCache = [];
     private readonly Queue<string> _warningCacheOrder = [];
 
-    public RunHistoryViewModel(IWorkerClient workerClient)
+    public RunHistoryViewModel(
+        IWorkerClient workerClient,
+        Func<WorkerRun, CancellationToken, Task>? navigateToDuplicateSet = null)
     {
         _workerClient = workerClient;
+        _navigateToDuplicateSet = navigateToDuplicateSet;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => SessionId is not null && !IsLoading);
         OpenWarningsCommand = new AsyncRelayCommand(OpenWarningsAsync, () => CanOpenWarnings);
         NextWarningPageCommand = new AsyncRelayCommand(NextWarningPageAsync, () => CanLoadNextWarningPage);
         CancelWarningLoadCommand = new RelayCommand(CancelWarningLoad, () => IsWarningLoading);
+        NavigateWarningCommand = new AsyncRelayCommand<WorkerRunWarningAggregate>(
+            NavigateWarningAsync,
+            CanNavigateWarning);
+        CancelWarningNavigationCommand = new RelayCommand(
+            CancelWarningNavigation,
+            () => IsWarningNavigationPending);
         CloseWarningsCommand = new RelayCommand(CloseWarnings, () => IsWarningDrilldownOpen);
     }
 
@@ -110,6 +125,7 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(CanOpenWarnings));
                 OpenWarningsCommand.NotifyCanExecuteChanged();
                 CloseWarningsCommand.NotifyCanExecuteChanged();
+                NavigateWarningCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -144,6 +160,19 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
 
     public bool HasWarningError => !string.IsNullOrWhiteSpace(WarningErrorMessage);
 
+    public bool IsWarningNavigationPending
+    {
+        get => _isWarningNavigationPending;
+        private set
+        {
+            if (SetProperty(ref _isWarningNavigationPending, value))
+            {
+                NavigateWarningCommand.NotifyCanExecuteChanged();
+                CancelWarningNavigationCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
     public bool CanOpenWarnings => SelectedRun?.Run.WarningCount > 0 && !IsWarningLoading && !IsWarningDrilldownOpen;
 
     public bool CanLoadNextWarningPage => IsWarningDrilldownOpen && !IsWarningLoading && _nextWarningCursor is not null;
@@ -158,6 +187,12 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         private set => SetProperty(ref _warningAnnouncementVersion, value);
     }
 
+    public long WarningErrorAnnouncementVersion
+    {
+        get => _warningErrorAnnouncementVersion;
+        private set => SetProperty(ref _warningErrorAnnouncementVersion, value);
+    }
+
     public string FocusTarget { get => _focusTarget; private set => SetProperty(ref _focusTarget, value); }
 
     public long FocusRequestVersion { get => _focusRequestVersion; private set => SetProperty(ref _focusRequestVersion, value); }
@@ -169,6 +204,10 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
     public IAsyncRelayCommand NextWarningPageCommand { get; }
 
     public IRelayCommand CancelWarningLoadCommand { get; }
+
+    public IAsyncRelayCommand<WorkerRunWarningAggregate> NavigateWarningCommand { get; }
+
+    public IRelayCommand CancelWarningNavigationCommand { get; }
 
     public IRelayCommand CloseWarningsCommand { get; }
 
@@ -238,6 +277,7 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
             return;
         }
         _warningCancellation?.Cancel();
+        CancelWarningNavigation(clearFeedback: true);
         _warningSortField = field;
         _warningSortDirection = direction;
         OnPropertyChanged(nameof(WarningSortField));
@@ -267,6 +307,7 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         {
             item.Update(run);
         }
+        NavigateWarningCommand.NotifyCanExecuteChanged();
         if (select)
         {
             SelectedRun = item;
@@ -292,6 +333,7 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
             return;
         }
         _warningCancellation?.Cancel();
+        CancelWarningNavigation(clearFeedback: true);
         _warningCancellation?.Dispose();
         _warningCancellation = new CancellationTokenSource();
         var token = _warningCancellation.Token;
@@ -330,6 +372,7 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
             {
                 Warnings.Add(warning);
             }
+            NavigateWarningCommand.NotifyCanExecuteChanged();
             _nextWarningCursor = page.NextCursor;
             IsWarningDrilldownOpen = true;
             WarningStatusMessage = page.Total == 0
@@ -371,10 +414,125 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
 
     private void CancelWarningLoad() => _warningCancellation?.Cancel();
 
+    private bool CanNavigateWarning(WorkerRunWarningAggregate? warning) =>
+        _navigateToDuplicateSet is not null
+        && IsWarningDrilldownOpen
+        && !IsWarningNavigationPending
+        && warning is not null
+        && warning.Category == "scan"
+        && warning.Code == HashWarningCode
+        && SelectedRun?.Run.Status == "completed"
+        && SelectedRun?.Id == warning.RunId
+        && Warnings.Any(current => current.Id == warning.Id && current.RunId == warning.RunId);
+
+    private async Task NavigateWarningAsync(WorkerRunWarningAggregate? warning)
+    {
+        if (warning is null || !CanNavigateWarning(warning) || SelectedRun?.Run is not { } selectedRun)
+        {
+            return;
+        }
+
+        _warningNavigationCancellation?.Cancel();
+        _warningNavigationCancellation?.Dispose();
+        _warningNavigationCancellation = new CancellationTokenSource();
+        var token = _warningNavigationCancellation.Token;
+        var generation = ++_warningNavigationGeneration;
+        var warningId = warning.Id;
+        var runId = warning.RunId;
+        IsWarningNavigationPending = true;
+        WarningErrorMessage = null;
+        WarningStatusMessage = $"Opening immutable duplicate-file results for run {runId:N0}…";
+        WarningAnnouncementVersion++;
+
+        try
+        {
+            var target = await _workerClient.GetRunAsync(runId, token);
+            if (target.Id != runId
+                || target.SessionId != selectedRun.SessionId
+                || target.Status != "completed")
+            {
+                throw new InvalidOperationException(
+                    "The warning target is not an immutable result set owned by the selected run.");
+            }
+            if (!IsCurrentWarningNavigation(generation, warningId, runId, token))
+            {
+                return;
+            }
+
+            await _navigateToDuplicateSet!(target, token);
+            if (!IsCurrentWarningNavigation(generation, warningId, runId, token))
+            {
+                return;
+            }
+
+            WarningStatusMessage =
+                $"Opened immutable duplicate-file results for run {runId:N0}. Persisted warning history was not changed.";
+            WarningAnnouncementVersion++;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception) when (IsCurrentWarningNavigation(generation, warningId, runId, token))
+        {
+            WarningErrorMessage =
+                $"The immutable duplicate-file results for run {runId:N0} are unavailable. " +
+                $"Refresh run history before trying this warning again. {exception.Message}";
+            WarningErrorAnnouncementVersion++;
+            RequestFocus($"warning-action:{warningId}");
+        }
+        finally
+        {
+            if (generation == _warningNavigationGeneration)
+            {
+                IsWarningNavigationPending = false;
+            }
+        }
+    }
+
+    private bool IsCurrentWarningNavigation(
+        long generation,
+        long warningId,
+        long runId,
+        CancellationToken token) =>
+        !token.IsCancellationRequested
+        && generation == _warningNavigationGeneration
+        && IsWarningDrilldownOpen
+        && SelectedRun?.Id == runId
+        && Warnings.Any(warning => warning.Id == warningId && warning.RunId == runId);
+
+    private void CancelWarningNavigation() => CancelWarningNavigation(clearFeedback: false);
+
+    private void CancelWarningNavigation(bool clearFeedback)
+    {
+        var warningId = Warnings.FirstOrDefault(warning =>
+            warning.Category == "scan" && warning.Code == HashWarningCode)?.Id;
+        var wasPending = IsWarningNavigationPending;
+        _warningNavigationCancellation?.Cancel();
+        _warningNavigationCancellation?.Dispose();
+        _warningNavigationCancellation = null;
+        _warningNavigationGeneration++;
+        IsWarningNavigationPending = false;
+        if (clearFeedback)
+        {
+            WarningErrorMessage = null;
+            return;
+        }
+        if (wasPending)
+        {
+            WarningStatusMessage = "Warning navigation was cancelled. Persisted warning history was not changed.";
+            WarningAnnouncementVersion++;
+            if (warningId is long id)
+            {
+                RequestFocus($"warning-action:{id}");
+            }
+        }
+    }
+
     private void CloseWarnings() => CloseWarnings(restoreFocus: true);
 
     private void CloseWarnings(bool restoreFocus)
     {
+        CancelWarningNavigation(clearFeedback: true);
         _warningCancellation?.Cancel();
         _warningCancellation?.Dispose();
         _warningCancellation = null;
@@ -385,6 +543,7 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         WarningStatusMessage = null;
         _nextWarningCursor = null;
         Warnings.Clear();
+        NavigateWarningCommand.NotifyCanExecuteChanged();
         _warningCache.Clear();
         _warningCacheOrder.Clear();
         if (restoreFocus) RequestFocus("history");

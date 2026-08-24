@@ -57,7 +57,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             sessionId => Sessions.NamesExcept(sessionId),
             cloudLocations);
         Progress = new ScanProgressViewModel(workerClient, dispatcher);
-        History = new RunHistoryViewModel(workerClient);
+        History = new RunHistoryViewModel(workerClient, NavigateToWarningDuplicateSetAsync);
         DuplicateFiles = new DuplicateFilesViewModel(workerClient, clipboard, explorer);
         DuplicateFolders = new DuplicateFoldersViewModel(workerClient, clipboard, explorer);
         Preflight = new PreflightViewModel(
@@ -422,6 +422,32 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         FocusTarget = "start-scan";
         FocusRequestVersion++;
         return Task.CompletedTask;
+    }
+
+    private async Task NavigateToWarningDuplicateSetAsync(
+        WorkerRun target,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (History.SelectedRun?.Id != target.Id || History.SessionId != target.SessionId)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new InvalidOperationException("The warning run is no longer the selected history context.");
+        }
+        if (DuplicateFiles.Run?.Id != target.Id)
+        {
+            await DuplicateFiles.ShowRunAsync(target, cancellationToken);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        if (History.SelectedRun?.Id != target.Id || DuplicateFiles.Run?.Id != target.Id)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new InvalidOperationException("The immutable duplicate-file target did not remain selected.");
+        }
+
+        SelectedTabIndex = 3;
+        FocusTarget = "duplicate-file-groups";
+        FocusRequestVersion++;
     }
 
     private async Task SelectSessionAsync(

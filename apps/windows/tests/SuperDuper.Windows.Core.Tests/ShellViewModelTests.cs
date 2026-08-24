@@ -109,6 +109,39 @@ public sealed class ShellViewModelTests
     }
 
     [TestMethod]
+    public async Task HashWarningActionOpensItsImmutableDuplicateSetAndRequestsGroupFocus()
+    {
+        var client = new TestWorkerClient();
+        var session = client.AddSession("Warning target", @"C:\Data");
+        var run = client.AddRun(session.Id, "completed") with { WarningCount = 1 };
+        client.Runs[0] = run;
+        var warning = new WorkerRunWarningAggregate(
+            91,
+            run.Id,
+            "hashing",
+            "scan",
+            RunHistoryViewModel.HashWarningCode,
+            "warning",
+            "Some candidate files could not be hashed.",
+            1,
+            ["bounded example"]);
+        client.RunWarningsHandler = (_, _) => Task.FromResult(
+            new WorkerRunWarningPage([warning], 1, 1, 1, null, false));
+        using var viewModel = CreateViewModel(client);
+        await viewModel.InitializeAsync();
+        viewModel.SelectedTabIndex = 2;
+        await viewModel.History.OpenWarningsCommand.ExecuteAsync(null);
+
+        await viewModel.History.NavigateWarningCommand.ExecuteAsync(warning);
+
+        Assert.AreEqual(3, viewModel.SelectedTabIndex);
+        Assert.AreEqual(run.Id, viewModel.DuplicateFiles.Run?.Id);
+        Assert.AreEqual("duplicate-file-groups", viewModel.FocusTarget);
+        Assert.IsTrue(viewModel.FocusRequestVersion > 0);
+        Assert.AreEqual(1, viewModel.History.Warnings.Count);
+    }
+
+    [TestMethod]
     public async Task OneCoalescedWorkerFrameProducesOneDispatcherUpdate()
     {
         var client = new TestWorkerClient

@@ -355,6 +355,14 @@ retained. Rows are immutable after the run becomes terminal, paging performs no 
 and a cursor is bound to its exact run, sort field, and direction. Every order uses aggregate ID as
 the stable final tie-breaker. Reuse with another run or sort returns `invalid_cursor`.
 
+The Windows client exposes one bounded action family: a completed-run
+`scan/hash_recoverable_warning` may open the immutable duplicate-file set identified by that row's
+server-owned `runId`. Before changing workspace context, the client resolves the ID with `run.get`
+and requires the same completed run/session. A missing target produces actionable refresh guidance;
+cancellation or a changed run/page rejects the late resolution. This is client navigation only:
+`warning.page` remains read-only, the aggregate remains immutable, and no other warning code infers
+a target from message text, examples, or paths.
+
 ## Run Events and Ordering
 
 The implemented lifecycle events are `run.started`, `run.progress`, `run.completed`,

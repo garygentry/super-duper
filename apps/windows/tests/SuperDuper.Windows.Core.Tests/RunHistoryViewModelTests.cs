@@ -109,4 +109,118 @@ public sealed class RunHistoryViewModelTests
         Assert.IsTrue(viewModel.HasWarningError);
         StringAssert.Contains(viewModel.WarningErrorMessage, "unsafe");
     }
+
+    [TestMethod]
+    public async Task HashWarningNavigatesByStableRunIdAndReportsOneMissingTargetActionably()
+    {
+        var run = TestWorkerClient.CreateRun(7, 3, "completed", "finalizing", DateTimeOffset.UtcNow) with
+        {
+            WarningCount = 1,
+        };
+        var warning = new WorkerRunWarningAggregate(
+            41,
+            run.Id,
+            "hashing",
+            "scan",
+            RunHistoryViewModel.HashWarningCode,
+            "warning",
+            "Some candidate files could not be hashed.",
+            1,
+            ["bounded example"]);
+        var worker = new TestWorkerClient();
+        worker.Runs.Add(run);
+        worker.RunWarningsHandler = (_, _) => Task.FromResult(
+            new WorkerRunWarningPage([warning], 1, 1, 1, null, false));
+        WorkerRun? navigatedTarget = null;
+        using var viewModel = new RunHistoryViewModel(
+            worker,
+            (target, _) =>
+            {
+                navigatedTarget = target;
+                return Task.CompletedTask;
+            });
+        await viewModel.LoadAsync(3);
+        await viewModel.OpenWarningsCommand.ExecuteAsync(null);
+
+        await viewModel.NavigateWarningCommand.ExecuteAsync(warning);
+
+        Assert.AreEqual(run.Id, navigatedTarget?.Id);
+        StringAssert.Contains(viewModel.WarningStatusMessage, "Opened immutable duplicate-file results");
+        Assert.IsFalse(viewModel.HasWarningError);
+        Assert.AreEqual(1, viewModel.Warnings.Count, "Navigation changed the bounded warning page.");
+
+        worker.GetRunHandler = (_, _) => Task.FromException<WorkerRun>(
+            new InvalidOperationException("run_not_found"));
+        await viewModel.NavigateWarningCommand.ExecuteAsync(warning);
+
+        Assert.IsTrue(viewModel.HasWarningError);
+        StringAssert.Contains(viewModel.WarningErrorMessage, "unavailable");
+        StringAssert.Contains(viewModel.WarningErrorMessage, "Refresh run history");
+        Assert.AreEqual("warning-action:41", viewModel.FocusTarget);
+        Assert.AreEqual(1, viewModel.Warnings.Count, "Missing-target handling changed immutable history.");
+    }
+
+    [TestMethod]
+    public async Task HashWarningNavigationCancelsAndRejectsLateOldRunContext()
+    {
+        var current = TestWorkerClient.CreateRun(8, 3, "completed", "finalizing", DateTimeOffset.UtcNow) with
+        {
+            WarningCount = 1,
+        };
+        var older = TestWorkerClient.CreateRun(7, 3, "completed", "finalizing", DateTimeOffset.UtcNow.AddMinutes(-1));
+        var warning = new WorkerRunWarningAggregate(
+            42,
+            current.Id,
+            "hashing",
+            "scan",
+            RunHistoryViewModel.HashWarningCode,
+            "warning",
+            "Some candidate files could not be hashed.",
+            1,
+            ["bounded example"]);
+        var worker = new TestWorkerClient();
+        worker.Runs.Add(current);
+        worker.Runs.Add(older);
+        worker.RunWarningsHandler = (_, _) => Task.FromResult(
+            new WorkerRunWarningPage([warning], 1, 1, 1, null, false));
+        var firstResolution = new TaskCompletionSource<WorkerRun>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken firstToken = default;
+        worker.GetRunHandler = (_, token) =>
+        {
+            firstToken = token;
+            return firstResolution.Task;
+        };
+        var navigationCount = 0;
+        using var viewModel = new RunHistoryViewModel(
+            worker,
+            (_, _) =>
+            {
+                navigationCount++;
+                return Task.CompletedTask;
+            });
+        await viewModel.LoadAsync(3);
+        await viewModel.OpenWarningsCommand.ExecuteAsync(null);
+
+        var cancelled = viewModel.NavigateWarningCommand.ExecuteAsync(warning);
+        viewModel.CancelWarningNavigationCommand.Execute(null);
+        firstResolution.SetResult(current);
+        await cancelled;
+
+        Assert.IsTrue(firstToken.IsCancellationRequested);
+        Assert.AreEqual(0, navigationCount);
+        StringAssert.Contains(viewModel.WarningStatusMessage, "cancelled");
+        Assert.AreEqual("warning-action:42", viewModel.FocusTarget);
+
+        var staleResolution = new TaskCompletionSource<WorkerRun>(TaskCreationOptions.RunContinuationsAsynchronously);
+        worker.GetRunHandler = (_, _) => staleResolution.Task;
+        var stale = viewModel.NavigateWarningCommand.ExecuteAsync(warning);
+        viewModel.SelectedRun = viewModel.Runs.Single(item => item.Id == older.Id);
+        staleResolution.SetResult(current);
+        await stale;
+
+        Assert.AreEqual(0, navigationCount);
+        Assert.IsFalse(viewModel.IsWarningDrilldownOpen);
+        Assert.IsFalse(viewModel.HasWarningError);
+        Assert.AreEqual(0, viewModel.Warnings.Count);
+    }
 }

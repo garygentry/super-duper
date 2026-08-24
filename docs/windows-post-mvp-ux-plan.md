@@ -3868,10 +3868,10 @@ gate.
 
 ### Milestone 13 - Activity and Issues Workspace
 
-Status: The bounded run-warning drilldown foundation is accepted. Run-exclusion rows, warning
-aggregates, and durable operation records are source-data hooks, not a general Activity workspace.
-Bounded large-history evidence can advance next; navigation and deletion/reconciliation audit remain
-separate or blocked gates.
+Status: The bounded run-warning drilldown, large-history memory, and first stable-target action are
+accepted. Run-exclusion rows, warning aggregates, and durable operation records are source-data
+hooks, not a general Activity workspace. Deletion/reconciliation audit remains a separate blocked
+gate.
 
 #### User outcome
 
@@ -3980,6 +3980,28 @@ smoke preserve schema-v14 accounting/examples and every execution lock. Provider
 accessibility, mutation, outcome, unrelated Activity, broader performance, and later-gate campaigns
 were deliberately skipped. The next authorized gate is `WPM13-action-navigation`.
 
+#### Action-navigation acceptance result (2026-08-24)
+
+`WPM13-action-navigation` is accepted and `locally_exhausted`. The single admitted action family is
+the existing completed-run `scan/hash_recoverable_warning`; its persisted `runId` is the stable
+identity of the immutable duplicate-file set. Core resolves that exact run before navigation,
+requires completed run/session ownership, cancels explicit requests, rejects changed run/page
+context, and reports one bounded missing target with refresh guidance without changing the warning
+page, cache, cursor, accounting, examples, or terminal history. No action is inferred from a path,
+message, example, or warning family lacking stable identity.
+
+WPF exposes one aggregate-scoped automation ID, Alt+O access, explicit cancellation, assertive
+missing-target feedback, exact-action focus recovery, and duplicate-set grid focus on success.
+`Verify-WindowsActionNavigation.ps1`, focused protocol/Core/loaded-WPF tests, full Debug/Release Rust
+and Windows matrices, and real non-mutating Debug/Release smoke passed. The final verifier bundle is
+`artifacts/windows-action-navigation/20260824-185741-521`; the first zero-Cargo-match bundle remains
+marked failed at `artifacts/windows-action-navigation/20260824-183642-262`, and both pre-acceptance
+Debug smoke failures are recorded here as diagnostic evidence. Only the reproduced verifier filter,
+virtualized action-column discoverability, and actual fixture-family binding were corrected. Provider, physical-accessibility, mutation,
+outcome audit, broad-performance, and later-gate campaigns were deliberately skipped. The next
+authorized gate is `WPM8-representative-query-performance`, contingent on the designated
+representative Windows 11 x64 machine.
+
 ### Milestone 14 - UX and Scale Hardening
 
 Status: Planned. The four acceptance criteria and the additional required accessibility and query-
@@ -4065,12 +4087,14 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance only `WPM13-action-navigation`. Add the first bounded navigation slice only for an existing
-event category with a stable target ID, including actionable stale/missing-target handling. Do not
-add warning categories, outcome audit, mutation, production wiring, or later gates.
+Advance only `WPM8-representative-query-performance`, and only on the designated representative
+Windows 11 x64 machine under normal load. Run the single retained 100-sample Release profile without
+retry-only acceptance. If the designated machine is unavailable, preserve the blocker and stop; do
+not substitute a provider, physical-accessibility, mutation, outcome, broad-performance, or later
+gate.
 
-Verifier: focused protocol/Core/loaded-STA and real non-mutating smoke proves the exposed action
-reaches its immutable or working target and rejects stale or missing targets actionably.
+Verifier: the retained artifact contains all 100 samples and host context; every result, root-facet,
+drive-facet, plan, and review-group p95 meets the unchanged 100 ms target on that machine.
 
 ## Milestone Definition Template
 
@@ -4169,3 +4193,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-24 | Implemented and accepted one global 100 ms watcher-event coalescer with 200-path batches, deterministic at-most-ten-UI-updates-per-second bounds, one read-only worker event/cache/binding/dispatcher update per batch, durable overflow fallback, stale-run rejection, accessible pending state, and real Debug/Release non-mutating burst smoke. | Record WPM12-event-coalescing `locally_exhausted`; preserve schema-v12/v13 authority, immutable history, every production lock, and the excluded campaigns. Authorize only WPM13-warning-drilldown next. |
 | 2026-08-24 | Implemented and accepted schema-v14 bounded run-warning aggregates/examples, opaque `warning.page` paging, restart reconstruction, immutable terminal history, and the accessible cancellable Run-history drilldown with stale-context rejection and focus restoration. | Record WPM13-warning-drilldown `locally_exhausted`; preserve every production lock and exclude general Activity/navigation/outcomes. Authorize only WPM13-bounded-memory next. |
 | 2026-08-24 | Implemented and accepted indexed stable warning sorting/keyset paging, sort-bound cursors, one retained 100,000-aggregate Release proof, fixed five-page Core caching, 25-row virtualized WPF binding, cancellation/stale rejection, dispatcher responsiveness, and keyboard/focus restoration. | Record WPM13-bounded-memory `locally_exhausted`; preserve schema-v14 exact accounting/examples, immutable history, and every production lock. Authorize only WPM13-action-navigation next. |
+| 2026-08-24 | Implemented and accepted the single existing completed-run `scan/hash_recoverable_warning` action with exact stable-run resolution, immutable duplicate-set navigation, cancellation/stale-context rejection, actionable missing-target handling, Alt+O/automation, dispatcher responsiveness, and focus restoration. | Record WPM13-action-navigation `locally_exhausted`; preserve schema-v14 accounting/examples, paging/cache/binding bounds, immutable history, and every production lock. Authorize only WPM8-representative-query-performance on its designated representative machine; otherwise stop at that blocker. |

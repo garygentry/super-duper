@@ -155,7 +155,10 @@ The script prints `Windows smoke passed`. It first proves the locked-file warnin
 accounted for by bounded `warning.page` aggregates with one to three examples, survives worker
 restart, remains `executorEnabled:false`, and opens from Run history through an accessible WPF
 drilldown whose server-owned count ordering is exposed accessibly, whose virtualized grid binds only
-the current bounded page, and whose close action restores history-grid focus. The automation harness
+the current bounded page, and whose close action restores history-grid focus. For the existing
+hash-warning family only, the real WPF pass uses Alt+O on the aggregate-scoped action, resolves the
+server-owned run ID, opens that completed run's immutable duplicate-file set, verifies group-grid
+focus, and returns to unchanged warning history. The automation harness
 reacquires stable automation IDs before keyboard focus and foregrounds only its disposable WPF
 window. It sends one deterministic bounded worker hint frame with
 an aggregate count of 1,000, and the real WPF pass rapidly rewrites one disposable non-result file
@@ -175,7 +178,10 @@ If UI Automation is blocked by a locked session, elevation boundary, or headless
 `-SkipWpf`, then perform the WPF portion manually on an interactive Windows 11 desktop:
 
 1. Select `Milestone 6 Smoke` and its completed run; confirm the cancelled run is also in history.
-2. Open Duplicate Files, sort Group size, choose Next, filter for `group010`, select a group, and
+2. In Run history, open warnings. On the hash warning, choose **Open duplicate results** (Alt+O),
+   confirm Duplicate files opens for the same completed run with focus in the set grid, then return
+   to Run history and confirm the warning remains unchanged. Open Duplicate Files, sort Group size,
+   choose Next, filter for `group010`, select a group, and
    confirm the filtered summary and selected-root/drive detail. Use Next set and Previous set and
    confirm keyboard focus returns to the selected group row. Apply `1 GB or larger` and confirm
    the small fixture is empty, then clear it. Apply `Three or more copies`, then clear it. Filter
