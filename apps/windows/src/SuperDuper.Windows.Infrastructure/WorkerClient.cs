@@ -490,6 +490,25 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
             cancellationToken);
     }
 
+    public Task<WorkerReviewLiveValidationResult> ValidateReviewFilesAsync(
+        ReviewLiveValidationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return InvokeAsync<WorkerReviewLiveValidationResult>(
+            "review_live_validation.run",
+            new
+            {
+                operationId = request.OperationId,
+                runId = request.RunId,
+                groupId = request.GroupId,
+                expectedReviewRevision = request.ExpectedReviewRevision,
+                scope = request.Scope,
+                fileIds = request.FileIds,
+            },
+            cancellationToken);
+    }
+
     public Task<WorkerReviewFolderGroupPage> GetReviewFolderGroupsAsync(
         long runId,
         int pageSize,

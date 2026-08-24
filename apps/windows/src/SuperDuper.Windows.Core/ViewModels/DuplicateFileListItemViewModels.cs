@@ -111,6 +111,36 @@ public sealed class DuplicateFileMemberListItemViewModel(WorkerDuplicateFileMemb
         _ => "Undecided",
     };
 
+    public string LiveState => Member.ValidationState switch
+    {
+        "present" when Member.InvalidatedDecision is not null =>
+            $"Present; {DecisionLabel(Member.InvalidatedDecision)} decision remains invalidated until reviewed again",
+        "present" => "Present; matches scan metadata",
+        "missing" => $"Missing{InvalidatedSuffix}",
+        "changed" => $"Changed since scan{InvalidatedSuffix}",
+        "unavailable" => "Unavailable; decision retained until validation can complete",
+        _ => "Not validated in this working view",
+    };
+
+    public string LiveStateAutomationName =>
+        $"Working file state for {Path}: {LiveState}. Immutable scan result unchanged.";
+
+    public bool CanRecordCurrentDecision =>
+        Member.ValidationState is null or "present";
+
+    public bool CanClearDecision => Member.Decision != "undecided" || Member.InvalidatedDecision is not null;
+
+    private string InvalidatedSuffix => Member.InvalidatedDecision is { } decision
+        ? $"; prior {DecisionLabel(decision)} decision invalidated"
+        : string.Empty;
+
+    private static string DecisionLabel(string decision) => decision switch
+    {
+        "keep" => "Keep",
+        "remove" => "Remove",
+        _ => "review",
+    };
+
     public string Modified
     {
         get

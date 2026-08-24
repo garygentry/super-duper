@@ -1038,6 +1038,133 @@ public sealed class DuplicateFilesViewModelTests
         Assert.IsFalse(viewModel.IsReviewUpdating);
     }
 
+    [TestMethod]
+    public async Task VisiblePageValidationBindsOnlyCurrentPageAndInvalidatesWorkingChoices()
+    {
+        ReviewLiveValidationRequest? captured = null;
+        var memberQueries = 0;
+        var members = Enumerable.Range(1, DuplicateFilesViewModel.PageSize)
+            .Select(id => Member(id, 1, $@"C:\Data\copy-{id:D3}.bin") with
+            {
+                Decision = id == 1 ? "keep" : id == 2 ? "remove" : "undecided",
+            })
+            .ToArray();
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileGroupPage([Group(1, query.RunId, "item.bin")], 1, null, null)),
+            MemberPageHandler = (_, _) =>
+            {
+                memberQueries++;
+                return Task.FromResult(new WorkerDuplicateFileMemberPage(members, 350, null, null)
+                {
+                    ReviewPlanId = 7,
+                    ReviewRevision = 2,
+                    ReviewSummary = new WorkerReviewGroupSummary(1, 1, 1, 198, 199),
+                });
+            },
+            ReviewPlanHandler = (runId, _) => Task.FromResult(new WorkerReviewPlanView(
+                new WorkerReviewPlan(7, runId, "active", 2, null, null),
+                captured is null
+                    ? new WorkerReviewPlanSummary(1, 1, 1, 198, "1024", 199)
+                    : new WorkerReviewPlanSummary(0, 0, 0, 200, "0", 200))),
+            ReviewLiveValidationHandler = (request, _) =>
+            {
+                captured = request;
+                return Task.FromResult(new WorkerReviewLiveValidationResult(
+                    9,
+                    request.RunId,
+                    request.GroupId,
+                    request.ExpectedReviewRevision,
+                    request.Scope,
+                    false,
+                    new WorkerReviewLiveValidationSummary(200, 198, 1, 1, 0, 2),
+                    request.FileIds.Select(id => id switch
+                    {
+                        1 => new WorkerReviewLiveValidationItem(id, "missing", "path_missing", true, "keep", "2026-08-24T00:00:00Z"),
+                        2 => new WorkerReviewLiveValidationItem(id, "changed", "size_changed", true, "remove", "2026-08-24T00:00:00Z"),
+                        _ => new WorkerReviewLiveValidationItem(id, "present", "matched_snapshot", false, null, "2026-08-24T00:00:00Z"),
+                    }).ToArray()));
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        var validationAvailabilityNotifications = new List<bool>();
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(DuplicateFilesViewModel.CanValidateVisiblePage))
+            {
+                validationAvailabilityNotifications.Add(viewModel.CanValidateVisiblePage);
+            }
+        };
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(40, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var memberQueriesBeforeValidation = memberQueries;
+        Assert.IsTrue(validationAvailabilityNotifications.Last(), "The binding was not notified when the member page became validatable.");
+        var removeCommandNotifications = 0;
+        viewModel.RemoveMemberCommand.CanExecuteChanged += (_, _) => removeCommandNotifications++;
+
+        await viewModel.ValidateVisiblePageCommand.ExecuteAsync(null);
+
+        Assert.IsNotNull(captured);
+        Assert.AreEqual("visible_page", captured.Scope);
+        Assert.AreEqual(DuplicateFilesViewModel.PageSize, captured.FileIds.Count);
+        CollectionAssert.AreEqual(Enumerable.Range(1, 200).Select(value => (long)value).ToArray(), captured.FileIds.ToArray());
+        Assert.AreEqual(memberQueriesBeforeValidation, memberQueries, "Validation followed a page cursor or rebound the result set.");
+        Assert.AreEqual("Undecided", viewModel.Members[0].Decision);
+        Assert.AreEqual("Missing; prior Keep decision invalidated", viewModel.Members[0].LiveState);
+        Assert.AreEqual("Changed since scan; prior Remove decision invalidated", viewModel.Members[1].LiveState);
+        Assert.IsFalse(viewModel.Members[0].CanRecordCurrentDecision);
+        Assert.IsTrue(viewModel.Members[0].CanClearDecision);
+        Assert.IsTrue(removeCommandNotifications > 0, "Review commands were not re-queried after validation completed.");
+        StringAssert.Contains(viewModel.LiveValidationStatusMessage, "2 review choices invalidated");
+        StringAssert.Contains(viewModel.LiveValidationStatusMessage, "Original scan history was not changed");
+        StringAssert.Contains(viewModel.LiveValidationErrorMessage, "Restore or reconnect");
+        Assert.AreEqual("Review: 0 keep, 0 remove, 200 undecided · 0 B planned", viewModel.ReviewPlanSummaryText);
+        Assert.IsFalse(viewModel.IsLiveValidationRunning);
+    }
+
+    [TestMethod]
+    public async Task ValidationCancellationAndLateResponseCannotReplaceNewerContext()
+    {
+        var late = new TaskCompletionSource<WorkerReviewLiveValidationResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken observedToken = default;
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileGroupPage([Group(query.RunId, query.RunId, $"run-{query.RunId}.bin")], 1, null, null)),
+            MemberPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFileMemberPage(
+                [Member(query.RunId, query.GroupId, $@"C:\Data\run-{query.RunId}.bin")], 1, null, null)),
+            ReviewLiveValidationHandler = (request, token) =>
+            {
+                observedToken = token;
+                return late.Task;
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(41, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var pending = viewModel.ValidateVisiblePageCommand.ExecuteAsync(null);
+        Assert.IsTrue(viewModel.IsLiveValidationRunning);
+
+        viewModel.CancelLiveValidationCommand.Execute(null);
+        Assert.IsTrue(observedToken.IsCancellationRequested);
+        Assert.IsFalse(viewModel.IsLiveValidationRunning);
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(42, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        late.SetResult(new WorkerReviewLiveValidationResult(
+            10, 41, 41, 0, "selection", false,
+            new WorkerReviewLiveValidationSummary(1, 0, 0, 1, 0, 1),
+            [new WorkerReviewLiveValidationItem(41, "missing", "path_missing", true, "keep", "2026-08-24T00:00:00Z")]));
+        await pending;
+
+        Assert.AreEqual(42, viewModel.Run!.Id);
+        Assert.AreEqual("run-42.bin", viewModel.Groups.Single().RepresentativeName);
+        Assert.AreEqual("Not validated in this working view", viewModel.Members.Single().LiveState);
+        Assert.IsFalse(viewModel.HasLiveValidationStatus);
+        Assert.IsFalse(viewModel.HasLiveValidationError);
+    }
+
     private static WorkerDuplicateFileGroup Group(long id, long runId, string name) =>
         new(id, runId, "1024", 2, "1024", name, ".bin")
         {

@@ -262,6 +262,14 @@ public sealed record WorkerDuplicateFileMember(
     public string? DecisionAt { get; init; }
 
     public long? DecisionApplicationId { get; init; }
+
+    public string? ValidationState { get; init; }
+
+    public string? ValidationReasonCode { get; init; }
+
+    public string? ValidationObservedAt { get; init; }
+
+    public string? InvalidatedDecision { get; init; }
 }
 
 public sealed record WorkerDuplicateFileMemberPage(
@@ -328,6 +336,40 @@ public sealed record WorkerReviewDecisionMutation(
     long AppliedRevision,
     bool Replayed,
     string Decision);
+
+public sealed record ReviewLiveValidationRequest(
+    string OperationId,
+    long RunId,
+    long GroupId,
+    long ExpectedReviewRevision,
+    string Scope,
+    IReadOnlyList<long> FileIds);
+
+public sealed record WorkerReviewLiveValidationSummary(
+    long ItemCount,
+    long PresentCount,
+    long ChangedCount,
+    long MissingCount,
+    long UnavailableCount,
+    long InvalidatedDecisionCount);
+
+public sealed record WorkerReviewLiveValidationItem(
+    long FileId,
+    string State,
+    string ReasonCode,
+    bool DecisionInvalidated,
+    string? InvalidatedDecision,
+    string ObservedAt);
+
+public sealed record WorkerReviewLiveValidationResult(
+    long ValidationId,
+    long RunId,
+    long GroupId,
+    long ReviewRevision,
+    string Scope,
+    bool Replayed,
+    WorkerReviewLiveValidationSummary Summary,
+    IReadOnlyList<WorkerReviewLiveValidationItem> Items);
 
 public sealed record WorkerReviewFolderGroupSummary(
     long FolderGroupId,

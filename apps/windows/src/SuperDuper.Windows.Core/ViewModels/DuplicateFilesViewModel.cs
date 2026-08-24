@@ -30,6 +30,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _rootFacetCancellation;
     private CancellationTokenSource? _driveFacetCancellation;
     private CancellationTokenSource? _reviewCancellation;
+    private CancellationTokenSource? _liveValidationCancellation;
     private WorkerRun? _run;
     private IReadOnlyList<DuplicateFileGroupListItemViewModel> _groups = [];
     private IReadOnlyList<DuplicateFileMemberListItemViewModel> _members = [];
@@ -53,6 +54,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private long _rootFacetGeneration;
     private long _driveFacetGeneration;
     private long _reviewGeneration;
+    private long _liveValidationGeneration;
     private string _searchText = string.Empty;
     private bool _exactPathMatch;
     private string _extensionText = string.Empty;
@@ -70,6 +72,9 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private bool _isRootFacetLoading;
     private bool _isDriveFacetLoading;
     private bool _isReviewUpdating;
+    private bool _isLiveValidationRunning;
+    private string? _liveValidationStatusMessage;
+    private string? _liveValidationErrorMessage;
     private DuplicateFileGroupSortField _sortField = DuplicateFileGroupSortField.RecoverableBytes;
     private WorkerSortDirection _sortDirection = WorkerSortDirection.Descending;
     private DuplicateFileSelectedRootFacetSortField _rootFacetSortField =
@@ -154,6 +159,12 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         UndecideMemberCommand = new AsyncRelayCommand<DuplicateFileMemberListItemViewModel>(
             member => SetReviewDecisionAsync(member, "undecided"),
             CanSetReviewDecision);
+        ValidateVisiblePageCommand = new AsyncRelayCommand(
+            ValidateVisiblePageAsync,
+            () => CanValidateVisiblePage);
+        CancelLiveValidationCommand = new RelayCommand(
+            CancelLiveValidation,
+            () => IsLiveValidationRunning);
     }
 
     public WorkerRun? Run
@@ -498,6 +509,47 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         }
     }
 
+    public bool IsLiveValidationRunning
+    {
+        get => _isLiveValidationRunning;
+        private set
+        {
+            if (SetProperty(ref _isLiveValidationRunning, value))
+            {
+                OnPropertyChanged(nameof(CanValidateVisiblePage));
+                ValidateVisiblePageCommand.NotifyCanExecuteChanged();
+                CancelLiveValidationCommand.NotifyCanExecuteChanged();
+                KeepMemberCommand.NotifyCanExecuteChanged();
+                RemoveMemberCommand.NotifyCanExecuteChanged();
+                UndecideMemberCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public string? LiveValidationStatusMessage
+    {
+        get => _liveValidationStatusMessage;
+        private set
+        {
+            if (SetProperty(ref _liveValidationStatusMessage, value))
+            {
+                OnPropertyChanged(nameof(HasLiveValidationStatus));
+            }
+        }
+    }
+
+    public string? LiveValidationErrorMessage
+    {
+        get => _liveValidationErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _liveValidationErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasLiveValidationError));
+            }
+        }
+    }
+
     public DuplicateFileGroupSortField SortField => _sortField;
 
     public WorkerSortDirection SortDirection => _sortDirection;
@@ -653,6 +705,10 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 
     public bool HasDetailError => !string.IsNullOrWhiteSpace(DetailErrorMessage);
 
+    public bool HasLiveValidationStatus => !string.IsNullOrWhiteSpace(LiveValidationStatusMessage);
+
+    public bool HasLiveValidationError => !string.IsNullOrWhiteSpace(LiveValidationErrorMessage);
+
     public bool HasRootFacetError => !string.IsNullOrWhiteSpace(RootFacetErrorMessage);
 
     public bool HasDriveFacetError => !string.IsNullOrWhiteSpace(DriveFacetErrorMessage);
@@ -686,6 +742,13 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     public bool CanMoveMembersNext => !IsDetailLoading && _currentMemberPage?.NextCursor is not null;
 
     public bool CanMoveMembersPrevious => !IsDetailLoading && _currentMemberPage?.PreviousCursor is not null;
+
+    public bool CanValidateVisiblePage =>
+        !IsDetailLoading
+        && !IsLiveValidationRunning
+        && Run?.Status == "completed"
+        && SelectedGroup is not null
+        && Members.Count is > 0 and <= PageSize;
 
     public bool CanMoveRootFacetsNext => !IsRootFacetLoading && _currentRootFacetPage?.NextCursor is not null;
 
@@ -745,6 +808,10 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 
     public IAsyncRelayCommand<DuplicateFileMemberListItemViewModel> UndecideMemberCommand { get; }
 
+    public IAsyncRelayCommand ValidateVisiblePageCommand { get; }
+
+    public IRelayCommand CancelLiveValidationCommand { get; }
+
     public PreferenceRulesViewModel PreferenceRules { get; }
 
     public async Task ShowRunAsync(WorkerRun? run, CancellationToken cancellationToken = default)
@@ -755,6 +822,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         CancelRootFacetQuery();
         CancelDriveFacetQuery();
         CancelReviewQuery();
+        CancelLiveValidation(clearFeedback: true);
         _groupCache.Clear();
         _memberCache.Clear();
         _rootFacetCache.Clear();
@@ -1666,6 +1734,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 
     private async Task LoadSelectedGroupAsync(DuplicateFileGroupListItemViewModel? group)
     {
+        CancelLiveValidation(clearFeedback: true);
         CancelMemberQuery();
         _memberCache.Clear();
         _currentMemberPage = null;
@@ -1773,6 +1842,8 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         KeepMemberCommand.NotifyCanExecuteChanged();
         RemoveMemberCommand.NotifyCanExecuteChanged();
         UndecideMemberCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanValidateVisiblePage));
+        ValidateVisiblePageCommand.NotifyCanExecuteChanged();
     }
 
     private async Task PrefetchMemberNeighborsAsync(
@@ -1842,8 +1913,10 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     private bool CanSetReviewDecision(DuplicateFileMemberListItemViewModel? member) =>
         member is not null
         && !IsReviewUpdating
+        && !IsLiveValidationRunning
         && Run?.Status == "completed"
-        && SelectedGroup is not null;
+        && SelectedGroup is not null
+        && (member.CanRecordCurrentDecision || member.CanClearDecision);
 
     private async Task LoadReviewPlanAsync(
         long runId,
@@ -1889,6 +1962,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 
         var generation = _reviewGeneration;
         var cancellationToken = _reviewCancellation.Token;
+        CancelLiveValidation(clearFeedback: false);
         IsReviewUpdating = true;
         DetailErrorMessage = null;
         try
@@ -2218,6 +2292,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
 
     private void CancelMemberQuery()
     {
+        CancelLiveValidation(clearFeedback: true);
         _memberCancellation?.Cancel();
         _memberCancellation?.Dispose();
         _memberCancellation = null;
@@ -2249,6 +2324,159 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
         IsReviewUpdating = false;
     }
 
+    private async Task ValidateVisiblePageAsync()
+    {
+        if (!CanValidateVisiblePage
+            || Run is not { Status: "completed" } run
+            || SelectedGroup is not { } group)
+        {
+            return;
+        }
+        var page = Members.Take(PageSize).Select(member => member.Member).ToArray();
+        var memberGeneration = _memberGeneration;
+        var reviewRevision = ReviewPlan.Plan.Revision;
+        CancelLiveValidation(clearFeedback: true);
+        _liveValidationCancellation = new CancellationTokenSource();
+        var token = _liveValidationCancellation.Token;
+        var generation = _liveValidationGeneration;
+        IsLiveValidationRunning = true;
+        LiveValidationStatusMessage = page.Length == TotalMembers
+            ? $"Validating all {page.Length:N0} copies in this selected set without changing scan history…"
+            : $"Validating only the {page.Length:N0} copies on this visible server-owned page without following cursors…";
+        try
+        {
+            var result = await _workerClient.ValidateReviewFilesAsync(
+                new ReviewLiveValidationRequest(
+                    Guid.NewGuid().ToString("N"),
+                    run.Id,
+                    group.Id,
+                    reviewRevision,
+                    page.Length == TotalMembers ? "selection" : "visible_page",
+                    page.Select(member => member.Id).ToArray()),
+                token);
+            if (!IsCurrentLiveValidationContext(
+                    run.Id, group.Id, reviewRevision, memberGeneration, generation, page, token))
+            {
+                return;
+            }
+            var byId = result.Items.ToDictionary(item => item.FileId);
+            Members = page.Select(member =>
+            {
+                if (!byId.TryGetValue(member.Id, out var item))
+                {
+                    return new DuplicateFileMemberListItemViewModel(member);
+                }
+                return new DuplicateFileMemberListItemViewModel(member with
+                {
+                    Decision = item.DecisionInvalidated ? "undecided" : member.Decision,
+                    DecisionProvenance = item.DecisionInvalidated ? null : member.DecisionProvenance,
+                    DecisionAt = item.DecisionInvalidated ? null : member.DecisionAt,
+                    DecisionApplicationId = item.DecisionInvalidated ? null : member.DecisionApplicationId,
+                    ValidationState = item.State,
+                    ValidationReasonCode = item.ReasonCode,
+                    ValidationObservedAt = item.ObservedAt,
+                    InvalidatedDecision = item.InvalidatedDecision,
+                });
+            }).ToArray();
+            _memberCache.Clear();
+            var priorSummary = SelectedReviewSummary;
+            var newInvalidations = result.Items
+                .Where(item => item.DecisionInvalidated
+                    && page.First(member => member.Id == item.FileId).InvalidatedDecision is null)
+                .Select(item => item.InvalidatedDecision)
+                .Where(decision => decision is "keep" or "remove")
+                .ToArray();
+            SelectedReviewSummary = priorSummary with
+            {
+                KeepCount = Math.Max(0, priorSummary.KeepCount - newInvalidations.Count(value => value == "keep")),
+                RemoveCount = Math.Max(0, priorSummary.RemoveCount - newInvalidations.Count(value => value == "remove")),
+                UndecidedCount = priorSummary.UndecidedCount + newInvalidations.Length,
+            };
+            ReviewPlan = await _workerClient.GetReviewPlanAsync(run.Id, token);
+            if (!IsCurrentLiveValidationContext(
+                    run.Id, group.Id, reviewRevision, memberGeneration, generation, page, token))
+            {
+                return;
+            }
+            var summary = result.Summary;
+            LiveValidationErrorMessage = summary.MissingCount + summary.ChangedCount + summary.UnavailableCount == 0
+                ? null
+                : $"Validation found {summary.MissingCount:N0} missing, {summary.ChangedCount:N0} changed, and "
+                    + $"{summary.UnavailableCount:N0} unavailable copies. Missing or changed choices are now invalidated; "
+                    + "unavailable choices are retained. Restore or reconnect the location, then validate this same page again.";
+            LiveValidationStatusMessage =
+                $"Validation {result.ValidationId:N0} checked {summary.ItemCount:N0} bounded copies: "
+                + $"{summary.PresentCount:N0} present, {summary.InvalidatedDecisionCount:N0} review choices invalidated. "
+                + "Original scan history was not changed.";
+            SelectedSetStatusAnnouncement = LiveValidationErrorMessage ?? LiveValidationStatusMessage;
+            if (LiveValidationErrorMessage is null)
+            {
+                SelectedSetStatusAnnouncementVersion++;
+            }
+            else
+            {
+                SelectedSetErrorAnnouncementVersion++;
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (generation == _liveValidationGeneration
+                && memberGeneration == _memberGeneration
+                && Run?.Id == run.Id
+                && SelectedGroup?.Id == group.Id)
+            {
+                LiveValidationStatusMessage = null;
+                LiveValidationErrorMessage =
+                    $"This page could not be validated. No working decisions were changed. Retry this same page. {exception.Message}";
+                SelectedSetStatusAnnouncement = LiveValidationErrorMessage;
+                SelectedSetErrorAnnouncementVersion++;
+            }
+        }
+        finally
+        {
+            if (generation == _liveValidationGeneration)
+            {
+                IsLiveValidationRunning = false;
+            }
+        }
+    }
+
+    private bool IsCurrentLiveValidationContext(
+        long runId,
+        long groupId,
+        long reviewRevision,
+        long memberGeneration,
+        long validationGeneration,
+        IReadOnlyList<WorkerDuplicateFileMember> page,
+        CancellationToken token) =>
+        validationGeneration == _liveValidationGeneration
+        && memberGeneration == _memberGeneration
+        && !token.IsCancellationRequested
+        && Run?.Id == runId
+        && SelectedGroup?.Id == groupId
+        && ReviewPlan.Plan.Revision == reviewRevision
+        && Members.Count == page.Count
+        && Members.Select(member => member.Id).SequenceEqual(page.Select(member => member.Id));
+
+    private void CancelLiveValidation() => CancelLiveValidation(clearFeedback: false);
+
+    private void CancelLiveValidation(bool clearFeedback)
+    {
+        _liveValidationCancellation?.Cancel();
+        _liveValidationCancellation?.Dispose();
+        _liveValidationCancellation = null;
+        _liveValidationGeneration++;
+        IsLiveValidationRunning = false;
+        if (clearFeedback)
+        {
+            LiveValidationStatusMessage = null;
+            LiveValidationErrorMessage = null;
+        }
+    }
+
     private void RaisePagingProperties()
     {
         OnPropertyChanged(nameof(CanMoveNext));
@@ -2270,8 +2498,10 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(CanMoveMembersNext));
         OnPropertyChanged(nameof(CanMoveMembersPrevious));
+        OnPropertyChanged(nameof(CanValidateVisiblePage));
         NextMemberPageCommand.NotifyCanExecuteChanged();
         PreviousMemberPageCommand.NotifyCanExecuteChanged();
+        ValidateVisiblePageCommand.NotifyCanExecuteChanged();
     }
 
     private void RaiseRootFacetPagingProperties()

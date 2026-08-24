@@ -54,6 +54,14 @@ pub enum ReviewError {
     UnsafeFolderRemoval { folder_group_id: i64 },
     #[error("run {run_id} is locked by recycle operation {operation_id}")]
     OperationLocked { run_id: i64, operation_id: i64 },
+    #[error(
+        "file {file_id} has live state {state}; validate it as present before recording {decision}"
+    )]
+    LiveStateConflict {
+        file_id: i64,
+        state: String,
+        decision: String,
+    },
 }
 
 impl Database {
@@ -279,6 +287,24 @@ impl Database {
             });
         }
         ensure_operation_unlocked(&tx, run_id)?;
+        let live_state = tx
+            .query_row(
+                "SELECT state FROM review_live_file_state WHERE run_id = ?1 AND file_id = ?2",
+                params![run_id, file_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        if decision != ReviewDecisionKind::Undecided
+            && live_state
+                .as_deref()
+                .is_some_and(|state| state != "present")
+        {
+            return Err(ReviewError::LiveStateConflict {
+                file_id,
+                state: live_state.unwrap_or_default(),
+                decision: decision.as_str().to_owned(),
+            });
+        }
         if decision == ReviewDecisionKind::Remove {
             let survivors: i64 = tx.query_row(
                 "SELECT COUNT(*)
@@ -341,6 +367,14 @@ impl Database {
                 applied_revision,
             ],
         )?;
+        if decision == ReviewDecisionKind::Undecided || live_state.as_deref() == Some("present") {
+            tx.execute(
+                "UPDATE review_live_file_state
+                 SET decision_invalidated = 0, invalidated_decision = NULL
+                 WHERE run_id = ?1 AND file_id = ?2",
+                params![run_id, file_id],
+            )?;
+        }
         validate_review_state(&tx, plan_id, run_id)?;
         tx.execute(
             "UPDATE review_plan SET revision = ?1, updated_at = ?2

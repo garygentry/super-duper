@@ -103,6 +103,42 @@ public partial class DuplicateFilesView : UserControl
         await RestoreGroupGridFocusAsync();
     }
 
+    private async void OnValidateFilePageClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DuplicateFilesViewModel viewModel)
+        {
+            return;
+        }
+        await ExecuteLiveValidationCommandAsync(
+            () => viewModel.ValidateVisiblePageCommand.ExecuteAsync(null));
+    }
+
+    internal async Task ExecuteLiveValidationCommandAsync(Func<Task> operation)
+    {
+        try
+        {
+            await operation();
+        }
+        finally
+        {
+            await RestoreMemberGridFocusAsync();
+        }
+    }
+
+    internal async Task<bool> RestoreMemberGridFocusAsync()
+    {
+        for (var attempt = 0; attempt < SetNavigationFocusAttemptLimit; attempt++)
+        {
+            if (await Dispatcher.InvokeAsync(() => MembersGrid.Focus(), SetNavigationFocusPriority)
+                && MembersGrid.IsKeyboardFocusWithin)
+            {
+                return true;
+            }
+            await Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
+        }
+        return false;
+    }
+
     internal async Task<bool> RestoreGroupGridFocusAsync()
     {
         for (var attempt = 0; attempt < SetNavigationFocusAttemptLimit; attempt++)

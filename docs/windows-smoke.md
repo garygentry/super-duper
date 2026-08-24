@@ -22,6 +22,9 @@ current-page parent-grouped Explorer selection.
 - immutable review-revision preflight start and exact replay, structured ready observations,
   bounded detail paging, completed-generation reconstruction after worker restart, and assertions
   that reviewed disposable files remain present and byte-for-byte unchanged;
+- schema-v12 one-ID external-deletion validation, working Remove invalidation, immutable member
+  metadata, restart reconstruction, restored-file `present` state with sticky prior intent, and no
+  cursor expansion or product mutation;
 - schema-v10 non-mutating operation preparation and exact replay, bounded item paging, explicit
   `executorEnabled:false`, injected `non_recyclable/executor_disabled` whole-plan failure, durable
   summary counts, and unchanged disposable files; no Shell or Recycle Bin API is invoked;
@@ -35,6 +38,9 @@ current-page parent-grouped Explorer selection.
   failure; and bounded three-item/two-parent grouped folder selection with Alt+G, aggregate success,
   actionable partial failure, stable selection/focus, and restored disposable fixtures, and
   deterministic result-loaded, repeated idle, startup-failure, and database-failure shutdown;
+- WPF bounded visible-set validation over an externally modified reviewed copy, actionable changed
+  and invalidated-decision state, immutable-history disclosure, restored copy revalidation, required
+  fresh review intent, stable validation/cancellation automation, and copy-grid focus restoration;
 - WPF preflight plan summary, explicit non-deleting metadata/content-read confirmation, keyboard Yes
   action, terminal summary and focus movement, virtualized observation details, and unchanged
   disposable files, plus a focusable read-only operation heading and explicit disabled-executor,
@@ -162,4 +168,9 @@ If UI Automation is blocked by a locked session, elevation boundary, or headless
    selected-root and drive facets, clear them, then choose Show in Explorer.
 3. Open Duplicate Folders, sort Representative folder, filter for `original-set`, select the group,
    and reveal a folder in Explorer.
-4. Close and reopen the app and confirm completed/cancelled history and completed results restore.
+4. On a disposable reviewed copy, change its length outside the app, choose **Validate page**, and
+   confirm the row reports Changed and its prior decision is invalidated without deleting the file.
+   Restore the exact bytes and timestamp, validate again, confirm Present retains the prior-intent
+   warning, then record a fresh decision. Do not use a provider placeholder for this manual step.
+5. Close and reopen the app and confirm completed/cancelled history, completed results, and the
+   latest live-validation overlay restore.

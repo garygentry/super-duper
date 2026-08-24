@@ -125,9 +125,13 @@ tracked there. All four Milestone 9 criteria are accepted: bounded side-by-side 
 relationship cards, responsive single-folder Explorer reveal, bounded current-page parent-grouped
 Explorer selection, and physical-file de-duplication. All four Milestone 10 review/rule slices are
 accepted, and the first bounded
-Milestone 11 non-deleting preflight slice is accepted independently of the later Milestone 12
-live-state overlay. Its revision-bound Recycle Bin operation contract, strictly non-mutating durable
-foundation, separately gated native executor, and acceptance evidence tooling are implemented.
+Milestone 11 non-deleting preflight slice is accepted. The first Milestone 12 live-state gate is
+also accepted: bounded selected-set/visible-page metadata validation invalidates working review
+choices after external deletion or modification while preserving immutable scan and recorded-decision
+history and excluding placeholders before access. Watcher overflow, event coalescing, in-app outcome
+reconciliation, and historical cross-overlay closure remain separate gates. Milestone 11's
+revision-bound Recycle Bin operation contract, strictly non-mutating durable foundation, separately
+gated native executor, and acceptance evidence tooling are implemented.
 
 The reviewed Windows post-MVP completion contract requires every required workflow to be operator
 accepted and production enabled; `code complete` is interim only. Required Milestone 14 closure

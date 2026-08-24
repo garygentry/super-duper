@@ -18,7 +18,7 @@ active.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Accept WPM9 parent grouping` (this session's commit)
+- Latest completed slice: `Accept WPM12 external invalidation` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 required fail-closed cloud safety: accepted; both unavailable opt-in policies are
@@ -32,35 +32,36 @@ active.
 - Milestone 11: non-deleting preflight, durable operation contract, separately gated native executor,
   and acceptance evidence tooling are implemented; production execution remains disabled and the
   milestone is not complete
-- Milestone 12: planned; external invalidation, dirty/overflow, and coalescing lanes can advance
-  independently, while in-app reconciliation depends on Milestone 11 production outcomes
+- Milestone 12: bounded external deletion/modification invalidation is accepted; dirty/overflow and
+  coalescing remain independent, while in-app reconciliation depends on Milestone 11 outcomes
 - Milestone 13: planned; bounded warning/Activity foundations can advance independently
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The latest slice accepts `WPM9-parent-grouping` and completes Milestone 9. One explicit Alt+G
-command freezes only the current immutable 200-item folder-member page, then Infrastructure
-deterministically groups it by parent and makes exactly one background Shell selection call per
-parent. Core reports bounded aggregate success and actionable partial failure, retains successful
-parent counts, and rejects cancelled/late completion across selection, page, group, run, and
-disposal changes. Stable automation and success/failure focus restoration preserve the accepted
-location cards, copy path, single-folder Alt+E/double-click reveal, and review behavior. Focused
-Infrastructure/Core/loaded-STA coverage, full Debug/Release matrices, and real Debug/Release WPF
-smoke proved bounded page ownership without another worker fetch, deterministic grouping,
-one-call-per-parent, aggregate partial failure, stale-context silence, dispatcher responsiveness,
-keyboard access, stable selection/focus, and restored unchanged disposable fixtures. No other
-Shell command was admitted. The gate is `locally_exhausted`; every production execution lock
-remains unchanged.
+The latest slice accepts `WPM12-external-invalidation`. Schema v12 stores an idempotent validation
+ledger and separate latest-state overlay while immutable scan rows and recorded manual/rule choices
+remain unchanged. The worker accepts only 1–200 explicit IDs from one selected set/current member
+page, has no cursor, repeats revision and ownership checks at commit, and classifies excluded paths
+before metadata/identity validation. Missing/changed files invalidate working Keep/Remove choices;
+a restored Present file retains actionable prior intent until a fresh decision or Undecided.
+
+Core/WPF freeze only bound rows, never fetch another page, cancel and reject stale contexts, expose
+actionable live state, and provide stable automation, Alt+V, explicit cancellation, announcements,
+dispatcher responsiveness, and grid-focus restoration. Focused storage/protocol/Core/loaded-STA
+tests, full Debug/Release matrices, and real disposable Debug/Release smoke proved external deletion
+and modification, excluded-placeholder safety, immutable history, bounded ownership, restart,
+stale/cancelled response rejection, and fresh-decision recovery. The gate is `locally_exhausted`;
+watchers, overflow/coalescing, Activity, provider/performance/physical campaigns, mutation, and every
+production execution path remain untouched.
 
 ## Immediate next step
 
-Advance only `WPM12-external-invalidation`. Design and implement the first bounded selection/visible-
-page validation overlay for external deletion and modification without filesystem watchers.
+Advance only `WPM12-watcher-overflow`. Define the bounded dirty-root/overflow protocol and visible
+reconciliation-required state without event coalescing, filesystem mutation, or production deletion.
 
-Verifier: disposable storage/protocol/Core/STA tests plus real non-mutating Debug/Release smoke prove
-visible working decisions become invalidated without rewriting immutable history, binding full
-results, accessing excluded placeholders, or adding watcher/overflow/coalescing, deletion,
-Activity, or Recycle Bin production behavior.
+Verifier: injected overflow storage/protocol/Core/STA tests plus real non-mutating Debug/Release
+smoke prove a durable/visible dirty state and bounded explicit reconciliation request, with no silent
+trust, full-result binding, watcher-event UI fan-out, or immutable-history rewrite.
 
 ## Required startup audit
 
@@ -137,22 +138,23 @@ required gates are open.
 
 ## Latest verification baseline
 
-The latest parent-grouping slice was verified as follows:
+The latest external-invalidation slice was verified as follows:
 
-- focused Debug AC3 coverage: 16 Core, 7 Infrastructure, and all 3 loaded-STA tests passed, covering
-  deterministic grouping, exactly one off-dispatcher call per parent, the 200-item/current-page
-  bound, aggregate success/partial failure, cancellation/stale context, notifications, Alt+G,
-  dispatcher progress, and success/failure focus restoration;
-- full Debug/Release solution matrices: each passed 101 Core, 66 Infrastructure, and 3 loaded-STA
+- `Verify-WindowsExternalInvalidation.ps1` passed 3 focused schema/storage tests, 1 worker-protocol
+  test, 2 Core page/cancellation tests, and 1 loaded-STA dispatcher/automation/focus test, plus XAML
+  and PowerShell parsing, diff hygiene, and every production lock;
+- the full Debug Rust workspace passed 82 Core/scan/storage tests, 32 FFI tests, and 14 worker tests;
+  the same 3 explicit operator performance profiles remained ignored; optimized Release passed the
+  3 focused storage/migration and 1 worker-protocol validation tests;
+- full Debug/Release solution matrices each passed 103 Core, 66 Infrastructure, and 3 loaded-STA
   tests; the same 5 explicitly gated provider/physical Shell tests were skipped in each;
-- real Debug and Release non-mutating worker/WPF smoke: passed with bounded location cards,
-  stable reveal/grouped-selection automation, Alt+G two-parent/three-item aggregate success, a real
-  one-parent actionable partial failure, stable selection/focus, unchanged/restored disposable
-  fixtures, preserved Alt+E single reveal and non-deleting Keep, and unchanged production locks;
-- targeted .NET formatting, PowerShell parsing, `git diff --check`, and the production-lock audit
-  passed;
-- Rust, provider, physical-accessibility, Recycle Bin/Shell-mutation, performance,
-  watcher/overflow/coalescing, Activity, and later production campaigns were deliberately skipped.
+- real Debug and Release non-mutating worker/WPF smoke passed one-ID external deletion invalidation
+  and restart, external modification/focus/actionable state, immutable history, restored-file sticky
+  invalidation and fresh decision, unchanged/restored fixtures, and unchanged production locks;
+- targeted Rust/.NET formatting, PowerShell/XAML parsing, `git diff --check`, and the production-lock
+  audit passed;
+- watcher, overflow/coalescing, provider, physical-accessibility, Recycle Bin/Shell-mutation,
+  performance, Activity, and later-milestone campaigns were deliberately skipped.
 
 Use proportional verification for the next slice. Run focused tests while iterating, then the
 relevant full matrix before commit when shared Core/WPF/Infrastructure behavior changes. Run Rust
@@ -210,4 +212,5 @@ For each session:
 | 2026-08-23 | `16f6996` | Run and accept WPM11 ambiguous-start with disposable durable-start process loss, restart reconstruction, real WPF Option A observations/supersession, exact immutable-evidence verification, and retained passing/failing bundles. | Advance only WPM9-folder-relationships; preserve all execution locks and do not substitute another campaign or later milestone. |
 | 2026-08-23 | `29b4256` | Implement and accept bounded side-by-side WPM9 folder relationship cards from immutable paged data with common/differing path context, per-copy/recoverable metrics, stable automation, keyboard/focus behavior, and unchanged physical de-duplication. | Advance only WPM9-explorer-responsiveness; keep parent grouping, thumbnails, review mutation, deletion, later milestones, and production wiring separate. |
 | 2026-08-23 | `e578fd3` | Implement and accept responsive single-folder Explorer reveal over one immutable-page member with background native work, bounded actionable state, stale-context rejection, stable automation, Alt+E/double-click access, focus restoration, and real Debug/Release success/failure smoke. | Advance only WPM9-parent-grouping; keep open-all spawning, thumbnails, review mutation, deletion, later milestones, and production wiring separate. |
-| 2026-08-23 | this session | Implement and accept bounded current-page parent-grouped Explorer selection with deterministic one-call-per-parent background work, aggregate success/actionable partial failure, cancellation/stale-page rejection, Alt+G, stable automation, focus restoration, and real Debug/Release smoke. | Advance only WPM12-external-invalidation; exclude watchers, overflow/coalescing, Activity, deletion, and production wiring. |
+| 2026-08-23 | `5f79de8` | Implement and accept bounded current-page parent-grouped Explorer selection with deterministic one-call-per-parent background work, aggregate success/actionable partial failure, cancellation/stale-page rejection, Alt+G, stable automation, focus restoration, and real Debug/Release smoke. | Advance only WPM12-external-invalidation; exclude watchers, overflow/coalescing, Activity, deletion, and production wiring. |
+| 2026-08-23 | this session | Implement and accept the schema-v12 bounded selection/visible-page external validation overlay with deletion/modification invalidation, sticky prior intent, exclusion-before-access, immutable history, restart, cancellation/stale-context rejection, stable keyboard/automation/focus state, and real Debug/Release smoke. | Advance only WPM12-watcher-overflow; exclude event coalescing, Activity, mutation, provider/physical/performance campaigns, later gates, and production wiring. |

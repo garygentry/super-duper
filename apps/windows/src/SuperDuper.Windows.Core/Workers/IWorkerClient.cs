@@ -97,6 +97,10 @@ public interface IWorkerClient : IAsyncDisposable
         long expectedRevision,
         CancellationToken cancellationToken = default);
 
+    Task<WorkerReviewLiveValidationResult> ValidateReviewFilesAsync(
+        ReviewLiveValidationRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<WorkerReviewFolderGroupPage> GetReviewFolderGroupsAsync(
         long runId,
         int pageSize,

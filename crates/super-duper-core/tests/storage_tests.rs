@@ -42,7 +42,47 @@ use winapi::um::winnt::IO_COUNTERS;
 
 static LARGE_FIXTURE_TEST_LOCK: Mutex<()> = Mutex::new(());
 
+fn drop_v12_live_validation_schema(db: &Database) {
+    db.connection()
+        .execute_batch(
+            "DROP VIEW effective_review_decision;
+             DROP VIEW recorded_review_decision;
+             DROP TABLE review_live_file_state;
+             DROP TABLE review_live_validation_item;
+             DROP TABLE review_live_validation;
+             CREATE VIEW effective_review_decision AS
+             SELECT manual.plan_id, manual.group_id, manual.file_id, manual.decision,
+                    'manual' AS provenance, manual.decided_at, NULL AS application_id
+             FROM review_decision manual
+             LEFT JOIN (
+                 SELECT rule_decision.plan_id, rule_decision.file_id, application.applied_revision
+                 FROM review_rule_decision rule_decision
+                 JOIN review_rule_application application
+                   ON application.id = rule_decision.application_id AND application.state = 'active'
+             ) rule ON rule.plan_id = manual.plan_id AND rule.file_id = manual.file_id
+             WHERE manual.decision IN ('keep', 'remove')
+                OR rule.file_id IS NULL
+                OR manual.manual_revision > rule.applied_revision
+             UNION ALL
+             SELECT rule_decision.plan_id, rule_decision.group_id, rule_decision.file_id,
+                    rule_decision.decision, 'rule' AS provenance, rule_decision.decided_at,
+                    rule_decision.application_id
+             FROM review_rule_decision rule_decision
+             JOIN review_rule_application application
+               ON application.id = rule_decision.application_id AND application.state = 'active'
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM review_decision manual
+                 WHERE manual.plan_id = rule_decision.plan_id
+                   AND manual.file_id = rule_decision.file_id
+                   AND (manual.decision IN ('keep', 'remove')
+                        OR manual.manual_revision > application.applied_revision)
+             );",
+        )
+        .unwrap();
+}
+
 fn drop_v10_operation_schema(db: &Database) {
+    drop_v12_live_validation_schema(db);
     db.connection()
         .execute_batch(
             "DROP TABLE recovery_review_observation;
@@ -300,10 +340,43 @@ fn schema_version_is_explicit_and_current() {
 }
 
 #[test]
+fn version_eleven_migrates_live_validation_overlay_transactionally() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("v11-live-validation.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    drop_v12_live_validation_schema(&db);
+    db.connection()
+        .execute_batch("PRAGMA user_version = 11;")
+        .unwrap();
+    drop(db);
+
+    let migrated = Database::open(path.to_str().unwrap()).unwrap();
+    assert_eq!(migrated.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+    for object in [
+        "review_live_validation",
+        "review_live_validation_item",
+        "review_live_file_state",
+        "recorded_review_decision",
+        "effective_review_decision",
+    ] {
+        let exists: bool = migrated
+            .connection()
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name = ?1)",
+                params![object],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(exists, "missing migrated object {object}");
+    }
+}
+
+#[test]
 fn version_ten_migrates_recovery_review_transactionally_and_cascades_cleanup() {
     let temp = tempdir().unwrap();
     let path = temp.path().join("v10-recovery-review.db");
     let db = Database::open(path.to_str().unwrap()).unwrap();
+    drop_v12_live_validation_schema(&db);
     db.connection()
         .execute_batch(
             "DROP TABLE recovery_review_observation;
@@ -364,6 +437,7 @@ fn version_ten_recovery_review_migration_rolls_back_on_failure() {
     let temp = tempdir().unwrap();
     let path = temp.path().join("v10-recovery-review-rollback.db");
     let db = Database::open(path.to_str().unwrap()).unwrap();
+    drop_v12_live_validation_schema(&db);
     db.connection()
         .execute_batch(
             "DROP TABLE recovery_review_observation;

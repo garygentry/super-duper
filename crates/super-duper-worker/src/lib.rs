@@ -10,6 +10,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 use super_duper_core::progress::ProgressReporter;
+use super_duper_core::storage::live_validation::ReviewLiveValidationError;
 use super_duper_core::storage::models::{
     CloudDetectionStatus, CloudPolicy, DuplicateFileDriveFacetPageQuery,
     DuplicateFileDriveFacetResult, DuplicateFileDriveFacetSortField,
@@ -27,8 +28,8 @@ use super_duper_core::storage::models::{
     RecoveryReviewSummary, RecycleEligibilityObservation, RecycleItemResultObservation,
     RecycleOperation, RecycleOperationBatch, RecycleOperationItem, RecycleOperationView,
     RegisteredCloudLocation, ReviewDecisionKind, ReviewFolderGroupSummary, ReviewGroupSummary,
-    ReviewPlanSummary, ReviewPlanView, RunExclusion, RunParameters, ScanRun, ScanSession,
-    SortDirection,
+    ReviewLiveValidationRequest, ReviewPlanSummary, ReviewPlanView, RunExclusion, RunParameters,
+    ScanRun, ScanSession, SortDirection,
 };
 use super_duper_core::storage::preference::PreferenceError;
 use super_duper_core::storage::preflight::PreflightError;
@@ -521,6 +522,17 @@ struct ReviewDecisionSetParameters {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReviewLiveValidationParameters {
+    operation_id: String,
+    run_id: i64,
+    group_id: i64,
+    expected_review_revision: i64,
+    scope: String,
+    file_ids: Vec<i64>,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ReviewFolderDecisionSetParameters {
     operation_id: String,
@@ -1007,6 +1019,10 @@ struct DuplicateFileMemberDto {
     decision_provenance: Option<String>,
     decision_at: Option<String>,
     decision_application_id: Option<i64>,
+    validation_state: Option<String>,
+    validation_reason_code: Option<String>,
+    validation_observed_at: Option<String>,
+    invalidated_decision: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1391,6 +1407,7 @@ impl WorkerSession {
             }
             "duplicate_file_drive_facet.page" => self.duplicate_file_drive_facet_page(request),
             "duplicate_file_group.members" => self.duplicate_file_group_members(request),
+            "review_live_validation.run" => self.review_live_validation_run(request),
             "duplicate_folder_group.page" => self.duplicate_folder_group_page(request),
             "duplicate_folder_group.members" => self.duplicate_folder_group_members(request),
             _ => Err(ProtocolFailure::new(
@@ -2071,6 +2088,74 @@ impl WorkerSession {
             "appliedRevision": result.applied_revision,
             "replayed": result.replayed,
             "decision": result.decision.as_str(),
+        }))
+    }
+
+    fn review_live_validation_run(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: ReviewLiveValidationParameters = parse_parameters(request)?;
+        let result = self
+            .state
+            .database()?
+            .validate_review_files(&ReviewLiveValidationRequest {
+                operation_id: parameters.operation_id,
+                run_id: parameters.run_id,
+                group_id: parameters.group_id,
+                expected_review_revision: parameters.expected_review_revision,
+                scope: parameters.scope,
+                file_ids: parameters.file_ids,
+            })
+            .map_err(review_live_validation_error)?;
+        let present_count = result
+            .items
+            .iter()
+            .filter(|item| item.state == "present")
+            .count();
+        let changed_count = result
+            .items
+            .iter()
+            .filter(|item| item.state == "changed")
+            .count();
+        let missing_count = result
+            .items
+            .iter()
+            .filter(|item| item.state == "missing")
+            .count();
+        let unavailable_count = result
+            .items
+            .iter()
+            .filter(|item| item.state == "unavailable")
+            .count();
+        let invalidated_decision_count = result
+            .items
+            .iter()
+            .filter(|item| item.decision_invalidated)
+            .count();
+        Ok(json!({
+            "validationId": result.validation_id,
+            "runId": result.run_id,
+            "groupId": result.group_id,
+            "reviewRevision": result.review_revision,
+            "scope": result.scope,
+            "replayed": result.replayed,
+            "summary": {
+                "itemCount": result.items.len(),
+                "presentCount": present_count,
+                "changedCount": changed_count,
+                "missingCount": missing_count,
+                "unavailableCount": unavailable_count,
+                "invalidatedDecisionCount": invalidated_decision_count,
+            },
+            "items": result.items.into_iter().map(|item| json!({
+                "fileId": item.file_id,
+                "state": item.state,
+                "reasonCode": item.reason_code,
+                "decisionInvalidated": item.decision_invalidated,
+                "invalidatedDecision": item.invalidated_decision.map(ReviewDecisionKind::as_str),
+                "observedAt": item.observed_at,
+            })).collect::<Vec<_>>(),
         }))
     }
 
@@ -4859,6 +4944,12 @@ fn member_dto(member: DuplicateFileMemberResult) -> DuplicateFileMemberDto {
         decision_provenance: member.review_provenance,
         decision_at: member.review_decided_at,
         decision_application_id: member.review_application_id,
+        validation_state: member.validation_state,
+        validation_reason_code: member.validation_reason_code,
+        validation_observed_at: member.validation_observed_at,
+        invalidated_decision: member
+            .invalidated_decision
+            .map(|value| value.as_str().to_owned()),
     }
 }
 
@@ -6242,6 +6333,62 @@ fn review_error(error: ReviewError) -> ProtocolFailure {
             "A durable recycle operation locks this reviewed plan",
         )
         .with_details(json!({"runId":run_id,"recycleOperationId":operation_id})),
+        ReviewError::LiveStateConflict {
+            file_id,
+            state,
+            decision,
+        } => ProtocolFailure::new(
+            "review_live_state_conflict",
+            "The file is not currently validated as present",
+        )
+        .with_details(json!({"fileId":file_id,"state":state,"decision":decision})),
+    }
+}
+
+fn review_live_validation_error(error: ReviewLiveValidationError) -> ProtocolFailure {
+    match error {
+        ReviewLiveValidationError::Database(error) => internal_database_error(error),
+        ReviewLiveValidationError::InvalidRequest { message } => {
+            ProtocolFailure::new("invalid_request", message)
+        }
+        ReviewLiveValidationError::RunNotFound { run_id } => {
+            ProtocolFailure::new("run_not_found", format!("Run {run_id} was not found"))
+                .with_details(json!({"runId":run_id}))
+        }
+        ReviewLiveValidationError::RunNotCompleted { run_id, status } => ProtocolFailure::new(
+            "invalid_state",
+            "Validation is available only for completed runs",
+        )
+        .with_details(json!({"runId":run_id,"status":status})),
+        ReviewLiveValidationError::GroupNotFound { run_id, group_id } => ProtocolFailure::new(
+            "duplicate_group_not_found",
+            "The selected duplicate set was not found",
+        )
+        .with_details(json!({"runId":run_id,"groupId":group_id})),
+        ReviewLiveValidationError::MemberNotFound {
+            run_id,
+            group_id,
+            file_id,
+        } => ProtocolFailure::new(
+            "review_member_not_found",
+            "A requested visible-page file is not in the selected duplicate set",
+        )
+        .with_details(json!({"runId":run_id,"groupId":group_id,"fileId":file_id})),
+        ReviewLiveValidationError::StaleRevision { expected, actual } => ProtocolFailure::new(
+            "review_generation_conflict",
+            "Review choices changed before validation committed",
+        )
+        .with_details(json!({"expectedRevision":expected,"currentRevision":actual})),
+        ReviewLiveValidationError::IdempotencyConflict { operation_id } => ProtocolFailure::new(
+            "idempotency_conflict",
+            "The operationId was already used for another validation request",
+        )
+        .with_details(json!({"operationId":operation_id})),
+        ReviewLiveValidationError::InvalidRunParameters { run_id } => ProtocolFailure::new(
+            "invalid_run_snapshot",
+            "The immutable run parameter snapshot could not be decoded",
+        )
+        .with_details(json!({"runId":run_id})),
     }
 }
 
@@ -6647,6 +6794,181 @@ mod tests {
         );
         assert_eq!(response(&frames, "hello-1")["result"]["protocolVersion"], 1);
         assert_eq!(response(&frames, "status")["ok"], true);
+    }
+
+    #[test]
+    fn live_validation_protocol_is_bounded_idempotent_and_exposes_invalidated_working_state() {
+        let temp = TempDir::new().unwrap();
+        let database_path = temp.path().join("worker.db");
+        let root = fs::canonicalize(temp.path()).unwrap();
+        let paths = (0..3)
+            .map(|index| root.join(format!("live-copy-{index}.bin")))
+            .collect::<Vec<_>>();
+        for path in &paths {
+            fs::write(path, b"same live validation bytes").unwrap();
+        }
+        let db = Database::open(database_path.to_str().unwrap()).unwrap();
+        let roots = vec![root.to_string_lossy().into_owned()];
+        let session_id = db.create_session("Live validation", &roots, &[]).unwrap();
+        let run_id = db
+            .create_scan_run(
+                session_id,
+                &RunParameters {
+                    roots: roots.clone(),
+                    ignore_patterns: Vec::new(),
+                    directory_similarity_threshold_millis: 500,
+                    cloud_policy: CloudPolicy::ExcludeRegisteredRoots,
+                    manual_location_exclusions: Vec::new(),
+                    registered_cloud_locations: Vec::new(),
+                    cloud_detection_status: CloudDetectionStatus::Complete,
+                },
+                "test",
+            )
+            .unwrap();
+        db.start_scan_run(run_id).unwrap();
+        let snapshots = paths
+            .iter()
+            .map(|path| {
+                let metadata = fs::metadata(path).unwrap();
+                ScannedFile {
+                    id: 0,
+                    run_id,
+                    root_path: roots[0].clone(),
+                    canonical_path: path.to_string_lossy().into_owned(),
+                    relative_path: path.file_name().unwrap().to_string_lossy().into_owned(),
+                    file_name: path.file_name().unwrap().to_string_lossy().into_owned(),
+                    parent_dir: root.to_string_lossy().into_owned(),
+                    drive_letter: String::new(),
+                    file_size: metadata.len() as i64,
+                    last_modified: metadata
+                        .modified()
+                        .unwrap()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_nanos()
+                        .min(i64::MAX as u128) as i64,
+                    partial_hash: None,
+                    content_hash: Some(31),
+                    file_identity: platform::file_identity(path).unwrap(),
+                    warning_message: None,
+                    marked_deleted: false,
+                }
+            })
+            .collect::<Vec<_>>();
+        db.insert_scanned_files(&snapshots).unwrap();
+        db.insert_duplicate_groups(
+            run_id,
+            &[(
+                31,
+                snapshots[0].file_size,
+                snapshots
+                    .iter()
+                    .map(|file| file.canonical_path.clone())
+                    .collect(),
+            )],
+        )
+        .unwrap();
+        db.complete_scan_run(
+            run_id,
+            3,
+            snapshots[0].file_size * 3,
+            3,
+            1,
+            0,
+            snapshots[0].file_size * 2,
+            0,
+        )
+        .unwrap();
+        let group_id = db
+            .connection()
+            .query_row(
+                "SELECT id FROM duplicate_group WHERE run_id = ?1",
+                params![run_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap();
+        let ids = db
+            .connection()
+            .prepare("SELECT id FROM scanned_file WHERE run_id = ?1 ORDER BY canonical_path")
+            .unwrap()
+            .query_map(params![run_id], |row| row.get::<_, i64>(0))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        db.set_review_decision(
+            "live-keep",
+            run_id,
+            group_id,
+            ids[0],
+            ReviewDecisionKind::Keep,
+            0,
+        )
+        .unwrap();
+        db.set_review_decision(
+            "live-remove",
+            run_id,
+            group_id,
+            ids[1],
+            ReviewDecisionKind::Remove,
+            1,
+        )
+        .unwrap();
+        let immutable_before = db.connection().prepare(
+            "SELECT canonical_path, file_size, last_modified FROM scanned_file WHERE run_id = ?1 ORDER BY id"
+        ).unwrap().query_map(params![run_id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?)))
+            .unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+        drop(db);
+        fs::remove_file(&paths[0]).unwrap();
+        fs::write(
+            &paths[1],
+            b"modified by another process and now a different size",
+        )
+        .unwrap();
+        let request = format!(
+            r#"{{"type":"request","id":"validate","method":"review_live_validation.run","params":{{"operationId":"protocol-live","runId":{run_id},"groupId":{group_id},"expectedReviewRevision":2,"scope":"selection","fileIds":[{},{},{}]}}}}"#,
+            ids[0], ids[1], ids[2]
+        );
+        let oversized = (1..=201)
+            .map(|value| value.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        let frames = execute(
+            &temp,
+            &[
+                HELLO.to_owned(),
+                request.clone(),
+                request.replace("\"id\":\"validate\"", "\"id\":\"replay\""),
+                format!(
+                    r#"{{"type":"request","id":"members-live","method":"duplicate_file_group.members","params":{{"runId":{run_id},"groupId":{group_id},"pageSize":200}}}}"#
+                ),
+                format!(
+                    r#"{{"type":"request","id":"oversized","method":"review_live_validation.run","params":{{"operationId":"oversized","runId":{run_id},"groupId":{group_id},"expectedReviewRevision":2,"scope":"visible_page","fileIds":[{oversized}]}}}}"#
+                ),
+            ],
+        );
+        let validated = &response(&frames, "validate")["result"];
+        assert_eq!(validated["summary"]["itemCount"], 3);
+        assert_eq!(validated["summary"]["missingCount"], 1);
+        assert_eq!(validated["summary"]["changedCount"], 1);
+        assert_eq!(validated["summary"]["invalidatedDecisionCount"], 2);
+        assert_eq!(response(&frames, "replay")["result"]["replayed"], true);
+        let members = response(&frames, "members-live")["result"]["members"]
+            .as_array()
+            .unwrap();
+        assert_eq!(members[0]["decision"], "undecided");
+        assert_eq!(members[0]["invalidatedDecision"], "keep");
+        assert_eq!(members[1]["decision"], "undecided");
+        assert_eq!(members[1]["invalidatedDecision"], "remove");
+        assert_eq!(
+            response(&frames, "oversized")["error"]["code"],
+            "invalid_request"
+        );
+        let reopened = Database::open(database_path.to_str().unwrap()).unwrap();
+        let immutable_after = reopened.connection().prepare(
+            "SELECT canonical_path, file_size, last_modified FROM scanned_file WHERE run_id = ?1 ORDER BY id"
+        ).unwrap().query_map(params![run_id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?)))
+            .unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+        assert_eq!(immutable_after, immutable_before);
     }
 
     #[test]

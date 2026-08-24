@@ -3710,9 +3710,10 @@ that Windows will place eligible items in the Recycle Bin.
 
 ### Milestone 12 - Live Reconciliation and External Filesystem Changes
 
-Status: Planned/not implemented. In-app outcome application is blocked on the Milestone 11
-production boundary. External deletion/modification validation, dirty/overflow state, and bounded
-notification coalescing are independently actionable and must preserve immutable historical runs.
+Status: External deletion/modification invalidation is implemented and accepted as the first
+bounded live-state overlay. In-app outcome application remains blocked on the Milestone 11
+production boundary. Dirty/overflow state and bounded notification coalescing remain separate later
+gates, and every live-state lane must preserve immutable historical runs.
 
 #### User outcome
 
@@ -3766,6 +3767,38 @@ the immutable snapshot with the latest validated live state.
 - Watcher overflow results in a visible dirty/reconciliation state, never silent trust.
 - Mass changes do not generate one WPF dispatcher update per filesystem event.
 - Historical-run queries remain reproducible regardless of live state.
+
+#### External invalidation acceptance result (2026-08-23)
+
+`WPM12-external-invalidation` is accepted and `locally_exhausted`. Schema v12 adds a separate,
+restart-safe latest-observation overlay and idempotent validation ledger. One explicit request owns
+only the selected set or current server-owned member page, accepts 1–200 exact file IDs, has no page
+cursor, repeats run/group/member/revision ownership checks in the commit transaction, and rejects a
+late or stale context without writes. The WPF action freezes only its currently bound member rows;
+it never fetches another member page, follows a cursor, binds the complete result set, traverses a
+folder, or queues background validation.
+
+Validation classifies immutable run exclusions before invoking the metadata/identity validator.
+Excluded locations become actionable unavailable rows without filesystem access, placeholder open,
+content read, or provider hydration. Non-excluded external deletion or metadata/identity change
+invalidates the affected working Keep/Remove choice. The recorded manual/rule decision and all
+immutable scan/group rows remain unchanged; the member row exposes its prior decision, current live
+state, reason, and timestamp. A restored `present` file retains the sticky invalidation until a
+fresh decision or explicit Undecided, preserving review intent and accepted plan/survivor rules.
+
+Core provides deterministic cancellation on page/group/run/revision changes, rejects late responses
+by generation and exact ID set, clears its bounded page cache without following cursors, and exposes
+actionable success/error state. WPF adds stable automation IDs, polite/assertive announcements,
+Alt+V, an explicit cancellation action, and dispatcher-background focus restoration to the copy
+grid. The completion verifier and Debug/Release storage/protocol/Core/loaded-STA/solution/smoke
+matrix prove external deletion and modification, immutable-history preservation, excluded-location
+safety, bounded ownership, restart reconstruction, cancellation/stale-response rejection,
+keyboard/automation/focus behavior, and dispatcher responsiveness.
+
+Filesystem watchers, dirty/overflow behavior, event coalescing, in-app deletion outcomes, moved or
+resolved-set inference, full-plan validation, filesystem mutation, provider campaigns, Activity,
+performance campaigns, physical accessibility campaigns, and production Recycle Bin/Shell wiring
+were deliberately not admitted. `WPM12-watcher-overflow` is the only next authorized gate.
 
 ## Wave 3 - Explain What Happened
 
@@ -3926,13 +3959,13 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance only `WPM12-external-invalidation`. Design and implement the first bounded selection/visible-
-page validation overlay for external deletion and modification without adding filesystem watchers.
+Advance only `WPM12-watcher-overflow`. Define the bounded dirty-root/overflow protocol and visible
+reconciliation-required state without adding event coalescing or production filesystem mutation.
 
-Verifier: disposable storage/protocol/Core/STA tests plus real non-mutating Debug/Release smoke prove
-that visible working decisions become invalidated without rewriting immutable history, binding full
-results, accessing excluded placeholders, or adding watcher/overflow/coalescing, deletion, Activity,
-or Recycle Bin production behavior.
+Verifier: injected overflow storage/protocol/Core/STA tests plus real non-mutating Debug/Release
+smoke prove a durable/visible dirty state and bounded explicit reconciliation request, with no silent
+trust, full-result binding, event-per-dispatcher-update behavior, immutable-history rewrite,
+deletion, Activity, or Recycle Bin production behavior.
 
 ## Milestone Definition Template
 
@@ -4026,3 +4059,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-23 | Implemented and accepted bounded side-by-side exact-folder relationship cards over immutable 200-item worker pages with common/differing path context, per-copy/recoverable metrics, stable automation, keyboard selection/focus restoration, unchanged non-deleting review actions, and real Debug/Release WPF smoke. | Record WPM9-folder-relationships `locally_exhausted`; preserve server paging, five-page caches, file/folder physical de-duplication, and every execution lock; authorize only WPM9-explorer-responsiveness next. |
 | 2026-08-23 | Implemented and accepted responsive single-folder Explorer reveal over the current immutable folder-member page with background native work, bounded busy/success/actionable-failure state, cancellation and stale-generation rejection, stable automation, Alt+E/double-click access, focus restoration, and real Debug/Release success/failure smoke. | Record WPM9-explorer-responsiveness `locally_exhausted`; preserve copy/reveal and folder cards, admit no other Shell command, retain every production lock, and authorize only WPM9-parent-grouping next. |
 | 2026-08-23 | Implemented and accepted bounded current-page parent-grouped Explorer selection with deterministic one-call-per-parent background work, aggregate success/actionable partial failure, cancellation/stale-page rejection, Alt+G, stable automation, focus restoration, and real Debug/Release smoke. | Record WPM9-parent-grouping `locally_exhausted`; Milestone 9 is complete. Authorize only WPM12-external-invalidation next, without watchers, later Milestone 12 lanes, or production wiring. |
+| 2026-08-23 | Implemented and accepted the schema-v12 bounded selection/visible-page external validation overlay with explicit 1–200-ID ownership, exclusion-before-access, missing/changed working-decision invalidation, immutable recorded history, restart reconstruction, cancellation/stale-context rejection, actionable keyboard/automation/focus state, and real Debug/Release smoke. | Record WPM12-external-invalidation `locally_exhausted`; preserve accepted paging/review/folder/Explorer behavior and every production lock. Authorize only WPM12-watcher-overflow next; event coalescing, Activity, provider/physical/performance campaigns, mutation, and later gates remain excluded. |

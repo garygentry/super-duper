@@ -4,7 +4,7 @@ use chrono::Utc;
 use rusqlite::{params, Connection, Error, Result};
 use tracing::{debug, info};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 11;
+pub const CURRENT_SCHEMA_VERSION: i64 = 12;
 
 pub struct Database {
     conn: Connection,
@@ -71,21 +71,28 @@ impl Database {
         let version = self.schema_version()?;
         match version {
             CURRENT_SCHEMA_VERSION => self.conn.execute_batch(include_str!("schema.sql"))?,
-            10 => self.migrate_v10_to_v11()?,
+            11 => self.migrate_v11_to_v12()?,
+            10 => {
+                self.migrate_v10_to_v11()?;
+                self.migrate_v11_to_v12()?;
+            }
             9 => {
                 self.migrate_v9_to_v10()?;
                 self.migrate_v10_to_v11()?;
+                self.migrate_v11_to_v12()?;
             }
             8 => {
                 self.migrate_v8_to_v9()?;
                 self.migrate_v9_to_v10()?;
                 self.migrate_v10_to_v11()?;
+                self.migrate_v11_to_v12()?;
             }
             7 => {
                 self.migrate_v7_to_v8()?;
                 self.migrate_v8_to_v9()?;
                 self.migrate_v9_to_v10()?;
                 self.migrate_v10_to_v11()?;
+                self.migrate_v11_to_v12()?;
             }
             6 => {
                 self.migrate_v6_to_v7()?;
@@ -93,6 +100,7 @@ impl Database {
                 self.migrate_v8_to_v9()?;
                 self.migrate_v9_to_v10()?;
                 self.migrate_v10_to_v11()?;
+                self.migrate_v11_to_v12()?;
             }
             5 => {
                 self.migrate_v5_to_v6()?;
@@ -101,6 +109,7 @@ impl Database {
                 self.migrate_v8_to_v9()?;
                 self.migrate_v9_to_v10()?;
                 self.migrate_v10_to_v11()?;
+                self.migrate_v11_to_v12()?;
             }
             4 => {
                 self.migrate_v4_to_v5()?;
@@ -110,6 +119,7 @@ impl Database {
                 self.migrate_v8_to_v9()?;
                 self.migrate_v9_to_v10()?;
                 self.migrate_v10_to_v11()?;
+                self.migrate_v11_to_v12()?;
             }
             3 => {
                 self.migrate_v3_to_v4()?;
@@ -120,6 +130,7 @@ impl Database {
                 self.migrate_v8_to_v9()?;
                 self.migrate_v9_to_v10()?;
                 self.migrate_v10_to_v11()?;
+                self.migrate_v11_to_v12()?;
             }
             2 => self.migrate_v2_to_v3()?,
             0 if !self.has_user_tables()? => self.conn.execute_batch(include_str!("schema.sql"))?,
@@ -902,6 +913,108 @@ impl Database {
              CREATE INDEX idx_recovery_review_supersession
                  ON recovery_review_observation(supersedes_observation_id);
              PRAGMA user_version = 11;
+             COMMIT;",
+        );
+        if migration.is_err() {
+            let _ = self.conn.execute_batch("ROLLBACK;");
+        }
+        migration
+    }
+
+    fn migrate_v11_to_v12(&self) -> Result<()> {
+        info!("Migrating SQLite schema from version 11 to 12");
+        let migration = self.conn.execute_batch(
+            "BEGIN IMMEDIATE;
+             CREATE TABLE review_live_validation (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 operation_id TEXT NOT NULL UNIQUE,
+                 request_signature TEXT NOT NULL,
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 group_id INTEGER NOT NULL REFERENCES duplicate_group(id) ON DELETE CASCADE,
+                 expected_review_revision INTEGER NOT NULL CHECK(expected_review_revision >= 0),
+                 scope TEXT NOT NULL CHECK(scope IN ('selection', 'visible_page')),
+                 item_count INTEGER NOT NULL CHECK(item_count BETWEEN 1 AND 200),
+                 present_count INTEGER NOT NULL CHECK(present_count >= 0),
+                 changed_count INTEGER NOT NULL CHECK(changed_count >= 0),
+                 missing_count INTEGER NOT NULL CHECK(missing_count >= 0),
+                 unavailable_count INTEGER NOT NULL CHECK(unavailable_count >= 0),
+                 invalidated_decision_count INTEGER NOT NULL CHECK(invalidated_decision_count >= 0),
+                 created_at TEXT NOT NULL
+             );
+             CREATE TABLE review_live_validation_item (
+                 validation_id INTEGER NOT NULL REFERENCES review_live_validation(id) ON DELETE CASCADE,
+                 ordinal INTEGER NOT NULL CHECK(ordinal >= 0 AND ordinal < 200),
+                 file_id INTEGER NOT NULL REFERENCES scanned_file(id) ON DELETE CASCADE,
+                 state TEXT NOT NULL CHECK(state IN ('present', 'changed', 'missing', 'unavailable')),
+                 reason_code TEXT NOT NULL,
+                 observed_file_identity TEXT,
+                 observed_file_size INTEGER CHECK(observed_file_size IS NULL OR observed_file_size >= 0),
+                 observed_last_modified INTEGER,
+                 os_error INTEGER,
+                 decision_invalidated INTEGER NOT NULL CHECK(decision_invalidated IN (0, 1)),
+                 invalidated_decision TEXT CHECK(invalidated_decision IS NULL OR invalidated_decision IN ('keep', 'remove')),
+                 observed_at TEXT NOT NULL,
+                 PRIMARY KEY(validation_id, ordinal),
+                 UNIQUE(validation_id, file_id)
+             );
+             CREATE TABLE review_live_file_state (
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 file_id INTEGER NOT NULL REFERENCES scanned_file(id) ON DELETE CASCADE,
+                 validation_id INTEGER NOT NULL REFERENCES review_live_validation(id) ON DELETE CASCADE,
+                 state TEXT NOT NULL CHECK(state IN ('present', 'changed', 'missing', 'unavailable')),
+                 reason_code TEXT NOT NULL,
+                 observed_file_identity TEXT,
+                 observed_file_size INTEGER CHECK(observed_file_size IS NULL OR observed_file_size >= 0),
+                 observed_last_modified INTEGER,
+                 os_error INTEGER,
+                 decision_invalidated INTEGER NOT NULL CHECK(decision_invalidated IN (0, 1)),
+                 invalidated_decision TEXT CHECK(invalidated_decision IS NULL OR invalidated_decision IN ('keep', 'remove')),
+                 observed_at TEXT NOT NULL,
+                 PRIMARY KEY(run_id, file_id)
+             );
+             DROP VIEW IF EXISTS effective_review_decision;
+             CREATE VIEW recorded_review_decision AS
+             SELECT manual.plan_id, manual.group_id, manual.file_id, manual.decision,
+                    'manual' AS provenance, manual.decided_at, NULL AS application_id
+             FROM review_decision manual
+             LEFT JOIN (
+                 SELECT rule_decision.plan_id, rule_decision.file_id, application.applied_revision
+                 FROM review_rule_decision rule_decision
+                 JOIN review_rule_application application
+                   ON application.id = rule_decision.application_id AND application.state = 'active'
+             ) rule ON rule.plan_id = manual.plan_id AND rule.file_id = manual.file_id
+             WHERE manual.decision IN ('keep', 'remove')
+                OR rule.file_id IS NULL
+                OR manual.manual_revision > rule.applied_revision
+             UNION ALL
+             SELECT rule_decision.plan_id, rule_decision.group_id, rule_decision.file_id,
+                    rule_decision.decision, 'rule' AS provenance, rule_decision.decided_at,
+                    rule_decision.application_id
+             FROM review_rule_decision rule_decision
+             JOIN review_rule_application application
+               ON application.id = rule_decision.application_id AND application.state = 'active'
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM review_decision manual
+                 WHERE manual.plan_id = rule_decision.plan_id
+                   AND manual.file_id = rule_decision.file_id
+                   AND (manual.decision IN ('keep', 'remove')
+                        OR manual.manual_revision > application.applied_revision)
+             );
+             CREATE VIEW effective_review_decision AS
+             SELECT recorded.plan_id, recorded.group_id, recorded.file_id, recorded.decision,
+                    recorded.provenance, recorded.decided_at, recorded.application_id
+             FROM recorded_review_decision recorded
+             JOIN review_plan plan ON plan.id = recorded.plan_id
+             LEFT JOIN review_live_file_state live
+               ON live.run_id = plan.run_id AND live.file_id = recorded.file_id
+             WHERE live.decision_invalidated IS NULL OR live.decision_invalidated = 0;
+             CREATE INDEX idx_review_live_validation_run
+                 ON review_live_validation(run_id, group_id, id DESC);
+             CREATE INDEX idx_review_live_validation_item_file
+                 ON review_live_validation_item(file_id, validation_id DESC);
+             CREATE INDEX idx_review_live_file_state_invalidated
+                 ON review_live_file_state(run_id, decision_invalidated, file_id);
+             PRAGMA user_version = 12;
              COMMIT;",
         );
         if migration.is_err() {

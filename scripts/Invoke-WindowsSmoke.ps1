@@ -649,17 +649,84 @@ public static class SmokeMouseInput
         $exactPath = $pathCell.Current.HelpText.Substring('Complete path: '.Length)
         Invoke-Element (Find-DescendantButtonByNameFragment $fileMembers 'records intent only and does not delete')
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            $memberCountStatus = Find-Element AutomationId 'FileMemberCount' 1
             $reviewPlanSummary = Find-Element AutomationId 'FileReviewPlanSummary' 1
             $selectedReviewSummary = Find-Element AutomationId 'FileSelectedSetReviewSummary' 1
-            if ($reviewPlanSummary.Current.Name.Contains('1 remove', [StringComparison]::OrdinalIgnoreCase) -and
+            if ($memberCountStatus.Current.Name.Contains('Review decision saved: Remove', [StringComparison]::OrdinalIgnoreCase) -and
+                $reviewPlanSummary.Current.Name.Contains('1 remove', [StringComparison]::OrdinalIgnoreCase) -and
                 $selectedReviewSummary.Current.Name.Contains('1 remove', [StringComparison]::OrdinalIgnoreCase)) {
                 break
             }
             Start-Sleep -Milliseconds 100
         }
+        Assert-True ($memberCountStatus.Current.Name.Contains('Review decision saved: Remove', [StringComparison]::OrdinalIgnoreCase)) 'The WPF Remove command did not announce durable completion.'
         Assert-True ($reviewPlanSummary.Current.Name.Contains('1 remove', [StringComparison]::OrdinalIgnoreCase)) 'The durable review-plan summary did not refresh after a Remove decision.'
         Assert-True ($selectedReviewSummary.Current.Name.Contains('1 remove', [StringComparison]::OrdinalIgnoreCase)) 'The selected-set review summary did not refresh after a Remove decision.'
         Assert-True ([IO.File]::Exists($exactPath)) 'Recording a review decision unexpectedly removed the disposable fixture file.'
+
+        $originalBytes = [IO.File]::ReadAllBytes($exactPath)
+        $originalLastWriteTimeUtc = [IO.File]::GetLastWriteTimeUtc($exactPath)
+        try {
+            $changedBytes = [byte[]]::new($originalBytes.Length + 1)
+            [Array]::Copy($originalBytes, $changedBytes, $originalBytes.Length)
+            $changedBytes[$changedBytes.Length - 1] = 0x5A
+            [IO.File]::WriteAllBytes($exactPath, $changedBytes)
+
+            Invoke-Element (Find-Element AutomationId 'FileValidateVisiblePage')
+            for ($attempt = 0; $attempt -lt 80; $attempt++) {
+                $liveValidationStatus = Find-Element AutomationId 'FileLiveValidationStatus' 1
+                $liveValidationError = Find-Element AutomationId 'FileLiveValidationError' 1
+                if ($liveValidationStatus.Current.Name.Contains('1 review choices invalidated', [StringComparison]::OrdinalIgnoreCase) -and
+                    $liveValidationError.Current.Name.Contains('1 changed', [StringComparison]::OrdinalIgnoreCase)) {
+                    break
+                }
+                Start-Sleep -Milliseconds 100
+            }
+            Assert-True ($liveValidationStatus.Current.Name.Contains('Original scan history was not changed', [StringComparison]::OrdinalIgnoreCase)) 'WPF live validation did not disclose immutable scan history.'
+            Assert-True ($liveValidationError.Current.Name.Contains('1 changed', [StringComparison]::OrdinalIgnoreCase)) 'WPF live validation did not expose the externally modified copy.'
+            Assert-True (Test-IsAutomationDescendant $fileMembers ([Windows.Automation.AutomationElement]::FocusedElement)) 'Live validation did not restore keyboard focus to the visible copy grid.'
+            $memberRow = Find-FirstDataItem $fileMembers
+            $workingStateText = ($memberRow.FindAll(
+                [Windows.Automation.TreeScope]::Descendants,
+                [Windows.Automation.Condition]::TrueCondition) | ForEach-Object { $_.Current.Name }) -join ' '
+            Assert-True ($workingStateText.Contains('Changed since scan; prior Remove decision invalidated', [StringComparison]::OrdinalIgnoreCase)) 'The visible row did not expose its invalidated prior Remove decision.'
+            Assert-True ($reviewPlanSummary.Current.Name.Contains('0 remove', [StringComparison]::OrdinalIgnoreCase)) 'External modification did not invalidate the working Remove summary.'
+            Assert-True ([IO.File]::Exists($exactPath)) 'WPF validation unexpectedly removed the externally modified fixture file.'
+        }
+        finally {
+            [IO.File]::WriteAllBytes($exactPath, $originalBytes)
+            [IO.File]::SetLastWriteTimeUtc($exactPath, $originalLastWriteTimeUtc)
+        }
+
+        $priorValidationStatus = $liveValidationStatus.Current.Name
+        Invoke-Element (Find-Element AutomationId 'FileValidateVisiblePage')
+        for ($attempt = 0; $attempt -lt 80; $attempt++) {
+            $liveValidationStatus = Find-Element AutomationId 'FileLiveValidationStatus' 1
+            $liveValidationError = $window.FindFirst(
+                [Windows.Automation.TreeScope]::Descendants,
+                [Windows.Automation.PropertyCondition]::new(
+                    [Windows.Automation.AutomationElement]::AutomationIdProperty,
+                    'FileLiveValidationError'))
+            if ($liveValidationStatus.Current.Name -ne $priorValidationStatus -and
+                $liveValidationStatus.Current.Name.Contains('1 review choices invalidated', [StringComparison]::OrdinalIgnoreCase) -and
+                $null -eq $liveValidationError) {
+                break
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ($liveValidationStatus.Current.Name.Contains('1 review choices invalidated', [StringComparison]::OrdinalIgnoreCase)) 'Restoring the file incorrectly cleared the sticky invalidated-decision disclosure.'
+        Assert-True ($null -eq $liveValidationError) 'A restored unchanged copy remained unavailable after revalidation.'
+        $fileMembers = Find-Element AutomationId 'FileMembersGrid'
+        Invoke-Element (Find-DescendantButtonByNameFragment $fileMembers 'records intent only and does not delete')
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            $reviewPlanSummary = Find-Element AutomationId 'FileReviewPlanSummary' 1
+            if ($reviewPlanSummary.Current.Name.Contains('1 remove', [StringComparison]::OrdinalIgnoreCase)) {
+                break
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True ($reviewPlanSummary.Current.Name.Contains('1 remove', [StringComparison]::OrdinalIgnoreCase)) 'A fresh Remove decision did not clear the restored copy invalidation.'
+        Assert-True ([IO.File]::Exists($exactPath)) 'Restoring validation state or recording a fresh decision unexpectedly removed the fixture file.'
         $preferenceExpander = Find-Element AutomationId 'PreferredRootPreviewExpander'
         $preferenceExpander.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
         $preferenceScope = Find-Element AutomationId 'PreferencePreviewScope'
@@ -1016,7 +1083,7 @@ $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
         $operationBoundary = Find-Element AutomationId 'RecycleOperationBoundaryNotice'
         Assert-True ($operationBoundary.Current.Name.Contains('execution is disabled', [StringComparison]::OrdinalIgnoreCase)) 'WPF did not disclose the disabled Recycle Bin executor boundary.'
         Assert-True ([IO.File]::Exists($exactPath)) 'WPF preflight unexpectedly removed a disposable fixture file.'
-        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, bounded side-by-side folder location cards with stable automation and Right Arrow focus, current-page parent-grouped Explorer selection with keyboard access, aggregate success, actionable partial failure, and focus restoration, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, ordinary/long-path file reveal, and keyboard folder reveal success plus actionable missing-location failure."
+        Write-Output "WPF automation passed for restored run $RunId, including durable non-deleting file Remove and exact-folder Keep review decisions, bounded external-modification validation with immutable history, sticky decision invalidation, fresh-choice recovery, and copy-grid focus restoration, bounded side-by-side folder location cards with stable automation and Right Arrow focus, current-page parent-grouped Explorer selection with keyboard access, aggregate success, actionable partial failure, and focus restoration, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, ordinary/long-path file reveal, and keyboard folder reveal success plus actionable missing-location failure."
     }
     catch {
         $automationFailure = $_
@@ -1723,6 +1790,60 @@ try {
     Assert-True ($disabledOperation.operation.status -eq 'failed') 'The disabled executor did not fail the whole operation intent closed.'
     Assert-True ($disabledOperation.operation.nonRecyclableCount -eq $operationPage.total) 'Disabled capability results were not durably counted.'
     Assert-True ([IO.File]::Exists($fileMembers.members[0].path)) 'Non-mutating operation smoke unexpectedly removed a disposable fixture file.'
+
+    $liveTarget = $fileMembers.members[0]
+    $liveTargetBackup = "$($liveTarget.path).external-validation-backup"
+    $livePlan = Send-WorkerRequest $restored 'review_plan.get' @{ runId = $run.id }
+    try {
+        Move-Item -LiteralPath $liveTarget.path -Destination $liveTargetBackup
+        $missingValidation = Send-WorkerRequest $restored 'review_live_validation.run' @{
+            operationId = [Guid]::NewGuid().ToString('N')
+            runId = $run.id
+            groupId = $liveTarget.groupId
+            expectedReviewRevision = $livePlan.plan.revision
+            scope = 'selection'
+            fileIds = @($liveTarget.id)
+        }
+        Assert-True ($missingValidation.summary.itemCount -eq 1 -and $missingValidation.summary.missingCount -eq 1) 'Bounded external-deletion validation did not report exactly one missing selected copy.'
+        Assert-True ($missingValidation.summary.invalidatedDecisionCount -eq 1 -and $missingValidation.items[0].invalidatedDecision -eq 'remove') 'External deletion did not invalidate the working Remove decision.'
+        $missingMembers = Send-WorkerRequest $restored 'duplicate_file_group.members' @{
+            runId = $run.id; groupId = $liveTarget.groupId; pageSize = 25
+            sort = @{ field = 'path'; direction = 'ascending' }
+            filter = @{ search = '' }; cursor = $null
+        }
+        $missingMember = $missingMembers.members | Where-Object { $_.id -eq $liveTarget.id } | Select-Object -First 1
+        Assert-True ($missingMember.decision -eq 'undecided' -and $missingMember.validationState -eq 'missing' -and $missingMember.invalidatedDecision -eq 'remove') 'The live overlay did not remove the missing copy from working decisions while retaining its prior intent.'
+        Assert-True ($missingMember.size -eq $liveTarget.size -and $missingMember.modifiedTimeUnixNanos -eq $liveTarget.modifiedTimeUnixNanos) 'External deletion validation rewrote immutable scan metadata.'
+
+        $queryDiagnostics += Stop-SmokeWorker $restored
+        $restored = Start-SmokeWorker
+        $null = Send-WorkerRequest $restored 'hello' @{
+            protocolVersions = @(1)
+            client = @{ name = 'windows-smoke-live-validation-restart'; version = '1.0.0' }
+        }
+        $restartedMembers = Send-WorkerRequest $restored 'duplicate_file_group.members' @{
+            runId = $run.id; groupId = $liveTarget.groupId; pageSize = 25
+            sort = @{ field = 'path'; direction = 'ascending' }
+            filter = @{ search = '' }; cursor = $null
+        }
+        $restartedMember = $restartedMembers.members | Where-Object { $_.id -eq $liveTarget.id } | Select-Object -First 1
+        Assert-True ($restartedMember.validationState -eq 'missing' -and $restartedMember.invalidatedDecision -eq 'remove') 'External-deletion invalidation did not survive worker restart.'
+    }
+    finally {
+        if (Test-Path -LiteralPath $liveTargetBackup) {
+            Move-Item -LiteralPath $liveTargetBackup -Destination $liveTarget.path
+        }
+    }
+    $restoredValidation = Send-WorkerRequest $restored 'review_live_validation.run' @{
+        operationId = [Guid]::NewGuid().ToString('N')
+        runId = $run.id
+        groupId = $liveTarget.groupId
+        expectedReviewRevision = $livePlan.plan.revision
+        scope = 'selection'
+        fileIds = @($liveTarget.id)
+    }
+    Assert-True ($restoredValidation.summary.presentCount -eq 1 -and $restoredValidation.summary.invalidatedDecisionCount -eq 1) 'Restored external-deletion fixture did not become present while retaining its sticky invalidation.'
+    Assert-True ([IO.File]::Exists($liveTarget.path)) 'Live validation or restart unexpectedly removed the restored fixture file.'
     $queryDiagnostics += Stop-SmokeWorker $restored
     $restored = $null
 

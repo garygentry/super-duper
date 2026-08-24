@@ -410,6 +410,39 @@ unavailable, canonical path is the conservative distinct fallback. A `remove` th
 independent survivor returns `unsafe_review_decision`. These are review decisions only; no V1
 review command validates, moves, or deletes a file.
 
+### `review_live_validation.run`
+
+```json
+{"type":"request","id":"lv1","method":"review_live_validation.run","params":{"operationId":"58cf347042d7420190c7513b34209c19","runId":19,"groupId":31,"expectedReviewRevision":5,"scope":"visible_page","fileIds":[88,89]}}
+```
+
+```json
+{"validationId":7,"runId":19,"groupId":31,"reviewRevision":5,"scope":"visible_page","replayed":false,"summary":{"itemCount":2,"presentCount":1,"changedCount":1,"missingCount":0,"unavailableCount":0,"invalidatedDecisionCount":1},"items":[{"fileId":88,"state":"changed","reasonCode":"size_changed","observedFileIdentity":"opaque","observedFileSize":"2048","observedLastModified":"1787500000000000000","osError":null,"decisionInvalidated":true,"invalidatedDecision":"remove","observedAt":"2026-08-23T20:00:00Z"},{"fileId":89,"state":"present","reasonCode":"snapshot_match","observedFileIdentity":"opaque","observedFileSize":"1024","observedLastModified":"1787400000000000000","osError":null,"decisionInvalidated":false,"invalidatedDecision":null,"observedAt":"2026-08-23T20:00:00Z"}]}
+```
+
+The allow-listed request accepts scope `selection` or `visible_page` and 1–200 distinct positive
+file IDs. Every ID must belong to the exact completed run and duplicate group. The command binds the
+active review revision, repeats ownership/revision checks inside its commit transaction, and is
+idempotent by the bounded `operationId`. A conflicting replay returns `idempotency_conflict`; stale
+context returns `review_generation_conflict`; oversized, duplicate, or malformed IDs return
+`invalid_request`; and a cross-group ID returns `review_member_not_found`. No request or response
+contains a cursor, and the worker never expands the explicit ID list.
+
+The worker classifies persisted run exclusions before filesystem validation. An excluded path
+returns `unavailable` with reason `excluded_location` without metadata/identity access, content
+open, placeholder access, or provider hydration. Other paths are compared by metadata and stable
+identity only and return `present`, `missing`, `changed`, or `unavailable`; file content is never
+opened. `missing` and `changed` invalidate an existing working Keep/Remove choice while the recorded
+manual/rule decision and immutable scan snapshot remain unchanged. A later `present` observation
+retains the actionable prior-decision invalidation until a fresh decision or explicit Undecided is
+recorded.
+
+`duplicate_file_group.members` exposes optional `validationState`, `validationReasonCode`,
+`validationObservedAt`, and `invalidatedDecision` fields. Its `decision` and review summary are the
+working projection, so an invalidated recorded choice appears `undecided` without rewriting its
+history. Validation does not follow member-page cursors, enumerate a folder, register watchers,
+mutate files, invoke Shell/Recycle Bin, or enable an executor.
+
 ### `review_folder_group.page`
 
 Params are `runId`, optional `pageSize` (default 200, maximum 500), and an optional forward-only

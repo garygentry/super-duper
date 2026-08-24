@@ -1,5 +1,9 @@
 # Storage Schema v11
 
+Schema v12 retains the v11 append-only recovery-review contract unchanged and adds only the
+separate bounded live-validation overlay documented in
+[`storage-schema-v12.md`](storage-schema-v12.md).
+
 Schema version 11 adds one append-only `recovery_review_observation` table for the accepted WPM11
 Option A operator-review model. The table is separate from immutable schema-v10 operation evidence.
 It grants no filesystem, provider, Shell, Recycle Bin, restore, retry, replay, deletion, or outcome-

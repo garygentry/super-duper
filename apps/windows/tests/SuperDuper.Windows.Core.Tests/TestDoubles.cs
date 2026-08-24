@@ -37,6 +37,7 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
     public Func<long, int, string?, CancellationToken, Task<WorkerReviewGroupPage>>? ReviewGroupPageHandler { get; set; }
 
     public Func<string, long, long, long, string, long, CancellationToken, Task<WorkerReviewDecisionMutation>>? ReviewDecisionHandler { get; set; }
+    public Func<ReviewLiveValidationRequest, CancellationToken, Task<WorkerReviewLiveValidationResult>>? ReviewLiveValidationHandler { get; set; }
 
     public Func<long, int, string?, CancellationToken, Task<WorkerReviewFolderGroupPage>>? ReviewFolderGroupPageHandler { get; set; }
 
@@ -277,6 +278,21 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
             expectedRevision,
             cancellationToken)
         ?? Task.FromResult(new WorkerReviewDecisionMutation(1, expectedRevision + 1, false, decision));
+
+    public Task<WorkerReviewLiveValidationResult> ValidateReviewFilesAsync(
+        ReviewLiveValidationRequest request,
+        CancellationToken cancellationToken = default) =>
+        ReviewLiveValidationHandler?.Invoke(request, cancellationToken)
+        ?? Task.FromResult(new WorkerReviewLiveValidationResult(
+            1,
+            request.RunId,
+            request.GroupId,
+            request.ExpectedReviewRevision,
+            request.Scope,
+            false,
+            new WorkerReviewLiveValidationSummary(request.FileIds.Count, request.FileIds.Count, 0, 0, 0, 0),
+            request.FileIds.Select(id => new WorkerReviewLiveValidationItem(
+                id, "present", "matched_snapshot", false, null, "2026-08-24T00:00:00Z")).ToArray()));
 
     public Task<WorkerReviewFolderGroupPage> GetReviewFolderGroupsAsync(
         long runId,

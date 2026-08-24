@@ -1,4 +1,4 @@
-PRAGMA user_version = 11;
+PRAGMA user_version = 12;
 
 -- Reusable, user-owned scan definitions.
 CREATE TABLE IF NOT EXISTS scan_session (
@@ -306,7 +306,60 @@ CREATE TABLE IF NOT EXISTS review_rule_reversal_command (
     created_at TEXT NOT NULL
 );
 
-CREATE VIEW IF NOT EXISTS effective_review_decision AS
+-- The latest bounded live observation is a mutable working overlay. It never rewrites the
+-- immutable scan snapshot or the recorded manual/rule decision rows. decision_invalidated is
+-- sticky until the operator records a fresh decision after a matching validation.
+CREATE TABLE IF NOT EXISTS review_live_validation (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation_id TEXT NOT NULL UNIQUE,
+    request_signature TEXT NOT NULL,
+    run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+    group_id INTEGER NOT NULL REFERENCES duplicate_group(id) ON DELETE CASCADE,
+    expected_review_revision INTEGER NOT NULL CHECK(expected_review_revision >= 0),
+    scope TEXT NOT NULL CHECK(scope IN ('selection', 'visible_page')),
+    item_count INTEGER NOT NULL CHECK(item_count BETWEEN 1 AND 200),
+    present_count INTEGER NOT NULL CHECK(present_count >= 0),
+    changed_count INTEGER NOT NULL CHECK(changed_count >= 0),
+    missing_count INTEGER NOT NULL CHECK(missing_count >= 0),
+    unavailable_count INTEGER NOT NULL CHECK(unavailable_count >= 0),
+    invalidated_decision_count INTEGER NOT NULL CHECK(invalidated_decision_count >= 0),
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS review_live_validation_item (
+    validation_id INTEGER NOT NULL REFERENCES review_live_validation(id) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL CHECK(ordinal >= 0 AND ordinal < 200),
+    file_id INTEGER NOT NULL REFERENCES scanned_file(id) ON DELETE CASCADE,
+    state TEXT NOT NULL CHECK(state IN ('present', 'changed', 'missing', 'unavailable')),
+    reason_code TEXT NOT NULL,
+    observed_file_identity TEXT,
+    observed_file_size INTEGER CHECK(observed_file_size IS NULL OR observed_file_size >= 0),
+    observed_last_modified INTEGER,
+    os_error INTEGER,
+    decision_invalidated INTEGER NOT NULL CHECK(decision_invalidated IN (0, 1)),
+    invalidated_decision TEXT CHECK(invalidated_decision IS NULL OR invalidated_decision IN ('keep', 'remove')),
+    observed_at TEXT NOT NULL,
+    PRIMARY KEY(validation_id, ordinal),
+    UNIQUE(validation_id, file_id)
+);
+
+CREATE TABLE IF NOT EXISTS review_live_file_state (
+    run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+    file_id INTEGER NOT NULL REFERENCES scanned_file(id) ON DELETE CASCADE,
+    validation_id INTEGER NOT NULL REFERENCES review_live_validation(id) ON DELETE CASCADE,
+    state TEXT NOT NULL CHECK(state IN ('present', 'changed', 'missing', 'unavailable')),
+    reason_code TEXT NOT NULL,
+    observed_file_identity TEXT,
+    observed_file_size INTEGER CHECK(observed_file_size IS NULL OR observed_file_size >= 0),
+    observed_last_modified INTEGER,
+    os_error INTEGER,
+    decision_invalidated INTEGER NOT NULL CHECK(decision_invalidated IN (0, 1)),
+    invalidated_decision TEXT CHECK(invalidated_decision IS NULL OR invalidated_decision IN ('keep', 'remove')),
+    observed_at TEXT NOT NULL,
+    PRIMARY KEY(run_id, file_id)
+);
+
+CREATE VIEW IF NOT EXISTS recorded_review_decision AS
 SELECT manual.plan_id, manual.group_id, manual.file_id, manual.decision,
        'manual' AS provenance, manual.decided_at, NULL AS application_id
 FROM review_decision manual
@@ -333,6 +386,15 @@ WHERE NOT EXISTS (
       AND (manual.decision IN ('keep', 'remove')
            OR manual.manual_revision > application.applied_revision)
 );
+
+CREATE VIEW IF NOT EXISTS effective_review_decision AS
+SELECT recorded.plan_id, recorded.group_id, recorded.file_id, recorded.decision,
+       recorded.provenance, recorded.decided_at, recorded.application_id
+FROM recorded_review_decision recorded
+JOIN review_plan plan ON plan.id = recorded.plan_id
+LEFT JOIN review_live_file_state live
+  ON live.run_id = plan.run_id AND live.file_id = recorded.file_id
+WHERE live.decision_invalidated IS NULL OR live.decision_invalidated = 0;
 
 -- A preflight is an immutable review-revision snapshot plus mutable observations for exactly one
 -- validation generation. It is intentionally independent of future file-operation state.
@@ -571,6 +633,12 @@ CREATE INDEX IF NOT EXISTS idx_review_decision_plan_group
     ON review_decision(plan_id, group_id, file_id);
 CREATE INDEX IF NOT EXISTS idx_review_decision_plan_decision
     ON review_decision(plan_id, decision, group_id);
+CREATE INDEX IF NOT EXISTS idx_review_live_validation_run
+    ON review_live_validation(run_id, group_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_review_live_validation_item_file
+    ON review_live_validation_item(file_id, validation_id DESC);
+CREATE INDEX IF NOT EXISTS idx_review_live_file_state_invalidated
+    ON review_live_file_state(run_id, decision_invalidated, file_id);
 CREATE INDEX IF NOT EXISTS idx_review_command_plan_operation
     ON review_command(plan_id, operation_id);
 CREATE INDEX IF NOT EXISTS idx_review_folder_decision_plan_group

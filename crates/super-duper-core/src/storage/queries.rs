@@ -946,6 +946,11 @@ impl Database {
                         LEFT JOIN review_plan rp ON rp.run_id = dg.run_id AND rp.state = 'active'
                         LEFT JOIN effective_review_decision rd
                           ON rd.plan_id = rp.id AND rd.group_id = dg.id AND rd.file_id = sf.id";
+        let from_sql = format!(
+            "{from_sql}
+             LEFT JOIN review_live_file_state live
+               ON live.run_id = dg.run_id AND live.file_id = sf.id"
+        );
         let total: i64 = self.connection().query_row(
             &format!("SELECT COUNT(*) {from_sql} WHERE {where_sql}"),
             params_from_iter(base_parameters.iter()),
@@ -985,7 +990,8 @@ impl Database {
                     sf.root_path, sf.relative_path, sf.drive_letter,
                     sf.file_size, sf.last_modified,
                     COALESCE(rd.decision, 'undecided'), rd.provenance, rd.decided_at,
-                    rd.application_id
+                    rd.application_id, live.state, live.reason_code, live.observed_at,
+                    live.invalidated_decision
              {from_sql}
              WHERE {where_sql} {cursor_clause}
              ORDER BY {sort_expression} {order}, sf.id {id_order}
@@ -1009,6 +1015,13 @@ impl Database {
                 review_provenance: row.get(11)?,
                 review_decided_at: row.get(12)?,
                 review_application_id: row.get(13)?,
+                validation_state: row.get(14)?,
+                validation_reason_code: row.get(15)?,
+                validation_observed_at: row.get(16)?,
+                invalidated_decision: row
+                    .get::<_, Option<String>>(17)?
+                    .as_deref()
+                    .and_then(ReviewDecisionKind::parse),
             })
         })?;
         let mut members = mapped.collect::<Result<Vec<_>>>()?;

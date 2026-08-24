@@ -360,6 +360,10 @@ pub struct DuplicateFileMemberResult {
     pub review_provenance: Option<String>,
     pub review_decided_at: Option<String>,
     pub review_application_id: Option<i64>,
+    pub validation_state: Option<String>,
+    pub validation_reason_code: Option<String>,
+    pub validation_observed_at: Option<String>,
+    pub invalidated_decision: Option<ReviewDecisionKind>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -459,6 +463,41 @@ pub struct ReviewDecisionMutation {
     pub applied_revision: i64,
     pub replayed: bool,
     pub decision: ReviewDecisionKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewLiveValidationRequest {
+    pub operation_id: String,
+    pub run_id: i64,
+    pub group_id: i64,
+    pub expected_review_revision: i64,
+    pub scope: String,
+    pub file_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewLiveValidationItem {
+    pub file_id: i64,
+    pub state: String,
+    pub reason_code: String,
+    pub observed_file_identity: Option<String>,
+    pub observed_file_size: Option<i64>,
+    pub observed_last_modified: Option<i64>,
+    pub os_error: Option<i64>,
+    pub decision_invalidated: bool,
+    pub invalidated_decision: Option<ReviewDecisionKind>,
+    pub observed_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewLiveValidationResult {
+    pub validation_id: i64,
+    pub run_id: i64,
+    pub group_id: i64,
+    pub review_revision: i64,
+    pub scope: String,
+    pub replayed: bool,
+    pub items: Vec<ReviewLiveValidationItem>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

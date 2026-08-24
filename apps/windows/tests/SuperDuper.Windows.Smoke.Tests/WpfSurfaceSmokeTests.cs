@@ -251,6 +251,26 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 AutomationLiveSetting.Assertive,
                 AutomationProperties.GetLiveSetting(detailError));
+            var liveValidationStatus = FindByAutomationId<TextBlock>(files, "FileLiveValidationStatus");
+            Assert.AreEqual(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(liveValidationStatus));
+            Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
+                AutomationNotificationBehavior.GetNotificationKind(liveValidationStatus));
+            Assert.AreEqual("DuplicateFileLiveValidation",
+                AutomationNotificationBehavior.GetActivityId(liveValidationStatus));
+            var liveValidationError = FindByAutomationId<TextBlock>(files, "FileLiveValidationError");
+            Assert.AreEqual(AutomationLiveSetting.Assertive, AutomationProperties.GetLiveSetting(liveValidationError));
+            Assert.AreEqual(AutomationNotificationKind.ActionAborted,
+                AutomationNotificationBehavior.GetNotificationKind(liveValidationError));
+            Assert.AreEqual("DuplicateFileLiveValidation",
+                AutomationNotificationBehavior.GetActivityId(liveValidationError));
+            var validatePage = FindByAutomationId<Button>(files, "FileValidateVisiblePage");
+            Assert.AreEqual("Alt+V", AutomationProperties.GetAccessKey(validatePage));
+            StringAssert.Contains(AutomationProperties.GetName(validatePage), "focus returns");
+            StringAssert.Contains(AutomationProperties.GetHelpText(validatePage), "at most 200");
+            StringAssert.Contains(AutomationProperties.GetHelpText(validatePage), "never follows a page cursor");
+            StringAssert.Contains(validatePage.Content?.ToString(), "_Validate");
+            Assert.AreEqual("Cancel visible-page validation", AutomationProperties.GetName(
+                FindByAutomationId<Button>(files, "FileCancelValidation")));
             Assert.AreEqual(
                 SystemColors.ControlTextBrush,
                 FindByAutomationId<Border>(files, "FileGroupError").BorderBrush);
@@ -314,6 +334,8 @@ public sealed class WpfSurfaceSmokeTests
                 previousSet,
                 nextSet,
                 FindByAutomationId<DataGrid>(files, "FileMembersGrid"),
+                validatePage,
+                FindByAutomationId<Button>(files, "FileCancelValidation"),
                 FindByAutomationId<Button>(files, "FilePreviousMemberPage"),
                 FindByAutomationId<Button>(files, "FileNextMemberPage"),
             };
@@ -324,7 +346,7 @@ public sealed class WpfSurfaceSmokeTests
             var fileMemberHeaders = FindByAutomationId<DataGrid>(files, "FileMembersGrid")
                 .Columns.Select(column => column.Header?.ToString()).ToArray();
             CollectionAssert.IsSubsetOf(
-                new[] { "Selected root", "Relative path", "Drive", "Decision", "Review decision" },
+                new[] { "Selected root", "Relative path", "Drive", "Decision", "Working state", "Review decision" },
                 fileMemberHeaders);
             var reviewColumn = (DataGridTemplateColumn)FindByAutomationId<DataGrid>(files, "FileMembersGrid")
                 .Columns.Single(column => Equals(column.Header, "Review decision"));
@@ -783,6 +805,25 @@ public sealed class WpfSurfaceSmokeTests
             DrainDispatcher();
             Assert.IsTrue(fileGroups.IsKeyboardFocusWithin);
             Assert.IsInstanceOfType<DataGridCell>(Keyboard.FocusedElement);
+
+            var fileMembers = FindByAutomationId<DataGrid>(files, "FileMembersGrid");
+            fileMembers.ItemsSource = new[] { new object() };
+            fileMembers.SelectedIndex = 0;
+            focusHost.UpdateLayout();
+            var validationRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var validationOperation = files.ExecuteLiveValidationCommandAsync(() => validationRelease.Task);
+            var validationDispatcherAdvanced = false;
+            files.Dispatcher.BeginInvoke(() => validationDispatcherAdvanced = true, DispatcherPriority.Normal);
+            DrainDispatcher();
+            Assert.IsFalse(validationOperation.IsCompleted);
+            Assert.IsTrue(validationDispatcherAdvanced);
+            validationRelease.SetResult();
+            while (!validationOperation.IsCompleted)
+            {
+                DrainDispatcher();
+            }
+            validationOperation.GetAwaiter().GetResult();
+            Assert.IsTrue(fileMembers.IsKeyboardFocusWithin);
 
             focusHost.Content = folders;
             locationCards.ItemsSource = DuplicateFolderMemberListItemViewModel.CreatePage(

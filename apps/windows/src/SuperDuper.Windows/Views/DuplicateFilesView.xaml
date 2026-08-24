@@ -937,24 +937,37 @@
                     <DataGridTextColumn Width="125" Header="Modified" Binding="{Binding Modified}" />
                     <DataGridTextColumn Width="95" Header="Size" Binding="{Binding Size}" />
                     <DataGridTextColumn Width="95" Header="Decision" Binding="{Binding Decision}" />
+                    <DataGridTemplateColumn Width="235" Header="Working state">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock automation:AutomationProperties.Name="{Binding LiveStateAutomationName}"
+                                           Text="{Binding LiveState}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding LiveState}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                     <DataGridTemplateColumn Width="260" Header="Review decision">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">
                                     <Button Padding="7,2"
                                             automation:AutomationProperties.Name="{Binding Path, StringFormat='Keep {0}; preserves this physical copy'}"
+                                            IsEnabled="{Binding CanRecordCurrentDecision}"
                                             Command="{Binding DataContext.KeepMemberCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
                                             Content="Keep" />
                                     <Button Margin="6,0,0,0"
                                             Padding="7,2"
                                             automation:AutomationProperties.Name="{Binding Path, StringFormat='Remove {0}; records intent only and does not delete'}"
+                                            IsEnabled="{Binding CanRecordCurrentDecision}"
                                             Command="{Binding DataContext.RemoveMemberCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
                                             Content="Remove" />
                                     <Button Margin="6,0,0,0"
                                             Padding="7,2"
                                             automation:AutomationProperties.Name="{Binding Path, StringFormat='Reset {0} to undecided'}"
+                                            IsEnabled="{Binding CanClearDecision}"
                                             Command="{Binding DataContext.UndecideMemberCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
                                             Content="Undecided" />
@@ -988,28 +1001,67 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock VerticalAlignment="Center"
-                           automation:AutomationProperties.AutomationId="FileDetailError"
-                           automation:AutomationProperties.LiveSetting="Assertive"
-                           automation:AutomationProperties.Name="{Binding DetailErrorMessage, StringFormat='Duplicate-file detail error: {0}'}"
-                           accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding SelectedSetErrorAnnouncementVersion}"
-                           accessibility:AutomationNotificationBehavior.NotificationKind="ActionAborted"
-                           accessibility:AutomationNotificationBehavior.NotificationProcessing="ImportantMostRecent"
-                           accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFileMemberQuery"
-                           Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
-                           Text="{Binding DetailErrorMessage}"
-                           TextTrimming="CharacterEllipsis"
-                           Visibility="{Binding HasDetailError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock automation:AutomationProperties.AutomationId="FileDetailError"
+                               automation:AutomationProperties.LiveSetting="Assertive"
+                               automation:AutomationProperties.Name="{Binding DetailErrorMessage, StringFormat='Duplicate-file detail error: {0}'}"
+                               accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding SelectedSetErrorAnnouncementVersion}"
+                               accessibility:AutomationNotificationBehavior.NotificationKind="ActionAborted"
+                               accessibility:AutomationNotificationBehavior.NotificationProcessing="ImportantMostRecent"
+                               accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFileMemberQuery"
+                               Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
+                               Text="{Binding DetailErrorMessage}"
+                               TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding HasDetailError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <TextBlock automation:AutomationProperties.AutomationId="FileLiveValidationStatus"
+                               automation:AutomationProperties.LiveSetting="Polite"
+                               automation:AutomationProperties.Name="{Binding LiveValidationStatusMessage}"
+                               accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding SelectedSetStatusAnnouncementVersion}"
+                               accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
+                               accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
+                               accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFileLiveValidation"
+                               Text="{Binding LiveValidationStatusMessage}"
+                               TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding HasLiveValidationStatus, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <TextBlock automation:AutomationProperties.AutomationId="FileLiveValidationError"
+                               automation:AutomationProperties.LiveSetting="Assertive"
+                               automation:AutomationProperties.Name="{Binding LiveValidationErrorMessage}"
+                               accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding SelectedSetErrorAnnouncementVersion}"
+                               accessibility:AutomationNotificationBehavior.NotificationKind="ActionAborted"
+                               accessibility:AutomationNotificationBehavior.NotificationProcessing="ImportantMostRecent"
+                               accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFileLiveValidation"
+                               Text="{Binding LiveValidationErrorMessage}"
+                               TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding HasLiveValidationError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                </StackPanel>
                 <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate file member paging" Orientation="Horizontal">
-                    <Button Padding="10,4"
+                    <Button x:Name="ValidateFilePageButton"
+                            Margin="0,0,8,0"
+                            Padding="10,4"
                             KeyboardNavigation.TabIndex="28"
+                            automation:AutomationProperties.AccessKey="Alt+V"
+                            automation:AutomationProperties.AutomationId="FileValidateVisiblePage"
+                            automation:AutomationProperties.Name="Validate selected duplicate set or visible copy page; access key Alt+V; focus returns to the copy grid"
+                            automation:AutomationProperties.HelpText="Validates at most 200 explicitly bound visible copies and never follows a page cursor or reads excluded cloud placeholders."
+                            Click="OnValidateFilePageClick"
+                            Content="_Validate page"
+                            IsEnabled="{Binding CanValidateVisiblePage}" />
+                    <Button Margin="0,0,8,0"
+                            Padding="10,4"
+                            KeyboardNavigation.TabIndex="29"
+                            automation:AutomationProperties.AutomationId="FileCancelValidation"
+                            automation:AutomationProperties.Name="Cancel visible-page validation"
+                            Command="{Binding CancelLiveValidationCommand}"
+                            Content="Cancel validation" />
+                    <Button Padding="10,4"
+                            KeyboardNavigation.TabIndex="30"
                             automation:AutomationProperties.AutomationId="FilePreviousMemberPage"
                             automation:AutomationProperties.Name="Previous selected-set member page"
                             Command="{Binding PreviousMemberPageCommand}"
                             Content="Previous copies" />
                     <Button Margin="8,0,0,0"
                             Padding="10,4"
-                            KeyboardNavigation.TabIndex="29"
+                            KeyboardNavigation.TabIndex="31"
                             automation:AutomationProperties.AutomationId="FileNextMemberPage"
                             automation:AutomationProperties.Name="Next selected-set member page"
                             Command="{Binding NextMemberPageCommand}"
