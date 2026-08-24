@@ -3868,9 +3868,10 @@ gate.
 
 ### Milestone 13 - Activity and Issues Workspace
 
-Status: Planned/not implemented. Run-exclusion rows and durable operation records are source-data
-hooks, not an accepted Activity workspace. Bounded warning persistence/paging and Activity memory
-can advance independently; deletion/reconciliation audit remains blocked on Milestones 11 and 12.
+Status: The bounded run-warning drilldown foundation is accepted. Run-exclusion rows, warning
+aggregates, and durable operation records are source-data hooks, not a general Activity workspace.
+Bounded large-history evidence can advance next; navigation and deletion/reconciliation audit remain
+separate or blocked gates.
 
 #### User outcome
 
@@ -3937,6 +3938,30 @@ Milestone 13 delivers the complete user-facing Activity experience.
 - An actionable event navigates to the relevant item, duplicate set, plan, or session setting.
 - Activity memory use is independent of total event count.
 - Deletion and reconciliation outcomes can be audited after restart.
+
+#### Warning drilldown acceptance result (2026-08-24)
+
+`WPM13-warning-drilldown` is accepted and `locally_exhausted`. Schema v14 persists the selected
+discovery, hashing/cache, post-discovery snapshot-change, and exact-folder verification warning
+categories as immutable per-run aggregates. Exact occurrence counts sum to the persisted run count;
+each aggregate retains at most three bounded examples, and terminal completion supplies an explicit
+unclassified fallback. Pre-v14 positive counts migrate transactionally to a truthful legacy
+aggregate stating that original examples were not retained.
+
+`warning.page` uses an opaque run-bound server cursor, pages at most 500 aggregates, performs no
+filesystem access, and always returns `executorEnabled:false`. Core binds 25 rows at a time, keeps a
+five-page cache, cancels superseded reads, rejects stale run context and incomplete accounting, and
+never materializes occurrences. Run history exposes keyboard/UI-Automation names, polite completion
+status, explicit cancellation, and close-to-grid focus restoration without adding a general
+Activity workspace or action navigation.
+
+The named verifier, full Debug/Release Rust and serialized Windows matrices, and real non-mutating
+Debug/Release smoke prove schema migration, bounds/examples, opaque paging, restart reconstruction,
+immutable terminal history, cancellation/stale rejection, loaded-STA automation/dispatcher behavior,
+keyboard/focus, and every production lock. Provider, physical-accessibility, Recycle Bin/Shell
+mutation, broad performance, general Activity, action navigation, outcome audit, and later-gate
+campaigns were deliberately skipped. The exact criterion is locally exhausted; the next authorized
+gate is `WPM13-bounded-memory`.
 
 ### Milestone 14 - UX and Scale Hardening
 
@@ -4023,13 +4048,12 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Recommended Next Roadmap Control Slice
 
-Advance only `WPM13-warning-drilldown`. Refine and implement one bounded run-warning/event
-persistence and paging slice without deletion/reconciliation outcome projection or later Activity
-categories.
+Advance only `WPM13-bounded-memory`. Add the named retained 100,000-event/aggregate Release fixture
+and prove stable server pages plus fixed Core/WPF memory independently of total history. Do not add
+Activity categories, action navigation, outcome audit, mutation, or production wiring.
 
-Verifier: storage/protocol/Core/STA coverage plus Debug/Release smoke drills from the run warning
-count to bounded rows or an explicit aggregate with representative examples while preserving the
-accepted live-state, immutable-history, dispatcher, and production-lock behavior.
+Verifier: retained Release storage/protocol/Core evidence plus proportional loaded-STA and real
+non-mutating smoke proves stable paging and the five-page cache without full-history binding.
 
 ## Milestone Definition Template
 
@@ -4126,3 +4150,4 @@ code reviews rather than a conversational transcript.
 | 2026-08-23 | Implemented and accepted the schema-v12 bounded selection/visible-page external validation overlay with explicit 1–200-ID ownership, exclusion-before-access, missing/changed working-decision invalidation, immutable recorded history, restart reconstruction, cancellation/stale-context rejection, actionable keyboard/automation/focus state, and real Debug/Release smoke. | Record WPM12-external-invalidation `locally_exhausted`; preserve accepted paging/review/folder/Explorer behavior and every production lock. Authorize only WPM12-watcher-overflow next; event coalescing, Activity, provider/physical/performance campaigns, mutation, and later gates remain excluded. |
 | 2026-08-24 | Implemented and accepted schema-v13 durable watcher-overflow dirty roots with explicit bounded server-owned reconciliation, visible no-silent-trust state, restart/cancellation/stale-generation protection, immutable-history preservation, one response-level binding update, keyboard/automation/focus behavior, and real Debug/Release smoke. | Record WPM12-watcher-overflow `locally_exhausted`; preserve the accepted external overlay and every production lock. Authorize only WPM12-event-coalescing next; Activity, deletion outcomes/mutation, provider/physical/performance campaigns, and later gates remain excluded. |
 | 2026-08-24 | Implemented and accepted one global 100 ms watcher-event coalescer with 200-path batches, deterministic at-most-ten-UI-updates-per-second bounds, one read-only worker event/cache/binding/dispatcher update per batch, durable overflow fallback, stale-run rejection, accessible pending state, and real Debug/Release non-mutating burst smoke. | Record WPM12-event-coalescing `locally_exhausted`; preserve schema-v12/v13 authority, immutable history, every production lock, and the excluded campaigns. Authorize only WPM13-warning-drilldown next. |
+| 2026-08-24 | Implemented and accepted schema-v14 bounded run-warning aggregates/examples, opaque `warning.page` paging, restart reconstruction, immutable terminal history, and the accessible cancellable Run-history drilldown with stale-context rejection and focus restoration. | Record WPM13-warning-drilldown `locally_exhausted`; preserve every production lock and exclude general Activity/navigation/outcomes. Authorize only WPM13-bounded-memory next. |

@@ -18,8 +18,8 @@ use super_duper_core::storage::models::{
     ExactFolderGroupInsert, PageCursor, PageCursorValue, PreferencePreviewScope,
     RecoveryObservationKind, RecoveryReviewObservationInput, RecoveryReviewState,
     RecycleEligibilityObservation, RecycleItemResultObservation, RegisteredCloudLocation,
-    ReviewDecisionKind, ReviewLiveHintRequest, RunExclusionInsert, RunParameters, ScannedFile,
-    SortDirection,
+    ReviewDecisionKind, ReviewLiveHintRequest, RunExclusionInsert, RunParameters,
+    RunWarningAggregateInsert, ScannedFile, SortDirection,
 };
 use super_duper_core::storage::preference::PreferenceError;
 use super_duper_core::storage::preflight::PreflightError;
@@ -388,6 +388,89 @@ fn live_file(run_id: i64, root: &Path, path: &Path) -> ScannedFile {
 fn schema_version_is_explicit_and_current() {
     let db = Database::open_in_memory().unwrap();
     assert_eq!(db.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+}
+
+#[test]
+fn version_thirteen_migrates_warning_counts_to_explicit_legacy_aggregates() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("v13-warning-aggregates.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    let (_, run_id) = session_and_run(&db, "Legacy warnings", &["/root"]);
+    db.update_run_progress(run_id, "hashing", 3, 30, 2, 4)
+        .unwrap();
+    db.connection()
+        .execute_batch(
+            "DROP INDEX idx_run_warning_run_id;
+             DROP TABLE run_warning_aggregate;
+             PRAGMA user_version = 13;",
+        )
+        .unwrap();
+    drop(db);
+
+    let migrated = Database::open_connection(path.to_str().unwrap()).unwrap();
+    assert_eq!(migrated.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+    let (warnings, total, accounted) = migrated.page_run_warning_aggregates(run_id, 0, 25).unwrap();
+    assert_eq!(total, 1);
+    assert_eq!(accounted, 4);
+    assert_eq!(warnings[0].code, "legacy_unstructured_warning");
+    assert_eq!(warnings[0].examples.len(), 1);
+}
+
+#[test]
+fn warning_aggregates_are_bounded_paged_restart_safe_and_terminally_immutable() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("warning-aggregates.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    let (_, run_id) = session_and_run(&db, "Warnings", &["/root"]);
+    let warnings = [
+        RunWarningAggregateInsert {
+            phase: "discovering".to_owned(),
+            category: "scan".to_owned(),
+            code: "access_unavailable".to_owned(),
+            message: "Some paths were unavailable.".to_owned(),
+            occurrence_count: 7,
+            examples: vec!["/root/a".to_owned(), "/root/b".to_owned()],
+        },
+        RunWarningAggregateInsert {
+            phase: "hashing".to_owned(),
+            category: "scan".to_owned(),
+            code: "hash_failure".to_owned(),
+            message: "Some candidates could not be hashed.".to_owned(),
+            occurrence_count: 2,
+            examples: vec!["/root/c".to_owned()],
+        },
+    ];
+    db.replace_run_warning_aggregates(run_id, &warnings)
+        .unwrap();
+    let (first, total, accounted) = db.page_run_warning_aggregates(run_id, 0, 1).unwrap();
+    assert_eq!((total, accounted), (2, 9));
+    assert_eq!(first.len(), 1);
+    let (second, _, _) = db
+        .page_run_warning_aggregates(run_id, first[0].id, 1)
+        .unwrap();
+    assert_eq!(second.len(), 1);
+    assert_ne!(first[0].code, second[0].code);
+    assert_eq!(db.get_scan_run(run_id).unwrap().warning_count, 9);
+    db.complete_scan_run(run_id, 0, 0, 0, 0, 0, 0, 9).unwrap();
+    assert!(db
+        .replace_run_warning_aggregates(run_id, &warnings)
+        .is_err());
+    drop(db);
+
+    let reopened = Database::open(path.to_str().unwrap()).unwrap();
+    let (restored, total, accounted) = reopened.page_run_warning_aggregates(run_id, 0, 25).unwrap();
+    assert_eq!((restored.len() as i64, total, accounted), (2, 2, 9));
+}
+
+#[test]
+fn terminal_completion_accounts_for_unclassified_warning_counts() {
+    let db = Database::open_in_memory().unwrap();
+    let (_, run_id) = session_and_run(&db, "Fallback warnings", &["/root"]);
+    db.complete_scan_run(run_id, 0, 0, 0, 0, 0, 0, 3).unwrap();
+    let (warnings, total, accounted) = db.page_run_warning_aggregates(run_id, 0, 25).unwrap();
+    assert_eq!((total, accounted), (1, 3));
+    assert_eq!(warnings[0].code, "unclassified_recoverable_warning");
+    assert_eq!(warnings[0].examples.len(), 1);
 }
 
 #[test]

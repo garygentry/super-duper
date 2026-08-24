@@ -31,7 +31,7 @@ use super_duper_core::storage::models::{
     RegisteredCloudLocation, ReviewDecisionKind, ReviewFolderGroupSummary, ReviewGroupSummary,
     ReviewLiveHintRequest, ReviewLiveRootOverflowRequest, ReviewLiveRootReconciliationRequest,
     ReviewLiveRootState, ReviewLiveValidationRequest, ReviewPlanSummary, ReviewPlanView,
-    RunExclusion, RunParameters, ScanRun, ScanSession, SortDirection,
+    RunExclusion, RunParameters, RunWarningAggregate, ScanRun, ScanSession, SortDirection,
 };
 use super_duper_core::storage::preference::PreferenceError;
 use super_duper_core::storage::preflight::PreflightError;
@@ -208,6 +208,16 @@ struct RunExclusionPageParameters {
     offset: i64,
     #[serde(default = "default_page_size")]
     limit: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WarningPageParameters {
+    run_id: i64,
+    #[serde(default = "default_result_page_size")]
+    page_size: i64,
+    #[serde(default)]
+    cursor: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1002,6 +1012,20 @@ struct RunExclusionDto {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct RunWarningAggregateDto {
+    id: i64,
+    run_id: i64,
+    phase: String,
+    category: String,
+    code: String,
+    severity: String,
+    message: String,
+    occurrence_count: i64,
+    examples: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DuplicateFileGroupDto {
     id: i64,
     run_id: i64,
@@ -1402,6 +1426,7 @@ impl WorkerSession {
             "run.list" => self.run_list(request),
             "run.get" => self.run_get(request),
             "run_exclusion.page" => self.run_exclusion_page(request),
+            "warning.page" => self.warning_page(request),
             "run.start" => self.run_start(request),
             "run.cancel" => self.run_cancel(request),
             "review_plan.get" => self.review_plan_get(request),
@@ -1603,6 +1628,75 @@ impl WorkerSession {
         Ok(json!({
             "exclusions": exclusions.into_iter().map(run_exclusion_dto).collect::<Vec<_>>(),
             "total": total,
+        }))
+    }
+
+    fn warning_page(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let parameters: WarningPageParameters = parse_parameters(request)?;
+        if parameters.run_id <= 0 || !(1..=MAXIMUM_PAGE_SIZE).contains(&parameters.page_size) {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "warning.page requires a positive runId and pageSize between 1 and 500",
+            ));
+        }
+        let signature = parameters.run_id.to_string();
+        let cursor = decode_cursor(parameters.cursor.as_deref(), "run-warnings", &signature)?;
+        validate_cursor_value(cursor.as_ref(), false)?;
+        if cursor
+            .as_ref()
+            .is_some_and(|cursor| cursor.id != parameters.run_id || cursor.before)
+        {
+            return Err(invalid_cursor());
+        }
+        let after_id = cursor
+            .as_ref()
+            .and_then(|cursor| match cursor.value {
+                PageCursorValue::Integer(value) => Some(value),
+                PageCursorValue::Text(_) => None,
+            })
+            .unwrap_or(0);
+        let db = self.state.database()?;
+        let run = get_run(&db, parameters.run_id)?;
+        let query_started = Instant::now();
+        let (mut warnings, total, accounted_warning_count) = db
+            .page_run_warning_aggregates(parameters.run_id, after_id, parameters.page_size + 1)
+            .map_err(internal_database_error)?;
+        let has_more = warnings.len() > parameters.page_size as usize;
+        if has_more {
+            warnings.truncate(parameters.page_size as usize);
+        }
+        log_result_query(
+            "warning.page",
+            parameters.run_id,
+            None,
+            parameters.page_size,
+            warnings.len(),
+            total,
+            query_started.elapsed(),
+        );
+        let next_cursor = if has_more {
+            let last_id = warnings
+                .last()
+                .map(|warning| warning.id)
+                .unwrap_or(after_id);
+            Some(encode_cursor(CursorPayload {
+                version: 1,
+                kind: "run-warnings".to_owned(),
+                query: signature,
+                before: false,
+                value: CursorScalar::Integer(last_id.to_string()),
+                id: parameters.run_id,
+            })?)
+        } else {
+            None
+        };
+        Ok(json!({
+            "warnings": warnings.into_iter().map(run_warning_aggregate_dto).collect::<Vec<_>>(),
+            "total": total,
+            "warningCount": run.warning_count,
+            "accountedWarningCount": accounted_warning_count,
+            "nextCursor": next_cursor,
+            "executorEnabled": false,
         }))
     }
 
@@ -3965,13 +4059,12 @@ impl WorkerProgressReporter {
 
         if write_database {
             if let Ok(db) = Database::open_connection(&self.state.database_path.to_string_lossy()) {
-                if let Err(error) = db.update_run_progress(
+                if let Err(error) = db.update_run_progress_preserving_warning_count(
                     self.run_id,
                     phase,
                     files_discovered as i64,
                     bytes_discovered.min(i64::MAX as u64) as i64,
                     files_hashed as i64,
-                    warning_count as i64,
                 ) {
                     if !matches!(db.get_scan_run(self.run_id), Ok(run) if run.status == "completed" || run.status == "cancelled" || run.status == "failed")
                     {
@@ -5697,6 +5790,20 @@ fn run_exclusion_dto(exclusion: RunExclusion) -> RunExclusionDto {
         provider_id: exclusion.provider_id,
         provider_name: exclusion.provider_name,
         occurrence_count: exclusion.occurrence_count,
+    }
+}
+
+fn run_warning_aggregate_dto(warning: RunWarningAggregate) -> RunWarningAggregateDto {
+    RunWarningAggregateDto {
+        id: warning.id,
+        run_id: warning.run_id,
+        phase: warning.phase,
+        category: warning.category,
+        code: warning.code,
+        severity: warning.severity,
+        message: warning.message,
+        occurrence_count: warning.occurrence_count,
+        examples: warning.examples,
     }
 }
 
@@ -9772,6 +9879,86 @@ mod tests {
             page["result"]["exclusions"][0]["providerName"],
             "TestProvider"
         );
+    }
+
+    #[test]
+    fn warning_protocol_pages_bounded_aggregates_rejects_stale_cursors_and_restarts() {
+        use super_duper_core::storage::models::RunWarningAggregateInsert;
+
+        let temp = TempDir::new().unwrap();
+        let db_path = temp.path().join("worker.db");
+        let db = Database::open(db_path.to_str().unwrap()).unwrap();
+        let session_id = db
+            .create_session("Warnings", &["/root".into()], &[])
+            .unwrap();
+        let parameters = RunParameters {
+            roots: vec!["/root".into()],
+            ignore_patterns: vec![],
+            directory_similarity_threshold_millis: 500,
+            cloud_policy: Default::default(),
+            manual_location_exclusions: vec![],
+            registered_cloud_locations: vec![],
+            cloud_detection_status: Default::default(),
+        };
+        let run_id = db.create_scan_run(session_id, &parameters, "test").unwrap();
+        db.start_scan_run(run_id).unwrap();
+        db.replace_run_warning_aggregates(
+            run_id,
+            &[
+                RunWarningAggregateInsert {
+                    phase: "discovering".into(),
+                    category: "scan".into(),
+                    code: "one".into(),
+                    message: "First aggregate".into(),
+                    occurrence_count: 5,
+                    examples: vec!["example one".into()],
+                },
+                RunWarningAggregateInsert {
+                    phase: "hashing".into(),
+                    category: "scan".into(),
+                    code: "two".into(),
+                    message: "Second aggregate".into(),
+                    occurrence_count: 3,
+                    examples: vec!["example two".into(), "example three".into()],
+                },
+            ],
+        )
+        .unwrap();
+        db.complete_scan_run(run_id, 0, 0, 0, 0, 0, 0, 8).unwrap();
+        let second_run = db.create_scan_run(session_id, &parameters, "test").unwrap();
+        db.start_scan_run(second_run).unwrap();
+        db.complete_scan_run(second_run, 0, 0, 0, 0, 0, 0, 0)
+            .unwrap();
+        drop(db);
+
+        let (sender, _receiver) = mpsc::channel();
+        let state = SharedState::new(WorkerOptions::new(&db_path), sender).unwrap();
+        let mut session = WorkerSession::new(state);
+        session.handle_line(HELLO).unwrap();
+        let first: Value = serde_json::from_str(&session.handle_line(
+            r#"{"type":"request","id":"warnings","method":"warning.page","params":{"runId":1,"pageSize":1}}"#,
+        ).unwrap()).unwrap();
+        assert_eq!(first["result"]["warningCount"], 8);
+        assert_eq!(first["result"]["accountedWarningCount"], 8);
+        assert_eq!(first["result"]["total"], 2);
+        assert_eq!(first["result"]["warnings"].as_array().unwrap().len(), 1);
+        assert_eq!(first["result"]["executorEnabled"], false);
+        let cursor = first["result"]["nextCursor"].as_str().unwrap();
+        let next_request = json!({
+            "type":"request", "id":"next", "method":"warning.page",
+            "params":{"runId":1,"pageSize":1,"cursor":cursor}
+        });
+        let next: Value =
+            serde_json::from_str(&session.handle_line(&next_request.to_string()).unwrap()).unwrap();
+        assert_eq!(next["result"]["warnings"].as_array().unwrap().len(), 1);
+        let stale_request = json!({
+            "type":"request", "id":"stale", "method":"warning.page",
+            "params":{"runId":2,"pageSize":1,"cursor":cursor}
+        });
+        let stale: Value =
+            serde_json::from_str(&session.handle_line(&stale_request.to_string()).unwrap())
+                .unwrap();
+        assert_eq!(stale["error"]["code"], "invalid_cursor");
     }
 
     #[test]

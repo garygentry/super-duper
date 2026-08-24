@@ -72,6 +72,25 @@ public sealed record WorkerRunExclusion(
 
 public sealed record WorkerRunExclusionPage(IReadOnlyList<WorkerRunExclusion> Exclusions, long Total);
 
+public sealed record WorkerRunWarningAggregate(
+    long Id,
+    long RunId,
+    string Phase,
+    string Category,
+    string Code,
+    string Severity,
+    string Message,
+    long OccurrenceCount,
+    IReadOnlyList<string> Examples);
+
+public sealed record WorkerRunWarningPage(
+    IReadOnlyList<WorkerRunWarningAggregate> Warnings,
+    long Total,
+    long WarningCount,
+    long AccountedWarningCount,
+    string? NextCursor,
+    bool ExecutorEnabled);
+
 public enum WorkerSortDirection
 {
     Ascending,

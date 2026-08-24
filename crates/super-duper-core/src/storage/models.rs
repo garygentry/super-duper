@@ -126,6 +126,29 @@ pub struct RunExclusionInsert {
     pub provider_name: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunWarningAggregate {
+    pub id: i64,
+    pub run_id: i64,
+    pub phase: String,
+    pub category: String,
+    pub code: String,
+    pub severity: String,
+    pub message: String,
+    pub occurrence_count: i64,
+    pub examples: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunWarningAggregateInsert {
+    pub phase: String,
+    pub category: String,
+    pub code: String,
+    pub message: String,
+    pub occurrence_count: i64,
+    pub examples: Vec<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct ScannedFile {
     pub id: i64,

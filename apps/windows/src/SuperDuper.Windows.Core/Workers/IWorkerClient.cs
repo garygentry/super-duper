@@ -58,6 +58,12 @@ public interface IWorkerClient : IAsyncDisposable
         int limit = 100,
         CancellationToken cancellationToken = default);
 
+    Task<WorkerRunWarningPage> GetRunWarningsAsync(
+        long runId,
+        int pageSize,
+        string? cursor = null,
+        CancellationToken cancellationToken = default);
+
     Task<WorkerRun> StartRunAsync(long sessionId, CancellationToken cancellationToken = default);
 
     Task<WorkerRun> CancelRunAsync(long runId, CancellationToken cancellationToken = default);

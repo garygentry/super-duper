@@ -441,6 +441,30 @@ public static class SmokeMouseInput
         Assert-True ($refreshCloud.Current.IsEnabled) 'Cloud registration refresh did not complete responsively.'
         Assert-True (-not $cloudStatus.Current.Name.Contains('unavailable', [StringComparison]::OrdinalIgnoreCase)) 'Cloud registration discovery remained unavailable in the normal WPF smoke.'
         Assert-True ((Find-Element AutomationId 'StartScanButton').Current.IsEnabled) 'Start scan did not become enabled after successful cloud registration discovery.'
+        Select-Element (Find-Element AutomationId 'RunHistoryTab')
+        $openWarnings = Find-Element AutomationId 'OpenRunWarnings'
+        Assert-True ($openWarnings.Current.IsEnabled) 'The selected run warning count was not drillable.'
+        Invoke-Element $openWarnings
+        $warningStatus = Find-Element AutomationId 'RunWarningStatus'
+        for ($attempt = 0; $attempt -lt 40 -and
+            -not $warningStatus.Current.Name.Contains('accounting for', [StringComparison]::OrdinalIgnoreCase); $attempt++) {
+            Start-Sleep -Milliseconds 100
+            $warningStatus = Find-Element AutomationId 'RunWarningStatus' 1
+        }
+        Assert-True ($warningStatus.Current.Name.Contains('bounded warning aggregates', [StringComparison]::OrdinalIgnoreCase)) 'WPF warning drilldown did not expose its bounded aggregate status.'
+        $warningGrid = Find-Element AutomationId 'RunWarningGrid'
+        Assert-True (($warningGrid.FindAll([Windows.Automation.TreeScope]::Descendants,
+            [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::ControlTypeProperty,
+                [Windows.Automation.ControlType]::DataItem)).Count -ge 1)) 'WPF warning drilldown exposed no aggregate rows.'
+        Invoke-Element (Find-Element AutomationId 'CloseRunWarnings')
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            $focused = [Windows.Automation.AutomationElement]::FocusedElement
+            $historyGrid = Find-Element AutomationId 'RunHistoryGrid' 1
+            if ($null -ne $focused -and (Test-IsAutomationDescendant $historyGrid $focused)) { break }
+            Start-Sleep -Milliseconds 50
+        }
+        Assert-True (Test-IsAutomationDescendant $historyGrid $focused) 'Closing warning drilldown did not restore focus to run history.'
         Select-Element (Find-Element AutomationId 'DuplicateFilesTab')
         $initialDirtyRootWarning = Find-Element AutomationId 'FileDirtyRootWarning'
         $oneGigabyteOrLarger = Find-Element AutomationId 'FileOneGigabyteOrLarger'
@@ -1423,6 +1447,14 @@ try {
     $completed = Wait-RunTerminal $connection $run.id
     Assert-True ($completed.status -eq 'completed') 'Rerun did not complete.'
     Assert-True ($completed.warningCount -ge 1) 'Locked-file access warning was not counted.'
+    $warningPage = Send-WorkerRequest $connection 'warning.page' @{
+        runId = $run.id; pageSize = 1; cursor = $null
+    }
+    Assert-True ($warningPage.warningCount -eq $completed.warningCount) 'Warning drilldown count did not match the completed run.'
+    Assert-True ($warningPage.accountedWarningCount -eq $completed.warningCount) 'Warning aggregates did not account for every completed-run warning.'
+    Assert-True ($warningPage.warnings.Count -eq 1) 'Warning drilldown did not return one bounded first-page aggregate.'
+    Assert-True ($warningPage.warnings[0].examples.Count -ge 1 -and $warningPage.warnings[0].examples.Count -le 3) 'Warning aggregate examples were not bounded to 1..3.'
+    Assert-True (-not $warningPage.executorEnabled) 'Warning drilldown unexpectedly enabled production execution.'
     $exclusive.Dispose()
     $exclusive = $null
     $scanDiagnostics = Stop-SmokeWorker $connection
@@ -1435,6 +1467,11 @@ try {
     }
     $history = Send-WorkerRequest $restored 'run.list' @{ sessionId = $session.id; offset = 0; limit = 100 }
     Assert-True (($history.runs | Where-Object id -eq $run.id).status -eq 'completed') 'Completed run was not restored.'
+    $restoredWarnings = Send-WorkerRequest $restored 'warning.page' @{
+        runId = $run.id; pageSize = 25; cursor = $null
+    }
+    Assert-True ($restoredWarnings.accountedWarningCount -eq $completed.warningCount) 'Warning aggregates were not reconstructed after worker restart.'
+    Assert-True (-not $restoredWarnings.executorEnabled) 'Restarted warning drilldown unexpectedly enabled production execution.'
 
     $filePage = Send-WorkerRequest $restored 'duplicate_file_group.page' @{
         runId = $run.id; pageSize = 25

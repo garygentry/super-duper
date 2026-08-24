@@ -230,6 +230,30 @@ impl Database {
         )?)
     }
 
+    /// Worker throttled progress must not persist a warning count before the matching durable
+    /// aggregates have committed. The engine advances both at phase boundaries.
+    pub fn update_run_progress_preserving_warning_count(
+        &self,
+        run_id: i64,
+        phase: &str,
+        files_discovered: i64,
+        bytes_discovered: i64,
+        files_hashed: i64,
+    ) -> Result<()> {
+        changed_one(self.connection().execute(
+            "UPDATE scan_run SET phase = ?1, files_discovered = ?2,
+                    bytes_discovered = ?3, files_hashed = ?4
+             WHERE id = ?5 AND status IN ('running', 'cancelling')",
+            params![
+                phase,
+                files_discovered,
+                bytes_discovered,
+                files_hashed,
+                run_id
+            ],
+        )?)
+    }
+
     pub fn mark_run_cancelling(&self, run_id: i64) -> Result<()> {
         let changed = self.connection().execute(
             "UPDATE scan_run SET status = 'cancelling'
@@ -261,6 +285,7 @@ impl Database {
         wasted_bytes: i64,
         warning_count: i64,
     ) -> Result<()> {
+        self.ensure_terminal_warning_accounting(run_id, warning_count)?;
         changed_one(self.connection().execute(
             "UPDATE scan_run SET status = 'completed', phase = 'finalizing', completed_at = ?1,
                     files_discovered = ?2, bytes_discovered = ?3, files_hashed = ?4,
@@ -279,6 +304,32 @@ impl Database {
                 run_id
             ],
         )?)
+    }
+
+    fn ensure_terminal_warning_accounting(&self, run_id: i64, warning_count: i64) -> Result<()> {
+        let accounted: i64 = self.connection().query_row(
+            "SELECT COALESCE(SUM(occurrence_count), 0)
+             FROM run_warning_aggregate WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )?;
+        if accounted > warning_count || warning_count < 0 {
+            return Err(Error::InvalidQuery);
+        }
+        if accounted == warning_count {
+            return Ok(());
+        }
+        let now = Utc::now().to_rfc3339();
+        self.connection().execute(
+            "INSERT INTO run_warning_aggregate
+                (run_id, phase, category, code, severity, message, occurrence_count,
+                 examples_json, created_at, updated_at)
+             VALUES (?1, 'finalizing', 'scan', 'unclassified_recoverable_warning', 'warning',
+                     'Recoverable warnings were counted without a more specific structured category.',
+                     ?2, '[\"Original details remain in local diagnostics.\"]', ?3, ?3)",
+            params![run_id, warning_count - accounted, now],
+        )?;
+        Ok(())
     }
 
     pub fn cancel_scan_run(&self, run_id: i64) -> Result<()> {
@@ -1549,6 +1600,114 @@ impl Database {
             let _ = self.connection().execute_batch("ROLLBACK;");
         }
         result
+    }
+
+    pub fn replace_run_warning_aggregates(
+        &self,
+        run_id: i64,
+        warnings: &[RunWarningAggregateInsert],
+    ) -> Result<()> {
+        let status: String = self.connection().query_row(
+            "SELECT status FROM scan_run WHERE id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )?;
+        if !matches!(status.as_str(), "running" | "cancelling") {
+            return Err(Error::InvalidQuery);
+        }
+        let exact_count: i64 = warnings
+            .iter()
+            .map(|warning| warning.occurrence_count)
+            .sum();
+        if warnings.iter().any(|warning| {
+            warning.occurrence_count <= 0
+                || warning.examples.len() > 3
+                || warning.phase.len() > 64
+                || warning.category.len() > 64
+                || warning.code.len() > 128
+                || warning.message.len() > 2048
+                || warning.examples.iter().any(|example| example.len() > 2048)
+        }) {
+            return Err(Error::InvalidParameterName(
+                "run warning aggregate exceeds its durable bounds".to_owned(),
+            ));
+        }
+        self.connection().execute_batch("BEGIN IMMEDIATE;")?;
+        let result = (|| -> Result<()> {
+            self.connection().execute(
+                "DELETE FROM run_warning_aggregate WHERE run_id = ?1",
+                params![run_id],
+            )?;
+            let now = Utc::now().to_rfc3339();
+            for warning in warnings {
+                self.connection().execute(
+                    "INSERT INTO run_warning_aggregate
+                        (run_id, phase, category, code, severity, message, occurrence_count,
+                         examples_json, created_at, updated_at)
+                     VALUES (?1, ?2, ?3, ?4, 'warning', ?5, ?6, ?7, ?8, ?8)",
+                    params![
+                        run_id,
+                        warning.phase,
+                        warning.category,
+                        warning.code,
+                        warning.message,
+                        warning.occurrence_count,
+                        serde_json::to_string(&warning.examples)
+                            .map_err(|_| Error::InvalidQuery)?,
+                        now,
+                    ],
+                )?;
+            }
+            self.connection().execute(
+                "UPDATE scan_run SET warning_count = ?2 WHERE id = ?1",
+                params![run_id, exact_count],
+            )?;
+            self.connection().execute_batch("COMMIT;")
+        })();
+        if result.is_err() {
+            let _ = self.connection().execute_batch("ROLLBACK;");
+        }
+        result
+    }
+
+    pub fn page_run_warning_aggregates(
+        &self,
+        run_id: i64,
+        after_id: i64,
+        limit: i64,
+    ) -> Result<(Vec<RunWarningAggregate>, i64, i64)> {
+        let (total, accounted): (i64, i64) = self.connection().query_row(
+            "SELECT COUNT(*), COALESCE(SUM(occurrence_count), 0)
+             FROM run_warning_aggregate WHERE run_id = ?1",
+            params![run_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        let mut statement = self.connection().prepare(
+            "SELECT id, run_id, phase, category, code, severity, message, occurrence_count,
+                    examples_json
+             FROM run_warning_aggregate
+             WHERE run_id = ?1 AND id > ?2 ORDER BY id LIMIT ?3",
+        )?;
+        let warnings = statement
+            .query_map(params![run_id, after_id, limit], |row| {
+                let examples_json: String = row.get(8)?;
+                let examples = serde_json::from_str(&examples_json).map_err(|error| {
+                    Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::new(error))
+                })?;
+                Ok(RunWarningAggregate {
+                    id: row.get(0)?,
+                    run_id: row.get(1)?,
+                    phase: row.get(2)?,
+                    category: row.get(3)?,
+                    code: row.get(4)?,
+                    severity: row.get(5)?,
+                    message: row.get(6)?,
+                    occurrence_count: row.get(7)?,
+                    examples,
+                })
+            })?
+            .collect::<Result<Vec<_>>>()?;
+        Ok((warnings, total, accounted))
     }
 
     pub fn page_run_exclusions(

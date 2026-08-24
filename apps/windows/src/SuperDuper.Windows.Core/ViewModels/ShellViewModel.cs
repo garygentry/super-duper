@@ -379,6 +379,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         DuplicateFiles.ReviewRevisionChanged -= OnFileReviewRevisionChanged;
         DuplicateFolders.ReviewRevisionChanged -= OnFolderReviewRevisionChanged;
         Progress.Dispose();
+        History.Dispose();
         DuplicateFiles.Dispose();
         DuplicateFolders.Dispose();
         Preflight.Dispose();

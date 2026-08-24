@@ -18,7 +18,7 @@ active.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: `Accept WPM12 event coalescing` (this session's commit)
+- Latest completed slice: `Accept WPM13 warning drilldown` (this session's commit)
 - Worktree after that commit: clean
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 required fail-closed cloud safety: accepted; both unavailable opt-in policies are
@@ -35,38 +35,29 @@ active.
 - Milestone 12: bounded external deletion/modification invalidation, durable watcher-overflow
   dirty-root reconciliation, and bounded watcher-event coalescing are accepted; in-app deletion
   outcomes depend on Milestone 11 outcomes
-- Milestone 13: planned; bounded warning/Activity foundations can advance independently
+- Milestone 13: bounded warning drilldown accepted; later Activity gates remain
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The latest slice accepts `WPM12-event-coalescing`. Infrastructure watches at most the 64 immutable
-selected roots for only the completed run currently shown. One global coalescer waits 100 ms before
-each drain, de-duplicates repeated create/change/delete/rename paths, sends at most 200 distinct
-paths for one root, and therefore produces at most ten UI-producing batches per second across all
-roots. A watcher error or 201st distinct pending path discards incomplete hints and uses the
-accepted durable schema-v13 overflow fallback.
+The latest slice accepts `WPM13-warning-drilldown`. Schema v14 stores immutable per-run aggregates
+for discovery, hashing/cache, post-discovery snapshot-change, and exact-folder warnings. Counts sum
+exactly to `warning_count`; each aggregate retains at most three examples, terminal completion has
+an explicit fallback, and pre-v14 counts migrate truthfully. `warning.page` uses an opaque run-bound
+cursor, performs no filesystem access, and always reports `executorEnabled:false`. Core binds 25
+rows, caches five pages, cancels superseded work, and rejects stale/incomplete accounting. Run
+history adds accessible keyboard/cancellation/status/focus behavior without general Activity.
 
-The worker maps one bounded hint batch to immutable duplicate-member IDs with one read-only query,
-emits one `result.state_changed` frame, and performs no storage/cache or filesystem mutation. Core
-rejects a non-current run, clears its bounded member cache once, binds matching visible rows once as
-`validation_pending`, and posts one polite WPF/automation update. Hints remain non-authoritative:
-schema-v12 validation is still the only durable working-copy observation, schema-v13 dirty-root
-state still owns restart reconciliation, and immutable scan/manual/rule history is unchanged. The
-named verifier, proportional Debug/Release matrices, and real non-mutating Debug/Release smoke prove
-mass-burst/rate bounds, overflow fallback, restart, cancellation/stale-context rejection, dispatcher
-responsiveness, keyboard/automation/focus preservation, and every production lock. The gate is
-`locally_exhausted`; Activity, in-app outcomes, provider/physical/performance campaigns, mutation,
-later Milestone 12 gates, and production execution remain untouched.
+The named verifier, full Debug/Release Rust and Windows matrices, and real non-mutating Debug/Release
+smoke prove migration, bounds/examples, restart, immutable history, stale-context rejection,
+accessibility, dispatcher responsiveness, and every production lock. The gate is
+`locally_exhausted`; external campaigns, mutation, general Activity/navigation/outcomes, and later
+gates remain untouched.
 
 ## Immediate next step
 
-Advance only `WPM13-warning-drilldown`. Refine and implement one bounded run-warning/event
-persistence and paging slice without pulling deletion/reconciliation outcome categories or the
-broader Activity workspace forward.
-
-Verifier: storage/protocol/Core/loaded-STA coverage plus Debug/Release smoke drills from the run
-warning count to bounded rows or an explicit aggregate with representative examples while retaining
-the accepted live-state, immutable-history, restart, dispatcher, and production-lock evidence.
+Advance only `WPM13-bounded-memory`. Add the retained 100,000-event/aggregate Release fixture and
+prove stable server pages plus fixed Core/WPF memory without new categories, navigation, outcomes,
+mutation, or production wiring.
 
 ## Required startup audit
 
@@ -142,6 +133,14 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+The warning-drilldown slice passed `Verify-WindowsWarningDrilldown.ps1`: 3 schema-v14 migration/
+persistence/paging/restart/immutability tests, 1 end-to-end source test, 1 worker cursor/restart/safety
+test, 3 Core cache/cancellation/stale tests, and 1 loaded-STA automation test. Full Debug/Release
+Rust passed 51 storage tests with 3 performance ignores, 32 FFI tests, and 16 worker tests. Each
+serialized Debug/Release solution passed 110 Core, 69 Infrastructure, and 3 loaded-STA tests with 5
+provider/physical Shell tests skipped. Real Debug/Release non-mutating smoke passed warning
+accounting/examples before and after restart, WPF drilldown/focus, and all prior behavior.
 
 The latest event-coalescing slice was verified as follows:
 
@@ -223,3 +222,4 @@ For each session:
 | 2026-08-23 | this session | Implement and accept the schema-v12 bounded selection/visible-page external validation overlay with deletion/modification invalidation, sticky prior intent, exclusion-before-access, immutable history, restart, cancellation/stale-context rejection, stable keyboard/automation/focus state, and real Debug/Release smoke. | Advance only WPM12-watcher-overflow; exclude event coalescing, Activity, mutation, provider/physical/performance campaigns, later gates, and production wiring. |
 | 2026-08-23 | this session | Implement and accept schema-v13 durable watcher-overflow dirty roots with bounded server-owned reconciliation, visible no-silent-trust WPF state, restart/cancellation/stale-generation protection, immutable-history preservation, one response-level UI update, keyboard/automation/focus support, and real Debug/Release smoke. | Advance only WPM12-event-coalescing; exclude Activity, deletion outcomes/mutation, provider/physical/performance campaigns, later gates, and production wiring. |
 | 2026-08-24 | this session | Implement and accept one global 100 ms/200-path watcher-event coalescer with deterministic at-most-ten-UI-updates-per-second bounds, one read-only worker event/cache/binding/dispatcher update per batch, durable overflow fallback, stale-run rejection, accessible pending state, and real Debug/Release non-mutating burst smoke. | Advance only WPM13-warning-drilldown; preserve every accepted live-state/history/production boundary and exclude later Activity categories, mutation, and external campaigns. |
+| 2026-08-24 | this session | Implement and accept schema-v14 bounded run-warning aggregates/examples, opaque server paging, fixed Core cache, restart reconstruction, immutable terminal history, cancellation/stale rejection, and accessible Run-history drilldown/focus. | Advance only WPM13-bounded-memory; exclude new Activity categories, navigation, outcomes, mutation, and external campaigns. |

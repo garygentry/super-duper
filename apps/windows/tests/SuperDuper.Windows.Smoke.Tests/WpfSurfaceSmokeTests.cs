@@ -606,6 +606,21 @@ public sealed class WpfSurfaceSmokeTests
             AssertSessionSetupFitsSupportedMinimumWorkspace(setup);
             Assert.AreEqual("Run history", AutomationProperties.GetName(
                 FindByAutomationId<DataGrid>(history, "RunHistoryGrid")));
+            Assert.AreEqual(
+                "Review persisted warnings for the selected run",
+                AutomationProperties.GetName(FindByAutomationId<Button>(history, "OpenRunWarnings")));
+            Assert.AreEqual(
+                "Persisted run warning aggregates",
+                AutomationProperties.GetName(FindByAutomationId<DataGrid>(history, "RunWarningGrid")));
+            Assert.AreEqual(
+                "Load the next bounded warning aggregate page",
+                AutomationProperties.GetName(FindByAutomationId<Button>(history, "NextRunWarningPage")));
+            Assert.AreEqual(
+                "Cancel loading run warnings",
+                AutomationProperties.GetName(FindByAutomationId<Button>(history, "CancelRunWarningLoad")));
+            Assert.AreEqual(
+                "Close run warning details and return to run history",
+                AutomationProperties.GetName(FindByAutomationId<Button>(history, "CloseRunWarnings")));
 
             var focusHost = new Window { Width = 1200, Height = 800, Content = files };
             focusHost.Show();

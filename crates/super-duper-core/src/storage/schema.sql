@@ -1,4 +1,4 @@
-PRAGMA user_version = 13;
+PRAGMA user_version = 14;
 
 -- Reusable, user-owned scan definitions.
 CREATE TABLE IF NOT EXISTS scan_session (
@@ -671,6 +671,23 @@ CREATE TABLE IF NOT EXISTS run_exclusion (
     UNIQUE(run_id, path, reason_code)
 );
 
+-- Bounded, run-owned warning aggregates. Exact occurrence counts remain drillable without
+-- retaining one row per filesystem failure; examples_json is capped by the engine at three.
+CREATE TABLE IF NOT EXISTS run_warning_aggregate (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+    phase TEXT NOT NULL,
+    category TEXT NOT NULL,
+    code TEXT NOT NULL,
+    severity TEXT NOT NULL CHECK(severity = 'warning'),
+    message TEXT NOT NULL,
+    occurrence_count INTEGER NOT NULL CHECK(occurrence_count > 0),
+    examples_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(run_id, code)
+);
+
 CREATE INDEX IF NOT EXISTS idx_session_name ON scan_session(name COLLATE NOCASE);
 CREATE INDEX IF NOT EXISTS idx_run_session ON scan_run(session_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_run_status ON scan_run(status);
@@ -695,6 +712,7 @@ CREATE INDEX IF NOT EXISTS idx_folder_group_member_group ON duplicate_folder_gro
 CREATE INDEX IF NOT EXISTS idx_folder_group_member_directory
     ON duplicate_folder_group_member(directory_id, group_id, id);
 CREATE INDEX IF NOT EXISTS idx_run_exclusion_run_path ON run_exclusion(run_id, path COLLATE NOCASE, id);
+CREATE INDEX IF NOT EXISTS idx_run_warning_run_id ON run_warning_aggregate(run_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_review_plan_one_active_run
     ON review_plan(run_id) WHERE state = 'active';
 CREATE INDEX IF NOT EXISTS idx_review_decision_plan_group

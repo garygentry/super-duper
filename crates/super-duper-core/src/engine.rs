@@ -5,7 +5,9 @@ use crate::hasher;
 use crate::platform;
 use crate::progress::ProgressReporter;
 use crate::scanner;
-use crate::storage::models::{CloudPolicy, RunExclusionInsert, RunParameters, ScannedFile};
+use crate::storage::models::{
+    CloudPolicy, RunExclusionInsert, RunParameters, RunWarningAggregateInsert, ScannedFile,
+};
 use crate::storage::Database;
 use dashmap::DashMap;
 use std::collections::{HashMap, HashSet};
@@ -56,6 +58,7 @@ struct PersistedResults {
     duplicate_files: usize,
     wasted_bytes: u64,
     warnings: usize,
+    warning_examples: Vec<String>,
 }
 
 impl ScanEngine {
@@ -233,6 +236,26 @@ impl ScanEngine {
                 })
                 .collect::<Vec<_>>(),
         )?;
+        let mut warning_aggregates = Vec::new();
+        if let Some(warning) = warning_aggregate(
+            "discovering",
+            "discovery_recoverable_warning",
+            "Some roots, directories, entries, or file metadata could not be inspected safely.",
+            traversal.warning_count,
+            traversal
+                .files
+                .iter()
+                .filter_map(|file| {
+                    file.warning_message
+                        .as_ref()
+                        .map(|message| format!("{}: {message}", file.canonical_path))
+                })
+                .collect(),
+            "A discovery item could not be inspected; original details are in local diagnostics.",
+        ) {
+            warning_aggregates.push(warning);
+        }
+        db.replace_run_warning_aggregates(run_id, &warning_aggregates)?;
         let scan_duration = scan_start.elapsed();
         if self.cancel_token.load(Ordering::Relaxed) {
             return Err(Error::Cancelled);
@@ -266,6 +289,17 @@ impl ScanEngine {
         };
         let hash_duration = hash_start.elapsed();
         let warning_count = traversal.warning_count + hash_outcome.warning_count;
+        if let Some(warning) = warning_aggregate(
+            "hashing",
+            "hash_recoverable_warning",
+            "Some candidate files could not be read or their hash cache operation degraded safely.",
+            hash_outcome.warning_count,
+            Vec::new(),
+            "A candidate file read or cache operation failed; original details are in local diagnostics.",
+        ) {
+            warning_aggregates.push(warning);
+        }
+        db.replace_run_warning_aggregates(run_id, &warning_aggregates)?;
         progress.on_hash_complete(
             hash_outcome.confirmed_duplicates.len(),
             hash_duration.as_secs_f64(),
@@ -294,6 +328,17 @@ impl ScanEngine {
         )?;
         let db_duration = db_start.elapsed();
         let mut warning_count = warning_count + persisted.warnings;
+        if let Some(warning) = warning_aggregate(
+            "persisting",
+            "snapshot_changed_after_discovery",
+            "Some files changed or vanished after discovery and were excluded from duplicate results.",
+            persisted.warnings,
+            persisted.warning_examples,
+            "A discovered file changed or vanished before its immutable result was committed.",
+        ) {
+            warning_aggregates.push(warning);
+        }
+        db.replace_run_warning_aggregates(run_id, &warning_aggregates)?;
         progress.on_db_write_complete(traversal.files_discovered, db_duration.as_secs_f64());
         db.update_run_progress(
             run_id,
@@ -322,6 +367,17 @@ impl ScanEngine {
             progress,
         )?;
         warning_count += exact_folder_analysis.warning_count;
+        if let Some(warning) = warning_aggregate(
+            "analyzing_folders",
+            "exact_folder_verification_warning",
+            "Some exact-folder candidates could not be verified and were omitted.",
+            exact_folder_analysis.warning_count,
+            Vec::new(),
+            "An exact-folder candidate changed, became unavailable, or could not be hashed safely.",
+        ) {
+            warning_aggregates.push(warning);
+        }
+        db.replace_run_warning_aggregates(run_id, &warning_aggregates)?;
         let dir_similarity_pairs = dir_similarity::compute_directory_similarity_cancellable(
             db,
             run_id,
@@ -409,6 +465,7 @@ fn persist_run_results(
     let mut hashes_by_path = HashMap::new();
     let mut groups = Vec::new();
     let mut warnings = 0;
+    let mut warning_examples = Vec::new();
     let mut wasted_bytes = 0u64;
     let mut duplicate_files = 0usize;
     let mut invalid_snapshots = HashSet::new();
@@ -433,6 +490,10 @@ fn persist_run_results(
     for (index, file) in discovered.iter_mut().enumerate() {
         if let Err(error) = validate_discovered_snapshot(file) {
             warnings += 1;
+            push_warning_example(
+                &mut warning_examples,
+                format!("{}: {error}", file.canonical_path),
+            );
             invalid_snapshots.insert(index);
             append_warning(
                 &mut file.warning_message,
@@ -497,6 +558,10 @@ fn persist_run_results(
                         discovered_index.is_some_and(|index| invalid_snapshots.contains(&index));
                     if !already_invalid {
                         warnings += 1;
+                        push_warning_example(
+                            &mut warning_examples,
+                            format!("{}: {error}", path.display()),
+                        );
                     }
                     if let Some(index) = discovered_index.filter(|_| !already_invalid) {
                         invalid_snapshots.insert(index);
@@ -569,7 +634,41 @@ fn persist_run_results(
         duplicate_files,
         wasted_bytes,
         warnings,
+        warning_examples,
     })
+}
+
+fn warning_aggregate(
+    phase: &str,
+    code: &str,
+    message: &str,
+    count: usize,
+    mut examples: Vec<String>,
+    fallback_example: &str,
+) -> Option<RunWarningAggregateInsert> {
+    if count == 0 {
+        return None;
+    }
+    examples.sort();
+    examples.dedup();
+    examples.truncate(3);
+    if examples.is_empty() {
+        examples.push(fallback_example.to_owned());
+    }
+    Some(RunWarningAggregateInsert {
+        phase: phase.to_owned(),
+        category: "scan".to_owned(),
+        code: code.to_owned(),
+        message: message.to_owned(),
+        occurrence_count: count.min(i64::MAX as usize) as i64,
+        examples,
+    })
+}
+
+fn push_warning_example(examples: &mut Vec<String>, example: String) {
+    if examples.len() < 3 && !examples.contains(&example) {
+        examples.push(example);
+    }
 }
 
 fn validate_discovered_snapshot(file: &scanner::DiscoveredFile) -> std::io::Result<()> {

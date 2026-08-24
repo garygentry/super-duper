@@ -360,6 +360,16 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
             new { runId, offset, limit },
             cancellationToken);
 
+    public Task<WorkerRunWarningPage> GetRunWarningsAsync(
+        long runId,
+        int pageSize,
+        string? cursor = null,
+        CancellationToken cancellationToken = default) =>
+        InvokeAsync<WorkerRunWarningPage>(
+            "warning.page",
+            new { runId, pageSize, cursor },
+            cancellationToken);
+
     public async Task<WorkerRun> StartRunAsync(
         long sessionId,
         CancellationToken cancellationToken = default) =>

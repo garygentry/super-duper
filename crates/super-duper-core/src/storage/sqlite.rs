@@ -4,7 +4,7 @@ use chrono::Utc;
 use rusqlite::{params, Connection, Error, Result};
 use tracing::{debug, info};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 13;
+pub const CURRENT_SCHEMA_VERSION: i64 = 14;
 
 pub struct Database {
     conn: Connection,
@@ -71,21 +71,28 @@ impl Database {
         let version = self.schema_version()?;
         match version {
             CURRENT_SCHEMA_VERSION => self.conn.execute_batch(include_str!("schema.sql"))?,
-            12 => self.migrate_v12_to_v13()?,
+            13 => self.migrate_v13_to_v14()?,
+            12 => {
+                self.migrate_v12_to_v13()?;
+                self.migrate_v13_to_v14()?;
+            }
             11 => {
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
+                self.migrate_v13_to_v14()?;
             }
             10 => {
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
+                self.migrate_v13_to_v14()?;
             }
             9 => {
                 self.migrate_v9_to_v10()?;
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
+                self.migrate_v13_to_v14()?;
             }
             8 => {
                 self.migrate_v8_to_v9()?;
@@ -93,6 +100,7 @@ impl Database {
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
+                self.migrate_v13_to_v14()?;
             }
             7 => {
                 self.migrate_v7_to_v8()?;
@@ -101,6 +109,7 @@ impl Database {
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
+                self.migrate_v13_to_v14()?;
             }
             6 => {
                 self.migrate_v6_to_v7()?;
@@ -110,6 +119,7 @@ impl Database {
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
+                self.migrate_v13_to_v14()?;
             }
             5 => {
                 self.migrate_v5_to_v6()?;
@@ -120,6 +130,7 @@ impl Database {
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
+                self.migrate_v13_to_v14()?;
             }
             4 => {
                 self.migrate_v4_to_v5()?;
@@ -131,6 +142,7 @@ impl Database {
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
+                self.migrate_v13_to_v14()?;
             }
             3 => {
                 self.migrate_v3_to_v4()?;
@@ -143,6 +155,7 @@ impl Database {
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
+                self.migrate_v13_to_v14()?;
             }
             2 => self.migrate_v2_to_v3()?,
             0 if !self.has_user_tables()? => self.conn.execute_batch(include_str!("schema.sql"))?,
@@ -1164,6 +1177,44 @@ impl Database {
              CREATE INDEX idx_review_live_root_reconciliation_item_file
                  ON review_live_root_reconciliation_item(file_id, reconciliation_id DESC);
              PRAGMA user_version = 13;
+             COMMIT;",
+        );
+        if migration.is_err() {
+            let _ = self.conn.execute_batch("ROLLBACK;");
+        }
+        migration
+    }
+
+    fn migrate_v13_to_v14(&self) -> Result<()> {
+        info!("Migrating SQLite schema from version 13 to 14");
+        let migration = self.conn.execute_batch(
+            "BEGIN IMMEDIATE;
+             CREATE TABLE IF NOT EXISTS run_warning_aggregate (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 run_id INTEGER NOT NULL REFERENCES scan_run(id) ON DELETE CASCADE,
+                 phase TEXT NOT NULL,
+                 category TEXT NOT NULL,
+                 code TEXT NOT NULL,
+                 severity TEXT NOT NULL CHECK(severity = 'warning'),
+                 message TEXT NOT NULL,
+                 occurrence_count INTEGER NOT NULL CHECK(occurrence_count > 0),
+                 examples_json TEXT NOT NULL,
+                 created_at TEXT NOT NULL,
+                 updated_at TEXT NOT NULL,
+                 UNIQUE(run_id, code)
+             );
+             INSERT OR IGNORE INTO run_warning_aggregate
+                 (run_id, phase, category, code, severity, message, occurrence_count,
+                  examples_json, created_at, updated_at)
+             SELECT id, COALESCE(phase, 'unknown'), 'scan', 'legacy_unstructured_warning',
+                    'warning',
+                    'This historical run predates structured warning examples.', warning_count,
+                    '[\"Original examples were not retained before schema v14.\"]',
+                    COALESCE(completed_at, started_at, created_at),
+                    COALESCE(completed_at, started_at, created_at)
+             FROM scan_run WHERE warning_count > 0;
+             CREATE INDEX IF NOT EXISTS idx_run_warning_run_id ON run_warning_aggregate(run_id, id);
+             PRAGMA user_version = 14;
              COMMIT;",
         );
         if migration.is_err() {

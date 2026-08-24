@@ -133,7 +133,9 @@ marks affected immutable selected roots visibly dirty across restart and advance
 cursor reconciliation in batches of at most 200 duplicate members without binding full results.
 A single 100 ms Infrastructure coalescer now collapses watcher bursts into read-only worker hints of
 at most 200 distinct paths, producing at most ten Core/WPF updates per second and routing capacity or
-watcher failure to the durable dirty-root fallback. In-app outcome reconciliation and historical
+watcher failure to the durable dirty-root fallback. Schema v14 now accounts for every persisted run
+warning through immutable bounded aggregates with at most three examples, opaque worker paging, and
+an accessible cancellable Run-history drilldown that reconstructs after restart. In-app outcome reconciliation and historical
 cross-overlay closure remain separate gates. Milestone 11's
 revision-bound Recycle Bin operation contract, strictly non-mutating durable foundation, separately
 gated native executor, and acceptance evidence tooling are implemented.
