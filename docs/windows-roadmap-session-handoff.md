@@ -18,13 +18,13 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: complete SOP2f functional acceptance and retain its failed Release wall
-  profile as an operator-decision package (this session's commit)
+- Latest completed slice: approve and predeclare the two-part SOP2f overhead budget and immutable
+  representative-duration campaign (this session's commit)
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP2-progress-reporting`
-- Next work package: `SOP2f-progress-acceptance` operator disposition
+- Next work package: `SOP2f-progress-acceptance` representative-duration profile
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -49,17 +49,16 @@ completed session work uncommitted or substitute work from the parked stream.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The current coherent slice completes every local SOP2f functional check but does not accept SOP2.
-The named cross-layer verifier, full Debug/Release Rust and serialized Windows matrices, isolated
-Release publish, and real Debug/Release worker/WPF smoke all pass. The one predeclared cross-revision
-Release profile is retained at `docs/evidence/scan-progress-overhead-20260825.json`: wall measured
-+4.39%/+66.9243 ms and breached the published +1% ceiling; CPU measured -3.83%/-109.375 ms and is
-treated as noise/no detected positive cost. The existing visible Release app (PID 48972, started
-2026-08-24) locked the standard output directory and was not stopped; an isolated build/test/publish
-and smoke closed the functional Release evidence without changing that user-owned process. No
-specific measured cost is credibly likely to recover the remaining 339 wall basis points on this
-short fixture, so no rerun or tuning occurred. `SOP2f` is `blocked_operator_decision`; do not advance
-to SOP3, SOP5, SOP8 implementation/UI, or the parked stream.
+The current decision slice reopens only `SOP2f-progress-acceptance` under the operator-approved
+two-part budget. The retained unchanged short profile passes fixed caps of 100 ms wall and 125 ms
+worker CPU at +66.9243 ms wall and no detected positive CPU cost. Steady-state acceptance still
+requires one write-once representative Release A/B with aggregate wall and CPU each strictly below
+1%. Its immutable 600,008-file/4,605,870,080-byte fixture, deterministic generator, warm-filesystem-
+cache/cold-application-state semantics, C/T counterbalanced order, five qualifying 60-600-second
+runs per revision, correctness/duration/free-space gates, and no-retry/no-tuning rules are recorded
+in `docs/scan-optimization-plan.md`. The operator approved these exact parameters and authorized
+stopping the pre-existing Release app PID 48972; its path was verified and it was stopped. SOP2f is
+`in_progress`; do not advance to SOP3, SOP5, SOP8 implementation/UI, or the parked stream.
 
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
@@ -224,12 +223,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Obtain an explicit operator disposition for `SOP2f-progress-acceptance`. The operator may keep the
-published +1% wall/+1% CPU criterion and leave SOP2 blocked; approve a reviewed two-part budget with
-a predeclared fixed ceiling for this short fixture plus less-than-1% wall/CPU on a representative-
-duration scan; or explicitly waive/reject SOP2. Do not infer an absolute ceiling from the failed
-result, rerun/tune the profile, or advance to SOP3, SOP5, SOP8 implementation/UI, or the parked
-stream before that decision.
+Implement the separate write-once representative-duration harness exactly as predeclared, verify
+its source and environmental gates, then run it once and retain pass, fail, or invalid evidence
+without retry or tuning. Accept SOP2f/SOP2 only if the fixture qualifies, every correctness check
+passes, and aggregate wall and worker CPU are each strictly below 100 bp. Otherwise retain the
+result and stop at its exact operator/verification boundary. Do not advance to SOP3, SOP5, SOP8
+implementation/UI, or the parked stream before SOP2f is resolved.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -298,7 +297,7 @@ before committing the next slice.
 These remain open unless a later committed slice cites qualifying evidence or an explicit reviewed
 decision:
 
-- `SOP2` (blocked on operator overhead disposition) and `SOP3` through `SOP9` in
+- `SOP2` (representative-duration overhead evidence in progress) and `SOP3` through `SOP9` in
   `docs/scan-optimization-plan.md`
 - Physical Narrator and NVDA acceptance
 - Windows high-contrast acceptance
@@ -324,10 +323,12 @@ Release Windows matrices each pass 137 Core, 74 Infrastructure, and 3 smoke test
 operator-only Infrastructure skips; both real worker/WPF smokes pass the typed-progress/terminal UI
 assertions. Debug builds and the isolated Release build/publish report zero warnings/errors. The
 standard Release verifier passed optimized Rust but its normal .NET output copy was blocked by the
-pre-existing visible Release app PID 48972; the process was preserved and an isolated artifacts
-path supplied equivalent build/test/publish evidence. The sole retained profile at
-`docs/evidence/scan-progress-overhead-20260825.json` fails wall at +439 bp and passes CPU at -383 bp,
-so neither SOP2f nor SOP2 is accepted.
+pre-existing visible Release app PID 48972; an isolated artifacts path supplied equivalent
+build/test/publish evidence, and the operator later authorized the verified process to be stopped.
+The retained short profile at `docs/evidence/scan-progress-overhead-20260825.json` passes the
+operator-approved fixed 100 ms wall/125 ms CPU caps at +66.9243 ms and no detected positive CPU
+cost. The required representative-duration evidence is not yet run, so neither SOP2f nor SOP2 is
+accepted.
 
 Accepted `SOP2e` passes the full Windows solution with 137 Core, 74 Infrastructure, and 3 loaded-STA
 smoke tests; the same 5 operator-only provider/physical Infrastructure tests are skipped. The
@@ -527,6 +528,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-25 | this session | Approve the exact two-part SOP2f budget: 100 ms wall/125 ms CPU fixed caps for the retained short fixture plus strictly less than 1% aggregate wall/CPU on one immutable 600,008-file representative campaign; verify and stop the operator-authorized Release app PID 48972. | Commit the predeclared protocol, then implement and run exactly one write-once representative profile without resizing, retrying, excluding outliers, or advancing to SOP3. |
 | 2026-08-25 | this session | Complete SOP2f local functional evidence with a named verifier, full Debug/Release matrices, isolated Release publish, and real Debug/Release worker/WPF smoke; retain the sole cross-revision profile failed at +4.39% wall and -3.83% CPU without retrying or stopping the operator's visible Release app. | Keep `SOP2f` blocked and obtain explicit operator disposition: preserve the +1%/+1% gate, approve a reviewed two-part short-absolute/representative-duration budget, or explicitly waive/reject SOP2. Do not advance to SOP3. |
 | 2026-08-25 | this session | Accept `SOP2e-accessible-progress-surface` with six bounded funnel outcomes, separate candidate context, terminal-truthful operational text, system-brush/narrow-width accessibility, stable cancellation focus, and a five-second accepted-snapshot-only `MostRecent` UIA channel. | Implement `SOP2f-progress-acceptance` with one focused cross-layer verifier and the predeclared proportionate full acceptance matrix. |
 | 2026-08-25 | this session | Accept `SOP2d-core-progress-projection` with strict complete typed JSON parsing, Core invariant validation, one generation-scoped latest-only 100 ms application gate, lifecycle/stale/regression rejection, and exact funnel/rate/cache/device/remaining-work/ETA projections. | Implement `SOP2e-accessible-progress-surface` using only accepted coalesced snapshots and retain the explicit accessibility/non-goal boundaries. |
