@@ -371,16 +371,43 @@ The implemented lifecycle events are `run.started`, `run.progress`, `run.complet
 Progress data is:
 
 ```json
-{"runId":19,"sequence":8,"status":"running","phase":"hashing","filesDiscovered":8000,"bytesDiscovered":"45000000000","filesHashed":1200,"warningCount":3,"currentPath":"D:\\Photos\\2025\\image.jpg"}
+{"runId":19,"sequence":8,"status":"running","phase":"hashing","filesDiscovered":8000,"bytesDiscovered":"45000000000","filesHashed":1200,"warningCount":3,"currentPath":"D:\\Photos\\2025\\image.jpg","progress":{"progressContractVersion":1,"metricsContractVersion":2,"revision":37,"monotonicNanos":12500000000,"phase":"candidate_screening","phaseElapsedNanos":9200000000,"counters":{"discoveredFiles":8000,"discoveredBytes":"45000000000"},"logical":{"partialScreenedFiles":1200,"partialScreenedBytes":"8900000000"},"funnel":{"discovered":{"files":8000,"logicalBytes":"45000000000"}},"partialReadRates":{"recent":{"state":"available","rate":{"filesPerSecondMillis":123400,"physicalBytesPerSecond":"810000000","windowNanos":5000000000}}},"fullReadRates":{"recent":{"state":"unavailable","reason":"no_elapsed_time"}},"cacheHitRateBasisPoints":null,"warningCount":3,"activeDevices":{"state":"unavailable","reason":"mapping_unavailable"},"remainingKnownWork":{"stage":"hash_pipeline","files":6800,"logicalBytes":"36100000000"},"eta":{"state":"unavailable","reason":"window_warming"}}}
 ```
 
-- `sequence` is strictly increasing within one run and establishes event order.
+- The example abbreviates the nested `counters`, `logical`, `funnel`, and rate objects. The worker
+  emits the complete additive `progress` object defined by
+  [`scan-progress-contract-v1.md`](scan-progress-contract-v1.md). Legacy clients may ignore it.
+- `sequence` is strictly increasing within one run and establishes transport event order.
+  `progress.revision` is the source observation order; coalescing can skip source revisions, so it
+  is not a substitute for `sequence`.
 - `status` is `running` or `cancelling`; terminal lifecycle events carry the persisted terminal
   status.
-- `phase` is `discovering`, `hashing`, `persisting`, `analyzing_folders`, or `finalizing`.
+- The top-level `phase` remains `discovering`, `hashing`, `persisting`, `analyzing_folders`, or
+  `finalizing` for protocol-v1 compatibility. `progress.phase` carries the typed contract value;
+  the interleaved hashing pipeline is `candidate_screening`.
+- `filesHashed` remains additive-compatible but is deprecated for display because it means
+  successful partial hashes, not completed full-file hashes. New consumers use `progress.funnel`.
+- Legacy `filesDiscovered` continues to exclude zero-byte files. The typed
+  `progress.counters.discoveredFiles` includes them and pairs that total with
+  `progress.counters.zeroByteFiles`.
 - `currentPath` and `message` are optional and intentionally throttled.
-- High-frequency updates are coalesced to approximately ten events per second. Phase boundaries
-  and terminal lifecycle events are emitted immediately and may form a small burst.
+- Progress observations are reduced in the worker, so `progress` contains reducer-derived recent
+  and cumulative rates, cache effectiveness, remaining work, and ETA or an explicit unavailable
+  reason. Active-device state is passed through without exposing paths; the current producer uses
+  `mapping_unavailable` rather than inferring a device association.
+- Every byte quantity is a base-10 JSON string: byte counters in `counters`; all `*Bytes` fields in
+  `logical` and `funnel`; `physicalBytesPerSecond`; `remainingKnownWork.logicalBytes`; and the ETA
+  variant fields `remaining_logical_bytes` and `logical_bytes_per_second_millis`. File counts,
+  basis points, durations, revisions, and sequences remain JSON numbers. Optional values and tagged
+  `available`/`unavailable`/`complete` states remain distinct from zero.
+- The first progress frame may emit immediately. Every later ordinary frame is at least 100 ms
+  after the preceding frame, which permits no more than ten frames in every half-open interval
+  `[t, t + 1 second)`. Updates are latest-wins. A phase change replaces pending state and is emitted
+  in the next legal slot if the run remains active; it does not force an extra burst.
+- `sequence` is assigned only after coalescing. Once an emitted or pending update observes
+  cancellation, later progress cannot return to `running`. Before a terminal lifecycle event, the
+  worker closes and joins the progress emitter and discards any pending value. Therefore no
+  `run.progress` event follows `run.completed`, `run.cancelled`, or `run.failed`.
 - Periodic SQLite counter writes occur no more than approximately twice per second. Durable phase
   boundaries and terminal transitions are written immediately.
 - Events may appear before or after unrelated correlated responses. Clients must use response IDs,

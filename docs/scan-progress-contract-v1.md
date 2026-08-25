@@ -1,9 +1,9 @@
 # Scan Progress Contract v1
 
 This contract is the platform-neutral cumulative truth for `SOP2-progress-reporting`. It is
-separate from metrics contract v2: SOP2a defines and tests the projection without migrating status
-history or populating the scan pipeline. SOP2b will connect one serialized producer to both live
-progress and durable counters.
+separate from metrics contract v2: SOP2a defined and tested the projection without migrating status
+history, SOP2b connected one serialized producer to live and durable counter truth, and SOP2c added
+the bounded worker transport projection.
 
 ## Version and units
 
@@ -74,8 +74,9 @@ second. It is `work_not_yet_known`, `window_warming`, `no_recent_progress`, `uns
 results is `complete`.
 
 Active-device state is one non-secret device key, two through 64 unique device keys, or an
-explicit unavailable reason (`no_active_io`, `mapping_unavailable`, or `ambiguous`). Actual
-root/work-to-device mapping remains SOP2c scope.
+explicit unavailable reason (`no_active_io`, `mapping_unavailable`, or `ambiguous`). The current
+producer reports `mapping_unavailable` because it has no trustworthy non-secret root/work-to-device
+association; a later measured device-aware scheduling package may add one.
 
 ## Transition rules and deferred integration
 
@@ -90,6 +91,7 @@ the current producer reports its interleaved hash activity as candidate screenin
 SOP2b populates cumulative observations from the same bounded hash deltas used for terminal status
 truth. It publishes at 256 file outcomes or 8 MiB of full-content reads and reconciles cancellation,
 warnings, cache outcomes, failures, and completed/failed/cancelled terminal counters without adding
-per-file status rows. Device mapping, worker JSON/coalescing, Core/WPF state, warning drilldown,
-singleton savings, scheduling, read-path tuning, and cache-policy UI remain in SOP2c through SOP2e
-and later named gates.
+per-file status rows. SOP2c reduces those observations in the worker and emits latest-wins frames at
+most once per 100 ms with decimal-string byte quantities and strict terminal ordering. Core/WPF
+state, warning drilldown, singleton savings, scheduling, read-path tuning, device-aware scheduling,
+and cache-policy UI remain in SOP2d/SOP2e and later named gates.

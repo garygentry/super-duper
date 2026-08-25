@@ -686,6 +686,61 @@ impl hasher::HashProgressSink for EngineHashProgressSink<'_> {
     }
 }
 
+struct EngineDiscoveryProgressReporter<'a> {
+    telemetry: Arc<Mutex<RunTelemetry>>,
+    progress: &'a dyn ProgressReporter,
+    publication: Mutex<()>,
+}
+
+impl<'a> EngineDiscoveryProgressReporter<'a> {
+    fn new(telemetry: Arc<Mutex<RunTelemetry>>, progress: &'a dyn ProgressReporter) -> Self {
+        Self {
+            telemetry,
+            progress,
+            publication: Mutex::new(()),
+        }
+    }
+}
+
+impl ProgressReporter for EngineDiscoveryProgressReporter<'_> {
+    fn on_discovery_progress(
+        &self,
+        files_found: usize,
+        bytes_found: u64,
+        warning_count: usize,
+        current_path: &str,
+    ) {
+        let _publication = self
+            .publication
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let observation = {
+            let mut telemetry = self
+                .telemetry
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let discovered_files = files_found as u64;
+            let warnings = warning_count as u64;
+            let changed = discovered_files > telemetry.counters.discovered_files
+                || bytes_found > telemetry.counters.discovered_bytes
+                || warnings > telemetry.counters.warnings;
+            telemetry.counters.discovered_files =
+                telemetry.counters.discovered_files.max(discovered_files);
+            telemetry.counters.discovered_bytes =
+                telemetry.counters.discovered_bytes.max(bytes_found);
+            telemetry.counters.warnings = telemetry.counters.warnings.max(warnings);
+            changed
+                .then(|| telemetry.record_progress_observation(TelemetryPhase::Discovering, 0))
+                .flatten()
+        };
+        if let Some(observation) = observation {
+            self.progress.on_progress_observation(&observation);
+        }
+        self.progress
+            .on_discovery_progress(files_found, bytes_found, warning_count, current_path);
+    }
+}
+
 impl ScanEngine {
     pub fn new(config: AppConfig) -> Self {
         Self {
@@ -914,12 +969,13 @@ impl ScanEngine {
 
         progress.on_scan_start();
         let scan_start = Instant::now();
+        let discovery_progress = EngineDiscoveryProgressReporter::new(telemetry.clone(), progress);
         let traversal = scanner::discover_files_with_exclusions(
             &root_slices,
             &ignore_slices,
             &location_exclusions,
             &self.cancel_token,
-            progress,
+            &discovery_progress,
         )?;
         db.replace_run_exclusions(
             run_id,

@@ -271,6 +271,32 @@ fn test_scan_with_ignore_patterns() {
 }
 
 #[test]
+fn typed_discovery_progress_advances_before_candidate_totals_are_known() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path().join("typed_discovery");
+    fs::create_dir(&root).unwrap();
+    for index in 1..=300 {
+        fs::write(root.join(format!("{index}.bin")), vec![7_u8; index]).unwrap();
+    }
+    let product_path = tmp.path().join("typed-discovery.db");
+    let progress = RecordingProgress::default();
+    ScanEngine::new(AppConfig {
+        root_paths: vec![root.to_string_lossy().into_owned()],
+        ignore_patterns: Vec::new(),
+    })
+    .with_db_path(product_path.to_str().unwrap())
+    .scan(&progress)
+    .unwrap();
+
+    let observations = progress.0.lock().unwrap();
+    assert!(observations.iter().any(|observation| {
+        observation.phase == super_duper_core::telemetry::TelemetryPhase::Discovering
+            && !observation.candidate_totals_known
+            && observation.counters.discovered_files >= 256
+    }));
+}
+
+#[test]
 fn test_scan_cancellation() {
     let tmp = tempdir().unwrap();
     let root = tmp.path().join("scan_cancel");

@@ -41,7 +41,14 @@ use super_duper_core::storage::recycle_operation::RecycleOperationError;
 use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::root_reconciliation::ReviewLiveRootError;
 use super_duper_core::storage::Database;
+use super_duper_core::telemetry::{ProgressObservation, ProgressReducer, TelemetryPhase};
 use super_duper_core::{AppConfig, ScanEngine};
+
+mod progress_projection;
+
+use progress_projection::{
+    progress_event_data, LatestValueCoalescer, LegacyProgressProjection, PendingProgress,
+};
 
 pub const PROTOCOL_VERSION: u32 = 1;
 pub const MAXIMUM_FRAME_BYTES: usize = 1_048_576;
@@ -3927,6 +3934,7 @@ fn run_scan_thread(
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         engine.execute_started_run(run_id, &reporter)
     }));
+    reporter.finish_progress();
     match outcome {
         Ok(Ok(_)) | Ok(Err(super_duper_core::Error::Cancelled)) => {}
         Ok(Err(error)) => {
@@ -4011,6 +4019,9 @@ struct WorkerProgressReporter {
     run_id: i64,
     cancel_token: Arc<AtomicBool>,
     progress: Mutex<ProgressState>,
+    reducer: Mutex<ProgressReducer>,
+    projection: Arc<(Mutex<LatestValueCoalescer<PendingProgress>>, Condvar)>,
+    projection_thread: Mutex<Option<std::thread::JoinHandle<()>>>,
 }
 
 struct ProgressState {
@@ -4020,13 +4031,31 @@ struct ProgressState {
     files_hashed: usize,
     warning_count: usize,
     phase_warning_base: usize,
-    sequence: u64,
-    last_event: Option<Instant>,
+    current_path: Option<String>,
     last_database_write: Option<Instant>,
 }
 
 impl WorkerProgressReporter {
     fn new(state: Arc<SharedState>, run_id: i64, cancel_token: Arc<AtomicBool>) -> Self {
+        let projection_started = Instant::now();
+        let projection = Arc::new((Mutex::new(LatestValueCoalescer::default()), Condvar::new()));
+        let projection_thread = {
+            let state = state.clone();
+            let projection = projection.clone();
+            let projection_cancel = cancel_token.clone();
+            std::thread::Builder::new()
+                .name(format!("scan-progress-{run_id}"))
+                .spawn(move || {
+                    progress_projection_loop(
+                        state,
+                        run_id,
+                        projection_started,
+                        projection_cancel,
+                        projection,
+                    )
+                })
+                .ok()
+        };
         Self {
             state,
             run_id,
@@ -4038,10 +4067,12 @@ impl WorkerProgressReporter {
                 files_hashed: 0,
                 warning_count: 0,
                 phase_warning_base: 0,
-                sequence: 0,
-                last_event: None,
+                current_path: None,
                 last_database_write: None,
             }),
+            reducer: Mutex::new(ProgressReducer::new()),
+            projection,
+            projection_thread: Mutex::new(projection_thread),
         }
     }
 
@@ -4071,14 +4102,14 @@ impl WorkerProgressReporter {
         if let Some(phase) = phase {
             progress.phase = phase;
         }
-        let write_database = progress.last_database_write.map_or(true, |last| {
-            now.duration_since(last) >= DATABASE_PROGRESS_INTERVAL
-        });
-        let emit_event = force
-            || progress
-                .last_event
-                .map_or(true, |last| now.duration_since(last) >= EVENT_INTERVAL);
-        if !write_database && !emit_event {
+        if let Some(path) = current_path.filter(|path| !path.is_empty()) {
+            progress.current_path = Some(path.to_owned());
+        }
+        let write_database = force
+            || progress.last_database_write.map_or(true, |last| {
+                now.duration_since(last) >= DATABASE_PROGRESS_INTERVAL
+            });
+        if !write_database {
             return;
         }
 
@@ -4086,66 +4117,163 @@ impl WorkerProgressReporter {
         let files_discovered = progress.files_discovered;
         let bytes_discovered = progress.bytes_discovered;
         let files_hashed = progress.files_hashed;
-        let warning_count = progress.warning_count;
-        if write_database {
-            progress.last_database_write = Some(now);
-        }
-        if emit_event {
-            progress.last_event = Some(now);
-            progress.sequence += 1;
-        }
-        let sequence = progress.sequence;
+        progress.last_database_write = Some(now);
         drop(progress);
 
-        if write_database {
-            if let Ok(db) = Database::open_connection(&self.state.database_path.to_string_lossy()) {
-                if let Err(error) = db.update_run_progress_preserving_warning_count(
-                    self.run_id,
-                    phase,
-                    files_discovered as i64,
-                    bytes_discovered.min(i64::MAX as u64) as i64,
-                    files_hashed as i64,
-                ) {
-                    if !matches!(db.get_scan_run(self.run_id), Ok(run) if run.status == "completed" || run.status == "cancelled" || run.status == "failed")
-                    {
-                        eprintln!(
-                            "worker progress persistence failed for run {}: {error}",
-                            self.run_id
-                        );
-                    }
+        if let Ok(db) = Database::open_connection(&self.state.database_path.to_string_lossy()) {
+            if let Err(error) = db.update_run_progress_preserving_warning_count(
+                self.run_id,
+                phase,
+                files_discovered as i64,
+                bytes_discovered.min(i64::MAX as u64) as i64,
+                files_hashed as i64,
+            ) {
+                if !matches!(db.get_scan_run(self.run_id), Ok(run) if run.status == "completed" || run.status == "cancelled" || run.status == "failed")
+                {
+                    eprintln!(
+                        "worker progress persistence failed for run {}: {error}",
+                        self.run_id
+                    );
                 }
             }
         }
-        if emit_event {
-            let status = if self.cancel_token.load(Ordering::Acquire) {
-                "cancelling"
-            } else {
-                "running"
-            };
-            let mut data = json!({
-                "runId":self.run_id,
-                "sequence":sequence,
-                "status":status,
-                "phase":phase,
-                "filesDiscovered":files_discovered,
-                "bytesDiscovered":bytes_discovered.to_string(),
-                "filesHashed":files_hashed,
-                "warningCount":warning_count,
-            });
-            if let Some(path) = current_path.filter(|path| !path.is_empty()) {
-                data["currentPath"] = Value::String(path.to_owned());
-            }
-            if warning_count > 0 {
-                data["message"] = Value::String(
-                    "The scan encountered recoverable warnings; see local diagnostics.".to_owned(),
-                );
-            }
-            self.state.emit("run.progress", &data);
+    }
+
+    fn finish_progress(&self) {
+        let (projection, wake) = &*self.projection;
+        projection
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .terminate();
+        wake.notify_all();
+        if let Some(thread) = self
+            .projection_thread
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take()
+        {
+            let _ = thread.join();
         }
     }
 }
 
+impl Drop for WorkerProgressReporter {
+    fn drop(&mut self) {
+        self.finish_progress();
+    }
+}
+
+fn progress_projection_loop(
+    state: Arc<SharedState>,
+    run_id: i64,
+    started: Instant,
+    cancel_token: Arc<AtomicBool>,
+    projection: Arc<(Mutex<LatestValueCoalescer<PendingProgress>>, Condvar)>,
+) {
+    let (coalescer, wake) = &*projection;
+    loop {
+        let emission = {
+            let mut coalescer = coalescer
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            loop {
+                if coalescer.is_terminal() {
+                    return;
+                }
+                coalescer.latch_cancelling(cancel_token.load(Ordering::Acquire));
+                let now_nanos = started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
+                if let Some(emission) = coalescer.take_due(now_nanos) {
+                    break emission;
+                }
+                match coalescer.next_due_nanos() {
+                    Some(due) => {
+                        let wait_nanos = due.saturating_sub(now_nanos).max(1);
+                        let (next, _) = wake
+                            .wait_timeout(coalescer, Duration::from_nanos(wait_nanos))
+                            .unwrap_or_else(|poisoned| poisoned.into_inner());
+                        coalescer = next;
+                    }
+                    None => {
+                        coalescer = wake
+                            .wait(coalescer)
+                            .unwrap_or_else(|poisoned| poisoned.into_inner());
+                    }
+                }
+            }
+        };
+        emit_projected_progress(&state, run_id, &emission);
+    }
+}
+
+fn emit_projected_progress(
+    state: &SharedState,
+    run_id: i64,
+    emission: &progress_projection::Coalesced<PendingProgress>,
+) {
+    match progress_event_data(run_id, emission) {
+        Ok(data) => state.emit("run.progress", &data),
+        Err(error) => eprintln!("worker progress projection failed for run {run_id}: {error}"),
+    }
+}
+
 impl ProgressReporter for WorkerProgressReporter {
+    fn on_progress_observation(&self, observation: &ProgressObservation) {
+        let snapshot = match self
+            .reducer
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .observe(observation.clone())
+        {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                eprintln!(
+                    "worker rejected scan progress observation for run {}: {error}",
+                    self.run_id
+                );
+                return;
+            }
+        };
+        let legacy = {
+            let mut progress = self
+                .progress
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            progress.phase = legacy_phase(snapshot.phase);
+            progress.files_discovered = progress.files_discovered.max(
+                snapshot
+                    .counters
+                    .discovered_files
+                    .saturating_sub(snapshot.counters.zero_byte_files) as usize,
+            );
+            progress.bytes_discovered = progress
+                .bytes_discovered
+                .max(snapshot.counters.discovered_bytes);
+            progress.files_hashed = progress
+                .files_hashed
+                .max(snapshot.counters.partial_hashes_succeeded as usize);
+            progress.warning_count = progress.warning_count.max(snapshot.warning_count as usize);
+            LegacyProgressProjection {
+                phase: progress.phase,
+                files_discovered: progress.files_discovered,
+                bytes_discovered: progress.bytes_discovered,
+                files_hashed: progress.files_hashed,
+                warning_count: progress.warning_count,
+                current_path: progress.current_path.clone(),
+            }
+        };
+        {
+            let (projection, wake) = &*self.projection;
+            projection
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .submit(
+                    PendingProgress { snapshot, legacy },
+                    self.cancel_token.load(Ordering::Acquire),
+                );
+            wake.notify_one();
+        }
+    }
+
     fn on_scan_start(&self) {
         self.phase("discovering");
     }
@@ -4232,6 +4360,17 @@ impl ProgressReporter for WorkerProgressReporter {
 
     fn on_finalizing_complete(&self, duration_secs: f64) {
         log_scan_phase(self.run_id, "finalizing", duration_secs);
+    }
+}
+
+fn legacy_phase(phase: TelemetryPhase) -> &'static str {
+    match phase {
+        TelemetryPhase::Discovering => "discovering",
+        TelemetryPhase::CandidateScreening | TelemetryPhase::FullHashing => "hashing",
+        TelemetryPhase::Persisting => "persisting",
+        TelemetryPhase::AnalyzingFolders => "analyzing_folders",
+        TelemetryPhase::Finalizing => "finalizing",
+        TelemetryPhase::Overall => "discovering",
     }
 }
 
@@ -6980,6 +7119,7 @@ mod tests {
     use super_duper_core::hasher::xxhash::hash_file_streaming;
     use super_duper_core::platform;
     use super_duper_core::storage::models::ScannedFile;
+    use super_duper_core::telemetry::{METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION};
     use tempfile::TempDir;
 
     const HELLO: &str = r#"{"type":"request","id":"hello-1","method":"hello","params":{"protocolVersions":[1],"client":{"name":"protocol-test","version":"1.0.0"}}}"#;
@@ -9800,7 +9940,84 @@ mod tests {
     }
 
     #[test]
-    fn completed_run_emits_ordered_phases_and_matching_terminal_state() {
+    fn delayed_latest_progress_emits_without_another_callback_and_stops_at_terminal() {
+        use super_duper_core::telemetry::{
+            ActiveDeviceProgress, ActiveDeviceUnavailableReason, ProgressLogicalCounters,
+            ProgressObservation, ScanCounters, METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION,
+        };
+
+        let temp = TempDir::new().unwrap();
+        let db_path = temp.path().join("worker.db");
+        let (sender, receiver) = mpsc::channel();
+        let state = SharedState::new(WorkerOptions::new(&db_path), sender).unwrap();
+        let cancel_token = Arc::new(AtomicBool::new(false));
+        let reporter = WorkerProgressReporter::new(state, 41, cancel_token.clone());
+        let observation = |monotonic_nanos, discovered_files, zero_byte_files, discovered_bytes| {
+            let mut counters = ScanCounters::default();
+            counters.discovered_files = discovered_files;
+            counters.zero_byte_files = zero_byte_files;
+            counters.discovered_bytes = discovered_bytes;
+            ProgressObservation {
+                progress_contract_version: PROGRESS_CONTRACT_VERSION,
+                metrics_contract_version: METRICS_CONTRACT_VERSION,
+                monotonic_nanos,
+                phase: TelemetryPhase::Discovering,
+                phase_started_monotonic_nanos: 0,
+                candidate_totals_known: false,
+                final_results_complete: false,
+                counters,
+                logical: ProgressLogicalCounters::default(),
+                active_devices: ActiveDeviceProgress::Unavailable {
+                    reason: ActiveDeviceUnavailableReason::MappingUnavailable,
+                },
+            }
+        };
+
+        reporter.on_progress_observation(&observation(0, 0, 0, 0));
+        let first: Value = serde_json::from_str(
+            &receiver
+                .recv_timeout(Duration::from_millis(500))
+                .expect("first progress frame"),
+        )
+        .unwrap();
+        assert_eq!(first["data"]["sequence"], 1);
+
+        reporter.on_progress_observation(&observation(1, 2, 1, u64::MAX));
+        let delayed: Value = serde_json::from_str(
+            &receiver
+                .recv_timeout(Duration::from_millis(500))
+                .expect("timed coalescer must wake without another callback"),
+        )
+        .unwrap();
+        assert_eq!(delayed["data"]["sequence"], 2);
+        assert_eq!(delayed["data"]["filesDiscovered"], 1);
+        assert_eq!(
+            delayed["data"]["progress"]["counters"]["discoveredFiles"],
+            2
+        );
+        assert_eq!(
+            delayed["data"]["progress"]["counters"]["discoveredBytes"],
+            u64::MAX.to_string()
+        );
+
+        reporter.on_progress_observation(&observation(2, 3, 1, u64::MAX));
+        cancel_token.store(true, Ordering::Release);
+        let cancelling: Value = serde_json::from_str(
+            &receiver
+                .recv_timeout(Duration::from_millis(500))
+                .expect("pending progress must observe cancellation before emission"),
+        )
+        .unwrap();
+        assert_eq!(cancelling["data"]["sequence"], 3);
+        assert_eq!(cancelling["data"]["status"], "cancelling");
+
+        reporter.finish_progress();
+        reporter.on_progress_observation(&observation(3, 4, 1, u64::MAX));
+        assert!(receiver.recv_timeout(Duration::from_millis(150)).is_err());
+    }
+
+    #[test]
+    fn completed_run_emits_ordered_coalesced_progress_before_matching_terminal_state() {
         let temp = TempDir::new().unwrap();
         let root = temp.path().join("scan");
         fs::create_dir(&root).unwrap();
@@ -9853,25 +10070,35 @@ mod tests {
             .iter()
             .filter_map(|frame| frame["data"]["phase"].as_str())
             .collect();
-        let mut phase_transitions = phases;
-        phase_transitions.dedup();
-        assert_eq!(
-            phase_transitions,
-            vec![
-                "discovering",
-                "hashing",
-                "persisting",
-                "analyzing_folders",
-                "finalizing"
-            ]
-        );
+        assert_eq!(phases.first().copied(), Some("discovering"));
+        let phase_order = |phase: &str| match phase {
+            "discovering" => 0,
+            "hashing" => 1,
+            "persisting" => 2,
+            "analyzing_folders" => 3,
+            "finalizing" => 4,
+            _ => panic!("unexpected progress phase {phase}"),
+        };
+        assert!(phases
+            .windows(2)
+            .all(|pair| phase_order(pair[0]) <= phase_order(pair[1])));
         assert!(progress.windows(2).all(|pair| {
             pair[0]["data"]["sequence"].as_u64().unwrap()
                 < pair[1]["data"]["sequence"].as_u64().unwrap()
         }));
-        assert!(events.iter().any(|frame| {
-            frame["event"] == "run.completed" && frame["data"]["run"]["status"] == "completed"
+        assert!(progress.iter().all(|frame| {
+            frame["data"]["progress"]["progressContractVersion"] == PROGRESS_CONTRACT_VERSION
+                && frame["data"]["progress"]["metricsContractVersion"] == METRICS_CONTRACT_VERSION
         }));
+        let terminal_index = events
+            .iter()
+            .position(|frame| {
+                frame["event"] == "run.completed" && frame["data"]["run"]["status"] == "completed"
+            })
+            .expect("completed terminal event");
+        assert!(events[terminal_index + 1..]
+            .iter()
+            .all(|frame| frame["event"] != "run.progress"));
         let reopened = Database::open_connection(db_path.to_str().unwrap()).unwrap();
         assert_eq!(reopened.get_scan_run(1).unwrap().status, "completed");
     }
