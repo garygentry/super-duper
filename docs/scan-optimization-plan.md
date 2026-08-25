@@ -10,8 +10,8 @@ must resume at `WPM8-high-contrast` and follow its closure ledger to completion.
 Current execution checkpoint:
 
 - current gate: `SOP1-telemetry-foundation`;
-- next work package: `SOP1a-contract-schema`;
-- last accepted work package: `SOP0-current-pipeline-audit`;
+- next work package: `SOP1b-status-store`;
+- last accepted work package: `SOP1a-contract-schema`;
 - prior D: stress run: stopped by the operator after the read-only baseline observation;
 - canonical new-session prompt: [`scan-optimization-kickoff-prompt.md`](scan-optimization-kickoff-prompt.md).
 
@@ -250,8 +250,8 @@ state.
 
 | Package ID | State | Dependencies | Bounded outcome | Completion check | Evidence/commit |
 |---|---|---|---|---|---|
-| `SOP1a-contract-schema` | `ready` | SOP0 | Add versioned Rust metric types, exact counter/gauge semantics, and the separate status-database schema/migration contract without scan integration. | Schema creation/reopen/newer-version rejection and metric invariant tests pass; no product database or WPF contract changes. | Pending |
-| `SOP1b-status-store` | `open` | SOP1a | Implement the worker-owned status store with atomic run/phase/device/sample writes, interruption reconciliation, and explicit unavailable values. | Focused store tests prove exact replay, monotonic counter rejection, crash-safe reopen, and no cross-database mutation. | Pending |
+| `SOP1a-contract-schema` | `accepted` | SOP0 | Add versioned Rust metric types, exact counter/gauge semantics, and the separate status-database schema/migration contract without scan integration. | Schema creation/reopen/newer-version rejection and metric invariant tests pass; no product database or WPF contract changes. | This session: 4 focused telemetry tests, 9 Core library tests, and strict Clippy with only the three documented pre-existing lint classes allowed. |
+| `SOP1b-status-store` | `ready` | SOP1a | Implement the worker-owned status store with atomic run/phase/device/sample writes, interruption reconciliation, and explicit unavailable values. | Focused store tests prove exact replay, monotonic counter rejection, crash-safe reopen, and no cross-database mutation. | Pending |
 | `SOP1c-run-lifecycle` | `open` | SOP1b | Connect scan lifecycle and platform-neutral candidate/hash/cache counters to the status store with bounded buffered flushes. | Deterministic scan fixtures reconcile terminal counters and interrupted/cancelled runs without per-file telemetry rows. | Pending |
 | `SOP1d-bounded-queries-retention` | `open` | SOP1b | Add fixed run/phase/device summaries, bounded sample paging, retention, checkpoint policy, and status-history deletion isolation. | Query/cursor/bounds tests and retention/reopen tests pass; product results remain unchanged when status history is absent or removed. | Pending |
 | `SOP1e-host-device-sampler` | `open` | SOP1b | Add a platform seam and Windows implementation for bounded process/system/volume/physical-device samples, with explicit unavailable-counter health. | Fake-clock/platform tests pass; Windows probes identify mapped target devices without serial persistence or WPF-thread work. | Pending |

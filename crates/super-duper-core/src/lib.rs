@@ -7,6 +7,7 @@ pub mod platform;
 pub mod progress;
 pub mod scanner;
 pub mod storage;
+pub mod telemetry;
 
 pub use config::AppConfig;
 pub use engine::{ScanEngine, ScanResult, ScanStats};

@@ -24,7 +24,7 @@ completed session work uncommitted or substitute work from the parked stream.
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP1-telemetry-foundation`
-- Next work package: `SOP1a-contract-schema`
+- Next work package: `SOP1b-status-store`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -49,7 +49,14 @@ completed session work uncommitted or substitute work from the parked stream.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The current plan-control follow-up makes that stream idempotent across agent sessions: it adds a
+The current implementation slice accepts `SOP1a-contract-schema`. Rust now owns metrics-contract v1
+counter/gauge types and invariant validation plus a separate schema-v1 status database with fixed
+run/phase/counter/device/host-sample/device-sample tables. Empty create and reopen are idempotent;
+unversioned non-empty and newer databases fail without modification. No scan lifecycle write,
+product database, protocol, worker, Core, WPF, or execution-lock behavior changed. The next package
+is `SOP1b-status-store`.
+
+The preceding plan-control follow-up makes that stream idempotent across agent sessions: it adds a
 finite work-package ledger, audit-once and two-identical-failure anti-spin rules, multiple-package
 session progress, explicit context-risk handoff conditions, and a state-independent reusable kickoff
 prompt. The operator stopped the prior D: stress run, so implementation may now proceed without an
@@ -113,11 +120,11 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Begin `SOP1a-contract-schema`, then continue through each dependency-ready SOP1 package while the
-resumable execution protocol's stop conditions remain false. The first package adds only versioned
-Rust metric types, invariant tests, and the separate status-database schema/migration contract; it
-does not integrate scan writes yet. After accepting a package, update its row and advance immediately
-when context and verification remain sound. Do not implement the singleton skip, device scheduler,
+Advance `SOP1b-status-store`: implement atomic run/phase/device/sample writes, exact operation replay,
+monotonic counter/sequence enforcement, interruption reconciliation, and explicit unavailable gauge
+storage against the accepted separate schema. Then continue through each dependency-ready SOP1
+package while the resumable execution protocol's stop conditions remain false. Do not integrate scan
+lifecycle writes until `SOP1b` accepts. Do not implement the singleton skip, device scheduler,
 read-path tuning, Performance tab, or warning UI until their listed dependencies are satisfied.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
@@ -205,10 +212,17 @@ required gates are open.
 
 ## Latest verification baseline
 
-The current slice is documentation-only. Source inspection confirms exact-size grouping at
-`scanner/walk.rs` and the unconditional singleton partial-hash pass plus ambiguous bucket-level
-progress in `hasher/xxhash.rs`. The active D: run was observed read-only; no process, product/runtime
-database, cache, file, configuration, drive, or active-run state was changed. Verification is
+`SOP1a-contract-schema` passed 4/4 focused telemetry tests and 9/9 Core library tests. Strict Clippy
+for the telemetry target passed after allowing only `needless_return`, `let_and_return`, and
+`needless_question_mark`, which are the documented pre-existing warnings in unchanged scanner and
+storage files. The initial strict run retained those five unchanged-file diagnostics. No .NET,
+worker, product-database migration, scan, WPF, physical, provider, or performance campaign was
+required for this contract-only package.
+
+The preceding planning slice was documentation-only. Source inspection confirms exact-size grouping
+at `scanner/walk.rs` and the unconditional singleton partial-hash pass plus ambiguous bucket-level
+progress in `hasher/xxhash.rs`. The D: run was observed read-only; no process, product/runtime
+database, cache, file, configuration, drive, or active-run state was changed. Verification was
 limited to documentation links, gate consistency, production-lock preservation, Markdown/diff
 hygiene, and a clean committed worktree.
 
@@ -308,6 +322,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-25 | this session | Accept `SOP1a-contract-schema` with metrics-contract v1 Rust types/invariants and a separate schema-v1 status database that creates/reopens idempotently and rejects unknown/newer state without modification. | Advance `SOP1b-status-store`; do not integrate scan lifecycle writes until atomic replay/monotonic/recovery store semantics accept. |
 | 2026-08-25 | this session | Make the active scan plan idempotent with a finite SOP1 package ledger, multi-package session progress, audit-once/two-failure anti-spin rules, context-risk handoff requirements, and a reusable state-independent kickoff prompt. | Begin `SOP1a-contract-schema`, accept it only with schema/metric invariant tests, then continue dependency-ready SOP1 packages. |
 | 2026-08-25 | this session | Create the trackable large-drive scan optimization/observability stream, confirm singleton size buckets are still partially read, specify cumulative status metrics/progress/warning/Performance-tab gates, and park the preserved Windows release checklist. | Advance only `SOP1-telemetry-foundation`; resume release validation at `WPM8-high-contrast` before final feature-complete. |
 | 2026-08-22 | `ec8da88` | Announce only committed Recycle Bin result pages; cover backward repeatability and stale/cancelled silence. | Re-audit for the next locally implementable Milestone 11 read-only/recovery gap; do not cross an evidence or recovery-design gate. |
