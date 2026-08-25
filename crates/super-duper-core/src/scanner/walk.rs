@@ -45,6 +45,8 @@ pub struct TraversalResult {
     pub files: Vec<DiscoveredFile>,
     pub files_discovered: usize,
     pub bytes_discovered: u64,
+    /// Logical zero-byte files observed but intentionally excluded from product results.
+    pub zero_byte_files: usize,
     pub warning_count: usize,
     pub excluded_subtrees: Vec<ExcludedSubtree>,
 }
@@ -71,6 +73,7 @@ pub fn discover_files_with_exclusions(
     let warnings = AtomicUsize::new(0);
     let file_count = AtomicUsize::new(0);
     let byte_count = AtomicU64::new(0);
+    let zero_byte_count = AtomicUsize::new(0);
     let excluded_subtrees = DashMap::new();
 
     let ignore_patterns: Vec<Pattern> = ignore_globs
@@ -145,6 +148,7 @@ pub fn discover_files_with_exclusions(
             progress,
             &file_count,
             &byte_count,
+            &zero_byte_count,
             &warnings,
             location_exclusions,
             &excluded_subtrees,
@@ -170,6 +174,7 @@ pub fn discover_files_with_exclusions(
         files,
         files_discovered: file_count.load(Ordering::Relaxed),
         bytes_discovered: byte_count.load(Ordering::Relaxed),
+        zero_byte_files: zero_byte_count.load(Ordering::Relaxed),
         warning_count: warnings.load(Ordering::Relaxed),
         excluded_subtrees,
     })
@@ -197,6 +202,7 @@ fn visit_dirs(
     progress: &dyn ProgressReporter,
     file_count: &AtomicUsize,
     byte_count: &AtomicU64,
+    zero_byte_count: &AtomicUsize,
     warnings: &AtomicUsize,
     location_exclusions: &[LocationExclusion],
     excluded_subtrees: &DashMap<String, ExcludedSubtree>,
@@ -277,6 +283,7 @@ fn visit_dirs(
                 progress,
                 file_count,
                 byte_count,
+                zero_byte_count,
                 warnings,
                 location_exclusions,
                 excluded_subtrees,
@@ -298,6 +305,7 @@ fn visit_dirs(
             }
         };
         if metadata.len() == 0 {
+            zero_byte_count.fetch_add(1, Ordering::Relaxed);
             return Ok(());
         }
 

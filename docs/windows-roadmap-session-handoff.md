@@ -18,13 +18,13 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: establish the large-drive scan optimization/observability plan and
-  dual-stream roadmap control (documentation only; this session's commit)
+- Latest completed slice: connect metrics-contract v2 and the separate status database to scan and
+  worker lifecycle with bounded phase-boundary writes (this session's commit)
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP1-telemetry-foundation`
-- Next work package: `SOP1c-run-lifecycle`
+- Next work package: `SOP1d-bounded-queries-retention`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -49,7 +49,16 @@ completed session work uncommitted or substitute work from the parked stream.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The current implementation slice accepts `SOP1b-status-store`. Status schema v2 adds an exact
+The current implementation slice accepts `SOP1c-run-lifecycle`. Worker scans now default a separate
+`scan_status.db` beside the product database, with an environment/options override. Metrics contract
+v2 distinguishes the actual hash pipeline from disjoint multi-file duplicate candidates so the
+current singleton-read baseline and later saved I/O are both measurable. Discovery, partial/full
+hash, cache, duplicate, byte, warning, and reliability counters flush only at phase boundaries;
+completed, cancelled, and failed product runs receive matching best-effort status terminal state.
+A normal deterministic scan writes ten cumulative flushes and no per-file telemetry rows. The next
+package is `SOP1d-bounded-queries-retention`.
+
+The preceding implementation slice accepts `SOP1b-status-store`. Status schema v2 adds an exact
 sequence/payload replay ledger. One immediate transaction now owns run start, monotonic cumulative
 counter snapshots, phase state, device descriptors, host/device samples, and terminal state.
 Conflicting replay, counter/phase regression, invalid sequence/timestamp, unknown device, numeric
@@ -128,13 +137,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance `SOP1c-run-lifecycle`: connect a configurable status-database path to the engine/worker scan
-lifecycle, populate platform-neutral discovery/size-bucket/hash/cache counters, and flush only
-bounded cumulative snapshots at phase/progress boundaries. Terminal completed/cancelled/failed state
-must reconcile without per-file telemetry rows or making status persistence product truth. Continue
-dependency-ready SOP1 packages while the resumable execution protocol's stop conditions remain
-false. Do not implement the singleton skip, device scheduler, read-path tuning, Performance tab, or
-warning UI until their listed dependencies are satisfied.
+Advance `SOP1d-bounded-queries-retention`: add fixed run/phase/device summaries, bounded sample
+paging, retention and WAL/checkpoint policy, and status-history deletion isolation. Prove cursor and
+limit bounds, idempotent retention/reopen behavior, and that deleting or missing status history
+cannot alter product results. Continue dependency-ready SOP1 packages while the resumable execution
+protocol's stop conditions remain false. Do not implement the singleton skip, device scheduler,
+read-path tuning, Performance tab, or warning UI until their listed dependencies are satisfied.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -220,6 +228,13 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+`SOP1c-run-lifecycle` passed the full Rust workspace: 146 passed, 4 ignored, 0 failed across Core,
+worker, FFI, and CLI targets (including 12 end-to-end scan tests, 9 telemetry tests, and 17 worker
+tests). Completed/cancelled/failed fixtures prove matching terminal status; the completed fixture
+also proves ten bounded phase flushes and reconciled candidate/hash/cache/duplicate counters.
+Core/worker library Clippy passed with warnings denied after allowing only documented pre-existing
+lint classes. No .NET, WPF, physical-drive, provider, or performance campaign was required.
 
 `SOP1b-status-store` passed 9/9 focused telemetry tests and strict Clippy with only the three
 documented pre-existing unchanged-file lint classes allowed. Coverage includes exact start/flush/
@@ -338,6 +353,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-25 | this session | Accept `SOP1c-run-lifecycle` with metrics-contract v2, configurable worker status path, platform-neutral candidate/hash/cache counters, ten bounded phase flushes, and matching completed/cancelled/failed terminal state. | Advance `SOP1d-bounded-queries-retention`; status remains best-effort observability, separate from product truth, with no per-file rows. |
 | 2026-08-25 | this session | Accept `SOP1b-status-store` with schema-v2 replay ledger, atomic monotonic run/phase/counter/device/sample writes, exact replay/conflict handling, explicit unavailable gauges, transactional migration, and startup interruption reconciliation. | Advance `SOP1c-run-lifecycle`; status storage is not product truth and no per-file telemetry rows are allowed. |
 | 2026-08-25 | this session | Accept `SOP1a-contract-schema` with metrics-contract v1 Rust types/invariants and a separate schema-v1 status database that creates/reopens idempotently and rejects unknown/newer state without modification. | Advance `SOP1b-status-store`; do not integrate scan lifecycle writes until atomic replay/monotonic/recovery store semantics accept. |
 | 2026-08-25 | this session | Make the active scan plan idempotent with a finite SOP1 package ledger, multi-package session progress, audit-once/two-failure anti-spin rules, context-risk handoff requirements, and a reusable state-independent kickoff prompt. | Begin `SOP1a-contract-schema`, accept it only with schema/metric invariant tests, then continue dependency-ready SOP1 packages. |

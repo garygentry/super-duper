@@ -18,7 +18,7 @@ MVP. The previous Windows app implementation was removed before the current WPF 
 
 | Stream | Scheduling state | Authority | Next boundary |
 |---|---|---|---|
-| Large-drive scan optimization and observability | Active | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) | Implement `SOP1-telemetry-foundation`, then measure the queued singleton-size short-circuit before broader scheduler/read-path tuning. |
+| Large-drive scan optimization and observability | Active | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) | Continue `SOP1-telemetry-foundation` at bounded status queries/retention; lifecycle counters and phase-boundary persistence are accepted. |
 | Windows post-MVP release validation | Parked by operator; gates and evidence preserved | [`docs/windows-roadmap-closure-ledger.md`](docs/windows-roadmap-closure-ledger.md) and [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md) | Before final feature-complete, resume exactly at `WPM8-high-contrast`, then follow the ledger dependency order. |
 
 The shared startup checkpoint is

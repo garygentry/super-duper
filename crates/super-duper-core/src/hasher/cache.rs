@@ -27,6 +27,16 @@ lazy_static::lazy_static! {
 pub struct CachedHash {
     pub hash: u64,
     pub warning: Option<String>,
+    pub cache_outcome: CacheLookupOutcome,
+    pub content_bytes_read: u64,
+    pub cache_stored: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CacheLookupOutcome {
+    Hit,
+    Miss,
+    Error,
 }
 
 /// Compatibility entry point for callers that do not need cancellation or cache warnings.
@@ -67,6 +77,7 @@ pub fn get_content_hash_cancellable(
         });
 
     let mut warning = None;
+    let mut cache_outcome = CacheLookupOutcome::Miss;
     match lookup {
         Ok(Some(value)) => match bincode::deserialize::<u64>(&value) {
             Ok(hash) => {
@@ -74,15 +85,20 @@ pub fn get_content_hash_cancellable(
                 return Ok(CachedHash {
                     hash,
                     warning: None,
+                    cache_outcome: CacheLookupOutcome::Hit,
+                    content_bytes_read: 0,
+                    cache_stored: false,
                 });
             }
             Err(error) => {
                 warning = Some(format!("Hash cache entry could not be decoded: {error}"));
+                cache_outcome = CacheLookupOutcome::Error;
             }
         },
         Ok(None) => {}
         Err(error) => {
             warning = Some(format!("Hash cache lookup failed: {error}"));
+            cache_outcome = CacheLookupOutcome::Error;
         }
     }
 
@@ -113,6 +129,7 @@ pub fn get_content_hash_cancellable(
                     Err(error) => Err(io::Error::new(ErrorKind::Other, error.clone())),
                 })
         });
+    let cache_stored = store.is_ok();
     if let Err(error) = store {
         let message = format!("Hash cache store failed: {error}");
         warning = Some(match warning {
@@ -120,7 +137,13 @@ pub fn get_content_hash_cancellable(
             None => message,
         });
     }
-    Ok(CachedHash { hash, warning })
+    Ok(CachedHash {
+        hash,
+        warning,
+        cache_outcome,
+        content_bytes_read: size,
+        cache_stored,
+    })
 }
 
 fn metadata_modified_timestamp(metadata: &fs::Metadata) -> io::Result<std::time::Duration> {

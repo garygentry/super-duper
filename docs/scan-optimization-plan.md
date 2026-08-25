@@ -2,16 +2,16 @@
 
 ## Status
 
-Active implementation plan. The current pipeline audit is complete; product implementation has not
-started. This is the scheduled roadmap stream while the Windows post-MVP release-validation
+Active implementation plan. The current pipeline audit and the first three telemetry-foundation
+packages are complete. This is the scheduled roadmap stream while the Windows post-MVP release-validation
 checklist is parked. Before the product is declared feature complete, the release-validation stream
 must resume at `WPM8-high-contrast` and follow its closure ledger to completion.
 
 Current execution checkpoint:
 
 - current gate: `SOP1-telemetry-foundation`;
-- next work package: `SOP1c-run-lifecycle`;
-- last accepted work package: `SOP1b-status-store`;
+- next work package: `SOP1d-bounded-queries-retention`;
+- last accepted work package: `SOP1c-run-lifecycle`;
 - prior D: stress run: stopped by the operator after the read-only baseline observation;
 - canonical new-session prompt: [`scan-optimization-kickoff-prompt.md`](scan-optimization-kickoff-prompt.md).
 
@@ -130,8 +130,10 @@ accepted. At minimum, each run records cumulative phase totals and bounded time-
 - files and logical bytes discovered;
 - zero-byte files excluded and hard-link aliases de-duplicated;
 - exact-size bucket count;
-- singleton-size bucket/file/byte count resolved without content I/O;
-- multi-file candidate bucket/file/byte count;
+- singleton-size bucket/file/byte classification plus the subset actually resolved without content
+  I/O;
+- actual hash-pipeline candidate bucket/file/byte count and separate multi-file duplicate-candidate
+  bucket/file/byte count;
 - partial hashes attempted, succeeded, failed, and bytes read;
 - partial-collision bucket/file/byte count;
 - full-hash requests, completed files/bytes, failures, cache hits, cache misses, cache errors, and
@@ -232,7 +234,7 @@ unavailable-counter states, and coalesced UI Automation announcements are accept
 | Gate ID | Disposition | State | Dependencies | Bounded outcome | Completion check |
 |---|---|---|---|---|---|
 | `SOP0-current-pipeline-audit` | `local_audit` | `accepted` | None | Record the current algorithm and read-only large-drive evidence without interrupting the run. | This document cites the singleton read, ambiguous progress semantics, nested parallelism, and provisional device evidence without claiming a terminal benchmark. |
-| `SOP1-telemetry-foundation` | `local_code` | `ready` | `SOP0-current-pipeline-audit` | Implement the versioned metrics contract, worker-owned status database, bounded sampler/retention, and fixed summary/time-series queries. | Migration/recovery/bounds tests pass; simulated counters reconcile; unavailable samples are explicit; instrumented fixture overhead stays below 1% wall time and 1% CPU or the retained evidence explains and reviews a stricter measured budget. |
+| `SOP1-telemetry-foundation` | `local_code` | `in_progress` | `SOP0-current-pipeline-audit` | Implement the versioned metrics contract, worker-owned status database, bounded sampler/retention, and fixed summary/time-series queries. | Migration/recovery/bounds tests pass; simulated counters reconcile; unavailable samples are explicit; instrumented fixture overhead stays below 1% wall time and 1% CPU or the retained evidence explains and reviews a stricter measured budget. |
 | `SOP2-progress-reporting` | `local_code` | `open` | `SOP1-telemetry-foundation` | Publish the candidate funnel, byte progress, rates, cache outcomes, and bounded-confidence ETA with bucket-independent coalescing. | Deterministic tests prove monotonic counters, no semantic mixing, cancellation/stale rejection, and at most ten Core/WPF updates per second. |
 | `SOP3-current-warning-log` | `local_code` | `open` | `SOP1-telemetry-foundation` | Make active warnings visible through bounded structured paging while preserving completed-run aggregates and diagnostic logs. | Every current warning count is drillable or represented by a truthful bounded aggregate; restart/terminal handoff and cache bounds pass. |
 | `SOP4-performance-tab` | `local_code` | `open` | `SOP1-telemetry-foundation`, `SOP2-progress-reporting`, `SOP3-current-warning-log` | Add the bounded live/history Performance tab with drive information and run comparison. | Core/WPF never bind full samples; keyboard, automation, unavailable-state, high-contrast, focus, restart, and representative-history tests pass. |
@@ -252,15 +254,15 @@ state.
 |---|---|---|---|---|---|
 | `SOP1a-contract-schema` | `accepted` | SOP0 | Add versioned Rust metric types, exact counter/gauge semantics, and the separate status-database schema/migration contract without scan integration. | Schema creation/reopen/newer-version rejection and metric invariant tests pass; no product database or WPF contract changes. | This session: 4 focused telemetry tests, 9 Core library tests, and strict Clippy with only the three documented pre-existing lint classes allowed. |
 | `SOP1b-status-store` | `accepted` | SOP1a | Implement the worker-owned status store with atomic run/phase/device/sample writes, interruption reconciliation, and explicit unavailable values. | Focused store tests prove exact replay, monotonic counter rejection, crash-safe reopen, and no cross-database mutation. | This session: 9 focused telemetry tests and strict Clippy with only the three documented pre-existing lint classes allowed. |
-| `SOP1c-run-lifecycle` | `ready` | SOP1b | Connect scan lifecycle and platform-neutral candidate/hash/cache counters to the status store with bounded buffered flushes. | Deterministic scan fixtures reconcile terminal counters and interrupted/cancelled runs without per-file telemetry rows. | Pending |
-| `SOP1d-bounded-queries-retention` | `open` | SOP1b | Add fixed run/phase/device summaries, bounded sample paging, retention, checkpoint policy, and status-history deletion isolation. | Query/cursor/bounds tests and retention/reopen tests pass; product results remain unchanged when status history is absent or removed. | Pending |
+| `SOP1c-run-lifecycle` | `accepted` | SOP1b | Connect scan lifecycle and platform-neutral candidate/hash/cache counters to the status store with bounded buffered flushes. | Deterministic scan fixtures reconcile terminal counters and interrupted/cancelled runs without per-file telemetry rows. | This commit: metrics contract v2 separates actual hash-pipeline work from duplicate-candidate classification; completed/cancelled/failed fixtures reconcile; one normal scan writes ten phase-boundary flushes; full Rust workspace and focused strict Clippy pass with documented pre-existing lint allowances. |
+| `SOP1d-bounded-queries-retention` | `ready` | SOP1b | Add fixed run/phase/device summaries, bounded sample paging, retention, checkpoint policy, and status-history deletion isolation. | Query/cursor/bounds tests and retention/reopen tests pass; product results remain unchanged when status history is absent or removed. | Pending |
 | `SOP1e-host-device-sampler` | `open` | SOP1b | Add a platform seam and Windows implementation for bounded process/system/volume/physical-device samples, with explicit unavailable-counter health. | Fake-clock/platform tests pass; Windows probes identify mapped target devices without serial persistence or WPF-thread work. | Pending |
 | `SOP1f-foundation-acceptance` | `open` | SOP1c, SOP1d, SOP1e | Integrate the packages, document retention/schema/recovery, and retain observer-overhead evidence. | Focused and full relevant matrices pass; instrumentation adds less than 1% wall time and 1% CPU on the declared fixture, or a reviewed measured budget is recorded; gate `SOP1` becomes accepted. | Pending |
 
 ## Work selection and evidence rules
 
 - Advance through dependency-ready work packages until a real stop condition in the resumable
-  execution protocol applies. The immediate package is `SOP1a-contract-schema`.
+  execution protocol applies. The immediate package is `SOP1d-bounded-queries-retention`.
 - Do not optimize against the current UI counter. Establish file/byte/device metrics first.
 - Small synthetic and sampled representative fixtures should tune changes before another full 10 TB
   campaign. A full-drive run is an acceptance artifact, not the inner development loop.
@@ -282,3 +284,4 @@ state.
 | 2026-08-25 | Treat exact-size singleton short-circuiting as an open measured optimization. | Exact-size grouping exists, but the current partial-hash pass still opens singleton files. |
 | 2026-08-25 | Put durable telemetry before algorithm changes and keep it in a separate worker-owned local status database. | Accurate cumulative counters and device evidence are required to explain progress, compare runs, and avoid contaminating immutable product-result truth with sampled operational data. |
 | 2026-08-25 | Make sessions multi-package, checkpointed, audit-once, and safe to resume from a state-independent prompt. | Maximize useful progress per session while preventing repeated audits, progressively narrower follow-ups, and ambiguous recovery after context compaction or agent replacement. |
+| 2026-08-25 | Advance the metrics contract to v2 during first lifecycle integration and distinguish actual hash-pipeline work from disjoint multi-file duplicate candidates. | The pre-optimization baseline reads singleton buckets; keeping both meanings in one counter would make the later singleton-I/O reduction impossible to measure truthfully. |

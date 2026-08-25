@@ -76,7 +76,7 @@ fn flush(sequence: u64, discovered_files: u64) -> TelemetryFlush {
 
 #[test]
 fn metric_contract_has_stable_unique_identifiers() {
-    assert_eq!(METRICS_CONTRACT_VERSION, 1);
+    assert_eq!(METRICS_CONTRACT_VERSION, 2);
     let mut identifiers = CounterKind::ALL
         .iter()
         .map(|kind| kind.as_str())
@@ -106,6 +106,9 @@ fn counter_invariants_accept_partial_progress_and_reject_semantic_mixing() {
         candidate_size_buckets: 2,
         candidate_files: 8,
         candidate_bytes: 800,
+        duplicate_candidate_size_buckets: 2,
+        duplicate_candidate_files: 8,
+        duplicate_candidate_bytes: 800,
         partial_hashes_attempted: 6,
         partial_hashes_succeeded: 5,
         partial_hashes_failed: 1,

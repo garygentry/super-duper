@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const METRICS_CONTRACT_VERSION: u32 = 1;
+pub const METRICS_CONTRACT_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -101,6 +101,11 @@ pub enum CounterKind {
     CandidateSizeBuckets,
     CandidateFiles,
     CandidateBytes,
+    DuplicateCandidateSizeBuckets,
+    DuplicateCandidateFiles,
+    DuplicateCandidateBytes,
+    MetadataResolvedFiles,
+    MetadataResolvedBytes,
     PartialHashesAttempted,
     PartialHashesSucceeded,
     PartialHashesFailed,
@@ -130,7 +135,7 @@ pub enum CounterKind {
 }
 
 impl CounterKind {
-    pub const ALL: [Self; 38] = [
+    pub const ALL: [Self; 43] = [
         Self::DiscoveredFiles,
         Self::DiscoveredBytes,
         Self::ZeroByteFiles,
@@ -143,6 +148,11 @@ impl CounterKind {
         Self::CandidateSizeBuckets,
         Self::CandidateFiles,
         Self::CandidateBytes,
+        Self::DuplicateCandidateSizeBuckets,
+        Self::DuplicateCandidateFiles,
+        Self::DuplicateCandidateBytes,
+        Self::MetadataResolvedFiles,
+        Self::MetadataResolvedBytes,
         Self::PartialHashesAttempted,
         Self::PartialHashesSucceeded,
         Self::PartialHashesFailed,
@@ -185,6 +195,11 @@ impl CounterKind {
             Self::CandidateSizeBuckets => "candidate_size_buckets",
             Self::CandidateFiles => "candidate_files",
             Self::CandidateBytes => "candidate_bytes",
+            Self::DuplicateCandidateSizeBuckets => "duplicate_candidate_size_buckets",
+            Self::DuplicateCandidateFiles => "duplicate_candidate_files",
+            Self::DuplicateCandidateBytes => "duplicate_candidate_bytes",
+            Self::MetadataResolvedFiles => "metadata_resolved_files",
+            Self::MetadataResolvedBytes => "metadata_resolved_bytes",
             Self::PartialHashesAttempted => "partial_hashes_attempted",
             Self::PartialHashesSucceeded => "partial_hashes_succeeded",
             Self::PartialHashesFailed => "partial_hashes_failed",
@@ -215,10 +230,14 @@ impl CounterKind {
     }
 }
 
-/// Monotonic cumulative scan counters for metrics contract v1.
+/// Monotonic cumulative scan counters for metrics contract v2.
 ///
 /// `discovered_files` includes logical zero-byte files and hard-link aliases. Size-bucket and hash
-/// counters describe first-physical, non-empty files only. Cache lookup outcomes are exclusive:
+/// counters describe first-physical, non-empty files only. `candidate_*` records files admitted to
+/// the content-hash pipeline in this engine version; it can overlap singleton classification in
+/// the pre-optimization baseline. `duplicate_candidate_*` is the disjoint multi-file size-bucket
+/// classification, while `metadata_resolved_*` records singleton work that avoided content I/O.
+/// Cache lookup outcomes are exclusive:
 /// an error means lookup degraded to a content read and is not also a miss. Full-content read
 /// counters exclude cache hits.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -236,6 +255,11 @@ pub struct ScanCounters {
     pub candidate_size_buckets: u64,
     pub candidate_files: u64,
     pub candidate_bytes: u64,
+    pub duplicate_candidate_size_buckets: u64,
+    pub duplicate_candidate_files: u64,
+    pub duplicate_candidate_bytes: u64,
+    pub metadata_resolved_files: u64,
+    pub metadata_resolved_bytes: u64,
     pub partial_hashes_attempted: u64,
     pub partial_hashes_succeeded: u64,
     pub partial_hashes_failed: u64,
@@ -279,6 +303,11 @@ impl ScanCounters {
             CounterKind::CandidateSizeBuckets => self.candidate_size_buckets,
             CounterKind::CandidateFiles => self.candidate_files,
             CounterKind::CandidateBytes => self.candidate_bytes,
+            CounterKind::DuplicateCandidateSizeBuckets => self.duplicate_candidate_size_buckets,
+            CounterKind::DuplicateCandidateFiles => self.duplicate_candidate_files,
+            CounterKind::DuplicateCandidateBytes => self.duplicate_candidate_bytes,
+            CounterKind::MetadataResolvedFiles => self.metadata_resolved_files,
+            CounterKind::MetadataResolvedBytes => self.metadata_resolved_bytes,
             CounterKind::PartialHashesAttempted => self.partial_hashes_attempted,
             CounterKind::PartialHashesSucceeded => self.partial_hashes_succeeded,
             CounterKind::PartialHashesFailed => self.partial_hashes_failed,
@@ -322,7 +351,10 @@ impl ScanCounters {
         )?;
         invariant(
             sum_leq(
-                &[self.singleton_size_buckets, self.candidate_size_buckets],
+                &[
+                    self.singleton_size_buckets,
+                    self.duplicate_candidate_size_buckets,
+                ],
                 self.size_buckets,
             ),
             "classified size buckets cannot exceed total size buckets",
@@ -333,7 +365,7 @@ impl ScanCounters {
                 .and_then(|excluded| self.discovered_files.checked_sub(excluded))
                 .is_some_and(|physical_files| {
                     sum_leq(
-                        &[self.singleton_size_files, self.candidate_files],
+                        &[self.singleton_size_files, self.duplicate_candidate_files],
                         physical_files,
                     )
                 }),
@@ -341,10 +373,30 @@ impl ScanCounters {
         )?;
         invariant(
             sum_leq(
-                &[self.singleton_size_bytes, self.candidate_bytes],
+                &[self.singleton_size_bytes, self.duplicate_candidate_bytes],
                 self.discovered_bytes,
             ),
             "classified physical bytes cannot exceed discovered logical bytes",
+        )?;
+        invariant(
+            self.candidate_size_buckets <= self.size_buckets,
+            "hash-pipeline size buckets cannot exceed total size buckets",
+        )?;
+        invariant(
+            self.duplicate_candidate_files <= self.candidate_files,
+            "duplicate candidates cannot exceed hash-pipeline candidates",
+        )?;
+        invariant(
+            self.duplicate_candidate_bytes <= self.candidate_bytes,
+            "duplicate candidate bytes cannot exceed hash-pipeline candidate bytes",
+        )?;
+        invariant(
+            self.metadata_resolved_files <= self.singleton_size_files,
+            "metadata-resolved files cannot exceed singleton files",
+        )?;
+        invariant(
+            self.metadata_resolved_bytes <= self.singleton_size_bytes,
+            "metadata-resolved bytes cannot exceed singleton bytes",
         )?;
         invariant(
             self.partial_hashes_attempted <= self.candidate_files,

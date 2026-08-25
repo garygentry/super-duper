@@ -6,6 +6,7 @@ use tempfile::tempdir;
 
 use super_duper_core::analysis::{deletion_plan, dir_fingerprint, dir_similarity};
 use super_duper_core::storage::Database;
+use super_duper_core::telemetry::{StatusDatabase, METRICS_CONTRACT_VERSION};
 use super_duper_core::{AppConfig, ProgressReporter, ScanEngine, SilentReporter};
 
 fn count_files_recursive(dir: &Path) -> usize {
@@ -67,13 +68,16 @@ fn test_full_scan_pipeline() {
 
     let db_dir = tempdir().unwrap();
     let db_path = db_dir.path().join("test_e2e.db");
+    let status_path = db_dir.path().join("test_e2e_status.db");
 
     let config = AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: vec![],
     };
 
-    let engine = ScanEngine::new(config).with_db_path(db_path.to_str().unwrap());
+    let engine = ScanEngine::new(config)
+        .with_db_path(db_path.to_str().unwrap())
+        .with_status_db_path(status_path.to_str().unwrap());
     let result = engine.scan(&SilentReporter).unwrap();
 
     // We expect at least 6 files scanned (2 unique + 2 shared + 2 large)
@@ -126,6 +130,48 @@ fn test_full_scan_pipeline() {
     assert_eq!(run.files_hashed, 6);
     assert_eq!(run.duplicate_file_groups, 2);
     assert_eq!(run.bytes_discovered as u64, result.total_bytes_discovered);
+
+    let status = StatusDatabase::open_connection(status_path.to_str().unwrap()).unwrap();
+    let (state, contract, flushes): (String, i64, i64) = status
+        .connection()
+        .query_row(
+            "SELECT state, metrics_contract_version,
+                    (SELECT COUNT(*) FROM status_flush WHERE run_id = status_run.id)
+             FROM status_run WHERE product_run_id = ?1",
+            [result.run_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(state, "completed");
+    assert_eq!(contract, i64::from(METRICS_CONTRACT_VERSION));
+    assert_eq!(flushes, 10);
+    let metric = |name: &str| -> i64 {
+        status
+            .connection()
+            .query_row(
+                "SELECT value FROM status_counter
+                 WHERE run_id = (SELECT id FROM status_run WHERE product_run_id = ?1)
+                   AND phase = 'overall' AND metric = ?2",
+                rusqlite::params![result.run_id, name],
+                |row| row.get(0),
+            )
+            .unwrap()
+    };
+    assert_eq!(metric("candidate_files"), 6);
+    assert_eq!(metric("duplicate_candidate_files"), 6);
+    assert_eq!(metric("partial_hashes_attempted"), 6);
+    assert_eq!(metric("confirmed_duplicate_groups"), 2);
+    let incomplete_phase_count: i64 = status
+        .connection()
+        .query_row(
+            "SELECT COUNT(*) FROM status_phase
+             WHERE run_id = (SELECT id FROM status_run WHERE product_run_id = ?1)
+               AND state <> 'completed'",
+            [result.run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(incomplete_phase_count, 0);
 }
 
 #[test]
@@ -162,6 +208,7 @@ fn test_scan_cancellation() {
 
     let db_dir = tempdir().unwrap();
     let db_path = db_dir.path().join("test_cancel.db");
+    let status_path = db_dir.path().join("test_cancel_status.db");
     let db_path_str = db_path.to_str().unwrap().to_string();
 
     let config = AppConfig {
@@ -169,7 +216,9 @@ fn test_scan_cancellation() {
         ignore_patterns: vec![],
     };
 
-    let engine = ScanEngine::new(config).with_db_path(&db_path_str);
+    let engine = ScanEngine::new(config)
+        .with_db_path(&db_path_str)
+        .with_status_db_path(status_path.to_str().unwrap());
 
     let cancel_token = engine.cancel_token();
     struct CancelOnStart(std::sync::Arc<std::sync::atomic::AtomicBool>);
@@ -185,6 +234,12 @@ fn test_scan_cancellation() {
     let (_, run_count) = db.list_runs(0, 10).unwrap();
     assert_eq!(run_count, 1);
     assert_eq!(db.list_runs(0, 10).unwrap().0[0].status, "cancelled");
+    let status = StatusDatabase::open_connection(status_path.to_str().unwrap()).unwrap();
+    let state: String = status
+        .connection()
+        .query_row("SELECT state FROM status_run", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(state, "cancelled");
 }
 
 #[test]
@@ -194,6 +249,7 @@ fn test_pipeline_failure_is_persisted_as_failed() {
     create_test_tree(&root);
     let db_dir = tempdir().unwrap();
     let db_path = db_dir.path().join("test_failure.db");
+    let status_path = db_dir.path().join("test_failure_status.db");
 
     let db = Database::open(db_path.to_str().unwrap()).unwrap();
     db.connection()
@@ -209,6 +265,7 @@ fn test_pipeline_failure_is_persisted_as_failed() {
         ignore_patterns: vec![],
     })
     .with_db_path(db_path.to_str().unwrap())
+    .with_status_db_path(status_path.to_str().unwrap())
     .scan(&SilentReporter);
     assert!(result.is_err());
 
@@ -221,6 +278,15 @@ fn test_pipeline_failure_is_persisted_as_failed() {
         .as_deref()
         .unwrap_or_default()
         .contains("forced persistence failure"));
+    let status = StatusDatabase::open_connection(status_path.to_str().unwrap()).unwrap();
+    let (state, code): (String, Option<String>) = status
+        .connection()
+        .query_row("SELECT state, error_code FROM status_run", [], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })
+        .unwrap();
+    assert_eq!(state, "failed");
+    assert_eq!(code.as_deref(), Some("scan_failed"));
 }
 
 #[test]

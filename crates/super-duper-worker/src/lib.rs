@@ -83,23 +83,39 @@ impl From<io::Error> for WorkerError {
 #[derive(Debug, Clone)]
 pub struct WorkerOptions {
     pub database_path: PathBuf,
+    pub status_database_path: PathBuf,
 }
 
 impl WorkerOptions {
     pub fn new(database_path: impl Into<PathBuf>) -> Self {
+        let database_path = database_path.into();
+        let status_database_path = database_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("scan_status.db");
         Self {
-            database_path: database_path.into(),
+            database_path,
+            status_database_path,
         }
+    }
+
+    pub fn with_status_database_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.status_database_path = path.into();
+        self
     }
 }
 
 impl Default for WorkerOptions {
     fn default() -> Self {
-        Self::new(
+        let options = Self::new(
             std::env::var_os("SUPER_DUPER_DB_PATH")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("super_duper.db")),
-        )
+        );
+        match std::env::var_os("SUPER_DUPER_STATUS_DB_PATH") {
+            Some(path) => options.with_status_database_path(PathBuf::from(path)),
+            None => options,
+        }
     }
 }
 
@@ -1194,6 +1210,7 @@ struct ActivePreflight {
 
 struct SharedState {
     database_path: PathBuf,
+    status_database_path: PathBuf,
     active: Mutex<Option<ActiveRun>>,
     active_preflight: Mutex<Option<ActivePreflight>>,
     work_gate: Mutex<()>,
@@ -1204,11 +1221,13 @@ struct SharedState {
 impl SharedState {
     fn new(options: WorkerOptions, output: Sender<String>) -> Result<Arc<Self>, WorkerError> {
         let database_path = options.database_path;
+        let status_database_path = options.status_database_path;
         Database::open(&database_path.to_string_lossy()).map_err(|error| {
             WorkerError::Startup(format!("worker database initialization failed: {error}"))
         })?;
         Ok(Arc::new(Self {
             database_path,
+            status_database_path,
             active: Mutex::new(None),
             active_preflight: Mutex::new(None),
             work_gate: Mutex::new(()),
@@ -3761,6 +3780,8 @@ impl WorkerSession {
             ignore_patterns: run_parameters.ignore_patterns.clone(),
         })
         .with_db_path(&self.state.database_path.to_string_lossy())
+        .with_status_db_path(&self.state.status_database_path.to_string_lossy())
+        .with_status_worker_version(env!("CARGO_PKG_VERSION"))
         .with_session_id(parameters.session_id);
         let cancel_token = engine.cancel_token();
         *active = Some(ActiveRun {
@@ -6962,6 +6983,22 @@ mod tests {
     use tempfile::TempDir;
 
     const HELLO: &str = r#"{"type":"request","id":"hello-1","method":"hello","params":{"protocolVersions":[1],"client":{"name":"protocol-test","version":"1.0.0"}}}"#;
+
+    #[test]
+    fn worker_status_database_defaults_beside_product_database_and_can_be_overridden() {
+        let product = PathBuf::from("state").join("product.db");
+        let options = WorkerOptions::new(product);
+        assert_eq!(
+            options.status_database_path,
+            PathBuf::from("state/scan_status.db")
+        );
+
+        let overridden = options.with_status_database_path("diagnostics/custom-status.db");
+        assert_eq!(
+            overridden.status_database_path,
+            PathBuf::from("diagnostics/custom-status.db")
+        );
+    }
 
     fn execute(temp: &TempDir, requests: &[String]) -> Vec<Value> {
         let database = temp.path().join("worker.db");
