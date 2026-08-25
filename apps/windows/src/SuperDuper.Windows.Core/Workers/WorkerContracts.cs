@@ -1,3 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization;
+
 namespace SuperDuper.Windows.Core.Workers;
 
 public static class CloudPolicyNames
@@ -942,9 +945,219 @@ public sealed class WorkerRunProgressEventArgs : EventArgs
 
     public required long WarningCount { get; init; }
 
+    public required WorkerScanProgressSnapshot Progress { get; init; }
+
     public string? CurrentPath { get; init; }
 
     public string? Message { get; init; }
+}
+
+public sealed class WorkerScanProgressSnapshot
+{
+    public required uint ProgressContractVersion { get; init; }
+
+    public required uint MetricsContractVersion { get; init; }
+
+    public required ulong Revision { get; init; }
+
+    public required ulong MonotonicNanos { get; init; }
+
+    public required string Phase { get; init; }
+
+    public required ulong PhaseElapsedNanos { get; init; }
+
+    public required WorkerScanProgressCounters Counters { get; init; }
+
+    public required WorkerProgressLogicalCounters Logical { get; init; }
+
+    public required WorkerCandidateFunnelProgress Funnel { get; init; }
+
+    public required WorkerProgressRates PartialReadRates { get; init; }
+
+    public required WorkerProgressRates FullReadRates { get; init; }
+
+    public uint? CacheHitRateBasisPoints { get; init; }
+
+    public required ulong WarningCount { get; init; }
+
+    public required WorkerActiveDeviceProgress ActiveDevices { get; init; }
+
+    public WorkerRemainingKnownWork? RemainingKnownWork { get; init; }
+
+    public required WorkerProgressEta Eta { get; init; }
+}
+
+public sealed record WorkerScanProgressCounters
+{
+    [SetsRequiredMembers]
+    public WorkerScanProgressCounters()
+    {
+        DiscoveredBytes = "0";
+        HardLinkAliasBytes = "0";
+        SingletonSizeBytes = "0";
+        CandidateBytes = "0";
+        DuplicateCandidateBytes = "0";
+        MetadataResolvedBytes = "0";
+        PartialHashBytesRead = "0";
+        PartialCollisionBytes = "0";
+        FullHashBytesRead = "0";
+        RecoverableBytes = "0";
+    }
+
+    public required ulong DiscoveredFiles { get; init; }
+    public required string DiscoveredBytes { get; init; }
+    public required ulong ZeroByteFiles { get; init; }
+    public required ulong HardLinkAliasFiles { get; init; }
+    public required string HardLinkAliasBytes { get; init; }
+    public required ulong SizeBuckets { get; init; }
+    public required ulong SingletonSizeBuckets { get; init; }
+    public required ulong SingletonSizeFiles { get; init; }
+    public required string SingletonSizeBytes { get; init; }
+    public required ulong CandidateSizeBuckets { get; init; }
+    public required ulong CandidateFiles { get; init; }
+    public required string CandidateBytes { get; init; }
+    public required ulong DuplicateCandidateSizeBuckets { get; init; }
+    public required ulong DuplicateCandidateFiles { get; init; }
+    public required string DuplicateCandidateBytes { get; init; }
+    public required ulong MetadataResolvedFiles { get; init; }
+    public required string MetadataResolvedBytes { get; init; }
+    public required ulong PartialHashesAttempted { get; init; }
+    public required ulong PartialHashesSucceeded { get; init; }
+    public required ulong PartialHashesFailed { get; init; }
+    public required string PartialHashBytesRead { get; init; }
+    public required ulong PartialCollisionBuckets { get; init; }
+    public required ulong PartialCollisionFiles { get; init; }
+    public required string PartialCollisionBytes { get; init; }
+    public required ulong FullHashRequests { get; init; }
+    public required ulong FullHashCacheHits { get; init; }
+    public required ulong FullHashCacheMisses { get; init; }
+    public required ulong FullHashCacheErrors { get; init; }
+    public required ulong FullHashCacheStores { get; init; }
+    public required ulong FullHashContentReadsStarted { get; init; }
+    public required ulong FullHashContentReadsCompleted { get; init; }
+    public required ulong FullHashContentReadsFailed { get; init; }
+    public required string FullHashBytesRead { get; init; }
+    public required ulong ConfirmedDuplicateGroups { get; init; }
+    public required ulong ConfirmedLogicalCopies { get; init; }
+    public required ulong ConfirmedPhysicalItems { get; init; }
+    public required string RecoverableBytes { get; init; }
+    public required ulong Warnings { get; init; }
+    public required ulong CancelChecks { get; init; }
+    public required ulong CancelledWorkItems { get; init; }
+    public required ulong TelemetrySamplesLost { get; init; }
+    public required ulong TelemetryFlushErrors { get; init; }
+    public required ulong UnavailableCounters { get; init; }
+}
+
+public sealed record WorkerProgressLogicalCounters
+{
+    [SetsRequiredMembers]
+    public WorkerProgressLogicalCounters()
+    {
+        PartialScreenedBytes = "0";
+        FullHashRequestBytes = "0";
+        FullHashSatisfiedBytes = "0";
+        FullHashFailedBytes = "0";
+        HashPipelineResolvedBytes = "0";
+        ConfirmedLogicalBytes = "0";
+    }
+
+    public required ulong PartialScreenedFiles { get; init; }
+    public required string PartialScreenedBytes { get; init; }
+    public required string FullHashRequestBytes { get; init; }
+    public required ulong FullHashSatisfiedFiles { get; init; }
+    public required string FullHashSatisfiedBytes { get; init; }
+    public required ulong FullHashFailedFiles { get; init; }
+    public required string FullHashFailedBytes { get; init; }
+    public required ulong HashPipelineResolvedFiles { get; init; }
+    public required string HashPipelineResolvedBytes { get; init; }
+    public required string ConfirmedLogicalBytes { get; init; }
+}
+
+public sealed class WorkerProgressQuantity
+{
+    public required ulong Files { get; init; }
+
+    public required string LogicalBytes { get; init; }
+}
+
+public sealed class WorkerCandidateFunnelProgress
+{
+    public required WorkerProgressQuantity Discovered { get; init; }
+    public required WorkerProgressQuantity MetadataResolved { get; init; }
+    public required WorkerProgressQuantity HashPipelineCandidates { get; init; }
+    public required WorkerProgressQuantity PartialScreened { get; init; }
+    public required WorkerProgressQuantity SelectedForFullHash { get; init; }
+    public required WorkerProgressQuantity FullHashSatisfied { get; init; }
+    public required WorkerProgressQuantity FinalizedDuplicates { get; init; }
+}
+
+public sealed class WorkerProgressRate
+{
+    public required ulong FilesPerSecondMillis { get; init; }
+
+    public required string PhysicalBytesPerSecond { get; init; }
+
+    public required ulong WindowNanos { get; init; }
+}
+
+public sealed class WorkerProgressRateValue
+{
+    public required string State { get; init; }
+
+    public WorkerProgressRate? Rate { get; init; }
+
+    public string? Reason { get; init; }
+}
+
+public sealed class WorkerProgressRates
+{
+    public required WorkerProgressRateValue Cumulative { get; init; }
+
+    public required WorkerProgressRateValue Recent { get; init; }
+}
+
+public sealed class WorkerActiveDeviceProgress
+{
+    public required string State { get; init; }
+
+    public string? Reason { get; init; }
+
+    [JsonPropertyName("device_key")]
+    public string? DeviceKey { get; init; }
+
+    [JsonPropertyName("device_keys")]
+    public IReadOnlyList<string>? DeviceKeys { get; init; }
+}
+
+public sealed class WorkerRemainingKnownWork
+{
+    public required string Stage { get; init; }
+
+    public required ulong Files { get; init; }
+
+    public required string LogicalBytes { get; init; }
+}
+
+public sealed class WorkerProgressEta
+{
+    public required string State { get; init; }
+
+    public string? Reason { get; init; }
+
+    public string? Stage { get; init; }
+
+    [JsonPropertyName("remaining_logical_bytes")]
+    public string? RemainingLogicalBytes { get; init; }
+
+    [JsonPropertyName("logical_bytes_per_second_millis")]
+    public string? LogicalBytesPerSecondMillis { get; init; }
+
+    [JsonPropertyName("estimated_seconds")]
+    public ulong? EstimatedSeconds { get; init; }
+
+    [JsonPropertyName("window_nanos")]
+    public ulong? WindowNanos { get; init; }
 }
 
 public sealed class WorkerRunLifecycleEventArgs : EventArgs

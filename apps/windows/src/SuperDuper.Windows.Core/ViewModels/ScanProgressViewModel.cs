@@ -9,18 +9,26 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
 {
     private readonly IWorkerClient _workerClient;
     private readonly IUiDispatcher _dispatcher;
+    private readonly Action<long>? _onCancelling;
     private readonly Timer _elapsedTimer;
     private WorkerRun? _run;
     private ulong _lastSequence;
+    private ulong _lastProgressRevision;
+    private IReadOnlyList<ulong>? _lastCumulativeValues;
+    private WorkerScanProgressSnapshot? _progressSnapshot;
     private string? _currentPath;
     private string? _message;
     private string? _errorMessage;
     private bool _cancelRequestPending;
 
-    public ScanProgressViewModel(IWorkerClient workerClient, IUiDispatcher dispatcher)
+    public ScanProgressViewModel(
+        IWorkerClient workerClient,
+        IUiDispatcher dispatcher,
+        Action<long>? onCancelling = null)
     {
         _workerClient = workerClient;
         _dispatcher = dispatcher;
+        _onCancelling = onCancelling;
         _elapsedTimer = new Timer(
             _ => _dispatcher.Post(() => OnPropertyChanged(nameof(Elapsed))),
             null,
@@ -96,6 +104,45 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
 
     public string WarningCount => (Run?.WarningCount ?? 0).ToString("N0");
 
+    public WorkerScanProgressSnapshot? ProgressSnapshot
+    {
+        get => _progressSnapshot;
+        private set
+        {
+            if (SetProperty(ref _progressSnapshot, value))
+            {
+                RaiseProgressProperties();
+            }
+        }
+    }
+
+    public IReadOnlyList<ScanProgressStage> Stages =>
+        ScanProgressProjection.Stages(ProgressSnapshot?.Funnel);
+
+    public string ProgressPhaseElapsed => ScanProgressProjection.PhaseElapsed(ProgressSnapshot);
+
+    public string PartialRecentRate =>
+        ScanProgressProjection.Rate(ProgressSnapshot?.PartialReadRates.Recent);
+
+    public string PartialCumulativeRate =>
+        ScanProgressProjection.Rate(ProgressSnapshot?.PartialReadRates.Cumulative);
+
+    public string FullRecentRate =>
+        ScanProgressProjection.Rate(ProgressSnapshot?.FullReadRates.Recent);
+
+    public string FullCumulativeRate =>
+        ScanProgressProjection.Rate(ProgressSnapshot?.FullReadRates.Cumulative);
+
+    public string CacheEffectiveness =>
+        ScanProgressProjection.Cache(ProgressSnapshot?.CacheHitRateBasisPoints);
+
+    public string ActiveDevices => ScanProgressProjection.Devices(ProgressSnapshot?.ActiveDevices);
+
+    public string RemainingWork =>
+        ScanProgressProjection.Remaining(ProgressSnapshot?.RemainingKnownWork);
+
+    public string EstimatedTimeRemaining => ScanProgressProjection.Eta(ProgressSnapshot?.Eta);
+
     public string ExcludedSubtreeCount => (Run?.ExcludedSubtreeCount ?? 0).ToString("N0");
 
     public string Elapsed
@@ -120,6 +167,9 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
     public void ShowRun(WorkerRun? run)
     {
         _lastSequence = 0;
+        _lastProgressRevision = 0;
+        _lastCumulativeValues = null;
+        ProgressSnapshot = null;
         CurrentPath = null;
         Message = null;
         ErrorMessage = null;
@@ -128,13 +178,25 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         UpdateTimer();
     }
 
-    public void ApplyProgress(WorkerRunProgressEventArgs progress)
+    public bool ApplyProgress(WorkerRunProgressEventArgs progress)
     {
-        if (Run?.Id != progress.RunId || progress.Sequence <= _lastSequence)
+        if (Run?.Id != progress.RunId
+            || Run.Status is not ("pending" or "running" or "cancelling")
+            || progress.Sequence <= _lastSequence
+            || (Run.Status == "cancelling" && progress.Status == "running")
+            || !WorkerProgressContract.TryValidate(progress, out _)
+            || progress.Progress.Revision <= _lastProgressRevision
+            || !WorkerProgressContract.TryGetCumulativeValues(
+                progress,
+                out var cumulativeValues,
+                out _)
+            || HasRegression(_lastCumulativeValues, cumulativeValues))
         {
-            return;
+            return false;
         }
         _lastSequence = progress.Sequence;
+        _lastProgressRevision = progress.Progress.Revision;
+        _lastCumulativeValues = cumulativeValues.ToArray();
         Run = Run with
         {
             Status = progress.Status,
@@ -146,7 +208,9 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         };
         CurrentPath = progress.CurrentPath;
         Message = progress.Message;
+        ProgressSnapshot = progress.Progress;
         UpdateTimer();
+        return true;
     }
 
     public void ApplyLifecycle(WorkerRun run)
@@ -163,12 +227,35 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
 
     public void Dispose() => _elapsedTimer.Dispose();
 
+    private static bool HasRegression(
+        IReadOnlyList<ulong>? previous,
+        IReadOnlyList<ulong> proposed)
+    {
+        if (previous is null)
+        {
+            return false;
+        }
+        if (previous.Count != proposed.Count)
+        {
+            return true;
+        }
+        for (var index = 0; index < previous.Count; index++)
+        {
+            if (proposed[index] < previous[index])
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private async Task CancelAsync()
     {
         if (Run is not { Status: "running" } run)
         {
             return;
         }
+        _onCancelling?.Invoke(run.Id);
         _cancelRequestPending = true;
         Run = run with { Status = "cancelling" };
         ErrorMessage = null;
@@ -210,5 +297,19 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ExcludedSubtreeCount));
         OnPropertyChanged(nameof(Elapsed));
         CancelCommand.NotifyCanExecuteChanged();
+    }
+
+    private void RaiseProgressProperties()
+    {
+        OnPropertyChanged(nameof(Stages));
+        OnPropertyChanged(nameof(ProgressPhaseElapsed));
+        OnPropertyChanged(nameof(PartialRecentRate));
+        OnPropertyChanged(nameof(PartialCumulativeRate));
+        OnPropertyChanged(nameof(FullRecentRate));
+        OnPropertyChanged(nameof(FullCumulativeRate));
+        OnPropertyChanged(nameof(CacheEffectiveness));
+        OnPropertyChanged(nameof(ActiveDevices));
+        OnPropertyChanged(nameof(RemainingWork));
+        OnPropertyChanged(nameof(EstimatedTimeRemaining));
     }
 }

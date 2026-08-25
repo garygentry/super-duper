@@ -92,6 +92,10 @@ SOP2b populates cumulative observations from the same bounded hash deltas used f
 truth. It publishes at 256 file outcomes or 8 MiB of full-content reads and reconciles cancellation,
 warnings, cache outcomes, failures, and completed/failed/cancelled terminal counters without adding
 per-file status rows. SOP2c reduces those observations in the worker and emits latest-wins frames at
-most once per 100 ms with decimal-string byte quantities and strict terminal ordering. Core/WPF
-state, warning drilldown, singleton savings, scheduling, read-path tuning, device-aware scheduling,
-and cache-policy UI remain in SOP2d/SOP2e and later named gates.
+most once per 100 ms with decimal-string byte quantities and strict terminal ordering. SOP2d makes
+the paired Windows client fail closed on incomplete or semantically invalid typed snapshots, then
+passes valid frames through one generation-scoped latest-only 100 ms Core application gate. Core
+revalidates run, transport/source order, cumulative non-regression, and lifecycle stickiness before
+projecting explicit units, windows, and unavailable explanations. The WPF surface, warning
+drilldown, singleton savings, scheduling, read-path tuning, device-aware scheduling, and cache-policy
+UI remain in SOP2e and later named gates.

@@ -13,6 +13,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     private readonly IReviewLiveStateWorkerClient? _reviewLiveStateWorkerClient;
     private readonly IUiDispatcher _dispatcher;
     private readonly IUserConfirmationService _confirmation;
+    private readonly LatestProgressApplicationGate<WorkerRunProgressEventArgs> _progressGate;
     private CancellationTokenSource? _selectionCancellation;
     private WorkerConnectionState _connectionState = WorkerConnectionState.Starting;
     private string _statusTitle = "Starting worker";
@@ -49,6 +50,10 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         _confirmation = confirmation;
         _dispatcher = dispatcher;
 
+        _progressGate = new LatestProgressApplicationGate<WorkerRunProgressEventArgs>(
+            HandleProgress,
+            ScheduleProgressApplicationAsync);
+
         Sessions = new SessionListViewModel(workerClient, BeginNewSessionAsync);
         Setup = new SessionSetupViewModel(
             workerClient,
@@ -56,7 +61,10 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             confirmation,
             sessionId => Sessions.NamesExcept(sessionId),
             cloudLocations);
-        Progress = new ScanProgressViewModel(workerClient, dispatcher);
+        Progress = new ScanProgressViewModel(
+            workerClient,
+            dispatcher,
+            runId => _progressGate.MarkCancelling(runId));
         History = new RunHistoryViewModel(workerClient, NavigateToWarningDuplicateSetAsync);
         DuplicateFiles = new DuplicateFilesViewModel(workerClient, clipboard, explorer);
         DuplicateFolders = new DuplicateFoldersViewModel(workerClient, clipboard, explorer);
@@ -379,6 +387,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         DuplicateFiles.ReviewRevisionChanged -= OnFileReviewRevisionChanged;
         DuplicateFolders.ReviewRevisionChanged -= OnFolderReviewRevisionChanged;
         Progress.Dispose();
+        _progressGate.Dispose();
         History.Dispose();
         DuplicateFiles.Dispose();
         DuplicateFolders.Dispose();
@@ -656,17 +665,40 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void OnRunProgress(object? sender, WorkerRunProgressEventArgs progress) =>
-        _dispatcher.Post(() => HandleProgress(progress));
+    private void OnRunProgress(object? sender, WorkerRunProgressEventArgs progress)
+    {
+        if (_disposed
+            || !WorkerProgressContract.TryValidate(progress, out _)
+            || !WorkerProgressContract.TryGetCumulativeValues(
+                progress,
+                out var counters,
+                out _))
+        {
+            return;
+        }
+        _progressGate.Offer(new ProgressApplicationEnvelope<WorkerRunProgressEventArgs>(
+            progress.RunId,
+            progress.Sequence,
+            progress.Progress.Revision,
+            progress.Status,
+            counters,
+            progress));
+    }
 
-    private void OnRunLifecycleChanged(object? sender, WorkerRunLifecycleEventArgs lifecycle) =>
-        _dispatcher.Post(() => HandleLifecycle(lifecycle.Run));
+    private void OnRunLifecycleChanged(object? sender, WorkerRunLifecycleEventArgs lifecycle)
+    {
+        ObserveProgressLifecycle(lifecycle.Run);
+        _dispatcher.Post(() => HandleLifecycle(lifecycle.Run, progressLifecycleObserved: true));
+    }
 
     private void OnResultStateChanged(object? sender, WorkerResultStateChangedEventArgs stateChanged) =>
         _dispatcher.Post(() => DuplicateFiles.ApplyLiveStateChanged(stateChanged));
 
-    private void OnUnexpectedWorkerExit(object? sender, WorkerUnexpectedExitEventArgs exit) =>
+    private void OnUnexpectedWorkerExit(object? sender, WorkerUnexpectedExitEventArgs exit)
+    {
+        _progressGate.Reset();
         _dispatcher.Post(() => HandleUnexpectedWorkerExit(exit));
+    }
 
     private void HandleUnexpectedWorkerExit(WorkerUnexpectedExitEventArgs exit)
     {
@@ -711,7 +743,10 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         {
             return;
         }
-        Progress.ApplyProgress(progress);
+        if (!Progress.ApplyProgress(progress))
+        {
+            return;
+        }
         if (progress.RunId == ActiveRunId)
         {
             StatusTitle = DisplayFormatting.Phase(progress.Phase);
@@ -719,11 +754,15 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void HandleLifecycle(WorkerRun run)
+    private void HandleLifecycle(WorkerRun run, bool progressLifecycleObserved = false)
     {
         if (_disposed)
         {
             return;
+        }
+        if (!progressLifecycleObserved)
+        {
+            ObserveProgressLifecycle(run);
         }
         History.Upsert(run, select: run.Id == ActiveRunId || run.Status == "running");
         Progress.ApplyLifecycle(run);
@@ -754,6 +793,11 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
     private void SetActiveRun(WorkerRun run)
     {
+        _progressGate.BeginRun(run.Id);
+        if (run.Status == "cancelling")
+        {
+            _progressGate.MarkCancelling(run.Id);
+        }
         ActiveRunId = run.Id;
         _activeSessionId = run.SessionId;
         Setup.CanMutate = false;
@@ -763,6 +807,57 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         {
             session.StatusText = DisplayFormatting.Status(run.Status);
         }
+    }
+
+    private void ObserveProgressLifecycle(WorkerRun run)
+    {
+        if (run.Status is "pending" or "running" or "cancelling")
+        {
+            _progressGate.BeginRun(run.Id);
+            if (run.Status == "cancelling")
+            {
+                _progressGate.MarkCancelling(run.Id);
+            }
+        }
+        else
+        {
+            _progressGate.MarkTerminal(run.Id);
+        }
+    }
+
+    private async Task ScheduleProgressApplicationAsync(
+        TimeSpan delay,
+        CancellationToken cancellationToken,
+        Action callback)
+    {
+        await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+        var completion = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        try
+        {
+            _dispatcher.Post(() =>
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    completion.TrySetCanceled(cancellationToken);
+                    return;
+                }
+                try
+                {
+                    callback();
+                    completion.TrySetResult();
+                }
+                catch (Exception exception)
+                {
+                    completion.TrySetException(exception);
+                }
+            });
+        }
+        catch (Exception exception)
+        {
+            completion.TrySetException(exception);
+        }
+        await completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private void ShowEmptyState()

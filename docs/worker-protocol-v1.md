@@ -400,6 +400,11 @@ Progress data is:
   variant fields `remaining_logical_bytes` and `logical_bytes_per_second_millis`. File counts,
   basis points, durations, revisions, and sequences remain JSON numbers. Optional values and tagged
   `available`/`unavailable`/`complete` states remain distinct from zero.
+- The paired Windows client requires the complete typed object, exact documented field casing and
+  JSON kinds, canonical unsigned decimal strings, supported contract versions, closed tagged
+  states, and valid cumulative/funnel invariants. It ignores additive unknown fields. After parsing,
+  Core independently rejects wrong-run, duplicate/out-of-order, regressing,
+  running-after-cancelling, and post-terminal frames before applying the latest accepted snapshot.
 - The first progress frame may emit immediately. Every later ordinary frame is at least 100 ms
   after the preceding frame, which permits no more than ten frames in every half-open interval
   `[t, t + 1 second)`. Updates are latest-wins. A phase change replaces pending state and is emitted

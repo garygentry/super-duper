@@ -175,15 +175,100 @@ public sealed class ShellViewModelTests
         StringAssert.Contains(viewModel.DuplicateFiles.LiveHintStatusMessage, "10,000 filesystem events");
     }
 
+    [TestMethod]
+    public async Task ThousandProgressFramesQueueOneDispatcherApplicationAndPreserveLatest()
+    {
+        var client = new TestWorkerClient();
+        var dispatcher = new QueuedDispatcher();
+        using var viewModel = CreateViewModel(client, dispatcher);
+        var run = client.AddRun(1, "running", "discovering");
+        viewModel.Progress.ShowRun(run);
+        await Task.Delay(100);
+        dispatcher.ExecuteAll();
+        client.RaiseLifecycle("run.started", run);
+        dispatcher.ExecuteAll();
+        await Task.Delay(100);
+        dispatcher.ExecuteAll();
+
+        for (ulong sequence = 1; sequence <= 1_000; sequence++)
+        {
+            client.RaiseProgress(ProgressTestData.Discovery(
+                run.Id,
+                sequence,
+                revision: sequence,
+                discoveredFiles: sequence,
+                monotonicNanos: sequence * 1_000_000));
+        }
+
+        await WaitUntilAsync(() => dispatcher.PendingCount == 1);
+        Assert.AreEqual(
+            run.FilesDiscovered.ToString(),
+            viewModel.Progress.FilesDiscovered.Replace(",", string.Empty));
+        dispatcher.ExecuteNext();
+        await WaitUntilAsync(() =>
+            viewModel.Progress.FilesDiscovered.Replace(",", string.Empty) == "1000");
+
+        dispatcher.ExecuteAll();
+        Assert.AreEqual("1000", viewModel.Progress.FilesDiscovered.Replace(",", string.Empty));
+    }
+
+    [TestMethod]
+    public async Task TerminalLifecycleInvalidatesAlreadyPostedProgressBeforeUiExecution()
+    {
+        var client = new TestWorkerClient();
+        var dispatcher = new QueuedDispatcher();
+        using var viewModel = CreateViewModel(client, dispatcher);
+        var run = client.AddRun(1, "running", "discovering");
+        viewModel.Progress.ShowRun(run);
+        await Task.Delay(100);
+        dispatcher.ExecuteAll();
+        client.RaiseLifecycle("run.started", run);
+        dispatcher.ExecuteAll();
+        await Task.Delay(100);
+        dispatcher.ExecuteAll();
+        client.RaiseProgress(ProgressTestData.Discovery(
+            run.Id,
+            discoveredFiles: 99));
+        await WaitUntilAsync(() => dispatcher.PendingCount == 1);
+
+        var completed = run with
+        {
+            Status = "completed",
+            CompletedAt = DateTimeOffset.UtcNow,
+        };
+        client.RaiseLifecycle("run.completed", completed);
+        Assert.AreEqual(2, dispatcher.PendingCount);
+        dispatcher.ExecuteAll();
+
+        Assert.AreEqual("Completed", viewModel.Progress.Status);
+        Assert.AreEqual(
+            run.FilesDiscovered.ToString(),
+            viewModel.Progress.FilesDiscovered.Replace(",", string.Empty));
+        await Task.Delay(150);
+        Assert.AreEqual(0, dispatcher.PendingCount);
+    }
+
     private static ShellViewModel CreateViewModel(IWorkerClient client) =>
+        CreateViewModel(client, new ImmediateDispatcher());
+
+    private static ShellViewModel CreateViewModel(IWorkerClient client, IUiDispatcher dispatcher) =>
         new(
             client,
             new TestFolderPicker(),
             new TestConfirmation(),
-            new ImmediateDispatcher(),
+            dispatcher,
             new TestClipboard(),
             new TestExplorer(),
             new TestCloudLocationService());
+
+    private static async Task WaitUntilAsync(Func<bool> predicate)
+    {
+        for (var attempt = 0; attempt < 1_000 && !predicate(); attempt++)
+        {
+            await Task.Delay(1);
+        }
+        Assert.IsTrue(predicate(), "The progress application did not reach the expected state.");
+    }
 
     private sealed class TestFolderPicker : IFolderPickerService
     {
@@ -210,6 +295,49 @@ public sealed class ShellViewModelTests
         {
             PostCount++;
             action();
+        }
+    }
+
+    private sealed class QueuedDispatcher : IUiDispatcher
+    {
+        private readonly object _gate = new();
+        private readonly Queue<Action> _pending = new();
+
+        public int PendingCount
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _pending.Count;
+                }
+            }
+        }
+
+        public void Post(Action action)
+        {
+            lock (_gate)
+            {
+                _pending.Enqueue(action);
+            }
+        }
+
+        public void ExecuteNext()
+        {
+            Action action;
+            lock (_gate)
+            {
+                action = _pending.Dequeue();
+            }
+            action();
+        }
+
+        public void ExecuteAll()
+        {
+            while (PendingCount > 0)
+            {
+                ExecuteNext();
+            }
         }
     }
 

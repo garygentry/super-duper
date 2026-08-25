@@ -1383,9 +1383,7 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
             switch (frame.Name)
             {
                 case "run.progress":
-                    var progress = frame.Data.Deserialize<WorkerRunProgressEventArgs>(
-                        JsonLineProtocol.SerializerOptions)
-                        ?? throw new WorkerProtocolException("run.progress event data is invalid.");
+                    var progress = WorkerRunProgressParser.Parse(frame.Data);
                     RunProgress?.Invoke(this, progress);
                     break;
 
