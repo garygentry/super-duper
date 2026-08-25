@@ -188,8 +188,17 @@ impl RunTelemetry {
             error_code: error_code.map(str::to_owned),
             error_message: error_message.map(str::to_owned),
         };
-        if let Err(error) = database.finish_run(run_id, &terminal) {
-            warn!("Scan telemetry terminal write failed for product run: {error}");
+        match database.finish_run(run_id, &terminal) {
+            Ok(_) => {
+                if let Err(error) =
+                    database.apply_retention(crate::telemetry::StatusRetentionPolicy::default())
+                {
+                    warn!("Scan telemetry retention failed after terminal write: {error}");
+                }
+            }
+            Err(error) => {
+                warn!("Scan telemetry terminal write failed for product run: {error}");
+            }
         }
     }
 }

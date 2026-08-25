@@ -132,19 +132,20 @@ fn test_full_scan_pipeline() {
     assert_eq!(run.bytes_discovered as u64, result.total_bytes_discovered);
 
     let status = StatusDatabase::open_connection(status_path.to_str().unwrap()).unwrap();
-    let (state, contract, flushes): (String, i64, i64) = status
+    let (state, contract, last_sequence, replay_flushes): (String, i64, i64, i64) = status
         .connection()
         .query_row(
-            "SELECT state, metrics_contract_version,
+            "SELECT state, metrics_contract_version, last_sequence,
                     (SELECT COUNT(*) FROM status_flush WHERE run_id = status_run.id)
              FROM status_run WHERE product_run_id = ?1",
             [result.run_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
         .unwrap();
     assert_eq!(state, "completed");
     assert_eq!(contract, i64::from(METRICS_CONTRACT_VERSION));
-    assert_eq!(flushes, 10);
+    assert_eq!(last_sequence, 10);
+    assert_eq!(replay_flushes, 0);
     let metric = |name: &str| -> i64 {
         status
             .connection()

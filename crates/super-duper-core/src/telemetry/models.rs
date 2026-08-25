@@ -590,3 +590,45 @@ pub enum WriteDisposition {
     Applied,
     Replayed,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StatusPhaseSummary {
+    pub phase: TelemetryPhase,
+    pub state: TelemetryPhaseState,
+    pub started_monotonic_nanos: Option<u64>,
+    pub completed_monotonic_nanos: Option<u64>,
+    pub active_nanos: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StatusCounterSummary {
+    pub metric: String,
+    pub value: u64,
+    pub updated_sequence: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StatusRetentionPolicy {
+    pub max_terminal_runs: u32,
+    pub max_samples_per_run: u32,
+}
+
+impl Default for StatusRetentionPolicy {
+    fn default() -> Self {
+        Self {
+            max_terminal_runs: 50,
+            max_samples_per_run: 100_000,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StatusRetentionResult {
+    pub terminal_runs_deleted: u64,
+    pub host_samples_deleted: u64,
+    pub device_samples_deleted: u64,
+    pub replay_flushes_deleted: u64,
+    pub wal_busy: bool,
+    pub wal_frames: Option<u64>,
+    pub wal_frames_checkpointed: Option<u64>,
+}

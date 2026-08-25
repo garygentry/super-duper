@@ -5,12 +5,18 @@ use rusqlite::{params, Connection, Error as SqlError, OptionalExtension, Transac
 use thiserror::Error;
 
 use super::models::{
-    CounterKind, DeviceDescriptor, DeviceSample, HostSample, MetricInvariantError, StatusRunRecord,
-    StatusRunStart, StatusRunTerminal, TelemetryFlush, TelemetryPhase, TelemetryRunState,
-    WriteDisposition, METRICS_CONTRACT_VERSION,
+    CounterKind, DeviceDescriptor, DeviceSample, HostSample, MetricInvariantError,
+    StatusCounterSummary, StatusPhaseSummary, StatusRetentionPolicy, StatusRetentionResult,
+    StatusRunRecord, StatusRunStart, StatusRunTerminal, TelemetryFlush, TelemetryPhase,
+    TelemetryPhaseState, TelemetryRunState, WriteDisposition, METRICS_CONTRACT_VERSION,
 };
 
 pub const CURRENT_STATUS_SCHEMA_VERSION: i64 = 2;
+pub const MAX_STATUS_RUN_PAGE: usize = 100;
+pub const MAX_STATUS_SAMPLE_PAGE: usize = 500;
+pub const MAX_STATUS_DEVICES_PER_RUN: usize = 64;
+const MAX_RETAINED_TERMINAL_RUNS: u32 = 10_000;
+const MAX_RETAINED_SAMPLES_PER_RUN: u32 = 1_000_000;
 
 #[derive(Debug, Error)]
 pub enum StatusStoreError {
@@ -52,6 +58,7 @@ impl StatusDatabase {
     pub fn open(path: &str) -> Result<Self, StatusStoreError> {
         let mut database = Self::open_connection(path)?;
         database.reconcile_interrupted_runs()?;
+        database.apply_retention(StatusRetentionPolicy::default())?;
         Ok(database)
     }
 
@@ -81,7 +88,8 @@ impl StatusDatabase {
             "PRAGMA journal_mode = WAL;
              PRAGMA synchronous = NORMAL;
              PRAGMA foreign_keys = ON;
-             PRAGMA busy_timeout = 5000;",
+             PRAGMA busy_timeout = 5000;
+             PRAGMA wal_autocheckpoint = 1000;",
         )?;
         Ok(())
     }
@@ -299,6 +307,32 @@ impl StatusDatabase {
             ],
         )?;
 
+        if !flush.devices.is_empty() {
+            let existing_devices: i64 = transaction.query_row(
+                "SELECT COUNT(*) FROM status_device WHERE run_id = ?1",
+                [run_id],
+                |row| row.get(0),
+            )?;
+            let mut new_devices = 0_i64;
+            for device in &flush.devices {
+                let exists: bool = transaction.query_row(
+                    "SELECT EXISTS(
+                        SELECT 1 FROM status_device
+                        WHERE run_id = ?1 AND device_key = ?2 AND volume_key = ?3
+                     )",
+                    params![run_id, device.device_key, device.volume_key],
+                    |row| row.get(0),
+                )?;
+                if !exists {
+                    new_devices += 1;
+                }
+            }
+            if existing_devices + new_devices > MAX_STATUS_DEVICES_PER_RUN as i64 {
+                return Err(StatusStoreError::InvalidInput(format!(
+                    "status run cannot contain more than {MAX_STATUS_DEVICES_PER_RUN} devices"
+                )));
+            }
+        }
         for device in &flush.devices {
             persist_device(&transaction, run_id, device)?;
         }
@@ -399,6 +433,247 @@ impl StatusDatabase {
 
     pub fn get_run(&self, run_id: i64) -> Result<StatusRunRecord, StatusStoreError> {
         run_by_id(&self.conn, run_id)?.ok_or(StatusStoreError::RunNotFound(run_id))
+    }
+
+    /// List newest status runs using a strict, stable `id < before_id` cursor.
+    pub fn list_runs(
+        &self,
+        before_id: Option<i64>,
+        limit: usize,
+    ) -> Result<Vec<StatusRunRecord>, StatusStoreError> {
+        validate_page_limit("run page", limit, MAX_STATUS_RUN_PAGE)?;
+        let before_id = before_id.unwrap_or(i64::MAX);
+        if before_id <= 0 {
+            return Err(StatusStoreError::InvalidInput(
+                "run cursor must be a positive row ID".to_owned(),
+            ));
+        }
+        let mut statement = self.conn.prepare(
+            "SELECT id, operation_id, product_run_id, metrics_contract_version, engine_version,
+                    worker_version, app_version, product_schema_version, input_signature, state,
+                    started_unix_millis, completed_unix_millis, last_monotonic_nanos,
+                    last_sequence, error_code, error_message
+             FROM status_run WHERE id < ?1 ORDER BY id DESC LIMIT ?2",
+        )?;
+        let rows = statement.query_map(params![before_id, limit as i64], status_run_from_row)?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    pub fn get_run_counters(
+        &self,
+        run_id: i64,
+    ) -> Result<Vec<StatusCounterSummary>, StatusStoreError> {
+        self.ensure_run_exists(run_id)?;
+        let mut statement = self.conn.prepare(
+            "SELECT metric, value, updated_sequence FROM status_counter
+             WHERE run_id = ?1 AND phase = 'overall' ORDER BY metric",
+        )?;
+        let rows = statement.query_map([run_id], |row| {
+            Ok(StatusCounterSummary {
+                metric: row.get(0)?,
+                value: sql_u64_from_row(row, 1)?,
+                updated_sequence: sql_u64_from_row(row, 2)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    pub fn get_run_phases(&self, run_id: i64) -> Result<Vec<StatusPhaseSummary>, StatusStoreError> {
+        self.ensure_run_exists(run_id)?;
+        let mut statement = self.conn.prepare(
+            "SELECT phase, state, started_monotonic_nanos, completed_monotonic_nanos,
+                    active_nanos
+             FROM status_phase WHERE run_id = ?1 ORDER BY started_monotonic_nanos, phase",
+        )?;
+        let rows = statement.query_map([run_id], |row| {
+            Ok(StatusPhaseSummary {
+                phase: parse_phase(&row.get::<_, String>(0)?, 0)?,
+                state: parse_phase_state(&row.get::<_, String>(1)?, 1)?,
+                started_monotonic_nanos: optional_sql_u64_from_row(row, 2)?,
+                completed_monotonic_nanos: optional_sql_u64_from_row(row, 3)?,
+                active_nanos: sql_u64_from_row(row, 4)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    pub fn get_run_devices(&self, run_id: i64) -> Result<Vec<DeviceDescriptor>, StatusStoreError> {
+        self.ensure_run_exists(run_id)?;
+        let mut statement = self.conn.prepare(
+            "SELECT device_key, volume_key, filesystem, capacity_bytes, free_bytes_at_start,
+                    bus_type, media_type, model
+             FROM status_device WHERE run_id = ?1 ORDER BY device_key, volume_key",
+        )?;
+        let rows = statement.query_map([run_id], |row| {
+            Ok(DeviceDescriptor {
+                device_key: row.get(0)?,
+                volume_key: row.get(1)?,
+                filesystem: row.get(2)?,
+                capacity_bytes: optional_sql_u64_from_row(row, 3)?,
+                free_bytes_at_start: optional_sql_u64_from_row(row, 4)?,
+                bus_type: row.get(5)?,
+                media_type: row.get(6)?,
+                model: row.get(7)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    pub fn list_host_samples(
+        &self,
+        run_id: i64,
+        after_sequence: u64,
+        limit: usize,
+    ) -> Result<Vec<HostSample>, StatusStoreError> {
+        validate_page_limit("host sample page", limit, MAX_STATUS_SAMPLE_PAGE)?;
+        self.ensure_run_exists(run_id)?;
+        let mut statement = self.conn.prepare(
+            "SELECT sequence, observed_unix_millis, monotonic_nanos, phase,
+                    process_cpu_nanos, process_private_bytes, process_working_set_bytes,
+                    process_peak_working_set_bytes, process_read_operations, process_read_bytes,
+                    process_write_operations, process_write_bytes, system_cpu_basis_points,
+                    system_available_memory_bytes, system_committed_memory_bytes,
+                    unavailable_counter_count
+             FROM status_host_sample
+             WHERE run_id = ?1 AND sequence > ?2 ORDER BY sequence LIMIT ?3",
+        )?;
+        let rows = statement.query_map(
+            params![
+                run_id,
+                sqlite_u64("after_sequence", after_sequence)?,
+                limit as i64
+            ],
+            host_sample_from_row,
+        )?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    pub fn list_device_samples(
+        &self,
+        run_id: i64,
+        device_key: &str,
+        after_sequence: u64,
+        limit: usize,
+    ) -> Result<Vec<DeviceSample>, StatusStoreError> {
+        validate_page_limit("device sample page", limit, MAX_STATUS_SAMPLE_PAGE)?;
+        bounded_nonblank("device_key", device_key, 256)?;
+        self.ensure_run_exists(run_id)?;
+        let mut statement = self.conn.prepare(
+            "SELECT sequence, device_key, read_bytes_per_second, read_iops_millis,
+                    average_read_latency_micros, active_millis_per_second, queue_depth_millis,
+                    unavailable_counter_count
+             FROM status_device_sample
+             WHERE run_id = ?1 AND device_key = ?2 AND sequence > ?3
+             ORDER BY sequence LIMIT ?4",
+        )?;
+        let rows = statement.query_map(
+            params![
+                run_id,
+                device_key,
+                sqlite_u64("after_sequence", after_sequence)?,
+                limit as i64
+            ],
+            device_sample_from_row,
+        )?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Apply fixed-count retention and a non-blocking WAL checkpoint. Active runs are never
+    /// deleted. Terminal replay payloads are discarded because terminal runs reject new flushes.
+    pub fn apply_retention(
+        &mut self,
+        policy: StatusRetentionPolicy,
+    ) -> Result<StatusRetentionResult, StatusStoreError> {
+        validate_retention_policy(policy)?;
+        let transaction = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let (host_samples_before, device_samples_before): (i64, i64) = transaction.query_row(
+            "SELECT
+                (SELECT COUNT(*) FROM status_host_sample),
+                (SELECT COUNT(*) FROM status_device_sample)",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        let terminal_runs_deleted = transaction.execute(
+            "DELETE FROM status_run
+             WHERE state IN ('completed', 'cancelled', 'failed', 'interrupted')
+               AND id NOT IN (
+                   SELECT id FROM status_run
+                   WHERE state IN ('completed', 'cancelled', 'failed', 'interrupted')
+                   ORDER BY id DESC LIMIT ?1
+               )",
+            [i64::from(policy.max_terminal_runs)],
+        )?;
+        let sample_offset = i64::from(policy.max_samples_per_run - 1);
+        transaction.execute(
+            "DELETE FROM status_host_sample
+             WHERE sequence < (
+                 SELECT cutoff.sequence FROM status_host_sample AS cutoff
+                 WHERE cutoff.run_id = status_host_sample.run_id
+                 ORDER BY cutoff.sequence DESC LIMIT 1 OFFSET ?1
+             )",
+            [sample_offset],
+        )?;
+        let replay_flushes_deleted = transaction.execute(
+            "DELETE FROM status_flush
+             WHERE run_id IN (
+                 SELECT id FROM status_run
+                 WHERE state IN ('completed', 'cancelled', 'failed', 'interrupted')
+             )",
+            [],
+        )?;
+        let (host_samples_after, device_samples_after): (i64, i64) = transaction.query_row(
+            "SELECT
+                (SELECT COUNT(*) FROM status_host_sample),
+                (SELECT COUNT(*) FROM status_device_sample)",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        transaction.commit()?;
+
+        let (wal_busy, wal_frames, wal_frames_checkpointed) = self.checkpoint_wal()?;
+        Ok(StatusRetentionResult {
+            terminal_runs_deleted: terminal_runs_deleted as u64,
+            host_samples_deleted: host_samples_before.saturating_sub(host_samples_after) as u64,
+            device_samples_deleted: device_samples_before.saturating_sub(device_samples_after)
+                as u64,
+            replay_flushes_deleted: replay_flushes_deleted as u64,
+            wal_busy,
+            wal_frames,
+            wal_frames_checkpointed,
+        })
+    }
+
+    /// Delete all terminal status history without touching active status runs or product state.
+    pub fn delete_terminal_history(&mut self) -> Result<u64, StatusStoreError> {
+        let deleted = self.conn.execute(
+            "DELETE FROM status_run
+             WHERE state IN ('completed', 'cancelled', 'failed', 'interrupted')",
+            [],
+        )?;
+        let _ = self.checkpoint_wal()?;
+        Ok(deleted as u64)
+    }
+
+    fn ensure_run_exists(&self, run_id: i64) -> Result<(), StatusStoreError> {
+        if run_by_id(&self.conn, run_id)?.is_none() {
+            return Err(StatusStoreError::RunNotFound(run_id));
+        }
+        Ok(())
+    }
+
+    fn checkpoint_wal(&self) -> Result<(bool, Option<u64>, Option<u64>), StatusStoreError> {
+        let (busy, frames, checkpointed): (i64, i64, i64) =
+            self.conn
+                .query_row("PRAGMA wal_checkpoint(PASSIVE)", [], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                })?;
+        Ok((
+            busy != 0,
+            u64::try_from(frames).ok(),
+            u64::try_from(checkpointed).ok(),
+        ))
     }
 
     fn reconcile_interrupted_runs(&mut self) -> Result<(), StatusStoreError> {
@@ -561,6 +836,13 @@ fn validate_flush(flush: &TelemetryFlush) -> Result<(), StatusStoreError> {
         ));
     }
 
+    if flush.devices.len() > MAX_STATUS_DEVICES_PER_RUN
+        || flush.device_samples.len() > MAX_STATUS_DEVICES_PER_RUN
+    {
+        return Err(StatusStoreError::InvalidInput(format!(
+            "a status flush cannot contain more than {MAX_STATUS_DEVICES_PER_RUN} devices"
+        )));
+    }
     let mut descriptor_keys = HashSet::new();
     for device in &flush.devices {
         validate_device(device)?;
@@ -754,6 +1036,148 @@ fn persist_device_sample(
         ],
     )?;
     Ok(())
+}
+
+fn validate_page_limit(label: &str, limit: usize, maximum: usize) -> Result<(), StatusStoreError> {
+    if limit == 0 || limit > maximum {
+        return Err(StatusStoreError::InvalidInput(format!(
+            "{label} limit must be between 1 and {maximum}"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_retention_policy(policy: StatusRetentionPolicy) -> Result<(), StatusStoreError> {
+    if policy.max_terminal_runs == 0 || policy.max_terminal_runs > MAX_RETAINED_TERMINAL_RUNS {
+        return Err(StatusStoreError::InvalidInput(format!(
+            "max_terminal_runs must be between 1 and {MAX_RETAINED_TERMINAL_RUNS}"
+        )));
+    }
+    if policy.max_samples_per_run == 0 || policy.max_samples_per_run > MAX_RETAINED_SAMPLES_PER_RUN
+    {
+        return Err(StatusStoreError::InvalidInput(format!(
+            "max_samples_per_run must be between 1 and {MAX_RETAINED_SAMPLES_PER_RUN}"
+        )));
+    }
+    Ok(())
+}
+
+fn sql_u64_from_row(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<u64> {
+    let value = row.get::<_, i64>(index)?;
+    u64::try_from(value).map_err(|error| {
+        SqlError::FromSqlConversionFailure(index, rusqlite::types::Type::Integer, Box::new(error))
+    })
+}
+
+fn optional_sql_u64_from_row(
+    row: &rusqlite::Row<'_>,
+    index: usize,
+) -> rusqlite::Result<Option<u64>> {
+    row.get::<_, Option<i64>>(index)?
+        .map(|value| {
+            u64::try_from(value).map_err(|error| {
+                SqlError::FromSqlConversionFailure(
+                    index,
+                    rusqlite::types::Type::Integer,
+                    Box::new(error),
+                )
+            })
+        })
+        .transpose()
+}
+
+fn optional_sql_u32_from_row(
+    row: &rusqlite::Row<'_>,
+    index: usize,
+) -> rusqlite::Result<Option<u32>> {
+    row.get::<_, Option<i64>>(index)?
+        .map(|value| {
+            u32::try_from(value).map_err(|error| {
+                SqlError::FromSqlConversionFailure(
+                    index,
+                    rusqlite::types::Type::Integer,
+                    Box::new(error),
+                )
+            })
+        })
+        .transpose()
+}
+
+fn sql_u32_from_row(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<u32> {
+    let value = row.get::<_, i64>(index)?;
+    u32::try_from(value).map_err(|error| {
+        SqlError::FromSqlConversionFailure(index, rusqlite::types::Type::Integer, Box::new(error))
+    })
+}
+
+fn host_sample_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<HostSample> {
+    Ok(HostSample {
+        sequence: sql_u64_from_row(row, 0)?,
+        observed_unix_millis: row.get(1)?,
+        monotonic_nanos: sql_u64_from_row(row, 2)?,
+        phase: row
+            .get::<_, Option<String>>(3)?
+            .map(|value| parse_phase(&value, 3))
+            .transpose()?,
+        process_cpu_nanos: optional_sql_u64_from_row(row, 4)?,
+        process_private_bytes: optional_sql_u64_from_row(row, 5)?,
+        process_working_set_bytes: optional_sql_u64_from_row(row, 6)?,
+        process_peak_working_set_bytes: optional_sql_u64_from_row(row, 7)?,
+        process_read_operations: optional_sql_u64_from_row(row, 8)?,
+        process_read_bytes: optional_sql_u64_from_row(row, 9)?,
+        process_write_operations: optional_sql_u64_from_row(row, 10)?,
+        process_write_bytes: optional_sql_u64_from_row(row, 11)?,
+        system_cpu_basis_points: optional_sql_u32_from_row(row, 12)?,
+        system_available_memory_bytes: optional_sql_u64_from_row(row, 13)?,
+        system_committed_memory_bytes: optional_sql_u64_from_row(row, 14)?,
+        unavailable_counter_count: sql_u32_from_row(row, 15)?,
+    })
+}
+
+fn device_sample_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DeviceSample> {
+    Ok(DeviceSample {
+        sequence: sql_u64_from_row(row, 0)?,
+        device_key: row.get(1)?,
+        read_bytes_per_second: optional_sql_u64_from_row(row, 2)?,
+        read_iops_millis: optional_sql_u64_from_row(row, 3)?,
+        average_read_latency_micros: optional_sql_u64_from_row(row, 4)?,
+        active_millis_per_second: optional_sql_u32_from_row(row, 5)?,
+        queue_depth_millis: optional_sql_u64_from_row(row, 6)?,
+        unavailable_counter_count: sql_u32_from_row(row, 7)?,
+    })
+}
+
+fn parse_phase(value: &str, index: usize) -> rusqlite::Result<TelemetryPhase> {
+    match value {
+        "overall" => Ok(TelemetryPhase::Overall),
+        "discovering" => Ok(TelemetryPhase::Discovering),
+        "candidate_screening" => Ok(TelemetryPhase::CandidateScreening),
+        "full_hashing" => Ok(TelemetryPhase::FullHashing),
+        "persisting" => Ok(TelemetryPhase::Persisting),
+        "analyzing_folders" => Ok(TelemetryPhase::AnalyzingFolders),
+        "finalizing" => Ok(TelemetryPhase::Finalizing),
+        _ => Err(SqlError::InvalidColumnType(
+            index,
+            "phase".to_owned(),
+            rusqlite::types::Type::Text,
+        )),
+    }
+}
+
+fn parse_phase_state(value: &str, index: usize) -> rusqlite::Result<TelemetryPhaseState> {
+    match value {
+        "pending" => Ok(TelemetryPhaseState::Pending),
+        "running" => Ok(TelemetryPhaseState::Running),
+        "completed" => Ok(TelemetryPhaseState::Completed),
+        "cancelled" => Ok(TelemetryPhaseState::Cancelled),
+        "failed" => Ok(TelemetryPhaseState::Failed),
+        "interrupted" => Ok(TelemetryPhaseState::Interrupted),
+        _ => Err(SqlError::InvalidColumnType(
+            index,
+            "state".to_owned(),
+            rusqlite::types::Type::Text,
+        )),
+    }
 }
 
 fn run_by_operation_id(
