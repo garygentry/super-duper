@@ -18,13 +18,13 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: batch status-counter persistence, retain the single passing post-change
-  Release profile, and accept SOP1/SOP1f (this session's commit)
+- Latest completed slice: define the finite dependency-ordered SOP2 progress-reporting ledger after
+  a cross-layer read-only audit (this session's commit)
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP2-progress-reporting`
-- Next work package: define the finite dependency-ordered `SOP2` package ledger before implementation
+- Next work package: `SOP2a-progress-contract-reducer`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -49,7 +49,15 @@ completed session work uncommitted or substitute work from the parked stream.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The current implementation slice accepts `SOP1f-foundation-acceptance` and therefore
+The current documentation slice starts `SOP2-progress-reporting` with six finite packages. The
+read-only audit found that live telemetry is copied only at phase completion, hash progress waits
+for a whole exact-size bucket, several logical-byte meanings are absent, worker phase events bypass
+the normal 100 ms throttle, and delayed higher-sequence Core events can revive running state after
+cancelling or terminal state. `SOP2a` therefore establishes the versioned cumulative contract and
+pure fake-clock projection semantics before any pipeline, worker, Core, or WPF integration. No
+product code, profile, physical campaign, or parked-stream work changed.
+
+The preceding implementation slice accepts `SOP1f-foundation-acceptance` and therefore
 `SOP1-telemetry-foundation`. Audit of the retained +4.68% wall/+1.98% CPU failure found that each of
 ten phase flushes performed 43 separate counter reads plus 43 separate upserts. Each flush now uses
 one committed-counter read and one atomic multi-row upsert, and unchanged counters retain the
@@ -172,11 +180,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Enter `SOP2-progress-reporting` only after adding its finite dependency-ordered package ledger and
-objective completion checks to the scan plan. The first implementation package must stay within the
-candidate-funnel/byte/rate/cache/ETA/coalescing contract; do not pull the singleton skip, device
-scheduler, read-path tuning, Performance tab, warning UI, or `SOP8` cache UI ahead of their listed
-dependencies.
+Implement `SOP2a-progress-contract-reducer`: publish exact counter meanings, units, rate-window and
+stability constants, cache denominator, bounded one/multiple/unavailable active-device state, and
+the closed ETA value-or-reason contract under deterministic fake-clock and invariant tests. Do not integrate pipeline,
+worker, Core, or WPF code until that contract is accepted, and do not pull the singleton skip,
+device scheduler, read-path tuning, Performance tab, warning UI, or `SOP8` cache UI ahead of their
+listed dependencies.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -262,6 +271,11 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+The SOP2 ledger slice is documentation-only. Three independent read-only audits agreed on the six
+package boundaries and found the same live-counter, bucket-cadence, protocol-throttle, and stale-
+lifecycle gaps. Link/checkpoint inspection and the final diff passed; no product tests were rerun
+because no product code changed. The worktree started clean at `0a3c1c1`.
 
 Accepted `SOP1f` passes 13/13 focused telemetry tests and the full Rust workspace with 154 passed, 5
 ignored, and 0 failed, including the accelerated no-progress heartbeat fixture and batched/unchanged
@@ -411,6 +425,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-25 | this session | Define the six-package `SOP2-progress-reporting` ledger from a cross-layer audit: typed cumulative truth, incremental bucket-independent publication, deterministic worker projection/coalescing, defensive Core application, accessible WPF surface, and integrated acceptance. | Implement `SOP2a-progress-contract-reducer`; publish exact meanings and fake-clock projection constants before touching the pipeline or UI. |
 | 2026-08-25 | this session | Accept `SOP1f-foundation-acceptance` and `SOP1` after replacing 43 per-counter reads/upserts per flush with one read/atomic multi-row upsert, preserving exact replay and fixed summaries, and retaining the single post-change passing profile beside the original failure. Audit and adopt the operator's repeat-run cache proposal into `SOP8` planning without UI implementation. | Define the finite `SOP2-progress-reporting` package ledger before code; keep SOP5/SOP8/UI and the parked release stream behind their dependencies. |
 | 2026-08-25 | this session | Integrate one serialized five-second heartbeat/status writer and prove sampling during a phase with no progress callbacks; retain the first SOP1f Release profile as failed at +4.68% wall/+1.98% CPU on a 1.25-second baseline. `SOP1f` remains in progress. | Do not retry unchanged. Reduce a concrete measured cost or obtain explicit review of an absolute/representative-duration observer budget before accepting `SOP1`. |
 | 2026-08-25 | this session | Accept `SOP1e-host-device-sampler` with deterministic cadence/loss/cardinality contracts and read-only Windows process/system/volume/physical-disk probes that omit serials and preserve unavailable gauges. | Advance `SOP1f-foundation-acceptance`; integrate through the single writer and measure observer overhead before accepting `SOP1`. |
