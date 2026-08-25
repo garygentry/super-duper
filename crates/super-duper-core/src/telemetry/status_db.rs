@@ -1,7 +1,10 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use chrono::Utc;
-use rusqlite::{params, Connection, Error as SqlError, OptionalExtension, TransactionBehavior};
+use rusqlite::{
+    params, params_from_iter, types::Value, Connection, Error as SqlError, OptionalExtension,
+    TransactionBehavior,
+};
 use thiserror::Error;
 
 use super::models::{
@@ -251,19 +254,28 @@ impl StatusDatabase {
             }
         }
 
-        for kind in CounterKind::ALL {
+        let committed_counters = {
+            let mut statement = transaction.prepare(
+                "SELECT metric, value FROM status_counter
+                 WHERE run_id = ?1 AND phase = 'overall'",
+            )?;
+            let rows = statement.query_map([run_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })?;
+            rows.map(|row| {
+                let (metric, value) = row?;
+                Ok((metric, sqlite_counter(value)?))
+            })
+            .collect::<Result<HashMap<_, _>, StatusStoreError>>()?
+        };
+
+        let mut counter_values = Vec::with_capacity(CounterKind::ALL.len() * 4);
+        let mut counter_upsert = String::from(
+            "INSERT INTO status_counter(run_id, phase, metric, value, updated_sequence) VALUES ",
+        );
+        for (index, kind) in CounterKind::ALL.into_iter().enumerate() {
             let proposed = flush.counters.value(kind);
-            let committed = transaction
-                .query_row(
-                    "SELECT value FROM status_counter
-                     WHERE run_id = ?1 AND phase = 'overall' AND metric = ?2",
-                    params![run_id, kind.as_str()],
-                    |row| row.get::<_, i64>(0),
-                )
-                .optional()?
-                .map(sqlite_counter)
-                .transpose()?
-                .unwrap_or(0);
+            let committed = committed_counters.get(kind.as_str()).copied().unwrap_or(0);
             if proposed < committed {
                 return Err(StatusStoreError::CounterRegression {
                     metric: kind.as_str(),
@@ -271,20 +283,24 @@ impl StatusDatabase {
                     proposed,
                 });
             }
-            transaction.execute(
-                "INSERT INTO status_counter(run_id, phase, metric, value, updated_sequence)
-                 VALUES (?1, 'overall', ?2, ?3, ?4)
-                 ON CONFLICT(run_id, phase, metric) DO UPDATE SET
-                    value = excluded.value,
-                    updated_sequence = excluded.updated_sequence",
-                params![
-                    run_id,
-                    kind.as_str(),
-                    sqlite_u64(kind.as_str(), proposed)?,
-                    sequence,
-                ],
-            )?;
+            if index > 0 {
+                counter_upsert.push(',');
+            }
+            counter_upsert.push_str("(?, 'overall', ?, ?, ?)");
+            counter_values.extend([
+                Value::Integer(run_id),
+                Value::Text(kind.as_str().to_owned()),
+                Value::Integer(sqlite_u64(kind.as_str(), proposed)?),
+                Value::Integer(sequence),
+            ]);
         }
+        counter_upsert.push_str(
+            " ON CONFLICT(run_id, phase, metric) DO UPDATE SET
+                value = excluded.value,
+                updated_sequence = excluded.updated_sequence
+              WHERE status_counter.value <> excluded.value",
+        );
+        transaction.execute(&counter_upsert, params_from_iter(counter_values))?;
 
         transaction.execute(
             "INSERT INTO status_phase

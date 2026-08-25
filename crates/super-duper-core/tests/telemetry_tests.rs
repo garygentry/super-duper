@@ -338,6 +338,43 @@ fn status_store_persists_atomic_counters_devices_and_explicit_unavailable_gauges
 }
 
 #[test]
+fn status_store_batches_counter_snapshots_and_skips_unchanged_counter_writes() {
+    let mut database = StatusDatabase::open_in_memory().unwrap();
+    let (run, _) = database
+        .begin_run(&run_start("run-op-counter-batch"))
+        .unwrap();
+    database.flush(run.id, &flush(1, 10)).unwrap();
+
+    let mut second = flush(2, 10);
+    second.counters.warnings = 1;
+    database.flush(run.id, &second).unwrap();
+
+    let (counter_count, first_sequence_count, second_sequence_count): (i64, i64, i64) = database
+        .connection()
+        .query_row(
+            "SELECT COUNT(*),
+                    SUM(CASE WHEN updated_sequence = 1 THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN updated_sequence = 2 THEN 1 ELSE 0 END)
+             FROM status_counter WHERE run_id = ?1 AND phase = 'overall'",
+            [run.id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(counter_count as usize, CounterKind::ALL.len());
+    assert_eq!(first_sequence_count as usize, CounterKind::ALL.len() - 1);
+    assert_eq!(second_sequence_count, 1);
+
+    let warning = database
+        .get_run_counters(run.id)
+        .unwrap()
+        .into_iter()
+        .find(|counter| counter.metric == CounterKind::Warnings.as_str())
+        .unwrap();
+    assert_eq!(warning.value, 1);
+    assert_eq!(warning.updated_sequence, 2);
+}
+
+#[test]
 fn status_store_reconciles_interrupted_runs_and_preserves_product_database() {
     let temp = tempdir().unwrap();
     let status_path = temp.path().join("status.db");

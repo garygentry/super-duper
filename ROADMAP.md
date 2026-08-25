@@ -18,7 +18,7 @@ MVP. The previous Windows app implementation was removed before the current WPF 
 
 | Stream | Scheduling state | Authority | Next boundary |
 |---|---|---|---|
-| Large-drive scan optimization and observability | Active | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) | Resolve the retained SOP1f overhead failure by measured reduction or an explicitly reviewed absolute/representative-duration budget; do not retry unchanged. |
+| Large-drive scan optimization and observability | Active | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) | Define the finite `SOP2-progress-reporting` packages; `SOP1` is accepted after measured status-counter batching and one passing comparable Release profile. |
 | Windows post-MVP release validation | Parked by operator; gates and evidence preserved | [`docs/windows-roadmap-closure-ledger.md`](docs/windows-roadmap-closure-ledger.md) and [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md) | Before final feature-complete, resume exactly at `WPM8-high-contrast`, then follow the ledger dependency order. |
 
 The shared startup checkpoint is

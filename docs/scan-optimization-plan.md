@@ -2,16 +2,16 @@
 
 ## Status
 
-Active implementation plan. The current pipeline audit and the first five telemetry-foundation
-packages are complete. This is the scheduled roadmap stream while the Windows post-MVP release-validation
+Active implementation plan. The current pipeline audit and all six telemetry-foundation packages
+are complete. This is the scheduled roadmap stream while the Windows post-MVP release-validation
 checklist is parked. Before the product is declared feature complete, the release-validation stream
 must resume at `WPM8-high-contrast` and follow its closure ledger to completion.
 
 Current execution checkpoint:
 
-- current gate: `SOP1-telemetry-foundation`;
-- next work package: `SOP1f-foundation-acceptance`;
-- last accepted work package: `SOP1e-host-device-sampler`;
+- current gate: `SOP2-progress-reporting`;
+- next work package: define the finite dependency-ordered `SOP2` package ledger before implementation;
+- last accepted work package: `SOP1f-foundation-acceptance`;
 - prior D: stress run: stopped by the operator after the read-only baseline observation;
 - canonical new-session prompt: [`scan-optimization-kickoff-prompt.md`](scan-optimization-kickoff-prompt.md).
 
@@ -98,6 +98,13 @@ The source audit also found a concrete optimization gap:
   disk this can interleave unrelated paths, increase queue depth and seeks, and underuse sequential
   bandwidth. The live evidence shows physical I/O is currently the binding resource, but scheduling
   and unnecessary reads still provide meaningful software headroom.
+- Repeat-run full hashes are already cached in a global RocksDB store across scans and process
+  sessions when canonical path, byte size, and nanosecond modified time all match. There is no UI
+  policy control. Every admitted file still repeats the 1 KiB partial read; files that never reached
+  a full-hash collision have no reusable full hash; renames miss because path is part of the key;
+  eviction is unbounded; and same-size content changes with a preserved timestamp are outside the
+  current signature's invalidation power. `SOP8` must make this behavior explicit and measurable
+  rather than treating file name/date alone as proof that content is unchanged.
 
 ## Goals and non-goals
 
@@ -237,17 +244,17 @@ unavailable-counter states, and coalesced UI Automation announcements are accept
 | Gate ID | Disposition | State | Dependencies | Bounded outcome | Completion check |
 |---|---|---|---|---|---|
 | `SOP0-current-pipeline-audit` | `local_audit` | `accepted` | None | Record the current algorithm and read-only large-drive evidence without interrupting the run. | This document cites the singleton read, ambiguous progress semantics, nested parallelism, and provisional device evidence without claiming a terminal benchmark. |
-| `SOP1-telemetry-foundation` | `local_code` | `in_progress` | `SOP0-current-pipeline-audit` | Implement the versioned metrics contract, worker-owned status database, bounded sampler/retention, and fixed summary/time-series queries. | Migration/recovery/bounds tests pass; simulated counters reconcile; unavailable samples are explicit; instrumented fixture overhead stays below 1% wall time and 1% CPU or the retained evidence explains and reviews a stricter measured budget. |
-| `SOP2-progress-reporting` | `local_code` | `open` | `SOP1-telemetry-foundation` | Publish the candidate funnel, byte progress, rates, cache outcomes, and bounded-confidence ETA with bucket-independent coalescing. | Deterministic tests prove monotonic counters, no semantic mixing, cancellation/stale rejection, and at most ten Core/WPF updates per second. |
+| `SOP1-telemetry-foundation` | `local_code` | `accepted` | `SOP0-current-pipeline-audit` | Implement the versioned metrics contract, worker-owned status database, bounded sampler/retention, and fixed summary/time-series queries. | Migration/recovery/bounds tests pass; simulated counters reconcile; unavailable samples are explicit; instrumented fixture overhead stays below 1% wall time and 1% CPU or the retained evidence explains and reviews a stricter measured budget. |
+| `SOP2-progress-reporting` | `local_code` | `ready` | `SOP1-telemetry-foundation` | Publish the candidate funnel, byte progress, rates, cache outcomes, and bounded-confidence ETA with bucket-independent coalescing. | Deterministic tests prove monotonic counters, no semantic mixing, cancellation/stale rejection, and at most ten Core/WPF updates per second. |
 | `SOP3-current-warning-log` | `local_code` | `open` | `SOP1-telemetry-foundation` | Make active warnings visible through bounded structured paging while preserving completed-run aggregates and diagnostic logs. | Every current warning count is drillable or represented by a truthful bounded aggregate; restart/terminal handoff and cache bounds pass. |
 | `SOP4-performance-tab` | `local_code` | `open` | `SOP1-telemetry-foundation`, `SOP2-progress-reporting`, `SOP3-current-warning-log` | Add the bounded live/history Performance tab with drive information and run comparison. | Core/WPF never bind full samples; keyboard, automation, unavailable-state, high-contrast, focus, restart, and representative-history tests pass. |
 | `SOP5-skip-singleton-size-buckets` | `local_code` | `open` | `SOP1-telemetry-foundation`, `SOP2-progress-reporting` | Resolve exact-size singleton buckets without opening file content and make the saved I/O visible. | Correctness fixtures are unchanged; an injected read seam proves zero partial/full opens for singleton buckets; counters reconcile files/bytes as metadata-resolved rather than hashed. |
 | `SOP6-device-aware-scheduler` | `local_code` | `open` | `SOP5-skip-singleton-size-buckets` | Replace nested global read parallelism with bounded per-physical-device queues: conservative concurrency on rotational media and measured concurrency on SSDs, while allowing separate devices to progress independently. | Deterministic scheduling/cancellation tests pass; retained 1/N-reader comparisons on representative devices show the selected policy and no correctness or memory regression. |
 | `SOP7-hash-read-path` | `local_code` | `open` | `SOP6-device-aware-scheduler` | Benchmark path locality, bucket ordering, buffer/read-ahead size, and reuse of the partial prefix during full hashing. Admit only individually measured changes. | Each retained A/B run records bytes, IOPS, queue, latency, throughput, CPU, memory, and wall time; changes that do not improve the declared workload are rejected or scoped. |
-| `SOP8-repeat-run-cache` | `local_code` | `open` | `SOP7-hash-read-path` | Reduce repeat-run reads with explicit identity/size/time invalidation, bounded eviction, and rename/hard-link semantics. | Warm-run fixtures prove exact invalidation and correctness, cache bounds, corruption fallback, and measured read/wall-time savings. |
+| `SOP8-repeat-run-cache` | `local_code` | `open` | `SOP2-progress-reporting`, `SOP7-hash-read-path` | Turn the existing always-on canonical-path/size/time full-hash cache into an explicit repeat-scan policy. Evaluate a session UI choice between signature-qualified reuse and forced content revalidation; define stable identity, rename, hard-link, timestamp-resolution, partial/full-hash, cross-session, and bounded-eviction semantics without using name/date alone as correctness proof. | Warm same-session and cross-session fixtures prove the selected default and UI policy, exact invalidation/correctness, partial/full read accounting, rename/hard-link behavior, cache bounds, corruption fallback, and measured read/wall-time savings. |
 | `SOP9-large-drive-acceptance` | `operator_evidence` | `open` | `SOP4-performance-tab` through `SOP8-repeat-run-cache` | Retain representative single- and multi-drive Release runs, including failures, and select defaults from evidence. | Duplicate results match reference fixtures; singleton reads are zero; telemetry/warning accounting is complete; memory and UI bounds hold; before/after device and wall-time evidence is retained without retry-only acceptance. |
 
-## Current gate work-package ledger
+## Telemetry-foundation work-package ledger
 
 `SOP1-telemetry-foundation` is complete only when every package below is accepted. Package boundaries
 may share a commit only when separating them would leave an unusable or unverifiable intermediate
@@ -260,12 +267,13 @@ state.
 | `SOP1c-run-lifecycle` | `accepted` | SOP1b | Connect scan lifecycle and platform-neutral candidate/hash/cache counters to the status store with bounded buffered flushes. | Deterministic scan fixtures reconcile terminal counters and interrupted/cancelled runs without per-file telemetry rows. | This commit: metrics contract v2 separates actual hash-pipeline work from duplicate-candidate classification; completed/cancelled/failed fixtures reconcile; one normal scan writes ten phase-boundary flushes; full Rust workspace and focused strict Clippy pass with documented pre-existing lint allowances. |
 | `SOP1d-bounded-queries-retention` | `accepted` | SOP1b | Add fixed run/phase/device summaries, bounded sample paging, retention, checkpoint policy, and status-history deletion isolation. | Query/cursor/bounds tests and retention/reopen tests pass; product results remain unchanged when status history is absent or removed. | This commit: 12 telemetry tests and 12 end-to-end scan tests pass; the full workspace compiles; strict Core Clippy passes with only documented pre-existing allowances. Run pages are capped at 100, sample pages at 500, devices at 64, and repeatable retention/history deletion preserves active and product state. |
 | `SOP1e-host-device-sampler` | `accepted` | SOP1b | Add a platform seam and Windows implementation for bounded process/system/volume/physical-device samples, with explicit unavailable-counter health. | Fake-clock/platform tests pass; Windows probes identify mapped target devices without serial persistence or WPF-thread work. | This commit: fake cadence/cardinality/loss tests and a real read-only Windows local-volume probe pass; the volume maps to a `physical:*` device, host gauges are available, serials are absent, and strict Core Clippy passes. |
-| `SOP1f-foundation-acceptance` | `in_progress` | SOP1c, SOP1d, SOP1e | Integrate the packages, document retention/schema/recovery, and retain observer-overhead evidence. | Focused and full relevant matrices pass; instrumentation adds less than 1% wall time and 1% CPU on the declared fixture, or a reviewed measured budget is recorded; gate `SOP1` becomes accepted. | Single-writer five-second heartbeat integration and no-progress sampling fixture pass. [`scan-telemetry-overhead-20260825.json`](evidence/scan-telemetry-overhead-20260825.json) failed the 1% threshold at +4.68% wall/+1.98% CPU on a 1.25-second baseline (absolute +58.7 ms/+31.25 ms); operator budget review or measured overhead reduction remains. |
+| `SOP1f-foundation-acceptance` | `accepted` | SOP1c, SOP1d, SOP1e | Integrate the packages, document retention/schema/recovery, and retain observer-overhead evidence. | Focused and full relevant matrices pass; instrumentation adds less than 1% wall time and 1% CPU on the declared fixture, or a reviewed measured budget is recorded; gate `SOP1` becomes accepted. | The retained [first profile](evidence/scan-telemetry-overhead-20260825.json) failed at +4.68% wall/+1.98% CPU. Audit found 43 reads plus 43 upserts per flush; one read plus one atomic multi-row upsert now preserves all summaries/replay while skipping unchanged writes. The single post-change [comparable Release profile](evidence/scan-telemetry-overhead-20260825-counter-batching.json) passed at -2.10% wall/-22.76% CPU; negative values are treated as noise/no detected positive overhead, not acceleration. Focused 13-test telemetry, full 154-pass/5-ignore workspace, and strict Core/worker Clippy verification pass. |
 
 ## Work selection and evidence rules
 
 - Advance through dependency-ready work packages until a real stop condition in the resumable
-  execution protocol applies. The immediate package is `SOP1f-foundation-acceptance`.
+  execution protocol applies. Before entering `SOP2-progress-reporting`, define its finite
+  dependency-ordered work-package ledger and objective completion checks.
 - Do not optimize against the current UI counter. Establish file/byte/device metrics first.
 - Small synthetic and sampled representative fixtures should tune changes before another full 10 TB
   campaign. A full-drive run is an acceptance artifact, not the inner development loop.
@@ -291,3 +299,5 @@ state.
 | 2026-08-25 | Retain the newest 50 terminal runs and 100,000 samples per run by default, cap run/sample pages at 100/500 and devices at 64, and remove terminal replay payloads during repeatable retention. | Multi-day scans need useful local history, while fixed row/page/device limits and passive checkpoints prevent the observability store from becoming an unbounded second product database. |
 | 2026-08-25 | Use read-only native Windows host/volume/physical-disk probes behind a deterministic cadence seam, with no serial persistence and explicit unavailable gauge counts. | Device evidence must be gathered without WPF work, external helper processes, scan interruption, or false zero values when counters are blocked. |
 | 2026-08-25 | Retain the first SOP1f Release overhead profile as a failed threshold result and do not retry the unchanged fixture. | The functional integration passes, but the 12,000-file short scan measured +4.68% wall and +1.98% CPU versus the published 1%/1% threshold; accepting an absolute or representative-duration budget requires explicit review. |
+| 2026-08-25 | Accept SOP1f after batching status counters and retain both the failed and passing profiles. | The measured observer path performed 860 counter statements across ten phase flushes. One read and one atomic multi-row upsert per flush preserves fixed summaries, exact replay, and regression rejection; the first post-change comparable Release profile passed the unchanged threshold. Its negative deltas are recorded as noise, not claimed speedup. |
+| 2026-08-25 | Carry the operator's repeat-scan cache proposal into `SOP8` after auditing current behavior. | Full hashes already persist across sessions for canonical-path/size/nanosecond-time matches, but partial reads repeat, renames miss, eviction is unbounded, no UI policy exists, and name/date alone is insufficient invalidation. The later gate now requires an explicit reuse-versus-revalidate policy and measured same/cross-session evidence. |

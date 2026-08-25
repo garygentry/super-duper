@@ -17,6 +17,11 @@ checkpoint. An active run writes cumulative snapshots only at bounded phase/prog
 there are no per-file telemetry rows. Telemetry failures are logged and counted where possible but
 do not make status storage product truth or fail an otherwise valid product scan.
 
+Each atomic flush reads the committed 43-counter summary once and uses one multi-row upsert after
+validating every monotonic value. The first snapshot creates every fixed counter row; later snapshots
+do not rewrite unchanged values, so `updated_sequence` identifies the flush that last changed that
+counter. The exact full flush payload remains in the replay ledger while the run is writable.
+
 ## Bounds and retention
 
 The default fixed-count policy retains the newest 50 terminal runs and at most 100,000 host samples

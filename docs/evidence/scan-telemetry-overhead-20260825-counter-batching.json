@@ -1,0 +1,40 @@
+{
+  "gate": "SOP1f-foundation-acceptance",
+  "date": "2026-08-25",
+  "machine": "designated Windows 11 x64 development machine",
+  "configuration": "Release",
+  "sourceHead": "3f7e30e plus this package's status-counter batching change",
+  "change": {
+    "measuredCost": "Each flush performed 43 individual counter reads and 43 individual upserts.",
+    "optimization": "Each flush now performs one counter read and one atomic multi-row upsert; unchanged counter values are not rewritten.",
+    "deterministicContract": "All 43 fixed counter rows remain present; exact replay and regression rejection remain atomic; updated_sequence advances only when that counter value changes."
+  },
+  "fixture": {
+    "files": 12000,
+    "shape": "one directory; unique sizes 1 through 12000 bytes; current singleton partial-read baseline",
+    "warmupRuns": 1,
+    "measuredRunsPerMode": 3,
+    "order": "baseline, instrumented, baseline, instrumented, baseline, instrumented",
+    "comparableTo": "scan-telemetry-overhead-20260825.json"
+  },
+  "median": {
+    "baselineWallNanos": 1343099100,
+    "instrumentedWallNanos": 1314767000,
+    "wallOverheadBasisPoints": -210,
+    "baselineCpuNanos": 1921875000,
+    "instrumentedCpuNanos": 1484375000,
+    "cpuOverheadBasisPoints": -2276
+  },
+  "absoluteDifference": {
+    "wallNanos": -28332100,
+    "cpuNanos": -437500000
+  },
+  "publishedThresholdBasisPoints": 100,
+  "disposition": "passed_threshold_after_measured_counter_batching",
+  "notes": [
+    "This was the first and only comparable profile after the measured counter-write optimization; it was not rerun to seek a favorable result.",
+    "Negative observed differences are treated as run noise and evidence of no detected positive overhead, not as a claim that telemetry accelerates scans.",
+    "The earlier +4.68% wall/+1.98% CPU failure remains retained unchanged in scan-telemetry-overhead-20260825.json.",
+    "The focused telemetry suite and full Rust workspace verify the optimized atomic persistence contract independently of this noisy short-duration timing result."
+  ]
+}
