@@ -1,4 +1,4 @@
-PRAGMA user_version = 1;
+PRAGMA user_version = 2;
 
 CREATE TABLE IF NOT EXISTS status_run (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,6 +96,14 @@ CREATE TABLE IF NOT EXISTS status_device_sample (
     unavailable_counter_count INTEGER NOT NULL DEFAULT 0 CHECK(unavailable_counter_count >= 0),
     PRIMARY KEY(run_id, sequence, device_key),
     FOREIGN KEY(run_id, sequence) REFERENCES status_host_sample(run_id, sequence) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS status_flush (
+    run_id INTEGER NOT NULL REFERENCES status_run(id) ON DELETE CASCADE,
+    sequence INTEGER NOT NULL CHECK(sequence >= 0),
+    payload_json TEXT NOT NULL CHECK(length(payload_json) BETWEEN 2 AND 1048576),
+    applied_unix_millis INTEGER NOT NULL,
+    PRIMARY KEY(run_id, sequence)
 );
 
 CREATE INDEX IF NOT EXISTS idx_status_run_product_run

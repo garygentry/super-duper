@@ -27,6 +27,37 @@ impl TelemetryRunState {
             Self::Interrupted => "interrupted",
         }
     }
+
+    pub const fn is_terminal(self) -> bool {
+        matches!(
+            self,
+            Self::Completed | Self::Cancelled | Self::Failed | Self::Interrupted
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TelemetryPhaseState {
+    Pending,
+    Running,
+    Completed,
+    Cancelled,
+    Failed,
+    Interrupted,
+}
+
+impl TelemetryPhaseState {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Running => "running",
+            Self::Completed => "completed",
+            Self::Cancelled => "cancelled",
+            Self::Failed => "failed",
+            Self::Interrupted => "interrupted",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -234,6 +265,49 @@ pub struct ScanCounters {
 }
 
 impl ScanCounters {
+    pub const fn value(&self, kind: CounterKind) -> u64 {
+        match kind {
+            CounterKind::DiscoveredFiles => self.discovered_files,
+            CounterKind::DiscoveredBytes => self.discovered_bytes,
+            CounterKind::ZeroByteFiles => self.zero_byte_files,
+            CounterKind::HardLinkAliasFiles => self.hard_link_alias_files,
+            CounterKind::HardLinkAliasBytes => self.hard_link_alias_bytes,
+            CounterKind::SizeBuckets => self.size_buckets,
+            CounterKind::SingletonSizeBuckets => self.singleton_size_buckets,
+            CounterKind::SingletonSizeFiles => self.singleton_size_files,
+            CounterKind::SingletonSizeBytes => self.singleton_size_bytes,
+            CounterKind::CandidateSizeBuckets => self.candidate_size_buckets,
+            CounterKind::CandidateFiles => self.candidate_files,
+            CounterKind::CandidateBytes => self.candidate_bytes,
+            CounterKind::PartialHashesAttempted => self.partial_hashes_attempted,
+            CounterKind::PartialHashesSucceeded => self.partial_hashes_succeeded,
+            CounterKind::PartialHashesFailed => self.partial_hashes_failed,
+            CounterKind::PartialHashBytesRead => self.partial_hash_bytes_read,
+            CounterKind::PartialCollisionBuckets => self.partial_collision_buckets,
+            CounterKind::PartialCollisionFiles => self.partial_collision_files,
+            CounterKind::PartialCollisionBytes => self.partial_collision_bytes,
+            CounterKind::FullHashRequests => self.full_hash_requests,
+            CounterKind::FullHashCacheHits => self.full_hash_cache_hits,
+            CounterKind::FullHashCacheMisses => self.full_hash_cache_misses,
+            CounterKind::FullHashCacheErrors => self.full_hash_cache_errors,
+            CounterKind::FullHashCacheStores => self.full_hash_cache_stores,
+            CounterKind::FullHashContentReadsStarted => self.full_hash_content_reads_started,
+            CounterKind::FullHashContentReadsCompleted => self.full_hash_content_reads_completed,
+            CounterKind::FullHashContentReadsFailed => self.full_hash_content_reads_failed,
+            CounterKind::FullHashBytesRead => self.full_hash_bytes_read,
+            CounterKind::ConfirmedDuplicateGroups => self.confirmed_duplicate_groups,
+            CounterKind::ConfirmedLogicalCopies => self.confirmed_logical_copies,
+            CounterKind::ConfirmedPhysicalItems => self.confirmed_physical_items,
+            CounterKind::RecoverableBytes => self.recoverable_bytes,
+            CounterKind::Warnings => self.warnings,
+            CounterKind::CancelChecks => self.cancel_checks,
+            CounterKind::CancelledWorkItems => self.cancelled_work_items,
+            CounterKind::TelemetrySamplesLost => self.telemetry_samples_lost,
+            CounterKind::TelemetryFlushErrors => self.telemetry_flush_errors,
+            CounterKind::UnavailableCounters => self.unavailable_counters,
+        }
+    }
+
     pub fn validate(&self) -> Result<(), MetricInvariantError> {
         invariant(
             sum_leq(
@@ -396,4 +470,71 @@ pub struct DeviceSample {
     pub active_millis_per_second: Option<u32>,
     pub queue_depth_millis: Option<u64>,
     pub unavailable_counter_count: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatusRunStart {
+    pub operation_id: String,
+    pub product_run_id: Option<i64>,
+    pub engine_version: String,
+    pub worker_version: Option<String>,
+    pub app_version: Option<String>,
+    pub product_schema_version: Option<i64>,
+    pub input_signature: String,
+    pub started_unix_millis: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatusRunRecord {
+    pub id: i64,
+    pub operation_id: String,
+    pub product_run_id: Option<i64>,
+    pub metrics_contract_version: u32,
+    pub engine_version: String,
+    pub worker_version: Option<String>,
+    pub app_version: Option<String>,
+    pub product_schema_version: Option<i64>,
+    pub input_signature: String,
+    pub state: TelemetryRunState,
+    pub started_unix_millis: Option<i64>,
+    pub completed_unix_millis: Option<i64>,
+    pub last_monotonic_nanos: u64,
+    pub last_sequence: u64,
+    pub error_code: Option<String>,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TelemetryFlush {
+    pub sequence: u64,
+    pub observed_unix_millis: i64,
+    pub monotonic_nanos: u64,
+    pub phase: TelemetryPhase,
+    pub phase_state: TelemetryPhaseState,
+    pub phase_started_monotonic_nanos: Option<u64>,
+    pub phase_completed_monotonic_nanos: Option<u64>,
+    pub phase_active_nanos: u64,
+    pub counters: ScanCounters,
+    pub host_sample: Option<HostSample>,
+    pub devices: Vec<DeviceDescriptor>,
+    pub device_samples: Vec<DeviceSample>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatusRunTerminal {
+    pub state: TelemetryRunState,
+    pub completed_unix_millis: i64,
+    pub monotonic_nanos: u64,
+    pub error_code: Option<String>,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WriteDisposition {
+    Applied,
+    Replayed,
 }

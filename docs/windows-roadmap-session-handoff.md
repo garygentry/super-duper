@@ -24,7 +24,7 @@ completed session work uncommitted or substitute work from the parked stream.
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP1-telemetry-foundation`
-- Next work package: `SOP1b-status-store`
+- Next work package: `SOP1c-run-lifecycle`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -49,7 +49,15 @@ completed session work uncommitted or substitute work from the parked stream.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The current implementation slice accepts `SOP1a-contract-schema`. Rust now owns metrics-contract v1
+The current implementation slice accepts `SOP1b-status-store`. Status schema v2 adds an exact
+sequence/payload replay ledger. One immediate transaction now owns run start, monotonic cumulative
+counter snapshots, phase state, device descriptors, host/device samples, and terminal state.
+Conflicting replay, counter/phase regression, invalid sequence/timestamp, unknown device, numeric
+overflow, and non-writable run state fail without a partial write. Startup reconciles abandoned
+running/cancelling runs and phases to interrupted while preserving committed samples. The next
+package is `SOP1c-run-lifecycle`.
+
+The preceding implementation slice accepts `SOP1a-contract-schema`. Rust now owns metrics-contract v1
 counter/gauge types and invariant validation plus a separate schema-v1 status database with fixed
 run/phase/counter/device/host-sample/device-sample tables. Empty create and reopen are idempotent;
 unversioned non-empty and newer databases fail without modification. No scan lifecycle write,
@@ -120,12 +128,13 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance `SOP1b-status-store`: implement atomic run/phase/device/sample writes, exact operation replay,
-monotonic counter/sequence enforcement, interruption reconciliation, and explicit unavailable gauge
-storage against the accepted separate schema. Then continue through each dependency-ready SOP1
-package while the resumable execution protocol's stop conditions remain false. Do not integrate scan
-lifecycle writes until `SOP1b` accepts. Do not implement the singleton skip, device scheduler,
-read-path tuning, Performance tab, or warning UI until their listed dependencies are satisfied.
+Advance `SOP1c-run-lifecycle`: connect a configurable status-database path to the engine/worker scan
+lifecycle, populate platform-neutral discovery/size-bucket/hash/cache counters, and flush only
+bounded cumulative snapshots at phase/progress boundaries. Terminal completed/cancelled/failed state
+must reconcile without per-file telemetry rows or making status persistence product truth. Continue
+dependency-ready SOP1 packages while the resumable execution protocol's stop conditions remain
+false. Do not implement the singleton skip, device scheduler, read-path tuning, Performance tab, or
+warning UI until their listed dependencies are satisfied.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -211,6 +220,13 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+`SOP1b-status-store` passed 9/9 focused telemetry tests and strict Clippy with only the three
+documented pre-existing unchanged-file lint classes allowed. Coverage includes exact start/flush/
+terminal replay, conflicting replay, atomic counter/device/sample writes, explicit null gauges,
+counter and phase regression, sequence/timestamp guards, schema-v1 migration plus injected rollback,
+restart interruption reconciliation, and product-database isolation. No scan lifecycle, worker,
+protocol, WPF, .NET, physical, provider, or performance campaign changed.
 
 `SOP1a-contract-schema` passed 4/4 focused telemetry tests and 9/9 Core library tests. Strict Clippy
 for the telemetry target passed after allowing only `needless_return`, `let_and_return`, and
@@ -322,6 +338,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-25 | this session | Accept `SOP1b-status-store` with schema-v2 replay ledger, atomic monotonic run/phase/counter/device/sample writes, exact replay/conflict handling, explicit unavailable gauges, transactional migration, and startup interruption reconciliation. | Advance `SOP1c-run-lifecycle`; status storage is not product truth and no per-file telemetry rows are allowed. |
 | 2026-08-25 | this session | Accept `SOP1a-contract-schema` with metrics-contract v1 Rust types/invariants and a separate schema-v1 status database that creates/reopens idempotently and rejects unknown/newer state without modification. | Advance `SOP1b-status-store`; do not integrate scan lifecycle writes until atomic replay/monotonic/recovery store semantics accept. |
 | 2026-08-25 | this session | Make the active scan plan idempotent with a finite SOP1 package ledger, multi-package session progress, audit-once/two-failure anti-spin rules, context-risk handoff requirements, and a reusable state-independent kickoff prompt. | Begin `SOP1a-contract-schema`, accept it only with schema/metric invariant tests, then continue dependency-ready SOP1 packages. |
 | 2026-08-25 | this session | Create the trackable large-drive scan optimization/observability stream, confirm singleton size buckets are still partially read, specify cumulative status metrics/progress/warning/Performance-tab gates, and park the preserved Windows release checklist. | Advance only `SOP1-telemetry-foundation`; resume release validation at `WPM8-high-contrast` before final feature-complete. |
