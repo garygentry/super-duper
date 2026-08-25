@@ -1,10 +1,11 @@
 [CmdletBinding()]
-param()
+param([switch]$PreflightOnly)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$gitSafeRepo = $repo.Replace('\', '/')
 $controlRevision = '0a3c1c1'
 $treatmentRevision = 'f803cbd'
 $evidencePath = Join-Path $repo 'docs/evidence/scan-progress-representative-overhead-20260825.json'
@@ -16,8 +17,8 @@ $campaignWatchdog = [TimeSpan]::FromHours(2)
 $campaignStartedTimestamp = [Diagnostics.Stopwatch]::GetTimestamp()
 $campaignDeadlineTimestamp = $campaignStartedTimestamp +
     [long]([Diagnostics.Stopwatch]::Frequency * $campaignWatchdog.TotalSeconds)
-$minimumRunNanos = 60_000_000_000L
-$maximumRunNanos = 600_000_000_000L
+$minimumRunNanos = 60000000000L
+$maximumRunNanos = 600000000000L
 $expectedFiles = 600008L
 $expectedBytes = 4605870080L
 $smallFiles = 600000L
@@ -334,7 +335,7 @@ function Assert-NoProductProcesses {
 function Expand-Revision([string]$Revision, [string]$Destination) {
     $archive = "$Destination.tar"
     [IO.Directory]::CreateDirectory($Destination) | Out-Null
-    Invoke-Checked { git -C $repo -c "safe.directory=$repo" archive --format=tar --output=$archive $Revision } `
+    Invoke-Checked { git -C $repo -c "safe.directory=$gitSafeRepo" archive --format=tar --output=$archive $Revision } `
         "Could not archive revision $Revision."
     Invoke-Checked { tar -xf $archive -C $Destination } "Could not expand revision $Revision."
     [IO.File]::Delete($archive)
@@ -1069,9 +1070,9 @@ $script:freeBytesAfterBuildAndFixture = $null
 $script:rustcVersion = (& rustc --version).Trim()
 $script:cargoVersion = (& cargo --version).Trim()
 $script:profileDrive = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($profileRoot))
-$script:controlCommit = (& git -C $repo -c "safe.directory=$repo" rev-parse "$controlRevision^{commit}").Trim()
+$script:controlCommit = (& git -C $repo -c "safe.directory=$gitSafeRepo" rev-parse "$controlRevision^{commit}").Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the control revision.' }
-$script:treatmentCommit = (& git -C $repo -c "safe.directory=$repo" rev-parse "$treatmentRevision^{commit}").Trim()
+$script:treatmentCommit = (& git -C $repo -c "safe.directory=$gitSafeRepo" rev-parse "$treatmentRevision^{commit}").Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the treatment revision.' }
 $script:shortEvidence = Get-Content -LiteralPath $shortEvidencePath -Raw | ConvertFrom-Json -Depth 30
 if ($script:shortEvidence.controlRevision -ne $controlRevision -or
@@ -1079,6 +1080,11 @@ if ($script:shortEvidence.controlRevision -ne $controlRevision -or
     [long]$script:shortEvidence.absoluteDifference.wallNanos -ne 66924300 -or
     [long]$script:shortEvidence.absoluteDifference.cpuNanos -ne -109375000) {
     throw 'Retained short-profile evidence does not match the operator-approved fixed-cost leg.'
+}
+
+if ($PreflightOnly) {
+    Write-Output 'SOP2 representative harness executable preflight passed without creating campaign state.'
+    return
 }
 
 [IO.Directory]::CreateDirectory($profileRoot) | Out-Null
