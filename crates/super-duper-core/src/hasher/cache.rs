@@ -8,6 +8,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, error, info, trace};
 
+use super::xxhash::FullHashIoEvent;
+
 static DEFAULT_HASH_CACHE_PATH: &str = "content_hash_cache.db";
 
 lazy_static::lazy_static! {
@@ -51,6 +53,14 @@ pub fn get_content_hash_cancellable(
     file: &Path,
     cancel_token: &AtomicBool,
 ) -> io::Result<CachedHash> {
+    get_content_hash_cancellable_observed(file, cancel_token, &mut |_| Ok(()))
+}
+
+pub(crate) fn get_content_hash_cancellable_observed(
+    file: &Path,
+    cancel_token: &AtomicBool,
+    observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
+) -> io::Result<CachedHash> {
     let canonical_path = fs::canonicalize(file)?.to_string_lossy().into_owned();
     let metadata = fs::metadata(file)?;
     let size = metadata.len();
@@ -82,6 +92,7 @@ pub fn get_content_hash_cancellable(
         Ok(Some(value)) => match bincode::deserialize::<u64>(&value) {
             Ok(hash) => {
                 trace!("Found hash for {} in cache", file.display());
+                observe(FullHashIoEvent::CacheLookup(CacheLookupOutcome::Hit))?;
                 return Ok(CachedHash {
                     hash,
                     warning: None,
@@ -102,7 +113,8 @@ pub fn get_content_hash_cancellable(
         }
     }
 
-    let hash = super::xxhash::hash_file_streaming(file, cancel_token)?;
+    observe(FullHashIoEvent::CacheLookup(cache_outcome))?;
+    let hash = super::xxhash::hash_file_streaming_observed(file, cancel_token, observe)?;
     let metadata_after_hash = fs::metadata(file)?;
     if metadata_after_hash.len() != size
         || metadata_modified_timestamp(&metadata_after_hash)? != modified_timestamp

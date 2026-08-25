@@ -33,6 +33,7 @@ pub struct ProgressLogicalCounters {
     pub full_hash_request_bytes: u64,
     pub full_hash_satisfied_files: u64,
     pub full_hash_satisfied_bytes: u64,
+    pub full_hash_failed_files: u64,
     pub full_hash_failed_bytes: u64,
     pub hash_pipeline_resolved_files: u64,
     pub hash_pipeline_resolved_bytes: u64,
@@ -42,7 +43,7 @@ pub struct ProgressLogicalCounters {
 type LogicalCounterAccessor = (&'static str, fn(&ProgressLogicalCounters) -> u64);
 
 impl ProgressLogicalCounters {
-    const ALL: [LogicalCounterAccessor; 9] = [
+    const ALL: [LogicalCounterAccessor; 10] = [
         ("partial_screened_files", |value| {
             value.partial_screened_files
         }),
@@ -57,6 +58,9 @@ impl ProgressLogicalCounters {
         }),
         ("full_hash_satisfied_bytes", |value| {
             value.full_hash_satisfied_bytes
+        }),
+        ("full_hash_failed_files", |value| {
+            value.full_hash_failed_files
         }),
         ("full_hash_failed_bytes", |value| {
             value.full_hash_failed_bytes
@@ -91,7 +95,7 @@ impl ProgressLogicalCounters {
         )?;
         let full_hash_outcome_files = checked_sum(
             self.full_hash_satisfied_files,
-            counters.full_hash_content_reads_failed,
+            self.full_hash_failed_files,
             "full-hash outcome file count overflow",
         )?;
         bound(
@@ -118,6 +122,11 @@ impl ProgressLogicalCounters {
             self.full_hash_satisfied_files,
             satisfied_from_cache_or_read,
             "full-hash satisfied files must equal cache hits plus completed content reads",
+        )?;
+        bound(
+            counters.full_hash_content_reads_failed,
+            self.full_hash_failed_files,
+            "failed full-content reads cannot exceed failed full-hash requests",
         )?;
         bound(
             self.hash_pipeline_resolved_files,

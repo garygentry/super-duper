@@ -137,6 +137,34 @@ fn progress_contract_round_trips_versions_and_rejects_unknown_semantics() {
 }
 
 #[test]
+fn full_hash_failures_include_failures_before_content_reads_start() {
+    let mut failed = observation(SECOND, 2, 200, 2, 200, 200);
+    failed.counters.partial_collision_buckets = 1;
+    failed.counters.partial_collision_files = 2;
+    failed.counters.partial_collision_bytes = 200;
+    failed.counters.full_hash_requests = 2;
+    failed.counters.full_hash_cache_misses = 1;
+    failed.counters.full_hash_content_reads_started = 1;
+    failed.counters.full_hash_content_reads_failed = 1;
+    failed.counters.warnings = 2;
+    failed.logical.full_hash_request_bytes = 200;
+    failed.logical.full_hash_failed_files = 2;
+    failed.logical.full_hash_failed_bytes = 200;
+    failed.logical.hash_pipeline_resolved_files = 2;
+    failed.logical.hash_pipeline_resolved_bytes = 200;
+
+    assert!(ProgressReducer::new().observe(failed.clone()).is_ok());
+
+    failed.logical.full_hash_failed_files = 0;
+    assert_eq!(
+        ProgressReducer::new().observe(failed).unwrap_err(),
+        ProgressContractError::Invariant(
+            "failed full-content reads cannot exceed failed full-hash requests"
+        )
+    );
+}
+
+#[test]
 fn progress_transitions_are_monotonic_checked_and_atomic() {
     let mut reducer = ProgressReducer::new();
     let first = reducer

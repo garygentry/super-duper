@@ -6,8 +6,48 @@ use tempfile::tempdir;
 
 use super_duper_core::analysis::{deletion_plan, dir_fingerprint, dir_similarity};
 use super_duper_core::storage::Database;
-use super_duper_core::telemetry::{StatusDatabase, METRICS_CONTRACT_VERSION};
+use super_duper_core::telemetry::{
+    CounterKind, ProgressObservation, ProgressReducer, StatusDatabase, METRICS_CONTRACT_VERSION,
+};
 use super_duper_core::{AppConfig, ProgressReporter, ScanEngine, SilentReporter};
+
+#[derive(Default)]
+struct RecordingProgress(std::sync::Mutex<Vec<ProgressObservation>>);
+
+impl ProgressReporter for RecordingProgress {
+    fn on_progress_observation(&self, observation: &ProgressObservation) {
+        self.0.lock().unwrap().push(observation.clone());
+    }
+}
+
+fn assert_last_progress_matches_durable_counters(
+    status: &StatusDatabase,
+    progress: &RecordingProgress,
+) {
+    let observations = progress.0.lock().unwrap();
+    let final_observation = observations.last().expect("a final live observation");
+    let status_run_id: i64 = status
+        .connection()
+        .query_row("SELECT id FROM status_run", [], |row| row.get(0))
+        .unwrap();
+    for kind in CounterKind::ALL {
+        let durable: i64 = status
+            .connection()
+            .query_row(
+                "SELECT value FROM status_counter
+                 WHERE run_id = ?1 AND phase = 'overall' AND metric = ?2",
+                rusqlite::params![status_run_id, kind.as_str()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            durable,
+            final_observation.counters.value(kind) as i64,
+            "live/durable terminal counter mismatch for {}",
+            kind.as_str()
+        );
+    }
+}
 
 fn count_files_recursive(dir: &Path) -> usize {
     let mut count = 0;
@@ -78,7 +118,8 @@ fn test_full_scan_pipeline() {
     let engine = ScanEngine::new(config)
         .with_db_path(db_path.to_str().unwrap())
         .with_status_db_path(status_path.to_str().unwrap());
-    let result = engine.scan(&SilentReporter).unwrap();
+    let progress = RecordingProgress::default();
+    let result = engine.scan(&progress).unwrap();
 
     // We expect at least 6 files scanned (2 unique + 2 shared + 2 large)
     assert!(
@@ -158,6 +199,34 @@ fn test_full_scan_pipeline() {
             )
             .unwrap()
     };
+    let observations = progress.0.lock().unwrap();
+    assert!(
+        observations.len() >= 10,
+        "expected phase-boundary and incremental progress observations"
+    );
+    let mut reducer = ProgressReducer::new();
+    for observation in observations.iter().cloned() {
+        reducer.observe(observation).unwrap();
+    }
+    let final_observation = observations.last().unwrap();
+    assert!(final_observation.candidate_totals_known);
+    assert!(final_observation.final_results_complete);
+    assert_eq!(
+        final_observation.logical.hash_pipeline_resolved_files,
+        final_observation.counters.candidate_files
+    );
+    assert_eq!(
+        final_observation.logical.hash_pipeline_resolved_bytes,
+        final_observation.counters.candidate_bytes
+    );
+    for kind in CounterKind::ALL {
+        assert_eq!(
+            metric(kind.as_str()),
+            final_observation.counters.value(kind) as i64,
+            "live/durable terminal counter mismatch for {}",
+            kind.as_str()
+        );
+    }
     assert_eq!(metric("candidate_files"), 6);
     assert_eq!(metric("duplicate_candidate_files"), 6);
     assert_eq!(metric("partial_hashes_attempted"), 6);
@@ -222,14 +291,26 @@ fn test_scan_cancellation() {
         .with_status_db_path(status_path.to_str().unwrap());
 
     let cancel_token = engine.cancel_token();
-    struct CancelOnStart(std::sync::Arc<std::sync::atomic::AtomicBool>);
-    impl ProgressReporter for CancelOnStart {
+    struct CancelOnStart<'a> {
+        cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        progress: &'a RecordingProgress,
+    }
+    impl ProgressReporter for CancelOnStart<'_> {
         fn on_scan_start(&self) {
-            self.0.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.cancel
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+
+        fn on_progress_observation(&self, observation: &ProgressObservation) {
+            self.progress.on_progress_observation(observation);
         }
     }
 
-    let result = engine.scan(&CancelOnStart(cancel_token));
+    let progress = RecordingProgress::default();
+    let result = engine.scan(&CancelOnStart {
+        cancel: cancel_token,
+        progress: &progress,
+    });
     assert!(matches!(result, Err(super_duper_core::Error::Cancelled)));
     let db = Database::open(&db_path_str).unwrap();
     let (_, run_count) = db.list_runs(0, 10).unwrap();
@@ -241,6 +322,7 @@ fn test_scan_cancellation() {
         .query_row("SELECT state FROM status_run", [], |row| row.get(0))
         .unwrap();
     assert_eq!(state, "cancelled");
+    assert_last_progress_matches_durable_counters(&status, &progress);
 }
 
 #[cfg(target_os = "windows")]
@@ -456,13 +538,14 @@ fn test_pipeline_failure_is_persisted_as_failed() {
         .unwrap();
     drop(db);
 
+    let progress = RecordingProgress::default();
     let result = ScanEngine::new(AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: vec![],
     })
     .with_db_path(db_path.to_str().unwrap())
     .with_status_db_path(status_path.to_str().unwrap())
-    .scan(&SilentReporter);
+    .scan(&progress);
     assert!(result.is_err());
 
     let db = Database::open(db_path.to_str().unwrap()).unwrap();
@@ -483,6 +566,7 @@ fn test_pipeline_failure_is_persisted_as_failed() {
         .unwrap();
     assert_eq!(state, "failed");
     assert_eq!(code.as_deref(), Some("scan_failed"));
+    assert_last_progress_matches_durable_counters(&status, &progress);
 }
 
 #[test]

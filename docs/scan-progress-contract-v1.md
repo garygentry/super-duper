@@ -30,7 +30,7 @@ Supplemental live logical counters provide meanings that metrics v2 does not con
 - partial-screened files and logical bytes;
 - full-hash requested logical bytes;
 - full-hash satisfied files/logical bytes, whether read or served from cache;
-- failed full-hash logical bytes;
+- failed full-hash files/logical bytes, including failures before a content read can start;
 - hash-pipeline resolved files/logical bytes; and
 - confirmed duplicate logical bytes.
 
@@ -87,6 +87,9 @@ Recent physical rates and ETA history are partitioned by live phase while cumula
 remain run-wide. Metrics v2's unused `full_hashing` phase is reserved and rejected in progress v1;
 the current producer reports its interleaved hash activity as candidate screening.
 
-SOP2a does not populate scan callbacks, status rows, device mappings, worker JSON, cancellation
-counters, coalescing, Core/WPF state, warning drilldown, singleton savings, scheduling, read-path
-tuning, or cache-policy UI. Those remain in SOP2b through SOP2e and later named gates.
+SOP2b populates cumulative observations from the same bounded hash deltas used for terminal status
+truth. It publishes at 256 file outcomes or 8 MiB of full-content reads and reconciles cancellation,
+warnings, cache outcomes, failures, and completed/failed/cancelled terminal counters without adding
+per-file status rows. Device mapping, worker JSON/coalescing, Core/WPF state, warning drilldown,
+singleton savings, scheduling, read-path tuning, and cache-policy UI remain in SOP2c through SOP2e
+and later named gates.

@@ -10,14 +10,17 @@ use crate::storage::models::{
 };
 use crate::storage::Database;
 use crate::telemetry::{
-    ScanCounters, StatusDatabase, StatusRunStart, StatusRunTerminal, TelemetryFlush,
-    TelemetryPhase, TelemetryPhaseState, TelemetryRunState,
+    ActiveDeviceProgress, ActiveDeviceUnavailableReason, ProgressLogicalCounters,
+    ProgressObservation, ProgressReducer, ScanCounters, StatusDatabase, StatusRunStart,
+    StatusRunTerminal, TelemetryFlush, TelemetryPhase, TelemetryPhaseState, TelemetryRunState,
+    METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION,
 };
 use chrono::Utc;
 use dashmap::DashMap;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::hash::Hasher;
+use std::io;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
@@ -75,6 +78,7 @@ pub struct ScanStats {
 struct PersistedResults {
     groups: usize,
     duplicate_files: usize,
+    duplicate_logical_bytes: u64,
     wasted_bytes: u64,
     warnings: usize,
     warning_examples: Vec<String>,
@@ -86,6 +90,10 @@ struct RunTelemetry {
     started: Instant,
     sequence: u64,
     counters: ScanCounters,
+    logical: ProgressLogicalCounters,
+    candidate_totals_known: bool,
+    final_results_complete: bool,
+    progress_reducer: ProgressReducer,
     current_phase: Option<(TelemetryPhase, u64)>,
     heartbeat_interval: Option<Duration>,
     #[cfg(target_os = "windows")]
@@ -106,6 +114,10 @@ impl RunTelemetry {
             started,
             sequence: 0,
             counters: ScanCounters::default(),
+            logical: ProgressLogicalCounters::default(),
+            candidate_totals_known: false,
+            final_results_complete: false,
+            progress_reducer: ProgressReducer::new(),
             current_phase: None,
             heartbeat_interval: None,
             #[cfg(target_os = "windows")]
@@ -176,6 +188,190 @@ impl RunTelemetry {
         self.started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64
     }
 
+    fn record_progress_observation(
+        &mut self,
+        phase: TelemetryPhase,
+        phase_started_monotonic_nanos: u64,
+    ) -> Option<ProgressObservation> {
+        let observation = ProgressObservation {
+            progress_contract_version: PROGRESS_CONTRACT_VERSION,
+            metrics_contract_version: METRICS_CONTRACT_VERSION,
+            monotonic_nanos: self.elapsed_nanos(),
+            phase,
+            phase_started_monotonic_nanos,
+            candidate_totals_known: self.candidate_totals_known,
+            final_results_complete: self.final_results_complete,
+            counters: self.counters.clone(),
+            logical: self.logical,
+            active_devices: ActiveDeviceProgress::Unavailable {
+                reason: ActiveDeviceUnavailableReason::MappingUnavailable,
+            },
+        };
+        match self.progress_reducer.observe(observation.clone()) {
+            Ok(_) => Some(observation),
+            Err(error) => {
+                warn!("Rejected internally produced scan progress observation: {error}");
+                debug_assert!(false, "invalid internally produced scan progress: {error}");
+                None
+            }
+        }
+    }
+
+    fn apply_hash_progress(&mut self, delta: &hasher::HashProgressDelta) -> io::Result<()> {
+        macro_rules! checked_add {
+            ($target:expr, $value:expr, $name:literal) => {
+                $target = $target.checked_add($value).ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        concat!("scan progress counter overflow: ", $name),
+                    )
+                })?;
+            };
+        }
+        checked_add!(
+            self.counters.partial_hashes_attempted,
+            delta.partial_hashes_attempted,
+            "partial_hashes_attempted"
+        );
+        checked_add!(
+            self.counters.partial_hashes_succeeded,
+            delta.partial_hashes_succeeded,
+            "partial_hashes_succeeded"
+        );
+        checked_add!(
+            self.counters.partial_hashes_failed,
+            delta.partial_hashes_failed,
+            "partial_hashes_failed"
+        );
+        checked_add!(
+            self.counters.partial_hash_bytes_read,
+            delta.partial_hash_bytes_read,
+            "partial_hash_bytes_read"
+        );
+        checked_add!(
+            self.counters.partial_collision_buckets,
+            delta.partial_collision_buckets,
+            "partial_collision_buckets"
+        );
+        checked_add!(
+            self.counters.partial_collision_files,
+            delta.partial_collision_files,
+            "partial_collision_files"
+        );
+        checked_add!(
+            self.counters.partial_collision_bytes,
+            delta.partial_collision_bytes,
+            "partial_collision_bytes"
+        );
+        checked_add!(
+            self.counters.full_hash_requests,
+            delta.full_hash_requests,
+            "full_hash_requests"
+        );
+        checked_add!(
+            self.counters.full_hash_cache_hits,
+            delta.full_hash_cache_hits,
+            "full_hash_cache_hits"
+        );
+        checked_add!(
+            self.counters.full_hash_cache_misses,
+            delta.full_hash_cache_misses,
+            "full_hash_cache_misses"
+        );
+        checked_add!(
+            self.counters.full_hash_cache_errors,
+            delta.full_hash_cache_errors,
+            "full_hash_cache_errors"
+        );
+        checked_add!(
+            self.counters.full_hash_cache_stores,
+            delta.full_hash_cache_stores,
+            "full_hash_cache_stores"
+        );
+        checked_add!(
+            self.counters.full_hash_content_reads_started,
+            delta.full_hash_content_reads_started,
+            "full_hash_content_reads_started"
+        );
+        checked_add!(
+            self.counters.full_hash_content_reads_completed,
+            delta.full_hash_content_reads_completed,
+            "full_hash_content_reads_completed"
+        );
+        checked_add!(
+            self.counters.full_hash_content_reads_failed,
+            delta.full_hash_content_reads_failed,
+            "full_hash_content_reads_failed"
+        );
+        checked_add!(
+            self.counters.full_hash_bytes_read,
+            delta.full_hash_bytes_read,
+            "full_hash_bytes_read"
+        );
+        checked_add!(
+            self.counters.unavailable_counters,
+            delta.unavailable_counters,
+            "unavailable_counters"
+        );
+        checked_add!(
+            self.counters.cancel_checks,
+            delta.cancel_checks,
+            "cancel_checks"
+        );
+        checked_add!(
+            self.counters.cancelled_work_items,
+            delta.cancelled_work_items,
+            "cancelled_work_items"
+        );
+        checked_add!(self.counters.warnings, delta.warning_count, "warnings");
+        checked_add!(
+            self.logical.partial_screened_files,
+            delta.partial_screened_files,
+            "partial_screened_files"
+        );
+        checked_add!(
+            self.logical.partial_screened_bytes,
+            delta.partial_screened_bytes,
+            "partial_screened_bytes"
+        );
+        checked_add!(
+            self.logical.full_hash_request_bytes,
+            delta.full_hash_request_bytes,
+            "full_hash_request_bytes"
+        );
+        checked_add!(
+            self.logical.full_hash_satisfied_files,
+            delta.full_hash_satisfied_files,
+            "full_hash_satisfied_files"
+        );
+        checked_add!(
+            self.logical.full_hash_satisfied_bytes,
+            delta.full_hash_satisfied_bytes,
+            "full_hash_satisfied_bytes"
+        );
+        checked_add!(
+            self.logical.full_hash_failed_files,
+            delta.full_hash_failures,
+            "full_hash_failed_files"
+        );
+        checked_add!(
+            self.logical.full_hash_failed_bytes,
+            delta.full_hash_failed_bytes,
+            "full_hash_failed_bytes"
+        );
+        checked_add!(
+            self.logical.hash_pipeline_resolved_files,
+            delta.hash_pipeline_resolved_files,
+            "hash_pipeline_resolved_files"
+        );
+        checked_add!(
+            self.logical.hash_pipeline_resolved_bytes,
+            delta.hash_pipeline_resolved_bytes,
+            "hash_pipeline_resolved_bytes"
+        );
+        Ok(())
+    }
+
     fn flush_phase(
         &mut self,
         phase: TelemetryPhase,
@@ -216,6 +412,21 @@ impl RunTelemetry {
             now,
             Some(sample),
         );
+    }
+
+    fn flush_running_progress_snapshot(&mut self) -> Option<ProgressObservation> {
+        let (phase, phase_start) = self.current_phase?;
+        self.sequence = self.sequence.saturating_add(1);
+        let now = self.elapsed_nanos();
+        self.persist_flush(
+            phase,
+            TelemetryPhaseState::Running,
+            Some(phase_start),
+            None,
+            now,
+            None,
+        );
+        self.record_progress_observation(phase, phase_start)
     }
 
     #[cfg(target_os = "windows")]
@@ -384,6 +595,97 @@ impl TelemetryHeartbeat {
     }
 }
 
+fn publish_progress_observation(
+    telemetry: &Arc<Mutex<RunTelemetry>>,
+    progress: &dyn ProgressReporter,
+    phase: TelemetryPhase,
+    phase_started_monotonic_nanos: u64,
+) {
+    let observation = telemetry
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .record_progress_observation(phase, phase_started_monotonic_nanos);
+    if let Some(observation) = observation {
+        progress.on_progress_observation(&observation);
+    }
+}
+
+fn publish_terminal_progress_snapshot(
+    telemetry: &Arc<Mutex<RunTelemetry>>,
+    progress: &dyn ProgressReporter,
+) {
+    let observation = telemetry
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .flush_running_progress_snapshot();
+    if let Some(observation) = observation {
+        progress.on_progress_observation(&observation);
+    }
+}
+
+struct EngineHashProgressSink<'a> {
+    telemetry: Arc<Mutex<RunTelemetry>>,
+    progress: &'a dyn ProgressReporter,
+    phase_started_monotonic_nanos: u64,
+    totals: Mutex<hasher::HashProgressDelta>,
+    publication: Mutex<()>,
+}
+
+impl<'a> EngineHashProgressSink<'a> {
+    fn new(
+        telemetry: Arc<Mutex<RunTelemetry>>,
+        progress: &'a dyn ProgressReporter,
+        phase_started_monotonic_nanos: u64,
+    ) -> Self {
+        Self {
+            telemetry,
+            progress,
+            phase_started_monotonic_nanos,
+            totals: Mutex::new(hasher::HashProgressDelta::default()),
+            publication: Mutex::new(()),
+        }
+    }
+}
+
+impl hasher::HashProgressSink for EngineHashProgressSink<'_> {
+    fn publish(&self, delta: hasher::HashProgressDelta) -> io::Result<()> {
+        let _publication = self
+            .publication
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        self.totals
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .checked_add_assign(&delta)?;
+        let observation = {
+            let mut telemetry = self
+                .telemetry
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            telemetry.apply_hash_progress(&delta)?;
+            telemetry.record_progress_observation(
+                TelemetryPhase::CandidateScreening,
+                self.phase_started_monotonic_nanos,
+            )
+        }
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "scan engine rejected a hash progress observation",
+            )
+        })?;
+        self.progress.on_progress_observation(&observation);
+        Ok(())
+    }
+
+    fn snapshot(&self) -> hasher::HashProgressDelta {
+        self.totals
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
+}
+
 impl ScanEngine {
     pub fn new(config: AppConfig) -> Self {
         Self {
@@ -521,6 +823,7 @@ impl ScanEngine {
                 Some(0),
                 None,
             );
+        publish_progress_observation(&telemetry, progress, TelemetryPhase::Discovering, 0);
         let heartbeat = TelemetryHeartbeat::start(telemetry.clone());
 
         info!(
@@ -531,6 +834,7 @@ impl ScanEngine {
         if let Some(heartbeat) = heartbeat {
             heartbeat.stop();
         }
+        publish_terminal_progress_snapshot(&telemetry, progress);
         let mut telemetry = telemetry
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -684,6 +988,7 @@ impl ScanEngine {
             telemetry.counters.duplicate_candidate_files = stats.duplicate_candidate_files as u64;
             telemetry.counters.duplicate_candidate_bytes = stats.duplicate_candidate_bytes;
             telemetry.counters.warnings = traversal.warning_count as u64;
+            telemetry.candidate_totals_known = true;
             let discovery_done = telemetry.elapsed_nanos();
             telemetry.flush_phase(
                 TelemetryPhase::Discovering,
@@ -692,6 +997,7 @@ impl ScanEngine {
                 Some(discovery_done),
             );
         }
+        publish_progress_observation(telemetry, progress, TelemetryPhase::Discovering, 0);
         progress.on_scan_complete(traversal.files_discovered, scan_duration.as_secs_f64());
         db.update_run_progress(
             run_id,
@@ -719,11 +1025,21 @@ impl ScanEngine {
             );
             started
         };
+        publish_progress_observation(
+            telemetry,
+            progress,
+            TelemetryPhase::CandidateScreening,
+            hashing_telemetry_start,
+        );
         let hash_start = Instant::now();
-        let hash_outcome = match hasher::build_content_hash_map_with_stats(
+        let hash_progress_sink =
+            EngineHashProgressSink::new(telemetry.clone(), progress, hashing_telemetry_start);
+        let hash_outcome = match hasher::build_content_hash_map_with_progress(
             traversal.size_to_files,
             &self.cancel_token,
             progress,
+            &hash_progress_sink,
+            &hasher::SystemHashPipelineIo,
         ) {
             Ok(outcome) => outcome,
             Err(_) if self.cancel_token.load(Ordering::Relaxed) => return Err(Error::Cancelled),
@@ -751,12 +1067,23 @@ impl ScanEngine {
                 hash_outcome.full_hash_content_reads_started;
             telemetry.counters.full_hash_content_reads_completed =
                 hash_outcome.full_hash_content_reads_completed;
+            telemetry.counters.full_hash_content_reads_failed =
+                hash_outcome.full_hash_content_reads_failed;
             telemetry.counters.full_hash_bytes_read = hash_outcome.full_hash_bytes_read;
-            telemetry.counters.unavailable_counters = telemetry
-                .counters
-                .unavailable_counters
-                .saturating_add(hash_outcome.unavailable_counters);
+            telemetry.counters.cancel_checks = hash_outcome.cancel_checks;
+            telemetry.counters.cancelled_work_items = hash_outcome.cancelled_work_items;
             telemetry.counters.warnings = warning_count as u64;
+            telemetry.logical.partial_screened_files = hash_outcome.partial_screened_files;
+            telemetry.logical.partial_screened_bytes = hash_outcome.partial_screened_bytes;
+            telemetry.logical.full_hash_request_bytes = hash_outcome.full_hash_request_bytes;
+            telemetry.logical.full_hash_satisfied_files = hash_outcome.full_hash_satisfied_files;
+            telemetry.logical.full_hash_satisfied_bytes = hash_outcome.full_hash_satisfied_bytes;
+            telemetry.logical.full_hash_failed_files = hash_outcome.full_hash_failures;
+            telemetry.logical.full_hash_failed_bytes = hash_outcome.full_hash_failed_bytes;
+            telemetry.logical.hash_pipeline_resolved_files =
+                hash_outcome.hash_pipeline_resolved_files;
+            telemetry.logical.hash_pipeline_resolved_bytes =
+                hash_outcome.hash_pipeline_resolved_bytes;
             let hashing_telemetry_done = telemetry.elapsed_nanos();
             telemetry.flush_phase(
                 TelemetryPhase::CandidateScreening,
@@ -765,6 +1092,12 @@ impl ScanEngine {
                 Some(hashing_telemetry_done),
             );
         }
+        publish_progress_observation(
+            telemetry,
+            progress,
+            TelemetryPhase::CandidateScreening,
+            hashing_telemetry_start,
+        );
         if let Some(warning) = warning_aggregate(
             "hashing",
             "hash_recoverable_warning",
@@ -806,6 +1139,12 @@ impl ScanEngine {
             );
             started
         };
+        publish_progress_observation(
+            telemetry,
+            progress,
+            TelemetryPhase::Persisting,
+            persistence_telemetry_start,
+        );
         let db_start = Instant::now();
         let persisted = persist_run_results(
             db,
@@ -825,6 +1164,7 @@ impl ScanEngine {
             telemetry.counters.confirmed_logical_copies = persisted.duplicate_files as u64;
             telemetry.counters.confirmed_physical_items = persisted.duplicate_files as u64;
             telemetry.counters.recoverable_bytes = persisted.wasted_bytes;
+            telemetry.logical.confirmed_logical_bytes = persisted.duplicate_logical_bytes;
             telemetry.counters.warnings = warning_count as u64;
             let persistence_telemetry_done = telemetry.elapsed_nanos();
             telemetry.flush_phase(
@@ -834,6 +1174,12 @@ impl ScanEngine {
                 Some(persistence_telemetry_done),
             );
         }
+        publish_progress_observation(
+            telemetry,
+            progress,
+            TelemetryPhase::Persisting,
+            persistence_telemetry_start,
+        );
         if let Some(warning) = warning_aggregate(
             "persisting",
             "snapshot_changed_after_discovery",
@@ -872,6 +1218,12 @@ impl ScanEngine {
             );
             started
         };
+        publish_progress_observation(
+            telemetry,
+            progress,
+            TelemetryPhase::AnalyzingFolders,
+            analysis_telemetry_start,
+        );
         let dir_start = Instant::now();
         let dir_fingerprints = dir_fingerprint::build_directory_fingerprints_cancellable(
             db,
@@ -922,6 +1274,12 @@ impl ScanEngine {
                 Some(done),
             );
         }
+        publish_progress_observation(
+            telemetry,
+            progress,
+            TelemetryPhase::AnalyzingFolders,
+            analysis_telemetry_start,
+        );
         progress.on_dir_analysis_complete(
             dir_fingerprints,
             dir_similarity_pairs,
@@ -949,6 +1307,12 @@ impl ScanEngine {
             );
             started
         };
+        publish_progress_observation(
+            telemetry,
+            progress,
+            TelemetryPhase::Finalizing,
+            finalizing_telemetry_start,
+        );
         let finalizing_start = Instant::now();
         if self.cancel_token.load(Ordering::Relaxed) {
             return Err(Error::Cancelled);
@@ -969,6 +1333,7 @@ impl ScanEngine {
             let mut telemetry = telemetry
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
+            telemetry.final_results_complete = true;
             let done = telemetry.elapsed_nanos();
             telemetry.flush_phase(
                 TelemetryPhase::Finalizing,
@@ -977,6 +1342,12 @@ impl ScanEngine {
                 Some(done),
             );
         }
+        publish_progress_observation(
+            telemetry,
+            progress,
+            TelemetryPhase::Finalizing,
+            finalizing_telemetry_start,
+        );
         progress.on_finalizing_complete(finalizing_duration.as_secs_f64());
 
         Ok(ScanResult {
@@ -1045,6 +1416,7 @@ fn persist_run_results(
     let mut warnings = 0;
     let mut warning_examples = Vec::new();
     let mut wasted_bytes = 0u64;
+    let mut duplicate_logical_bytes = 0u64;
     let mut duplicate_files = 0usize;
     let mut invalid_snapshots = HashSet::new();
     let mut discovered_by_path = HashMap::new();
@@ -1158,6 +1530,8 @@ fn persist_run_results(
         }
         if paths.len() > 1 {
             duplicate_files += paths.len();
+            duplicate_logical_bytes = duplicate_logical_bytes
+                .saturating_add((file_size as u64).saturating_mul(paths.len() as u64));
             wasted_bytes += file_size as u64 * (paths.len() as u64 - 1);
             groups.push((hash, file_size, paths));
         }
@@ -1210,6 +1584,7 @@ fn persist_run_results(
     Ok(PersistedResults {
         groups: group_count,
         duplicate_files,
+        duplicate_logical_bytes,
         wasted_bytes,
         warnings,
         warning_examples,

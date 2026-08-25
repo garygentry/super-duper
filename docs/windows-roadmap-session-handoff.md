@@ -18,13 +18,13 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept the versioned platform-neutral SOP2a progress contract and reducer
-  with deterministic rate/ETA/invariant evidence (this session's commit)
+- Latest completed slice: accept the bounded incremental Rust progress producer with exact live/
+  durable terminal reconciliation (this session's commit)
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP2-progress-reporting`
-- Next work package: `SOP2b-incremental-pipeline-publication`
+- Next work package: `SOP2c-worker-progress-projection`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -49,8 +49,19 @@ completed session work uncommitted or substitute work from the parked stream.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The current implementation slice accepts `SOP2a-progress-contract-reducer`. Progress contract v1
-keeps nine missing logical-work meanings separate from durable metrics v2, preserves physical-I/O
+The current implementation slice accepts `SOP2b-incremental-pipeline-publication`. One serialized
+engine sink now consumes cumulative hasher deltas without per-file status writes. Partial work is
+batched at 256 file outcomes and full-read bytes at 8 MiB, so progress advances inside a large size
+bucket and long content read while preserving the existing Rayon scheduling and singleton reads.
+Observed cache and streaming-read seams retain actual bytes through failure/cancellation and
+separate all failed full-hash requests from the narrower content-read-failure metric. Completed,
+failed, and cancelled terminal live counters reconcile exactly with durable metrics v2. Progress
+contract v1 now has ten supplemental logical counters; no durable schema migration was introduced.
+No worker protocol, .NET/WPF, scheduling, singleton, repeat-cache policy, profile, physical campaign,
+or parked-stream work changed.
+
+The preceding implementation slice accepts `SOP2a-progress-contract-reducer`. Progress contract v1
+keeps the supplemental logical-work meanings separate from durable metrics v2, preserves physical-I/O
 units for displayed partial/full rates, and computes ETA only from stable same-unit logical
 candidate resolution. Rate history uses 100 ms buckets, a 30-second/304-point bound, and two
 positive five-second intervals within a ten-second warm-up; delayed/unequal intervals and sub-one-
@@ -190,12 +201,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Implement `SOP2b-incremental-pipeline-publication`: connect one serialized cumulative producer to
-the accepted progress snapshot and live telemetry observations, with bounded file/read publication
-inside a single large size bucket. Add deterministic gated read/cache seams for intermediate
-progress, terminal reconciliation, failure and cancellation behavior, while retaining current
-singleton reads and bucket scheduling. Do not pull worker protocol, Core/WPF, device scheduling,
-read-path tuning, warning UI, Performance tab, or `SOP8` cache UI ahead of their dependencies.
+Implement `SOP2c-worker-progress-projection`: project the accepted typed Rust snapshot through the
+worker with additive protocol-v1 compatibility, deterministic rate/ETA/device mapping, and one
+latest-value coalescer. Prove strictly increasing post-coalescing sequences, cancelling/terminal
+stickiness, no post-terminal progress, a minimum 100 ms ordinary-frame interval, and no more than
+ten frames in any half-open second. Do not pull Core/WPF, scheduling, singleton, read-path tuning,
+warning UI, Performance tab, or `SOP8` cache UI ahead of their dependencies.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -282,14 +293,14 @@ required gates are open.
 
 ## Latest verification baseline
 
-Accepted `SOP2a` passes 7/7 focused progress-contract tests and the bounded-history Core library
-test. The full Rust workspace passes 162 tests with 5 ignored and 0 failed. Strict Core library and
-focused-test Clippy pass with warnings denied after only the three documented pre-existing library
-allowances. Coverage includes version/golden serialization, atomic regression rejection, exact
-logical-versus-physical units, bounded recent/run-cumulative rates, phase partitioning, cache
-denominator, regular/delayed/unequal/sub-one-byte ETA, 64-device bounds, and unavailable/complete
-states. No .NET, WPF, product/status migration, physical large-drive, profile, provider, mutation,
-or release-validation campaign ran.
+Accepted `SOP2b` passes 8/8 focused hasher tests, 8/8 progress-contract tests, and completed/failed/
+cancelled engine reconciliation fixtures. The full Rust workspace passes 169 tests with 5 ignored
+and 0 failed. Strict Core library and focused-test Clippy pass with warnings denied after only the
+documented pre-existing unchanged-file allowances. Coverage includes mid-bucket and mid-read
+publication, exact cache hit/miss/error/store/read-failure accounting, retained bytes and silence
+after cancellation, all supplemental logical fields, invariant-valid ordered observations, and
+every final live metrics-v2 counter matching status storage. No .NET, WPF, status migration,
+physical large-drive, profile, provider, mutation, or release-validation campaign ran.
 
 The SOP2 ledger slice is documentation-only. Three independent read-only audits agreed on the six
 package boundaries and found the same live-counter, bucket-cadence, protocol-throttle, and stale-
@@ -444,6 +455,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-25 | this session | Accept `SOP2b-incremental-pipeline-publication` with one serialized cumulative engine sink, 256-file/8-MiB publication bounds, injected cache/read/failure/cancellation evidence, and exact completed/failed/cancelled live-to-durable reconciliation. | Implement `SOP2c-worker-progress-projection` with additive typed snapshots, deterministic rate/ETA/device projection, and a hard latest-value ten-per-second transport bound. |
 | 2026-08-25 | this session | Accept `SOP2a-progress-contract-reducer` with versioned supplemental logical-work truth, bounded physical rate windows, same-unit stable ETA, atomic transitions, truthful cache/device/unavailable states, and no durable-schema or UI integration. | Implement `SOP2b-incremental-pipeline-publication` with gated mid-bucket/read evidence and exact terminal/cancellation/failure reconciliation. |
 | 2026-08-25 | this session | Define the six-package `SOP2-progress-reporting` ledger from a cross-layer audit: typed cumulative truth, incremental bucket-independent publication, deterministic worker projection/coalescing, defensive Core application, accessible WPF surface, and integrated acceptance. | Implement `SOP2a-progress-contract-reducer`; publish exact meanings and fake-clock projection constants before touching the pipeline or UI. |
 | 2026-08-25 | this session | Accept `SOP1f-foundation-acceptance` and `SOP1` after replacing 43 per-counter reads/upserts per flush with one read/atomic multi-row upsert, preserving exact replay and fixed summaries, and retaining the single post-change passing profile beside the original failure. Audit and adopt the operator's repeat-run cache proposal into `SOP8` planning without UI implementation. | Define the finite `SOP2-progress-reporting` package ledger before code; keep SOP5/SOP8/UI and the parked release stream behind their dependencies. |

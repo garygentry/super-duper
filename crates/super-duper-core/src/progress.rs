@@ -3,6 +3,10 @@
 /// CLI implements with tracing/indicatif, FFI implements with C function pointer callbacks.
 /// All methods have default no-op implementations.
 pub trait ProgressReporter: Send + Sync {
+    /// Receives the cumulative, versioned progress truth used by live consumers.
+    ///
+    /// Producers may call this independently of the legacy presentation callbacks below.
+    fn on_progress_observation(&self, _observation: &crate::telemetry::ProgressObservation) {}
     fn on_scan_start(&self) {}
     fn on_scan_progress(&self, _files_found: usize, _current_path: &str) {}
     fn on_discovery_progress(
