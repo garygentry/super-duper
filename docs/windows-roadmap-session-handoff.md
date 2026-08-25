@@ -18,8 +18,8 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: add the deterministic sampler seam and read-only Windows host/volume/
-  physical-device probes with explicit unavailable gauges (this session's commit)
+- Latest completed slice: integrate the sampler through one heartbeat/status writer and retain the
+  first failed SOP1f observer-overhead profile; SOP1f remains in progress (this session's commit)
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
@@ -57,6 +57,14 @@ space plus process/system CPU, memory, and I/O, and derives disk read throughput
 active time, and queue depth from cumulative native counters. Hardware serials are not queried or
 persisted; blocked counters remain explicit unavailable values. The next package is
 `SOP1f-foundation-acceptance`.
+
+The current in-progress `SOP1f` integration uses one mutex-serialized status writer plus a five-second
+heartbeat, so a long phase continues recording samples without progress callbacks and the heartbeat
+is joined before terminal state. Its deterministic accelerated heartbeat fixture passes. The first
+retained Release A/B profile in `docs/evidence/scan-telemetry-overhead-20260825.json` did not pass the
+published 1%/1% threshold: a 12,000-file, 1.2535-second baseline measured +58.7 ms wall (+4.68%) and
++31.25 ms CPU (+1.98%). This failure was not retried. `SOP1` is not accepted pending measured
+overhead reduction or explicit review of an absolute/representative-duration observer budget.
 
 The preceding implementation slice accepts `SOP1d-bounded-queries-retention`. Status history now has
 strict descending run cursors (maximum 100), ascending host/device sample cursors (maximum 500),
@@ -155,12 +163,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance `SOP1f-foundation-acceptance`: integrate the accepted sampler with the single status writer
-at a bounded cadence, prove schema/recovery/retention and terminal behavior together, and retain a
-declared instrumented-versus-uninstrumented observer-overhead measurement. Run the full relevant
-matrix and accept `SOP1` only if its published threshold passes or a reviewed measured budget is
-recorded. Do not implement the singleton skip, device scheduler, read-path tuning, Performance tab,
-or warning UI until their listed dependencies are satisfied.
+Continue `SOP1f-foundation-acceptance` without rerunning the unchanged failed profile. First audit
+the retained absolute costs and look for a concrete reducible observer cost. If none closes the
+published 1%/1% threshold, obtain an explicit operator decision before replacing it with an absolute
+or representative-duration budget and then measure that reviewed contract. Do not accept `SOP1` or
+implement the singleton skip, device scheduler, read-path tuning, Performance tab, or warning UI
+until this boundary is resolved.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -246,6 +254,14 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+The in-progress `SOP1f` integration passes the full Rust workspace with 153 passed, 5 ignored, and 0
+failed, including the accelerated no-progress heartbeat fixture; Core/worker library Clippy passes
+with warnings denied after documented pre-existing allowances. The separately invoked Release
+overhead profile failed its published acceptance assertion and is retained, not hidden: median wall
+overhead was 468 basis points and CPU overhead 198 basis points against a 100/100 target. No .NET,
+WPF, physical large-drive, provider, mutation, or release-validation campaign ran. `SOP1` remains
+in progress.
 
 `SOP1e-host-device-sampler` passed 12/12 Core library tests, including deterministic fake cadence,
 missed-interval, maximum-cardinality contracts and a real read-only Windows volume probe on the
@@ -386,6 +402,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-25 | this session | Integrate one serialized five-second heartbeat/status writer and prove sampling during a phase with no progress callbacks; retain the first SOP1f Release profile as failed at +4.68% wall/+1.98% CPU on a 1.25-second baseline. `SOP1f` remains in progress. | Do not retry unchanged. Reduce a concrete measured cost or obtain explicit review of an absolute/representative-duration observer budget before accepting `SOP1`. |
 | 2026-08-25 | this session | Accept `SOP1e-host-device-sampler` with deterministic cadence/loss/cardinality contracts and read-only Windows process/system/volume/physical-disk probes that omit serials and preserve unavailable gauges. | Advance `SOP1f-foundation-acceptance`; integrate through the single writer and measure observer overhead before accepting `SOP1`. |
 | 2026-08-25 | this session | Accept `SOP1d-bounded-queries-retention` with fixed run/phase/counter/device summaries, bounded cursors, a 64-device ceiling, default 50-run/100,000-sample retention, passive WAL checkpoints, and isolated terminal-history deletion. | Advance `SOP1e-host-device-sampler`; protocol and WPF exposure remain out of scope until the storage/sampler foundation accepts. |
 | 2026-08-25 | this session | Accept `SOP1c-run-lifecycle` with metrics-contract v2, configurable worker status path, platform-neutral candidate/hash/cache counters, ten bounded phase flushes, and matching completed/cancelled/failed terminal state. | Advance `SOP1d-bounded-queries-retention`; status remains best-effort observability, separate from product truth, with no per-file rows. |

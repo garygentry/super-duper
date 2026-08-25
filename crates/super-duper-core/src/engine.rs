@@ -20,7 +20,9 @@ use std::fs;
 use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::mpsc::{self, RecvTimeoutError};
+use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
 use std::time::{Duration, Instant, UNIX_EPOCH};
 use tracing::{info, warn};
 use twox_hash::XxHash64;
@@ -30,6 +32,8 @@ pub struct ScanEngine {
     db_path: String,
     status_db_path: Option<String>,
     status_worker_version: Option<String>,
+    status_sample_interval: Duration,
+    status_maximum_samples: u64,
     session_id: Option<i64>,
     cancel_token: Arc<AtomicBool>,
 }
@@ -82,6 +86,15 @@ struct RunTelemetry {
     started: Instant,
     sequence: u64,
     counters: ScanCounters,
+    current_phase: Option<(TelemetryPhase, u64)>,
+    heartbeat_interval: Option<Duration>,
+    #[cfg(target_os = "windows")]
+    sampler: Option<
+        crate::telemetry::TelemetrySampler<
+            crate::telemetry::WindowsSamplerPlatform,
+            crate::telemetry::SystemSamplerClock,
+        >,
+    >,
 }
 
 impl RunTelemetry {
@@ -93,6 +106,10 @@ impl RunTelemetry {
             started,
             sequence: 0,
             counters: ScanCounters::default(),
+            current_phase: None,
+            heartbeat_interval: None,
+            #[cfg(target_os = "windows")]
+            sampler: None,
         };
         let Some(path) = engine.status_db_path.as_deref() else {
             return telemetry;
@@ -124,6 +141,29 @@ impl RunTelemetry {
             Ok((database, run_id)) => {
                 telemetry.database = Some(database);
                 telemetry.status_run_id = Some(run_id);
+                #[cfg(target_os = "windows")]
+                {
+                    match crate::telemetry::TelemetrySampler::new(
+                        crate::telemetry::WindowsSamplerPlatform::default(),
+                        crate::telemetry::SystemSamplerClock::default(),
+                        &parameters.roots,
+                        engine
+                            .status_sample_interval
+                            .as_nanos()
+                            .min(u128::from(u64::MAX)) as u64,
+                        engine.status_maximum_samples,
+                    ) {
+                        Ok(sampler) => {
+                            telemetry.sampler = Some(sampler);
+                            telemetry.heartbeat_interval = Some(engine.status_sample_interval);
+                        }
+                        Err(error) => {
+                            telemetry.counters.unavailable_counters =
+                                telemetry.counters.unavailable_counters.saturating_add(1);
+                            warn!("Scan platform telemetry is unavailable: {error}");
+                        }
+                    }
+                }
             }
             Err(error) => {
                 warn!("Scan telemetry is unavailable for product run {product_run_id}: {error}");
@@ -143,16 +183,115 @@ impl RunTelemetry {
         started_nanos: Option<u64>,
         completed_nanos: Option<u64>,
     ) {
+        if state == TelemetryPhaseState::Running {
+            self.current_phase =
+                Some((phase, started_nanos.unwrap_or_else(|| self.elapsed_nanos())));
+        } else if self
+            .current_phase
+            .is_some_and(|(current_phase, _)| current_phase == phase)
+        {
+            self.current_phase = None;
+        }
         self.sequence = self.sequence.saturating_add(1);
         let now = self.elapsed_nanos();
+        let sample = self.take_sample(self.sequence, Some(phase));
+        self.persist_flush(phase, state, started_nanos, completed_nanos, now, sample);
+    }
+
+    fn sample_current_phase(&mut self) {
+        let Some((phase, phase_start)) = self.current_phase else {
+            return;
+        };
+        let next_sequence = self.sequence.saturating_add(1);
+        let Some(sample) = self.take_sample(next_sequence, Some(phase)) else {
+            return;
+        };
+        self.sequence = next_sequence;
+        let now = self.elapsed_nanos();
+        self.persist_flush(
+            phase,
+            TelemetryPhaseState::Running,
+            Some(phase_start),
+            None,
+            now,
+            Some(sample),
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    fn take_sample(
+        &mut self,
+        sequence: u64,
+        phase: Option<TelemetryPhase>,
+    ) -> Option<crate::telemetry::TelemetrySampleBatch> {
+        let mut sample = self.sampler.as_mut()?.try_sample(sequence, phase)?;
+        // The cadence clock is independent, but persisted sample identity belongs to the run's
+        // monotonic/status envelope.
+        sample.host.monotonic_nanos = self.elapsed_nanos();
+        sample.host.observed_unix_millis = Utc::now().timestamp_millis();
+        self.counters.telemetry_samples_lost = self
+            .counters
+            .telemetry_samples_lost
+            .saturating_add(sample.samples_lost_since_previous);
+        let unavailable = u64::from(sample.host.unavailable_counter_count).saturating_add(
+            sample
+                .devices
+                .iter()
+                .map(|device| u64::from(device.unavailable_counter_count))
+                .sum(),
+        );
+        self.counters.unavailable_counters = self
+            .counters
+            .unavailable_counters
+            .saturating_add(unavailable);
+        Some(sample)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn take_sample(
+        &mut self,
+        _sequence: u64,
+        _phase: Option<TelemetryPhase>,
+    ) -> Option<crate::telemetry::TelemetrySampleBatch> {
+        None
+    }
+
+    fn persist_flush(
+        &mut self,
+        phase: TelemetryPhase,
+        state: TelemetryPhaseState,
+        started_nanos: Option<u64>,
+        completed_nanos: Option<u64>,
+        now: u64,
+        sample: Option<crate::telemetry::TelemetrySampleBatch>,
+    ) {
         let (Some(database), Some(run_id)) = (&mut self.database, self.status_run_id) else {
             return;
         };
+        let now = sample
+            .as_ref()
+            .map(|sample| sample.host.monotonic_nanos)
+            .unwrap_or(now);
+        let observed_unix_millis = sample
+            .as_ref()
+            .map(|sample| sample.host.observed_unix_millis)
+            .unwrap_or_else(|| Utc::now().timestamp_millis());
         let phase_start = started_nanos.unwrap_or(now);
         let phase_end = completed_nanos.unwrap_or(now);
+        #[cfg(target_os = "windows")]
+        let devices = sample
+            .as_ref()
+            .and(self.sampler.as_ref())
+            .map(|sampler| sampler.devices().to_vec())
+            .unwrap_or_default();
+        #[cfg(not(target_os = "windows"))]
+        let devices = Vec::new();
+        let (host_sample, device_samples) = sample
+            .map(|sample| (Some(sample.host), sample.devices))
+            .unwrap_or_default();
         let flush = TelemetryFlush {
             sequence: self.sequence,
-            observed_unix_millis: Utc::now().timestamp_millis(),
+            observed_unix_millis,
             monotonic_nanos: now,
             phase,
             phase_state: state,
@@ -160,9 +299,9 @@ impl RunTelemetry {
             phase_completed_monotonic_nanos: completed_nanos,
             phase_active_nanos: phase_end.saturating_sub(phase_start),
             counters: self.counters.clone(),
-            host_sample: None,
-            devices: Vec::new(),
-            device_samples: Vec::new(),
+            host_sample,
+            devices,
+            device_samples,
         };
         if let Err(error) = database.flush(run_id, &flush) {
             self.counters.telemetry_flush_errors =
@@ -203,6 +342,48 @@ impl RunTelemetry {
     }
 }
 
+struct TelemetryHeartbeat {
+    stop: mpsc::Sender<()>,
+    handle: Option<JoinHandle<()>>,
+}
+
+impl TelemetryHeartbeat {
+    fn start(telemetry: Arc<Mutex<RunTelemetry>>) -> Option<Self> {
+        #[cfg(target_os = "windows")]
+        let interval = telemetry
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .heartbeat_interval?;
+        #[cfg(not(target_os = "windows"))]
+        return None;
+
+        #[cfg(target_os = "windows")]
+        {
+            let (stop, receiver) = mpsc::channel();
+            let handle = std::thread::spawn(move || loop {
+                match receiver.recv_timeout(interval) {
+                    Ok(()) | Err(RecvTimeoutError::Disconnected) => break,
+                    Err(RecvTimeoutError::Timeout) => telemetry
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .sample_current_phase(),
+                }
+            });
+            Some(Self {
+                stop,
+                handle: Some(handle),
+            })
+        }
+    }
+
+    fn stop(mut self) {
+        let _ = self.stop.send(());
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
 impl ScanEngine {
     pub fn new(config: AppConfig) -> Self {
         Self {
@@ -210,6 +391,8 @@ impl ScanEngine {
             db_path: "super_duper.db".to_string(),
             status_db_path: None,
             status_worker_version: None,
+            status_sample_interval: Duration::from_secs(5),
+            status_maximum_samples: 100_000,
             session_id: None,
             cancel_token: Arc::new(AtomicBool::new(false)),
         }
@@ -228,6 +411,15 @@ impl ScanEngine {
 
     pub fn with_status_worker_version(mut self, version: &str) -> Self {
         self.status_worker_version = Some(version.to_string());
+        self
+    }
+
+    /// Override the default five-second sampler cadence. Zero values leave the bounded defaults.
+    pub fn with_status_sampling(mut self, interval: Duration, maximum_samples: u64) -> Self {
+        if !interval.is_zero() && maximum_samples > 0 {
+            self.status_sample_interval = interval;
+            self.status_maximum_samples = maximum_samples;
+        }
         self
     }
 
@@ -319,19 +511,29 @@ impl ScanEngine {
     ) -> Result<ScanResult, Error> {
         let roots = &parameters.roots;
 
-        let mut telemetry = RunTelemetry::begin(self, run_id, parameters);
-        telemetry.flush_phase(
-            TelemetryPhase::Discovering,
-            TelemetryPhaseState::Running,
-            Some(0),
-            None,
-        );
+        let telemetry = Arc::new(Mutex::new(RunTelemetry::begin(self, run_id, parameters)));
+        telemetry
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .flush_phase(
+                TelemetryPhase::Discovering,
+                TelemetryPhaseState::Running,
+                Some(0),
+                None,
+            );
+        let heartbeat = TelemetryHeartbeat::start(telemetry.clone());
 
         info!(
             "Processing run {} for session {}: {:?}",
             run_id, session_id, roots
         );
-        let result = self.execute_run(db, session_id, run_id, parameters, progress, &mut telemetry);
+        let result = self.execute_run(db, session_id, run_id, parameters, progress, &telemetry);
+        if let Some(heartbeat) = heartbeat {
+            heartbeat.stop();
+        }
+        let mut telemetry = telemetry
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         match result {
             Ok(result) => {
                 telemetry.finish(TelemetryRunState::Completed, None, None);
@@ -379,7 +581,7 @@ impl ScanEngine {
         run_id: i64,
         parameters: &RunParameters,
         progress: &dyn ProgressReporter,
-        telemetry: &mut RunTelemetry,
+        telemetry: &Arc<Mutex<RunTelemetry>>,
     ) -> Result<ScanResult, Error> {
         let roots = &parameters.roots;
         let ignore_patterns = &parameters.ignore_patterns;
@@ -455,36 +657,41 @@ impl ScanEngine {
         let stats = compute_scan_stats(&traversal.size_to_files);
         debug_assert!(stats.total_files <= traversal.files_discovered);
         debug_assert!(stats.total_size <= traversal.bytes_discovered);
-        telemetry.counters.discovered_files = traversal
-            .files_discovered
-            .saturating_add(traversal.zero_byte_files)
-            as u64;
-        telemetry.counters.discovered_bytes = traversal.bytes_discovered;
-        telemetry.counters.zero_byte_files = traversal.zero_byte_files as u64;
-        telemetry.counters.hard_link_alias_files =
-            traversal.files_discovered.saturating_sub(stats.total_files) as u64;
-        telemetry.counters.hard_link_alias_bytes =
-            traversal.bytes_discovered.saturating_sub(stats.total_size);
-        telemetry.counters.size_buckets = stats.distinct_sizes;
-        telemetry.counters.singleton_size_buckets = stats.singleton_sizes;
-        telemetry.counters.singleton_size_files = stats.singleton_files as u64;
-        telemetry.counters.singleton_size_bytes = stats.singleton_bytes;
-        // Baseline behavior admits every non-empty first-physical file to partial hashing,
-        // including singleton buckets. SOP5 will make metadata_resolved_* non-zero.
-        telemetry.counters.candidate_size_buckets = stats.distinct_sizes;
-        telemetry.counters.candidate_files = stats.total_files as u64;
-        telemetry.counters.candidate_bytes = stats.total_size;
-        telemetry.counters.duplicate_candidate_size_buckets = stats.duplicate_candidate_sizes;
-        telemetry.counters.duplicate_candidate_files = stats.duplicate_candidate_files as u64;
-        telemetry.counters.duplicate_candidate_bytes = stats.duplicate_candidate_bytes;
-        telemetry.counters.warnings = traversal.warning_count as u64;
-        let discovery_done = telemetry.elapsed_nanos();
-        telemetry.flush_phase(
-            TelemetryPhase::Discovering,
-            TelemetryPhaseState::Completed,
-            Some(0),
-            Some(discovery_done),
-        );
+        {
+            let mut telemetry = telemetry
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            telemetry.counters.discovered_files = traversal
+                .files_discovered
+                .saturating_add(traversal.zero_byte_files)
+                as u64;
+            telemetry.counters.discovered_bytes = traversal.bytes_discovered;
+            telemetry.counters.zero_byte_files = traversal.zero_byte_files as u64;
+            telemetry.counters.hard_link_alias_files =
+                traversal.files_discovered.saturating_sub(stats.total_files) as u64;
+            telemetry.counters.hard_link_alias_bytes =
+                traversal.bytes_discovered.saturating_sub(stats.total_size);
+            telemetry.counters.size_buckets = stats.distinct_sizes;
+            telemetry.counters.singleton_size_buckets = stats.singleton_sizes;
+            telemetry.counters.singleton_size_files = stats.singleton_files as u64;
+            telemetry.counters.singleton_size_bytes = stats.singleton_bytes;
+            // Baseline behavior admits every non-empty first-physical file to partial hashing,
+            // including singleton buckets. SOP5 will make metadata_resolved_* non-zero.
+            telemetry.counters.candidate_size_buckets = stats.distinct_sizes;
+            telemetry.counters.candidate_files = stats.total_files as u64;
+            telemetry.counters.candidate_bytes = stats.total_size;
+            telemetry.counters.duplicate_candidate_size_buckets = stats.duplicate_candidate_sizes;
+            telemetry.counters.duplicate_candidate_files = stats.duplicate_candidate_files as u64;
+            telemetry.counters.duplicate_candidate_bytes = stats.duplicate_candidate_bytes;
+            telemetry.counters.warnings = traversal.warning_count as u64;
+            let discovery_done = telemetry.elapsed_nanos();
+            telemetry.flush_phase(
+                TelemetryPhase::Discovering,
+                TelemetryPhaseState::Completed,
+                Some(0),
+                Some(discovery_done),
+            );
+        }
         progress.on_scan_complete(traversal.files_discovered, scan_duration.as_secs_f64());
         db.update_run_progress(
             run_id,
@@ -499,13 +706,19 @@ impl ScanEngine {
         }
 
         progress.on_hash_start();
-        let hashing_telemetry_start = telemetry.elapsed_nanos();
-        telemetry.flush_phase(
-            TelemetryPhase::CandidateScreening,
-            TelemetryPhaseState::Running,
-            Some(hashing_telemetry_start),
-            None,
-        );
+        let hashing_telemetry_start = {
+            let mut telemetry = telemetry
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let started = telemetry.elapsed_nanos();
+            telemetry.flush_phase(
+                TelemetryPhase::CandidateScreening,
+                TelemetryPhaseState::Running,
+                Some(started),
+                None,
+            );
+            started
+        };
         let hash_start = Instant::now();
         let hash_outcome = match hasher::build_content_hash_map_with_stats(
             traversal.size_to_files,
@@ -518,32 +731,40 @@ impl ScanEngine {
         };
         let hash_duration = hash_start.elapsed();
         let warning_count = traversal.warning_count + hash_outcome.warning_count;
-        telemetry.counters.partial_hashes_attempted = hash_outcome.partial_hashes_attempted;
-        telemetry.counters.partial_hashes_succeeded = hash_outcome.partial_hashes_succeeded;
-        telemetry.counters.partial_hashes_failed = hash_outcome.partial_hashes_failed;
-        telemetry.counters.partial_hash_bytes_read = hash_outcome.partial_hash_bytes_read;
-        telemetry.counters.partial_collision_buckets = hash_outcome.partial_collision_buckets;
-        telemetry.counters.partial_collision_files = hash_outcome.partial_collision_files;
-        telemetry.counters.partial_collision_bytes = hash_outcome.partial_collision_bytes;
-        telemetry.counters.full_hash_requests = hash_outcome.full_hash_requests;
-        telemetry.counters.full_hash_cache_hits = hash_outcome.full_hash_cache_hits;
-        telemetry.counters.full_hash_cache_misses = hash_outcome.full_hash_cache_misses;
-        telemetry.counters.full_hash_cache_errors = hash_outcome.full_hash_cache_errors;
-        telemetry.counters.full_hash_cache_stores = hash_outcome.full_hash_cache_stores;
-        telemetry.counters.full_hash_content_reads_started =
-            hash_outcome.full_hash_content_reads_started;
-        telemetry.counters.full_hash_content_reads_completed =
-            hash_outcome.full_hash_content_reads_completed;
-        telemetry.counters.full_hash_bytes_read = hash_outcome.full_hash_bytes_read;
-        telemetry.counters.unavailable_counters = hash_outcome.unavailable_counters;
-        telemetry.counters.warnings = warning_count as u64;
-        let hashing_telemetry_done = telemetry.elapsed_nanos();
-        telemetry.flush_phase(
-            TelemetryPhase::CandidateScreening,
-            TelemetryPhaseState::Completed,
-            Some(hashing_telemetry_start),
-            Some(hashing_telemetry_done),
-        );
+        {
+            let mut telemetry = telemetry
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            telemetry.counters.partial_hashes_attempted = hash_outcome.partial_hashes_attempted;
+            telemetry.counters.partial_hashes_succeeded = hash_outcome.partial_hashes_succeeded;
+            telemetry.counters.partial_hashes_failed = hash_outcome.partial_hashes_failed;
+            telemetry.counters.partial_hash_bytes_read = hash_outcome.partial_hash_bytes_read;
+            telemetry.counters.partial_collision_buckets = hash_outcome.partial_collision_buckets;
+            telemetry.counters.partial_collision_files = hash_outcome.partial_collision_files;
+            telemetry.counters.partial_collision_bytes = hash_outcome.partial_collision_bytes;
+            telemetry.counters.full_hash_requests = hash_outcome.full_hash_requests;
+            telemetry.counters.full_hash_cache_hits = hash_outcome.full_hash_cache_hits;
+            telemetry.counters.full_hash_cache_misses = hash_outcome.full_hash_cache_misses;
+            telemetry.counters.full_hash_cache_errors = hash_outcome.full_hash_cache_errors;
+            telemetry.counters.full_hash_cache_stores = hash_outcome.full_hash_cache_stores;
+            telemetry.counters.full_hash_content_reads_started =
+                hash_outcome.full_hash_content_reads_started;
+            telemetry.counters.full_hash_content_reads_completed =
+                hash_outcome.full_hash_content_reads_completed;
+            telemetry.counters.full_hash_bytes_read = hash_outcome.full_hash_bytes_read;
+            telemetry.counters.unavailable_counters = telemetry
+                .counters
+                .unavailable_counters
+                .saturating_add(hash_outcome.unavailable_counters);
+            telemetry.counters.warnings = warning_count as u64;
+            let hashing_telemetry_done = telemetry.elapsed_nanos();
+            telemetry.flush_phase(
+                TelemetryPhase::CandidateScreening,
+                TelemetryPhaseState::Completed,
+                Some(hashing_telemetry_start),
+                Some(hashing_telemetry_done),
+            );
+        }
         if let Some(warning) = warning_aggregate(
             "hashing",
             "hash_recoverable_warning",
@@ -572,13 +793,19 @@ impl ScanEngine {
         }
 
         progress.on_db_write_start();
-        let persistence_telemetry_start = telemetry.elapsed_nanos();
-        telemetry.flush_phase(
-            TelemetryPhase::Persisting,
-            TelemetryPhaseState::Running,
-            Some(persistence_telemetry_start),
-            None,
-        );
+        let persistence_telemetry_start = {
+            let mut telemetry = telemetry
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let started = telemetry.elapsed_nanos();
+            telemetry.flush_phase(
+                TelemetryPhase::Persisting,
+                TelemetryPhaseState::Running,
+                Some(started),
+                None,
+            );
+            started
+        };
         let db_start = Instant::now();
         let persisted = persist_run_results(
             db,
@@ -590,18 +817,23 @@ impl ScanEngine {
         )?;
         let db_duration = db_start.elapsed();
         let mut warning_count = warning_count + persisted.warnings;
-        telemetry.counters.confirmed_duplicate_groups = persisted.groups as u64;
-        telemetry.counters.confirmed_logical_copies = persisted.duplicate_files as u64;
-        telemetry.counters.confirmed_physical_items = persisted.duplicate_files as u64;
-        telemetry.counters.recoverable_bytes = persisted.wasted_bytes;
-        telemetry.counters.warnings = warning_count as u64;
-        let persistence_telemetry_done = telemetry.elapsed_nanos();
-        telemetry.flush_phase(
-            TelemetryPhase::Persisting,
-            TelemetryPhaseState::Completed,
-            Some(persistence_telemetry_start),
-            Some(persistence_telemetry_done),
-        );
+        {
+            let mut telemetry = telemetry
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            telemetry.counters.confirmed_duplicate_groups = persisted.groups as u64;
+            telemetry.counters.confirmed_logical_copies = persisted.duplicate_files as u64;
+            telemetry.counters.confirmed_physical_items = persisted.duplicate_files as u64;
+            telemetry.counters.recoverable_bytes = persisted.wasted_bytes;
+            telemetry.counters.warnings = warning_count as u64;
+            let persistence_telemetry_done = telemetry.elapsed_nanos();
+            telemetry.flush_phase(
+                TelemetryPhase::Persisting,
+                TelemetryPhaseState::Completed,
+                Some(persistence_telemetry_start),
+                Some(persistence_telemetry_done),
+            );
+        }
         if let Some(warning) = warning_aggregate(
             "persisting",
             "snapshot_changed_after_discovery",
@@ -627,13 +859,19 @@ impl ScanEngine {
         }
 
         progress.on_dir_analysis_start();
-        let analysis_telemetry_start = telemetry.elapsed_nanos();
-        telemetry.flush_phase(
-            TelemetryPhase::AnalyzingFolders,
-            TelemetryPhaseState::Running,
-            Some(analysis_telemetry_start),
-            None,
-        );
+        let analysis_telemetry_start = {
+            let mut telemetry = telemetry
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let started = telemetry.elapsed_nanos();
+            telemetry.flush_phase(
+                TelemetryPhase::AnalyzingFolders,
+                TelemetryPhaseState::Running,
+                Some(started),
+                None,
+            );
+            started
+        };
         let dir_start = Instant::now();
         let dir_fingerprints = dir_fingerprint::build_directory_fingerprints_cancellable(
             db,
@@ -648,7 +886,11 @@ impl ScanEngine {
             progress,
         )?;
         warning_count += exact_folder_analysis.warning_count;
-        telemetry.counters.warnings = warning_count as u64;
+        telemetry
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .counters
+            .warnings = warning_count as u64;
         if let Some(warning) = warning_aggregate(
             "analyzing_folders",
             "exact_folder_verification_warning",
@@ -668,13 +910,18 @@ impl ScanEngine {
             progress,
         )?;
         let dir_duration = dir_start.elapsed();
-        let analysis_telemetry_done = telemetry.elapsed_nanos();
-        telemetry.flush_phase(
-            TelemetryPhase::AnalyzingFolders,
-            TelemetryPhaseState::Completed,
-            Some(analysis_telemetry_start),
-            Some(analysis_telemetry_done),
-        );
+        {
+            let mut telemetry = telemetry
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let done = telemetry.elapsed_nanos();
+            telemetry.flush_phase(
+                TelemetryPhase::AnalyzingFolders,
+                TelemetryPhaseState::Completed,
+                Some(analysis_telemetry_start),
+                Some(done),
+            );
+        }
         progress.on_dir_analysis_complete(
             dir_fingerprints,
             dir_similarity_pairs,
@@ -689,13 +936,19 @@ impl ScanEngine {
             warning_count as i64,
         )?;
         progress.on_finalizing();
-        let finalizing_telemetry_start = telemetry.elapsed_nanos();
-        telemetry.flush_phase(
-            TelemetryPhase::Finalizing,
-            TelemetryPhaseState::Running,
-            Some(finalizing_telemetry_start),
-            None,
-        );
+        let finalizing_telemetry_start = {
+            let mut telemetry = telemetry
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let started = telemetry.elapsed_nanos();
+            telemetry.flush_phase(
+                TelemetryPhase::Finalizing,
+                TelemetryPhaseState::Running,
+                Some(started),
+                None,
+            );
+            started
+        };
         let finalizing_start = Instant::now();
         if self.cancel_token.load(Ordering::Relaxed) {
             return Err(Error::Cancelled);
@@ -712,13 +965,18 @@ impl ScanEngine {
             warning_count as i64,
         )?;
         let finalizing_duration = finalizing_start.elapsed();
-        let finalizing_telemetry_done = telemetry.elapsed_nanos();
-        telemetry.flush_phase(
-            TelemetryPhase::Finalizing,
-            TelemetryPhaseState::Completed,
-            Some(finalizing_telemetry_start),
-            Some(finalizing_telemetry_done),
-        );
+        {
+            let mut telemetry = telemetry
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let done = telemetry.elapsed_nanos();
+            telemetry.flush_phase(
+                TelemetryPhase::Finalizing,
+                TelemetryPhaseState::Completed,
+                Some(finalizing_telemetry_start),
+                Some(done),
+            );
+        }
         progress.on_finalizing_complete(finalizing_duration.as_secs_f64());
 
         Ok(ScanResult {

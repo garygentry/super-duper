@@ -243,6 +243,201 @@ fn test_scan_cancellation() {
     assert_eq!(state, "cancelled");
 }
 
+#[cfg(target_os = "windows")]
+#[test]
+fn telemetry_heartbeat_samples_during_a_phase_without_progress_callbacks() {
+    struct PauseAtDiscoveryStart {
+        status_path: PathBuf,
+        observed_samples: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    }
+    impl ProgressReporter for PauseAtDiscoveryStart {
+        fn on_scan_start(&self) {
+            std::thread::sleep(std::time::Duration::from_millis(120));
+            let connection = rusqlite::Connection::open(&self.status_path).unwrap();
+            let count: i64 = connection
+                .query_row("SELECT COUNT(*) FROM status_host_sample", [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            self.observed_samples
+                .store(count as usize, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    let tmp = tempdir().unwrap();
+    let root = tmp.path().join("heartbeat");
+    create_test_tree(&root);
+    let product_path = tmp.path().join("heartbeat-product.db");
+    let status_path = tmp.path().join("heartbeat-status.db");
+    let observed_samples = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let result = ScanEngine::new(AppConfig {
+        root_paths: vec![root.to_string_lossy().into_owned()],
+        ignore_patterns: Vec::new(),
+    })
+    .with_db_path(product_path.to_str().unwrap())
+    .with_status_db_path(status_path.to_str().unwrap())
+    .with_status_sampling(std::time::Duration::from_millis(10), 100)
+    .scan(&PauseAtDiscoveryStart {
+        status_path: status_path.clone(),
+        observed_samples: observed_samples.clone(),
+    })
+    .unwrap();
+
+    let status = StatusDatabase::open_connection(status_path.to_str().unwrap()).unwrap();
+    let (status_run_id, last_sequence): (i64, i64) = status
+        .connection()
+        .query_row(
+            "SELECT id, last_sequence FROM status_run WHERE product_run_id = ?1",
+            [result.run_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    let host_samples: i64 = status
+        .connection()
+        .query_row(
+            "SELECT COUNT(*) FROM status_host_sample WHERE run_id = ?1",
+            [status_run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let device_samples: i64 = status
+        .connection()
+        .query_row(
+            "SELECT COUNT(*) FROM status_device_sample WHERE run_id = ?1",
+            [status_run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let (descriptors, unavailable): (i64, i64) = status
+        .connection()
+        .query_row(
+            "SELECT
+                (SELECT COUNT(*) FROM status_device WHERE run_id = ?1),
+                (SELECT value FROM status_counter
+                 WHERE run_id = ?1 AND phase = 'overall' AND metric = 'unavailable_counters')",
+            [status_run_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert!(
+        last_sequence >= 14,
+        "last: {last_sequence}, host: {host_samples}, device: {device_samples}, descriptors: {descriptors}, unavailable: {unavailable}"
+    );
+    assert!(
+        observed_samples.load(std::sync::atomic::Ordering::Relaxed) >= 4,
+        "samples observed during phase: {}",
+        observed_samples.load(std::sync::atomic::Ordering::Relaxed)
+    );
+    assert!(
+        host_samples >= 4,
+        "last: {last_sequence}, host: {host_samples}, device: {device_samples}, descriptors: {descriptors}, unavailable: {unavailable}"
+    );
+    assert_eq!(device_samples, host_samples);
+}
+
+#[cfg(target_os = "windows")]
+#[test]
+#[ignore = "SOP1 operator overhead profile; run optimized with --ignored --nocapture"]
+fn telemetry_observer_overhead_profile() {
+    fn process_cpu_nanos() -> u64 {
+        use winapi::shared::minwindef::FILETIME;
+        use winapi::um::processthreadsapi::{GetCurrentProcess, GetProcessTimes};
+        let mut creation: FILETIME = unsafe { std::mem::zeroed() };
+        let mut exit: FILETIME = unsafe { std::mem::zeroed() };
+        let mut kernel: FILETIME = unsafe { std::mem::zeroed() };
+        let mut user: FILETIME = unsafe { std::mem::zeroed() };
+        let result = unsafe {
+            GetProcessTimes(
+                GetCurrentProcess(),
+                &mut creation,
+                &mut exit,
+                &mut kernel,
+                &mut user,
+            )
+        };
+        assert_ne!(result, 0);
+        let value =
+            |time: FILETIME| (u64::from(time.dwHighDateTime) << 32) | u64::from(time.dwLowDateTime);
+        value(kernel)
+            .saturating_add(value(user))
+            .saturating_mul(100)
+    }
+
+    fn median(values: &mut [u64]) -> u64 {
+        values.sort_unstable();
+        values[values.len() / 2]
+    }
+
+    fn overhead_basis_points(instrumented: u64, baseline: u64) -> i64 {
+        if baseline == 0 {
+            return 0;
+        }
+        ((instrumented as i128 - baseline as i128) * 10_000 / baseline as i128) as i64
+    }
+
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("overhead-fixture");
+    fs::create_dir(&root).unwrap();
+    let content = (0..12_001)
+        .map(|index| (index % 251) as u8)
+        .collect::<Vec<_>>();
+    for index in 1..=12_000 {
+        fs::write(root.join(format!("item-{index:05}.bin")), &content[..index]).unwrap();
+    }
+    let config = AppConfig {
+        root_paths: vec![root.to_string_lossy().into_owned()],
+        ignore_patterns: Vec::new(),
+    };
+    ScanEngine::new(config.clone())
+        .with_db_path(temp.path().join("warmup.db").to_str().unwrap())
+        .scan(&SilentReporter)
+        .unwrap();
+
+    let mut baseline_wall = Vec::new();
+    let mut baseline_cpu = Vec::new();
+    let mut instrumented_wall = Vec::new();
+    let mut instrumented_cpu = Vec::new();
+    for index in 0..6 {
+        let instrumented = index % 2 == 1;
+        let product = temp.path().join(format!("profile-{index}.db"));
+        let status = temp.path().join(format!("profile-{index}-status.db"));
+        let mut engine = ScanEngine::new(config.clone()).with_db_path(product.to_str().unwrap());
+        if instrumented {
+            engine = engine.with_status_db_path(status.to_str().unwrap());
+        }
+        let cpu_start = process_cpu_nanos();
+        let wall_start = std::time::Instant::now();
+        let result = engine.scan(&SilentReporter).unwrap();
+        let wall = wall_start.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
+        let cpu = process_cpu_nanos().saturating_sub(cpu_start);
+        assert_eq!(result.total_files_scanned, 12_000);
+        if instrumented {
+            instrumented_wall.push(wall);
+            instrumented_cpu.push(cpu);
+        } else {
+            baseline_wall.push(wall);
+            baseline_cpu.push(cpu);
+        }
+    }
+    let baseline_wall = median(&mut baseline_wall);
+    let baseline_cpu = median(&mut baseline_cpu);
+    let instrumented_wall = median(&mut instrumented_wall);
+    let instrumented_cpu = median(&mut instrumented_cpu);
+    let wall_overhead = overhead_basis_points(instrumented_wall, baseline_wall);
+    let cpu_overhead = overhead_basis_points(instrumented_cpu, baseline_cpu);
+    println!(
+        "{{\"fixtureFiles\":12000,\"runsPerMode\":3,\"baselineWallNanos\":{baseline_wall},\"instrumentedWallNanos\":{instrumented_wall},\"wallOverheadBasisPoints\":{wall_overhead},\"baselineCpuNanos\":{baseline_cpu},\"instrumentedCpuNanos\":{instrumented_cpu},\"cpuOverheadBasisPoints\":{cpu_overhead}}}"
+    );
+    assert!(
+        wall_overhead <= 100,
+        "wall overhead exceeded 1%: {wall_overhead} bp"
+    );
+    assert!(
+        cpu_overhead <= 100,
+        "CPU overhead exceeded 1%: {cpu_overhead} bp"
+    );
+}
+
 #[test]
 fn test_pipeline_failure_is_persisted_as_failed() {
     let tmp = tempdir().unwrap();

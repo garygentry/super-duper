@@ -323,6 +323,18 @@ fn status_store_persists_atomic_counters_devices_and_explicit_unavailable_gauges
     );
     let finished = database.get_run(run.id).unwrap();
     assert_eq!(finished.state, TelemetryRunState::Completed);
+    database
+        .apply_retention(StatusRetentionPolicy::default())
+        .unwrap();
+    let retained_samples: i64 = database
+        .connection()
+        .query_row(
+            "SELECT COUNT(*) FROM status_host_sample WHERE run_id = ?1",
+            [run.id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(retained_samples, 1);
 }
 
 #[test]

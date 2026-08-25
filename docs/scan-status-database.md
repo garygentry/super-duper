@@ -43,10 +43,12 @@ not attached to the status connection and is covered by isolation tests.
 
 ## Platform sampler
 
-The platform-neutral sampler owns cadence and cardinality only; it does no background work and owns
-no database connection. The telemetry writer supplies the status sequence and current phase. A fake
-clock/platform contract proves interval suppression, maximum sample count, delayed-interval loss,
-and explicit unavailable gauges before lifecycle integration.
+The platform-neutral sampler owns cadence and cardinality only; it owns no database connection. The
+engine integrates it through one mutex-serialized status writer and a five-second heartbeat. Phase
+transitions and heartbeat samples therefore share one monotonic sequence and cannot race SQLite.
+The heartbeat continues while a scan phase emits no progress callback, and is joined before terminal
+state is written. A fake clock/platform contract proves interval suppression, maximum sample count,
+delayed-interval loss, and explicit unavailable gauges.
 
 On Windows, read-only native probes map target volume roots to physical disk numbers, record volume
 GUID/filesystem/capacity/free space, and omit hardware serial numbers. Host samples use process

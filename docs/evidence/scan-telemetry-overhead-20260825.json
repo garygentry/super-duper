@@ -1,0 +1,32 @@
+{
+  "gate": "SOP1f-foundation-acceptance",
+  "date": "2026-08-25",
+  "machine": "designated Windows 11 x64 development machine",
+  "configuration": "Release",
+  "fixture": {
+    "files": 12000,
+    "shape": "one directory; unique sizes 1 through 12000 bytes; current singleton partial-read baseline",
+    "warmupRuns": 1,
+    "measuredRunsPerMode": 3,
+    "order": "baseline, instrumented, baseline, instrumented, baseline, instrumented"
+  },
+  "median": {
+    "baselineWallNanos": 1253501500,
+    "instrumentedWallNanos": 1312182400,
+    "wallOverheadBasisPoints": 468,
+    "baselineCpuNanos": 1578125000,
+    "instrumentedCpuNanos": 1609375000,
+    "cpuOverheadBasisPoints": 198
+  },
+  "absoluteDifference": {
+    "wallNanos": 58680900,
+    "cpuNanos": 31250000
+  },
+  "publishedThresholdBasisPoints": 100,
+  "disposition": "failed_threshold_retained_no_retry",
+  "notes": [
+    "The functional sampler/heartbeat and storage suites pass.",
+    "This short fixture exposes fixed startup, native-probe, and ten phase-write costs but does not measure five-second steady-state sampling over a multi-hour scan.",
+    "SOP1 remains in progress. Do not rerun the unchanged fixture merely to seek a pass; either reduce measured overhead or explicitly review a representative-duration/absolute-cost acceptance budget."
+  ]
+}
