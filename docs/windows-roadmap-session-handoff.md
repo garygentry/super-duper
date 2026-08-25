@@ -1,4 +1,4 @@
-# Windows Roadmap Session Handoff
+# Roadmap Session Handoff
 
 Use this document as the kickoff context for each new coding session. At the end of every completed
 slice, update the checkpoint, verification totals, immediate next step, and decision log here before
@@ -8,18 +8,24 @@ linked plans remain authoritative.
 
 ## Session objective
 
-Continue the Windows post-MVP roadmap from the current worktree by advancing one named closure-ledger
-gate or one explicitly named coherent gate group. Verify in proportion to risk, update the closure
-ledger, authoritative documentation, and this handoff, and commit the bounded slice as one focused
-commit before ending the session. Do not leave completed session work uncommitted. Do not replace a
-blocked or exhausted gate with progressively narrower speculative work merely to keep a session
-active.
+Advance one named gate or one explicitly named coherent gate group from the currently scheduled
+roadmap stream. The large-drive scan optimization and observability stream is active. The Windows
+post-MVP closure ledger is parked as a release-validation checklist and must resume before final
+feature-complete. Verify in proportion to risk, update the selected stream's authority and this
+handoff, and commit the bounded slice as one focused commit before ending the session. Do not leave
+completed session work uncommitted or substitute work from the parked stream.
 
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: record the operator-directed Narrator skip (this session's commit)
+- Latest completed slice: establish the large-drive scan optimization/observability plan and
+  dual-stream roadmap control (documentation only; this session's commit)
 - Worktree after that commit: clean
+- Active stream: large-drive scan optimization and observability
+- Active plan: `docs/scan-optimization-plan.md`
+- Next gate: `SOP1-telemetry-foundation`
+- Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
+  feature-complete
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 required fail-closed cloud safety: accepted; both unavailable opt-in policies are
   reviewed deferred follow-ons
@@ -40,7 +46,20 @@ active.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The current documentation-only slice records the operator instruction “Mark Narrator as skipped by
+The current documentation-only slice records a second durable roadmap stream for large-drive scan
+optimization and observability. A read-only source and live-run audit confirms that exact-size
+grouping exists but singleton buckets still receive a 1 KiB partial read, the existing
+`files_hashed` counter counts partial-hash success rather than full-content hashing, and nested
+parallel reads can create a seek-heavy rotational-disk workload. The new plan orders durable
+metrics/status storage, progress, warnings, and the Performance tab before singleton, scheduling,
+read-path, cache, and representative large-drive acceptance gates. No product code or active-run
+state changed.
+
+The Windows post-MVP closure ledger is now parked, not cancelled or deferred. Its current states,
+evidence, completion contract, and production locks remain unchanged. When it resumes before final
+feature-complete, its next gate is still `WPM8-high-contrast`.
+
+The preceding documentation-only slice records the operator instruction “Mark Narrator as skipped by
 operator and proceed from there.” The retained bundle
 `artifacts/windows-narrator-nvda/20260824-171812-501` now records Narrator as
 `skipped_by_operator` and NVDA as `not_run`. This does not accept the combined gate or waive the
@@ -85,12 +104,16 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance only `WPM8-high-contrast`, and only when a physical operator has an interactive Windows 11
-x64 desktop, authorizes changing the Windows theme, and can inspect the complete read-only workflow.
-At default and 900-by-600-DIP minimum size, traverse Setup, Duplicate files, and Duplicate folders;
-exercise every required action and retain readable-control, focus, error, color-only, clipping, and
-reachability observations. Retain the first pass or failure and stop. Preserve the blocked Narrator/
-NVDA record; do not begin multi-monitor DPI, provider, mutation, outcome, performance, or later work.
+Advance only `SOP1-telemetry-foundation` from `docs/scan-optimization-plan.md`: refine and implement
+the versioned cumulative metrics contract, separate worker-owned local status database, bounded
+sampling/retention, and fixed summary/time-series queries. Prove accounting, recovery, bounds,
+unavailable-counter behavior, and observer overhead before changing scan scheduling or read
+behavior. Do not interrupt or mutate an operator's active scan. Do not implement the singleton skip,
+device scheduler, read-path tuning, Performance tab, or warning UI until their listed dependencies
+are satisfied.
+
+The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
+campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
 
 ## Required startup audit
 
@@ -103,9 +126,11 @@ Before editing:
    - `docs/windows-post-mvp-ux-plan.md`
    - `docs/windows-recycle-bin-acceptance.md`
    - `docs/windows-roadmap-closure-ledger.md`
+   - `docs/scan-optimization-plan.md`
 3. Confirm that the checkpoint above still matches `HEAD` and the worktree.
-4. Identify the exact authorized gate ID from the closure ledger and confirm its dependencies are
-   satisfied. During the bootstrap only, inventory gates instead of selecting implementation.
+4. Confirm which roadmap stream is scheduled, identify its exact authorized gate ID, and confirm
+   dependencies. Do not select from the parked stream. During a bootstrap only, inventory gates
+   instead of selecting implementation.
 5. Inspect code and tests only for the authorized gate, then state the evidence that permits edits,
    the verifier that closes it, and which gates remain outside the slice.
 
@@ -143,12 +168,17 @@ before committing the next slice.
 - Keep WPF views in the executable, application contracts/view models in Core, and process/native
   concerns in Infrastructure.
 - Do not alter unrelated formatting or unrelated user changes.
+- Keep performance/status persistence worker-owned and separate from immutable product-result,
+  review, preflight, and operation truth.
+- Never interrupt or mutate an active operator scan for diagnostics unless the operator explicitly
+  authorizes that action.
 
 ## Open evidence and decision gates
 
 These remain open unless a later committed slice cites qualifying evidence or an explicit reviewed
 decision:
 
+- `SOP1` through `SOP9` in `docs/scan-optimization-plan.md`
 - Physical Narrator and NVDA acceptance
 - Windows high-contrast acceptance
 - Physical 100/150/200% multi-monitor DPI acceptance
@@ -165,6 +195,13 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+The current slice is documentation-only. Source inspection confirms exact-size grouping at
+`scanner/walk.rs` and the unconditional singleton partial-hash pass plus ambiguous bucket-level
+progress in `hasher/xxhash.rs`. The active D: run was observed read-only; no process, product/runtime
+database, cache, file, configuration, drive, or active-run state was changed. Verification is
+limited to documentation links, gate consistency, production-lock preservation, Markdown/diff
+hygiene, and a clean committed worktree.
 
 The operator-directed follow-up changes only the retained WPM8 screen-reader disposition and
 authoritative documentation: Narrator is `skipped_by_operator`, NVDA is `not_run`, the combined gate
@@ -240,13 +277,14 @@ and prerequisites genuinely call for them.
 For each session:
 
 1. Audit current state and preserve unrelated work.
-2. Select one ready named gate or coherent gate group from the closure ledger.
+2. Confirm the scheduled stream and select one ready named gate or coherent gate group from its
+   authoritative plan.
 3. Confirm its dependencies, evidence for edits, completion check, and explicit non-goals.
 4. Implement only that gate. If a prerequisite is missing or the gate is locally exhausted, update
-   the ledger and stop without manufacturing a code slice.
+   its authoritative plan and stop without manufacturing a code slice.
 5. Add regression coverage required by the named criterion; do not enumerate unrelated edge cases.
-6. Update the ledger and relevant authoritative plan/acceptance documentation without overstating
-   acceptance.
+6. Update the selected stream's gate state and relevant authoritative documentation without
+   overstating acceptance. Update the parked ledger only when its scheduling or its own gates change.
 7. Run proportional verification and `git diff --check`.
 8. Review the final diff against every boundary above.
 9. Commit one focused commit.
@@ -261,6 +299,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-25 | this session | Create the trackable large-drive scan optimization/observability stream, confirm singleton size buckets are still partially read, specify cumulative status metrics/progress/warning/Performance-tab gates, and park the preserved Windows release checklist. | Advance only `SOP1-telemetry-foundation`; resume release validation at `WPM8-high-contrast` before final feature-complete. |
 | 2026-08-22 | `ec8da88` | Announce only committed Recycle Bin result pages; cover backward repeatability and stale/cancelled silence. | Re-audit for the next locally implementable Milestone 11 read-only/recovery gap; do not cross an evidence or recovery-design gate. |
 | 2026-08-22 | `96a49af` | Preserve the committed Recycle Bin recovery page and cursor history across a failed forward fetch; allow exact retry. | Re-audit for another local read-only contract gap; stop at physical/provider/performance or recovery-resolution gates. |
 | 2026-08-22 | `a476af3` | Cover failed backward recovery paging after the bounded cache evicts an older page; preserve the committed page and exact retry. | Re-audit for another local read-only contract gap; stop at physical/provider/performance or recovery-resolution gates. |

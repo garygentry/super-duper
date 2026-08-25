@@ -14,6 +14,19 @@ MVP. The previous Windows app implementation was removed before the current WPF 
 - FFI exposes handles, progress callbacks, paginated queries, and deletion actions for future native
   clients
 
+## Active Roadmap Streams
+
+| Stream | Scheduling state | Authority | Next boundary |
+|---|---|---|---|
+| Large-drive scan optimization and observability | Active | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) | Implement `SOP1-telemetry-foundation`, then measure the queued singleton-size short-circuit before broader scheduler/read-path tuning. |
+| Windows post-MVP release validation | Parked by operator; gates and evidence preserved | [`docs/windows-roadmap-closure-ledger.md`](docs/windows-roadmap-closure-ledger.md) and [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md) | Before final feature-complete, resume exactly at `WPM8-high-contrast`, then follow the ledger dependency order. |
+
+The shared startup checkpoint is
+[`docs/windows-roadmap-session-handoff.md`](docs/windows-roadmap-session-handoff.md). Only one named
+gate or coherent gate group is active in a session. Parking the release-validation stream changes
+work scheduling, not its completion contract, evidence, safety boundaries, or production execution
+locks.
+
 ## Now - Safety And Correctness
 
 ### 1. Safer Deletion
@@ -115,7 +128,7 @@ commit `6f1c405` fixed them and closed the full code-complete gate. Post-MVP wor
 longer gated on release remediation.
 
 The detailed post-MVP duplicate-review, cloud-safety, deletion, live-reconciliation, and Activity
-roadmap is maintained in
+roadmap is retained as the parked release-validation checklist in
 [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md), with finite gate state in the
 [`Windows roadmap closure ledger`](docs/windows-roadmap-closure-ledger.md). The required Milestone 7
 surface is the accepted fail-closed `exclude_registered_roots` policy;

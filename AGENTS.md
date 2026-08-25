@@ -2,12 +2,21 @@
 
 Guidance for fresh coding-agent sessions in this repository.
 
-## Active Session Handoff
+## Active Roadmap Streams
 
 At the beginning of every coding session, read and follow
-`docs/windows-roadmap-session-handoff.md` before choosing or starting work. Treat it as the active
-cross-session checkpoint until the Windows roadmap described there is complete. Keep the handoff
-updated as required by that document; once the roadmap is complete, remove this startup instruction.
+`docs/windows-roadmap-session-handoff.md` before choosing or starting work. It schedules and
+coordinates both durable roadmap streams:
+
+- the active large-drive scan optimization and observability plan in
+  `docs/scan-optimization-plan.md`; and
+- the parked Windows post-MVP release-validation checklist in
+  `docs/windows-roadmap-closure-ledger.md`.
+
+Do not infer work from the parked checklist. Resume it at the gate named by the handoff before the
+product is declared feature complete. Keep the handoff and the selected stream's authoritative plan
+updated as required by that document; once both roadmap streams are complete, remove this startup
+instruction.
 
 ## Current State
 

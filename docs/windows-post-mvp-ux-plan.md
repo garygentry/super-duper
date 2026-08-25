@@ -2,7 +2,12 @@
 
 ## Status
 
-Active implementation roadmap for the Windows duplicate-review experience. Milestone 6
+Parked release-validation roadmap for the Windows duplicate-review experience as of 2026-08-25.
+Its gates, evidence, completion contract, and safety boundaries remain authoritative and unchanged;
+before final feature-complete it resumes at `WPM8-high-contrast`. The currently scheduled roadmap
+stream is the separate [`Large-Drive Scan Optimization and Observability Plan`](scan-optimization-plan.md).
+
+Milestone 6
 release-acceptance remediation and the required fail-closed Milestone 7 policy are complete; the
 two unavailable Milestone 7 opt-in policies are reviewed follow-ons. Milestone 8's read-only code
 criteria and representative query performance are accepted; physical Narrator/NVDA, high-contrast,
@@ -36,11 +41,11 @@ Use three durable sources of truth instead of relying on conversation history or
 1. This plan owns product intent, milestone boundaries, and acceptance criteria.
 2. `windows-roadmap-closure-ledger.md` maps every remaining criterion and reviewed decision to a
    finite gate, dependency, disposition, verifier, and next action.
-3. `windows-roadmap-session-handoff.md` records the current checkpoint and the one gate authorized
+3. `windows-roadmap-session-handoff.md` records both stream checkpoints and the one gate authorized
    for the next bounded session.
 
-The closure ledger is the work-selection authority after its first accepted population. Every gate
-must have a stable ID, milestone, criterion or decision source, disposition, current state,
+When this release-validation stream is scheduled, the closure ledger is its work-selection
+authority. Every gate must have a stable ID, milestone, criterion or decision source, disposition, current state,
 dependencies, evidence, owner or prerequisite, next action, and verifiable completion condition.
 Allowed dispositions are:
 
@@ -4121,9 +4126,10 @@ Initial targets should be measured and refined on representative Windows 11 hard
 - no full-result materialization for rule preview or plan summary;
 - no content read, thumbnail extraction, or validation of excluded cloud placeholders.
 
-## Recommended Next Roadmap Control Slice
+## Release-Validation Resume Point
 
-Advance only `WPM8-high-contrast`, contingent on an interactive Windows 11 x64 desktop where the
+When this parked stream resumes, advance only `WPM8-high-contrast`, contingent on an interactive
+Windows 11 x64 desktop where the
 operator authorizes changing the Windows theme and can inspect the complete read-only workflow.
 Preserve the `WPM8-narrator-nvda` bundle and its `skipped_by_operator`/`not_run` disposition without
 claiming acceptance. Run Setup, Duplicate files, and Duplicate folders at default and minimum size,

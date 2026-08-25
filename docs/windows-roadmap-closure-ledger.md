@@ -8,8 +8,15 @@ known to the authoritative plans. Acceptance of this ledger accepts the inventor
 model; it does not accept gates whose state is not `accepted`, authorize a physical/provider/
 performance campaign, or enable Recycle Bin execution.
 
+As of 2026-08-25 the operator has parked this ledger as the Windows release-validation stream while
+large-drive scan optimization and observability advance under
+[`scan-optimization-plan.md`](scan-optimization-plan.md). Parking changes only work selection: every
+gate, dependency, evidence record, completion requirement, and production safety lock below remains
+unchanged. Before final feature-complete, resume this ledger exactly at `WPM8-high-contrast` and
+continue in dependency order.
+
 The authoritative product criteria remain in
-[`windows-post-mvp-ux-plan.md`](windows-post-mvp-ux-plan.md). The active checkpoint and one-session
+[`windows-post-mvp-ux-plan.md`](windows-post-mvp-ux-plan.md). The dual-stream checkpoint and one-session
 authorization remain in
 [`windows-roadmap-session-handoff.md`](windows-roadmap-session-handoff.md). Historical iteration
 slices are cited only as evidence for a criterion or prerequisite; they are not separate gates.
