@@ -54,4 +54,7 @@ winapi = { version = "0.3", features = [
     "winbase",
     "processthreadsapi",
     "psapi",
+    "sysinfoapi",
+    "ioapiset",
+    "winioctl",
 ] }

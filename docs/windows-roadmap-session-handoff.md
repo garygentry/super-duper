@@ -18,13 +18,13 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: add bounded status summaries/sample cursors, fixed retention, passive WAL
-  checkpointing, and isolated terminal-history deletion (this session's commit)
+- Latest completed slice: add the deterministic sampler seam and read-only Windows host/volume/
+  physical-device probes with explicit unavailable gauges (this session's commit)
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP1-telemetry-foundation`
-- Next work package: `SOP1e-host-device-sampler`
+- Next work package: `SOP1f-foundation-acceptance`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -49,7 +49,16 @@ completed session work uncommitted or substitute work from the parked stream.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The current implementation slice accepts `SOP1d-bounded-queries-retention`. Status history now has
+The current implementation slice accepts `SOP1e-host-device-sampler`. A platform-neutral cadence
+controller accepts the writer's sequence/phase, caps sample count, suppresses early samples, and
+reports delayed intervals under a fake clock without owning a thread or database connection. The
+Windows implementation maps volume roots to physical disk numbers, captures filesystem/capacity/free
+space plus process/system CPU, memory, and I/O, and derives disk read throughput, IOPS, latency,
+active time, and queue depth from cumulative native counters. Hardware serials are not queried or
+persisted; blocked counters remain explicit unavailable values. The next package is
+`SOP1f-foundation-acceptance`.
+
+The preceding implementation slice accepts `SOP1d-bounded-queries-retention`. Status history now has
 strict descending run cursors (maximum 100), ascending host/device sample cursors (maximum 500),
 fixed counter/phase/device summaries, and an atomic 64-device ceiling. Default repeatable retention
 keeps 50 terminal runs and 100,000 samples per run, never deletes active runs, removes terminal replay
@@ -146,12 +155,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance `SOP1e-host-device-sampler`: add a platform-neutral sampling seam and Windows implementation
-for bounded process/system/volume/physical-device descriptors and gauges. Preserve explicit
-unavailable-counter health, omit hardware serials, use fake clock/platform contracts, and keep all
-sampling off WPF. Continue dependency-ready SOP1 packages while the resumable execution protocol's
-stop conditions remain false. Do not implement the singleton skip, device scheduler, read-path
-tuning, Performance tab, or warning UI until their listed dependencies are satisfied.
+Advance `SOP1f-foundation-acceptance`: integrate the accepted sampler with the single status writer
+at a bounded cadence, prove schema/recovery/retention and terminal behavior together, and retain a
+declared instrumented-versus-uninstrumented observer-overhead measurement. Run the full relevant
+matrix and accept `SOP1` only if its published threshold passes or a reviewed measured budget is
+recorded. Do not implement the singleton skip, device scheduler, read-path tuning, Performance tab,
+or warning UI until their listed dependencies are satisfied.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -237,6 +246,13 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+`SOP1e-host-device-sampler` passed 12/12 Core library tests, including deterministic fake cadence,
+missed-interval, maximum-cardinality contracts and a real read-only Windows volume probe on the
+designated machine. The Windows probe mapped the test volume to a `physical:*` key, returned
+capacity/free-space and process CPU/working-set gauges, and retained no model/serial value. Strict
+Core library Clippy passes with warnings denied after the three documented pre-existing allowances.
+No worker protocol, WPF, .NET, active scan, external process, provider, or performance campaign ran.
 
 `SOP1d-bounded-queries-retention` passed 12/12 telemetry tests and 12/12 end-to-end scan tests; the
 full Rust workspace test graph compiles. Coverage includes stable cursor order, page-limit rejection,
@@ -370,6 +386,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-25 | this session | Accept `SOP1e-host-device-sampler` with deterministic cadence/loss/cardinality contracts and read-only Windows process/system/volume/physical-disk probes that omit serials and preserve unavailable gauges. | Advance `SOP1f-foundation-acceptance`; integrate through the single writer and measure observer overhead before accepting `SOP1`. |
 | 2026-08-25 | this session | Accept `SOP1d-bounded-queries-retention` with fixed run/phase/counter/device summaries, bounded cursors, a 64-device ceiling, default 50-run/100,000-sample retention, passive WAL checkpoints, and isolated terminal-history deletion. | Advance `SOP1e-host-device-sampler`; protocol and WPF exposure remain out of scope until the storage/sampler foundation accepts. |
 | 2026-08-25 | this session | Accept `SOP1c-run-lifecycle` with metrics-contract v2, configurable worker status path, platform-neutral candidate/hash/cache counters, ten bounded phase flushes, and matching completed/cancelled/failed terminal state. | Advance `SOP1d-bounded-queries-retention`; status remains best-effort observability, separate from product truth, with no per-file rows. |
 | 2026-08-25 | this session | Accept `SOP1b-status-store` with schema-v2 replay ledger, atomic monotonic run/phase/counter/device/sample writes, exact replay/conflict handling, explicit unavailable gauges, transactional migration, and startup interruption reconciliation. | Advance `SOP1c-run-lifecycle`; status storage is not product truth and no per-file telemetry rows are allowed. |

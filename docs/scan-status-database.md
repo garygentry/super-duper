@@ -40,3 +40,17 @@ checkpoint is reported as health information rather than forcing readers out.
 
 `StatusDatabase::delete_terminal_history` removes terminal status rows only. The product database is
 not attached to the status connection and is covered by isolation tests.
+
+## Platform sampler
+
+The platform-neutral sampler owns cadence and cardinality only; it does no background work and owns
+no database connection. The telemetry writer supplies the status sequence and current phase. A fake
+clock/platform contract proves interval suppression, maximum sample count, delayed-interval loss,
+and explicit unavailable gauges before lifecycle integration.
+
+On Windows, read-only native probes map target volume roots to physical disk numbers, record volume
+GUID/filesystem/capacity/free space, and omit hardware serial numbers. Host samples use process
+times, memory, I/O counters, system times, and memory status. Physical-device samples derive read
+throughput, scaled IOPS, read latency, active time, and queue depth from cumulative disk-performance
+counters. Permission-blocked or unsupported device counters remain unavailable with a count; they
+do not become zero or fail the scan.
