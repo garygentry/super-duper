@@ -18,7 +18,7 @@ MVP. The previous Windows app implementation was removed before the current WPF 
 
 | Stream | Scheduling state | Authority | Next boundary |
 |---|---|---|---|
-| Large-drive scan optimization and observability | Active | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) | Implement `SOP2a-progress-contract-reducer`, the first of six finite progress-reporting packages; SOP1 remains accepted. |
+| Large-drive scan optimization and observability | Active | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) | Implement `SOP2b-incremental-pipeline-publication`; the versioned SOP2a reducer contract is accepted. |
 | Windows post-MVP release validation | Parked by operator; gates and evidence preserved | [`docs/windows-roadmap-closure-ledger.md`](docs/windows-roadmap-closure-ledger.md) and [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md) | Before final feature-complete, resume exactly at `WPM8-high-contrast`, then follow the ledger dependency order. |
 
 The shared startup checkpoint is
