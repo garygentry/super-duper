@@ -7,6 +7,7 @@ namespace SuperDuper.Windows.Core.ViewModels;
 
 public sealed class ScanProgressViewModel : ObservableObject, IDisposable
 {
+    private const ulong ProgressAnnouncementIntervalNanos = 5_000_000_000;
     private readonly IWorkerClient _workerClient;
     private readonly IUiDispatcher _dispatcher;
     private readonly Action<long>? _onCancelling;
@@ -16,6 +17,10 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
     private ulong _lastProgressRevision;
     private IReadOnlyList<ulong>? _lastCumulativeValues;
     private WorkerScanProgressSnapshot? _progressSnapshot;
+    private ulong? _lastAnnouncementMonotonicNanos;
+    private string? _lastAnnouncementStatus;
+    private string? _lastAnnouncementPhase;
+    private long _progressAnnouncementVersion;
     private string? _currentPath;
     private string? _message;
     private string? _errorMessage;
@@ -81,6 +86,12 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
 
     public bool CanCancel => Run?.Status == "running" && !_cancelRequestPending;
 
+    public string CancelButtonText => IsCancelling ? "Cancelling…" : "_Cancel scan";
+
+    public string CancelAutomationName => IsCancelling
+        ? "Scan cancellation requested"
+        : "Cancel scan; access key Alt+C";
+
     public bool IsIndeterminate => IsActive;
 
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage) || !string.IsNullOrWhiteSpace(Run?.ErrorMessage);
@@ -119,6 +130,17 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
     public IReadOnlyList<ScanProgressStage> Stages =>
         ScanProgressProjection.Stages(ProgressSnapshot?.Funnel);
 
+    public bool HasDetailedProgress => ProgressSnapshot is not null;
+
+    public string DetailedProgressUnavailableMessage => Run?.Status switch
+    {
+        "completed" => "Live detailed progress is unavailable for this completed scan.",
+        "cancelled" => "Live detailed progress is unavailable because the scan was cancelled.",
+        "failed" or "interrupted" =>
+            "Live detailed progress is unavailable because the scan ended before completion.",
+        _ => "Waiting for the first detailed progress snapshot.",
+    };
+
     public string ProgressPhaseElapsed => ScanProgressProjection.PhaseElapsed(ProgressSnapshot);
 
     public string PartialRecentRate =>
@@ -136,12 +158,45 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
     public string CacheEffectiveness =>
         ScanProgressProjection.Cache(ProgressSnapshot?.CacheHitRateBasisPoints);
 
-    public string ActiveDevices => ScanProgressProjection.Devices(ProgressSnapshot?.ActiveDevices);
+    public string ActiveDevices => Run?.Status switch
+    {
+        "cancelling" => "Unavailable — cancellation is in progress",
+        "completed" => "Unavailable — no active scan I/O",
+        "cancelled" => "Unavailable — scan was cancelled",
+        "failed" or "interrupted" => "Unavailable — scan ended before completion",
+        _ => ScanProgressProjection.Devices(ProgressSnapshot?.ActiveDevices),
+    };
 
-    public string RemainingWork =>
-        ScanProgressProjection.Remaining(ProgressSnapshot?.RemainingKnownWork);
+    public string RemainingWork => Run?.Status switch
+    {
+        "cancelling" => "Unavailable — cancellation is in progress",
+        "completed" => "Complete",
+        "cancelled" => "Unavailable — scan was cancelled",
+        "failed" or "interrupted" => "Unavailable — scan ended before completion",
+        _ => ScanProgressProjection.Remaining(ProgressSnapshot?.RemainingKnownWork),
+    };
 
-    public string EstimatedTimeRemaining => ScanProgressProjection.Eta(ProgressSnapshot?.Eta);
+    public string HashPipelineCandidateContext =>
+        ScanProgressProjection.CandidateContext(ProgressSnapshot?.Funnel);
+
+    public string EstimatedTimeRemaining => Run?.Status switch
+    {
+        "cancelling" => "Unavailable — cancellation is in progress",
+        "completed" => "Complete",
+        "cancelled" => "Unavailable — scan was cancelled",
+        "failed" or "interrupted" => "Unavailable — scan ended before completion",
+        _ => ScanProgressProjection.Eta(ProgressSnapshot?.Eta),
+    };
+
+    public string ProgressAnnouncement => ProgressSnapshot is not { } snapshot
+        ? string.Empty
+        : $"Scan progress. {Status}. {Phase}. "
+            + $"{snapshot.Funnel.Discovered.Files:N0} discovered; "
+            + $"{snapshot.Funnel.PartialScreened.Files:N0} partial screened of "
+            + $"{snapshot.Funnel.HashPipelineCandidates.Files:N0} hash candidates. "
+            + $"{RemainingWork}. ETA: {EstimatedTimeRemaining}. {WarningCount} warnings.";
+
+    public long ProgressAnnouncementVersion => _progressAnnouncementVersion;
 
     public string ExcludedSubtreeCount => (Run?.ExcludedSubtreeCount ?? 0).ToString("N0");
 
@@ -169,6 +224,9 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         _lastSequence = 0;
         _lastProgressRevision = 0;
         _lastCumulativeValues = null;
+        _lastAnnouncementMonotonicNanos = null;
+        _lastAnnouncementStatus = null;
+        _lastAnnouncementPhase = null;
         ProgressSnapshot = null;
         CurrentPath = null;
         Message = null;
@@ -209,6 +267,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         CurrentPath = progress.CurrentPath;
         Message = progress.Message;
         ProgressSnapshot = progress.Progress;
+        UpdateProgressAnnouncement(progress);
         UpdateTimer();
         return true;
     }
@@ -279,12 +338,42 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         IsActive ? TimeSpan.Zero : Timeout.InfiniteTimeSpan,
         IsActive ? TimeSpan.FromSeconds(1) : Timeout.InfiniteTimeSpan);
 
+    private void UpdateProgressAnnouncement(WorkerRunProgressEventArgs progress)
+    {
+        var currentNanos = progress.Progress.MonotonicNanos;
+        var intervalElapsed = _lastAnnouncementMonotonicNanos is not { } previousNanos
+            || (currentNanos >= previousNanos
+                && currentNanos - previousNanos >= ProgressAnnouncementIntervalNanos);
+        var statusChanged = !string.Equals(
+            _lastAnnouncementStatus,
+            progress.Status,
+            StringComparison.Ordinal);
+        var phaseChanged = !string.Equals(
+            _lastAnnouncementPhase,
+            progress.Progress.Phase,
+            StringComparison.Ordinal);
+        if (!intervalElapsed && !statusChanged && !phaseChanged)
+        {
+            return;
+        }
+
+        _lastAnnouncementMonotonicNanos = currentNanos;
+        _lastAnnouncementStatus = progress.Status;
+        _lastAnnouncementPhase = progress.Progress.Phase;
+        _progressAnnouncementVersion = _progressAnnouncementVersion == long.MaxValue
+            ? 1
+            : _progressAnnouncementVersion + 1;
+        OnPropertyChanged(nameof(ProgressAnnouncementVersion));
+    }
+
     private void RaiseRunProperties()
     {
         OnPropertyChanged(nameof(HasRun));
         OnPropertyChanged(nameof(IsActive));
         OnPropertyChanged(nameof(IsCancelling));
         OnPropertyChanged(nameof(CanCancel));
+        OnPropertyChanged(nameof(CancelButtonText));
+        OnPropertyChanged(nameof(CancelAutomationName));
         OnPropertyChanged(nameof(IsIndeterminate));
         OnPropertyChanged(nameof(HasError));
         OnPropertyChanged(nameof(DisplayErrorMessage));
@@ -296,12 +385,19 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(WarningCount));
         OnPropertyChanged(nameof(ExcludedSubtreeCount));
         OnPropertyChanged(nameof(Elapsed));
+        OnPropertyChanged(nameof(DetailedProgressUnavailableMessage));
+        OnPropertyChanged(nameof(ActiveDevices));
+        OnPropertyChanged(nameof(RemainingWork));
+        OnPropertyChanged(nameof(EstimatedTimeRemaining));
+        OnPropertyChanged(nameof(ProgressAnnouncement));
         CancelCommand.NotifyCanExecuteChanged();
     }
 
     private void RaiseProgressProperties()
     {
         OnPropertyChanged(nameof(Stages));
+        OnPropertyChanged(nameof(HasDetailedProgress));
+        OnPropertyChanged(nameof(DetailedProgressUnavailableMessage));
         OnPropertyChanged(nameof(ProgressPhaseElapsed));
         OnPropertyChanged(nameof(PartialRecentRate));
         OnPropertyChanged(nameof(PartialCumulativeRate));
@@ -310,6 +406,9 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CacheEffectiveness));
         OnPropertyChanged(nameof(ActiveDevices));
         OnPropertyChanged(nameof(RemainingWork));
+        OnPropertyChanged(nameof(HashPipelineCandidateContext));
         OnPropertyChanged(nameof(EstimatedTimeRemaining));
+        OnPropertyChanged(nameof(ProgressAnnouncement));
+        OnPropertyChanged(nameof(ProgressAnnouncementVersion));
     }
 }

@@ -48,6 +48,8 @@ public sealed class ScanProgressViewModelTests
         var cancel = viewModel.CancelCommand.ExecuteAsync(null);
 
         Assert.IsTrue(viewModel.IsCancelling);
+        Assert.AreEqual("Cancelling…", viewModel.CancelButtonText);
+        Assert.AreEqual("Scan cancellation requested", viewModel.CancelAutomationName);
         completion.SetResult(run with { Status = "cancelling" });
         await cancel;
         Assert.AreEqual("Cancelling", viewModel.Status);
@@ -63,8 +65,12 @@ public sealed class ScanProgressViewModelTests
 
         Assert.IsTrue(viewModel.ApplyProgress(ProgressTestData.Hashing(run.Id)));
 
-        Assert.AreEqual(7, viewModel.Stages.Count);
+        Assert.AreEqual(6, viewModel.Stages.Count);
         Assert.AreEqual("Discovered", viewModel.Stages[0].Name);
+        Assert.AreEqual("ScanStageDiscovered", viewModel.Stages[0].AutomationId);
+        Assert.AreEqual(
+            "Discovered: 10 files; 9.77 KB logical bytes",
+            viewModel.Stages[0].AutomationName);
         Assert.AreEqual(10UL, viewModel.Stages[0].Files);
         Assert.AreEqual("Finalized duplicates", viewModel.Stages[^1].Name);
         Assert.AreEqual(2UL, viewModel.Stages[^1].Files);
@@ -78,8 +84,124 @@ public sealed class ScanProgressViewModelTests
         StringAssert.Contains(viewModel.RemainingWork, "4 files");
         StringAssert.Contains(viewModel.RemainingWork, "3.91 KB");
         Assert.AreEqual(
+            "8 files · 7.81 KB candidate denominator",
+            viewModel.HashPipelineCandidateContext);
+        Assert.AreEqual(
             "About 4 s remaining · 3.91 KB at 1000 B/s logical · 10 s window",
             viewModel.EstimatedTimeRemaining);
+    }
+
+    [TestMethod]
+    public void AcceptedProgress_CoalescesAnnouncementsAndRejectedProgressStaysSilent()
+    {
+        var client = new TestWorkerClient();
+        var run = client.AddRun(1, "running", "discovering");
+        using var viewModel = new ScanProgressViewModel(client, new ImmediateDispatcher());
+        viewModel.ShowRun(run);
+
+        Assert.IsTrue(viewModel.ApplyProgress(ProgressTestData.Discovery(
+            run.Id,
+            sequence: 1,
+            revision: 1,
+            discoveredFiles: 10,
+            monotonicNanos: 1_000_000_000)));
+        Assert.AreEqual(1L, viewModel.ProgressAnnouncementVersion);
+        StringAssert.Contains(viewModel.ProgressAnnouncement, "10 discovered");
+
+        Assert.IsTrue(viewModel.ApplyProgress(ProgressTestData.Discovery(
+            run.Id,
+            sequence: 2,
+            revision: 2,
+            discoveredFiles: 20,
+            monotonicNanos: 1_100_000_000)));
+        Assert.AreEqual(1L, viewModel.ProgressAnnouncementVersion);
+        StringAssert.Contains(viewModel.ProgressAnnouncement, "20 discovered");
+
+        var latestAnnouncement = viewModel.ProgressAnnouncement;
+        Assert.IsFalse(viewModel.ApplyProgress(ProgressTestData.Discovery(
+            run.Id,
+            sequence: 3,
+            revision: 3,
+            discoveredFiles: 19,
+            monotonicNanos: 6_000_000_000)));
+        Assert.AreEqual(1L, viewModel.ProgressAnnouncementVersion);
+        Assert.AreEqual(latestAnnouncement, viewModel.ProgressAnnouncement);
+
+        Assert.IsTrue(viewModel.ApplyProgress(ProgressTestData.Discovery(
+            run.Id,
+            sequence: 3,
+            revision: 3,
+            discoveredFiles: 30,
+            monotonicNanos: 6_000_000_000)));
+        Assert.AreEqual(2L, viewModel.ProgressAnnouncementVersion);
+
+        viewModel.ApplyLifecycle(run with { Status = "cancelling" });
+        Assert.IsTrue(viewModel.ApplyProgress(ProgressTestData.Discovery(
+            run.Id,
+            sequence: 4,
+            revision: 4,
+            discoveredFiles: 40,
+            monotonicNanos: 6_100_000_000,
+            status: "cancelling")));
+        Assert.AreEqual(3L, viewModel.ProgressAnnouncementVersion);
+        StringAssert.Contains(viewModel.ProgressAnnouncement, "Cancelling");
+    }
+
+    [DataTestMethod]
+    [DataRow("cancelling", "Unavailable — cancellation is in progress", "Unavailable — cancellation is in progress", "Unavailable — cancellation is in progress")]
+    [DataRow("completed", "Unavailable — no active scan I/O", "Complete", "Complete")]
+    [DataRow("cancelled", "Unavailable — scan was cancelled", "Unavailable — scan was cancelled", "Unavailable — scan was cancelled")]
+    [DataRow("failed", "Unavailable — scan ended before completion", "Unavailable — scan ended before completion", "Unavailable — scan ended before completion")]
+    [DataRow("interrupted", "Unavailable — scan ended before completion", "Unavailable — scan ended before completion", "Unavailable — scan ended before completion")]
+    public void LifecycleProjection_DoesNotPresentStaleActiveClaims(
+        string status,
+        string expectedDevices,
+        string expectedRemaining,
+        string expectedEta)
+    {
+        var client = new TestWorkerClient();
+        var run = client.AddRun(1, "running", "hashing");
+        using var viewModel = new ScanProgressViewModel(client, new ImmediateDispatcher());
+        viewModel.ShowRun(run);
+        Assert.IsTrue(viewModel.ApplyProgress(ProgressTestData.Hashing(run.Id)));
+
+        viewModel.ApplyLifecycle(run with
+        {
+            Status = status,
+            CompletedAt = status is "completed" or "cancelled" or "failed" or "interrupted"
+                ? DateTimeOffset.UtcNow
+                : null,
+        });
+
+        Assert.AreEqual(expectedDevices, viewModel.ActiveDevices);
+        Assert.AreEqual(expectedRemaining, viewModel.RemainingWork);
+        Assert.AreEqual(expectedEta, viewModel.EstimatedTimeRemaining);
+        Assert.AreEqual(6, viewModel.Stages.Count, "The last accepted funnel should remain visible.");
+    }
+
+    [TestMethod]
+    public void ShowRun_ExplainsMissingDetailAndKeepsAnnouncementVersionMonotonic()
+    {
+        var client = new TestWorkerClient();
+        var first = client.AddRun(1, "running", "discovering");
+        var second = client.AddRun(2, "completed", "finalizing");
+        using var viewModel = new ScanProgressViewModel(client, new ImmediateDispatcher());
+        viewModel.ShowRun(first);
+        Assert.IsTrue(viewModel.ApplyProgress(ProgressTestData.Discovery(first.Id)));
+        Assert.AreEqual(1L, viewModel.ProgressAnnouncementVersion);
+
+        viewModel.ShowRun(second);
+
+        Assert.IsFalse(viewModel.HasDetailedProgress);
+        Assert.AreEqual(0, viewModel.Stages.Count);
+        StringAssert.Contains(viewModel.DetailedProgressUnavailableMessage, "completed scan");
+        Assert.AreEqual(string.Empty, viewModel.ProgressAnnouncement);
+        Assert.AreEqual(1L, viewModel.ProgressAnnouncementVersion);
+
+        var third = client.AddRun(3, "running", "discovering");
+        viewModel.ShowRun(third);
+        Assert.IsTrue(viewModel.ApplyProgress(ProgressTestData.Discovery(third.Id)));
+        Assert.AreEqual(2L, viewModel.ProgressAnnouncementVersion);
     }
 
     [TestMethod]
@@ -168,6 +290,33 @@ public sealed class ScanProgressViewModelTests
             {
                 State = "unavailable",
                 Reason = "no_elapsed_time",
+            }));
+    }
+
+    [TestMethod]
+    public void Projection_FormatsBoundedDeviceStatesWithoutExposingACollection()
+    {
+        Assert.AreEqual("physical:0", ScanProgressProjection.Devices(new WorkerActiveDeviceProgress
+        {
+            State = "one",
+            DeviceKey = "physical:0",
+        }));
+        Assert.AreEqual("2 active devices", ScanProgressProjection.Devices(new WorkerActiveDeviceProgress
+        {
+            State = "multiple",
+            DeviceKeys = ["physical:0", "physical:1"],
+        }));
+        Assert.AreEqual("Unavailable — no active I/O", ScanProgressProjection.Devices(new WorkerActiveDeviceProgress
+        {
+            State = "unavailable",
+            Reason = "no_active_io",
+        }));
+        Assert.AreEqual(
+            "Unavailable — active device mapping is ambiguous",
+            ScanProgressProjection.Devices(new WorkerActiveDeviceProgress
+            {
+                State = "unavailable",
+                Reason = "ambiguous",
             }));
     }
 

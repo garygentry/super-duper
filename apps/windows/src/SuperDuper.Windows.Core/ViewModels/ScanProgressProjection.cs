@@ -6,11 +6,14 @@ namespace SuperDuper.Windows.Core.ViewModels;
 public sealed record ScanProgressStage(
     string Name,
     ulong Files,
-    string LogicalBytes)
+    string LogicalBytes,
+    string AutomationId)
 {
     public string FilesText => Files.ToString("N0", CultureInfo.CurrentCulture);
 
     public string BytesText => DisplayFormatting.Bytes(LogicalBytes);
+
+    public string AutomationName => $"{Name}: {FilesText} files; {BytesText} logical bytes";
 }
 
 internal static class ScanProgressProjection
@@ -20,14 +23,20 @@ internal static class ScanProgressProjection
             ? []
             :
             [
-                Stage("Discovered", funnel.Discovered),
-                Stage("Resolved from metadata", funnel.MetadataResolved),
-                Stage("Hash candidates", funnel.HashPipelineCandidates),
-                Stage("Partial screened", funnel.PartialScreened),
-                Stage("Selected for full hash", funnel.SelectedForFullHash),
-                Stage("Full hash satisfied", funnel.FullHashSatisfied),
-                Stage("Finalized duplicates", funnel.FinalizedDuplicates),
+                Stage("Discovered", funnel.Discovered, "ScanStageDiscovered"),
+                Stage("Resolved from metadata", funnel.MetadataResolved, "ScanStageMetadataResolved"),
+                Stage("Partial screened", funnel.PartialScreened, "ScanStagePartialScreened"),
+                Stage("Selected for full hash", funnel.SelectedForFullHash, "ScanStageSelectedFullHash"),
+                Stage("Full hash satisfied", funnel.FullHashSatisfied, "ScanStageFullHashSatisfied"),
+                Stage("Finalized duplicates", funnel.FinalizedDuplicates, "ScanStageFinalizedDuplicates"),
             ];
+
+    internal static string CandidateContext(WorkerCandidateFunnelProgress? funnel) => funnel switch
+    {
+        null => "Unavailable — candidate work is not yet known",
+        { HashPipelineCandidates: { } candidates } =>
+            $"{candidates.Files:N0} files · {DisplayFormatting.Bytes(candidates.LogicalBytes)} candidate denominator",
+    };
 
     internal static string PhaseElapsed(WorkerScanProgressSnapshot? snapshot) =>
         snapshot is null ? "—" : DurationFromNanos(snapshot.PhaseElapsedNanos);
@@ -97,8 +106,11 @@ internal static class ScanProgressProjection
         _ => "Unavailable — unsupported ETA state",
     };
 
-    private static ScanProgressStage Stage(string name, WorkerProgressQuantity quantity) =>
-        new(name, quantity.Files, quantity.LogicalBytes);
+    private static ScanProgressStage Stage(
+        string name,
+        WorkerProgressQuantity quantity,
+        string automationId) =>
+        new(name, quantity.Files, quantity.LogicalBytes, automationId);
 
     private static string Scaled(ulong value, ulong scale) =>
         ((decimal)value / scale).ToString("0.###", CultureInfo.CurrentCulture);

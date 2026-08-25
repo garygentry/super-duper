@@ -210,6 +210,10 @@ public sealed class ShellViewModelTests
 
         dispatcher.ExecuteAll();
         Assert.AreEqual("1000", viewModel.Progress.FilesDiscovered.Replace(",", string.Empty));
+        Assert.AreEqual(
+            1L,
+            viewModel.Progress.ProgressAnnouncementVersion,
+            "Only the one accepted dispatcher application may advance the progress announcement.");
     }
 
     [TestMethod]

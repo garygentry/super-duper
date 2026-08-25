@@ -96,6 +96,11 @@ most once per 100 ms with decimal-string byte quantities and strict terminal ord
 the paired Windows client fail closed on incomplete or semantically invalid typed snapshots, then
 passes valid frames through one generation-scoped latest-only 100 ms Core application gate. Core
 revalidates run, transport/source order, cumulative non-regression, and lifecycle stickiness before
-projecting explicit units, windows, and unavailable explanations. The WPF surface, warning
-drilldown, singleton savings, scheduling, read-path tuning, device-aware scheduling, and cache-policy
-UI remain in SOP2e and later named gates.
+projecting explicit units, windows, and unavailable explanations. SOP2e renders the six successive
+outcomes while keeping hash-pipeline candidates as denominator context, preserves the last accepted
+funnel across lifecycle changes, and overrides stale active-I/O/remaining/ETA claims after
+cancelling or terminal state. Its path-free UI Automation summary announces the first accepted
+snapshot and phase/status changes immediately, then at most once per five seconds, with one
+monotonic cross-run version and latest-only processing. Warning drilldown, singleton savings,
+scheduling, read-path tuning, device-aware scheduling, and cache-policy UI remain in later named
+gates.

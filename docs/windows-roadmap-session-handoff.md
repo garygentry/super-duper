@@ -18,13 +18,13 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept the defensive Core progress projection and application gate (this
-  session's commit)
+- Latest completed slice: accept the accessible bounded scan-progress surface (this session's
+  commit)
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP2-progress-reporting`
-- Next work package: `SOP2e-accessible-progress-surface`
+- Next work package: `SOP2f-progress-acceptance`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -212,12 +212,13 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Implement `SOP2e-accessible-progress-surface`: replace the ambiguous indeterminate `Files hashed`
-card with the accepted bounded funnel, elapsed/rate/cache/device/remaining-work/ETA projections.
-Retain cancellation and use stable automation IDs, system brushes, keyboard reachability, and
-coalesced UI Automation announcements driven only by accepted snapshots. Do not pull warning
-drilldown, scheduling, singleton, read-path tuning, Performance tab, or `SOP8` cache UI ahead of
-their dependencies.
+Implement `SOP2f-progress-acceptance`: add one focused cross-layer verifier for mid-bucket
+advancement, terminal/durable reconciliation without semantic mixing, cancellation/stale silence,
+and the worker plus Core/WPF ten-per-second bounds. Run the proportionate full Rust and serialized
+.NET Debug/Release matrices plus real non-mutating worker/WPF smoke. First audit whether SOP2
+materially raised observer frequency; run exactly one predeclared comparable Release overhead
+profile only if that audit says the plan requires it. Do not pull scheduling, singleton, read-path
+tuning, warning drilldown, Performance tab, or `SOP8` cache UI ahead of their dependencies.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -303,6 +304,20 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Accepted `SOP2e` passes the full Windows solution with 137 Core, 74 Infrastructure, and 3 loaded-STA
+smoke tests; the same 5 operator-only provider/physical Infrastructure tests are skipped. The
+surface renders exactly six bounded outcomes and separate candidate context, removes legacy
+`Files hashed`, exposes phase elapsed plus explicit physical-rate windows/cache/device/remaining/
+ETA text, and truthfully overrides stale active claims after cancelling or terminal lifecycle.
+Core tests prove one/multiple/unavailable devices, all ETA reasons, explicit no-snapshot history,
+monotonic cross-run UIA versions, five-second accepted-snapshot coalescing, rejected-frame silence,
+and one announcement advance behind the 1,000-frame Shell burst. Loaded-STA evidence proves
+narrow-width wrapping, system-theme/system-brush compatibility, stable IDs/names, read-only current
+path, Alt+C cancellation/focus handoff, text-without-version silence, and latest-only queued
+`MostRecent` notification delivery. Targeted formatting and `git diff --check` pass. No physical
+high-contrast/provider/mutation campaign, Rust/worker/schema/profile change, warning drilldown,
+Performance tab, cache policy, or parked release-validation gate ran.
 
 Accepted `SOP2d` passes 10/10 latest-only application-gate tests, 5/5 strict JSON parser tests, and
 the complete Core/Infrastructure suites. Deterministic coverage feeds 1,000 frames, proves at most
@@ -488,6 +503,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-25 | this session | Accept `SOP2e-accessible-progress-surface` with six bounded funnel outcomes, separate candidate context, terminal-truthful operational text, system-brush/narrow-width accessibility, stable cancellation focus, and a five-second accepted-snapshot-only `MostRecent` UIA channel. | Implement `SOP2f-progress-acceptance` with one focused cross-layer verifier and the predeclared proportionate full acceptance matrix. |
 | 2026-08-25 | this session | Accept `SOP2d-core-progress-projection` with strict complete typed JSON parsing, Core invariant validation, one generation-scoped latest-only 100 ms application gate, lifecycle/stale/regression rejection, and exact funnel/rate/cache/device/remaining-work/ETA projections. | Implement `SOP2e-accessible-progress-surface` using only accepted coalesced snapshots and retain the explicit accessibility/non-goal boundaries. |
 | 2026-08-25 | this session | Accept `SOP2c-worker-progress-projection` with the complete additive typed snapshot, decimal-string byte quantities, one timer-owned latest-value ten-per-second emitter, sticky cancellation, strict terminal silence, truthful unavailable device state, and typed discovery at the existing 256-file callback. | Implement `SOP2d-core-progress-projection` with defensive latest-only application, stale/lifecycle rejection, and exact display-unit projection. |
 | 2026-08-25 | this session | Accept `SOP2b-incremental-pipeline-publication` with one serialized cumulative engine sink, 256-file/8-MiB publication bounds, injected cache/read/failure/cancellation evidence, and exact completed/failed/cancelled live-to-durable reconciliation. | Implement `SOP2c-worker-progress-projection` with additive typed snapshots, deterministic rate/ETA/device projection, and a hard latest-value ten-per-second transport bound. |

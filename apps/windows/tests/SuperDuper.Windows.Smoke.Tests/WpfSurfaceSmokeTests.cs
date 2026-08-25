@@ -6,6 +6,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using SuperDuper.Windows.Accessibility;
 using SuperDuper.Windows.Views;
@@ -62,6 +63,7 @@ public sealed class WpfSurfaceSmokeTests
             var setup = new SessionSetupView();
             var history = new RunHistoryView();
             var preflight = new PreflightView();
+            AssertScanProgressSurface();
             AssertSurface(
                 files,
                 "FileSearch",
@@ -1058,6 +1060,106 @@ public sealed class WpfSurfaceSmokeTests
         Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(members));
     }
 
+    private static void AssertScanProgressSurface()
+    {
+        var data = new ProgressSurfaceData();
+        var progress = new ScanProgressView { DataContext = data };
+        var host = new Window
+        {
+            Width = 620,
+            Height = 760,
+            Content = progress,
+            SizeToContent = SizeToContent.Manual,
+        };
+        host.Show();
+        host.Activate();
+        host.UpdateLayout();
+        DrainDispatcher();
+
+        var funnel = FindByAutomationId<ItemsControl>(progress, "ScanProgressFunnel");
+        Assert.AreEqual(6, funnel.Items.Count);
+        Assert.AreEqual("Six-stage scan progress funnel", AutomationProperties.GetName(funnel));
+        var firstStage = FindVisualByAutomationId<Border>(progress, "ScanStageDiscovered");
+        var lastStage = FindVisualByAutomationId<Border>(progress, "ScanStageFinalizedDuplicates");
+        StringAssert.Contains(AutomationProperties.GetName(firstStage), "logical bytes");
+        Assert.AreEqual(SystemColors.ActiveBorderBrush, firstStage.BorderBrush);
+        Assert.IsTrue(
+            lastStage.TranslatePoint(new Point(0, 0), progress).Y
+                > firstStage.TranslatePoint(new Point(0, 0), progress).Y,
+            "The fixed six-stage collection did not wrap in the supported narrow workspace.");
+
+        var scroll = FindByAutomationId<ScrollViewer>(progress, "ScanProgressScrollViewer");
+        Assert.AreEqual(ScrollBarVisibility.Auto, scroll.VerticalScrollBarVisibility);
+        var currentPath = FindByAutomationId<TextBox>(progress, "ScanCurrentPath");
+        Assert.IsTrue(currentPath.IsReadOnly);
+        Assert.AreEqual("Current scan path", AutomationProperties.GetName(currentPath));
+        Assert.AreEqual(data.EstimatedTimeRemaining,
+            FindByAutomationId<TextBlock>(progress, "ScanEstimatedTimeRemaining").Text);
+        Assert.AreEqual(data.HashPipelineCandidateContext,
+            FindByAutomationId<TextBlock>(progress, "ScanCandidateContext").Text);
+        Assert.AreEqual(
+            SystemColors.ControlTextBrush,
+            FindByAutomationId<Border>(progress, "ScanProgressError").BorderBrush);
+
+        var cancel = FindByAutomationId<Button>(progress, "CancelScanButton");
+        Assert.AreEqual("Alt+C", AutomationProperties.GetAccessKey(cancel));
+        Assert.AreEqual("_Cancel scan", cancel.Content);
+        Assert.IsTrue(cancel.Focusable && KeyboardNavigation.GetIsTabStop(cancel));
+        Assert.IsTrue(cancel.Focus());
+        Keyboard.Focus(cancel);
+        Assert.IsTrue(cancel.IsKeyboardFocused);
+
+        var announcementElement = FindByAutomationId<TextBlock>(progress, "ScanProgressAnnouncement");
+        Assert.AreEqual(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(announcementElement));
+        Assert.AreEqual(
+            AutomationNotificationProcessing.MostRecent,
+            AutomationNotificationBehavior.GetNotificationProcessing(announcementElement));
+        Assert.AreEqual("ScanProgress", AutomationNotificationBehavior.GetActivityId(announcementElement));
+        var notifications = new List<string>();
+        void Capture(
+            FrameworkElement element,
+            string announcement,
+            AutomationNotificationKind _,
+            AutomationNotificationProcessing __,
+            string activityId)
+        {
+            if (ReferenceEquals(element, announcementElement) && activityId == "ScanProgress")
+            {
+                notifications.Add(announcement);
+            }
+        }
+
+        AutomationNotificationBehavior.NotificationRaised += Capture;
+        try
+        {
+            data.UpdateAnnouncementName("Updated without an accepted snapshot");
+            DrainDispatcher();
+            Assert.AreEqual(0, notifications.Count, "Changing text without a version must stay silent.");
+
+            data.UpdateAnnouncement("First accepted progress", 1);
+            data.UpdateAnnouncement("Latest accepted progress", 2);
+            DrainDispatcher();
+            Assert.AreEqual(1, notifications.Count);
+            Assert.AreEqual("Latest accepted progress", notifications[0]);
+            Assert.IsTrue(cancel.IsKeyboardFocused, "A progress update stole focus from Cancel.");
+
+            cancel.Command.Execute(cancel.CommandParameter);
+            Assert.AreEqual(1, data.CancelCommand.ExecuteCount);
+            data.CancelCommand.SetCanExecute(false);
+            DrainDispatcher();
+            Assert.IsFalse(cancel.IsEnabled);
+            Assert.IsTrue(
+                FindByAutomationId<TextBlock>(progress, "ScanProgressStatus").IsKeyboardFocused,
+                "Focus did not move to the stable status heading when Cancel became disabled.");
+        }
+        finally
+        {
+            AutomationNotificationBehavior.NotificationRaised -= Capture;
+            host.Content = null;
+            host.Close();
+        }
+    }
+
     private static void AssertFolderSurface(DuplicateFoldersView folders)
     {
         var search = FindByAutomationId<TextBox>(folders, "FolderSearch");
@@ -1240,6 +1342,27 @@ public sealed class WpfSurfaceSmokeTests
         return null!;
     }
 
+    private static T FindVisualByAutomationId<T>(DependencyObject root, string automationId)
+        where T : FrameworkElement
+    {
+        if (root is T match && AutomationProperties.GetAutomationId(match) == automationId)
+        {
+            return match;
+        }
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            try
+            {
+                return FindVisualByAutomationId<T>(VisualTreeHelper.GetChild(root, index), automationId);
+            }
+            catch (AssertFailedException)
+            {
+            }
+        }
+        Assert.Fail($"Could not find visual {typeof(T).Name} with automation ID {automationId}.");
+        return null!;
+    }
+
     private static IEnumerable<T> FindLogicalDescendants<T>(DependencyObject root)
         where T : DependencyObject
     {
@@ -1253,6 +1376,113 @@ public sealed class WpfSurfaceSmokeTests
             {
                 yield return descendant;
             }
+        }
+    }
+
+    private sealed class ProgressSurfaceData : INotifyPropertyChanged
+    {
+        private string _progressAnnouncement = "Initial progress";
+        private long _progressAnnouncementVersion;
+
+        public bool HasRun => true;
+
+        public bool HasDetailedProgress => true;
+
+        public string DetailedProgressUnavailableMessage => string.Empty;
+
+        public string Status => "Running";
+
+        public string Phase => "Hashing";
+
+        public string CancelButtonText => "_Cancel scan";
+
+        public string CancelAutomationName => "Cancel scan; access key Alt+C";
+
+        public ProgressSurfaceCommand CancelCommand { get; } = new();
+
+        public bool IsIndeterminate => true;
+
+        public string Elapsed => "0:42";
+
+        public string ProgressPhaseElapsed => "12 s";
+
+        public string WarningCount => "2";
+
+        public string ExcludedSubtreeCount => "1";
+
+        public IReadOnlyList<ScanProgressStage> Stages { get; } =
+        [
+            new("Discovered", 20, "20000", "ScanStageDiscovered"),
+            new("Resolved from metadata", 4, "4000", "ScanStageMetadataResolved"),
+            new("Partial screened", 8, "8000", "ScanStagePartialScreened"),
+            new("Selected for full hash", 3, "3000", "ScanStageSelectedFullHash"),
+            new("Full hash satisfied", 2, "2000", "ScanStageFullHashSatisfied"),
+            new("Finalized duplicates", 2, "2000", "ScanStageFinalizedDuplicates"),
+        ];
+
+        public string PartialRecentRate => "4 files/s · 400 B/s · 10 s window";
+
+        public string PartialCumulativeRate => "3 files/s · 300 B/s · 12 s window";
+
+        public string FullRecentRate => "2 files/s · 100 B/s · 10 s window";
+
+        public string FullCumulativeRate => "1 file/s · 80 B/s · 12 s window";
+
+        public string CacheEffectiveness => "50.00% hits";
+
+        public string ActiveDevices => "Unavailable — scan work is not mapped to a device";
+
+        public string HashPipelineCandidateContext => "8 files · 7.81 KB candidate denominator";
+
+        public string RemainingWork => "4 files · 3.91 KB remaining in hash pipeline";
+
+        public string EstimatedTimeRemaining => "Unavailable — collecting a stable 10-second window";
+
+        public string Message => "Reading candidates";
+
+        public string CurrentPath => @"C:\Data\candidate.bin";
+
+        public bool HasError => true;
+
+        public string DisplayErrorMessage => "Sample error";
+
+        public string ProgressAnnouncement => _progressAnnouncement;
+
+        public long ProgressAnnouncementVersion => _progressAnnouncementVersion;
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public void UpdateAnnouncementName(string announcement)
+        {
+            _progressAnnouncement = announcement;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ProgressAnnouncement)));
+        }
+
+        public void UpdateAnnouncement(string announcement, long version)
+        {
+            _progressAnnouncement = announcement;
+            _progressAnnouncementVersion = version;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ProgressAnnouncement)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ProgressAnnouncementVersion)));
+        }
+    }
+
+    private sealed class ProgressSurfaceCommand : ICommand
+    {
+        private bool _canExecute = true;
+
+        public int ExecuteCount { get; private set; }
+
+        public event EventHandler? CanExecuteChanged;
+
+        public bool CanExecute(object? parameter) => _canExecute;
+
+        public void Execute(object? parameter) => ExecuteCount++;
+
+        public void SetCanExecute(bool value)
+        {
+            _canExecute = value;
+            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
