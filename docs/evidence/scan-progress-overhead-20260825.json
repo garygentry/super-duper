@@ -1,0 +1,111 @@
+{
+  "gate": "SOP2f-progress-acceptance",
+  "date": "2026-08-25",
+  "machine": "designated Windows 11 x64 development machine",
+  "configuration": "Release",
+  "controlRevision": "0a3c1c1",
+  "treatmentRevision": "f803cbd",
+  "fixture": {
+    "files": 12000,
+    "shape": "one directory; unique sizes 1 through 12000 bytes; current singleton partial-read baseline",
+    "warmupRunsPerMode": 1,
+    "measuredRunsPerMode": 3,
+    "order": "control warmup, treatment warmup, control/treatment repeated three times"
+  },
+  "median": {
+    "controlWallNanos": 1525466000,
+    "treatmentWallNanos": 1592390300,
+    "wallOverheadBasisPoints": 439,
+    "controlCpuNanos": 2859375000,
+    "treatmentCpuNanos": 2750000000,
+    "cpuOverheadBasisPoints": -383
+  },
+  "absoluteDifference": {
+    "wallNanos": 66924300,
+    "cpuNanos": -109375000
+  },
+  "publishedThresholdBasisPoints": 100,
+  "disposition": "failed_published_wall_threshold",
+  "runs": [
+    {
+      "mode": "control",
+      "warmup": true,
+      "ordinal": 0,
+      "wallNanos": 1626545900,
+      "cpuNanos": 3125000000,
+      "progressFrames": 13,
+      "progressBytes": 3034
+    },
+    {
+      "mode": "treatment",
+      "warmup": true,
+      "ordinal": 0,
+      "wallNanos": 1661727800,
+      "cpuNanos": 2859375000,
+      "progressFrames": 10,
+      "progressBytes": 30015
+    },
+    {
+      "mode": "control",
+      "warmup": false,
+      "ordinal": 1,
+      "wallNanos": 1728626400,
+      "cpuNanos": 3156250000,
+      "progressFrames": 15,
+      "progressBytes": 3579
+    },
+    {
+      "mode": "treatment",
+      "warmup": false,
+      "ordinal": 1,
+      "wallNanos": 1710738200,
+      "cpuNanos": 2750000000,
+      "progressFrames": 10,
+      "progressBytes": 29854
+    },
+    {
+      "mode": "control",
+      "warmup": false,
+      "ordinal": 2,
+      "wallNanos": 1525466000,
+      "cpuNanos": 2859375000,
+      "progressFrames": 13,
+      "progressBytes": 3034
+    },
+    {
+      "mode": "treatment",
+      "warmup": false,
+      "ordinal": 2,
+      "wallNanos": 1592390300,
+      "cpuNanos": 3062500000,
+      "progressFrames": 10,
+      "progressBytes": 30010
+    },
+    {
+      "mode": "control",
+      "warmup": false,
+      "ordinal": 3,
+      "wallNanos": 1502504900,
+      "cpuNanos": 2203125000,
+      "progressFrames": 12,
+      "progressBytes": 2831
+    },
+    {
+      "mode": "treatment",
+      "warmup": false,
+      "ordinal": 3,
+      "wallNanos": 1492260200,
+      "cpuNanos": 2656250000,
+      "progressFrames": 10,
+      "progressBytes": 29998
+    }
+  ],
+  "notes": [
+    "This is the sole predeclared SOP2 Release profile and was not rerun or tuned after the failed wall result.",
+    "Both revisions keep accepted SOP1 status telemetry enabled; the cross-revision comparison includes the SOP2 producer, reducers, coalescer, and JSON transport that cancel out of the older status-database toggle profile.",
+    "The unchanged short fixture does not exercise the new 8 MiB mid-read publication path, so it is comparable to retained SOP1 evidence but insensitive to SOP2's highest possible large-file observer cadence.",
+    "Negative CPU overhead is treated as measurement noise and no detected positive CPU cost, not as an acceleration claim.",
+    "Treatment emitted fewer bounded progress frames but approximately ten times as many serialized progress bytes because the typed snapshot replaced the compact legacy frame.",
+    "The +4.39% wall result breaches the published +1% ceiling and requires an explicit operator disposition before SOP2 can be accepted."
+  ]
+}

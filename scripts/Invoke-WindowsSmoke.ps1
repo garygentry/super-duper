@@ -5,7 +5,8 @@ param(
     [switch]$SkipBuild,
     [switch]$SkipWpf,
     [switch]$KeepArtifacts,
-    [string[]]$AdditionalRoot = @()
+    [string[]]$AdditionalRoot = @(),
+    [string]$AppPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -15,7 +16,12 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $solution = Join-Path $repo 'apps/windows/SuperDuper.Windows.sln'
 $profile = if ($Configuration -eq 'Release') { 'release' } else { 'debug' }
 $worker = Join-Path $repo "target/$profile/super-duper-worker.exe"
-$app = Join-Path $repo "apps/windows/src/SuperDuper.Windows/bin/$Configuration/net10.0-windows10.0.22000.0/win-x64/SuperDuper.Windows.exe"
+$defaultApp = Join-Path $repo "apps/windows/src/SuperDuper.Windows/bin/$Configuration/net10.0-windows10.0.22000.0/win-x64/SuperDuper.Windows.exe"
+$app = if ([string]::IsNullOrWhiteSpace($AppPath)) {
+    $defaultApp
+} else {
+    (Resolve-Path -LiteralPath $AppPath).Path
+}
 $smokeRoot = Join-Path ([IO.Path]::GetTempPath()) ("super-duper-windows-smoke-" + [guid]::NewGuid().ToString('N'))
 $database = Join-Path $smokeRoot 'smoke.db'
 $cache = Join-Path $smokeRoot 'hash-cache'
@@ -199,6 +205,54 @@ function Stop-SmokeWorkerForCleanup($Connection) {
 
 function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw "Smoke assertion failed: $Message" }
+}
+
+function Assert-RunProgressContract([long]$RunId) {
+    [UInt64]$lastSequence = 0
+    [UInt64]$lastRevision = 0
+    $progressCount = 0
+    $terminalSeen = $false
+    foreach ($frame in $allFrames) {
+        if ($frame.type -ne 'event') { continue }
+        if ($frame.event -in @('run.completed', 'run.cancelled', 'run.failed') -and
+            [long]$frame.data.run.id -eq $RunId) {
+            $terminalSeen = $true
+            continue
+        }
+        if ($frame.event -ne 'run.progress' -or [long]$frame.data.runId -ne $RunId) { continue }
+        Assert-True (-not $terminalSeen) 'Progress arrived after the matching terminal lifecycle event.'
+        $progressCount++
+        [UInt64]$sequence = $frame.data.sequence
+        [UInt64]$revision = $frame.data.progress.revision
+        Assert-True ($sequence -gt $lastSequence) 'Progress transport sequence did not increase.'
+        Assert-True ($revision -gt $lastRevision) 'Progress source revision did not increase.'
+        Assert-True ($frame.data.progress.progressContractVersion -eq 1) 'Progress contract version changed.'
+        Assert-True ($frame.data.progress.metricsContractVersion -eq 2) 'Progress metrics version changed.'
+        Assert-True (
+            [UInt64]$frame.data.filesDiscovered -eq
+                ([UInt64]$frame.data.progress.counters.discoveredFiles -
+                    [UInt64]$frame.data.progress.counters.zeroByteFiles)) `
+            'Legacy and typed discovered-file meanings disagree.'
+        Assert-True (
+            [string]$frame.data.bytesDiscovered -eq
+                [string]$frame.data.progress.counters.discoveredBytes) `
+            'Legacy and typed discovered-byte meanings disagree.'
+        Assert-True (
+            [UInt64]$frame.data.filesHashed -eq
+                [UInt64]$frame.data.progress.counters.partialHashesSucceeded) `
+            'Deprecated filesHashed no longer matches partial-hash success.'
+        Assert-True (
+            [UInt64]$frame.data.warningCount -eq [UInt64]$frame.data.progress.warningCount) `
+            'Legacy and typed warning counts disagree.'
+        Assert-True (
+            [UInt64]$frame.data.progress.funnel.discovered.files -eq
+                [UInt64]$frame.data.progress.counters.discoveredFiles) `
+            'Typed discovered funnel does not match its cumulative counter.'
+        $lastSequence = $sequence
+        $lastRevision = $revision
+    }
+    Assert-True ($progressCount -gt 0) 'The real worker scan emitted no typed progress frame.'
+    Assert-True $terminalSeen 'The real worker scan emitted no matching terminal lifecycle event.'
 }
 
 function Invoke-WpfAutomation([long]$RunId, [long]$WarningAggregateId) {
@@ -477,6 +531,21 @@ public static class SmokeMouseInput
         }
 
         Select-Element (Find-Element Name 'Milestone 6 Smoke')
+        Select-Element (Find-Element AutomationId 'ProgressTab')
+        Assert-True (
+            (Find-Element AutomationId 'ScanProgressStatus').Current.Name.Contains(
+                'Completed', [StringComparison]::OrdinalIgnoreCase)) `
+            'The completed run did not project a terminal scan status in WPF.'
+        Assert-True (
+            (Find-Element AutomationId 'ScanDetailedProgressUnavailable').Current.Name.Contains(
+                'completed scan', [StringComparison]::OrdinalIgnoreCase)) `
+            'A restarted completed run did not explain unavailable live progress.'
+        Assert-True (
+            (Find-Element AutomationId 'ScanEstimatedTimeRemaining').Current.Name.Contains(
+                'Complete', [StringComparison]::OrdinalIgnoreCase)) `
+            'The completed run retained a stale ETA claim in WPF.'
+        Assert-True (-not (Find-Element AutomationId 'CancelScanButton').Current.IsEnabled) `
+            'Cancel remained enabled for a completed run.'
         Select-Element (Find-Element AutomationId 'SetupTab')
         $null = Find-Element AutomationId 'CloudPolicyName'
         $null = Find-Element AutomationId 'CloudPolicyDescription'
@@ -1559,6 +1628,7 @@ try {
         'The smoke warning is not the single admitted hash action family.'
     Assert-True ($warningPage.warnings[0].examples.Count -ge 1 -and $warningPage.warnings[0].examples.Count -le 3) 'Warning aggregate examples were not bounded to 1..3.'
     Assert-True (-not $warningPage.executorEnabled) 'Warning drilldown unexpectedly enabled production execution.'
+    Assert-RunProgressContract $run.id
     $exclusive.Dispose()
     $exclusive = $null
     $scanDiagnostics = Stop-SmokeWorker $connection

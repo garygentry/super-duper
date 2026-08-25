@@ -18,13 +18,13 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept the accessible bounded scan-progress surface (this session's
-  commit)
+- Latest completed slice: complete SOP2f functional acceptance and retain its failed Release wall
+  profile as an operator-decision package (this session's commit)
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP2-progress-reporting`
-- Next work package: `SOP2f-progress-acceptance`
+- Next work package: `SOP2f-progress-acceptance` operator disposition
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -49,7 +49,19 @@ completed session work uncommitted or substitute work from the parked stream.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The current implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
+The current coherent slice completes every local SOP2f functional check but does not accept SOP2.
+The named cross-layer verifier, full Debug/Release Rust and serialized Windows matrices, isolated
+Release publish, and real Debug/Release worker/WPF smoke all pass. The one predeclared cross-revision
+Release profile is retained at `docs/evidence/scan-progress-overhead-20260825.json`: wall measured
++4.39%/+66.9243 ms and breached the published +1% ceiling; CPU measured -3.83%/-109.375 ms and is
+treated as noise/no detected positive cost. The existing visible Release app (PID 48972, started
+2026-08-24) locked the standard output directory and was not stopped; an isolated build/test/publish
+and smoke closed the functional Release evidence without changing that user-owned process. No
+specific measured cost is credibly likely to recover the remaining 339 wall basis points on this
+short fixture, so no rerun or tuning occurred. `SOP2f` is `blocked_operator_decision`; do not advance
+to SOP3, SOP5, SOP8 implementation/UI, or the parked stream.
+
+An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
 protocol-v1 legacy fields. One timer-owned latest-value emitter assigns transport sequences after
 coalescing, admits at most one frame per 100 ms, latches cancellation, and is closed and joined
@@ -212,13 +224,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Implement `SOP2f-progress-acceptance`: add one focused cross-layer verifier for mid-bucket
-advancement, terminal/durable reconciliation without semantic mixing, cancellation/stale silence,
-and the worker plus Core/WPF ten-per-second bounds. Run the proportionate full Rust and serialized
-.NET Debug/Release matrices plus real non-mutating worker/WPF smoke. First audit whether SOP2
-materially raised observer frequency; run exactly one predeclared comparable Release overhead
-profile only if that audit says the plan requires it. Do not pull scheduling, singleton, read-path
-tuning, warning drilldown, Performance tab, or `SOP8` cache UI ahead of their dependencies.
+Obtain an explicit operator disposition for `SOP2f-progress-acceptance`. The operator may keep the
+published +1% wall/+1% CPU criterion and leave SOP2 blocked; approve a reviewed two-part budget with
+a predeclared fixed ceiling for this short fixture plus less-than-1% wall/CPU on a representative-
+duration scan; or explicitly waive/reject SOP2. Do not infer an absolute ceiling from the failed
+result, rerun/tune the profile, or advance to SOP3, SOP5, SOP8 implementation/UI, or the parked
+stream before that decision.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -287,7 +298,8 @@ before committing the next slice.
 These remain open unless a later committed slice cites qualifying evidence or an explicit reviewed
 decision:
 
-- `SOP2` through `SOP9` in `docs/scan-optimization-plan.md`
+- `SOP2` (blocked on operator overhead disposition) and `SOP3` through `SOP9` in
+  `docs/scan-optimization-plan.md`
 - Physical Narrator and NVDA acceptance
 - Windows high-contrast acceptance
 - Physical 100/150/200% multi-monitor DPI acceptance
@@ -304,6 +316,18 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+`SOP2f` functional acceptance passes. `Verify-WindowsScanProgress.ps1` passes 11 exact Rust tests,
+5 strict Infrastructure parser tests, 27 Core application/projection tests, and 1 loaded-STA WPF
+test. Full Debug and Release Rust each pass 175 tests with 5 ignored. Serialized Debug and isolated
+Release Windows matrices each pass 137 Core, 74 Infrastructure, and 3 smoke tests with the same 5
+operator-only Infrastructure skips; both real worker/WPF smokes pass the typed-progress/terminal UI
+assertions. Debug builds and the isolated Release build/publish report zero warnings/errors. The
+standard Release verifier passed optimized Rust but its normal .NET output copy was blocked by the
+pre-existing visible Release app PID 48972; the process was preserved and an isolated artifacts
+path supplied equivalent build/test/publish evidence. The sole retained profile at
+`docs/evidence/scan-progress-overhead-20260825.json` fails wall at +439 bp and passes CPU at -383 bp,
+so neither SOP2f nor SOP2 is accepted.
 
 Accepted `SOP2e` passes the full Windows solution with 137 Core, 74 Infrastructure, and 3 loaded-STA
 smoke tests; the same 5 operator-only provider/physical Infrastructure tests are skipped. The
@@ -503,6 +527,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-25 | this session | Complete SOP2f local functional evidence with a named verifier, full Debug/Release matrices, isolated Release publish, and real Debug/Release worker/WPF smoke; retain the sole cross-revision profile failed at +4.39% wall and -3.83% CPU without retrying or stopping the operator's visible Release app. | Keep `SOP2f` blocked and obtain explicit operator disposition: preserve the +1%/+1% gate, approve a reviewed two-part short-absolute/representative-duration budget, or explicitly waive/reject SOP2. Do not advance to SOP3. |
 | 2026-08-25 | this session | Accept `SOP2e-accessible-progress-surface` with six bounded funnel outcomes, separate candidate context, terminal-truthful operational text, system-brush/narrow-width accessibility, stable cancellation focus, and a five-second accepted-snapshot-only `MostRecent` UIA channel. | Implement `SOP2f-progress-acceptance` with one focused cross-layer verifier and the predeclared proportionate full acceptance matrix. |
 | 2026-08-25 | this session | Accept `SOP2d-core-progress-projection` with strict complete typed JSON parsing, Core invariant validation, one generation-scoped latest-only 100 ms application gate, lifecycle/stale/regression rejection, and exact funnel/rate/cache/device/remaining-work/ETA projections. | Implement `SOP2e-accessible-progress-surface` using only accepted coalesced snapshots and retain the explicit accessibility/non-goal boundaries. |
 | 2026-08-25 | this session | Accept `SOP2c-worker-progress-projection` with the complete additive typed snapshot, decimal-string byte quantities, one timer-owned latest-value ten-per-second emitter, sticky cancellation, strict terminal silence, truthful unavailable device state, and typed discovery at the existing 256-file callback. | Implement `SOP2d-core-progress-projection` with defensive latest-only application, stale/lifecycle rejection, and exact display-unit projection. |

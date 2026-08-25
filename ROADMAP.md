@@ -18,7 +18,7 @@ MVP. The previous Windows app implementation was removed before the current WPF 
 
 | Stream | Scheduling state | Authority | Next boundary |
 |---|---|---|---|
-| Large-drive scan optimization and observability | Active | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) | Implement `SOP2f-progress-acceptance`; the Rust producer, bounded worker/Core transport, and accessible six-stage WPF surface are accepted. |
+| Large-drive scan optimization and observability | Active; operator decision required | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) | Decide `SOP2f-progress-acceptance`: all functional matrices pass, but the sole retained cross-revision Release profile fails wall at +4.39% against the +1% ceiling (CPU -3.83%, treated as noise). Do not advance to SOP3 before explicit disposition. |
 | Windows post-MVP release validation | Parked by operator; gates and evidence preserved | [`docs/windows-roadmap-closure-ledger.md`](docs/windows-roadmap-closure-ledger.md) and [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md) | Before final feature-complete, resume exactly at `WPM8-high-contrast`, then follow the ledger dependency order. |
 
 The shared startup checkpoint is
