@@ -23,7 +23,10 @@ completed session work uncommitted or substitute work from the parked stream.
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
-- Next gate: `SOP1-telemetry-foundation`
+- Current gate: `SOP1-telemetry-foundation`
+- Next work package: `SOP1a-contract-schema`
+- Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
+- Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
   feature-complete
 - MVP Milestones 0-6: implemented and code complete
@@ -46,7 +49,13 @@ completed session work uncommitted or substitute work from the parked stream.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The current documentation-only slice records a second durable roadmap stream for large-drive scan
+The current plan-control follow-up makes that stream idempotent across agent sessions: it adds a
+finite work-package ledger, audit-once and two-identical-failure anti-spin rules, multiple-package
+session progress, explicit context-risk handoff conditions, and a state-independent reusable kickoff
+prompt. The operator stopped the prior D: stress run, so implementation may now proceed without an
+active-run preservation constraint. The next package is `SOP1a-contract-schema`.
+
+The preceding documentation-only slice records a second durable roadmap stream for large-drive scan
 optimization and observability. A read-only source and live-run audit confirms that exact-size
 grouping exists but singleton buckets still receive a 1 KiB partial read, the existing
 `files_hashed` counter counts partial-hash success rather than full-content hashing, and nested
@@ -104,13 +113,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance only `SOP1-telemetry-foundation` from `docs/scan-optimization-plan.md`: refine and implement
-the versioned cumulative metrics contract, separate worker-owned local status database, bounded
-sampling/retention, and fixed summary/time-series queries. Prove accounting, recovery, bounds,
-unavailable-counter behavior, and observer overhead before changing scan scheduling or read
-behavior. Do not interrupt or mutate an operator's active scan. Do not implement the singleton skip,
-device scheduler, read-path tuning, Performance tab, or warning UI until their listed dependencies
-are satisfied.
+Begin `SOP1a-contract-schema`, then continue through each dependency-ready SOP1 package while the
+resumable execution protocol's stop conditions remain false. The first package adds only versioned
+Rust metric types, invariant tests, and the separate status-database schema/migration contract; it
+does not integrate scan writes yet. After accepting a package, update its row and advance immediately
+when context and verification remain sound. Do not implement the singleton skip, device scheduler,
+read-path tuning, Performance tab, or warning UI until their listed dependencies are satisfied.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -127,6 +135,7 @@ Before editing:
    - `docs/windows-recycle-bin-acceptance.md`
    - `docs/windows-roadmap-closure-ledger.md`
    - `docs/scan-optimization-plan.md`
+   - `docs/scan-optimization-kickoff-prompt.md`
 3. Confirm that the checkpoint above still matches `HEAD` and the worktree.
 4. Confirm which roadmap stream is scheduled, identify its exact authorized gate ID, and confirm
    dependencies. Do not select from the parked stream. During a bootstrap only, inventory gates
@@ -299,6 +308,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-25 | this session | Make the active scan plan idempotent with a finite SOP1 package ledger, multi-package session progress, audit-once/two-failure anti-spin rules, context-risk handoff requirements, and a reusable state-independent kickoff prompt. | Begin `SOP1a-contract-schema`, accept it only with schema/metric invariant tests, then continue dependency-ready SOP1 packages. |
 | 2026-08-25 | this session | Create the trackable large-drive scan optimization/observability stream, confirm singleton size buckets are still partially read, specify cumulative status metrics/progress/warning/Performance-tab gates, and park the preserved Windows release checklist. | Advance only `SOP1-telemetry-foundation`; resume release validation at `WPM8-high-contrast` before final feature-complete. |
 | 2026-08-22 | `ec8da88` | Announce only committed Recycle Bin result pages; cover backward repeatability and stale/cancelled silence. | Re-audit for the next locally implementable Milestone 11 read-only/recovery gap; do not cross an evidence or recovery-design gate. |
 | 2026-08-22 | `96a49af` | Preserve the committed Recycle Bin recovery page and cursor history across a failed forward fetch; allow exact retry. | Re-audit for another local read-only contract gap; stop at physical/provider/performance or recovery-resolution gates. |

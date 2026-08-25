@@ -7,9 +7,65 @@ started. This is the scheduled roadmap stream while the Windows post-MVP release
 checklist is parked. Before the product is declared feature complete, the release-validation stream
 must resume at `WPM8-high-contrast` and follow its closure ledger to completion.
 
+Current execution checkpoint:
+
+- current gate: `SOP1-telemetry-foundation`;
+- next work package: `SOP1a-contract-schema`;
+- last accepted work package: `SOP0-current-pipeline-audit`;
+- prior D: stress run: stopped by the operator after the read-only baseline observation;
+- canonical new-session prompt: [`scan-optimization-kickoff-prompt.md`](scan-optimization-kickoff-prompt.md).
+
 This plan exists because representative use includes several roughly 10 TB drives. A full baseline
 can take days, so optimization work must be driven by durable measurements, preserve exact-duplicate
 correctness, and avoid requiring repeated uninstrumented whole-drive runs.
+
+## Resumable execution protocol
+
+This document is both the plan and the idempotent checkpoint. A session resumes from the first
+`ready` work package in dependency order; it does not reconstruct or restart completed work from
+conversation history.
+
+### Progress policy
+
+- Complete as many dependency-ready work packages as can be implemented and verified coherently in
+  the session. A session is not limited to one gate or one commit.
+- Keep each commit bounded to one work package or one inseparable coherent package group. After a
+  commit, advance immediately to the next ready package when context and prerequisites remain sound.
+- Pause only for a real external/user-decision blocker, a safety/authority boundary, failed required
+  verification that cannot be repaired locally, or approaching context degradation that risks an
+  incomplete audit, unsafe edit, or unreliable handoff.
+- Before pausing for context risk, finish or revert the current coherent edit, run proportional
+  verification, update this checkpoint and the session handoff, commit completed work, and leave a
+  clean worktree. Context compaction alone is not a reason to restart completed audits.
+- Prefer small deterministic fixtures and focused tests while iterating. Run the relevant full
+  matrix at a gate acceptance boundary or when shared behavior changes enough to justify it.
+
+### Idempotence and anti-spin rules
+
+- At startup, compare `HEAD`, the worktree, this checkpoint, and cited evidence. If they agree,
+  continue at the named next package. Never redo an accepted package merely because a new agent is
+  unfamiliar with it.
+- A package may move forward only as `open -> ready -> in_progress -> accepted` or to a documented
+  `blocked` state. Record the accepting commit and verification in its ledger row before choosing
+  more work.
+- Audit a package once. Reopen it only for a reproduced regression, a failed acceptance check, a
+  dependency contract change, or an explicit reviewed scope change. Do not generate progressively
+  narrower findings after its completion criteria pass.
+- After two attempts fail for the same reason without new evidence, record the blocker and continue
+  with another dependency-ready package in this active stream if one exists. Do not substitute work
+  from the parked release-validation stream.
+- Schema migrations, command replays, sampling flushes, recovery, retention, and queries must be
+  safe to repeat after process interruption. Exact replay returns the existing outcome; partial
+  durable state is reconciled or rejected explicitly rather than duplicated.
+- When code and checkpoint disagree, code and Git evidence win. Repair the checkpoint before new
+  implementation; do not silently assume either side completed.
+
+### Package definition requirement
+
+Before implementation enters a gate, split it into the smallest finite set of dependency-ordered
+packages that together satisfy the gate. Each package needs one bounded outcome and objective
+completion check. Do not keep adding packages after all published gate criteria pass; additional
+ideas return to the roadmap as separately reviewed follow-ons.
 
 ## Current evidence and algorithm audit
 
@@ -186,10 +242,25 @@ unavailable-counter states, and coalesced UI Automation announcements are accept
 | `SOP8-repeat-run-cache` | `local_code` | `open` | `SOP7-hash-read-path` | Reduce repeat-run reads with explicit identity/size/time invalidation, bounded eviction, and rename/hard-link semantics. | Warm-run fixtures prove exact invalidation and correctness, cache bounds, corruption fallback, and measured read/wall-time savings. |
 | `SOP9-large-drive-acceptance` | `operator_evidence` | `open` | `SOP4-performance-tab` through `SOP8-repeat-run-cache` | Retain representative single- and multi-drive Release runs, including failures, and select defaults from evidence. | Duplicate results match reference fixtures; singleton reads are zero; telemetry/warning accounting is complete; memory and UI bounds hold; before/after device and wall-time evidence is retained without retry-only acceptance. |
 
+## Current gate work-package ledger
+
+`SOP1-telemetry-foundation` is complete only when every package below is accepted. Package boundaries
+may share a commit only when separating them would leave an unusable or unverifiable intermediate
+state.
+
+| Package ID | State | Dependencies | Bounded outcome | Completion check | Evidence/commit |
+|---|---|---|---|---|---|
+| `SOP1a-contract-schema` | `ready` | SOP0 | Add versioned Rust metric types, exact counter/gauge semantics, and the separate status-database schema/migration contract without scan integration. | Schema creation/reopen/newer-version rejection and metric invariant tests pass; no product database or WPF contract changes. | Pending |
+| `SOP1b-status-store` | `open` | SOP1a | Implement the worker-owned status store with atomic run/phase/device/sample writes, interruption reconciliation, and explicit unavailable values. | Focused store tests prove exact replay, monotonic counter rejection, crash-safe reopen, and no cross-database mutation. | Pending |
+| `SOP1c-run-lifecycle` | `open` | SOP1b | Connect scan lifecycle and platform-neutral candidate/hash/cache counters to the status store with bounded buffered flushes. | Deterministic scan fixtures reconcile terminal counters and interrupted/cancelled runs without per-file telemetry rows. | Pending |
+| `SOP1d-bounded-queries-retention` | `open` | SOP1b | Add fixed run/phase/device summaries, bounded sample paging, retention, checkpoint policy, and status-history deletion isolation. | Query/cursor/bounds tests and retention/reopen tests pass; product results remain unchanged when status history is absent or removed. | Pending |
+| `SOP1e-host-device-sampler` | `open` | SOP1b | Add a platform seam and Windows implementation for bounded process/system/volume/physical-device samples, with explicit unavailable-counter health. | Fake-clock/platform tests pass; Windows probes identify mapped target devices without serial persistence or WPF-thread work. | Pending |
+| `SOP1f-foundation-acceptance` | `open` | SOP1c, SOP1d, SOP1e | Integrate the packages, document retention/schema/recovery, and retain observer-overhead evidence. | Focused and full relevant matrices pass; instrumentation adds less than 1% wall time and 1% CPU on the declared fixture, or a reviewed measured budget is recorded; gate `SOP1` becomes accepted. | Pending |
+
 ## Work selection and evidence rules
 
-- Advance one gate, or one explicitly named coherent gate group with one verifier, per implementation
-  slice. The immediate implementation gate is `SOP1-telemetry-foundation`.
+- Advance through dependency-ready work packages until a real stop condition in the resumable
+  execution protocol applies. The immediate package is `SOP1a-contract-schema`.
 - Do not optimize against the current UI counter. Establish file/byte/device metrics first.
 - Small synthetic and sampled representative fixtures should tune changes before another full 10 TB
   campaign. A full-drive run is an acceptance artifact, not the inner development loop.
@@ -210,3 +281,4 @@ unavailable-counter states, and coalesced UI Automation announcements are accept
 | 2026-08-25 | Create a separate scan-scale and observability stream; park, do not discard, the Windows release-validation checklist. | Multiple 10 TB drives make whole-run time a primary product concern, while the release checklist must still resume before final feature-complete. |
 | 2026-08-25 | Treat exact-size singleton short-circuiting as an open measured optimization. | Exact-size grouping exists, but the current partial-hash pass still opens singleton files. |
 | 2026-08-25 | Put durable telemetry before algorithm changes and keep it in a separate worker-owned local status database. | Accurate cumulative counters and device evidence are required to explain progress, compare runs, and avoid contaminating immutable product-result truth with sampled operational data. |
+| 2026-08-25 | Make sessions multi-package, checkpointed, audit-once, and safe to resume from a state-independent prompt. | Maximize useful progress per session while preventing repeated audits, progressively narrower follow-ups, and ambiguous recovery after context compaction or agent replacement. |

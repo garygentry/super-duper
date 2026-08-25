@@ -9,7 +9,8 @@ At the beginning of every coding session, read and follow
 coordinates both durable roadmap streams:
 
 - the active large-drive scan optimization and observability plan in
-  `docs/scan-optimization-plan.md`; and
+  `docs/scan-optimization-plan.md` (with reusable kickoff prompt in
+  `docs/scan-optimization-kickoff-prompt.md`); and
 - the parked Windows post-MVP release-validation checklist in
   `docs/windows-roadmap-closure-ledger.md`.
 
