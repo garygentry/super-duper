@@ -1,0 +1,56 @@
+{
+  "gate": "SOP2f-progress-acceptance",
+  "date": "2026-08-25",
+  "machine": "designated Windows 11 x64 development machine",
+  "configuration": "Release",
+  "kind": "representative_campaign_premeasurement_failure",
+  "disposition": "blocked_protocol_feasibility_operator_decision_required",
+  "controlRevision": "0a3c1c1",
+  "controlCommit": "0a3c1c13005c0409f6a3095e397d02dd11704a62",
+  "treatmentRevision": "f803cbd",
+  "treatmentCommit": "f803cbde5e72aa35d77aa509c5f6b86d5f9798f0",
+  "harnessCommit": "ce653aecb939d273257ae61eb8a3fba5c1bf098c",
+  "harnessCommitCompletedUtc": "2026-08-25T22:04:35Z",
+  "failureObservedUtc": "2026-08-26T00:13:03.6780882Z",
+  "campaignWatchdogSeconds": 7200,
+  "failure": "The predeclared two-hour representative campaign watchdog expired.",
+  "timingBegan": false,
+  "warmupArmsCompleted": 0,
+  "measuredControlArmsCompleted": 0,
+  "measuredTreatmentArmsCompleted": 0,
+  "aggregateWallOverheadBasisPoints": null,
+  "aggregateWorkerCpuOverheadBasisPoints": null,
+  "thresholdEvaluated": false,
+  "approvedMeasurementEvidence": "scan-progress-representative-overhead-20260825.json",
+  "approvedMeasurementEvidenceCreated": false,
+  "completedPremeasurementStages": {
+    "controlReleaseBuild": "passed in 8m49s",
+    "treatmentReleaseBuild": "passed in 7m51s",
+    "statusProbeReleaseBuild": "passed in 6m33s",
+    "fixtureCreation": "passed",
+    "fixtureManifestCountBytesAllocationAndPairValidation": "passed",
+    "initialRevisionNeutralFullContentConditioning": "completed before the watchdog check"
+  },
+  "fixture": {
+    "files": 600008,
+    "logicalBytes": 4605870080,
+    "smallFiles": 600000,
+    "smallFileBytes": 4096,
+    "largePairBytes": [268435456, 268500992, 268566528, 268632064],
+    "generatorVersion": 1,
+    "algorithm": "SplitMix64",
+    "seed": "0x534F503246524550"
+  },
+  "cleanup": {
+    "campaignTempRootAbsent": true,
+    "campaignProcessesAbsent": true,
+    "freeBytesAfterCleanup": 43271086080
+  },
+  "notes": [
+    "This record is not representative overhead acceptance evidence and contains no timed arm.",
+    "The sole authorized campaign reached no warmup because build, fixture setup, validation, and the initial mandatory 600,008-file full-content conditioning pass exhausted the two-hour campaign envelope.",
+    "The fixed short leg remains passed under the operator-approved 100 ms wall and 125 ms worker-CPU ceilings.",
+    "No retry, fixture resize, outlier removal, cache/order change, or adjacent performance profile was attempted.",
+    "SOP2f and SOP2 remain unaccepted; revising the representative protocol or waiving/rejecting the gate requires explicit operator approval."
+  ]
+}

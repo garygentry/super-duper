@@ -18,13 +18,14 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: approve and predeclare the two-part SOP2f overhead budget and immutable
-  representative-duration campaign (this session's commit)
+- Latest completed slice: execute the sole approved SOP2f representative campaign and retain its
+  pre-measurement two-hour protocol-feasibility failure
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP2-progress-reporting`
-- Next work package: `SOP2f-progress-acceptance` representative-duration profile
+- Next boundary: operator decision on the blocked `SOP2f-progress-acceptance` representative
+  protocol
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -49,16 +50,17 @@ completed session work uncommitted or substitute work from the parked stream.
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
 
-The current decision slice reopens only `SOP2f-progress-acceptance` under the operator-approved
-two-part budget. The retained unchanged short profile passes fixed caps of 100 ms wall and 125 ms
-worker CPU at +66.9243 ms wall and no detected positive CPU cost. Steady-state acceptance still
-requires one write-once representative Release A/B with aggregate wall and CPU each strictly below
-1%. Its immutable 600,008-file/4,605,870,080-byte fixture, deterministic generator, warm-filesystem-
-cache/cold-application-state semantics, C/T counterbalanced order, five qualifying 60-600-second
-runs per revision, correctness/duration/free-space gates, and no-retry/no-tuning rules are recorded
-in `docs/scan-optimization-plan.md`. The operator approved these exact parameters and authorized
-stopping the pre-existing Release app PID 48972; its path was verified and it was stopped. SOP2f is
-`in_progress`; do not advance to SOP3, SOP5, SOP8 implementation/UI, or the parked stream.
+`SOP2f-progress-acceptance` is blocked at an operator decision. The retained unchanged short profile
+passes fixed caps of 100 ms wall and 125 ms worker CPU at +66.9243 ms wall and no detected positive
+CPU cost. The sole approved representative invocation built both isolated Release workers and the
+status probe, created and validated the immutable 600,008-file/4,605,870,080-byte fixture, and
+completed its initial revision-neutral full-content conditioning. Those mandatory pre-measurement
+steps exhausted the two-hour campaign envelope before any warmup or measured arm began. The
+distinct `docs/evidence/scan-progress-representative-premeasurement-20260825.json` record is not
+acceptance evidence: it retains zero arms, no aggregate, successful cleanup, and the absent approved
+measurement path. No retry or tuning occurred. Explicit operator approval is required to revise the
+representative protocol or waive/reject SOP2; do not advance to SOP3, SOP5, SOP8 implementation/UI,
+or the parked stream.
 
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
@@ -223,12 +225,11 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Implement the separate write-once representative-duration harness exactly as predeclared, verify
-its source and environmental gates, then run it once and retain pass, fail, or invalid evidence
-without retry or tuning. Accept SOP2f/SOP2 only if the fixture qualifies, every correctness check
-passes, and aggregate wall and worker CPU are each strictly below 100 bp. Otherwise retain the
-result and stop at its exact operator/verification boundary. Do not advance to SOP3, SOP5, SOP8
-implementation/UI, or the parked stream before SOP2f is resolved.
+Obtain an explicit operator decision on the retained pre-measurement feasibility failure. The
+operator may authorize a separately versioned representative protocol after reviewing the observed
+conditioning/setup cost, or explicitly waive/reject SOP2. Do not rerun the approved campaign,
+change its fixture/conditioning/watchdog, substitute an adjacent profile, or advance to SOP3, SOP5,
+SOP8 implementation/UI, or the parked stream before that decision.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -297,7 +298,7 @@ before committing the next slice.
 These remain open unless a later committed slice cites qualifying evidence or an explicit reviewed
 decision:
 
-- `SOP2` (representative-duration overhead evidence in progress) and `SOP3` through `SOP9` in
+- `SOP2` (representative-duration protocol blocked at operator decision) and `SOP3` through `SOP9` in
   `docs/scan-optimization-plan.md`
 - Physical Narrator and NVDA acceptance
 - Windows high-contrast acceptance
@@ -327,7 +328,10 @@ pre-existing visible Release app PID 48972; an isolated artifacts path supplied 
 build/test/publish evidence, and the operator later authorized the verified process to be stopped.
 The retained short profile at `docs/evidence/scan-progress-overhead-20260825.json` passes the
 operator-approved fixed 100 ms wall/125 ms CPU caps at +66.9243 ms and no detected positive CPU
-cost. The required representative-duration evidence is not yet run, so neither SOP2f nor SOP2 is
+cost. The sole approved representative campaign failed at its pre-measurement two-hour watchdog
+after fixed-fixture validation and initial conditioning but before any arm; its distinct failure
+record is `docs/evidence/scan-progress-representative-premeasurement-20260825.json`. No aggregate
+exists and the approved measurement evidence path remains absent, so neither SOP2f nor SOP2 is
 accepted.
 
 Accepted `SOP2e` passes the full Windows solution with 137 Core, 74 Infrastructure, and 3 loaded-STA
@@ -528,6 +532,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-25 | this session | Commit the fail-closed representative harness, execute the sole approved SOP2f campaign, and retain its pre-measurement failure: clean builds and fixed-fixture creation/validation/initial conditioning passed, but the two-hour watchdog expired before any arm; cleanup passed and no aggregate exists. | Obtain explicit operator approval for a separately versioned representative protocol or an explicit SOP2 waiver/rejection. Do not rerun, tune, or advance to SOP3. |
 | 2026-08-25 | this session | Approve the exact two-part SOP2f budget: 100 ms wall/125 ms CPU fixed caps for the retained short fixture plus strictly less than 1% aggregate wall/CPU on one immutable 600,008-file representative campaign; verify and stop the operator-authorized Release app PID 48972. | Commit the predeclared protocol, then implement and run exactly one write-once representative profile without resizing, retrying, excluding outliers, or advancing to SOP3. |
 | 2026-08-25 | this session | Complete SOP2f local functional evidence with a named verifier, full Debug/Release matrices, isolated Release publish, and real Debug/Release worker/WPF smoke; retain the sole cross-revision profile failed at +4.39% wall and -3.83% CPU without retrying or stopping the operator's visible Release app. | Keep `SOP2f` blocked and obtain explicit operator disposition: preserve the +1%/+1% gate, approve a reviewed two-part short-absolute/representative-duration budget, or explicitly waive/reject SOP2. Do not advance to SOP3. |
 | 2026-08-25 | this session | Accept `SOP2e-accessible-progress-surface` with six bounded funnel outcomes, separate candidate context, terminal-truthful operational text, system-brush/narrow-width accessibility, stable cancellation focus, and a five-second accepted-snapshot-only `MostRecent` UIA channel. | Implement `SOP2f-progress-acceptance` with one focused cross-layer verifier and the predeclared proportionate full acceptance matrix. |
