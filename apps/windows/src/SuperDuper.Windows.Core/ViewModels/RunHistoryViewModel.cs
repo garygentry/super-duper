@@ -9,38 +9,28 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
 {
     private const int PageSize = 500;
     public const string HashWarningCode = "hash_recoverable_warning";
-    public const int WarningPageSize = 25;
-    public const int WarningCachePageLimit = 5;
+    public const int WarningPageSize = RunWarningDrilldownViewModel.PageSize;
+    public const int WarningCachePageLimit = RunWarningDrilldownViewModel.CachePageLimit;
     private readonly IWorkerClient _workerClient;
+    private readonly RunWarningDrilldownViewModel _warningDrilldown;
     private readonly Func<WorkerRun, CancellationToken, Task>? _navigateToDuplicateSet;
     private long? _sessionId;
     private RunListItemViewModel? _selectedRun;
     private bool _isLoading;
     private string? _errorMessage;
-    private CancellationTokenSource? _warningCancellation;
-    private long _warningGeneration;
-    private bool _isWarningDrilldownOpen;
-    private bool _isWarningLoading;
-    private string? _warningErrorMessage;
-    private string? _warningStatusMessage;
     private CancellationTokenSource? _warningNavigationCancellation;
     private long _warningNavigationGeneration;
     private bool _isWarningNavigationPending;
-    private long _warningErrorAnnouncementVersion;
-    private string? _nextWarningCursor;
-    private long _warningAnnouncementVersion;
     private string _focusTarget = string.Empty;
     private long _focusRequestVersion;
-    private RunWarningSortField _warningSortField = RunWarningSortField.OccurrenceCount;
-    private WorkerSortDirection _warningSortDirection = WorkerSortDirection.Descending;
-    private readonly Dictionary<string, WorkerRunWarningPage> _warningCache = [];
-    private readonly Queue<string> _warningCacheOrder = [];
 
     public RunHistoryViewModel(
         IWorkerClient workerClient,
         Func<WorkerRun, CancellationToken, Task>? navigateToDuplicateSet = null)
     {
         _workerClient = workerClient;
+        _warningDrilldown = new RunWarningDrilldownViewModel(workerClient);
+        _warningDrilldown.PropertyChanged += WarningDrilldownPropertyChanged;
         _navigateToDuplicateSet = navigateToDuplicateSet;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => SessionId is not null && !IsLoading);
         OpenWarningsCommand = new AsyncRelayCommand(OpenWarningsAsync, () => CanOpenWarnings);
@@ -53,11 +43,15 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
             CancelWarningNavigation,
             () => IsWarningNavigationPending);
         CloseWarningsCommand = new RelayCommand(CloseWarnings, () => IsWarningDrilldownOpen);
+        _warningDrilldown.Warnings.CollectionChanged += (_, _) =>
+            NavigateWarningCommand.NotifyCanExecuteChanged();
     }
 
     public ObservableCollection<RunListItemViewModel> Runs { get; } = [];
 
-    public ObservableCollection<WorkerRunWarningAggregate> Warnings { get; } = [];
+    public ObservableCollection<WorkerRunWarningAggregate> Warnings => _warningDrilldown.Warnings;
+
+    internal RunWarningDrilldownViewModel WarningDrilldown => _warningDrilldown;
 
     public long? SessionId
     {
@@ -115,50 +109,15 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
 
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
 
-    public bool IsWarningDrilldownOpen
-    {
-        get => _isWarningDrilldownOpen;
-        private set
-        {
-            if (SetProperty(ref _isWarningDrilldownOpen, value))
-            {
-                OnPropertyChanged(nameof(CanOpenWarnings));
-                OpenWarningsCommand.NotifyCanExecuteChanged();
-                CloseWarningsCommand.NotifyCanExecuteChanged();
-                NavigateWarningCommand.NotifyCanExecuteChanged();
-            }
-        }
-    }
+    public bool IsWarningDrilldownOpen => _warningDrilldown.IsOpen;
 
-    public bool IsWarningLoading
-    {
-        get => _isWarningLoading;
-        private set
-        {
-            if (SetProperty(ref _isWarningLoading, value))
-            {
-                OnPropertyChanged(nameof(CanOpenWarnings));
-                OnPropertyChanged(nameof(CanLoadNextWarningPage));
-                OpenWarningsCommand.NotifyCanExecuteChanged();
-                NextWarningPageCommand.NotifyCanExecuteChanged();
-                CancelWarningLoadCommand.NotifyCanExecuteChanged();
-            }
-        }
-    }
+    public bool IsWarningLoading => _warningDrilldown.IsLoading;
 
-    public string? WarningErrorMessage
-    {
-        get => _warningErrorMessage;
-        private set { if (SetProperty(ref _warningErrorMessage, value)) OnPropertyChanged(nameof(HasWarningError)); }
-    }
+    public string? WarningErrorMessage => _warningDrilldown.ErrorMessage;
 
-    public string? WarningStatusMessage
-    {
-        get => _warningStatusMessage;
-        private set => SetProperty(ref _warningStatusMessage, value);
-    }
+    public string? WarningStatusMessage => _warningDrilldown.StatusMessage;
 
-    public bool HasWarningError => !string.IsNullOrWhiteSpace(WarningErrorMessage);
+    public bool HasWarningError => _warningDrilldown.HasError;
 
     public bool IsWarningNavigationPending
     {
@@ -175,22 +134,20 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
 
     public bool CanOpenWarnings => SelectedRun?.Run.WarningCount > 0 && !IsWarningLoading && !IsWarningDrilldownOpen;
 
-    public bool CanLoadNextWarningPage => IsWarningDrilldownOpen && !IsWarningLoading && _nextWarningCursor is not null;
+    public bool CanLoadNextWarningPage => _warningDrilldown.CanLoadNextPage;
 
-    public RunWarningSortField WarningSortField => _warningSortField;
+    public RunWarningSortField WarningSortField => _warningDrilldown.SortField;
 
-    public WorkerSortDirection WarningSortDirection => _warningSortDirection;
+    public WorkerSortDirection WarningSortDirection => _warningDrilldown.SortDirection;
 
     public long WarningAnnouncementVersion
     {
-        get => _warningAnnouncementVersion;
-        private set => SetProperty(ref _warningAnnouncementVersion, value);
+        get => _warningDrilldown.AnnouncementVersion;
     }
 
     public long WarningErrorAnnouncementVersion
     {
-        get => _warningErrorAnnouncementVersion;
-        private set => SetProperty(ref _warningErrorAnnouncementVersion, value);
+        get => _warningDrilldown.ErrorAnnouncementVersion;
     }
 
     public string FocusTarget { get => _focusTarget; private set => SetProperty(ref _focusTarget, value); }
@@ -272,22 +229,11 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         RunWarningSortField field,
         WorkerSortDirection direction)
     {
-        if (_warningSortField == field && _warningSortDirection == direction)
-        {
-            return;
-        }
-        _warningCancellation?.Cancel();
         CancelWarningNavigation(clearFeedback: true);
-        _warningSortField = field;
-        _warningSortDirection = direction;
-        OnPropertyChanged(nameof(WarningSortField));
-        OnPropertyChanged(nameof(WarningSortDirection));
-        _nextWarningCursor = null;
-        _warningCache.Clear();
-        _warningCacheOrder.Clear();
-        if (IsWarningDrilldownOpen)
+        await _warningDrilldown.ApplySortAsync(field, direction);
+        if (IsWarningDrilldownOpen && !HasWarningError)
         {
-            await LoadWarningPageAsync(null, opening: false);
+            RequestFocus("warnings");
         }
     }
 
@@ -319,100 +265,33 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         ? LoadAsync(sessionId)
         : Task.CompletedTask;
 
-    private Task OpenWarningsAsync() => LoadWarningPageAsync(null, opening: true);
+    private Task OpenWarningsAsync() => LoadWarningPageAsync(opening: true);
 
-    private Task NextWarningPageAsync() => _nextWarningCursor is { } cursor
-        ? LoadWarningPageAsync(cursor, opening: false)
-        : Task.CompletedTask;
+    private Task NextWarningPageAsync() => LoadWarningPageAsync(opening: false);
 
-    private async Task LoadWarningPageAsync(string? cursor, bool opening)
+    private async Task LoadWarningPageAsync(bool opening)
     {
         var run = SelectedRun?.Run;
         if (run is null || run.WarningCount <= 0)
         {
             return;
         }
-        _warningCancellation?.Cancel();
         CancelWarningNavigation(clearFeedback: true);
-        _warningCancellation?.Dispose();
-        _warningCancellation = new CancellationTokenSource();
-        var token = _warningCancellation.Token;
-        var generation = ++_warningGeneration;
-        IsWarningLoading = true;
-        WarningErrorMessage = null;
-        try
+        if (opening)
         {
-            var key = $"{_warningSortField}|{_warningSortDirection}|{cursor ?? string.Empty}";
-            if (!_warningCache.TryGetValue(key, out var page))
-            {
-                page = await _workerClient.GetRunWarningsAsync(
-                    new RunWarningQuery(
-                        run.Id,
-                        WarningPageSize,
-                        _warningSortField,
-                        _warningSortDirection,
-                        cursor),
-                    token);
-                if (page.ExecutorEnabled
-                    || page.WarningCount != page.AccountedWarningCount
-                    || page.Warnings.Count > WarningPageSize
-                    || page.Total < page.Warnings.Count
-                    || page.Warnings.Any(warning => warning.RunId != run.Id))
-                {
-                    throw new InvalidOperationException("The worker returned an unsafe, unbounded, or incomplete warning accounting page.");
-                }
-                CacheWarningPage(key, page);
-            }
-            if (token.IsCancellationRequested || generation != _warningGeneration || SelectedRun?.Id != run.Id)
-            {
-                return;
-            }
-            Warnings.Clear();
-            foreach (var warning in page.Warnings)
-            {
-                Warnings.Add(warning);
-            }
-            NavigateWarningCommand.NotifyCanExecuteChanged();
-            _nextWarningCursor = page.NextCursor;
-            IsWarningDrilldownOpen = true;
-            WarningStatusMessage = page.Total == 0
-                ? "No persisted warning aggregates are available."
-                : $"Showing {Warnings.Count:N0} of {page.Total:N0} bounded warning aggregates accounting for {page.AccountedWarningCount:N0} warnings, {WarningSortDescription()}.";
-            WarningAnnouncementVersion++;
+            await _warningDrilldown.OpenAsync(run.Id);
+        }
+        else
+        {
+            await _warningDrilldown.LoadNextPageAsync();
+        }
+        if (SelectedRun?.Id == run.Id && IsWarningDrilldownOpen && !HasWarningError)
+        {
             RequestFocus("warnings");
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
-        {
-        }
-        catch (Exception exception) when (generation == _warningGeneration && SelectedRun?.Id == run.Id)
-        {
-            WarningErrorMessage = exception.Message;
-            if (opening)
-            {
-                IsWarningDrilldownOpen = true;
-            }
-        }
-        finally
-        {
-            if (generation == _warningGeneration)
-            {
-                IsWarningLoading = false;
-            }
-        }
     }
 
-    private void CacheWarningPage(string key, WorkerRunWarningPage page)
-    {
-        if (_warningCache.ContainsKey(key)) return;
-        _warningCache[key] = page;
-        _warningCacheOrder.Enqueue(key);
-        while (_warningCacheOrder.Count > WarningCachePageLimit)
-        {
-            _warningCache.Remove(_warningCacheOrder.Dequeue());
-        }
-    }
-
-    private void CancelWarningLoad() => _warningCancellation?.Cancel();
+    private void CancelWarningLoad() => _warningDrilldown.CancelLoad();
 
     private bool CanNavigateWarning(WorkerRunWarningAggregate? warning) =>
         _navigateToDuplicateSet is not null
@@ -440,9 +319,8 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         var warningId = warning.Id;
         var runId = warning.RunId;
         IsWarningNavigationPending = true;
-        WarningErrorMessage = null;
-        WarningStatusMessage = $"Opening immutable duplicate-file results for run {runId:N0}…";
-        WarningAnnouncementVersion++;
+        _warningDrilldown.ClearError();
+        _warningDrilldown.ReportStatus($"Opening immutable duplicate-file results for run {runId:N0}…");
 
         try
         {
@@ -465,19 +343,17 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            WarningStatusMessage =
-                $"Opened immutable duplicate-file results for run {runId:N0}. Persisted warning history was not changed.";
-            WarningAnnouncementVersion++;
+            _warningDrilldown.ReportStatus(
+                $"Opened immutable duplicate-file results for run {runId:N0}. Persisted warning history was not changed.");
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
         }
         catch (Exception exception) when (IsCurrentWarningNavigation(generation, warningId, runId, token))
         {
-            WarningErrorMessage =
+            _warningDrilldown.ReportError(
                 $"The immutable duplicate-file results for run {runId:N0} are unavailable. " +
-                $"Refresh run history before trying this warning again. {exception.Message}";
-            WarningErrorAnnouncementVersion++;
+                $"Refresh run history before trying this warning again. {exception.Message}");
             RequestFocus($"warning-action:{warningId}");
         }
         finally
@@ -514,13 +390,13 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         IsWarningNavigationPending = false;
         if (clearFeedback)
         {
-            WarningErrorMessage = null;
+            _warningDrilldown.ClearError();
             return;
         }
         if (wasPending)
         {
-            WarningStatusMessage = "Warning navigation was cancelled. Persisted warning history was not changed.";
-            WarningAnnouncementVersion++;
+            _warningDrilldown.ReportStatus(
+                "Warning navigation was cancelled. Persisted warning history was not changed.");
             if (warningId is long id)
             {
                 RequestFocus($"warning-action:{id}");
@@ -533,19 +409,8 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
     private void CloseWarnings(bool restoreFocus)
     {
         CancelWarningNavigation(clearFeedback: true);
-        _warningCancellation?.Cancel();
-        _warningCancellation?.Dispose();
-        _warningCancellation = null;
-        _warningGeneration++;
-        IsWarningLoading = false;
-        IsWarningDrilldownOpen = false;
-        WarningErrorMessage = null;
-        WarningStatusMessage = null;
-        _nextWarningCursor = null;
-        Warnings.Clear();
+        _warningDrilldown.Close();
         NavigateWarningCommand.NotifyCanExecuteChanged();
-        _warningCache.Clear();
-        _warningCacheOrder.Clear();
         if (restoreFocus) RequestFocus("history");
     }
 
@@ -555,18 +420,38 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         FocusRequestVersion++;
     }
 
-    private string WarningSortDescription() => (_warningSortField, _warningSortDirection) switch
+    private void WarningDrilldownPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
-        (RunWarningSortField.OccurrenceCount, WorkerSortDirection.Descending) => "highest count first",
-        (RunWarningSortField.OccurrenceCount, _) => "lowest count first",
-        (RunWarningSortField.Phase, WorkerSortDirection.Ascending) => "phase A to Z",
-        (RunWarningSortField.Phase, _) => "phase Z to A",
-        (RunWarningSortField.Message, WorkerSortDirection.Ascending) => "warning text A to Z",
-        _ => "warning text Z to A",
-    };
+        var propertyName = args.PropertyName switch
+        {
+            nameof(RunWarningDrilldownViewModel.IsOpen) => nameof(IsWarningDrilldownOpen),
+            nameof(RunWarningDrilldownViewModel.IsLoading) => nameof(IsWarningLoading),
+            nameof(RunWarningDrilldownViewModel.ErrorMessage) => nameof(WarningErrorMessage),
+            nameof(RunWarningDrilldownViewModel.HasError) => nameof(HasWarningError),
+            nameof(RunWarningDrilldownViewModel.StatusMessage) => nameof(WarningStatusMessage),
+            nameof(RunWarningDrilldownViewModel.CanLoadNextPage) => nameof(CanLoadNextWarningPage),
+            nameof(RunWarningDrilldownViewModel.SortField) => nameof(WarningSortField),
+            nameof(RunWarningDrilldownViewModel.SortDirection) => nameof(WarningSortDirection),
+            nameof(RunWarningDrilldownViewModel.AnnouncementVersion) => nameof(WarningAnnouncementVersion),
+            nameof(RunWarningDrilldownViewModel.ErrorAnnouncementVersion) => nameof(WarningErrorAnnouncementVersion),
+            _ => null,
+        };
+        if (propertyName is not null)
+        {
+            OnPropertyChanged(propertyName);
+        }
+        OnPropertyChanged(nameof(CanOpenWarnings));
+        OpenWarningsCommand.NotifyCanExecuteChanged();
+        NextWarningPageCommand.NotifyCanExecuteChanged();
+        CancelWarningLoadCommand.NotifyCanExecuteChanged();
+        CloseWarningsCommand.NotifyCanExecuteChanged();
+        NavigateWarningCommand.NotifyCanExecuteChanged();
+    }
 
     public void Dispose()
     {
+        _warningDrilldown.PropertyChanged -= WarningDrilldownPropertyChanged;
         CloseWarnings(restoreFocus: false);
+        _warningDrilldown.Dispose();
     }
 }

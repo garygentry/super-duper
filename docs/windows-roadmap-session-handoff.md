@@ -18,13 +18,13 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept `SOP3b-active-warning-page-snapshot` with durable revision-bound
-  paging, stale-cursor rejection, restart/terminal state, and separate diagnostic-log metadata
+- Latest completed slice: accept `SOP3c-bounded-current-warning-view-model` with one reusable Core
+  active/completed drilldown, bounded revision-aware paging, and a one-way terminal latch
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP3-current-warning-log`
-- Next boundary: implement only `SOP3c-bounded-current-warning-view-model`
+- Next boundary: implement only `SOP3d-accessible-warning-entry-and-acceptance`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -79,6 +79,16 @@ pages. Restart reconstructs the exact interrupted snapshot. The additive worker 
 active/terminal/pending state and the client-configured bounded local diagnostic-log path as
 supplemental developer/recovery metadata, never durable warning truth. No Core warning contract/
 view model, WPF entry point, cache policy, SOP4, later optimization, or campaign changed.
+
+`SOP3c-bounded-current-warning-view-model` is accepted. Core now projects the complete SOP3b page
+identity and separate diagnostic-log metadata through one reusable active/completed drilldown.
+Generation changes cancel and reject late requests; active and pending first-page refreshes bypass
+cache; cursor pages must retain the exact accepted revision/state/status; and run/sort/revision
+changes cannot exceed five cached pages or 25 bound rows. Exact durable accounted/live totals are
+shown explicitly. Once terminal identity is accepted it cannot change or return to active, so a
+late active page cannot replace immutable completed history. Existing Run history delegates its
+paging to this component without changing XAML, focus/navigation behavior, or adding the Progress
+entry point. No Rust, worker, schema, WPF, SOP4, campaign, or parked-stream work changed.
 
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
@@ -243,11 +253,11 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance only to `SOP3c-bounded-current-warning-view-model`. Add the reusable Core active/completed
-warning drilldown with generation-scoped cancellation, revision-bound five-page cache, 25-row
-binding, exact live/accounted state, restart reconstruction, and one-way terminal handoff. Do not
-add the Progress/WPF entry point, SOP4 Performance tab, later optimization gates, or another
-representative campaign.
+Advance only to `SOP3d-accessible-warning-entry-and-acceptance`. Add the Progress warning entry
+point, reuse the accepted bounded drilldown through terminal history, and expose the separate
+diagnostic application log with the required system-brush, keyboard, focus, automation, and
+coalesced-announcement behavior. Do not begin SOP4 Performance work, later optimization gates, or
+another representative campaign.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -334,6 +344,17 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Accepted `SOP3c-bounded-current-warning-view-model` passes 4 focused deterministic drilldown tests
+and the complete Windows solution: 141 Core tests, 74 Infrastructure tests, and 3 loaded-STA smoke
+tests pass; the same 5 operator-only Infrastructure tests are skipped. Coverage proves the 25-row
+and five-page bounds, active first-page refresh across durable revisions, exact accounted/live
+projection, generation cancellation and late-run silence, fail-closed mixed-revision paging,
+restart reconstruction of interrupted terminal truth, and a one-way terminal latch that preserves
+the accepted completed page. The existing completed-history paging/navigation tests remain green.
+The solution build reports no warnings or errors, and diff checks pass. No Rust, worker, schema,
+XAML/WPF entry point, physical/provider/performance campaign, SOP4, later optimization, or parked-
+stream work ran.
 
 Accepted `SOP3b-active-warning-page-snapshot` passes all 53 non-performance Core storage tests with
 the 4 retained operator profiles ignored, all 25 worker library tests, and the focused typed
@@ -585,6 +606,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-26 | this session | Accept `SOP3c-bounded-current-warning-view-model`: project the complete durable warning snapshot in one reusable Core active/completed drilldown with generation cancellation, revision-aware five-page caching, 25-row binding, exact accounted/live status, restart reconstruction, and an immutable one-way terminal latch; delegate completed Run history paging without a WPF change. | Implement only `SOP3d-accessible-warning-entry-and-acceptance`; keep SOP4, later optimization, campaigns, and parked release validation out of scope. |
 | 2026-08-26 | this session | Accept `SOP3b-active-warning-page-snapshot`: add schema-v15 durable warning revisions, one-snapshot page truth, revision/status-bound cursors, active-mutation and terminal-handoff stale rejection, restart reconstruction, and separate client-configured diagnostic-log metadata. | Implement only `SOP3c-bounded-current-warning-view-model`; keep the WPF/Progress entry, SOP4, later optimization, campaigns, and parked stream out of scope. |
 | 2026-08-26 | this session | Accept `SOP3a-live-warning-accounting`: atomically account any higher accepted live warning count with one stable bounded fallback row before publication, fail closed on persistence error, replace the gap with specific phase aggregates, and preserve exact interrupted/restart truth without per-occurrence rows. | Implement only `SOP3b-active-warning-page-snapshot`; keep Core/WPF entry, SOP4, later optimization, representative campaigns, and the parked stream out of scope. |
 | 2026-08-26 | this session | Record SOP2f as `waived_by_operator_unmeasured` and SOP2 as `accepted_with_operator_waiver`, citing accepted SOP2a-SOP2e packages, passing functional and fixed-cost short evidence, and both retained invalid representative attempts. The strict <1% wall/CPU gate remains unevaluated, not passed. | Carry the unresolved representative-overhead risk to SOP9. Advance only to `SOP3-current-warning-log`: audit the warning path, define its dependency-ordered ledger, and implement the first smallest coherent package. |

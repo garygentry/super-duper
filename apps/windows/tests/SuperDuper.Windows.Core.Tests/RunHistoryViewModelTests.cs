@@ -1,4 +1,3 @@
-using System.Reflection;
 using SuperDuper.Windows.Core.ViewModels;
 using SuperDuper.Windows.Core.Workers;
 
@@ -28,7 +27,8 @@ public sealed class RunHistoryViewModelTests
                     .Select(id => new WorkerRunWarningAggregate(id, query.RunId, "discovering", "scan",
                         $"warning-{id}", "warning", $"Warning {id}", 1, [$"Example {id}"]))
                     .ToArray(),
-                100_000, 100_000, 100_000, $"cursor-{index + 1}", false));
+                100_000, 100_000, 100_000, 10, "terminal", "completed",
+                TestWorkerClient.DiagnosticLog, $"cursor-{index + 1}", false));
         };
         using var viewModel = new RunHistoryViewModel(worker);
         await viewModel.LoadAsync(3);
@@ -43,10 +43,7 @@ public sealed class RunHistoryViewModelTests
         Assert.AreEqual(RunHistoryViewModel.WarningPageSize, viewModel.Warnings.Count);
         Assert.AreEqual("warning-151", viewModel.Warnings[0].Code);
         Assert.AreEqual("warnings", viewModel.FocusTarget);
-        var cache = (System.Collections.IDictionary)typeof(RunHistoryViewModel)
-            .GetField("_warningCache", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .GetValue(viewModel)!;
-        Assert.AreEqual(RunHistoryViewModel.WarningCachePageLimit, cache.Count);
+        Assert.AreEqual(RunHistoryViewModel.WarningCachePageLimit, viewModel.WarningDrilldown.CachedPageCount);
         Assert.IsTrue(queries.All(query => query.SortField == RunWarningSortField.OccurrenceCount));
         Assert.IsTrue(queries.All(query => query.SortDirection == WorkerSortDirection.Descending));
         StringAssert.Contains(viewModel.WarningStatusMessage, "25 of 100,000");
@@ -56,7 +53,7 @@ public sealed class RunHistoryViewModelTests
         Assert.AreEqual(WorkerSortDirection.Ascending, queries[^1].SortDirection);
         Assert.IsNull(queries[^1].Cursor);
         Assert.AreEqual(RunHistoryViewModel.WarningPageSize, viewModel.Warnings.Count);
-        Assert.AreEqual(1, cache.Count);
+        Assert.AreEqual(1, viewModel.WarningDrilldown.CachedPageCount);
 
         viewModel.CloseWarningsCommand.Execute(null);
         Assert.IsFalse(viewModel.IsWarningDrilldownOpen);
@@ -84,7 +81,7 @@ public sealed class RunHistoryViewModelTests
         completion.SetResult(new WorkerRunWarningPage(
             [new WorkerRunWarningAggregate(1, 8, "hashing", "scan", "stale", "warning",
                 "Stale warning", 1, ["stale example"])],
-            1, 1, 1, null, false));
+            1, 1, 1, 10, "terminal", "completed", TestWorkerClient.DiagnosticLog, null, false));
         await load;
 
         Assert.IsTrue(observedToken.IsCancellationRequested);
@@ -99,7 +96,8 @@ public sealed class RunHistoryViewModelTests
         var worker = new TestWorkerClient();
         worker.Runs.Add(TestWorkerClient.CreateRun(7, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
         worker.RunWarningsHandler = (_, _) => Task.FromResult(
-            new WorkerRunWarningPage([], 0, 1, 0, null, true));
+            new WorkerRunWarningPage(
+                [], 0, 1, 0, 10, "terminal", "completed", TestWorkerClient.DiagnosticLog, null, true));
         using var viewModel = new RunHistoryViewModel(worker);
         await viewModel.LoadAsync(3);
 
@@ -130,7 +128,8 @@ public sealed class RunHistoryViewModelTests
         var worker = new TestWorkerClient();
         worker.Runs.Add(run);
         worker.RunWarningsHandler = (_, _) => Task.FromResult(
-            new WorkerRunWarningPage([warning], 1, 1, 1, null, false));
+            new WorkerRunWarningPage(
+                [warning], 1, 1, 1, 10, "terminal", "completed", TestWorkerClient.DiagnosticLog, null, false));
         WorkerRun? navigatedTarget = null;
         using var viewModel = new RunHistoryViewModel(
             worker,
@@ -182,7 +181,8 @@ public sealed class RunHistoryViewModelTests
         worker.Runs.Add(current);
         worker.Runs.Add(older);
         worker.RunWarningsHandler = (_, _) => Task.FromResult(
-            new WorkerRunWarningPage([warning], 1, 1, 1, null, false));
+            new WorkerRunWarningPage(
+                [warning], 1, 1, 1, 10, "terminal", "completed", TestWorkerClient.DiagnosticLog, null, false));
         var firstResolution = new TaskCompletionSource<WorkerRun>(TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationToken firstToken = default;
         worker.GetRunHandler = (_, token) =>

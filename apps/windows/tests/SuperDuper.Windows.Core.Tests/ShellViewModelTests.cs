@@ -126,7 +126,8 @@ public sealed class ShellViewModelTests
             1,
             ["bounded example"]);
         client.RunWarningsHandler = (_, _) => Task.FromResult(
-            new WorkerRunWarningPage([warning], 1, 1, 1, null, false));
+            new WorkerRunWarningPage(
+                [warning], 1, 1, 1, 10, "terminal", "completed", TestWorkerClient.DiagnosticLog, null, false));
         using var viewModel = CreateViewModel(client);
         await viewModel.InitializeAsync();
         viewModel.SelectedTabIndex = 2;

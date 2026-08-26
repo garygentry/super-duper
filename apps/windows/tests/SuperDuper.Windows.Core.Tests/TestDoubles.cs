@@ -21,6 +21,13 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
 
     public string DiagnosticLogPath => @"C:\test\logs\worker.log";
 
+    public static WorkerDiagnosticLogMetadata DiagnosticLog { get; } = new(
+        "available",
+        "local_file",
+        @"C:\test\logs\worker.log",
+        null,
+        "supplemental_diagnostics_not_durable_warning_truth");
+
     public List<WorkerSessionDefinition> Sessions { get; } = [];
 
     public List<WorkerRun> Runs { get; } = [];
@@ -209,7 +216,8 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
         RunWarningQuery query,
         CancellationToken cancellationToken = default) =>
         RunWarningsHandler?.Invoke(query, cancellationToken)
-        ?? Task.FromResult(new WorkerRunWarningPage([], 0, 0, 0, null, false));
+        ?? Task.FromResult(new WorkerRunWarningPage(
+            [], 0, 0, 0, 0, "terminal", "completed", DiagnosticLog, null, false));
 
     public Task<WorkerRun> StartRunAsync(long sessionId, CancellationToken cancellationToken = default)
     {

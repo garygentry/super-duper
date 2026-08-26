@@ -86,11 +86,22 @@ public sealed record WorkerRunWarningAggregate(
     long OccurrenceCount,
     IReadOnlyList<string> Examples);
 
+public sealed record WorkerDiagnosticLogMetadata(
+    string State,
+    string? LocationKind,
+    string? Path,
+    string? Reason,
+    string Relationship);
+
 public sealed record WorkerRunWarningPage(
     IReadOnlyList<WorkerRunWarningAggregate> Warnings,
     long Total,
     long WarningCount,
     long AccountedWarningCount,
+    long SnapshotRevision,
+    string SnapshotState,
+    string RunStatus,
+    WorkerDiagnosticLogMetadata DiagnosticLog,
     string? NextCursor,
     bool ExecutorEnabled);
 
