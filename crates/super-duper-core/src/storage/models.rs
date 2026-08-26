@@ -165,6 +165,16 @@ pub struct RunWarningPageQuery {
     pub cursor: Option<PageCursor>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunWarningPageSnapshot {
+    pub warnings: Vec<RunWarningAggregate>,
+    pub total: i64,
+    pub warning_count: i64,
+    pub accounted_warning_count: i64,
+    pub revision: i64,
+    pub run_status: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct ScannedFile {
     pub id: i64,

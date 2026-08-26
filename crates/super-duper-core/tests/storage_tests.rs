@@ -402,6 +402,84 @@ fn schema_version_is_explicit_and_current() {
 }
 
 #[test]
+fn version_fourteen_adds_durable_warning_revision_idempotently() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("v14-warning-revision.db");
+    let legacy = Connection::open(&path).unwrap();
+    legacy
+        .execute_batch(
+            "CREATE TABLE scan_session (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                 roots_json TEXT NOT NULL,
+                 ignore_patterns_json TEXT NOT NULL DEFAULT '[]',
+                 cloud_policy TEXT NOT NULL DEFAULT 'exclude_registered_roots',
+                 manual_location_exclusions_json TEXT NOT NULL DEFAULT '[]',
+                 registered_cloud_locations_json TEXT NOT NULL DEFAULT '[]',
+                 cloud_detection_status TEXT NOT NULL DEFAULT 'unavailable',
+                 created_at TEXT NOT NULL,
+                 updated_at TEXT NOT NULL
+             );
+             CREATE TABLE scan_run (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 session_id INTEGER NOT NULL REFERENCES scan_session(id) ON DELETE CASCADE,
+                 parameters_json TEXT NOT NULL,
+                 status TEXT NOT NULL DEFAULT 'pending',
+                 phase TEXT,
+                 created_at TEXT NOT NULL,
+                 started_at TEXT,
+                 completed_at TEXT,
+                 files_discovered INTEGER NOT NULL DEFAULT 0,
+                 bytes_discovered INTEGER NOT NULL DEFAULT 0,
+                 files_hashed INTEGER NOT NULL DEFAULT 0,
+                 duplicate_file_groups INTEGER NOT NULL DEFAULT 0,
+                 duplicate_folder_groups INTEGER NOT NULL DEFAULT 0,
+                 wasted_bytes INTEGER NOT NULL DEFAULT 0,
+                 warning_count INTEGER NOT NULL DEFAULT 0,
+                 excluded_subtree_count INTEGER NOT NULL DEFAULT 0,
+                 error_message TEXT,
+                 engine_version TEXT NOT NULL
+             );
+             INSERT INTO scan_session
+                 (id, name, roots_json, created_at, updated_at)
+             VALUES (1, 'Legacy', '[]', '2026-08-26T00:00:00Z', '2026-08-26T00:00:00Z');
+             INSERT INTO scan_run
+                 (id, session_id, parameters_json, status, created_at, warning_count, engine_version)
+             VALUES (1, 1, '{}', 'completed', '2026-08-26T00:00:00Z', 3, 'test');
+             PRAGMA user_version = 14;",
+        )
+        .unwrap();
+    drop(legacy);
+
+    let migrated = Database::open_connection(path.to_str().unwrap()).unwrap();
+    assert_eq!(migrated.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+    let revision: i64 = migrated
+        .connection()
+        .query_row(
+            "SELECT warning_revision FROM scan_run WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(revision, 0);
+    drop(migrated);
+
+    let reopened = Database::open_connection(path.to_str().unwrap()).unwrap();
+    assert_eq!(reopened.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+    assert_eq!(
+        reopened
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('scan_run') WHERE name = 'warning_revision'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap(),
+        1
+    );
+}
+
+#[test]
 fn version_thirteen_migrates_warning_counts_to_explicit_legacy_aggregates() {
     let temp = tempdir().unwrap();
     let path = temp.path().join("v13-warning-aggregates.db");
@@ -496,6 +574,16 @@ fn live_warning_accounting_is_monotonic_bounded_and_restart_safe() {
 
     db.update_run_progress_with_warning_accounting(run_id, "discovering", 256, 4_096, 0, 3)
         .unwrap();
+    let first_snapshot = db
+        .page_run_warning_snapshot(&warning_page_query(run_id, 25, None))
+        .unwrap();
+    assert_eq!(first_snapshot.run_status, "running");
+    db.update_run_progress_with_warning_accounting(run_id, "discovering", 384, 6_144, 0, 3)
+        .unwrap();
+    let unchanged_snapshot = db
+        .page_run_warning_snapshot(&warning_page_query(run_id, 25, None))
+        .unwrap();
+    assert_eq!(unchanged_snapshot.revision, first_snapshot.revision);
     let (first, total, accounted) = db
         .page_run_warning_aggregates(&warning_page_query(run_id, 25, None))
         .unwrap();
@@ -506,6 +594,10 @@ fn live_warning_accounting_is_monotonic_bounded_and_restart_safe() {
 
     db.update_run_progress_with_warning_accounting(run_id, "discovering", 512, 8_192, 0, 5)
         .unwrap();
+    let advanced_snapshot = db
+        .page_run_warning_snapshot(&warning_page_query(run_id, 25, None))
+        .unwrap();
+    assert!(advanced_snapshot.revision > first_snapshot.revision);
     let (advanced, total, accounted) = db
         .page_run_warning_aggregates(&warning_page_query(run_id, 25, None))
         .unwrap();
@@ -546,6 +638,11 @@ fn live_warning_accounting_is_monotonic_bounded_and_restart_safe() {
     let reopened = Database::open(path.to_str().unwrap()).unwrap();
     let run = reopened.get_scan_run(run_id).unwrap();
     assert_eq!((run.status.as_str(), run.warning_count), ("interrupted", 7));
+    let restored_snapshot = reopened
+        .page_run_warning_snapshot(&warning_page_query(run_id, 25, None))
+        .unwrap();
+    assert_eq!(restored_snapshot.run_status, "interrupted");
+    assert!(restored_snapshot.revision > advanced_snapshot.revision);
     let (restored, total, accounted) = reopened
         .page_run_warning_aggregates(&warning_page_query(run_id, 25, None))
         .unwrap();

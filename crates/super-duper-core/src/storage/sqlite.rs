@@ -4,7 +4,7 @@ use chrono::Utc;
 use rusqlite::{params, Connection, Error, Result};
 use tracing::{debug, info};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 14;
+pub const CURRENT_SCHEMA_VERSION: i64 = 15;
 
 pub struct Database {
     conn: Connection,
@@ -71,21 +71,28 @@ impl Database {
         let version = self.schema_version()?;
         match version {
             CURRENT_SCHEMA_VERSION => self.conn.execute_batch(include_str!("schema.sql"))?,
-            13 => self.migrate_v13_to_v14()?,
+            14 => self.migrate_v14_to_v15()?,
+            13 => {
+                self.migrate_v13_to_v14()?;
+                self.migrate_v14_to_v15()?;
+            }
             12 => {
                 self.migrate_v12_to_v13()?;
                 self.migrate_v13_to_v14()?;
+                self.migrate_v14_to_v15()?;
             }
             11 => {
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
                 self.migrate_v13_to_v14()?;
+                self.migrate_v14_to_v15()?;
             }
             10 => {
                 self.migrate_v10_to_v11()?;
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
                 self.migrate_v13_to_v14()?;
+                self.migrate_v14_to_v15()?;
             }
             9 => {
                 self.migrate_v9_to_v10()?;
@@ -93,6 +100,7 @@ impl Database {
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
                 self.migrate_v13_to_v14()?;
+                self.migrate_v14_to_v15()?;
             }
             8 => {
                 self.migrate_v8_to_v9()?;
@@ -101,6 +109,7 @@ impl Database {
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
                 self.migrate_v13_to_v14()?;
+                self.migrate_v14_to_v15()?;
             }
             7 => {
                 self.migrate_v7_to_v8()?;
@@ -110,6 +119,7 @@ impl Database {
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
                 self.migrate_v13_to_v14()?;
+                self.migrate_v14_to_v15()?;
             }
             6 => {
                 self.migrate_v6_to_v7()?;
@@ -120,6 +130,7 @@ impl Database {
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
                 self.migrate_v13_to_v14()?;
+                self.migrate_v14_to_v15()?;
             }
             5 => {
                 self.migrate_v5_to_v6()?;
@@ -131,6 +142,7 @@ impl Database {
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
                 self.migrate_v13_to_v14()?;
+                self.migrate_v14_to_v15()?;
             }
             4 => {
                 self.migrate_v4_to_v5()?;
@@ -143,6 +155,7 @@ impl Database {
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
                 self.migrate_v13_to_v14()?;
+                self.migrate_v14_to_v15()?;
             }
             3 => {
                 self.migrate_v3_to_v4()?;
@@ -156,6 +169,7 @@ impl Database {
                 self.migrate_v11_to_v12()?;
                 self.migrate_v12_to_v13()?;
                 self.migrate_v13_to_v14()?;
+                self.migrate_v14_to_v15()?;
             }
             2 => self.migrate_v2_to_v3()?,
             0 if !self.has_user_tables()? => self.conn.execute_batch(include_str!("schema.sql"))?,
@@ -1229,11 +1243,35 @@ impl Database {
         migration
     }
 
+    fn migrate_v14_to_v15(&self) -> Result<()> {
+        info!("Migrating SQLite schema from version 14 to 15");
+        self.conn.execute_batch("BEGIN IMMEDIATE;")?;
+        let migration = (|| -> Result<()> {
+            let mut statement = self.conn.prepare("PRAGMA table_info(scan_run)")?;
+            let columns = statement
+                .query_map([], |row| row.get::<_, String>(1))?
+                .collect::<Result<Vec<_>>>()?;
+            if !columns.iter().any(|column| column == "warning_revision") {
+                self.conn.execute(
+                    "ALTER TABLE scan_run ADD COLUMN warning_revision INTEGER NOT NULL DEFAULT 0
+                     CHECK(warning_revision >= 0)",
+                    [],
+                )?;
+            }
+            self.conn.execute_batch("PRAGMA user_version = 15; COMMIT;")
+        })();
+        if migration.is_err() {
+            let _ = self.conn.execute_batch("ROLLBACK;");
+        }
+        migration
+    }
+
     pub fn reconcile_interrupted_runs(&self) -> Result<usize> {
         let now = Utc::now().to_rfc3339();
         let count = self.conn.execute(
             "UPDATE scan_run
              SET status = 'interrupted', phase = 'finalizing', completed_at = ?1,
+                 warning_revision = warning_revision + 1,
                  error_message = COALESCE(error_message, 'Run interrupted before a terminal state was persisted')
              WHERE status IN ('running', 'cancelling')",
             params![now],

@@ -145,6 +145,12 @@ public sealed class WorkerClientLifecycleTests
             var started = await client.StartRunAsync(session.Id);
             var terminalEvent = await terminal.Task.WaitAsync(TimeSpan.FromSeconds(30));
             var durable = await client.GetRunAsync(started.Id);
+            var warnings = await client.GetRunWarningsAsync(
+                new RunWarningQuery(
+                    started.Id,
+                    25,
+                    RunWarningSortField.OccurrenceCount,
+                    WorkerSortDirection.Descending));
             var groups = await client.GetDuplicateFileGroupsAsync(
                 new DuplicateFileGroupQuery(
                     started.Id,
@@ -468,6 +474,10 @@ public sealed class WorkerClientLifecycleTests
             Assert.AreEqual(2, selectedRootGroups.Total);
             Assert.AreEqual("completed", durable.Status);
             Assert.AreEqual(session.Id, durable.SessionId);
+            Assert.AreEqual(0, warnings.Total);
+            Assert.AreEqual(0, warnings.WarningCount);
+            Assert.AreEqual(0, warnings.AccountedWarningCount);
+            Assert.IsFalse(warnings.ExecutorEnabled);
             Assert.AreEqual(2, groups.Total);
             Assert.AreEqual(1, groups.Summary.DistinctSelectedRootCount);
             Assert.AreEqual(1, groups.Summary.DistinctDriveCount);
@@ -547,6 +557,7 @@ public sealed class WorkerClientLifecycleTests
                          "duplicate_file_selected_root_facet.page",
                          "duplicate_file_drive_facet.page",
                          "duplicate_file_group.members",
+                         "warning.page",
                          "review_plan.get",
                          "review_group.page",
                          "review_folder_group.page",

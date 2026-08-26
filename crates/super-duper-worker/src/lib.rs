@@ -91,6 +91,7 @@ impl From<io::Error> for WorkerError {
 pub struct WorkerOptions {
     pub database_path: PathBuf,
     pub status_database_path: PathBuf,
+    pub diagnostic_log_path: Option<PathBuf>,
 }
 
 impl WorkerOptions {
@@ -103,11 +104,17 @@ impl WorkerOptions {
         Self {
             database_path,
             status_database_path,
+            diagnostic_log_path: None,
         }
     }
 
     pub fn with_status_database_path(mut self, path: impl Into<PathBuf>) -> Self {
         self.status_database_path = path.into();
+        self
+    }
+
+    pub fn with_diagnostic_log_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.diagnostic_log_path = Some(path.into());
         self
     }
 }
@@ -119,8 +126,12 @@ impl Default for WorkerOptions {
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("super_duper.db")),
         );
-        match std::env::var_os("SUPER_DUPER_STATUS_DB_PATH") {
+        let options = match std::env::var_os("SUPER_DUPER_STATUS_DB_PATH") {
             Some(path) => options.with_status_database_path(PathBuf::from(path)),
+            None => options,
+        };
+        match std::env::var_os("SUPER_DUPER_DIAGNOSTIC_LOG_PATH") {
+            Some(path) => options.with_diagnostic_log_path(PathBuf::from(path)),
             None => options,
         }
     }
@@ -1218,6 +1229,7 @@ struct ActivePreflight {
 struct SharedState {
     database_path: PathBuf,
     status_database_path: PathBuf,
+    diagnostic_log_path: Option<PathBuf>,
     active: Mutex<Option<ActiveRun>>,
     active_preflight: Mutex<Option<ActivePreflight>>,
     work_gate: Mutex<()>,
@@ -1229,12 +1241,14 @@ impl SharedState {
     fn new(options: WorkerOptions, output: Sender<String>) -> Result<Arc<Self>, WorkerError> {
         let database_path = options.database_path;
         let status_database_path = options.status_database_path;
+        let diagnostic_log_path = options.diagnostic_log_path;
         Database::open(&database_path.to_string_lossy()).map_err(|error| {
             WorkerError::Startup(format!("worker database initialization failed: {error}"))
         })?;
         Ok(Arc::new(Self {
             database_path,
             status_database_path,
+            diagnostic_log_path,
             active: Mutex::new(None),
             active_preflight: Mutex::new(None),
             work_gate: Mutex::new(()),
@@ -1688,13 +1702,29 @@ impl WorkerSession {
         }
         let sort_field = parse_warning_sort_field(&parameters.sort.field)?;
         let sort_direction = parse_sort_direction(&parameters.sort.direction)?;
-        let signature = format!(
-            "{}|{}|{}",
-            parameters.run_id,
-            warning_sort_name(sort_field),
-            direction_name(sort_direction)
-        );
-        let cursor = decode_cursor(parameters.cursor.as_deref(), "run-warnings", &signature)?;
+        let db = self.state.database()?;
+        let _ = get_run(&db, parameters.run_id)?;
+        let cursor_identity = if parameters.cursor.is_some() {
+            Some(
+                db.run_warning_snapshot_identity(parameters.run_id)
+                    .map_err(internal_database_error)?,
+            )
+        } else {
+            None
+        };
+        let cursor = match &cursor_identity {
+            Some((revision, run_status)) => {
+                let signature = warning_query_signature(
+                    parameters.run_id,
+                    sort_field,
+                    sort_direction,
+                    *revision,
+                    run_status,
+                );
+                decode_cursor(parameters.cursor.as_deref(), "run-warnings", &signature)?
+            }
+            None => None,
+        };
         validate_cursor_value(
             cursor.as_ref(),
             sort_field != RunWarningSortField::OccurrenceCount,
@@ -1702,11 +1732,9 @@ impl WorkerSession {
         if cursor.as_ref().is_some_and(|cursor| cursor.before) {
             return Err(invalid_cursor());
         }
-        let db = self.state.database()?;
-        let run = get_run(&db, parameters.run_id)?;
         let query_started = Instant::now();
-        let (mut warnings, total, accounted_warning_count) = db
-            .page_run_warning_aggregates(&RunWarningPageQuery {
+        let mut snapshot = db
+            .page_run_warning_snapshot(&RunWarningPageQuery {
                 run_id: parameters.run_id,
                 limit: parameters.page_size + 1,
                 sort_field,
@@ -1714,21 +1742,34 @@ impl WorkerSession {
                 cursor,
             })
             .map_err(internal_database_error)?;
-        let has_more = warnings.len() > parameters.page_size as usize;
+        if cursor_identity.as_ref().is_some_and(|(revision, status)| {
+            *revision != snapshot.revision || status != &snapshot.run_status
+        }) {
+            return Err(invalid_cursor());
+        }
+        let signature = warning_query_signature(
+            parameters.run_id,
+            sort_field,
+            sort_direction,
+            snapshot.revision,
+            &snapshot.run_status,
+        );
+        let has_more = snapshot.warnings.len() > parameters.page_size as usize;
         if has_more {
-            warnings.truncate(parameters.page_size as usize);
+            snapshot.warnings.truncate(parameters.page_size as usize);
         }
         log_result_query(
             "warning.page",
             parameters.run_id,
             None,
             parameters.page_size,
-            warnings.len(),
-            total,
+            snapshot.warnings.len(),
+            snapshot.total,
             query_started.elapsed(),
         );
         let next_cursor = if has_more {
-            warnings
+            snapshot
+                .warnings
                 .last()
                 .map(|warning| encode_warning_cursor(warning, sort_field, &signature))
                 .transpose()?
@@ -1736,10 +1777,14 @@ impl WorkerSession {
             None
         };
         Ok(json!({
-            "warnings": warnings.into_iter().map(run_warning_aggregate_dto).collect::<Vec<_>>(),
-            "total": total,
-            "warningCount": run.warning_count,
-            "accountedWarningCount": accounted_warning_count,
+            "warnings": snapshot.warnings.into_iter().map(run_warning_aggregate_dto).collect::<Vec<_>>(),
+            "total": snapshot.total,
+            "warningCount": snapshot.warning_count,
+            "accountedWarningCount": snapshot.accounted_warning_count,
+            "snapshotRevision": snapshot.revision,
+            "snapshotState": warning_snapshot_state(&snapshot.run_status),
+            "runStatus": snapshot.run_status,
+            "diagnosticLog": diagnostic_log_metadata(self.state.diagnostic_log_path.as_deref()),
             "nextCursor": next_cursor,
             "executorEnabled": false,
         }))
@@ -5565,6 +5610,47 @@ fn warning_sort_name(field: RunWarningSortField) -> &'static str {
         RunWarningSortField::Phase => "phase",
         RunWarningSortField::OccurrenceCount => "occurrenceCount",
         RunWarningSortField::Message => "message",
+    }
+}
+
+fn warning_query_signature(
+    run_id: i64,
+    field: RunWarningSortField,
+    direction: SortDirection,
+    revision: i64,
+    run_status: &str,
+) -> String {
+    format!(
+        "{}|{}|{}|{}|{}",
+        run_id,
+        warning_sort_name(field),
+        direction_name(direction),
+        revision,
+        run_status
+    )
+}
+
+fn warning_snapshot_state(run_status: &str) -> &'static str {
+    match run_status {
+        "running" | "cancelling" => "active",
+        "completed" | "cancelled" | "failed" | "interrupted" => "terminal",
+        _ => "pending",
+    }
+}
+
+fn diagnostic_log_metadata(path: Option<&Path>) -> Value {
+    match path {
+        Some(path) => json!({
+            "state": "available",
+            "locationKind": "local_file",
+            "path": path.to_string_lossy(),
+            "relationship": "supplemental_diagnostics_not_durable_warning_truth",
+        }),
+        None => json!({
+            "state": "unavailable",
+            "reason": "client_not_configured",
+            "relationship": "supplemental_diagnostics_not_durable_warning_truth",
+        }),
     }
 }
 
@@ -10413,6 +10499,10 @@ mod tests {
         ).unwrap()).unwrap();
         assert_eq!(first["result"]["warningCount"], 8);
         assert_eq!(first["result"]["accountedWarningCount"], 8);
+        assert_eq!(first["result"]["snapshotState"], "terminal");
+        assert_eq!(first["result"]["runStatus"], "completed");
+        assert!(first["result"]["snapshotRevision"].as_i64().unwrap() > 0);
+        assert_eq!(first["result"]["diagnosticLog"]["state"], "unavailable");
         assert_eq!(first["result"]["total"], 2);
         assert_eq!(first["result"]["warnings"].as_array().unwrap().len(), 1);
         assert_eq!(first["result"]["warnings"][0]["runId"], run_id);
@@ -10458,6 +10548,121 @@ mod tests {
             serde_json::from_str(&session.handle_line(&stale_request.to_string()).unwrap())
                 .unwrap();
         assert_eq!(stale["error"]["code"], "invalid_cursor");
+    }
+
+    #[test]
+    fn active_warning_pages_reject_mutated_snapshots_and_reconstruct_terminal_state() {
+        use super_duper_core::storage::models::RunWarningAggregateInsert;
+
+        let temp = TempDir::new().unwrap();
+        let db_path = temp.path().join("worker.db");
+        let diagnostics = temp.path().join("logs").join("worker.log");
+        let options = WorkerOptions::new(&db_path).with_diagnostic_log_path(&diagnostics);
+        let (sender, _receiver) = mpsc::channel();
+        let state = SharedState::new(options.clone(), sender).unwrap();
+        let db = Database::open_connection(db_path.to_str().unwrap()).unwrap();
+        let session_id = db
+            .create_session("Active warnings", &["/root".into()], &[])
+            .unwrap();
+        let parameters = RunParameters {
+            roots: vec!["/root".into()],
+            ignore_patterns: vec![],
+            directory_similarity_threshold_millis: 500,
+            cloud_policy: Default::default(),
+            manual_location_exclusions: vec![],
+            registered_cloud_locations: vec![],
+            cloud_detection_status: Default::default(),
+        };
+        let run_id = db.create_scan_run(session_id, &parameters, "test").unwrap();
+        db.start_scan_run(run_id).unwrap();
+        db.replace_run_warning_aggregates(
+            run_id,
+            &[
+                RunWarningAggregateInsert {
+                    phase: "discovering".into(),
+                    category: "scan".into(),
+                    code: "one".into(),
+                    message: "First active warning".into(),
+                    occurrence_count: 5,
+                    examples: vec!["first".into()],
+                },
+                RunWarningAggregateInsert {
+                    phase: "hashing".into(),
+                    category: "scan".into(),
+                    code: "two".into(),
+                    message: "Second active warning".into(),
+                    occurrence_count: 3,
+                    examples: vec!["second".into()],
+                },
+            ],
+        )
+        .unwrap();
+        drop(db);
+
+        let mut session = WorkerSession::new(state);
+        session.handle_line(HELLO).unwrap();
+        let first: Value = serde_json::from_str(
+            &session
+                .handle_line(
+                    &json!({
+                        "type": "request", "id": "active", "method": "warning.page",
+                        "params": {"runId": run_id, "pageSize": 1}
+                    })
+                    .to_string(),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(first["result"]["snapshotState"], "active");
+        assert_eq!(first["result"]["runStatus"], "running");
+        assert_eq!(first["result"]["diagnosticLog"]["state"], "available");
+        assert_eq!(
+            first["result"]["diagnosticLog"]["path"],
+            diagnostics.to_string_lossy().as_ref()
+        );
+        let first_revision = first["result"]["snapshotRevision"].as_i64().unwrap();
+        let active_cursor = first["result"]["nextCursor"].as_str().unwrap().to_owned();
+
+        let db = Database::open_connection(db_path.to_str().unwrap()).unwrap();
+        db.update_run_progress_with_warning_accounting(run_id, "hashing", 1, 1, 0, 9)
+            .unwrap();
+        drop(db);
+        let stale: Value = serde_json::from_str(
+            &session
+                .handle_line(
+                    &json!({
+                        "type": "request", "id": "stale-active", "method": "warning.page",
+                        "params": {"runId": run_id, "pageSize": 1, "cursor": active_cursor}
+                    })
+                    .to_string(),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(stale["error"]["code"], "invalid_cursor");
+        drop(session);
+
+        let (sender, _receiver) = mpsc::channel();
+        let restarted_state = SharedState::new(options, sender).unwrap();
+        let mut restarted = WorkerSession::new(restarted_state);
+        restarted.handle_line(HELLO).unwrap();
+        let restored: Value = serde_json::from_str(
+            &restarted
+                .handle_line(
+                    &json!({
+                        "type": "request", "id": "restored", "method": "warning.page",
+                        "params": {"runId": run_id, "pageSize": 1}
+                    })
+                    .to_string(),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(restored["result"]["snapshotState"], "terminal");
+        assert_eq!(restored["result"]["runStatus"], "interrupted");
+        assert_eq!(restored["result"]["warningCount"], 9);
+        assert_eq!(restored["result"]["accountedWarningCount"], 9);
+        assert!(restored["result"]["snapshotRevision"].as_i64().unwrap() > first_revision);
     }
 
     #[test]

@@ -1105,6 +1105,7 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
         {
             startInfo.Environment["HASH_CACHE_PATH"] = _hashCachePath;
         }
+        startInfo.Environment["SUPER_DUPER_DIAGNOSTIC_LOG_PATH"] = _diagnosticLogPath;
 
         try
         {

@@ -341,10 +341,12 @@ or `descending`. The default is occurrence count descending:
 ```
 
 The result contains bounded aggregate rows, the exact persisted run count, the count accounted for
-by all aggregates, the next server-owned cursor, and the permanent execution lock:
+by all aggregates, one durable server-owned warning snapshot revision, explicit active/terminal run
+state, separate supplemental diagnostic-log location metadata, the next server-owned cursor, and
+the permanent execution lock:
 
 ```json
-{"warnings":[{"id":8,"runId":19,"phase":"hashing","category":"scan","code":"hash_recoverable_warning","severity":"warning","message":"Some candidate files could not be read or their hash cache operation degraded safely.","occurrenceCount":7,"examples":["D:\\Photos\\unavailable.bin: access denied"]}],"total":1,"warningCount":7,"accountedWarningCount":7,"nextCursor":null,"executorEnabled":false}
+{"warnings":[{"id":8,"runId":19,"phase":"hashing","category":"scan","code":"hash_recoverable_warning","severity":"warning","message":"Some candidate files could not be read or their hash cache operation degraded safely.","occurrenceCount":7,"examples":["D:\\Photos\\unavailable.bin: access denied"]}],"total":1,"warningCount":7,"accountedWarningCount":7,"snapshotRevision":12,"snapshotState":"active","runStatus":"running","diagnosticLog":{"state":"available","locationKind":"local_file","path":"C:\\Users\\operator\\AppData\\Local\\SuperDuper\\logs\\worker.log","relationship":"supplemental_diagnostics_not_durable_warning_truth"},"nextCursor":null,"executorEnabled":false}
 ```
 
 Schema v14 stores at most three 2,048-character examples per aggregate and never one row per
@@ -352,8 +354,20 @@ occurrence. Discovery, hashing/cache, post-discovery snapshot change, and exact-
 are the selected categories. A terminal fallback accounts for any otherwise unclassified warning.
 Pre-v14 runs migrate to an explicit legacy aggregate stating that original examples were not
 retained. Rows are immutable after the run becomes terminal, paging performs no filesystem access,
-and a cursor is bound to its exact run, sort field, and direction. Every order uses aggregate ID as
-the stable final tie-breaker. Reuse with another run or sort returns `invalid_cursor`.
+and every page is read from one SQLite snapshot. `snapshotState` is `active` for
+`running`/`cancelling`, `terminal` for `completed`/`cancelled`/`failed`/`interrupted`, and `pending`
+only before a run starts; `runStatus` retains the exact lifecycle value. `snapshotRevision` is
+durable across restart and advances whenever warning aggregates or their lifecycle state can
+change. A cursor is bound to its exact run, sort field, direction, snapshot revision, and run
+status. Every order uses aggregate ID as the stable final tie-breaker. Reuse after active warning
+mutation, terminal handoff, with another run, or with another sort returns `invalid_cursor` instead
+of mixing pages from different states.
+
+`diagnosticLog` is deliberately separate from durable warning truth. When the client configures the
+bounded local worker-stderr log, it is `available` with `locationKind:"local_file"` and its path;
+otherwise it is `unavailable` with reason `client_not_configured`. Diagnostic contents can include
+developer/recovery detail and are never aggregate rows, paging input, or a replacement for
+`warningCount`/`accountedWarningCount`.
 
 The Windows client exposes one bounded action family: a completed-run
 `scan/hash_recoverable_warning` may open the immutable duplicate-file set identified by that row's

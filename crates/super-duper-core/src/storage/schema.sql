@@ -1,4 +1,4 @@
-PRAGMA user_version = 14;
+PRAGMA user_version = 15;
 
 -- Reusable, user-owned scan definitions.
 CREATE TABLE IF NOT EXISTS scan_session (
@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS scan_run (
     duplicate_folder_groups INTEGER NOT NULL DEFAULT 0 CHECK(duplicate_folder_groups >= 0),
     wasted_bytes INTEGER NOT NULL DEFAULT 0 CHECK(wasted_bytes >= 0),
     warning_count INTEGER NOT NULL DEFAULT 0 CHECK(warning_count >= 0),
+    warning_revision INTEGER NOT NULL DEFAULT 0 CHECK(warning_revision >= 0),
     excluded_subtree_count INTEGER NOT NULL DEFAULT 0 CHECK(excluded_subtree_count >= 0),
     error_message TEXT,
     engine_version TEXT NOT NULL

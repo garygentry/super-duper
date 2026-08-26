@@ -18,13 +18,13 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept `SOP3a-live-warning-accounting` with fail-closed bounded durable
-  fallback accounting before a higher live warning count is published
+- Latest completed slice: accept `SOP3b-active-warning-page-snapshot` with durable revision-bound
+  paging, stale-cursor rejection, restart/terminal state, and separate diagnostic-log metadata
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP3-current-warning-log`
-- Next boundary: implement only `SOP3b-active-warning-page-snapshot`
+- Next boundary: implement only `SOP3c-bounded-current-warning-view-model`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -69,6 +69,16 @@ single stable `active_unclassified_recoverable_warning` aggregate with one diagn
 specific phase aggregates replace it when available. Monotonic regression fails, persistence
 failure suppresses the higher frame, and interruption/restart preserves exact accounting. No
 protocol, Core/.NET, WPF, schema, diagnostic log, Performance tab, or later optimization changed.
+
+`SOP3b-active-warning-page-snapshot` is accepted. Schema v15 adds one durable warning revision per
+run. Structured aggregate replacement, active fallback change, cancelling, terminal completion, and
+startup interruption advance it; warning rows, totals, exact accounted count, lifecycle state, and
+revision are read from one SQLite snapshot. Opaque cursors bind the exact run, sort, revision, and
+run status, so active mutation or terminal handoff returns `invalid_cursor` rather than mixing
+pages. Restart reconstructs the exact interrupted snapshot. The additive worker response exposes
+active/terminal/pending state and the client-configured bounded local diagnostic-log path as
+supplemental developer/recovery metadata, never durable warning truth. No Core warning contract/
+view model, WPF entry point, cache policy, SOP4, later optimization, or campaign changed.
 
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
@@ -233,10 +243,11 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance only to `SOP3b-active-warning-page-snapshot`. Add the server-owned active warning
-snapshot/revision and stale-cursor contract plus explicit active/terminal state and separate
-diagnostic-log metadata. Do not add the Core current-warning view model, Progress entry point, SOP4
-Performance tab, later optimization gates, or another representative campaign.
+Advance only to `SOP3c-bounded-current-warning-view-model`. Add the reusable Core active/completed
+warning drilldown with generation-scoped cancellation, revision-bound five-page cache, 25-row
+binding, exact live/accounted state, restart reconstruction, and one-way terminal handoff. Do not
+add the Progress/WPF entry point, SOP4 Performance tab, later optimization gates, or another
+representative campaign.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -323,6 +334,18 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Accepted `SOP3b-active-warning-page-snapshot` passes all 53 non-performance Core storage tests with
+the 4 retained operator profiles ignored, all 25 worker library tests, and the focused typed
+WorkerClient lifecycle test. Migration from schema v14 to v15 adds the revision exactly once;
+focused coverage
+proves atomic row/count/state/revision snapshots, advancing active revisions, stale-cursor rejection
+after mutation, restart reconstruction as exact `interrupted` terminal truth, completed-run additive
+compatibility, and available/unavailable diagnostic-log metadata. Strict focused Core/storage and
+worker Clippy pass after allowing only the ten previously documented diagnostics across six
+unchanged lint classes. The Infrastructure test build reports no warnings or errors; documentation,
+evidence-hash, and diff checks pass. No Core warning view model, WPF, Performance tab, physical/
+provider/mutation/performance campaign, later optimization, or parked-stream work ran.
 
 Accepted `SOP3a-live-warning-accounting` passes the full Core storage target with 52 tests passed
 and 4 retained operator performance profiles ignored, plus all 24 worker library tests. Focused
@@ -562,6 +585,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-26 | this session | Accept `SOP3b-active-warning-page-snapshot`: add schema-v15 durable warning revisions, one-snapshot page truth, revision/status-bound cursors, active-mutation and terminal-handoff stale rejection, restart reconstruction, and separate client-configured diagnostic-log metadata. | Implement only `SOP3c-bounded-current-warning-view-model`; keep the WPF/Progress entry, SOP4, later optimization, campaigns, and parked stream out of scope. |
 | 2026-08-26 | this session | Accept `SOP3a-live-warning-accounting`: atomically account any higher accepted live warning count with one stable bounded fallback row before publication, fail closed on persistence error, replace the gap with specific phase aggregates, and preserve exact interrupted/restart truth without per-occurrence rows. | Implement only `SOP3b-active-warning-page-snapshot`; keep Core/WPF entry, SOP4, later optimization, representative campaigns, and the parked stream out of scope. |
 | 2026-08-26 | this session | Record SOP2f as `waived_by_operator_unmeasured` and SOP2 as `accepted_with_operator_waiver`, citing accepted SOP2a-SOP2e packages, passing functional and fixed-cost short evidence, and both retained invalid representative attempts. The strict <1% wall/CPU gate remains unevaluated, not passed. | Carry the unresolved representative-overhead risk to SOP9. Advance only to `SOP3-current-warning-log`: audit the warning path, define its dependency-ordered ledger, and implement the first smallest coherent package. |
 | 2026-08-25 | this session | Execute the sole authorized `SOP2f-representative-v2` invocation. Setup and one-time conditioning completed, proving v1's pre-arm setup infeasibility removed, but control warmup 0 did not complete inside its arm bound. Preserve the resulting empty-aggregate evidence-writer defect and cleanup audit at the write-once path without inventing measurements or retrying. | V2 authority is consumed. Obtain explicit approval to design a new separately versioned protocol, or explicitly waive/reject SOP2. Do not rerun v1/v2, tune, silently change bounds, or advance to SOP3. |

@@ -2,7 +2,7 @@ use super::models::*;
 use super::sqlite::{normalized_file_extension_key, Database};
 use chrono::Utc;
 use rusqlite::types::Value as SqlValue;
-use rusqlite::{params, params_from_iter, Error, Result};
+use rusqlite::{params, params_from_iter, Error, OptionalExtension, Result};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 const ACTIVE_UNCLASSIFIED_WARNING_CODE: &str = "active_unclassified_recoverable_warning";
@@ -201,7 +201,8 @@ impl Database {
 
     pub fn start_scan_run(&self, run_id: i64) -> Result<()> {
         changed_one(self.connection().execute(
-            "UPDATE scan_run SET status = 'running', phase = 'discovering', started_at = ?1
+            "UPDATE scan_run SET status = 'running', phase = 'discovering', started_at = ?1,
+                    warning_revision = warning_revision + 1
              WHERE id = ?2 AND status = 'pending'",
             params![Utc::now().to_rfc3339(), run_id],
         )?)
@@ -271,6 +272,23 @@ impl Database {
                 return Err(Error::InvalidQuery);
             }
             let unclassified_count = warning_count - classified_count;
+            let existing_fallback: Option<(String, i64)> = self
+                .connection()
+                .query_row(
+                    "SELECT phase, occurrence_count FROM run_warning_aggregate
+                     WHERE run_id = ?1 AND code = ?2",
+                    params![run_id, ACTIVE_UNCLASSIFIED_WARNING_CODE],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .optional()?;
+            let warning_snapshot_changed = committed_warning_count != warning_count
+                || match (&existing_fallback, unclassified_count) {
+                    (None, 0) => false,
+                    (Some(_), 0) | (None, _) => true,
+                    (Some((existing_phase, existing_count)), _) => {
+                        existing_phase != phase || *existing_count != unclassified_count
+                    }
+                };
             if unclassified_count == 0 {
                 self.connection().execute(
                     "DELETE FROM run_warning_aggregate WHERE run_id = ?1 AND code = ?2",
@@ -288,7 +306,9 @@ impl Database {
                      ON CONFLICT(run_id, code) DO UPDATE SET
                         phase = excluded.phase,
                         occurrence_count = excluded.occurrence_count,
-                        updated_at = excluded.updated_at",
+                        updated_at = excluded.updated_at
+                     WHERE run_warning_aggregate.phase <> excluded.phase
+                        OR run_warning_aggregate.occurrence_count <> excluded.occurrence_count",
                     params![
                         run_id,
                         phase,
@@ -300,14 +320,16 @@ impl Database {
             }
             changed_one(self.connection().execute(
                 "UPDATE scan_run SET phase = ?1, files_discovered = ?2,
-                        bytes_discovered = ?3, files_hashed = ?4, warning_count = ?5
-                 WHERE id = ?6 AND status IN ('running', 'cancelling')",
+                        bytes_discovered = ?3, files_hashed = ?4, warning_count = ?5,
+                        warning_revision = warning_revision + ?6
+                 WHERE id = ?7 AND status IN ('running', 'cancelling')",
                 params![
                     phase,
                     files_discovered,
                     bytes_discovered,
                     files_hashed,
                     warning_count,
+                    i64::from(warning_snapshot_changed),
                     run_id
                 ],
             )?)?;
@@ -321,7 +343,8 @@ impl Database {
 
     pub fn mark_run_cancelling(&self, run_id: i64) -> Result<()> {
         let changed = self.connection().execute(
-            "UPDATE scan_run SET status = 'cancelling'
+            "UPDATE scan_run SET status = 'cancelling',
+                    warning_revision = warning_revision + 1
              WHERE id = ?1 AND status = 'running'",
             params![run_id],
         )?;
@@ -350,25 +373,34 @@ impl Database {
         wasted_bytes: i64,
         warning_count: i64,
     ) -> Result<()> {
-        self.ensure_terminal_warning_accounting(run_id, warning_count)?;
-        changed_one(self.connection().execute(
-            "UPDATE scan_run SET status = 'completed', phase = 'finalizing', completed_at = ?1,
-                    files_discovered = ?2, bytes_discovered = ?3, files_hashed = ?4,
-                    duplicate_file_groups = ?5, duplicate_folder_groups = ?6,
-                    wasted_bytes = ?7, warning_count = ?8, error_message = NULL
-             WHERE id = ?9 AND status = 'running'",
-            params![
-                Utc::now().to_rfc3339(),
-                files_discovered,
-                bytes_discovered,
-                files_hashed,
-                duplicate_file_groups,
-                duplicate_folder_groups,
-                wasted_bytes,
-                warning_count,
-                run_id
-            ],
-        )?)
+        self.connection().execute_batch("BEGIN IMMEDIATE;")?;
+        let result = (|| -> Result<()> {
+            self.ensure_terminal_warning_accounting(run_id, warning_count)?;
+            changed_one(self.connection().execute(
+                "UPDATE scan_run SET status = 'completed', phase = 'finalizing', completed_at = ?1,
+                        files_discovered = ?2, bytes_discovered = ?3, files_hashed = ?4,
+                        duplicate_file_groups = ?5, duplicate_folder_groups = ?6,
+                        wasted_bytes = ?7, warning_count = ?8, error_message = NULL,
+                        warning_revision = warning_revision + 1
+                 WHERE id = ?9 AND status = 'running'",
+                params![
+                    Utc::now().to_rfc3339(),
+                    files_discovered,
+                    bytes_discovered,
+                    files_hashed,
+                    duplicate_file_groups,
+                    duplicate_folder_groups,
+                    wasted_bytes,
+                    warning_count,
+                    run_id
+                ],
+            )?)?;
+            self.connection().execute_batch("COMMIT;")
+        })();
+        if result.is_err() {
+            let _ = self.connection().execute_batch("ROLLBACK;");
+        }
+        result
     }
 
     fn ensure_terminal_warning_accounting(&self, run_id: i64, warning_count: i64) -> Result<()> {
@@ -1672,14 +1704,6 @@ impl Database {
         run_id: i64,
         warnings: &[RunWarningAggregateInsert],
     ) -> Result<()> {
-        let status: String = self.connection().query_row(
-            "SELECT status FROM scan_run WHERE id = ?1",
-            params![run_id],
-            |row| row.get(0),
-        )?;
-        if !matches!(status.as_str(), "running" | "cancelling") {
-            return Err(Error::InvalidQuery);
-        }
         let exact_count: i64 = warnings
             .iter()
             .map(|warning| warning.occurrence_count)
@@ -1699,6 +1723,14 @@ impl Database {
         }
         self.connection().execute_batch("BEGIN IMMEDIATE;")?;
         let result = (|| -> Result<()> {
+            let status: String = self.connection().query_row(
+                "SELECT status FROM scan_run WHERE id = ?1",
+                params![run_id],
+                |row| row.get(0),
+            )?;
+            if !matches!(status.as_str(), "running" | "cancelling") {
+                return Err(Error::InvalidQuery);
+            }
             self.connection().execute(
                 "DELETE FROM run_warning_aggregate WHERE run_id = ?1",
                 params![run_id],
@@ -1724,7 +1756,9 @@ impl Database {
                 )?;
             }
             self.connection().execute(
-                "UPDATE scan_run SET warning_count = ?2 WHERE id = ?1",
+                "UPDATE scan_run SET warning_count = ?2,
+                        warning_revision = warning_revision + 1
+                 WHERE id = ?1",
                 params![run_id, exact_count],
             )?;
             self.connection().execute_batch("COMMIT;")
@@ -1739,64 +1773,114 @@ impl Database {
         &self,
         query: &RunWarningPageQuery,
     ) -> Result<(Vec<RunWarningAggregate>, i64, i64)> {
-        let (total, accounted): (i64, i64) = self.connection().query_row(
-            "SELECT COUNT(*), COALESCE(SUM(occurrence_count), 0)
-             FROM run_warning_aggregate WHERE run_id = ?1",
-            params![query.run_id],
+        let snapshot = self.page_run_warning_snapshot(query)?;
+        Ok((
+            snapshot.warnings,
+            snapshot.total,
+            snapshot.accounted_warning_count,
+        ))
+    }
+
+    pub fn run_warning_snapshot_identity(&self, run_id: i64) -> Result<(i64, String)> {
+        self.connection().query_row(
+            "SELECT warning_revision, status FROM scan_run WHERE id = ?1",
+            params![run_id],
             |row| Ok((row.get(0)?, row.get(1)?)),
-        )?;
-        let sort_expression = match query.sort_field {
-            RunWarningSortField::Phase => "phase COLLATE UNICODE_NOCASE",
-            RunWarningSortField::OccurrenceCount => "occurrence_count",
-            RunWarningSortField::Message => "message COLLATE UNICODE_NOCASE",
-        };
-        let mut parameters = vec![SqlValue::Integer(query.run_id)];
-        let mut cursor_clause = String::new();
-        if let Some(cursor) = &query.cursor {
-            let comparator = cursor_comparator(query.sort_direction, cursor.before);
-            let id_comparator = cursor_comparator(SortDirection::Ascending, cursor.before);
-            cursor_clause = format!(
-                "AND ({sort_expression} {comparator} ? OR
-                       ({sort_expression} = ? AND id {id_comparator} ?))"
-            );
-            push_cursor_parameters(
-                &mut parameters,
-                cursor,
-                query.sort_field != RunWarningSortField::OccurrenceCount,
+        )
+    }
+
+    pub fn page_run_warning_snapshot(
+        &self,
+        query: &RunWarningPageQuery,
+    ) -> Result<RunWarningPageSnapshot> {
+        self.connection().execute_batch("BEGIN;")?;
+        let result = (|| -> Result<RunWarningPageSnapshot> {
+            let (warning_count, revision, run_status): (i64, i64, String) =
+                self.connection().query_row(
+                    "SELECT warning_count, warning_revision, status FROM scan_run WHERE id = ?1",
+                    params![query.run_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )?;
+            let (total, accounted): (i64, i64) = self.connection().query_row(
+                "SELECT COUNT(*), COALESCE(SUM(occurrence_count), 0)
+             FROM run_warning_aggregate WHERE run_id = ?1",
+                params![query.run_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
             )?;
-        }
-        parameters.push(SqlValue::Integer(query.limit));
-        let before = query.cursor.as_ref().is_some_and(|cursor| cursor.before);
-        let order = effective_order(query.sort_direction, before);
-        let id_order = effective_order(SortDirection::Ascending, before);
-        let mut statement = self.connection().prepare(&format!(
-            "SELECT id, run_id, phase, category, code, severity, message, occurrence_count,
+            let sort_expression = match query.sort_field {
+                RunWarningSortField::Phase => "phase COLLATE UNICODE_NOCASE",
+                RunWarningSortField::OccurrenceCount => "occurrence_count",
+                RunWarningSortField::Message => "message COLLATE UNICODE_NOCASE",
+            };
+            let mut parameters = vec![SqlValue::Integer(query.run_id)];
+            let mut cursor_clause = String::new();
+            if let Some(cursor) = &query.cursor {
+                let comparator = cursor_comparator(query.sort_direction, cursor.before);
+                let id_comparator = cursor_comparator(SortDirection::Ascending, cursor.before);
+                cursor_clause = format!(
+                    "AND ({sort_expression} {comparator} ? OR
+                       ({sort_expression} = ? AND id {id_comparator} ?))"
+                );
+                push_cursor_parameters(
+                    &mut parameters,
+                    cursor,
+                    query.sort_field != RunWarningSortField::OccurrenceCount,
+                )?;
+            }
+            parameters.push(SqlValue::Integer(query.limit));
+            let before = query.cursor.as_ref().is_some_and(|cursor| cursor.before);
+            let order = effective_order(query.sort_direction, before);
+            let id_order = effective_order(SortDirection::Ascending, before);
+            let mut statement = self.connection().prepare(&format!(
+                "SELECT id, run_id, phase, category, code, severity, message, occurrence_count,
                     examples_json
              FROM run_warning_aggregate
              WHERE run_id = ? {cursor_clause}
              ORDER BY {sort_expression} {order}, id {id_order}
              LIMIT ?"
-        ))?;
-        let warnings = statement
-            .query_map(params_from_iter(parameters.iter()), |row| {
-                let examples_json: String = row.get(8)?;
-                let examples = serde_json::from_str(&examples_json).map_err(|error| {
-                    Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::new(error))
-                })?;
-                Ok(RunWarningAggregate {
-                    id: row.get(0)?,
-                    run_id: row.get(1)?,
-                    phase: row.get(2)?,
-                    category: row.get(3)?,
-                    code: row.get(4)?,
-                    severity: row.get(5)?,
-                    message: row.get(6)?,
-                    occurrence_count: row.get(7)?,
-                    examples,
-                })
-            })?
-            .collect::<Result<Vec<_>>>()?;
-        Ok((warnings, total, accounted))
+            ))?;
+            let warnings = statement
+                .query_map(params_from_iter(parameters.iter()), |row| {
+                    let examples_json: String = row.get(8)?;
+                    let examples = serde_json::from_str(&examples_json).map_err(|error| {
+                        Error::FromSqlConversionFailure(
+                            8,
+                            rusqlite::types::Type::Text,
+                            Box::new(error),
+                        )
+                    })?;
+                    Ok(RunWarningAggregate {
+                        id: row.get(0)?,
+                        run_id: row.get(1)?,
+                        phase: row.get(2)?,
+                        category: row.get(3)?,
+                        code: row.get(4)?,
+                        severity: row.get(5)?,
+                        message: row.get(6)?,
+                        occurrence_count: row.get(7)?,
+                        examples,
+                    })
+                })?
+                .collect::<Result<Vec<_>>>()?;
+            Ok(RunWarningPageSnapshot {
+                warnings,
+                total,
+                warning_count,
+                accounted_warning_count: accounted,
+                revision,
+                run_status,
+            })
+        })();
+        match result {
+            Ok(snapshot) => {
+                self.connection().execute_batch("COMMIT;")?;
+                Ok(snapshot)
+            }
+            Err(error) => {
+                let _ = self.connection().execute_batch("ROLLBACK;");
+                Err(error)
+            }
+        }
     }
 
     pub fn page_run_exclusions(
@@ -1913,7 +1997,8 @@ fn terminal_run(
     }
     changed_one(db.connection().execute(
         "UPDATE scan_run SET status = ?1, phase = 'finalizing', completed_at = ?2,
-                error_message = ?3 WHERE id = ?4 AND status = ?5",
+                error_message = ?3, warning_revision = warning_revision + 1
+         WHERE id = ?4 AND status = ?5",
         params![status, Utc::now().to_rfc3339(), message, run_id, current],
     )?)
 }
