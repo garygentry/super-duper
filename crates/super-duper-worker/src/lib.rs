@@ -4030,6 +4030,7 @@ struct ProgressState {
     bytes_discovered: u64,
     files_hashed: usize,
     warning_count: usize,
+    durable_warning_count: usize,
     phase_warning_base: usize,
     current_path: Option<String>,
     last_database_write: Option<Instant>,
@@ -4066,6 +4067,7 @@ impl WorkerProgressReporter {
                 bytes_discovered: 0,
                 files_hashed: 0,
                 warning_count: 0,
+                durable_warning_count: 0,
                 phase_warning_base: 0,
                 current_path: None,
                 last_database_write: None,
@@ -4087,13 +4089,14 @@ impl WorkerProgressReporter {
                 progress.bytes_discovered = run.bytes_discovered.max(0) as u64;
                 progress.files_hashed = run.files_hashed.max(0) as usize;
                 progress.warning_count = run.warning_count.max(0) as usize;
+                progress.durable_warning_count = progress.warning_count;
                 progress.phase_warning_base = progress.warning_count;
             }
         }
         self.update(Some(phase), None, true);
     }
 
-    fn update(&self, phase: Option<&'static str>, current_path: Option<&str>, force: bool) {
+    fn update(&self, phase: Option<&'static str>, current_path: Option<&str>, force: bool) -> bool {
         let now = Instant::now();
         let mut progress = self
             .progress
@@ -4110,31 +4113,54 @@ impl WorkerProgressReporter {
                 now.duration_since(last) >= DATABASE_PROGRESS_INTERVAL
             });
         if !write_database {
-            return;
+            return progress.warning_count <= progress.durable_warning_count;
         }
 
         let phase = progress.phase;
         let files_discovered = progress.files_discovered;
         let bytes_discovered = progress.bytes_discovered;
         let files_hashed = progress.files_hashed;
+        let warning_count = progress.warning_count;
         progress.last_database_write = Some(now);
         drop(progress);
 
-        if let Ok(db) = Database::open_connection(&self.state.database_path.to_string_lossy()) {
-            if let Err(error) = db.update_run_progress_preserving_warning_count(
+        match Database::open_connection(&self.state.database_path.to_string_lossy()) {
+            Ok(db) => match db.update_run_progress_with_warning_accounting(
                 self.run_id,
                 phase,
                 files_discovered as i64,
                 bytes_discovered.min(i64::MAX as u64) as i64,
                 files_hashed as i64,
+                warning_count as i64,
             ) {
-                if !matches!(db.get_scan_run(self.run_id), Ok(run) if run.status == "completed" || run.status == "cancelled" || run.status == "failed")
-                {
+                Ok(()) => {
+                    let mut progress = self
+                        .progress
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                    progress.durable_warning_count =
+                        progress.durable_warning_count.max(warning_count);
+                    true
+                }
+                Err(error) => {
+                    if !matches!(db.get_scan_run(self.run_id), Ok(run) if run.status == "completed" || run.status == "cancelled" || run.status == "failed")
+                    {
+                        eprintln!(
+                            "worker progress persistence failed for run {}: {error}",
+                            self.run_id
+                        );
+                    }
+                    false
+                }
+            },
+            Err(error) => {
+                if warning_count > 0 {
                     eprintln!(
-                        "worker progress persistence failed for run {}: {error}",
+                        "worker progress database unavailable for run {}: {error}",
                         self.run_id
                     );
                 }
+                false
             }
         }
     }
@@ -4233,7 +4259,7 @@ impl ProgressReporter for WorkerProgressReporter {
                 return;
             }
         };
-        let legacy = {
+        let (legacy, warning_needs_persistence) = {
             let mut progress = self
                 .progress
                 .lock()
@@ -4252,15 +4278,21 @@ impl ProgressReporter for WorkerProgressReporter {
                 .files_hashed
                 .max(snapshot.counters.partial_hashes_succeeded as usize);
             progress.warning_count = progress.warning_count.max(snapshot.warning_count as usize);
-            LegacyProgressProjection {
-                phase: progress.phase,
-                files_discovered: progress.files_discovered,
-                bytes_discovered: progress.bytes_discovered,
-                files_hashed: progress.files_hashed,
-                warning_count: progress.warning_count,
-                current_path: progress.current_path.clone(),
-            }
+            (
+                LegacyProgressProjection {
+                    phase: progress.phase,
+                    files_discovered: progress.files_discovered,
+                    bytes_discovered: progress.bytes_discovered,
+                    files_hashed: progress.files_hashed,
+                    warning_count: progress.warning_count,
+                    current_path: progress.current_path.clone(),
+                },
+                progress.warning_count > progress.durable_warning_count,
+            )
         };
+        if warning_needs_persistence && !self.update(None, None, true) {
+            return;
+        }
         {
             let (projection, wake) = &*self.projection;
             projection
@@ -10014,6 +10046,114 @@ mod tests {
         reporter.finish_progress();
         reporter.on_progress_observation(&observation(3, 4, 1, u64::MAX));
         assert!(receiver.recv_timeout(Duration::from_millis(150)).is_err());
+    }
+
+    #[test]
+    fn warning_progress_persists_exact_bounded_accounting_before_publication() {
+        use super_duper_core::storage::models::{
+            RunWarningPageQuery, RunWarningSortField, SortDirection,
+        };
+        use super_duper_core::telemetry::{
+            ActiveDeviceProgress, ActiveDeviceUnavailableReason, ProgressLogicalCounters,
+            ProgressObservation, ScanCounters, METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION,
+        };
+
+        let temp = TempDir::new().unwrap();
+        let db_path = temp.path().join("worker.db");
+        let (sender, receiver) = mpsc::channel();
+        let state = SharedState::new(WorkerOptions::new(&db_path), sender).unwrap();
+        let db = Database::open_connection(db_path.to_str().unwrap()).unwrap();
+        let session_id = db
+            .create_session("Live warnings", &["/root".into()], &[])
+            .unwrap();
+        let parameters = RunParameters {
+            roots: vec!["/root".into()],
+            ignore_patterns: vec![],
+            directory_similarity_threshold_millis: 500,
+            cloud_policy: Default::default(),
+            manual_location_exclusions: vec![],
+            registered_cloud_locations: vec![],
+            cloud_detection_status: Default::default(),
+        };
+        let run_id = db.create_scan_run(session_id, &parameters, "test").unwrap();
+        db.start_scan_run(run_id).unwrap();
+        drop(db);
+
+        let reporter = WorkerProgressReporter::new(state, run_id, Arc::new(AtomicBool::new(false)));
+        let mut counters = ScanCounters::default();
+        counters.discovered_files = 1;
+        counters.discovered_bytes = 4_096;
+        counters.warnings = 3;
+        reporter.on_progress_observation(&ProgressObservation {
+            progress_contract_version: PROGRESS_CONTRACT_VERSION,
+            metrics_contract_version: METRICS_CONTRACT_VERSION,
+            monotonic_nanos: 1,
+            phase: TelemetryPhase::Discovering,
+            phase_started_monotonic_nanos: 0,
+            candidate_totals_known: false,
+            final_results_complete: false,
+            counters,
+            logical: ProgressLogicalCounters::default(),
+            active_devices: ActiveDeviceProgress::Unavailable {
+                reason: ActiveDeviceUnavailableReason::MappingUnavailable,
+            },
+        });
+
+        let frame: Value = serde_json::from_str(
+            &receiver
+                .recv_timeout(Duration::from_millis(500))
+                .expect("warning progress frame"),
+        )
+        .unwrap();
+        assert_eq!(frame["data"]["warningCount"], 3);
+        let persisted = Database::open_connection(db_path.to_str().unwrap()).unwrap();
+        let run = persisted.get_scan_run(run_id).unwrap();
+        assert_eq!(run.warning_count, 3);
+        let (warnings, total, accounted) = persisted
+            .page_run_warning_aggregates(&RunWarningPageQuery {
+                run_id,
+                limit: 25,
+                sort_field: RunWarningSortField::OccurrenceCount,
+                sort_direction: SortDirection::Descending,
+                cursor: None,
+            })
+            .unwrap();
+        assert_eq!((warnings.len() as i64, total, accounted), (1, 1, 3));
+        assert_eq!(warnings[0].code, "active_unclassified_recoverable_warning");
+        reporter.finish_progress();
+    }
+
+    #[test]
+    fn warning_progress_is_silent_when_durable_accounting_fails() {
+        use super_duper_core::telemetry::{
+            ActiveDeviceProgress, ActiveDeviceUnavailableReason, ProgressLogicalCounters,
+            ProgressObservation, ScanCounters, METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION,
+        };
+
+        let temp = TempDir::new().unwrap();
+        let db_path = temp.path().join("worker.db");
+        let (sender, receiver) = mpsc::channel();
+        let state = SharedState::new(WorkerOptions::new(&db_path), sender).unwrap();
+        let reporter = WorkerProgressReporter::new(state, 41, Arc::new(AtomicBool::new(false)));
+        let mut counters = ScanCounters::default();
+        counters.warnings = 1;
+        reporter.on_progress_observation(&ProgressObservation {
+            progress_contract_version: PROGRESS_CONTRACT_VERSION,
+            metrics_contract_version: METRICS_CONTRACT_VERSION,
+            monotonic_nanos: 1,
+            phase: TelemetryPhase::Discovering,
+            phase_started_monotonic_nanos: 0,
+            candidate_totals_known: false,
+            final_results_complete: false,
+            counters,
+            logical: ProgressLogicalCounters::default(),
+            active_devices: ActiveDeviceProgress::Unavailable {
+                reason: ActiveDeviceUnavailableReason::MappingUnavailable,
+            },
+        });
+
+        assert!(receiver.recv_timeout(Duration::from_millis(150)).is_err());
+        reporter.finish_progress();
     }
 
     #[test]

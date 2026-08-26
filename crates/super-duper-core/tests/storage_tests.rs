@@ -488,6 +488,71 @@ fn warning_aggregates_are_bounded_paged_restart_safe_and_terminally_immutable() 
 }
 
 #[test]
+fn live_warning_accounting_is_monotonic_bounded_and_restart_safe() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("live-warning-accounting.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    let (_, run_id) = session_and_run(&db, "Live warnings", &["/root"]);
+
+    db.update_run_progress_with_warning_accounting(run_id, "discovering", 256, 4_096, 0, 3)
+        .unwrap();
+    let (first, total, accounted) = db
+        .page_run_warning_aggregates(&warning_page_query(run_id, 25, None))
+        .unwrap();
+    assert_eq!((total, accounted), (1, 3));
+    assert_eq!(first[0].code, "active_unclassified_recoverable_warning");
+    assert_eq!(first[0].examples.len(), 1);
+    let fallback_id = first[0].id;
+
+    db.update_run_progress_with_warning_accounting(run_id, "discovering", 512, 8_192, 0, 5)
+        .unwrap();
+    let (advanced, total, accounted) = db
+        .page_run_warning_aggregates(&warning_page_query(run_id, 25, None))
+        .unwrap();
+    assert_eq!((advanced.len() as i64, total, accounted), (1, 1, 5));
+    assert_eq!(advanced[0].id, fallback_id);
+    assert!(db
+        .update_run_progress_with_warning_accounting(run_id, "discovering", 512, 8_192, 0, 4,)
+        .is_err());
+
+    db.replace_run_warning_aggregates(
+        run_id,
+        &[RunWarningAggregateInsert {
+            phase: "discovering".to_owned(),
+            category: "scan".to_owned(),
+            code: "discovery_recoverable_warning".to_owned(),
+            message: "Some discovery items were unavailable.".to_owned(),
+            occurrence_count: 5,
+            examples: vec!["One bounded discovery example.".to_owned()],
+        }],
+    )
+    .unwrap();
+    db.update_run_progress_with_warning_accounting(run_id, "hashing", 512, 8_192, 256, 7)
+        .unwrap();
+    let (mixed, total, accounted) = db
+        .page_run_warning_aggregates(&warning_page_query(run_id, 25, None))
+        .unwrap();
+    assert_eq!((mixed.len() as i64, total, accounted), (2, 2, 7));
+    assert_eq!(
+        mixed
+            .iter()
+            .find(|warning| warning.code == "active_unclassified_recoverable_warning")
+            .unwrap()
+            .occurrence_count,
+        2
+    );
+    drop(db);
+
+    let reopened = Database::open(path.to_str().unwrap()).unwrap();
+    let run = reopened.get_scan_run(run_id).unwrap();
+    assert_eq!((run.status.as_str(), run.warning_count), ("interrupted", 7));
+    let (restored, total, accounted) = reopened
+        .page_run_warning_aggregates(&warning_page_query(run_id, 25, None))
+        .unwrap();
+    assert_eq!((restored.len() as i64, total, accounted), (2, 2, 7));
+}
+
+#[test]
 fn terminal_completion_accounts_for_unclassified_warning_counts() {
     let db = Database::open_in_memory().unwrap();
     let (_, run_id) = session_and_run(&db, "Fallback warnings", &["/root"]);

@@ -18,7 +18,7 @@ MVP. The previous Windows app implementation was removed before the current WPF 
 
 | Stream | Scheduling state | Authority | Next boundary |
 |---|---|---|---|
-| Large-drive scan optimization and observability | Active at `SOP3-current-warning-log` | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) | SOP2a-SOP2e, functional verification, and the fixed-cost short leg pass. SOP2f is `waived_by_operator_unmeasured`, and SOP2 is `accepted_with_operator_waiver`: neither retained representative attempt produced an aggregate, so the strict <1% wall/CPU gate was not evaluated. Preserve that residual risk for SOP9 real-drive acceptance; do not run v1/v2 or design SOP2f-v3. Audit SOP3 and implement only its first dependency-ordered package. |
+| Large-drive scan optimization and observability | Active at `SOP3-current-warning-log` | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) | SOP2 is `accepted_with_operator_waiver`; its unmeasured representative-overhead risk remains assigned to SOP9. `SOP3a-live-warning-accounting` is accepted with exact bounded fallback accounting before higher live warning publication. Advance only to `SOP3b-active-warning-page-snapshot`; do not add SOP4 or run another representative campaign. |
 | Windows post-MVP release validation | Parked by operator; gates and evidence preserved | [`docs/windows-roadmap-closure-ledger.md`](docs/windows-roadmap-closure-ledger.md) and [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md) | Before final feature-complete, resume exactly at `WPM8-high-contrast`, then follow the ledger dependency order. |
 
 The shared startup checkpoint is

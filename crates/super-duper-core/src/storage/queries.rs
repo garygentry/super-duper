@@ -5,6 +5,8 @@ use rusqlite::types::Value as SqlValue;
 use rusqlite::{params, params_from_iter, Error, Result};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+const ACTIVE_UNCLASSIFIED_WARNING_CODE: &str = "active_unclassified_recoverable_warning";
+
 impl Database {
     // -- Session definitions -------------------------------------------------
 
@@ -230,28 +232,91 @@ impl Database {
         )?)
     }
 
-    /// Worker throttled progress must not persist a warning count before the matching durable
-    /// aggregates have committed. The engine advances both at phase boundaries.
-    pub fn update_run_progress_preserving_warning_count(
+    /// Persist throttled worker progress and keep every visible warning count matched by durable,
+    /// bounded aggregate truth. The engine replaces the fallback row with specific phase
+    /// aggregates when their exact categories and examples become available.
+    #[allow(clippy::too_many_arguments)]
+    pub fn update_run_progress_with_warning_accounting(
         &self,
         run_id: i64,
         phase: &str,
         files_discovered: i64,
         bytes_discovered: i64,
         files_hashed: i64,
+        warning_count: i64,
     ) -> Result<()> {
-        changed_one(self.connection().execute(
-            "UPDATE scan_run SET phase = ?1, files_discovered = ?2,
-                    bytes_discovered = ?3, files_hashed = ?4
-             WHERE id = ?5 AND status IN ('running', 'cancelling')",
-            params![
-                phase,
-                files_discovered,
-                bytes_discovered,
-                files_hashed,
-                run_id
-            ],
-        )?)
+        if warning_count < 0 || phase.len() > 64 {
+            return Err(Error::InvalidQuery);
+        }
+        self.connection().execute_batch("BEGIN IMMEDIATE;")?;
+        let result = (|| -> Result<()> {
+            let (status, committed_warning_count): (String, i64) = self.connection().query_row(
+                "SELECT status, warning_count FROM scan_run WHERE id = ?1",
+                params![run_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )?;
+            if !matches!(status.as_str(), "running" | "cancelling")
+                || warning_count < committed_warning_count
+            {
+                return Err(Error::InvalidQuery);
+            }
+            let classified_count: i64 = self.connection().query_row(
+                "SELECT COALESCE(SUM(occurrence_count), 0)
+                 FROM run_warning_aggregate
+                 WHERE run_id = ?1 AND code <> ?2",
+                params![run_id, ACTIVE_UNCLASSIFIED_WARNING_CODE],
+                |row| row.get(0),
+            )?;
+            if classified_count > warning_count {
+                return Err(Error::InvalidQuery);
+            }
+            let unclassified_count = warning_count - classified_count;
+            if unclassified_count == 0 {
+                self.connection().execute(
+                    "DELETE FROM run_warning_aggregate WHERE run_id = ?1 AND code = ?2",
+                    params![run_id, ACTIVE_UNCLASSIFIED_WARNING_CODE],
+                )?;
+            } else {
+                let now = Utc::now().to_rfc3339();
+                self.connection().execute(
+                    "INSERT INTO run_warning_aggregate
+                        (run_id, phase, category, code, severity, message, occurrence_count,
+                         examples_json, created_at, updated_at)
+                     VALUES (?1, ?2, 'scan', ?3, 'warning',
+                         'Current recoverable warnings are awaiting more specific phase classification.',
+                         ?4, '[\"Original details remain in local diagnostics.\"]', ?5, ?5)
+                     ON CONFLICT(run_id, code) DO UPDATE SET
+                        phase = excluded.phase,
+                        occurrence_count = excluded.occurrence_count,
+                        updated_at = excluded.updated_at",
+                    params![
+                        run_id,
+                        phase,
+                        ACTIVE_UNCLASSIFIED_WARNING_CODE,
+                        unclassified_count,
+                        now,
+                    ],
+                )?;
+            }
+            changed_one(self.connection().execute(
+                "UPDATE scan_run SET phase = ?1, files_discovered = ?2,
+                        bytes_discovered = ?3, files_hashed = ?4, warning_count = ?5
+                 WHERE id = ?6 AND status IN ('running', 'cancelling')",
+                params![
+                    phase,
+                    files_discovered,
+                    bytes_discovered,
+                    files_hashed,
+                    warning_count,
+                    run_id
+                ],
+            )?)?;
+            self.connection().execute_batch("COMMIT;")
+        })();
+        if result.is_err() {
+            let _ = self.connection().execute_batch("ROLLBACK;");
+        }
+        result
     }
 
     pub fn mark_run_cancelling(&self, run_id: i64) -> Result<()> {

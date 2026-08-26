@@ -18,15 +18,13 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: record SOP2f as `waived_by_operator_unmeasured`, accept SOP2 as
-  `accepted_with_operator_waiver`, and carry its unresolved representative-overhead risk to SOP9
+- Latest completed slice: accept `SOP3a-live-warning-accounting` with fail-closed bounded durable
+  fallback accounting before a higher live warning count is published
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP3-current-warning-log`
-- Next boundary: audit existing warning production, durable aggregates/examples, worker APIs, Core
-  caches/view models, and WPF surfaces; define the dependency-ordered SOP3 package ledger and
-  implement only its first smallest coherent package
+- Next boundary: implement only `SOP3b-active-warning-page-snapshot`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -61,6 +59,16 @@ serialization. The recovered write-once incident retains zero completed/measured
 aggregates, cleanup facts, and an unevaluated strict <1% wall/CPU gate. That gate did not pass. Do
 not run v1/v2 or design SOP2f-v3. The unresolved representative-overhead risk is assigned to SOP9,
 where it may be observed during useful real-drive acceptance work. Advance only to SOP3.
+
+`SOP3a-live-warning-accounting` is accepted as the first of four finite SOP3 packages. The audit
+found that schema-v14 completed-run aggregates/examples, worker paging, the five-page Core cache,
+25-row virtualized WPF page, and diagnostic log already exist, but accepted live progress could
+advance beyond the last phase-accounted product-database warning total. Worker progress now forces
+one atomic update before publishing a higher count. The exact unclassified gap is represented by a
+single stable `active_unclassified_recoverable_warning` aggregate with one diagnostic-log example;
+specific phase aggregates replace it when available. Monotonic regression fails, persistence
+failure suppresses the higher frame, and interruption/restart preserves exact accounting. No
+protocol, Core/.NET, WPF, schema, diagnostic log, Performance tab, or later optimization changed.
 
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
@@ -225,11 +233,10 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance only to `SOP3-current-warning-log`. Audit warning production, the accepted completed-run
-warning aggregates and bounded examples, worker query/event APIs, Core caches/view models, and WPF
-progress/history warning surfaces. Define a dependency-ordered SOP3 package ledger if absent, then
-implement only its first smallest coherent and independently verifiable package. Do not add the SOP4
-Performance tab, start later optimization gates, or run another representative campaign.
+Advance only to `SOP3b-active-warning-page-snapshot`. Add the server-owned active warning
+snapshot/revision and stale-cursor contract plus explicit active/terminal state and separate
+diagnostic-log metadata. Do not add the Core current-warning view model, Progress entry point, SOP4
+Performance tab, later optimization gates, or another representative campaign.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -316,6 +323,16 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Accepted `SOP3a-live-warning-accounting` passes the full Core storage target with 52 tests passed
+and 4 retained operator performance profiles ignored, plus all 24 worker library tests. Focused
+coverage proves one stable fallback row, exact count growth, monotonic regression rejection,
+specific-aggregate replacement, a two-family exact active total, interruption/restart preservation,
+warning-triggered persistence before event publication, and silence when durable accounting fails.
+Strict Core/storage and worker Clippy pass after allowing only the ten previously documented
+diagnostics across six unchanged lint classes. Only the three touched Rust files were formatted;
+documentation/diff checks pass. No .NET/WPF, schema migration, worker query shape, physical/
+provider/mutation/performance campaign, SOP4, later optimization, or parked-stream work ran.
 
 Before authorization, the `SOP2f-representative-v2` package passed PowerShell parsing, protocol JSON
 round-trip, exact revision/evidence-hash checks, fixture/order/budget arithmetic, disk/process gates,
@@ -545,6 +562,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-26 | this session | Accept `SOP3a-live-warning-accounting`: atomically account any higher accepted live warning count with one stable bounded fallback row before publication, fail closed on persistence error, replace the gap with specific phase aggregates, and preserve exact interrupted/restart truth without per-occurrence rows. | Implement only `SOP3b-active-warning-page-snapshot`; keep Core/WPF entry, SOP4, later optimization, representative campaigns, and the parked stream out of scope. |
 | 2026-08-26 | this session | Record SOP2f as `waived_by_operator_unmeasured` and SOP2 as `accepted_with_operator_waiver`, citing accepted SOP2a-SOP2e packages, passing functional and fixed-cost short evidence, and both retained invalid representative attempts. The strict <1% wall/CPU gate remains unevaluated, not passed. | Carry the unresolved representative-overhead risk to SOP9. Advance only to `SOP3-current-warning-log`: audit the warning path, define its dependency-ordered ledger, and implement the first smallest coherent package. |
 | 2026-08-25 | this session | Execute the sole authorized `SOP2f-representative-v2` invocation. Setup and one-time conditioning completed, proving v1's pre-arm setup infeasibility removed, but control warmup 0 did not complete inside its arm bound. Preserve the resulting empty-aggregate evidence-writer defect and cleanup audit at the write-once path without inventing measurements or retrying. | V2 authority is consumed. Obtain explicit approval to design a new separately versioned protocol, or explicitly waive/reject SOP2. Do not rerun v1/v2, tune, silently change bounds, or advance to SOP3. |
 | 2026-08-25 | `ca4086f` | Predeclare executable `SOP2f-representative-v2` without a campaign: keep revisions, fixture, short caps, strict aggregate <1% wall/CPU gate, qualification, counterbalance, isolated state, exact reconciliation, write-once evidence, cleanup, and no-retry rules; replace 12 redundant per-arm full-content passes with one initial pass plus scan-to-scan rewarming; prove a conservative five-hour envelope by no-state preflight. | Obtain explicit approval for exactly one v2 campaign command and its build/temp-process/write/delete authority, or explicitly waive/reject SOP2. Do not run, revise, or advance to SOP3. |
