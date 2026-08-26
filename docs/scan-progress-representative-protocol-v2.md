@@ -9,8 +9,12 @@ not complete inside the predeclared arm envelope. The invalid path then exposed 
 evidence-construction defect, so the harness lost its in-memory attempt details after safe cleanup.
 The recovered write-once [invalid-campaign incident](evidence/scan-progress-representative-overhead-sop2f-v2.json)
 records only still-provable facts and mechanically prevents a rerun. It contains no representative
-aggregate and does not accept SOP2f or SOP2. The retained short result and v1 pre-measurement failure
-remain immutable.
+aggregate, and the strict <1% representative wall/CPU gate was not evaluated. The operator records
+SOP2f as `waived_by_operator_unmeasured` and accepts SOP2 as
+`accepted_with_operator_waiver` based on the accepted functional packages and passing fixed-cost
+short leg. This is not a representative-gate pass. The retained short result and v1 pre-measurement
+failure remain immutable, and the unresolved representative-overhead risk moves to SOP9 useful
+real-drive acceptance work.
 
 The machine-readable declaration remains the exact pre-execution declaration committed for the
 authorized attempt:
@@ -119,5 +123,5 @@ pwsh -NoProfile -File ./scripts/Measure-WindowsScanProgressRepresentativeOverhea
 ```
 
 Do not run that command again. The consumed approval does not authorize another v1 run, another v2
-attempt, a successor design, product changes, SOP3/SOP5/SOP8 work, or the parked release-validation
-stream.
+attempt, or an SOP2f-v3 successor design. The operator waiver authorizes advancing only to SOP3;
+SOP5/SOP8 work and the parked release-validation stream remain outside this protocol closure.
