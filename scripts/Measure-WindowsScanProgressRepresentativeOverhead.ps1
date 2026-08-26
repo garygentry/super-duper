@@ -1,33 +1,58 @@
 [CmdletBinding()]
-param([switch]$PreflightOnly)
+param(
+    [ValidateSet('SOP2f-representative-v2')]
+    [string]$Protocol = 'SOP2f-representative-v2',
+    [switch]$PreflightOnly,
+    [switch]$RunCampaign
+)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $gitSafeRepo = $repo.Replace('\', '/')
-$controlRevision = '0a3c1c1'
-$treatmentRevision = 'f803cbd'
-$evidencePath = Join-Path $repo 'docs/evidence/scan-progress-representative-overhead-20260825.json'
-$shortEvidencePath = Join-Path $repo 'docs/evidence/scan-progress-overhead-20260825.json'
+$protocolPath = Join-Path $repo 'docs/scan-progress-representative-protocol-v2.json'
+$protocolDeclaration = Get-Content -LiteralPath $protocolPath -Raw | ConvertFrom-Json -Depth 30
+$controlRevision = [string]$protocolDeclaration.controlRevision
+$treatmentRevision = [string]$protocolDeclaration.treatmentRevision
+$evidencePath = Join-Path $repo ([string]$protocolDeclaration.evidence.futureWriteOnce)
+$shortEvidencePath = Join-Path $repo ([string]$protocolDeclaration.evidence.short)
+$retainedPremeasurementPath = Join-Path $repo ([string]$protocolDeclaration.evidence.retainedPremeasurement)
 $tempParent = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
-$profileRoot = Join-Path $tempParent ('super-duper-sop2-representative-' + [guid]::NewGuid().ToString('N'))
+$profileRoot = Join-Path $tempParent ('super-duper-sop2-representative-v2-' + [guid]::NewGuid().ToString('N'))
 $campaignStartedAt = [DateTimeOffset]::UtcNow
-$campaignWatchdog = [TimeSpan]::FromHours(2)
+$campaignWatchdog = [TimeSpan]::FromSeconds([long]$protocolDeclaration.budget.campaignMaximumSeconds)
 $campaignStartedTimestamp = [Diagnostics.Stopwatch]::GetTimestamp()
 $campaignDeadlineTimestamp = $campaignStartedTimestamp +
     [long]([Diagnostics.Stopwatch]::Frequency * $campaignWatchdog.TotalSeconds)
-$minimumRunNanos = 60000000000L
-$maximumRunNanos = 600000000000L
-$expectedFiles = 600008L
-$expectedBytes = 4605870080L
-$smallFiles = 600000L
-$smallFileBytes = 4096L
-$generatorSeed = '0x534F503246524550'
+$setupDeadlineTimestamp = $campaignStartedTimestamp + [long]([Diagnostics.Stopwatch]::Frequency *
+    [long]$protocolDeclaration.budget.setupMaximumSeconds)
+$minimumRunNanos = [long]$protocolDeclaration.arms.minimumRunSeconds * 1000000000L
+$maximumRunNanos = [long]$protocolDeclaration.arms.maximumRunSeconds * 1000000000L
+$expectedFiles = [long]$protocolDeclaration.fixture.files
+$expectedBytes = [long]$protocolDeclaration.fixture.logicalBytes
+$smallFiles = [long]$protocolDeclaration.fixture.smallFiles
+$smallFileBytes = [long]$protocolDeclaration.fixture.smallFileBytes
+$generatorSeed = [string]$protocolDeclaration.fixture.seed
 $runs = [Collections.Generic.List[object]]::new()
 $timingBegan = $false
 $evidenceWritten = $false
 $thresholdFailed = $false
+$campaignAdmitted = $false
+$setupStages = [ordered]@{}
+$fixtureGuard = $null
+$fixtureMutationFacts = $null
+$cleanupOutcome = [ordered]@{
+    attempted = $false
+    campaignTempRootAbsent = $null
+    campaignProcessesAbsent = $null
+    failure = $null
+    freeBytesAfterCleanup = $null
+}
+
+if ($PreflightOnly -eq $RunCampaign) {
+    throw 'Specify exactly one of -PreflightOnly or -RunCampaign.'
+}
 
 Add-Type -TypeDefinition @'
 using System;
@@ -36,6 +61,7 @@ using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 
 public sealed class Sop2FixtureFacts
 {
@@ -50,6 +76,72 @@ public sealed class Sop2ConditioningFacts
     public long FileCount { get; set; }
     public long LogicalBytes { get; set; }
     public string ContentSha256 { get; set; } = "";
+}
+
+public sealed class Sop2FixtureMutationFacts
+{
+    public long ChangeEvents { get; set; }
+    public long ErrorEvents { get; set; }
+    public string FirstEventKind { get; set; } = "";
+}
+
+public sealed class Sop2FixtureMutationGuard : IDisposable
+{
+    private readonly FileSystemWatcher watcher;
+    private long changeEvents;
+    private long errorEvents;
+    private string firstEventKind = "";
+    private int disposed;
+
+    public Sop2FixtureMutationGuard(string root)
+    {
+        watcher = new FileSystemWatcher(root, "*");
+        watcher.IncludeSubdirectories = true;
+        watcher.InternalBufferSize = 65536;
+        watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName |
+            NotifyFilters.Size | NotifyFilters.LastWrite | NotifyFilters.CreationTime |
+            NotifyFilters.Attributes | NotifyFilters.Security;
+        watcher.Changed += (_, __) => RecordChange("changed");
+        watcher.Created += (_, __) => RecordChange("created");
+        watcher.Deleted += (_, __) => RecordChange("deleted");
+        watcher.Renamed += (_, __) => RecordChange("renamed");
+        watcher.Error += (_, __) => {
+            Interlocked.Increment(ref errorEvents);
+            Interlocked.CompareExchange(ref firstEventKind, "watcher_error", "");
+        };
+        watcher.EnableRaisingEvents = true;
+    }
+
+    private void RecordChange(string kind)
+    {
+        Interlocked.Increment(ref changeEvents);
+        Interlocked.CompareExchange(ref firstEventKind, kind, "");
+    }
+
+    public Sop2FixtureMutationFacts Snapshot()
+    {
+        Thread.Sleep(100);
+        return new Sop2FixtureMutationFacts {
+            ChangeEvents = Interlocked.Read(ref changeEvents),
+            ErrorEvents = Interlocked.Read(ref errorEvents),
+            FirstEventKind = firstEventKind
+        };
+    }
+
+    public Sop2FixtureMutationFacts AssertStable()
+    {
+        Sop2FixtureMutationFacts facts = Snapshot();
+        if (facts.ChangeEvents != 0 || facts.ErrorEvents != 0)
+            throw new InvalidDataException("The immutable fixture changed or its mutation watcher failed.");
+        return facts;
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref disposed, 1) != 0) return;
+        watcher.EnableRaisingEvents = false;
+        watcher.Dispose();
+    }
 }
 
 public static class Sop2RepresentativeFixture
@@ -307,8 +399,128 @@ function Invoke-Checked([scriptblock]$Command, [string]$Failure) {
 
 function Assert-Watchdog {
     if ([Diagnostics.Stopwatch]::GetTimestamp() -ge $campaignDeadlineTimestamp) {
-        throw 'The predeclared two-hour representative campaign watchdog expired.'
+        throw 'The predeclared five-hour SOP2f representative-v2 campaign watchdog expired.'
     }
+}
+
+function Assert-SetupWatchdog {
+    if ([Diagnostics.Stopwatch]::GetTimestamp() -ge $setupDeadlineTimestamp) {
+        throw 'The predeclared 150-minute SOP2f representative-v2 setup watchdog expired.'
+    }
+}
+
+function Get-NormalizedTextSha256([string]$Path) {
+    $text = [IO.File]::ReadAllText($Path).Replace("`r`n", "`n").Replace("`r", "`n")
+    [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData(
+        [Text.UTF8Encoding]::new($false).GetBytes($text))).ToLowerInvariant()
+}
+
+function Assert-ProtocolDeclaration {
+    if ($Protocol -ne 'SOP2f-representative-v2' -or
+        $protocolDeclaration.protocolId -ne $Protocol -or
+        [long]$protocolDeclaration.schemaVersion -ne 1 -or
+        $protocolDeclaration.state -ne 'proposed_operator_approval_required') {
+        throw 'The SOP2f representative-v2 protocol identity or state changed.'
+    }
+    if ($protocolDeclaration.controlCommit -ne '0a3c1c13005c0409f6a3095e397d02dd11704a62' -or
+        $protocolDeclaration.treatmentCommit -ne 'f803cbde5e72aa35d77aa509c5f6b86d5f9798f0') {
+        throw 'The predeclared control or treatment commit changed.'
+    }
+    [long]$largeBytes = 0
+    foreach ($length in @($protocolDeclaration.fixture.largePairBytes)) {
+        [long]$largeBytes += [long]$length * 2L
+    }
+    [long]$derivedFiles = [long]$protocolDeclaration.fixture.smallFiles +
+        2L * @($protocolDeclaration.fixture.largePairBytes).Count
+    [long]$derivedBytes = [long]$protocolDeclaration.fixture.smallFiles *
+        [long]$protocolDeclaration.fixture.smallFileBytes + $largeBytes
+    if ($derivedFiles -ne $expectedFiles -or $derivedBytes -ne $expectedBytes -or
+        [long]$protocolDeclaration.fixture.generatorVersion -ne 1 -or
+        $protocolDeclaration.fixture.algorithm -ne 'SplitMix64' -or
+        $generatorSeed -ne '0x534F503246524550' -or
+        -not [bool]$protocolDeclaration.fixture.normalAllocatedRequired) {
+        throw 'The v2 fixture arithmetic or generator contract changed.'
+    }
+    $warmupOrder = @($protocolDeclaration.arms.warmupOrder)
+    $measuredOrder = @($protocolDeclaration.arms.measuredOrder)
+    $expectedMeasured = @('control','treatment','treatment','control','control','treatment',
+        'treatment','control','control','treatment')
+    if (($warmupOrder -join ',') -cne 'control,treatment' -or
+        ($measuredOrder -join ',') -cne ($expectedMeasured -join ',') -or
+        @($measuredOrder | Where-Object { $_ -eq 'control' }).Count -ne 5 -or
+        @($measuredOrder | Where-Object { $_ -eq 'treatment' }).Count -ne 5 -or
+        [long]$protocolDeclaration.arms.measuredRunsPerRevision -ne 5 -or
+        [long]$protocolDeclaration.arms.totalArms -ne 12) {
+        throw 'The v2 warmup/measured counterbalance changed.'
+    }
+    if ([long]$protocolDeclaration.conditioning.initialPasses -ne 1 -or
+        [long]$protocolDeclaration.conditioning.perArmPasses -ne 0 -or
+        $protocolDeclaration.conditioning.initialMethod -ne
+            'revision_neutral_full_content_sha256_in_manifest_order' -or
+        $protocolDeclaration.conditioning.mutationGuard -ne
+            'recursive_filesystem_change_watcher_from_initial_conditioning_through_final_arm' -or
+        $protocolDeclaration.conditioning.semantics -ne
+            'warm_filesystem_cache_cold_application_product_status_hash_state') {
+        throw 'The v2 single-conditioning cache semantics changed.'
+    }
+    [long]$derivedMaximum = [long]$protocolDeclaration.budget.setupMaximumSeconds +
+        [long]$protocolDeclaration.arms.totalArms * [long]$protocolDeclaration.arms.maximumRunSeconds +
+        [long]$protocolDeclaration.budget.reconciliationAndCleanupReserveSeconds
+    if ($derivedMaximum -ne [long]$protocolDeclaration.budget.derivedMaximumSeconds -or
+        $derivedMaximum -ge [long]$protocolDeclaration.budget.campaignMaximumSeconds -or
+        [long]$protocolDeclaration.budget.retainedSetupUpperBoundSeconds -gt
+            [long]$protocolDeclaration.budget.setupMaximumSeconds -or
+        [long]$protocolDeclaration.budget.retainedBuildSeconds -ne 1393) {
+        throw 'The v2 setup, arm, cleanup, or total campaign budget is infeasible.'
+    }
+    if ([long]$protocolDeclaration.thresholds.shortWallCeilingNanos -ne 100000000L -or
+        [long]$protocolDeclaration.thresholds.shortWorkerCpuCeilingNanos -ne 125000000L -or
+        [long]$protocolDeclaration.thresholds.representativeAggregateBasisPointsExclusive -ne 100L) {
+        throw 'An approved SOP2f overhead threshold changed.'
+    }
+    if ([long]$protocolDeclaration.disk.minimumFreeBytesBeforeSetup -ne 30GB -or
+        [long]$protocolDeclaration.disk.minimumFreeBytesAfterSetup -ne 20GB -or
+        [long]$protocolDeclaration.disk.minimumFreeBytesBeforeEachArm -ne 15GB) {
+        throw 'The v2 30/20/15-GiB disk gates changed.'
+    }
+    foreach ($property in @(
+        'freshApplicationProductStatusAndHashStatePerArm', 'allMeasuredRunsAggregate',
+        'exactProductAndDurableCounterReconciliation', 'writeOnceEvidenceForPassFailOrInvalidCampaign',
+        'noRetryToGreen', 'noFixtureResizeOrTuning', 'noFixtureMutationOrWatcherError',
+        'safeCleanupRequired')) {
+        if (-not [bool]$protocolDeclaration.rules.$property) {
+            throw "Required v2 fail-closed rule is absent: $property"
+        }
+    }
+    if ((Get-NormalizedTextSha256 $shortEvidencePath) -ne
+            [string]$protocolDeclaration.evidence.shortNormalizedTextSha256 -or
+        (Get-NormalizedTextSha256 $retainedPremeasurementPath) -ne
+            [string]$protocolDeclaration.evidence.retainedPremeasurementNormalizedTextSha256) {
+        throw 'Retained SOP2f evidence changed from its predeclared SHA-256.'
+    }
+    $harnessSource = Get-Content -LiteralPath $PSCommandPath -Raw
+    if ([regex]::Matches($harnessSource,
+            '\[Sop2RepresentativeFixture\]::Condition\(').Count -ne 1 -or
+        $harnessSource -notmatch '\[IO\.FileMode\]::CreateNew' -or
+        $harnessSource -match 'Conditioning \$Mode arm') {
+        throw 'Static harness validation found redundant conditioning or non-write-once evidence.'
+    }
+    if ($protocolDeclaration.harness.path -ne
+            'scripts/Measure-WindowsScanProgressRepresentativeOverhead.ps1' -or
+        $protocolDeclaration.harness.hashNormalization -ne 'utf8_lf_no_bom' -or
+        (Get-NormalizedTextSha256 $PSCommandPath) -ne
+            [string]$protocolDeclaration.harness.normalizedTextSha256) {
+        throw 'The executable v2 harness differs from its predeclared SHA-256.'
+    }
+    $v1AbsentPath = Join-Path $repo 'docs/evidence/scan-progress-representative-overhead-20260825.json'
+    if (Test-Path -LiteralPath $v1AbsentPath) {
+        throw 'The absent v1 approved measurement path unexpectedly exists.'
+    }
+    [long]$free = Get-FreeBytes
+    if ($free -lt [long]$protocolDeclaration.disk.minimumFreeBytesBeforeSetup) {
+        throw "V2 preflight requires at least $($protocolDeclaration.disk.minimumFreeBytesBeforeSetup) free bytes; observed $free."
+    }
+    Assert-NoProductProcesses
 }
 
 function Get-FreeBytes {
@@ -325,7 +537,8 @@ function Assert-FreeBytes([long]$Minimum, [string]$Stage) {
 }
 
 function Assert-NoProductProcesses {
-    $running = @(Get-Process -Name 'SuperDuper.Windows','super-duper-worker' -ErrorAction SilentlyContinue)
+    $running = @(Get-Process -Name 'SuperDuper.Windows','super-duper-worker','sop2-status-probe' `
+        -ErrorAction SilentlyContinue)
     if ($running.Count -ne 0) {
         $details = $running | ForEach-Object { "$($_.ProcessName):$($_.Id)" }
         throw "Another Super Duper app or worker is running: $($details -join ', ')."
@@ -710,18 +923,54 @@ function Remove-SafeProfileChild([string]$Path) {
     Remove-Item -LiteralPath $resolved -Recurse -Force
 }
 
+function Remove-SafeProfileRoot {
+    $script:cleanupOutcome.attempted = $true
+    try {
+        $resolvedProfileRoot = [IO.Path]::GetFullPath($profileRoot).TrimEnd('\')
+        $resolvedParent = [IO.Path]::GetDirectoryName($resolvedProfileRoot).TrimEnd('\')
+        if (-not $resolvedParent.Equals($tempParent, [StringComparison]::OrdinalIgnoreCase) -or
+            -not ([IO.Path]::GetFileName($resolvedProfileRoot)).StartsWith(
+                'super-duper-sop2-representative-v2-', [StringComparison]::Ordinal)) {
+            throw "Unsafe profile cleanup path: $resolvedProfileRoot"
+        }
+        if (Test-Path -LiteralPath $resolvedProfileRoot) {
+            $item = Get-Item -LiteralPath $resolvedProfileRoot -Force
+            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                throw "Refusing to clean a reparse-point campaign root: $resolvedProfileRoot"
+            }
+            Remove-Item -LiteralPath $resolvedProfileRoot -Recurse -Force
+        }
+        $script:cleanupOutcome.campaignTempRootAbsent = -not (Test-Path -LiteralPath $resolvedProfileRoot)
+        Assert-NoProductProcesses
+        $script:cleanupOutcome.campaignProcessesAbsent = $true
+        $script:cleanupOutcome.freeBytesAfterCleanup = Get-FreeBytes
+    }
+    catch {
+        $script:cleanupOutcome.failure = $_.Exception.Message
+        try {
+            $script:cleanupOutcome.campaignTempRootAbsent = -not (Test-Path -LiteralPath $profileRoot)
+            $running = @(Get-Process -Name 'SuperDuper.Windows','super-duper-worker','sop2-status-probe' `
+                -ErrorAction SilentlyContinue)
+            $script:cleanupOutcome.campaignProcessesAbsent = $running.Count -eq 0
+            $script:cleanupOutcome.freeBytesAfterCleanup = Get-FreeBytes
+        } catch { }
+        throw
+    }
+}
+
 function Measure-Arm(
     [string]$Mode,
     [string]$Worker,
     [string]$StatusProbe,
     [string]$Fixture,
-    [string]$ContentSha256,
+    $MutationGuard,
     [int]$Ordinal,
     [int]$OrderIndex,
     [bool]$Warmup
 ) {
     Assert-Watchdog
-    [long]$freeBefore = Assert-FreeBytes 15GB "Profile arm $Mode/$Ordinal"
+    [long]$freeBefore = Assert-FreeBytes `
+        ([long]$protocolDeclaration.disk.minimumFreeBytesBeforeEachArm) "Profile arm $Mode/$Ordinal"
     Assert-NoProductProcesses
     $attempt = [pscustomobject][ordered]@{
         mode = $Mode
@@ -734,8 +983,12 @@ function Measure-Arm(
         failure = $null
         wallNanos = $null
         workerProcessCpuNanos = $null
-        conditioningNanos = $null
-        conditioningContentSha256 = $null
+        cachePreparation = if ($OrderIndex -eq 0) {
+            'single_initial_revision_neutral_full_content_pass'
+        } else {
+            'preceding_complete_profile_arm'
+        }
+        fixtureMutationGuard = $null
         progressFrames = 0L
         typedProgressFrames = 0L
         progressBytes = 0L
@@ -760,17 +1013,7 @@ function Measure-Arm(
     $wallBefore = 0L
     $cpuBefore = 0L
     try {
-        Write-Host "Conditioning $Mode arm $Ordinal (warmup=$Warmup)..."
-        $conditioningStarted = [Diagnostics.Stopwatch]::GetTimestamp()
-        $conditioning = [Sop2RepresentativeFixture]::Condition($Fixture)
-        $conditioningEnded = [Diagnostics.Stopwatch]::GetTimestamp()
-        if ($conditioning.FileCount -ne $expectedFiles -or $conditioning.LogicalBytes -ne $expectedBytes -or
-            $conditioning.ContentSha256 -ne $ContentSha256) {
-            throw 'Revision-neutral conditioning did not reproduce the validated fixture.'
-        }
-        $attempt.conditioningNanos = [Diagnostics.Stopwatch]::GetElapsedTime(
-            $conditioningStarted, $conditioningEnded).Ticks * 100
-        $attempt.conditioningContentSha256 = $conditioning.ContentSha256
+        $null = $MutationGuard.AssertStable()
         Assert-Watchdog
         [IO.Directory]::CreateDirectory($stateRoot) | Out-Null
         $start = [Diagnostics.ProcessStartInfo]::new()
@@ -890,6 +1133,7 @@ function Measure-Arm(
         else {
             if ($connection.TypedProgressFrames -ne 0) { throw 'Control unexpectedly emitted typed progress.' }
         }
+        $attempt.fixtureMutationGuard = $MutationGuard.AssertStable()
         Assert-Watchdog
         $attempt.progressFrames = $connection.ProgressFrames
         $attempt.typedProgressFrames = $connection.TypedProgressFrames
@@ -904,6 +1148,7 @@ function Measure-Arm(
     }
     catch {
         $attempt.failure = $_.Exception.Message
+        try { $attempt.fixtureMutationGuard = $MutationGuard.Snapshot() } catch { }
         if ($null -ne $connection) {
             $attempt.progressFrames = $connection.ProgressFrames
             $attempt.typedProgressFrames = $connection.TypedProgressFrames
@@ -997,19 +1242,24 @@ function New-Evidence([string]$Disposition, [string]$Failure) {
     }
     [ordered]@{
         gate = 'SOP2f-progress-acceptance'
-        date = '2026-08-25'
+        date = $campaignStartedAt.ToString('yyyy-MM-dd')
         machine = 'designated Windows 11 x64 development machine'
         configuration = 'Release'
-        semantics = 'warm_filesystem_cache_cold_application_state'
+        protocolId = [string]$protocolDeclaration.protocolId
+        protocolSchemaVersion = [long]$protocolDeclaration.schemaVersion
+        semantics = 'warm_filesystem_cache_cold_application_product_status_hash_state'
         controlRevision = $controlRevision
         treatmentRevision = $treatmentRevision
         controlCommit = $script:controlCommit
         treatmentCommit = $script:treatmentCommit
+        repositoryHead = $script:repositoryHead
+        harnessNormalizedTextSha256 = $script:harnessNormalizedTextSha256
         generator = [ordered]@{ version = 1; algorithm = 'SplitMix64'; seed = $generatorSeed }
         fixture = $script:fixtureEvidence
+        fixtureMutationGuard = $script:fixtureMutationFacts
         protocol = [ordered]@{
-            warmupOrder = @('control','treatment')
-            measuredOrder = @('control','treatment','treatment','control','control','treatment','treatment','control','control','treatment')
+            warmupOrder = @($protocolDeclaration.arms.warmupOrder)
+            measuredOrder = @($protocolDeclaration.arms.measuredOrder)
             measuredRunsPerMode = 5
             minimumRunNanos = $minimumRunNanos
             maximumRunNanos = $maximumRunNanos
@@ -1017,6 +1267,11 @@ function New-Evidence([string]$Disposition, [string]$Failure) {
             shortWallCeilingNanos = 100000000
             shortCpuCeilingNanos = 125000000
             freshProductStatusAndHashStatePerArm = $true
+            initialRevisionNeutralFullContentConditioningPasses = 1
+            perArmConditioningPasses = 0
+            betweenArmCachePreparation = 'preceding_complete_profile_arm'
+            setupMaximumSeconds = [long]$protocolDeclaration.budget.setupMaximumSeconds
+            campaignMaximumSeconds = [long]$protocolDeclaration.budget.campaignMaximumSeconds
             noRetriesOrOutlierRemoval = $true
         }
         shortLeg = [ordered]@{
@@ -1036,6 +1291,8 @@ function New-Evidence([string]$Disposition, [string]$Failure) {
             cpuStrictlyBelowOnePercent = $null
         }
         runs = @($runs)
+        setupStages = $script:setupStages
+        cleanup = $script:cleanupOutcome
         host = [ordered]@{
             os = [Environment]::OSVersion.VersionString
             logicalProcessors = [Environment]::ProcessorCount
@@ -1052,8 +1309,9 @@ function New-Evidence([string]$Disposition, [string]$Failure) {
         disposition = $Disposition
         failure = if ([string]::IsNullOrWhiteSpace($Failure)) { $null } else { $Failure }
         notes = @(
-            'This is the sole approved SOP2 representative-duration campaign; it is never retried or tuned to green.',
-            'Fixture creation, validation, conditioning, builds, worker startup, Core, and WPF are outside the measured start-to-terminal boundary; wall time includes PowerShell/pipe scheduling and JSON consumption, while CPU is worker-process only.',
+            'This is the sole operator-authorized SOP2f representative-v2 campaign; it is never retried or tuned to green.',
+            'One revision-neutral full-content pass conditions the first warmup; every complete scan rewarms exactly the ranges used by the following scan, with no per-arm conditioning pass.',
+            'Fixture creation, validation, initial conditioning, builds, worker startup, Core, and WPF are outside the measured start-to-terminal boundary; wall time includes PowerShell/pipe scheduling and JSON consumption, while CPU is worker-process only.',
             'Negative aggregate differences mean no detected positive overhead and are not acceleration claims.',
             $aggregateNote
         )
@@ -1070,50 +1328,106 @@ $script:freeBytesAfterBuildAndFixture = $null
 $script:rustcVersion = (& rustc --version).Trim()
 $script:cargoVersion = (& cargo --version).Trim()
 $script:profileDrive = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($profileRoot))
+$script:repositoryHead = (& git -C $repo -c "safe.directory=$gitSafeRepo" rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the harness HEAD revision.' }
+$script:harnessNormalizedTextSha256 = Get-NormalizedTextSha256 $PSCommandPath
 $script:controlCommit = (& git -C $repo -c "safe.directory=$gitSafeRepo" rev-parse "$controlRevision^{commit}").Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the control revision.' }
 $script:treatmentCommit = (& git -C $repo -c "safe.directory=$gitSafeRepo" rev-parse "$treatmentRevision^{commit}").Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the treatment revision.' }
+if ($script:controlCommit -ne [string]$protocolDeclaration.controlCommit -or
+    $script:treatmentCommit -ne [string]$protocolDeclaration.treatmentCommit) {
+    throw 'Resolved control or treatment commit does not match protocol v2.'
+}
 $script:shortEvidence = Get-Content -LiteralPath $shortEvidencePath -Raw | ConvertFrom-Json -Depth 30
 if ($script:shortEvidence.controlRevision -ne $controlRevision -or
     $script:shortEvidence.treatmentRevision -ne $treatmentRevision -or
     [long]$script:shortEvidence.absoluteDifference.wallNanos -ne 66924300 -or
-    [long]$script:shortEvidence.absoluteDifference.cpuNanos -ne -109375000) {
+    [long]$script:shortEvidence.absoluteDifference.cpuNanos -ne -109375000 -or
+    [long]$script:shortEvidence.absoluteDifference.wallNanos -gt
+        [long]$protocolDeclaration.thresholds.shortWallCeilingNanos -or
+    [long]$script:shortEvidence.absoluteDifference.cpuNanos -gt
+        [long]$protocolDeclaration.thresholds.shortWorkerCpuCeilingNanos) {
     throw 'Retained short-profile evidence does not match the operator-approved fixed-cost leg.'
 }
 
+Assert-ProtocolDeclaration
+
 if ($PreflightOnly) {
-    Write-Output 'SOP2 representative harness executable preflight passed without creating campaign state.'
+    [ordered]@{
+        protocolId = [string]$protocolDeclaration.protocolId
+        disposition = 'preflight_passed_no_campaign_state_created'
+        controlCommit = $script:controlCommit
+        treatmentCommit = $script:treatmentCommit
+        fixtureFiles = $expectedFiles
+        fixtureLogicalBytes = $expectedBytes
+        initialConditioningPasses = [long]$protocolDeclaration.conditioning.initialPasses
+        perArmConditioningPasses = [long]$protocolDeclaration.conditioning.perArmPasses
+        totalArms = [long]$protocolDeclaration.arms.totalArms
+        setupMaximumSeconds = [long]$protocolDeclaration.budget.setupMaximumSeconds
+        maximumRunSeconds = [long]$protocolDeclaration.arms.maximumRunSeconds
+        derivedMaximumSeconds = [long]$protocolDeclaration.budget.derivedMaximumSeconds
+        campaignMaximumSeconds = [long]$protocolDeclaration.budget.campaignMaximumSeconds
+        minimumFreeBytes = [long]$protocolDeclaration.disk.minimumFreeBytesBeforeSetup
+        observedFreeBytes = Get-FreeBytes
+        futureWriteOnceEvidence = [string]$protocolDeclaration.evidence.futureWriteOnce
+    } | ConvertTo-Json -Depth 10
     return
 }
 
-[IO.Directory]::CreateDirectory($profileRoot) | Out-Null
+$campaignAdmitted = $true
 try {
+    [IO.Directory]::CreateDirectory($profileRoot) | Out-Null
     Assert-NoProductProcesses
-    $script:freeBytesBefore = Assert-FreeBytes 30GB 'Representative campaign setup'
+    $script:freeBytesBefore = Assert-FreeBytes `
+        ([long]$protocolDeclaration.disk.minimumFreeBytesBeforeSetup) 'Representative-v2 campaign setup'
     $controlSource = Join-Path $profileRoot 'control-source'
     $treatmentSource = Join-Path $profileRoot 'treatment-source'
+    $stageStarted = [Diagnostics.Stopwatch]::GetTimestamp()
     Expand-Revision $controlRevision $controlSource
     Expand-Revision $treatmentRevision $treatmentSource
+    $setupStages.revisionExpansionNanos = [Diagnostics.Stopwatch]::GetElapsedTime(
+        $stageStarted, [Diagnostics.Stopwatch]::GetTimestamp()).Ticks * 100
     $controlTarget = Join-Path $profileRoot 'control-target'
+    $stageStarted = [Diagnostics.Stopwatch]::GetTimestamp()
     $controlWorker = Build-Worker $controlSource $controlTarget
+    $setupStages.controlReleaseBuildNanos = [Diagnostics.Stopwatch]::GetElapsedTime(
+        $stageStarted, [Diagnostics.Stopwatch]::GetTimestamp()).Ticks * 100
+    $stageStarted = [Diagnostics.Stopwatch]::GetTimestamp()
     $treatmentWorker = Build-Worker $treatmentSource (Join-Path $profileRoot 'treatment-target')
+    $setupStages.treatmentReleaseBuildNanos = [Diagnostics.Stopwatch]::GetElapsedTime(
+        $stageStarted, [Diagnostics.Stopwatch]::GetTimestamp()).Ticks * 100
+    $stageStarted = [Diagnostics.Stopwatch]::GetTimestamp()
     $statusProbe = Build-StatusProbe $controlSource $controlTarget
+    $setupStages.statusProbeReleaseBuildNanos = [Diagnostics.Stopwatch]::GetElapsedTime(
+        $stageStarted, [Diagnostics.Stopwatch]::GetTimestamp()).Ticks * 100
+    Assert-SetupWatchdog
     Assert-Watchdog
 
     $fixture = Join-Path $profileRoot 'fixture'
     Write-Output 'Creating immutable representative fixture...'
+    $stageStarted = [Diagnostics.Stopwatch]::GetTimestamp()
     [Sop2RepresentativeFixture]::Create($fixture)
+    $setupStages.fixtureCreationNanos = [Diagnostics.Stopwatch]::GetElapsedTime(
+        $stageStarted, [Diagnostics.Stopwatch]::GetTimestamp()).Ticks * 100
     Write-Output 'Validating fixture manifest, allocation, lengths, and large-pair content...'
+    $stageStarted = [Diagnostics.Stopwatch]::GetTimestamp()
     $fixtureFacts = [Sop2RepresentativeFixture]::Validate($fixture)
+    $setupStages.fixtureValidationNanos = [Diagnostics.Stopwatch]::GetElapsedTime(
+        $stageStarted, [Diagnostics.Stopwatch]::GetTimestamp()).Ticks * 100
     if ($fixtureFacts.FileCount -ne $expectedFiles -or $fixtureFacts.LogicalBytes -ne $expectedBytes) {
         throw 'Validated fixture totals do not match the predeclared contract.'
     }
-    Write-Output 'Computing revision-neutral fixture content digest...'
+    $script:fixtureGuard = [Sop2FixtureMutationGuard]::new($fixture)
+    Write-Output 'Conditioning once and computing the revision-neutral full-content digest...'
+    $stageStarted = [Diagnostics.Stopwatch]::GetTimestamp()
     $initialConditioning = [Sop2RepresentativeFixture]::Condition($fixture)
+    $setupStages.initialConditioningNanos = [Diagnostics.Stopwatch]::GetElapsedTime(
+        $stageStarted, [Diagnostics.Stopwatch]::GetTimestamp()).Ticks * 100
     if ($initialConditioning.FileCount -ne $expectedFiles -or $initialConditioning.LogicalBytes -ne $expectedBytes) {
         throw 'Initial fixture conditioning totals do not match the predeclared contract.'
     }
+    $script:fixtureMutationFacts = $script:fixtureGuard.AssertStable()
     $script:fixtureEvidence = [ordered]@{
         files = $fixtureFacts.FileCount
         logicalBytes = $fixtureFacts.LogicalBytes
@@ -1125,29 +1439,49 @@ try {
         contentSha256 = $initialConditioning.ContentSha256
         largePairSha256 = @($fixtureFacts.LargePairSha256)
     }
-    $script:freeBytesAfterBuildAndFixture = Assert-FreeBytes 20GB 'Post-fixture representative campaign'
+    $script:freeBytesAfterBuildAndFixture = Assert-FreeBytes `
+        ([long]$protocolDeclaration.disk.minimumFreeBytesAfterSetup) 'Post-fixture representative-v2 campaign'
+    $setupStages.totalNanos = [Diagnostics.Stopwatch]::GetElapsedTime(
+        $campaignStartedTimestamp, [Diagnostics.Stopwatch]::GetTimestamp()).Ticks * 100
+    Assert-SetupWatchdog
     Assert-Watchdog
 
     $orderIndex = 0
-    Measure-Arm 'control' $controlWorker $statusProbe $fixture $initialConditioning.ContentSha256 0 $orderIndex $true; $orderIndex++
-    Measure-Arm 'treatment' $treatmentWorker $statusProbe $fixture $initialConditioning.ContentSha256 0 $orderIndex $true; $orderIndex++
-    $measuredOrder = @('control','treatment','treatment','control','control','treatment','treatment','control','control','treatment')
+    Measure-Arm 'control' $controlWorker $statusProbe $fixture $script:fixtureGuard 0 $orderIndex $true
+    $orderIndex++
+    Measure-Arm 'treatment' $treatmentWorker $statusProbe $fixture $script:fixtureGuard 0 $orderIndex $true
+    $orderIndex++
+    $measuredOrder = @($protocolDeclaration.arms.measuredOrder)
     $ordinals = @{ control = 0; treatment = 0 }
     foreach ($mode in $measuredOrder) {
         $ordinals[$mode]++
         $worker = if ($mode -eq 'control') { $controlWorker } else { $treatmentWorker }
-        Measure-Arm $mode $worker $statusProbe $fixture $initialConditioning.ContentSha256 $ordinals[$mode] $orderIndex $false
+        Measure-Arm $mode $worker $statusProbe $fixture $script:fixtureGuard `
+            $ordinals[$mode] $orderIndex $false
         $orderIndex++
     }
 
+    try {
+        $script:fixtureMutationFacts = $script:fixtureGuard.Snapshot()
+        if ($script:fixtureMutationFacts.ChangeEvents -ne 0 -or
+            $script:fixtureMutationFacts.ErrorEvents -ne 0) {
+            throw 'The immutable fixture changed or its mutation watcher failed.'
+        }
+    }
+    finally {
+        $script:fixtureGuard.Dispose()
+        $script:fixtureGuard = $null
+    }
     Assert-Watchdog
-    $evidence = New-Evidence 'measured' ''
+    $aggregateEvidence = New-Evidence 'measured' ''
     $validControl = @($runs | Where-Object { $_.valid -and -not $_.warmup -and $_.mode -eq 'control' })
     $validTreatment = @($runs | Where-Object { $_.valid -and -not $_.warmup -and $_.mode -eq 'treatment' })
     if ($validControl.Count -ne 5 -or $validTreatment.Count -ne 5 -or
-        [long]$evidence.aggregate.controlWallNanos -le 0 -or [long]$evidence.aggregate.controlCpuNanos -le 0 -or
-        [long]$evidence.aggregate.treatmentCpuNanos -le 0 -or
-        $null -eq $evidence.aggregate.wallOverheadBasisPoints -or $null -eq $evidence.aggregate.cpuOverheadBasisPoints) {
+        [long]$aggregateEvidence.aggregate.controlWallNanos -le 0 -or
+        [long]$aggregateEvidence.aggregate.controlCpuNanos -le 0 -or
+        [long]$aggregateEvidence.aggregate.treatmentCpuNanos -le 0 -or
+        $null -eq $aggregateEvidence.aggregate.wallOverheadBasisPoints -or
+        $null -eq $aggregateEvidence.aggregate.cpuOverheadBasisPoints) {
         throw 'Representative aggregates are incomplete or non-positive.'
     }
     $resultDigests = @($runs | Where-Object valid | ForEach-Object { $_.resultFacts.digestSha256 } | Sort-Object -Unique)
@@ -1156,17 +1490,19 @@ try {
         $_.status.deterministicCounterDigestSha256
     } | Sort-Object -Unique)
     if ($counterDigests.Count -ne 1) { throw 'Deterministic durable counter facts differ between profile arms.' }
-    [long]$wallBp = $evidence.aggregate.wallOverheadBasisPoints
-    [long]$cpuBp = $evidence.aggregate.cpuOverheadBasisPoints
-    [long]$controlWall = $evidence.aggregate.controlWallNanos
-    [long]$treatmentWall = $evidence.aggregate.treatmentWallNanos
-    [long]$controlCpu = $evidence.aggregate.controlCpuNanos
-    [long]$treatmentCpu = $evidence.aggregate.treatmentCpuNanos
+    [long]$wallBp = $aggregateEvidence.aggregate.wallOverheadBasisPoints
+    [long]$cpuBp = $aggregateEvidence.aggregate.cpuOverheadBasisPoints
+    [long]$controlWall = $aggregateEvidence.aggregate.controlWallNanos
+    [long]$treatmentWall = $aggregateEvidence.aggregate.treatmentWallNanos
+    [long]$controlCpu = $aggregateEvidence.aggregate.controlCpuNanos
+    [long]$treatmentCpu = $aggregateEvidence.aggregate.treatmentCpuNanos
     $passed = $treatmentWall * 100L -lt $controlWall * 101L -and
         $treatmentCpu * 100L -lt $controlCpu * 101L
+    Remove-SafeProfileRoot
+    $disposition = if ($passed) { 'passed_two_part_budget' } else { 'failed_representative_threshold' }
+    $evidence = New-Evidence $disposition ''
     $evidence.aggregate.wallStrictlyBelowOnePercent = $treatmentWall * 100L -lt $controlWall * 101L
     $evidence.aggregate.cpuStrictlyBelowOnePercent = $treatmentCpu * 100L -lt $controlCpu * 101L
-    $evidence.disposition = if ($passed) { 'passed_two_part_budget' } else { 'failed_representative_threshold' }
     Write-OnceJson $evidence
     $evidenceWritten = $true
     $thresholdFailed = -not $passed
@@ -1174,36 +1510,37 @@ try {
 }
 catch {
     $failure = $_.Exception.Message
-    if ($timingBegan -and -not $evidenceWritten) {
+    if ($campaignAdmitted -and -not $evidenceWritten) {
         try {
+            if ($null -ne $script:fixtureGuard) {
+                try {
+                    $script:fixtureMutationFacts = $script:fixtureGuard.Snapshot()
+                    if ($script:fixtureMutationFacts.ChangeEvents -ne 0 -or
+                        $script:fixtureMutationFacts.ErrorEvents -ne 0) {
+                        $failure = "$failure Fixture mutation-guard failure: change or watcher-error events were observed."
+                    }
+                }
+                catch { $failure = "$failure Fixture mutation-guard failure: $($_.Exception.Message)" }
+                finally {
+                    $script:fixtureGuard.Dispose()
+                    $script:fixtureGuard = $null
+                }
+            }
+            if (-not $cleanupOutcome.attempted) {
+                try { Remove-SafeProfileRoot }
+                catch { $failure = "$failure Cleanup failure: $($_.Exception.Message)" }
+            }
             $invalid = New-Evidence 'invalid_campaign' $failure
             Write-OnceJson $invalid
             $evidenceWritten = $true
             Write-Warning "Retained invalid representative evidence: $failure"
         }
         catch {
-            Write-Warning "Could not retain invalid evidence; temporary campaign root remains: $profileRoot"
+            Write-Warning "Could not retain invalid evidence; inspect the campaign root and write-once path: $profileRoot"
             throw
         }
     }
     throw
-}
-finally {
-    if ($evidenceWritten -or -not $timingBegan) {
-        $resolvedProfileRoot = [IO.Path]::GetFullPath($profileRoot).TrimEnd('\')
-        $resolvedParent = [IO.Path]::GetDirectoryName($resolvedProfileRoot).TrimEnd('\')
-        if (-not $resolvedParent.Equals($tempParent, [StringComparison]::OrdinalIgnoreCase) -or
-            -not ([IO.Path]::GetFileName($resolvedProfileRoot)).StartsWith('super-duper-sop2-representative-', [StringComparison]::Ordinal)) {
-            throw "Unsafe profile cleanup path: $resolvedProfileRoot"
-        }
-        if (Test-Path -LiteralPath $resolvedProfileRoot) {
-            $item = Get-Item -LiteralPath $resolvedProfileRoot -Force
-            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
-                throw "Refusing to clean a reparse-point campaign root: $resolvedProfileRoot"
-            }
-            Remove-Item -LiteralPath $resolvedProfileRoot -Recurse -Force
-        }
-    }
 }
 
 if ($thresholdFailed) {

@@ -18,7 +18,7 @@ MVP. The previous Windows app implementation was removed before the current WPF 
 
 | Stream | Scheduling state | Authority | Next boundary |
 |---|---|---|---|
-| Large-drive scan optimization and observability | Active; blocked at operator decision | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) | The sole approved SOP2f representative campaign exhausted its two-hour envelope before any timed arm. Functional evidence and the fixed-cost short leg pass, but SOP2 remains unaccepted; explicitly approve a revised representative protocol or waive/reject the gate. |
+| Large-drive scan optimization and observability | Active; blocked at operator decision | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) | Functional evidence and the fixed-cost short leg pass; the v1 representative attempt retained no arm or aggregate. Separately versioned [`SOP2f-representative-v2`](docs/scan-progress-representative-protocol-v2.md) is predeclared and preflighted but not authorized. Explicitly approve exactly one v2 campaign invocation or waive/reject SOP2; SOP2 remains unaccepted. |
 | Windows post-MVP release validation | Parked by operator; gates and evidence preserved | [`docs/windows-roadmap-closure-ledger.md`](docs/windows-roadmap-closure-ledger.md) and [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md) | Before final feature-complete, resume exactly at `WPM8-high-contrast`, then follow the ledger dependency order. |
 
 The shared startup checkpoint is

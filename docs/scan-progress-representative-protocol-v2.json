@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "protocolId": "SOP2f-representative-v2",
+  "state": "proposed_operator_approval_required",
+  "controlRevision": "0a3c1c1",
+  "controlCommit": "0a3c1c13005c0409f6a3095e397d02dd11704a62",
+  "treatmentRevision": "f803cbd",
+  "treatmentCommit": "f803cbde5e72aa35d77aa509c5f6b86d5f9798f0",
+  "harness": {
+    "path": "scripts/Measure-WindowsScanProgressRepresentativeOverhead.ps1",
+    "hashNormalization": "utf8_lf_no_bom",
+    "normalizedTextSha256": "3d02ed4ebd5569e0af29dda5e8918e7df3144a32c423550812328f1731660460"
+  },
+  "fixture": {
+    "files": 600008,
+    "logicalBytes": 4605870080,
+    "smallFiles": 600000,
+    "smallFileBytes": 4096,
+    "largePairBytes": [268435456, 268500992, 268566528, 268632064],
+    "generatorVersion": 1,
+    "algorithm": "SplitMix64",
+    "seed": "0x534F503246524550",
+    "normalAllocatedRequired": true
+  },
+  "conditioning": {
+    "initialPasses": 1,
+    "initialMethod": "revision_neutral_full_content_sha256_in_manifest_order",
+    "perArmPasses": 0,
+    "mutationGuard": "recursive_filesystem_change_watcher_from_initial_conditioning_through_final_arm",
+    "betweenArmMethod": "the preceding complete scan rewarms every byte range used by the following scan",
+    "semantics": "warm_filesystem_cache_cold_application_product_status_hash_state"
+  },
+  "arms": {
+    "warmupOrder": ["control", "treatment"],
+    "measuredOrder": ["control", "treatment", "treatment", "control", "control", "treatment", "treatment", "control", "control", "treatment"],
+    "measuredRunsPerRevision": 5,
+    "totalArms": 12,
+    "minimumRunSeconds": 60,
+    "maximumRunSeconds": 600
+  },
+  "budget": {
+    "setupMaximumSeconds": 9000,
+    "reconciliationAndCleanupReserveSeconds": 900,
+    "campaignMaximumSeconds": 18000,
+    "derivedMaximumSeconds": 17100,
+    "retainedSetupUpperBoundSeconds": 7709,
+    "retainedBuildSeconds": 1393
+  },
+  "disk": {
+    "minimumFreeBytesBeforeSetup": 32212254720,
+    "minimumFreeBytesAfterSetup": 21474836480,
+    "minimumFreeBytesBeforeEachArm": 16106127360
+  },
+  "thresholds": {
+    "shortWallCeilingNanos": 100000000,
+    "shortWorkerCpuCeilingNanos": 125000000,
+    "representativeAggregateBasisPointsExclusive": 100
+  },
+  "evidence": {
+    "short": "docs/evidence/scan-progress-overhead-20260825.json",
+    "retainedPremeasurement": "docs/evidence/scan-progress-representative-premeasurement-20260825.json",
+    "futureWriteOnce": "docs/evidence/scan-progress-representative-overhead-sop2f-v2.json",
+    "shortNormalizedTextSha256": "3d697206849a9925abe7668ffdf6ac29926064207495e7dd651500280b819756",
+    "retainedPremeasurementNormalizedTextSha256": "d2e1757f870d8b1a805741956b0c8375efe6877c8905f7b72295a01250ab9899"
+  },
+  "rules": {
+    "freshApplicationProductStatusAndHashStatePerArm": true,
+    "allMeasuredRunsAggregate": true,
+    "exactProductAndDurableCounterReconciliation": true,
+    "writeOnceEvidenceForPassFailOrInvalidCampaign": true,
+    "noRetryToGreen": true,
+    "noFixtureResizeOrTuning": true,
+    "noFixtureMutationOrWatcherError": true,
+    "safeCleanupRequired": true
+  }
+}
