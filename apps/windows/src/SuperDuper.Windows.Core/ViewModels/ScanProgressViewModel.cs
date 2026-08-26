@@ -11,6 +11,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
     private readonly IWorkerClient _workerClient;
     private readonly IUiDispatcher _dispatcher;
     private readonly Action<long>? _onCancelling;
+    private readonly Func<WorkerRun, CancellationToken, Task>? _openWarnings;
     private readonly Timer _elapsedTimer;
     private WorkerRun? _run;
     private ulong _lastSequence;
@@ -29,17 +30,20 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
     public ScanProgressViewModel(
         IWorkerClient workerClient,
         IUiDispatcher dispatcher,
-        Action<long>? onCancelling = null)
+        Action<long>? onCancelling = null,
+        Func<WorkerRun, CancellationToken, Task>? openWarnings = null)
     {
         _workerClient = workerClient;
         _dispatcher = dispatcher;
         _onCancelling = onCancelling;
+        _openWarnings = openWarnings;
         _elapsedTimer = new Timer(
             _ => _dispatcher.Post(() => OnPropertyChanged(nameof(Elapsed))),
             null,
             Timeout.InfiniteTimeSpan,
             Timeout.InfiniteTimeSpan);
         CancelCommand = new AsyncRelayCommand(CancelAsync, () => CanCancel);
+        OpenWarningsCommand = new AsyncRelayCommand(OpenWarningsAsync, () => CanOpenWarnings);
     }
 
     public WorkerRun? Run
@@ -114,6 +118,12 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
     public string FilesHashed => (Run?.FilesHashed ?? 0).ToString("N0");
 
     public string WarningCount => (Run?.WarningCount ?? 0).ToString("N0");
+
+    public bool CanOpenWarnings => Run?.WarningCount > 0 && _openWarnings is not null;
+
+    public string WarningAutomationName => Run is { WarningCount: > 0 } run
+        ? $"Review {run.WarningCount:N0} current warnings in bounded run history; access key Alt+W"
+        : "No current warnings to review; access key Alt+W";
 
     public WorkerScanProgressSnapshot? ProgressSnapshot
     {
@@ -218,6 +228,8 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
     }
 
     public IAsyncRelayCommand CancelCommand { get; }
+
+    public IAsyncRelayCommand OpenWarningsCommand { get; }
 
     public void ShowRun(WorkerRun? run)
     {
@@ -334,6 +346,11 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         }
     }
 
+    private Task OpenWarningsAsync(CancellationToken cancellationToken) =>
+        Run is { WarningCount: > 0 } run && _openWarnings is not null
+            ? _openWarnings(run, cancellationToken)
+            : Task.CompletedTask;
+
     private void UpdateTimer() => _elapsedTimer.Change(
         IsActive ? TimeSpan.Zero : Timeout.InfiniteTimeSpan,
         IsActive ? TimeSpan.FromSeconds(1) : Timeout.InfiniteTimeSpan);
@@ -383,6 +400,8 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(BytesDiscovered));
         OnPropertyChanged(nameof(FilesHashed));
         OnPropertyChanged(nameof(WarningCount));
+        OnPropertyChanged(nameof(CanOpenWarnings));
+        OnPropertyChanged(nameof(WarningAutomationName));
         OnPropertyChanged(nameof(ExcludedSubtreeCount));
         OnPropertyChanged(nameof(Elapsed));
         OnPropertyChanged(nameof(DetailedProgressUnavailableMessage));
@@ -391,6 +410,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(EstimatedTimeRemaining));
         OnPropertyChanged(nameof(ProgressAnnouncement));
         CancelCommand.NotifyCanExecuteChanged();
+        OpenWarningsCommand.NotifyCanExecuteChanged();
     }
 
     private void RaiseProgressProperties()

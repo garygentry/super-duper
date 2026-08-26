@@ -117,6 +117,12 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
 
     public string? WarningStatusMessage => _warningDrilldown.StatusMessage;
 
+    public string WarningDiagnosticLogStatus => _warningDrilldown.DiagnosticLogStatus;
+
+    public string? WarningDiagnosticLogPath => _warningDrilldown.DiagnosticLogPath;
+
+    public string WarningDiagnosticLogAutomationName => _warningDrilldown.DiagnosticLogAutomationName;
+
     public bool HasWarningError => _warningDrilldown.HasError;
 
     public bool IsWarningNavigationPending
@@ -261,6 +267,19 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsEmpty));
     }
 
+    public async Task OpenWarningsForRunAsync(
+        WorkerRun run,
+        CancellationToken cancellationToken = default)
+    {
+        Upsert(run, select: true);
+        if (SelectedRun?.Id != run.Id)
+        {
+            throw new InvalidOperationException(
+                "The current warning run is not available in the selected session history.");
+        }
+        await LoadWarningPageAsync(opening: true, cancellationToken);
+    }
+
     private Task RefreshAsync() => SessionId is long sessionId
         ? LoadAsync(sessionId)
         : Task.CompletedTask;
@@ -269,7 +288,9 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
 
     private Task NextWarningPageAsync() => LoadWarningPageAsync(opening: false);
 
-    private async Task LoadWarningPageAsync(bool opening)
+    private async Task LoadWarningPageAsync(
+        bool opening,
+        CancellationToken cancellationToken = default)
     {
         var run = SelectedRun?.Run;
         if (run is null || run.WarningCount <= 0)
@@ -279,11 +300,11 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         CancelWarningNavigation(clearFeedback: true);
         if (opening)
         {
-            await _warningDrilldown.OpenAsync(run.Id);
+            await _warningDrilldown.OpenAsync(run.Id, cancellationToken);
         }
         else
         {
-            await _warningDrilldown.LoadNextPageAsync();
+            await _warningDrilldown.LoadNextPageAsync(cancellationToken);
         }
         if (SelectedRun?.Id == run.Id && IsWarningDrilldownOpen && !HasWarningError)
         {
@@ -429,6 +450,9 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
             nameof(RunWarningDrilldownViewModel.ErrorMessage) => nameof(WarningErrorMessage),
             nameof(RunWarningDrilldownViewModel.HasError) => nameof(HasWarningError),
             nameof(RunWarningDrilldownViewModel.StatusMessage) => nameof(WarningStatusMessage),
+            nameof(RunWarningDrilldownViewModel.DiagnosticLogStatus) => nameof(WarningDiagnosticLogStatus),
+            nameof(RunWarningDrilldownViewModel.DiagnosticLogPath) => nameof(WarningDiagnosticLogPath),
+            nameof(RunWarningDrilldownViewModel.DiagnosticLogAutomationName) => nameof(WarningDiagnosticLogAutomationName),
             nameof(RunWarningDrilldownViewModel.CanLoadNextPage) => nameof(CanLoadNextWarningPage),
             nameof(RunWarningDrilldownViewModel.SortField) => nameof(WarningSortField),
             nameof(RunWarningDrilldownViewModel.SortDirection) => nameof(WarningSortDirection),

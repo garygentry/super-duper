@@ -64,7 +64,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         Progress = new ScanProgressViewModel(
             workerClient,
             dispatcher,
-            runId => _progressGate.MarkCancelling(runId));
+            runId => _progressGate.MarkCancelling(runId),
+            OpenProgressWarningsAsync);
         History = new RunHistoryViewModel(workerClient, NavigateToWarningDuplicateSetAsync);
         DuplicateFiles = new DuplicateFilesViewModel(workerClient, clipboard, explorer);
         DuplicateFolders = new DuplicateFoldersViewModel(workerClient, clipboard, explorer);
@@ -457,6 +458,20 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         SelectedTabIndex = 3;
         FocusTarget = "duplicate-file-groups";
         FocusRequestVersion++;
+    }
+
+    private async Task OpenProgressWarningsAsync(
+        WorkerRun run,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (Progress.Run?.Id != run.Id || run.WarningCount <= 0)
+        {
+            return;
+        }
+
+        SelectedTabIndex = 2;
+        await History.OpenWarningsForRunAsync(run, cancellationToken);
     }
 
     private async Task SelectSessionAsync(

@@ -143,6 +143,96 @@ public sealed class ShellViewModelTests
     }
 
     [TestMethod]
+    public async Task ProgressWarningEntryReusesBoundedHistoryAcrossTerminalAndRestart()
+    {
+        var client = new TestWorkerClient();
+        var session = client.AddSession("Current warnings", @"C:\Data");
+        var active = client.AddRun(session.Id, "running", "discovering") with { WarningCount = 0 };
+        client.Runs[0] = active;
+        var state = "active";
+        var status = "running";
+        var revision = 31L;
+        var diagnostic = new WorkerDiagnosticLogMetadata(
+            "available",
+            "local_file",
+            @"C:\warning-page\application.log",
+            null,
+            "supplemental_diagnostics_not_durable_warning_truth");
+        var queries = new List<RunWarningQuery>();
+        client.RunWarningsHandler = (query, _) =>
+        {
+            queries.Add(query);
+            return Task.FromResult(new WorkerRunWarningPage(
+                [
+                    new WorkerRunWarningAggregate(
+                        301, query.RunId, "discovering", "scan", "enumeration-warning", "warning",
+                        "Two entries could not be enumerated.", 2, [@"C:\Data\one", @"C:\Data\two"]),
+                    new WorkerRunWarningAggregate(
+                        302, query.RunId, "hashing", "scan", RunHistoryViewModel.HashWarningCode, "warning",
+                        "Two candidates could not be hashed.", 2, [@"C:\Data\three", @"C:\Data\four"]),
+                ],
+                2, 4, 4, revision, state, status, diagnostic, null, false));
+        };
+
+        using (var viewModel = CreateViewModel(client))
+        {
+            await viewModel.InitializeAsync();
+            viewModel.SelectedTabIndex = 1;
+            Assert.IsTrue(viewModel.Progress.ApplyProgress(ProgressTestData.Discovery(
+                active.Id,
+                warningCount: 4)));
+
+            await viewModel.Progress.OpenWarningsCommand.ExecuteAsync(null);
+
+            Assert.AreEqual(2, viewModel.SelectedTabIndex);
+            Assert.AreEqual(active.Id, viewModel.History.SelectedRun?.Id);
+            Assert.AreEqual("warnings", viewModel.History.FocusTarget);
+            Assert.AreEqual(4, viewModel.History.WarningDrilldown.WarningCount);
+            Assert.AreEqual(4, viewModel.History.WarningDrilldown.AccountedWarningCount);
+            Assert.AreEqual(2, viewModel.History.Warnings.Count);
+            Assert.AreEqual(4, viewModel.History.Warnings.Sum(warning => warning.OccurrenceCount));
+            Assert.AreEqual(1, viewModel.History.WarningDrilldown.CachedPageCount);
+            Assert.AreEqual(@"C:\warning-page\application.log", viewModel.History.WarningDiagnosticLogPath);
+            Assert.AreNotEqual(client.DiagnosticLogPath, viewModel.History.WarningDiagnosticLogPath);
+            StringAssert.Contains(viewModel.History.WarningDiagnosticLogAutomationName, "not durable warning truth");
+            Assert.AreEqual(1L, viewModel.History.WarningAnnouncementVersion);
+            Assert.IsTrue(queries.All(query => query.RunId == active.Id));
+            Assert.IsTrue(queries.All(query => query.PageSize == RunHistoryViewModel.WarningPageSize));
+
+            state = "terminal";
+            status = "interrupted";
+            revision = 32;
+            var terminal = active with
+            {
+                Status = status,
+                WarningCount = 4,
+                CompletedAt = DateTimeOffset.UtcNow,
+            };
+            client.Runs[0] = terminal;
+            client.RaiseLifecycle("run.interrupted", terminal);
+
+            await viewModel.Progress.OpenWarningsCommand.ExecuteAsync(null);
+
+            Assert.IsTrue(viewModel.History.WarningDrilldown.IsTerminalSnapshot);
+            Assert.AreEqual("interrupted", viewModel.History.WarningDrilldown.RunStatus);
+            Assert.AreEqual(32L, viewModel.History.WarningDrilldown.SnapshotRevision);
+            Assert.AreEqual(4, viewModel.History.WarningDrilldown.AccountedWarningCount);
+        }
+
+        using var reconstructed = CreateViewModel(client);
+        await reconstructed.InitializeAsync();
+        reconstructed.SelectedTabIndex = 1;
+        await reconstructed.Progress.OpenWarningsCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(2, reconstructed.SelectedTabIndex);
+        Assert.IsTrue(reconstructed.History.WarningDrilldown.IsTerminalSnapshot);
+        Assert.AreEqual("interrupted", reconstructed.History.WarningDrilldown.RunStatus);
+        Assert.AreEqual(4, reconstructed.History.WarningDrilldown.WarningCount);
+        Assert.AreEqual(4, reconstructed.History.WarningDrilldown.AccountedWarningCount);
+        Assert.AreEqual(RunHistoryViewModel.WarningPageSize, queries[^1].PageSize);
+    }
+
+    [TestMethod]
     public async Task OneCoalescedWorkerFrameProducesOneDispatcherUpdate()
     {
         var client = new TestWorkerClient

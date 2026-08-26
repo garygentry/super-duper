@@ -7,6 +7,39 @@ namespace SuperDuper.Windows.Core.Tests;
 public sealed class ScanProgressViewModelTests
 {
     [TestMethod]
+    public async Task CurrentWarningEntryUsesExactRunContextAndAccessibleCount()
+    {
+        var client = new TestWorkerClient();
+        var run = client.AddRun(1, "running", "discovering") with { WarningCount = 0 };
+        WorkerRun? opened = null;
+        using var viewModel = new ScanProgressViewModel(
+            client,
+            new ImmediateDispatcher(),
+            openWarnings: (target, _) =>
+            {
+                opened = target;
+                return Task.CompletedTask;
+            });
+
+        viewModel.ShowRun(run);
+        Assert.IsTrue(viewModel.ApplyProgress(ProgressTestData.Discovery(
+            run.Id,
+            warningCount: 12)));
+
+        Assert.IsTrue(viewModel.CanOpenWarnings);
+        Assert.AreEqual("12", viewModel.WarningCount);
+        StringAssert.Contains(viewModel.WarningAutomationName, "12 current warnings");
+        StringAssert.Contains(viewModel.WarningAutomationName, "Alt+W");
+        await viewModel.OpenWarningsCommand.ExecuteAsync(null);
+        Assert.AreEqual(run.Id, opened?.Id);
+        Assert.AreEqual(12, opened?.WarningCount);
+
+        viewModel.ShowRun(run);
+        Assert.IsFalse(viewModel.CanOpenWarnings);
+        Assert.IsFalse(viewModel.OpenWarningsCommand.CanExecute(null));
+    }
+
+    [TestMethod]
     public void TerminalRun_LabelsPhaseAsLastPhase()
     {
         using var viewModel = new ScanProgressViewModel(new TestWorkerClient(), new ImmediateDispatcher());

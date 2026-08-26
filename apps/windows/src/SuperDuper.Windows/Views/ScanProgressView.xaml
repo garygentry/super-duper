@@ -94,6 +94,14 @@
                             <TextBlock Margin="0,4,0,0" FontSize="20" FontWeight="SemiBold"
                                        automation:AutomationProperties.AutomationId="ScanWarningCount"
                                        Text="{Binding WarningCount}" />
+                            <Button Margin="0,8,0,0"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding OpenWarningsCommand}"
+                                    Content="_Review warnings"
+                                    automation:AutomationProperties.AccessKey="Alt+W"
+                                    automation:AutomationProperties.AutomationId="ProgressWarningEntry"
+                                    automation:AutomationProperties.HelpText="Opens the bounded persisted-warning drilldown for this run in Run history."
+                                    automation:AutomationProperties.Name="{Binding WarningAutomationName}" />
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource ProgressCard}">

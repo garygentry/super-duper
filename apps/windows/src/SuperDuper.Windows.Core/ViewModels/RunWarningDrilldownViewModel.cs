@@ -87,6 +87,22 @@ public sealed class RunWarningDrilldownViewModel : ObservableObject, IDisposable
 
     public WorkerDiagnosticLogMetadata? DiagnosticLog { get; private set; }
 
+    public string DiagnosticLogStatus => DiagnosticLog switch
+    {
+        { State: "available", LocationKind: "local_file" } =>
+            "Available as a local application log file.",
+        { State: "unavailable", Reason: { } reason } =>
+            $"Unavailable: {reason.Replace('_', ' ')}.",
+        _ => "Diagnostic application log metadata is not loaded.",
+    };
+
+    public string? DiagnosticLogPath => DiagnosticLog?.State == "available"
+        ? DiagnosticLog.Path
+        : null;
+
+    public string DiagnosticLogAutomationName =>
+        $"Diagnostic application log. Supplemental developer and recovery detail; not durable warning truth. {DiagnosticLogStatus}";
+
     public long AnnouncementVersion
     {
         get => _announcementVersion;
@@ -225,6 +241,9 @@ public sealed class RunWarningDrilldownViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(WarningCount));
             OnPropertyChanged(nameof(AccountedWarningCount));
             OnPropertyChanged(nameof(DiagnosticLog));
+            OnPropertyChanged(nameof(DiagnosticLogStatus));
+            OnPropertyChanged(nameof(DiagnosticLogPath));
+            OnPropertyChanged(nameof(DiagnosticLogAutomationName));
             OnPropertyChanged(nameof(CanLoadNextPage));
             IsOpen = true;
             StatusMessage = BuildStatus(page);
@@ -383,6 +402,9 @@ public sealed class RunWarningDrilldownViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(WarningCount));
         OnPropertyChanged(nameof(AccountedWarningCount));
         OnPropertyChanged(nameof(DiagnosticLog));
+        OnPropertyChanged(nameof(DiagnosticLogStatus));
+        OnPropertyChanged(nameof(DiagnosticLogPath));
+        OnPropertyChanged(nameof(DiagnosticLogAutomationName));
     }
 
     private void CancelAndInvalidateLoad()

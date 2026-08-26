@@ -637,6 +637,22 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 "Close run warning details and return to run history",
                 AutomationProperties.GetName(FindByAutomationId<Button>(history, "CloseRunWarnings")));
+            var warningDiagnostic = FindByAutomationId<Border>(history, "RunWarningDiagnosticLog");
+            Assert.AreEqual(SystemColors.ActiveBorderBrush, warningDiagnostic.BorderBrush);
+            StringAssert.Contains(
+                AutomationProperties.GetHelpText(warningDiagnostic),
+                "not the source of persisted warning counts");
+            Assert.AreEqual(
+                "Diagnostic application log path",
+                AutomationProperties.GetName(
+                    FindByAutomationId<TextBox>(history, "RunWarningDiagnosticLogPath")));
+            var warningStatus = FindByAutomationId<TextBlock>(history, "RunWarningStatus");
+            Assert.AreEqual(
+                AutomationNotificationProcessing.MostRecent,
+                AutomationNotificationBehavior.GetNotificationProcessing(warningStatus));
+            Assert.AreEqual(
+                "RunWarningPage",
+                AutomationNotificationBehavior.GetActivityId(warningStatus));
             Assert.AreEqual(
                 "Cancel opening immutable duplicate-file results",
                 AutomationProperties.GetName(FindByAutomationId<Button>(history, "CancelRunWarningNavigation")));
@@ -670,6 +686,36 @@ public sealed class WpfSurfaceSmokeTests
             historyFocusHost.Show();
             historyFocusHost.Activate();
             DrainDispatcher();
+            var warningNotifications = new List<string>();
+            void CaptureWarningNotification(
+                FrameworkElement element,
+                string announcement,
+                AutomationNotificationKind _,
+                AutomationNotificationProcessing __,
+                string activityId)
+            {
+                if (ReferenceEquals(element, warningStatus) && activityId == "RunWarningPage")
+                {
+                    warningNotifications.Add(announcement);
+                }
+            }
+            AutomationNotificationBehavior.NotificationRaised += CaptureWarningNotification;
+            try
+            {
+                AutomationProperties.SetName(warningStatus, "Older warning accounting");
+                AutomationNotificationBehavior.SetAnnouncementVersion(warningStatus, 1);
+                AutomationProperties.SetName(warningStatus, "Latest exact warning accounting");
+                AutomationNotificationBehavior.SetAnnouncementVersion(warningStatus, 2);
+                DrainDispatcher();
+                CollectionAssert.AreEqual(
+                    new[] { "Latest exact warning accounting" },
+                    warningNotifications,
+                    "Warning-page accounting announcements were not coalesced to the latest accepted page.");
+            }
+            finally
+            {
+                AutomationNotificationBehavior.NotificationRaised -= CaptureWarningNotification;
+            }
             var dispatcherResponsive = false;
             _ = history.Dispatcher.BeginInvoke(
                 () => dispatcherResponsive = true,
@@ -1109,6 +1155,21 @@ public sealed class WpfSurfaceSmokeTests
         Keyboard.Focus(cancel);
         Assert.IsTrue(cancel.IsKeyboardFocused);
 
+        var warningEntry = FindByAutomationId<Button>(progress, "ProgressWarningEntry");
+        Assert.AreEqual("Alt+W", AutomationProperties.GetAccessKey(warningEntry));
+        Assert.AreEqual("_Review warnings", warningEntry.Content);
+        StringAssert.Contains(AutomationProperties.GetName(warningEntry), "2 current warnings");
+        StringAssert.Contains(AutomationProperties.GetHelpText(warningEntry), "bounded persisted-warning drilldown");
+        Assert.IsTrue(warningEntry.Focusable && KeyboardNavigation.GetIsTabStop(warningEntry));
+        Assert.IsTrue(warningEntry.Focus());
+        Keyboard.Focus(warningEntry);
+        Assert.IsTrue(warningEntry.IsKeyboardFocused);
+        warningEntry.Command.Execute(warningEntry.CommandParameter);
+        Assert.AreEqual(1, data.OpenWarningsCommand.ExecuteCount);
+
+        Assert.IsTrue(cancel.Focus());
+        Keyboard.Focus(cancel);
+
         var announcementElement = FindByAutomationId<TextBlock>(progress, "ScanProgressAnnouncement");
         Assert.AreEqual(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(announcementElement));
         Assert.AreEqual(
@@ -1407,6 +1468,11 @@ public sealed class WpfSurfaceSmokeTests
         public string ProgressPhaseElapsed => "12 s";
 
         public string WarningCount => "2";
+
+        public string WarningAutomationName =>
+            "Review 2 current warnings in bounded run history; access key Alt+W";
+
+        public ProgressSurfaceCommand OpenWarningsCommand { get; } = new();
 
         public string ExcludedSubtreeCount => "1";
 

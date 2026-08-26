@@ -11,7 +11,8 @@ internal static class ProgressTestData
         ulong discoveredFiles = 1,
         ulong zeroByteFiles = 0,
         ulong monotonicNanos = 1_000_000_000,
-        string status = "running")
+        string status = "running",
+        ulong warningCount = 0)
     {
         var nonEmptyFiles = discoveredFiles - zeroByteFiles;
         var discoveredBytes = (nonEmptyFiles * 100).ToString();
@@ -20,6 +21,7 @@ internal static class ProgressTestData
             DiscoveredFiles = discoveredFiles,
             DiscoveredBytes = discoveredBytes,
             ZeroByteFiles = zeroByteFiles,
+            Warnings = warningCount,
         };
         var logical = EmptyLogical();
         return new WorkerRunProgressEventArgs
@@ -31,7 +33,7 @@ internal static class ProgressTestData
             FilesDiscovered = checked((long)nonEmptyFiles),
             BytesDiscovered = discoveredBytes,
             FilesHashed = 0,
-            WarningCount = 0,
+            WarningCount = checked((long)warningCount),
             Progress = new WorkerScanProgressSnapshot
             {
                 ProgressContractVersion = WorkerProgressContract.ProgressContractVersion,
@@ -46,7 +48,7 @@ internal static class ProgressTestData
                 PartialReadRates = UnavailableRates(),
                 FullReadRates = UnavailableRates(),
                 CacheHitRateBasisPoints = null,
-                WarningCount = 0,
+                WarningCount = warningCount,
                 ActiveDevices = new WorkerActiveDeviceProgress
                 {
                     State = "unavailable",
