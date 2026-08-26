@@ -1,0 +1,91 @@
+{
+  "schema": "sop2f-representative-invalid-campaign-recovery-v1",
+  "gate": "SOP2f-progress-acceptance",
+  "protocolId": "SOP2f-representative-v2",
+  "disposition": "invalid_campaign",
+  "acceptance": {
+    "sop2fAccepted": false,
+    "sop2Accepted": false,
+    "representativeThresholdEvaluated": false,
+    "reason": "The sole authorized v2 campaign completed setup but no arm completed. Its invalid-evidence path then failed while aggregating an empty measured-run set."
+  },
+  "authority": {
+    "approvedInvocations": 1,
+    "invocationsConsumed": 1,
+    "retryAuthorized": false,
+    "command": "& ./scripts/Measure-WindowsScanProgressRepresentativeOverhead.ps1 -Protocol SOP2f-representative-v2 -RunCampaign"
+  },
+  "repository": {
+    "head": "ca4086f35e6624e73cce82866ce0cf0dfbd635ca",
+    "controlRevision": "0a3c1c1",
+    "controlCommit": "0a3c1c13005c0409f6a3095e397d02dd11704a62",
+    "treatmentRevision": "f803cbd",
+    "treatmentCommit": "f803cbde5e72aa35d77aa509c5f6b86d5f9798f0",
+    "harnessNormalizedTextSha256": "3d02ed4ebd5569e0af29dda5e8918e7df3144a32c423550812328f1731660460",
+    "protocolDeclarationNormalizedTextSha256": "ba5d3132df9b9a9f6f8e1509df537c1e4f456d8de725f956be022d1356d6cf54"
+  },
+  "fixture": {
+    "files": 600008,
+    "logicalBytes": 4605870080,
+    "creationReportedComplete": true,
+    "validationReportedComplete": true,
+    "initialFullContentConditioningReportedComplete": true,
+    "contentDigestRecovered": false,
+    "mutationGuardFailureReported": false
+  },
+  "observedExecution": {
+    "controlReleaseBuildReportedComplete": true,
+    "treatmentReleaseBuildReportedComplete": true,
+    "statusProbeReleaseBuildReportedComplete": true,
+    "lastReportedStage": "control_warmup_0_started",
+    "attemptedArmCount": 1,
+    "completedWarmupArmCount": 0,
+    "completedMeasuredArmCount": 0,
+    "retainedRunDetailsAvailable": false,
+    "primaryArmFailureRecovered": false,
+    "primaryArmFailureInference": "The control warmup did not complete before the harness exited after the predeclared 600-second arm deadline. The exact primary exception was replaced by the secondary evidence-construction exception.",
+    "processExitCode": 1
+  },
+  "aggregate": {
+    "controlWallNanos": null,
+    "treatmentWallNanos": null,
+    "wallOverheadBasisPoints": null,
+    "wallStrictlyBelowOnePercent": null,
+    "controlWorkerCpuNanos": null,
+    "treatmentWorkerCpuNanos": null,
+    "workerCpuOverheadBasisPoints": null,
+    "workerCpuStrictlyBelowOnePercent": null
+  },
+  "evidenceFailure": {
+    "classification": "empty_measured_run_aggregation",
+    "scriptLine": 1234,
+    "exceptionType": "ParentContainsErrorRecordException",
+    "message": "The property 'Sum' cannot be found on this object. Verify that the property exists.",
+    "mechanism": "New-Evidence called Measure-Object -Sum on an empty measured-control collection and accessed a missing Sum property.",
+    "consequence": "The harness did not serialize its in-memory attempted-arm facts, and its cleanup path removed the campaign root before the evidence-construction failure."
+  },
+  "cleanupAudit": {
+    "auditedUtc": "2026-08-26T03:32:13.1928925+00:00",
+    "campaignRoot": "C:\\Users\\gary\\AppData\\Local\\Temp\\super-duper-sop2-representative-v2-404bee1b76a04282ab4fbf4ab6d1656a",
+    "campaignRootAbsent": true,
+    "scopedProductAndProbeProcessCount": 0,
+    "scopedProcessesAbsent": true
+  },
+  "retainedEvidence": {
+    "shortPath": "docs/evidence/scan-progress-overhead-20260825.json",
+    "shortNormalizedTextSha256": "3d697206849a9925abe7668ffdf6ac29926064207495e7dd651500280b819756",
+    "v1PremeasurementPath": "docs/evidence/scan-progress-representative-premeasurement-20260825.json",
+    "v1PremeasurementNormalizedTextSha256": "d2e1757f870d8b1a805741956b0c8375efe6877c8905f7b72295a01250ab9899"
+  },
+  "recovery": {
+    "kind": "post-exit_incident_record",
+    "generatedByCampaignHarness": false,
+    "containsEstimatedMeasurementValues": false,
+    "writeOncePathConsumed": true,
+    "notes": [
+      "This record preserves only facts recoverable from the sole campaign's console output, committed harness, and post-exit cleanup audit.",
+      "It is not representative measurement evidence and does not evaluate the strict less-than-one-percent wall or worker-CPU gate.",
+      "No retry, fixture tuning, arm exclusion, or threshold change is authorized."
+    ]
+  }
+}

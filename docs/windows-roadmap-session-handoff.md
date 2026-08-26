@@ -18,14 +18,16 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: predeclare the separately versioned executable `SOP2f-representative-v2`
-  protocol design package without authorizing or running its campaign
+- Latest completed slice: execute the sole authorized `SOP2f-representative-v2` invocation, retain
+  its recovered invalid-campaign incident after an empty-aggregate evidence-writer defect, and stop
+  without retry
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP2-progress-reporting`
-- Next boundary: operator approval/rejection of exactly one proposed `SOP2f-representative-v2`
-  campaign; SOP2f/SOP2 remain unaccepted
+- Next boundary: operator authorization to design a new separately versioned representative
+  protocol, or explicit waiver/rejection of SOP2; v2 authority is consumed and SOP2f/SOP2 remain
+  unaccepted
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -54,17 +56,18 @@ completed session work uncommitted or substitute work from the parked stream.
 passes fixed caps of 100 ms wall and 125 ms worker CPU at +66.9243 ms wall and no detected positive
 CPU cost. The retained v1 pre-measurement failure remains zero-arm/non-acceptance evidence: its
 23m13s builds plus fixture creation/validation and the first 600,008-file full-content conditioning
-pass consumed the two-hour watchdog. V1 also scheduled that same pass before every one of 12 arms.
-Proposed `SOP2f-representative-v2` preserves the exact revisions, fixture, C/T warmups, five
-counterbalanced measured runs per revision, 60-600-second qualification, fresh isolated state,
-exact results/counters, all-run strict <1% wall/CPU gate, write-once invalid/pass/fail evidence,
-safe cleanup, and no retry/tuning. It removes only the 12 redundant per-arm conditioning passes:
-one revision-neutral pass warms the first arm, a recursive mutation/overflow guard protects the
-validated fixture through the final arm, and each complete scan rewarms exactly the ranges used by
-the next. Its conservative cap is 150 minutes setup + twelve 10-minute arms + 15 minutes
-closeout = 285 minutes inside a five-hour watchdog. The no-state preflight passes. V2 is not
-authorized and neither SOP2f nor SOP2 is accepted; do not run a campaign or advance to SOP3, SOP5,
-SOP8 implementation/UI, or the parked stream without the explicit operator decision.
+pass consumed the two-hour watchdog. The sole operator-authorized `SOP2f-representative-v2`
+invocation did remove that setup infeasibility: clean builds, exact fixture creation/validation, and
+the one initial full-content conditioning pass completed before control warmup 0 began. That warmup
+did not complete inside the predeclared 600-second arm envelope. The invalid path then called
+`Measure-Object -Sum` on an empty measured-run collection and failed before serializing its in-memory
+attempt details; safe cleanup had already removed the GUID campaign root, and no scoped process
+remained. The recovered write-once
+`docs/evidence/scan-progress-representative-overhead-sop2f-v2.json` records zero completed/measured
+arms, null aggregates, an unevaluated <1% gate, the evidence-writer defect, and post-exit cleanup
+facts without inventing measurements. V2 authority is consumed and retry/tuning is prohibited.
+Neither SOP2f nor SOP2 is accepted; do not run v1 or v2 or advance to SOP3, SOP5, SOP8
+implementation/UI, or the parked stream without the next explicit operator decision.
 
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
@@ -229,13 +232,13 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Obtain explicit operator approval for exactly one invocation of the predeclared
-`SOP2f-representative-v2` campaign, or an explicit SOP2 waiver/rejection. Approval must cover the
-single command's Release builds, temporary fixture/state creation and safe deletion, worker/probe
-launches, and write-once creation of
-`docs/evidence/scan-progress-representative-overhead-sop2f-v2.json`. Do not run v1 or v2, revise the
-protocol, substitute an adjacent profile, or advance to SOP3, SOP5, SOP8 implementation/UI, or the
-parked stream before that decision.
+Obtain an explicit operator decision to authorize design of a new separately versioned
+representative protocol, or explicitly waive/reject SOP2. The v2 campaign authority is consumed;
+its write-once path now contains the recovered invalid-campaign incident and therefore forbids
+another v2 invocation. Any new design must review both the observed control-warmup arm-bound
+infeasibility and the empty-aggregate evidence/cleanup ordering defect before proposing a command.
+Do not run v1 or v2, silently change a bound, substitute an adjacent profile, or advance to SOP3,
+SOP5, SOP8 implementation/UI, or the parked stream before that decision.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -323,17 +326,16 @@ required gates are open.
 
 ## Latest verification baseline
 
-The `SOP2f-representative-v2` design package changes no product file and runs no campaign. The
-PowerShell parser passes; the protocol JSON round-trips; retained short/pre-measurement evidence
-SHA-256 values match the predeclared manifest; the executable no-state preflight resolves the exact
-full control/treatment commits, validates the unchanged 600,008-file/4,605,870,080-byte fixture
-arithmetic, one/zero initial/per-arm conditioning counts, C/T order, 12-arm and 17,100/18,000-second
-budget math, approved thresholds, 30 GiB disk gate, process absence, write-once path absence, and
-static single-conditioning/CreateNew harness rules. It observed more than the required 30 GiB free
-and left zero v2 campaign roots, workers, probes, product/status/hash state, or evidence.
-JSON/document link consistency, retained evidence hashes, process/cleanup absence, targeted diff
-checks, and `git diff --check` pass. No Rust/.NET/WPF file or accepted full functional matrix changed
-or reran.
+Before authorization, the `SOP2f-representative-v2` package passed PowerShell parsing, protocol JSON
+round-trip, exact revision/evidence-hash checks, fixture/order/budget arithmetic, disk/process gates,
+and the executable no-state preflight at commit `ca4086f`. The sole approved command then completed
+both Release worker builds, the status-probe build, exact fixture creation/validation, and the single
+initial full-content conditioning pass. Control warmup 0 started but did not complete before the
+predeclared arm deadline. A secondary `New-Evidence` empty-sum error at harness line 1234 prevented
+native invalid-evidence serialization and replaced the exact primary exception. Post-exit audit
+finds the named GUID campaign root absent and zero scoped worker/probe/product processes. A recovered
+incident now occupies the write-once path, so executable preflight/run admission correctly refuses
+reuse. No Rust/.NET/WPF product file or accepted full functional matrix changed or reran.
 
 `SOP2f` functional acceptance passes. `Verify-WindowsScanProgress.ps1` passes 11 exact Rust tests,
 5 strict Infrastructure parser tests, 27 Core application/projection tests, and 1 loaded-STA WPF
@@ -346,11 +348,11 @@ pre-existing visible Release app PID 48972; an isolated artifacts path supplied 
 build/test/publish evidence, and the operator later authorized the verified process to be stopped.
 The retained short profile at `docs/evidence/scan-progress-overhead-20260825.json` passes the
 operator-approved fixed 100 ms wall/125 ms CPU caps at +66.9243 ms and no detected positive CPU
-cost. The sole approved representative campaign failed at its pre-measurement two-hour watchdog
-after fixed-fixture validation and initial conditioning but before any arm; its distinct failure
-record is `docs/evidence/scan-progress-representative-premeasurement-20260825.json`. No aggregate
-exists and the approved measurement evidence path remains absent, so neither SOP2f nor SOP2 is
-accepted.
+cost. The v1 campaign's distinct pre-measurement failure remains
+`docs/evidence/scan-progress-representative-premeasurement-20260825.json`. The v2 attempt is retained
+at `docs/evidence/scan-progress-representative-overhead-sop2f-v2.json` as a recovered invalid-campaign
+incident: zero arms completed, no measured aggregate exists, and the <1% gate was not evaluated.
+Neither SOP2f nor SOP2 is accepted.
 
 Accepted `SOP2e` passes the full Windows solution with 137 Core, 74 Infrastructure, and 3 loaded-STA
 smoke tests; the same 5 operator-only provider/physical Infrastructure tests are skipped. The
@@ -550,7 +552,8 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
-| 2026-08-25 | this session | Predeclare executable `SOP2f-representative-v2` without a campaign: keep revisions, fixture, short caps, strict aggregate <1% wall/CPU gate, qualification, counterbalance, isolated state, exact reconciliation, write-once evidence, cleanup, and no-retry rules; replace 12 redundant per-arm full-content passes with one initial pass plus scan-to-scan rewarming; prove a conservative five-hour envelope by no-state preflight. | Obtain explicit approval for exactly one v2 campaign command and its build/temp-process/write/delete authority, or explicitly waive/reject SOP2. Do not run, revise, or advance to SOP3. |
+| 2026-08-25 | this session | Execute the sole authorized `SOP2f-representative-v2` invocation. Setup and one-time conditioning completed, proving v1's pre-arm setup infeasibility removed, but control warmup 0 did not complete inside its arm bound. Preserve the resulting empty-aggregate evidence-writer defect and cleanup audit at the write-once path without inventing measurements or retrying. | V2 authority is consumed. Obtain explicit approval to design a new separately versioned protocol, or explicitly waive/reject SOP2. Do not rerun v1/v2, tune, silently change bounds, or advance to SOP3. |
+| 2026-08-25 | `ca4086f` | Predeclare executable `SOP2f-representative-v2` without a campaign: keep revisions, fixture, short caps, strict aggregate <1% wall/CPU gate, qualification, counterbalance, isolated state, exact reconciliation, write-once evidence, cleanup, and no-retry rules; replace 12 redundant per-arm full-content passes with one initial pass plus scan-to-scan rewarming; prove a conservative five-hour envelope by no-state preflight. | Obtain explicit approval for exactly one v2 campaign command and its build/temp-process/write/delete authority, or explicitly waive/reject SOP2. Do not run, revise, or advance to SOP3. |
 | 2026-08-25 | this session | Commit the fail-closed representative harness, execute the sole approved SOP2f campaign, and retain its pre-measurement failure: clean builds and fixed-fixture creation/validation/initial conditioning passed, but the two-hour watchdog expired before any arm; cleanup passed and no aggregate exists. | Obtain explicit operator approval for a separately versioned representative protocol or an explicit SOP2 waiver/rejection. Do not rerun, tune, or advance to SOP3. |
 | 2026-08-25 | this session | Approve the exact two-part SOP2f budget: 100 ms wall/125 ms CPU fixed caps for the retained short fixture plus strictly less than 1% aggregate wall/CPU on one immutable 600,008-file representative campaign; verify and stop the operator-authorized Release app PID 48972. | Commit the predeclared protocol, then implement and run exactly one write-once representative profile without resizing, retrying, excluding outliers, or advancing to SOP3. |
 | 2026-08-25 | this session | Complete SOP2f local functional evidence with a named verifier, full Debug/Release matrices, isolated Release publish, and real Debug/Release worker/WPF smoke; retain the sole cross-revision profile failed at +4.39% wall and -3.83% CPU without retrying or stopping the operator's visible Release app. | Keep `SOP2f` blocked and obtain explicit operator disposition: preserve the +1%/+1% gate, approve a reviewed two-part short-absolute/representative-duration budget, or explicitly waive/reject SOP2. Do not advance to SOP3. |

@@ -2,13 +2,18 @@
 
 ## Disposition and authority
 
-`SOP2f-representative-v2` is a proposed, separately versioned replacement for the representative
-leg of `SOP2f-progress-acceptance`. This design package does not authorize a campaign and does not
-accept SOP2f or SOP2. The retained short result and the retained v1 pre-measurement failure remain
-immutable. Exactly one v2 campaign may run only after the operator explicitly approves this
-protocol and authorizes its campaign command.
+`SOP2f-representative-v2` was a separately versioned replacement for the representative leg of
+`SOP2f-progress-acceptance`. The operator authorized exactly one invocation, and that authority is
+now consumed. Setup and the single initial conditioning pass completed, but control warmup 0 did
+not complete inside the predeclared arm envelope. The invalid path then exposed an empty-aggregate
+evidence-construction defect, so the harness lost its in-memory attempt details after safe cleanup.
+The recovered write-once [invalid-campaign incident](evidence/scan-progress-representative-overhead-sop2f-v2.json)
+records only still-provable facts and mechanically prevents a rerun. It contains no representative
+aggregate and does not accept SOP2f or SOP2. The retained short result and v1 pre-measurement failure
+remain immutable.
 
-The machine-readable declaration is
+The machine-readable declaration remains the exact pre-execution declaration committed for the
+authorized attempt:
 [`scan-progress-representative-protocol-v2.json`](scan-progress-representative-protocol-v2.json).
 The executable harness is
 [`Measure-WindowsScanProgressRepresentativeOverhead.ps1`](../scripts/Measure-WindowsScanProgressRepresentativeOverhead.ps1).
@@ -80,7 +85,7 @@ watchdog. Expected per-arm duration is therefore deliberately budgeted as 1-10 m
 representative estimate is claimed before a valid arm exists. The campaign requires 30 GiB free
 before setup, 20 GiB after builds and fixture creation, and 15 GiB before every arm.
 
-Run the no-state preflight with:
+Before the one authorization was consumed, the no-state preflight command was:
 
 ```powershell
 pwsh -NoProfile -File ./scripts/Measure-WindowsScanProgressRepresentativeOverhead.ps1 `
@@ -89,30 +94,30 @@ pwsh -NoProfile -File ./scripts/Measure-WindowsScanProgressRepresentativeOverhea
 
 ## Evidence, invalidity, and cleanup
 
-The one future authorized invocation creates exactly
-`docs/evidence/scan-progress-representative-overhead-sop2f-v2.json` with `CreateNew` semantics. A
+The one authorized invocation was required to create exactly
+`docs/evidence/scan-progress-representative-overhead-sop2f-v2.json` with `CreateNew` semantics for a
 pass, threshold failure, qualification failure, setup failure after campaign admission, or partial
-campaign all retain at that same path. The evidence records protocol ID, repository HEAD, harness
-SHA-256, revisions,
-fixture digests, setup timing, conditioning semantics, host/free-space facts, every attempted arm,
-all available reconciliations, aggregates only when complete, threshold booleans, cleanup outcome,
-and the exact disposition/failure. Once the path exists, the harness refuses every later attempt.
+campaign. The empty-aggregate defect prevented that native serialization. The post-exit recovery
+record now occupies the same write-once path, identifies itself as not harness-generated, contains
+no reconstructed measurements, and retains only the still-provable invalid disposition, execution
+milestones, secondary exception, cleanup audit, and consumed authority. The harness therefore
+refuses every later attempt.
 
 Any revision mismatch, retained-evidence mismatch, product process, free-space failure, setup or arm
 timeout, fixture/result/counter mismatch, missing progress seam, process/cleanup failure, incomplete
 arm set, or evidence-write failure invalidates the campaign. No retry, outlier exclusion, fixture
-change, ordering/cache change, threshold change, adjacent profile, or manual evidence repair is
-authorized. Safe cleanup is limited to the validated GUID-named campaign root under the resolved
-temporary directory; reparse points are rejected and worker/probe absence is verified afterward.
+change, ordering/cache change, threshold change, adjacent profile, or manual reconstruction of lost
+measurement facts is authorized. Safe cleanup is limited to the validated GUID-named campaign root
+under the resolved temporary directory; reparse points are rejected and worker/probe absence is
+verified afterward.
 
-After explicit operator approval, the single campaign command requiring authority to build the two
-archived Release revisions, create/delete the temporary fixture and isolated state, launch the
-workers/probe, and create the write-once repository evidence is:
+The exact campaign command whose one-time authority is now consumed was:
 
 ```powershell
 pwsh -NoProfile -File ./scripts/Measure-WindowsScanProgressRepresentativeOverhead.ps1 `
   -Protocol SOP2f-representative-v2 -RunCampaign
 ```
 
-Protocol approval authorizes exactly that one invocation. It does not authorize another v1 run,
-another v2 attempt, product changes, SOP3/SOP5/SOP8 work, or the parked release-validation stream.
+Do not run that command again. The consumed approval does not authorize another v1 run, another v2
+attempt, a successor design, product changes, SOP3/SOP5/SOP8 work, or the parked release-validation
+stream.
