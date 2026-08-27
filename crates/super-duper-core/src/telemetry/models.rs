@@ -234,9 +234,9 @@ impl CounterKind {
 ///
 /// `discovered_files` includes logical zero-byte files and hard-link aliases. Size-bucket and hash
 /// counters describe first-physical, non-empty files only. `candidate_*` records files admitted to
-/// the content-hash pipeline in this engine version; it can overlap singleton classification in
-/// the pre-optimization baseline. `duplicate_candidate_*` is the disjoint multi-file size-bucket
-/// classification, while `metadata_resolved_*` records singleton work that avoided content I/O.
+/// the content-hash pipeline by the producing engine. Pre-SOP5 metrics-v2 history can overlap the
+/// singleton classification; SOP5 and later producers admit only `duplicate_candidate_*` and put
+/// singleton work that avoided content I/O in `metadata_resolved_*`.
 /// Cache lookup outcomes are exclusive:
 /// an error means lookup degraded to a content read and is not also a miss. Full-content read
 /// counters exclude cache hits.

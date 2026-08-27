@@ -342,7 +342,11 @@ pub(crate) fn build_content_hash_map_with_progress(
     io: &dyn HashPipelineIo,
 ) -> io::Result<HashOutcome> {
     let confirmed_duplicates: DashMap<u64, Vec<PathBuf>> = DashMap::new();
-    let total_files: usize = map.iter().map(|entry| entry.value().len()).sum();
+    let total_files: usize = map
+        .iter()
+        .filter(|entry| entry.value().len() > 1)
+        .map(|entry| entry.value().len())
+        .sum();
     let files_processed = AtomicUsize::new(0);
     let batcher = HashProgressBatcher::new(sink);
     let buckets: Vec<_> = map.iter().collect();
@@ -350,6 +354,9 @@ pub(crate) fn build_content_hash_map_with_progress(
     let result = buckets.par_iter().try_for_each(|bucket| {
         batcher.check_cancelled(cancel)?;
         let file_size = *bucket.key();
+        if bucket.value().len() == 1 {
+            return Ok::<_, io::Error>(());
+        }
         let partial_groups: DashMap<u64, Vec<PathBuf>> = DashMap::new();
         let full_groups: DashMap<u64, Vec<PathBuf>> = DashMap::new();
 
@@ -689,6 +696,7 @@ fn cancelled_error() -> io::Error {
 mod tests {
     use super::*;
     use std::fs;
+    use std::sync::atomic::AtomicUsize;
     use tempfile::TempDir;
 
     #[derive(Default)]
@@ -730,6 +738,53 @@ mod tests {
             _observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
         ) -> io::Result<cache::CachedHash> {
             panic!("unique partial hashes must not request a full hash")
+        }
+    }
+
+    #[derive(Default)]
+    struct RecordingPipelineIo {
+        partial_paths: Mutex<Vec<PathBuf>>,
+        full_paths: Mutex<Vec<PathBuf>>,
+        partial_opens: AtomicUsize,
+        full_opens: AtomicUsize,
+    }
+
+    impl HashPipelineIo for RecordingPipelineIo {
+        fn partial_hash(&self, path: &Path, _cancel: &AtomicBool) -> io::Result<PartialHashRead> {
+            self.partial_opens.fetch_add(1, Ordering::Relaxed);
+            self.partial_paths.lock().unwrap().push(path.to_path_buf());
+            let name = path.to_string_lossy();
+            let hash = if name.starts_with("duplicate-") {
+                7
+            } else {
+                hash_data(name.as_bytes())
+            };
+            Ok(PartialHashRead {
+                hash,
+                physical_bytes_read: PARTIAL_HASH_LENGTH as u64,
+            })
+        }
+
+        fn full_hash(
+            &self,
+            path: &Path,
+            _cancel: &AtomicBool,
+            observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
+        ) -> io::Result<cache::CachedHash> {
+            self.full_opens.fetch_add(1, Ordering::Relaxed);
+            self.full_paths.lock().unwrap().push(path.to_path_buf());
+            observe(FullHashIoEvent::CacheLookup(
+                cache::CacheLookupOutcome::Miss,
+            ))?;
+            observe(FullHashIoEvent::ContentReadStarted)?;
+            observe(FullHashIoEvent::ContentBytesRead(4_096))?;
+            Ok(cache::CachedHash {
+                hash: 11,
+                warning: None,
+                cache_outcome: cache::CacheLookupOutcome::Miss,
+                content_bytes_read: 4_096,
+                cache_stored: false,
+            })
         }
     }
 
@@ -866,6 +921,86 @@ mod tests {
             &ScenarioIo(scenario),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn singleton_buckets_never_open_content_and_other_buckets_keep_both_hash_paths() {
+        let map = DashMap::new();
+        map.insert(123, vec![PathBuf::from("singleton")]);
+        map.insert(
+            2_048,
+            vec![
+                PathBuf::from("partial-left"),
+                PathBuf::from("partial-right"),
+            ],
+        );
+        map.insert(
+            4_096,
+            vec![
+                PathBuf::from("duplicate-left"),
+                PathBuf::from("duplicate-right"),
+            ],
+        );
+        let sink = RecordingSink::default();
+        let io = RecordingPipelineIo::default();
+        let outcome = build_content_hash_map_with_progress(
+            map,
+            &AtomicBool::new(false),
+            &crate::progress::SilentReporter,
+            &sink,
+            &io,
+        )
+        .unwrap();
+
+        let mut partial_paths = io.partial_paths.lock().unwrap().clone();
+        partial_paths.sort();
+        assert_eq!(
+            partial_paths,
+            vec![
+                PathBuf::from("duplicate-left"),
+                PathBuf::from("duplicate-right"),
+                PathBuf::from("partial-left"),
+                PathBuf::from("partial-right"),
+            ]
+        );
+        let mut full_paths = io.full_paths.lock().unwrap().clone();
+        full_paths.sort();
+        assert_eq!(
+            full_paths,
+            vec![
+                PathBuf::from("duplicate-left"),
+                PathBuf::from("duplicate-right"),
+            ]
+        );
+        assert_eq!(io.partial_opens.load(Ordering::Relaxed), 4);
+        assert_eq!(io.full_opens.load(Ordering::Relaxed), 2);
+        assert_eq!(outcome.files_hashed, 4);
+        assert_eq!(outcome.partial_hashes_attempted, 4);
+        assert_eq!(outcome.partial_screened_files, 4);
+        assert_eq!(outcome.partial_screened_bytes, 12_288);
+        assert_eq!(outcome.full_hash_requests, 2);
+        assert_eq!(outcome.full_hash_content_reads_started, 2);
+        assert_eq!(outcome.full_hash_bytes_read, 8_192);
+        assert_eq!(outcome.hash_pipeline_resolved_files, 4);
+        assert_eq!(outcome.hash_pipeline_resolved_bytes, 12_288);
+
+        let mut duplicate_groups = outcome
+            .confirmed_duplicates
+            .iter()
+            .map(|entry| {
+                let mut paths = entry.value().clone();
+                paths.sort();
+                paths
+            })
+            .collect::<Vec<_>>();
+        duplicate_groups.sort();
+        assert_eq!(
+            duplicate_groups,
+            vec![vec![
+                PathBuf::from("duplicate-left"),
+                PathBuf::from("duplicate-right"),
+            ]]
+        );
     }
 
     #[test]

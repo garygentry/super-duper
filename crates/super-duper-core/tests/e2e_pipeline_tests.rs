@@ -71,7 +71,7 @@ fn count_files_recursive(dir: &Path) -> usize {
 ///       unique_a.txt     ("unique content a")
 ///       shared.txt       ("shared content xyz")
 ///     folder_b/
-///       unique_b.txt     ("unique content b")
+///       unique_b.txt     ("unique content b extended")
 ///       shared.txt       ("shared content xyz")  ← duplicate of folder_a/shared.txt
 ///     folder_c/
 ///       large_dup_1.bin  (4KB of 0xAA)
@@ -86,7 +86,7 @@ fn create_test_tree(root: &std::path::Path) {
 
     // Unique files
     fs::write(folder_a.join("unique_a.txt"), "unique content a").unwrap();
-    fs::write(folder_b.join("unique_b.txt"), "unique content b").unwrap();
+    fs::write(folder_b.join("unique_b.txt"), "unique content b extended").unwrap();
 
     // Cross-folder duplicates
     fs::write(folder_a.join("shared.txt"), "shared content xyz").unwrap();
@@ -164,11 +164,11 @@ fn test_full_scan_pipeline() {
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].1, "completed");
     assert_eq!(result.total_files_scanned, 6);
-    assert_eq!(result.files_hashed, 6);
+    assert_eq!(result.files_hashed, 4);
     assert_eq!(result.duplicate_files, 4);
     let run = db.get_scan_run(result.run_id).unwrap();
     assert_eq!(run.files_discovered, 6);
-    assert_eq!(run.files_hashed, 6);
+    assert_eq!(run.files_hashed, 4);
     assert_eq!(run.duplicate_file_groups, 2);
     assert_eq!(run.bytes_discovered as u64, result.total_bytes_discovered);
 
@@ -227,9 +227,16 @@ fn test_full_scan_pipeline() {
             kind.as_str()
         );
     }
-    assert_eq!(metric("candidate_files"), 6);
-    assert_eq!(metric("duplicate_candidate_files"), 6);
-    assert_eq!(metric("partial_hashes_attempted"), 6);
+    assert_eq!(metric("singleton_size_files"), 2);
+    assert_eq!(metric("singleton_size_bytes"), 41);
+    assert_eq!(metric("metadata_resolved_files"), 2);
+    assert_eq!(metric("metadata_resolved_bytes"), 41);
+    assert_eq!(metric("candidate_files"), 4);
+    assert_eq!(metric("duplicate_candidate_files"), 4);
+    assert_eq!(metric("candidate_bytes"), 8_228);
+    assert_eq!(metric("duplicate_candidate_bytes"), 8_228);
+    assert_eq!(metric("partial_hashes_attempted"), 4);
+    assert_eq!(metric("partial_hash_bytes_read"), 2_084);
     assert_eq!(metric("confirmed_duplicate_groups"), 2);
     let incomplete_phase_count: i64 = status
         .connection()
@@ -910,6 +917,7 @@ fn windows_sharing_violations_are_recoverable_scan_warnings() {
     fs::create_dir(&root).unwrap();
     let locked_path = root.join("locked.bin");
     fs::write(&locked_path, b"locked content").unwrap();
+    fs::write(root.join("peer.bin"), b"unread sibling").unwrap();
     let _exclusive = fs::OpenOptions::new()
         .read(true)
         .share_mode(0)
@@ -926,6 +934,7 @@ fn windows_sharing_violations_are_recoverable_scan_warnings() {
     .unwrap();
 
     assert!(result.warning_count >= 1);
+    assert_eq!(result.files_hashed, 1);
     let db = Database::open_connection(db_path.to_str().unwrap()).unwrap();
     assert_eq!(db.get_scan_run(result.run_id).unwrap().status, "completed");
 }

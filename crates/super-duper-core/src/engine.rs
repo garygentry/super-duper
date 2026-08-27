@@ -1035,14 +1035,14 @@ impl ScanEngine {
             telemetry.counters.singleton_size_buckets = stats.singleton_sizes;
             telemetry.counters.singleton_size_files = stats.singleton_files as u64;
             telemetry.counters.singleton_size_bytes = stats.singleton_bytes;
-            // Baseline behavior admits every non-empty first-physical file to partial hashing,
-            // including singleton buckets. SOP5 will make metadata_resolved_* non-zero.
-            telemetry.counters.candidate_size_buckets = stats.distinct_sizes;
-            telemetry.counters.candidate_files = stats.total_files as u64;
-            telemetry.counters.candidate_bytes = stats.total_size;
+            telemetry.counters.candidate_size_buckets = stats.duplicate_candidate_sizes;
+            telemetry.counters.candidate_files = stats.duplicate_candidate_files as u64;
+            telemetry.counters.candidate_bytes = stats.duplicate_candidate_bytes;
             telemetry.counters.duplicate_candidate_size_buckets = stats.duplicate_candidate_sizes;
             telemetry.counters.duplicate_candidate_files = stats.duplicate_candidate_files as u64;
             telemetry.counters.duplicate_candidate_bytes = stats.duplicate_candidate_bytes;
+            telemetry.counters.metadata_resolved_files = stats.singleton_files as u64;
+            telemetry.counters.metadata_resolved_bytes = stats.singleton_bytes;
             telemetry.counters.warnings = traversal.warning_count as u64;
             telemetry.candidate_totals_known = true;
             let discovery_done = telemetry.elapsed_nanos();
