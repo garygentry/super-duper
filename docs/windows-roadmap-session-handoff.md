@@ -18,13 +18,12 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept `SOP7e-partial-prefix-reuse` with the product change rejected, and
-  correct SOP7d to use the Windows sequential-read hint only on rotational/unknown media
+- Latest completed slice: accept `SOP7f-read-path-acceptance` and close SOP7
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
-- Current gate: `SOP7-hash-read-path`
-- Next boundary: advance only to `SOP7f-read-path-acceptance`
+- Current gate: `SOP8-repeat-run-cache`
+- Next boundary: define finite SOP8 packages before implementation
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -58,8 +57,8 @@ complete inside its bound; its empty-aggregate defect prevented native invalid-e
 serialization. The recovered write-once incident retains zero completed/measured arms, null
 aggregates, cleanup facts, and an unevaluated strict <1% wall/CPU gate. That gate did not pass. Do
 not run v1/v2 or design SOP2f-v3. The unresolved representative-overhead risk is assigned to SOP9,
-where it may be observed during useful real-drive acceptance work. SOP3 through SOP6 are now
-accepted; the next dependency boundary is SOP7.
+where it may be observed during useful real-drive acceptance work. SOP3 through SOP7 are now
+accepted; the next dependency boundary is SOP8.
 
 `SOP3a-live-warning-accounting` is accepted as the first of four finite SOP3 packages. The audit
 found that schema-v14 completed-run aggregates/examples, worker paging, the five-page Core cache,
@@ -187,6 +186,16 @@ lower mean throughput, so it does not establish improvement. Experimental state 
 per reader and 4 KiB aggregate; production keeps zero cross-phase prefix state and avoids new
 metadata-revalidation, cache-hit, error, and cancellation branches. SOP8+, Windows UI, and the
 parked stream remain untouched.
+
+`SOP7f-read-path-acceptance` is accepted and closes SOP7. The named
+`Verify-WindowsHashReadPath.ps1` verifier pins all 19 retained SOP7 raw/policy files, every factor
+decision, descending bucket order, selected media buffers/read hints, zero production prefix state,
+unchanged SOP6 reader ceilings, exact hash/counter/cancellation/memory regressions, and production
+deletion locks. Focused strict Core Clippy passes with documented pre-existing allowances. Debug
+and Release Rust each pass 202 tests with 7 intentional profiles ignored. Debug and Release Windows
+each build with zero warnings/errors and pass 145 Core, 74 Infrastructure, and 3 smoke tests with 5
+operator-only Infrastructure skips. SOP8 implementation, unrelated physical campaigns, and the
+parked stream did not run.
 
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
@@ -351,11 +360,10 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance only to `SOP7f-read-path-acceptance`. Add the named read-path verifier, integrate only the
-admitted descending bucket/media-buffer/media-hint settings, and run the full Debug/Release Rust and
-Windows matrices plus production locks. Confirm every retained SOP7 evidence hash and rejection,
-without changing SOP6 reader counts or SOP8 cache policy. Do not begin SOP8 or later gates, a
-physical campaign outside SOP7's exact authority, or any parked release-validation work.
+Advance only to planning `SOP8-repeat-run-cache`: audit the existing cache semantics and split SOP8
+into the smallest finite dependency-ordered packages before implementation. Preserve SOP7's selected
+read path and SOP6 reader counts. Do not start a repeat-run policy/UI change, SOP9 campaign, or any
+parked release-validation work until the SOP8 package ledger and acceptance boundaries are explicit.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -442,6 +450,15 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Accepted `SOP7f-read-path-acceptance` passes `Verify-WindowsHashReadPath.ps1`, including the nested
+SOP6 verifier and every production lock. All 19 retained SOP7 evidence/policy hashes and decisions
+are pinned. Debug and Release Rust each pass 202 tests with 7 intentional profiles ignored. Debug
+and Release Windows each build with zero warnings/errors and pass 145 Core, 74 Infrastructure, and
+3 smoke tests with 5 operator-only Infrastructure skips. Focused strict Core Clippy passes with
+documented pre-existing allowances. The accepted product policy is encountered path order,
+descending exact-size buckets, 1 MiB/no sequential hint on SSD, 64 KiB/sequential hint on
+rotational/unknown, and no partial-prefix reuse.
 
 Accepted `SOP7d-buffer-read-ahead` retains both immutable v1 records and four corrected v2 raw
 buffer/sequential SSD/HDD files plus a v2 policy record. All v2 arms use descending buckets, read
@@ -806,6 +823,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-27 | this session | Accept SOP7f and close SOP7 with a named verifier pinning every retained artifact/decision, unchanged SOP6 reader ceilings and production locks, strict focused Clippy, and clean full Debug/Release Rust and Windows matrices. | Advance only to defining finite SOP8 packages; do not start SOP8 implementation, SOP9 campaigns, or parked release validation. |
 | 2026-08-27 | this session | Correct SOP7d with separately versioned fixed-factor evidence, scope the sequential hint to rotational/unknown, and accept SOP7e with prefix reuse rejected after exact byte savings but SSD regression and incoherent HDD evidence. | Advance only to `SOP7f-read-path-acceptance`; keep SOP8+, unrelated campaigns, and parked release validation out of scope. |
 | 2026-08-26 | this session | Accept `SOP7d-buffer-read-ahead`: use direct/write-through fixtures for physical cache-miss evidence, select 1 MiB only for SSD and 64 KiB for rotational/unknown, enable the Windows sequential hint across media, preserve exact hash/byte/cancellation/memory bounds, and pass serial Debug/Release Rust. This decision is retained historically and corrected by the 2026-08-27 v2 record. | Advance only to `SOP7e-partial-prefix-reuse`; keep SOP8+, unrelated campaigns, and parked release validation out of scope. |
 | 2026-08-26 | this session | Accept `SOP7c-bucket-ordering`: retain complete direct SSD/HDD C/T/T/C evidence, select descending exact-size admission from 3.46%/8.43% wall improvements, add a deterministic order regression and bounded transient-handle cleanup, evolve the SOP6 historical-source check, and pass full Debug/Release Rust. | Advance only to `SOP7d-buffer-read-ahead`; keep prefix reuse, SOP8+, unrelated campaigns, and parked release validation out of scope. |
