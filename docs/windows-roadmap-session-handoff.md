@@ -18,12 +18,12 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept `SOP8e-session-policy-and-acceptance` and close SOP8
-- Worktree after that commit: clean
+- Latest completed slice: audit SOP9 and define its five dependency-ordered packages before work
+- Worktree at the start of that slice: clean at `29a392c`
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
-- Current gate: `SOP8-repeat-run-cache` accepted
-- Next boundary: stop before `SOP9-large-drive-acceptance`; it is dependency-ready but not started
+- Current gate: `SOP9-large-drive-acceptance` in progress
+- Next boundary: implement only `SOP9a-write-once-campaign-tooling`; run no representative scan
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -426,11 +426,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Stop before `SOP9-large-drive-acceptance`. SOP8 is accepted and SOP9 is now dependency-ready, but it
-is a distinct operator-evidence gate and has not been audited or started. A future authorized
-session must begin with the standard branch/worktree/plan audit, retain every representative run
-including failures, and carry SOP2's waived overhead risk without retroactively declaring it
-passed. Do not begin an unrelated physical campaign or substitute parked release validation.
+Implement only `SOP9a-write-once-campaign-tooling`. The SOP9 dependency/hardware/tooling audit is
+complete and its five finite packages are authoritative in `docs/scan-optimization-plan.md`. Do not
+start D: or E: representative I/O until SOP9a's deterministic fixture, failure-retention, cleanup,
+schema, verifier, historical-evidence, and production-lock checks accept. After SOP9a, consume only
+the fixed SOP9b D: cancellation identity, then continue in package order. Every outcome is retained;
+SOP2's waived strict representative overhead gate remains unevaluated and must not be revived.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -499,7 +500,7 @@ before committing the next slice.
 These remain open unless a later committed slice cites qualifying evidence or an explicit reviewed
 decision:
 
-- `SOP8` and `SOP9` in `docs/scan-optimization-plan.md`; SOP9 also owns the unresolved SOP2
+- `SOP9` in `docs/scan-optimization-plan.md`; SOP9 also owns the unresolved SOP2
   representative-overhead risk because the strict <1% wall/CPU gate was waived unmeasured
 - Physical Narrator and NVDA acceptance
 - Windows high-contrast acceptance
@@ -517,6 +518,16 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+The SOP9 package-definition slice is documentation-only. The complete startup audit found a clean
+`wpf-poc` worktree at `29a392c`, preserved SOP8 as accepted, inspected its closing diff and all
+retained scan evidence/tooling, and found no active Super Duper process. The sandboxed storage
+inventory retained access-denied results; an approved read-only desktop-context inventory mapped
+D: and E: to distinct healthy 14 TB SATA HDDs and H: to a separate SSD with sufficient isolated-
+state space. The plan now fixes five dependency-ordered packages with explicit correctness,
+measurement, failure-retention, cleanup, and acceptance criteria. Documentation links/checkpoints,
+`git diff --check`, and a clean focused commit are the proportional checks. No build, product code,
+representative run, SOP2f campaign, parked validation, or deletion capability runs.
 
 Accepted `SOP8e-session-policy-and-acceptance` passes the final
 `Verify-WindowsRepeatCache.ps1`. The verifier pins the 14,552-byte evidence artifact at SHA-256
@@ -957,6 +968,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-27 | this session | Audit SOP9 dependencies, operator-evidence requirements, retained artifacts/tooling, unresolved SOP2 risk, and available hardware; define five fixed tooling/cancellation/single-drive/multi-drive/acceptance packages with write-once/no-favorable-retry retention and explicit correctness, measurement, cleanup, and acceptance criteria. | Implement only `SOP9a-write-once-campaign-tooling`; do not start representative D:/E: I/O until it accepts. |
 | 2026-08-27 | this session | Accept SOP8e and close SOP8: carry measured-default `reuse_verified` plus forced alternate through immutable run truth, closed worker/Core contracts, a generation-scoped accessible Setup choice, and a named verifier pinning all retained evidence, prior read policies, regressions, full Debug/Release matrices, and production locks. | Stop before dependency-ready `SOP9-large-drive-acceptance`; it remains unaudited and not started. |
 | 2026-08-27 | this session | Accept the sole SOP8d write-once Release comparison: both same-process and reopened-store reuse saved exact 128 KiB partial plus 512 MiB full/process reads, preserved 64 groups/128 items with zero warnings, improved median wall 89.54%, retained all samples and explicit unavailable values, passed cancellation/cleanup, and selected `reuse_verified` without retry. | Implement only `SOP8e-session-policy-and-acceptance`; production stays forced until it carries the selected default and alternate. |
 | 2026-08-27 | this session | Predeclare the executable SOP8d Release profiler with a fixed 512 MiB/64-pair collision-heavy fixture, forced/reuse/reuse/forced order, same-process and reopened-store ownership, exact read/result/cache/cancellation/cleanup validation, complete host/process/device evidence, write-once invalid-or-valid output, and no retry. No physical arm ran. | Execute the profiler exactly once at its pinned output; retain success or failure and select the default from all samples without tuning. |
