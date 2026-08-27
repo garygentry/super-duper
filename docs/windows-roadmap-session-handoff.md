@@ -18,12 +18,12 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: predeclare the executable `SOP8d-repeat-policy-measurement` harness
+- Latest completed slice: accept `SOP8d-repeat-policy-measurement`
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP8-repeat-run-cache`
-- Next boundary: execute only `SOP8d-repeat-policy-measurement`
+- Next boundary: implement only `SOP8e-session-policy-and-acceptance`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -250,6 +250,17 @@ samples, medians/tails, and the selected default. Invalid campaigns also consume
 path; no favorable retry is permitted. Two small non-physical generator/validator tests and strict
 Core Clippy pass. The sole authorized profile invocation is next.
 
+`SOP8d-repeat-policy-measurement` is accepted from its sole write-once Release invocation. The
+retained 512 MiB local SSD artifact preserves identical 64-group/128-item results across the fixed
+forced/reuse/reuse/forced order. Both same-process and reopened-store reuse arms record 128 partial
+and 128 full hits, zero process reads, and exact savings of 131,072 partial plus 536,870,912 full
+bytes. Bracketing forced arms record the expected 537,001,984 process-read bytes. Forced median/tail
+wall time is 120.83595/144.8017 ms versus reuse 12.63885/13.2765 ms, an 89.54% median improvement.
+All samples, build/input/hashed-host/media/store/signature/policy identity, CPU/memory/process-I/O,
+explicit unavailable device values, cancellation, and successful cleanup are retained; no retry
+occurred. `reuse_verified` is selected for SOP8e, while production remains forced until that package
+implements the selected default and explicit alternate.
+
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
 protocol-v1 legacy fields. One timer-owned latest-value emitter assigns transport sequences after
@@ -413,12 +424,11 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Execute only `SOP8d-repeat-policy-measurement` under its predeclared write-once contract. Use the
-fixed 512 MiB collision-heavy local fixture and forced/reuse/reuse/forced arm order, including warm
-same-process and reopened-store reuse. Retain all samples and failures, exact results/read savings,
-host/media/process I/O, CPU/memory, cleanup, and policy decision. Do not retry for a favorable
-sample, change the provisional default before evidence selects it, begin session UI, start SOP9 or
-another physical campaign, or resume parked release validation.
+Implement only `SOP8e-session-policy-and-acceptance`. Carry selected default `reuse_verified` and
+explicit alternate `revalidate_content` through additive immutable run parameters, closed worker
+start validation, Core, and one keyboard-accessible Setup choice with concise reuse/fallback
+disclosure. Keep selection generation-scoped, reconstruct exact history, and close SOP8 with its
+named verifier. Do not start SOP9, another physical campaign, or parked release validation.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -505,6 +515,15 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Accepted `SOP8d-repeat-policy-measurement` retains one valid write-once Release artifact at
+`docs/evidence/scan-repeat-cache-policy-20260827.json` from build `a8eda4d39421f287158114244143d40b56e595f4`.
+The profiler test passed in 2.51 seconds after its clean Release build; 128 fixed files/64 exact
+pairs totaled 536,870,912 bytes, same-process and reopened reuse saved every declared read with
+identical results, the median wall improvement was 89.54%, cancellation passed, and the fixture/
+cache were removed. The evidence is 14,552 bytes, status `valid`, records zero favorable retries,
+and selects `reuse_verified`. No Windows UI/session/default or deletion-lock change accompanied the
+measurement.
 
 Accepted `SOP8c-partial-full-cache-integration` passes focused production-path tests for exact
 forced partial/full stores and physical bytes, same-process and reopened-store qualified hits with
@@ -919,6 +938,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-27 | this session | Accept the sole SOP8d write-once Release comparison: both same-process and reopened-store reuse saved exact 128 KiB partial plus 512 MiB full/process reads, preserved 64 groups/128 items with zero warnings, improved median wall 89.54%, retained all samples and explicit unavailable values, passed cancellation/cleanup, and selected `reuse_verified` without retry. | Implement only `SOP8e-session-policy-and-acceptance`; production stays forced until it carries the selected default and alternate. |
 | 2026-08-27 | this session | Predeclare the executable SOP8d Release profiler with a fixed 512 MiB/64-pair collision-heavy fixture, forced/reuse/reuse/forced order, same-process and reopened-store ownership, exact read/result/cache/cancellation/cleanup validation, complete host/process/device evidence, write-once invalid-or-valid output, and no retry. No physical arm ran. | Execute the profiler exactly once at its pinned output; retain success or failure and select the default from all samples without tuning. |
 | 2026-08-27 | this session | Accept SOP8c: the owned bounded store now serves partial and full stages only across qualified before/after windows; a carried partial signature prevents between-stage cache poisoning, parallel store metadata is serialized, metrics v3 carries four partial-cache counters through worker/Core, and forced revalidation remains default with SOP6/SOP7/hard-link/cancellation/memory/deletion locks unchanged. | Execute only the write-once `SOP8d-repeat-policy-measurement`; do not begin UI/default shipping, SOP9, another campaign, or parked validation. |
 | 2026-08-27 | this session | Accept SOP8b with a metadata-only fail-closed physical identity/size/modified-time/content-change signature and before/after equality; retain real Windows evidence that rename preserves identity but advances ChangeTime, so rename reuse is rejected and hard-link de-duplication stays upstream. | Implement only `SOP8c-partial-full-cache-integration`; keep measurement, UI, SOP9, and parked validation out of scope until it accepts. |
