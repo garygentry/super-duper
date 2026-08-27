@@ -1,4 +1,6 @@
 pub mod cache;
+#[cfg(test)]
+mod read_path;
 mod scheduler;
 pub mod xxhash;
 

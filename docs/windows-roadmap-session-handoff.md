@@ -18,13 +18,13 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept `SOP6-device-aware-scheduler` with bounded physical-device queues
-  and retained rotational/SSD reader-policy evidence
+- Latest completed slice: accept `SOP7a-read-experiment-contract` with isolated one-factor arms,
+  fixed evidence fields, and unchanged production read defaults
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP7-hash-read-path`
-- Next boundary: advance only to `SOP7-hash-read-path`
+- Next boundary: advance only to `SOP7b-path-locality`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -135,6 +135,16 @@ and process I/O. Two rotational readers were 4.2593% slower with 4.0830% lower t
 double latency, selecting one; four SSD readers reduced wall time 48.9399% and raised throughput
 85.4809%, selecting four. No read-path/locality/buffer/prefix change, schema, protocol, WPF,
 cache-policy, production lock, SOP7+, unrelated campaign, or parked-stream work changed.
+
+`SOP7a-read-experiment-contract` is accepted as the first of six finite SOP7 packages. One test-only
+platform-neutral harness fixes control/treatment/treatment/control order, changes exactly one of
+path locality, bucket order, buffer size, sequential read-ahead, or partial-prefix reuse per
+comparison, and preserves SOP6's selected one/four/one reader ceilings. Four distinct deterministic
+arm fixtures prevent same-path reuse; evidence includes input/build/device identity, complete host/
+process/device cost, exact ordered checksums and bytes, cancellation, and cleanup, and fails closed
+before write when malformed or when its output already exists. Production hash defaults and the
+accepted SOP6 source/evidence hashes are unchanged. No physical profile, SOP7b+, SOP8, Windows UI,
+production lock, unrelated campaign, or parked-stream work changed.
 
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
@@ -299,12 +309,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance only to `SOP7a-read-experiment-contract`, the first of six finite SOP7 packages. Add the
-one-factor strategy/order seams and deterministic write-once profiling harness without changing
-production defaults or running a full-drive campaign. Later packages separately measure path
-locality, bucket ordering, buffer/read-ahead behavior, and bounded partial-prefix reuse. Do not
-begin SOP8 or later gates, a physical campaign outside SOP7's exact authority, or any parked
-release-validation work.
+Advance only to `SOP7b-path-locality`. Use the accepted one-factor harness to retain the predeclared
+alternating comparison on the representative rotational and solid-state roots, then select, reject,
+or media-scope deterministic parent/path locality from all samples before any product default
+changes. Keep bucket order, reader counts, buffer/read-ahead, and prefix behavior fixed. Do not begin
+SOP8 or later gates, a physical campaign outside SOP7's exact authority, or any parked release-
+validation work.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -391,6 +401,15 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Accepted `SOP7a-read-experiment-contract` passes 5 focused deterministic read-path tests with the
+single physical profiler intentionally ignored. Coverage proves exact one-factor isolation for all
+five comparisons, stable task identity under bucket/path ordering, identical hashes and exact 1 KiB
+prefix byte savings, cancellation before content open, fixed 1 MiB per-reader/1 KiB prefix bounds,
+write-once output, malformed-evidence rejection, and use of SOP6's selected device reader ceilings.
+Strict Core Clippy passes with the four documented pre-existing lint allowances. No physical
+profile or product read default ran or changed; the SOP6 pinned source/evidence hashes remain
+unchanged.
 
 Accepted `SOP6-device-aware-scheduler` passes `Verify-WindowsDeviceScheduler.ps1`. Deterministic
 tests prove one-reader rotational/unknown queues, four-reader SSD queues, conservative conflict/
@@ -715,6 +734,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-26 | this session | Accept `SOP7a-read-experiment-contract`: add one test-only platform-neutral harness with fixed one-factor arms, SOP6 reader ceilings, distinct deterministic fixtures, complete write-once evidence, exact hash/byte/cancellation/memory checks, and no production-default change or physical run. | Advance only to `SOP7b-path-locality`; keep bucket order, buffer/read-ahead, prefix reuse, SOP8+, unrelated campaigns, and parked release validation out of scope until their dependencies accept. |
 | 2026-08-26 | this session | Accept `SOP6-device-aware-scheduler`: map local Windows volumes to one physical disk/seek-penalty class without candidate-content access, replace nested hash reads with fair bounded per-device queues, select 1 rotational/unknown and 4 SSD readers from retained 1/N/N/1 direct-I/O evidence, and preserve exact cancellation/counters/results plus full regression and production locks. | Advance only to `SOP7-hash-read-path`; define its finite individually measured experiments and keep SOP8+, physical work outside SOP7 authority, and parked release validation out of scope. |
 | 2026-08-26 | this session | Accept `SOP5-skip-singleton-size-buckets`: classify exact-size singleton files/bytes as metadata-resolved before the content-I/O seam, admit only multi-file buckets to partial/full hashing, prove zero singleton and unchanged non-singleton reads/results through the injected seam, and retain exact live/durable/physical-I/O truth plus full regression and production-lock evidence. | Advance only to `SOP6-device-aware-scheduler`; define its smallest finite packages before implementation and keep SOP7+, unauthorized representative/physical campaigns, and parked release validation out of scope. |
 | 2026-08-26 | this session | Accept `SOP4-performance-tab`: add query-only 25-run and fixed one-run summaries, bounded live Core projection and device/input/build-qualified comparison, and a virtualized keyboard/automation/system-brush Performance tab with explicit unavailable, focus, restart, representative-history, and latest-only announcement evidence. | Implement only `SOP5-skip-singleton-size-buckets`; keep SOP6+, representative/physical campaigns, and parked release validation out of scope. |
