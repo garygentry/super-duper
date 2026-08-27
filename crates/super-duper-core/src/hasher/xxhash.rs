@@ -206,7 +206,7 @@ impl HashPipelineIo for SystemHashPipelineIo {
             path,
             cancel,
             stream_buffer_length(media),
-            true,
+            stream_sequential_hint(media),
             observe,
         )
     }
@@ -801,6 +801,10 @@ pub(crate) fn stream_buffer_length(media: crate::platform::StorageMediaClass) ->
         crate::platform::StorageMediaClass::Rotational
         | crate::platform::StorageMediaClass::Unknown => ROTATIONAL_STREAM_BUFFER_LENGTH,
     }
+}
+
+pub(crate) fn stream_sequential_hint(media: crate::platform::StorageMediaClass) -> bool {
+    media != crate::platform::StorageMediaClass::SolidState
 }
 
 fn open_streaming_file(path: &Path, sequential_hint: bool) -> io::Result<File> {
@@ -1527,6 +1531,15 @@ mod tests {
             stream_buffer_length(crate::platform::StorageMediaClass::Unknown),
             ROTATIONAL_STREAM_BUFFER_LENGTH
         );
+        assert!(!stream_sequential_hint(
+            crate::platform::StorageMediaClass::SolidState
+        ));
+        assert!(stream_sequential_hint(
+            crate::platform::StorageMediaClass::Rotational
+        ));
+        assert!(stream_sequential_hint(
+            crate::platform::StorageMediaClass::Unknown
+        ));
         let temp = TempDir::new().unwrap();
         let path = temp.path().join("media-buffer.bin");
         let data = (0..(SOLID_STATE_STREAM_BUFFER_LENGTH + 17))

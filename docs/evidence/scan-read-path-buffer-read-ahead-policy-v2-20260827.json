@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 2,
+  "gate": "SOP7-hash-read-path",
+  "package": "SOP7d-buffer-read-ahead",
+  "decision": "correct_fixed_factor_baseline_and_select_media_scoped_buffer_and_hint",
+  "supersedesDecisionOnly": "docs/evidence/scan-read-path-buffer-read-ahead-policy-20260826.json",
+  "correctionReason": "The retained v1 arms isolated their named treatment, but used the pre-SOP7c ascending bucket baseline; the SSD sequential-hint comparison also used 64 KiB instead of the selected 1 MiB buffer. The immutable v1 evidence remains retained. Separately versioned v2 arms use every previously accepted factor.",
+  "softwareBuild": {
+    "baseCommit": "c2980de",
+    "profileHarnessSourceSha256": "A0FFEC4EA603ECBE1373AD57067A9BFA7D3FA9DB74A1A26051ED2EC52F170F8A",
+    "admittedHashPipelineSourceSha256": "DF14AABC10566A46ABD9F48A2AA900632058A7B17E75FF97B6880380258E2193",
+    "admittedCacheSourceSha256": "41F77F7C9DDF98158AEB2DC089372F6F330FAB03E04622853D3ED081233E8A07"
+  },
+  "rawEvidence": [
+    {
+      "path": "docs/evidence/scan-read-path-buffer-size-v2-ssd-20260826.json",
+      "sha256": "C60AF73E97DFEAC5D08534A311C32F74333F66A1A18BDC589A4ACBDA7D48AB0E"
+    },
+    {
+      "path": "docs/evidence/scan-read-path-buffer-size-v2-hdd-20260826.json",
+      "sha256": "C7895B008ACE7ECE40EE26AAEA017872C9E3330B7F185422F79E00B1394705A1"
+    },
+    {
+      "path": "docs/evidence/scan-read-path-sequential-hint-v2-ssd-20260826.json",
+      "sha256": "C801D0AC80BE18361E8FFF6EA036C23FD535463646AB62402C12740E6135C006"
+    },
+    {
+      "path": "docs/evidence/scan-read-path-sequential-hint-v2-hdd-20260826.json",
+      "sha256": "7BDF49A4C5443BD562617AB8CC8D776E7236112F6D7495FF8EB21AD39D7D5F44"
+    }
+  ],
+  "method": {
+    "fixturePreparation": "aligned direct/unbuffered write-through files make each buffered arm a physical cache-miss comparison",
+    "armOrder": ["control", "treatment", "treatment", "control"],
+    "acceptedFixedFactors": {
+      "bucketOrder": "descending_size",
+      "withinBucketOrder": "encountered",
+      "partialPrefixBytes": 1024,
+      "partialPrefixReuse": false,
+      "rotationalReaders": 1,
+      "solidStateReaders": 4,
+      "unknownReaders": 1
+    },
+    "fileCountPerArm": 16,
+    "baseFileBytes": 67108864,
+    "physicalBytesReadPerArm": 1073856512,
+    "failedSamplesDiscarded": 0,
+    "hardwareSerialPersisted": false
+  },
+  "comparisons": [
+    {
+      "factor": "buffer_size",
+      "mediaClass": "solid_state",
+      "control": "65536_bytes",
+      "treatment": "1048576_bytes",
+      "treatmentWallDeltaPercent": -59.7138,
+      "treatmentThroughputDeltaPercent": 141.4003,
+      "selection": "1048576_bytes"
+    },
+    {
+      "factor": "buffer_size",
+      "mediaClass": "rotational",
+      "control": "65536_bytes",
+      "treatment": "1048576_bytes",
+      "treatmentWallDeltaPercent": 0.0661,
+      "treatmentThroughputDeltaPercent": -0.0878,
+      "selection": "65536_bytes"
+    },
+    {
+      "factor": "sequential_hint",
+      "mediaClass": "solid_state",
+      "fixedBufferBytes": 1048576,
+      "treatmentWallDeltaPercent": -2.0602,
+      "treatmentThroughputDeltaPercent": -1.5547,
+      "selection": "disabled",
+      "rationale": "The small wall mean conflicts with lower mean throughput and substantial C/T/T/C drift, so the SSD hint is not admitted."
+    },
+    {
+      "factor": "sequential_hint",
+      "mediaClass": "rotational",
+      "fixedBufferBytes": 65536,
+      "treatmentWallDeltaPercent": -3.0205,
+      "treatmentThroughputDeltaPercent": 3.0315,
+      "selection": "enabled"
+    }
+  ],
+  "correctnessAndBounds": {
+    "checksumMismatchCount": 0,
+    "byteMismatchCount": 0,
+    "unavailableDeviceSampleCount": 0,
+    "cancelledArmCount": 0,
+    "fixtureRemovedAfterEachProfile": true,
+    "maximumBufferBytesPerReader": 1048576,
+    "maximumSelectedSolidStateAggregateBufferBytes": 4194304,
+    "maximumRotationalOrUnknownAggregateBufferBytes": 65536,
+    "maximumBytesBetweenCancellationChecks": 1048576
+  },
+  "selectedPolicy": {
+    "solidStateBufferBytes": 1048576,
+    "rotationalBufferBytes": 65536,
+    "unknownBufferBytes": 65536,
+    "solidStateWindowsSequentialReadHint": false,
+    "rotationalWindowsSequentialReadHint": true,
+    "unknownWindowsSequentialReadHint": true,
+    "readerPolicyChanged": false,
+    "bucketOrderChangedByThisPackage": false,
+    "pathOrderChanged": false
+  }
+}

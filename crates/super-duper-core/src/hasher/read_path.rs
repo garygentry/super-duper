@@ -94,15 +94,26 @@ impl ReadPlan {
         }
     }
 
-    fn for_arm(factor: ExperimentFactor, variant: ArmVariant) -> Self {
+    fn for_arm(
+        factor: ExperimentFactor,
+        variant: ArmVariant,
+        media: crate::platform::StorageMediaClass,
+    ) -> Self {
         let mut plan = Self::control();
-        if matches!(
-            factor,
-            ExperimentFactor::PathLocality | ExperimentFactor::BucketOrder
-        ) {
-            // Ordering experiments must reach the physical device; this setting is identical in
-            // both arms and is not a treatment variable.
-            plan.direct_unbuffered_full_read = true;
+        match factor {
+            ExperimentFactor::PathLocality | ExperimentFactor::BucketOrder => {
+                plan.direct_unbuffered_full_read = true;
+            }
+            ExperimentFactor::BufferSize => {
+                plan.bucket_order = BucketOrder::DescendingSize;
+            }
+            ExperimentFactor::SequentialHint | ExperimentFactor::PrefixReuse => {
+                plan.bucket_order = BucketOrder::DescendingSize;
+                plan.buffer_bytes = super::xxhash::stream_buffer_length(media);
+            }
+        }
+        if factor == ExperimentFactor::PrefixReuse {
+            plan.sequential_hint = super::xxhash::stream_sequential_hint(media);
         }
         if variant == ArmVariant::Treatment {
             match factor {
@@ -294,9 +305,12 @@ fn read_full_unbuffered(
     result
 }
 
-fn validate_factor_isolation(factor: ExperimentFactor) -> io::Result<()> {
-    let control = ReadPlan::for_arm(factor, ArmVariant::Control);
-    let treatment = ReadPlan::for_arm(factor, ArmVariant::Treatment);
+fn validate_factor_isolation(
+    factor: ExperimentFactor,
+    media: crate::platform::StorageMediaClass,
+) -> io::Result<()> {
+    let control = ReadPlan::for_arm(factor, ArmVariant::Control, media);
+    let treatment = ReadPlan::for_arm(factor, ArmVariant::Treatment, media);
     control.validate()?;
     treatment.validate()?;
     let differences = [
@@ -379,7 +393,12 @@ mod windows_profile {
         entries_by_arm: Vec<Vec<ProfileEntry>>,
     }
 
-    fn write_fixture(root: &Path, file_count: usize, file_bytes: u64) -> io::Result<Fixture> {
+    fn write_fixture(
+        root: &Path,
+        file_count: usize,
+        file_bytes: u64,
+        factor: ExperimentFactor,
+    ) -> io::Result<Fixture> {
         if !root.is_absolute() || !root.is_dir() || file_count < 4 || file_bytes < 4096 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -429,6 +448,14 @@ mod windows_profile {
                             state ^= state >> 7;
                             state ^= state << 17;
                             chunk.copy_from_slice(&state.to_le_bytes()[..chunk.len()]);
+                        }
+                        if factor == ExperimentFactor::PrefixReuse && remaining == bucket_size {
+                            for (offset, byte) in buffer[..PARTIAL_PREFIX_BYTES.min(count)]
+                                .iter_mut()
+                                .enumerate()
+                            {
+                                *byte = (offset % 251) as u8;
+                            }
                         }
                         file.write_all(&buffer[..count])?;
                         remaining -= count as u64;
@@ -542,6 +569,23 @@ mod windows_profile {
         Ok(())
     }
 
+    fn plan_json(plan: ReadPlan) -> serde_json::Value {
+        serde_json::json!({
+            "pathOrder": match plan.path_order {
+                PathOrder::Encountered => "encountered",
+                PathOrder::ParentThenPath => "parent_then_path",
+            },
+            "bucketOrder": match plan.bucket_order {
+                BucketOrder::AscendingSize => "ascending_size",
+                BucketOrder::DescendingSize => "descending_size",
+            },
+            "bufferBytes": plan.buffer_bytes,
+            "sequentialHint": plan.sequential_hint,
+            "reusePartialPrefix": plan.reuse_partial_prefix,
+            "directUnbufferedFullRead": plan.direct_unbuffered_full_read,
+        })
+    }
+
     fn remove_fixture_with_bounded_retry(path: &Path) -> io::Result<()> {
         let mut last_error = None;
         for attempt in 0..10 {
@@ -564,7 +608,6 @@ mod windows_profile {
             &std::env::var("SUPER_DUPER_SOP7_FACTOR").expect("SUPER_DUPER_SOP7_FACTOR is required"),
         )
         .unwrap();
-        validate_factor_isolation(factor).unwrap();
         let root = PathBuf::from(
             std::env::var("SUPER_DUPER_SOP7_PROFILE_ROOT")
                 .expect("SUPER_DUPER_SOP7_PROFILE_ROOT is required"),
@@ -586,7 +629,7 @@ mod windows_profile {
             .unwrap_or_else(|_| (16_u64 * 1024 * 1024).to_string())
             .parse::<u64>()
             .unwrap();
-        let fixture = write_fixture(&root, file_count, file_bytes).unwrap();
+        let fixture = write_fixture(&root, file_count, file_bytes, factor).unwrap();
         let device = crate::platform::storage_device_for_path(&fixture.entries_by_arm[0][0].path);
         let actual_media = match device.media {
             crate::platform::StorageMediaClass::Rotational => "rotational",
@@ -595,6 +638,7 @@ mod windows_profile {
         };
         assert_eq!(actual_media, expected_media);
         assert_ne!(device.key, crate::platform::UNKNOWN_STORAGE_DEVICE_KEY);
+        validate_factor_isolation(factor, device.media).unwrap();
         let mut sampler = WindowsSamplerPlatform::default();
         let descriptor = sampler
             .describe_targets(&[root.to_string_lossy().into_owned()])
@@ -606,7 +650,7 @@ mod windows_profile {
         for (arm_index, variant) in ARM_ORDER.into_iter().enumerate() {
             let mut sample = profile_arm(
                 &fixture.entries_by_arm[arm_index],
-                ReadPlan::for_arm(factor, variant),
+                ReadPlan::for_arm(factor, variant, device.media),
                 &device,
                 &mut sampler,
                 &descriptor,
@@ -617,14 +661,14 @@ mod windows_profile {
         }
         let fixture_path = fixture.root.clone();
         let input_signature = format!(
-            "sop7-v1:{factor_name}:{file_count}:{file_bytes}:4",
+            "sop7-v2:{factor_name}:{file_count}:{file_bytes}:4",
             factor_name = factor.as_str()
         );
         remove_fixture_with_bounded_retry(&fixture_path).unwrap();
         let evidence = serde_json::json!({
             "schemaVersion": 1,
             "gate": "SOP7-hash-read-path",
-            "profile": "one-factor-read-path-comparison-v1",
+            "profile": "one-factor-read-path-comparison-v2",
             "factor": factor.as_str(),
             "capturedAtUtc": chrono::Utc::now().to_rfc3339(),
             "softwareBuild": build,
@@ -640,6 +684,8 @@ mod windows_profile {
             "fileCountPerArm": file_count,
             "baseFileBytes": file_bytes,
             "armOrder": ARM_ORDER,
+            "controlPlan": plan_json(ReadPlan::for_arm(factor, ArmVariant::Control, device.media)),
+            "treatmentPlan": plan_json(ReadPlan::for_arm(factor, ArmVariant::Treatment, device.media)),
             "samples": samples,
             "fixtureRemovedAfterProfile": !fixture_path.exists(),
         });
@@ -678,13 +724,33 @@ mod windows_profile {
     #[test]
     fn profile_fixture_uses_exact_aligned_file_sizes() {
         let directory = tempfile::tempdir().unwrap();
-        let fixture = write_fixture(directory.path(), 4, 4096).unwrap();
+        let fixture =
+            write_fixture(directory.path(), 4, 4096, ExperimentFactor::BufferSize).unwrap();
         for entries in &fixture.entries_by_arm {
             for entry in entries {
                 assert_eq!(fs::metadata(&entry.path).unwrap().len(), entry.bucket_size);
                 assert_eq!(entry.bucket_size % 4096, 0);
             }
         }
+        remove_fixture_with_bounded_retry(&fixture.root).unwrap();
+    }
+
+    #[test]
+    fn prefix_fixture_is_collision_heavy_but_full_content_differs() {
+        let directory = tempfile::tempdir().unwrap();
+        let fixture =
+            write_fixture(directory.path(), 8, 8192, ExperimentFactor::PrefixReuse).unwrap();
+        let mut prefix_hashes = std::collections::HashSet::new();
+        let mut full_hashes = std::collections::HashSet::new();
+        for entry in &fixture.entries_by_arm[0] {
+            let data = fs::read(&entry.path).unwrap();
+            prefix_hashes.insert(crate::hasher::xxhash::hash_data(
+                &data[..PARTIAL_PREFIX_BYTES],
+            ));
+            full_hashes.insert(crate::hasher::xxhash::hash_data(&data));
+        }
+        assert_eq!(prefix_hashes.len(), 1);
+        assert_eq!(full_hashes.len(), fixture.entries_by_arm[0].len());
         remove_fixture_with_bounded_retry(&fixture.root).unwrap();
     }
 }
@@ -698,7 +764,13 @@ fn every_factor_changes_exactly_one_control_variable() {
         ExperimentFactor::SequentialHint,
         ExperimentFactor::PrefixReuse,
     ] {
-        validate_factor_isolation(factor).unwrap();
+        for media in [
+            crate::platform::StorageMediaClass::Rotational,
+            crate::platform::StorageMediaClass::SolidState,
+            crate::platform::StorageMediaClass::Unknown,
+        ] {
+            validate_factor_isolation(factor, media).unwrap();
+        }
     }
     assert!(ExperimentFactor::parse("reader_count").is_err());
 }
@@ -737,7 +809,11 @@ fn ordering_is_deterministic_and_preserves_stable_task_identity() {
     );
     let treatment = ordered_entries(
         &entries,
-        ReadPlan::for_arm(ExperimentFactor::PathLocality, ArmVariant::Treatment),
+        ReadPlan::for_arm(
+            ExperimentFactor::PathLocality,
+            ArmVariant::Treatment,
+            crate::platform::StorageMediaClass::Unknown,
+        ),
     );
     assert_eq!(
         treatment
@@ -765,7 +841,11 @@ fn read_plans_preserve_hashes_and_prefix_reuse_reconciles_saved_bytes() {
     let control = read_for_profile(&path, ReadPlan::control(), &AtomicBool::new(false)).unwrap();
     let reuse = read_for_profile(
         &path,
-        ReadPlan::for_arm(ExperimentFactor::PrefixReuse, ArmVariant::Treatment),
+        ReadPlan::for_arm(
+            ExperimentFactor::PrefixReuse,
+            ArmVariant::Treatment,
+            crate::platform::StorageMediaClass::Unknown,
+        ),
         &AtomicBool::new(false),
     )
     .unwrap();

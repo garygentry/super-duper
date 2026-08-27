@@ -55,7 +55,13 @@ pub fn get_content_hash_cancellable(
 ) -> io::Result<CachedHash> {
     let media = crate::platform::storage_device_for_path(file).media;
     let buffer_length = super::xxhash::stream_buffer_length(media);
-    get_content_hash_cancellable_observed(file, cancel_token, buffer_length, true, &mut |_| Ok(()))
+    get_content_hash_cancellable_observed(
+        file,
+        cancel_token,
+        buffer_length,
+        super::xxhash::stream_sequential_hint(media),
+        &mut |_| Ok(()),
+    )
 }
 
 pub(crate) fn get_content_hash_cancellable_observed(

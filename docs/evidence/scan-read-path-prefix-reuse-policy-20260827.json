@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "gate": "SOP7-hash-read-path",
+  "package": "SOP7e-partial-prefix-reuse",
+  "decision": "reject_product_prefix_reuse",
+  "softwareBuild": {
+    "baseCommit": "c2980de",
+    "profileHarnessSourceSha256": "A0FFEC4EA603ECBE1373AD57067A9BFA7D3FA9DB74A1A26051ED2EC52F170F8A"
+  },
+  "rawEvidence": [
+    {
+      "path": "docs/evidence/scan-read-path-prefix-reuse-ssd-20260827.json",
+      "sha256": "E78965E68199EC9EE365513DD708006781925886C36A75A0A56CF7E9F3727C34"
+    },
+    {
+      "path": "docs/evidence/scan-read-path-prefix-reuse-hdd-20260827.json",
+      "sha256": "791D81DF943EC4F5C79D9D348D3454A39B84FE215A1E45C593FD471AFA7D3699"
+    }
+  ],
+  "method": {
+    "workload": "2048 cache-miss files per arm in four exact-size buckets; every file shares the same deterministic 1024-byte prefix while full content remains distinct",
+    "armOrder": ["control", "treatment", "treatment", "control"],
+    "control": "reread the 1024-byte partial prefix during the full hash",
+    "treatment": "seed the full hasher with that exact prefix and continue reading at byte 1024",
+    "acceptedFixedFactors": {
+      "bucketOrder": "descending_size",
+      "pathOrder": "encountered",
+      "solidStateBufferBytes": 1048576,
+      "rotationalBufferBytes": 65536,
+      "solidStateSequentialHint": false,
+      "rotationalSequentialHint": true,
+      "rotationalReaders": 1,
+      "solidStateReaders": 4
+    },
+    "experimentalPrefixStateBoundBytesPerReader": 1024,
+    "maximumExperimentalAggregatePrefixStateBytes": 4096,
+    "failedSamplesDiscarded": 0,
+    "hardwareSerialPersisted": false
+  },
+  "comparisons": [
+    {
+      "mediaClass": "solid_state",
+      "controlPhysicalBytes": 31457280,
+      "treatmentPhysicalBytes": 29360128,
+      "savedPhysicalBytes": 2097152,
+      "treatmentWallDeltaPercent": 21.2033,
+      "treatmentThroughputDeltaPercent": -18.8068,
+      "selection": "reject"
+    },
+    {
+      "mediaClass": "rotational",
+      "controlPhysicalBytes": 31457280,
+      "treatmentPhysicalBytes": 29360128,
+      "savedPhysicalBytes": 2097152,
+      "treatmentWallDeltaPercent": -28.9804,
+      "treatmentThroughputDeltaPercent": -8.0857,
+      "selection": "reject",
+      "rationale": "Wall time drifted sharply across C/T/T/C (10.422, 5.594, 3.834, and 2.854 seconds), while mean throughput regressed; the result is not reliable evidence of an improvement."
+    }
+  ],
+  "correctnessAndBounds": {
+    "checksumMismatchCount": 0,
+    "savedBytesEqualPrefixBytesTimesFiles": true,
+    "savedBytesExpected": 2097152,
+    "savedBytesObserved": 2097152,
+    "cancelledArmCount": 0,
+    "fixtureRemovedAfterEachProfile": true,
+    "collisionHeavyPrefixProvedByDeterministicTest": true,
+    "distinctFullContentProvedByDeterministicTest": true
+  },
+  "productDecision": {
+    "prefixReuseEnabled": false,
+    "productionPrefixStateBytes": 0,
+    "rationale": "The SSD workload materially regressed and the HDD run did not produce coherent wall/throughput evidence. Avoiding a 1 KiB reread does not justify retaining cross-phase state or adding metadata-revalidation, cache-hit, error, and cancellation branches.",
+    "readerPolicyChanged": false,
+    "cachePolicyChanged": false,
+    "partialHashLengthChanged": false
+  }
+}

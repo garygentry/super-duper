@@ -18,13 +18,13 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept `SOP7d-buffer-read-ahead`, selecting a 1 MiB SSD/64 KiB
-  rotational-or-unknown buffer and the Windows sequential-read hint
+- Latest completed slice: accept `SOP7e-partial-prefix-reuse` with the product change rejected, and
+  correct SOP7d to use the Windows sequential-read hint only on rotational/unknown media
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP7-hash-read-path`
-- Next boundary: advance only to `SOP7e-partial-prefix-reuse`
+- Next boundary: advance only to `SOP7f-read-path-acceptance`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -168,17 +168,25 @@ result retry or discarded retained sample occurred. A deterministic order test, 
 verifier, strict Clippy, and full Debug/Release Rust matrices pass. Buffer/read-ahead, prefix reuse,
 SOP8+, Windows UI, and the parked stream remain untouched.
 
-`SOP7d-buffer-read-ahead` is accepted. The harness now creates aligned direct/unbuffered
-write-through fixtures so each buffered comparison begins as a physical cache miss. All 16 retained
-1 GiB arms have complete device metrics and exact hashes/bytes. The 1 MiB treatment improved SSD
-wall 29.4921% and throughput 42.3401% but regressed rotational wall 5.3654%, selecting 1 MiB only
-for SSD and retaining 64 KiB for rotational/unknown media. The Windows sequential-read hint
-improved wall 13.3373% on SSD and 7.8503% on HDD and is enabled globally. Full-hash tasks carry the
-already accepted scheduler media class; cache semantics, reader counts, and partial length do not
-change. Memory remains bounded to 4 MiB across four SSD readers or 64 KiB for one conservative
-reader, and cancellation is checked at least once per selected buffer. The initial parallel Debug
-matrix reproduced the documented heartbeat sensitivity with 3/4 samples; unchanged serial Debug/
-Release matrices pass. Prefix reuse, SOP8+, Windows UI, and the parked stream remain untouched.
+`SOP7d-buffer-read-ahead` remains accepted after a fixed-factor audit correction. Its immutable v1
+evidence remains retained, while separately versioned v2 arms use accepted descending buckets and
+the SSD sequential-hint arm uses the already selected 1 MiB buffer. The v2 1 MiB treatment improves
+SSD wall 59.7138% and throughput 141.4003%; it is neutral-to-worse on HDD, so rotational/unknown
+remain 64 KiB. The v2 sequential hint improves HDD wall 3.0205% and throughput 3.0315%. On SSD its
+2.0602% wall mean conflicts with 1.5547% lower throughput and substantial arm drift, so the hint is
+disabled for SSD and retained only for rotational/unknown. Full-hash tasks carry the already
+accepted scheduler media class; cache semantics, reader counts, and partial length do not change.
+Memory remains bounded to 4 MiB across four SSD readers or 64 KiB for one conservative reader, and
+cancellation is checked at least once per selected buffer.
+
+`SOP7e-partial-prefix-reuse` is accepted with no product prefix-reuse change. Two retained C/T/T/C
+profiles use 2,048 cache-miss files per arm with one collision-heavy shared 1 KiB prefix and distinct
+full content. Reuse saves exactly 2,097,152 physical bytes per arm with exact hashes. SSD wall and
+throughput regress 21.2033% and 18.8068%. The HDD arm has sharply drifting wall samples and 8.0857%
+lower mean throughput, so it does not establish improvement. Experimental state is bounded to 1 KiB
+per reader and 4 KiB aggregate; production keeps zero cross-phase prefix state and avoids new
+metadata-revalidation, cache-hit, error, and cancellation branches. SOP8+, Windows UI, and the
+parked stream remain untouched.
 
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
@@ -343,12 +351,11 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance only to `SOP7e-partial-prefix-reuse`. Measure rereading versus continuing from the exact
-accepted 1 KiB prefix on a predeclared collision-heavy cache-miss workload. The design must keep
-prefix state explicitly bounded and revalidate metadata/change detection without trusting prefix
-state across cache hits, errors, or cancellation. Retain every arm, then admit or reject before
-changing production. Do not begin SOP8 or later gates, a physical campaign outside SOP7's exact
-authority, or any parked release-validation work.
+Advance only to `SOP7f-read-path-acceptance`. Add the named read-path verifier, integrate only the
+admitted descending bucket/media-buffer/media-hint settings, and run the full Debug/Release Rust and
+Windows matrices plus production locks. Confirm every retained SOP7 evidence hash and rejection,
+without changing SOP6 reader counts or SOP8 cache policy. Do not begin SOP8 or later gates, a
+physical campaign outside SOP7's exact authority, or any parked release-validation work.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -436,13 +443,18 @@ required gates are open.
 
 ## Latest verification baseline
 
-Accepted `SOP7d-buffer-read-ahead` retains four raw buffer/sequential SSD/HDD evidence files plus
-one policy record. All 16 fixed arms read exactly 1,073,856,512 bytes with identical hashes,
-complete device samples, direct/write-through fixture preparation, and cleanup. The selected policy
-is 1 MiB on SSD, 64 KiB on rotational/unknown, and sequential hint enabled on Windows. Twelve
-focused hash tests, seven harness tests plus one ignored physical profile, the SOP6 verifier, and
-strict Core Clippy pass. The initial parallel Debug matrix hit the unchanged heartbeat fixture at
-3/4 samples; serial Debug and Release each pass 201 tests with 7 intentional profiles ignored.
+Accepted `SOP7d-buffer-read-ahead` retains both immutable v1 records and four corrected v2 raw
+buffer/sequential SSD/HDD files plus a v2 policy record. All v2 arms use descending buckets, read
+exactly 1,073,856,512 bytes with identical hashes, complete device samples, direct/write-through
+fixture preparation, and cleanup. The selected policy is 1 MiB/no hint on SSD and 64 KiB/Windows
+sequential hint on rotational/unknown. Focused read-path/hash tests and strict Core Clippy pass; the
+full acceptance matrix belongs to SOP7f.
+
+Accepted `SOP7e-partial-prefix-reuse` retains two raw SSD/HDD profiles and one policy record. Each
+arm has 2,048 collision-heavy cache-miss files; reuse saves exactly 1 KiB per file/2 MiB per arm and
+preserves all hashes. SSD regresses and HDD throughput regresses amid strong arm-order drift, so the
+product change is rejected and production retains zero prefix state. Eight deterministic harness
+tests pass with one physical profile ignored.
 
 Accepted `SOP7c-bucket-ordering` retains
 `scan-read-path-bucket-order-{ssd,hdd}-20260826.json` plus its policy record. All eight direct 1 GiB
@@ -794,7 +806,8 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
-| 2026-08-26 | this session | Accept `SOP7d-buffer-read-ahead`: use direct/write-through fixtures for physical cache-miss evidence, select 1 MiB only for SSD and 64 KiB for rotational/unknown, enable the Windows sequential hint across media, preserve exact hash/byte/cancellation/memory bounds, and pass serial Debug/Release Rust. | Advance only to `SOP7e-partial-prefix-reuse`; keep SOP8+, unrelated campaigns, and parked release validation out of scope. |
+| 2026-08-27 | this session | Correct SOP7d with separately versioned fixed-factor evidence, scope the sequential hint to rotational/unknown, and accept SOP7e with prefix reuse rejected after exact byte savings but SSD regression and incoherent HDD evidence. | Advance only to `SOP7f-read-path-acceptance`; keep SOP8+, unrelated campaigns, and parked release validation out of scope. |
+| 2026-08-26 | this session | Accept `SOP7d-buffer-read-ahead`: use direct/write-through fixtures for physical cache-miss evidence, select 1 MiB only for SSD and 64 KiB for rotational/unknown, enable the Windows sequential hint across media, preserve exact hash/byte/cancellation/memory bounds, and pass serial Debug/Release Rust. This decision is retained historically and corrected by the 2026-08-27 v2 record. | Advance only to `SOP7e-partial-prefix-reuse`; keep SOP8+, unrelated campaigns, and parked release validation out of scope. |
 | 2026-08-26 | this session | Accept `SOP7c-bucket-ordering`: retain complete direct SSD/HDD C/T/T/C evidence, select descending exact-size admission from 3.46%/8.43% wall improvements, add a deterministic order regression and bounded transient-handle cleanup, evolve the SOP6 historical-source check, and pass full Debug/Release Rust. | Advance only to `SOP7d-buffer-read-ahead`; keep prefix reuse, SOP8+, unrelated campaigns, and parked release validation out of scope. |
 | 2026-08-26 | this session | Accept `SOP7b-path-locality` and reject the product change: retain all fixed SSD/HDD C/T/T/C arms, explicitly scope the SSD result to cache-resident reads, record the small 1.21% idealized rotational direct-read gain, preserve exact checksums/bytes/cleanup, and leave insertion order unchanged. | Advance only to `SOP7c-bucket-ordering`; keep buffer/read-ahead, prefix reuse, SOP8+, unrelated campaigns, and parked release validation out of scope. |
 | 2026-08-26 | this session | Accept `SOP7a-read-experiment-contract`: add one test-only platform-neutral harness with fixed one-factor arms, SOP6 reader ceilings, distinct deterministic fixtures, complete write-once evidence, exact hash/byte/cancellation/memory checks, and no production-default change or physical run. | Advance only to `SOP7b-path-locality`; keep bucket order, buffer/read-ahead, prefix reuse, SOP8+, unrelated campaigns, and parked release validation out of scope until their dependencies accept. |
