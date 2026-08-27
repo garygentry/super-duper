@@ -5,6 +5,30 @@ use std::ffi::OsString;
 use std::io;
 use std::path::{Component, Path, PathBuf};
 
+pub(crate) const UNKNOWN_STORAGE_DEVICE_KEY: &str = "storage:mapping-unavailable";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StorageMediaClass {
+    Rotational,
+    SolidState,
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct StorageDevice {
+    pub key: String,
+    pub media: StorageMediaClass,
+}
+
+impl StorageDevice {
+    pub(crate) fn mapping_unavailable() -> Self {
+        Self {
+            key: UNKNOWN_STORAGE_DEVICE_KEY.to_owned(),
+            media: StorageMediaClass::Unknown,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PathSafety {
     Missing,
@@ -40,6 +64,28 @@ pub fn get_drive_letter(path: &Path) -> Option<OsString> {
 #[cfg(not(target_os = "windows"))]
 pub fn get_drive_letter(_path: &Path) -> Option<OsString> {
     None
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn storage_device_for_path(path: &Path) -> StorageDevice {
+    windows::storage_device_for_path(path)
+}
+
+#[cfg(all(not(target_os = "windows"), unix))]
+pub(crate) fn storage_device_for_path(path: &Path) -> StorageDevice {
+    use std::os::unix::fs::MetadataExt;
+
+    std::fs::metadata(path)
+        .map(|metadata| StorageDevice {
+            key: format!("unix-device:{:016x}", metadata.dev()),
+            media: StorageMediaClass::Unknown,
+        })
+        .unwrap_or_else(|_| StorageDevice::mapping_unavailable())
+}
+
+#[cfg(not(any(target_os = "windows", unix)))]
+pub(crate) fn storage_device_for_path(_path: &Path) -> StorageDevice {
+    StorageDevice::mapping_unavailable()
 }
 
 #[cfg(target_os = "windows")]

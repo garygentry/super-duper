@@ -18,13 +18,13 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept `SOP5-skip-singleton-size-buckets` with zero singleton content
-  opens and exact metadata-resolved/candidate/physical-I/O reconciliation
+- Latest completed slice: accept `SOP6-device-aware-scheduler` with bounded physical-device queues
+  and retained rotational/SSD reader-policy evidence
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
-- Current gate: `SOP6-device-aware-scheduler`
-- Next boundary: advance only to `SOP6-device-aware-scheduler`
+- Current gate: `SOP7-hash-read-path`
+- Next boundary: advance only to `SOP7-hash-read-path`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -58,8 +58,8 @@ complete inside its bound; its empty-aggregate defect prevented native invalid-e
 serialization. The recovered write-once incident retains zero completed/measured arms, null
 aggregates, cleanup facts, and an unevaluated strict <1% wall/CPU gate. That gate did not pass. Do
 not run v1/v2 or design SOP2f-v3. The unresolved representative-overhead risk is assigned to SOP9,
-where it may be observed during useful real-drive acceptance work. SOP3 through SOP5 are now
-accepted; the next dependency boundary is SOP6.
+where it may be observed during useful real-drive acceptance work. SOP3 through SOP6 are now
+accepted; the next dependency boundary is SOP7.
 
 `SOP3a-live-warning-accounting` is accepted as the first of four finite SOP3 packages. The audit
 found that schema-v14 completed-run aggregates/examples, worker paging, the five-page Core cache,
@@ -122,6 +122,19 @@ bytes as candidates and terminally hash-pipeline-resolved, and only 2,084 physic
 bytes; live and durable terminal counters match exactly. Existing cache, cancellation, candidate
 read-failure, hard-link, long-path, deterministic-result, and bounded-memory regressions pass. No
 schema, protocol, WPF, scheduler, cache-policy, production lock, campaign, or parked stream changed.
+
+`SOP6-device-aware-scheduler` is accepted as three finite coherent packages. Windows classifies a
+candidate's drive volume to exactly one physical extent and the documented seek-penalty media class
+without opening candidate content; drive aliases reuse one cached result, while remote, failed,
+multi-extent, conflicting, or unavailable mappings share one conservative fallback queue. A fair
+global dispatcher replaces every nested Rayon read in partial/full hashing, caps rotational and
+unknown devices at one reader and SSDs at four within the host logical-parallelism ceiling, lets
+separate devices progress independently, and removes queued work before content open on
+cancellation. Retained direct/unbuffered 1 GiB arms in fixed 1/N/N/1 order preserve exact checksums
+and process I/O. Two rotational readers were 4.2593% slower with 4.0830% lower throughput and about
+double latency, selecting one; four SSD readers reduced wall time 48.9399% and raised throughput
+85.4809%, selecting four. No read-path/locality/buffer/prefix change, schema, protocol, WPF,
+cache-policy, production lock, SOP7+, unrelated campaign, or parked-stream work changed.
 
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
@@ -286,10 +299,11 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance only to `SOP6-device-aware-scheduler`. Start from the accepted SOP5 singleton/counter truth
-and define SOP6's smallest finite dependency-ordered packages before implementation. Do not begin
-SOP7 or later optimization gates, a representative/physical campaign without its exact gate
-authority, or any parked release-validation work.
+Advance only to `SOP7-hash-read-path`. Start from the accepted SOP6 per-device scheduler and define
+SOP7's smallest finite dependency-ordered experiments before implementation. Admit only individually
+measured path-locality, bucket-ordering, buffer/read-ahead, or partial-prefix changes. Do not begin
+SOP8 or later gates, a physical campaign outside SOP7's exact authority, or any parked release-
+validation work.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -358,7 +372,7 @@ before committing the next slice.
 These remain open unless a later committed slice cites qualifying evidence or an explicit reviewed
 decision:
 
-- `SOP6` through `SOP9` in `docs/scan-optimization-plan.md`; SOP9 also owns the unresolved SOP2
+- `SOP7` through `SOP9` in `docs/scan-optimization-plan.md`; SOP9 also owns the unresolved SOP2
   representative-overhead risk because the strict <1% wall/CPU gate was waived unmeasured
 - Physical Narrator and NVDA acceptance
 - Windows high-contrast acceptance
@@ -376,6 +390,26 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Accepted `SOP6-device-aware-scheduler` passes `Verify-WindowsDeviceScheduler.ps1`. Deterministic
+tests prove one-reader rotational/unknown queues, four-reader SSD queues, conservative conflict/
+mapping fallback, a global host-parallelism ceiling, cross-device independence, and cancellation
+before queued content work. Windows fake-probe tests cover drive aliases, one physical extent,
+multi-extent/remote/unavailable fallback, and seek-penalty classification. The injected hash
+pipeline holds each of two rotational devices at one read while overlapping them and reconciles 8
+partial attempts, 8 full requests/completions, 8 resolved files, and the exact duplicate result.
+Write-once evidence in `docs/evidence/scan-device-scheduler-{ssd,hdd}-20260826.json` and its policy
+record retains four 1 GiB direct/unbuffered arms per device in 1/N/N/1 order, exact checksums and
+process read totals, CPU/memory, and complete disk throughput/IOPS/latency/active/queue samples. The
+rotational comparison selects one reader; the SSD comparison selects four. Full Debug and Release
+Rust each pass 192 tests with 6 intentional profiles ignored. Debug and Release Windows builds each
+report 0 warnings/errors and each matrix passes 145 Core, 74 Infrastructure, and 3 smoke tests with
+5 operator-only Infrastructure tests skipped. The first sandboxed Debug build was blocked before
+the matrix by installed-SDK access; the unchanged desktop-context Debug and Release matrices pass.
+Strict Core Clippy passes with four documented pre-existing lint allowances. Production locks and
+`git diff --check` pass. No SOP7+, unrelated physical campaign, or parked
+release-validation work ran. SOP2 remains `accepted_with_operator_waiver`; its strict <1%
+representative wall/CPU gate remains unevaluated, not passed.
 
 Accepted `SOP5-skip-singleton-size-buckets` passes the exact injected read-seam test and the full
 Core target. The mixed seam observes 0 singleton partial/full opens, 4 non-singleton partial opens,
@@ -680,6 +714,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-26 | this session | Accept `SOP6-device-aware-scheduler`: map local Windows volumes to one physical disk/seek-penalty class without candidate-content access, replace nested hash reads with fair bounded per-device queues, select 1 rotational/unknown and 4 SSD readers from retained 1/N/N/1 direct-I/O evidence, and preserve exact cancellation/counters/results plus full regression and production locks. | Advance only to `SOP7-hash-read-path`; define its finite individually measured experiments and keep SOP8+, physical work outside SOP7 authority, and parked release validation out of scope. |
 | 2026-08-26 | this session | Accept `SOP5-skip-singleton-size-buckets`: classify exact-size singleton files/bytes as metadata-resolved before the content-I/O seam, admit only multi-file buckets to partial/full hashing, prove zero singleton and unchanged non-singleton reads/results through the injected seam, and retain exact live/durable/physical-I/O truth plus full regression and production-lock evidence. | Advance only to `SOP6-device-aware-scheduler`; define its smallest finite packages before implementation and keep SOP7+, unauthorized representative/physical campaigns, and parked release validation out of scope. |
 | 2026-08-26 | this session | Accept `SOP4-performance-tab`: add query-only 25-run and fixed one-run summaries, bounded live Core projection and device/input/build-qualified comparison, and a virtualized keyboard/automation/system-brush Performance tab with explicit unavailable, focus, restart, representative-history, and latest-only announcement evidence. | Implement only `SOP5-skip-singleton-size-buckets`; keep SOP6+, representative/physical campaigns, and parked release validation out of scope. |
 | 2026-08-26 | this session | Accept `SOP3d-accessible-warning-entry-and-acceptance` and close SOP3: add one count-aware Alt+W Progress entry into the existing 25-row/five-page History drilldown, preserve warning-grid focus and terminal/restart truth, disclose page-owned diagnostic application-log metadata separately from durable warnings, and retain system-brush/stable-automation/latest-only announcement behavior. | Implement only `SOP4-performance-tab`; keep SOP5+, representative/physical campaigns, and parked release validation out of scope. |

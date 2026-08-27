@@ -1,12 +1,13 @@
 use super::cache;
+use super::scheduler::{execute_device_reads, DeviceReadPolicy, ScheduledRead};
 use crate::progress::ProgressReporter;
 use dashmap::DashMap;
-use rayon::prelude::*;
+use std::collections::HashMap;
 use std::fs::File;
 use std::hash::Hasher as _;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use twox_hash::XxHash64;
 
@@ -147,6 +148,37 @@ pub(crate) trait HashPipelineIo: Send + Sync {
         cancel: &AtomicBool,
         observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
     ) -> io::Result<cache::CachedHash>;
+}
+
+pub(crate) trait HashDeviceMapper: Send + Sync {
+    fn device_for_path(&self, path: &Path) -> crate::platform::StorageDevice;
+}
+
+#[derive(Default)]
+struct SystemHashDeviceMapper {
+    #[cfg(target_os = "windows")]
+    devices_by_drive: Mutex<HashMap<String, crate::platform::StorageDevice>>,
+}
+
+impl HashDeviceMapper for SystemHashDeviceMapper {
+    fn device_for_path(&self, path: &Path) -> crate::platform::StorageDevice {
+        #[cfg(target_os = "windows")]
+        {
+            let key = crate::platform::get_drive_letter(path)
+                .map(|drive| drive.to_string_lossy().to_ascii_uppercase())
+                .unwrap_or_else(|| crate::platform::UNKNOWN_STORAGE_DEVICE_KEY.to_owned());
+            let mut cache = self
+                .devices_by_drive
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            return cache
+                .entry(key)
+                .or_insert_with(|| crate::platform::storage_device_for_path(path))
+                .clone();
+        }
+        #[cfg(not(target_os = "windows"))]
+        crate::platform::storage_device_for_path(path)
+    }
 }
 
 #[derive(Debug, Default)]
@@ -341,65 +373,132 @@ pub(crate) fn build_content_hash_map_with_progress(
     sink: &dyn HashProgressSink,
     io: &dyn HashPipelineIo,
 ) -> io::Result<HashOutcome> {
+    build_content_hash_map_with_scheduler(
+        map,
+        cancel,
+        progress,
+        sink,
+        io,
+        &SystemHashDeviceMapper::default(),
+        DeviceReadPolicy::default(),
+    )
+}
+
+fn build_content_hash_map_with_scheduler(
+    map: DashMap<u64, Vec<PathBuf>>,
+    cancel: &AtomicBool,
+    progress: &dyn ProgressReporter,
+    sink: &dyn HashProgressSink,
+    io: &dyn HashPipelineIo,
+    device_mapper: &dyn HashDeviceMapper,
+    policy: DeviceReadPolicy,
+) -> io::Result<HashOutcome> {
     let confirmed_duplicates: DashMap<u64, Vec<PathBuf>> = DashMap::new();
-    let total_files: usize = map
-        .iter()
-        .filter(|entry| entry.value().len() > 1)
-        .map(|entry| entry.value().len())
-        .sum();
-    let files_processed = AtomicUsize::new(0);
+    let mut buckets = map
+        .into_iter()
+        .filter(|(_, files)| files.len() > 1)
+        .collect::<Vec<_>>();
+    buckets.sort_by_key(|(file_size, _)| *file_size);
+    let total_files = buckets.iter().map(|(_, files)| files.len()).sum();
     let batcher = HashProgressBatcher::new(sink);
-    let buckets: Vec<_> = map.iter().collect();
 
-    let result = buckets.par_iter().try_for_each(|bucket| {
+    struct PartialTask {
+        file_size: u64,
+        file: PathBuf,
+    }
+    struct PartialResult {
+        file_size: u64,
+        file: PathBuf,
+        hash: Option<u64>,
+    }
+    let partial_tasks = buckets
+        .into_iter()
+        .flat_map(|(file_size, files)| {
+            files.into_iter().map(move |file| ScheduledRead {
+                device: device_mapper.device_for_path(&file),
+                value: PartialTask { file_size, file },
+            })
+        })
+        .collect();
+    let scheduled_partials = execute_device_reads(partial_tasks, cancel, policy, |task| {
         batcher.check_cancelled(cancel)?;
-        let file_size = *bucket.key();
-        if bucket.value().len() == 1 {
-            return Ok::<_, io::Error>(());
-        }
-        let partial_groups: DashMap<u64, Vec<PathBuf>> = DashMap::new();
-        let full_groups: DashMap<u64, Vec<PathBuf>> = DashMap::new();
-
-        bucket.value().par_iter().try_for_each(|file| {
-            batcher.check_cancelled(cancel)?;
-            let mut delta = HashProgressDelta {
-                partial_hashes_attempted: 1,
-                partial_screened_files: 1,
-                partial_screened_bytes: file_size,
-                ..Default::default()
-            };
-            match io.partial_hash(file, cancel) {
-                Ok(read) => {
-                    partial_groups
-                        .entry(read.hash)
-                        .or_default()
-                        .push(file.to_path_buf());
-                    delta.files_hashed = 1;
-                    delta.partial_hashes_succeeded = 1;
-                    delta.partial_hash_bytes_read = read.physical_bytes_read;
-                }
-                Err(error) if error.kind() == io::ErrorKind::Interrupted => {
-                    batcher.cancellation_check(true)?;
-                    return Err(error);
-                }
-                Err(error) => {
-                    tracing::error!("Error processing file '{}': {}", file.display(), error);
-                    delta.partial_hashes_failed = 1;
-                    delta.warning_count = 1;
-                }
+        let PartialTask { file_size, file } = task;
+        let mut delta = HashProgressDelta {
+            partial_hashes_attempted: 1,
+            partial_screened_files: 1,
+            partial_screened_bytes: file_size,
+            ..Default::default()
+        };
+        let hash = match io.partial_hash(&file, cancel) {
+            Ok(read) => {
+                delta.files_hashed = 1;
+                delta.partial_hashes_succeeded = 1;
+                delta.partial_hash_bytes_read = read.physical_bytes_read;
+                Some(read.hash)
             }
-            batcher.record(delta, 1, false)
-        })?;
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {
+                batcher.cancellation_check(true)?;
+                return Err(error);
+            }
+            Err(error) => {
+                tracing::error!("Error processing file '{}': {}", file.display(), error);
+                delta.partial_hashes_failed = 1;
+                delta.warning_count = 1;
+                None
+            }
+        };
+        batcher.record(delta, 1, false)?;
+        Ok(PartialResult {
+            file_size,
+            file,
+            hash,
+        })
+    });
+    let partial_results = match scheduled_partials {
+        Ok(results) => results,
+        Err(error) if error.kind() == io::ErrorKind::Interrupted => {
+            batcher.cancellation_check(true)?;
+            return Err(error);
+        }
+        Err(error) => {
+            batcher.flush()?;
+            return Err(error);
+        }
+    };
+    emit_legacy_progress(progress, &sink.snapshot(), total_files);
 
-        let groups: Vec<_> = partial_groups.iter().collect();
-        let collision_bucket_count = groups.iter().filter(|g| g.value().len() > 1).count() as u64;
-        let collision_files = groups
-            .iter()
-            .filter(|g| g.value().len() > 1)
-            .map(|g| g.value().len() as u64)
-            .sum::<u64>();
+    let mut partial_groups = HashMap::<(u64, u64), Vec<PathBuf>>::new();
+    let mut screened_by_size = HashMap::<u64, u64>::new();
+    for result in partial_results {
+        *screened_by_size.entry(result.file_size).or_default() += 1;
+        if let Some(hash) = result.hash {
+            partial_groups
+                .entry((result.file_size, hash))
+                .or_default()
+                .push(result.file);
+        }
+    }
+
+    let mut collision_by_size = HashMap::<u64, (u64, u64)>::new();
+    let mut full_tasks = Vec::new();
+    for ((file_size, _), files) in partial_groups {
+        if files.len() <= 1 {
+            continue;
+        }
+        let collision = collision_by_size.entry(file_size).or_default();
+        collision.0 += 1;
+        collision.1 += files.len() as u64;
+        full_tasks.extend(files.into_iter().map(|file| ScheduledRead {
+            device: device_mapper.device_for_path(&file),
+            value: (file_size, file),
+        }));
+    }
+    for (file_size, screened_files) in screened_by_size {
+        let (collision_bucket_count, collision_files) = collision_by_size
+            .get(&file_size)
+            .copied()
+            .unwrap_or_default();
         let collision_bytes = collision_files.saturating_mul(file_size);
-        let screened_files = bucket.value().len() as u64;
         let resolved_files = screened_files.saturating_sub(collision_files);
         batcher.record(
             HashProgressDelta {
@@ -415,38 +514,38 @@ pub(crate) fn build_content_hash_map_with_progress(
             0,
             false,
         )?;
+    }
 
-        groups.par_iter().try_for_each(|group| {
+    let scheduled_full_hashes =
+        execute_device_reads(full_tasks, cancel, policy, |(file_size, file)| {
             batcher.check_cancelled(cancel)?;
-            if group.value().len() <= 1 {
-                return Ok::<_, io::Error>(());
-            }
-            group.value().par_iter().try_for_each(|file| {
-                batcher.check_cancelled(cancel)?;
-                populate_full_hash_map(file, file_size, &full_groups, cancel, &batcher, io)
-            })
-        })?;
-
-        let complete_groups: Vec<_> = full_groups.iter().collect();
-        complete_groups.par_iter().for_each(|entry| {
-            if entry.value().len() > 1 {
-                confirmed_duplicates
-                    .entry(*entry.key())
-                    .or_default()
-                    .extend_from_slice(entry.value());
-            }
+            populate_full_hash(&file, file_size, cancel, &batcher, io)
+                .map(|hash| (file_size, file, hash))
         });
-
-        let processed = files_processed.fetch_add(bucket.value().len(), Ordering::Relaxed)
-            + bucket.value().len();
-        if processed % (HASH_PROGRESS_FILE_QUANTUM as usize) < bucket.value().len() {
-            emit_legacy_progress(progress, &sink.snapshot(), total_files);
+    let full_results = match scheduled_full_hashes {
+        Ok(results) => results,
+        Err(error) if error.kind() == io::ErrorKind::Interrupted => {
+            batcher.cancellation_check(true)?;
+            return Err(error);
         }
-        Ok::<_, io::Error>(())
-    });
+        Err(error) => {
+            batcher.flush()?;
+            return Err(error);
+        }
+    };
+    let mut full_groups = HashMap::<(u64, u64), Vec<PathBuf>>::new();
+    for (file_size, file, hash) in full_results {
+        if let Some(hash) = hash {
+            full_groups.entry((file_size, hash)).or_default().push(file);
+        }
+    }
+    for ((_, hash), files) in full_groups {
+        if files.len() > 1 {
+            confirmed_duplicates.entry(hash).or_default().extend(files);
+        }
+    }
 
     batcher.flush()?;
-    result?;
     let totals = sink.snapshot();
     emit_legacy_progress(progress, &totals, total_files);
     Ok(HashOutcome::from_progress(confirmed_duplicates, totals))
@@ -502,14 +601,13 @@ impl HashOutcome {
     }
 }
 
-fn populate_full_hash_map(
+fn populate_full_hash(
     file: &Path,
     file_size: u64,
-    full_groups: &DashMap<u64, Vec<PathBuf>>,
     cancel: &AtomicBool,
     batcher: &HashProgressBatcher<'_>,
     io: &dyn HashPipelineIo,
-) -> io::Result<()> {
+) -> io::Result<Option<u64>> {
     let mut lookup = None;
     let mut content_started = false;
     let result = io.full_hash(file, cancel, &mut |event| match event {
@@ -565,10 +663,6 @@ fn populate_full_hash_map(
                     "cache fallback completed without content-read start",
                 ));
             }
-            full_groups
-                .entry(outcome.hash)
-                .or_default()
-                .push(file.to_path_buf());
             let mut delta = HashProgressDelta {
                 full_hash_satisfied_files: 1,
                 full_hash_satisfied_bytes: file_size,
@@ -586,7 +680,8 @@ fn populate_full_hash_map(
                 delta.warning_count = 1;
                 tracing::warn!("{}: {}", file.display(), warning);
             }
-            batcher.record(delta, 1, false)
+            batcher.record(delta, 1, false)?;
+            Ok(Some(outcome.hash))
         }
         Err(error) if error.kind() == io::ErrorKind::Interrupted => {
             batcher.cancellation_check(true)?;
@@ -608,7 +703,8 @@ fn populate_full_hash_map(
             if lookup.is_none() {
                 delta.unavailable_counters = 1;
             }
-            batcher.record(delta, 1, false)
+            batcher.record(delta, 1, false)?;
+            Ok(None)
         }
     }
 }
@@ -785,6 +881,110 @@ mod tests {
                 content_bytes_read: 4_096,
                 cache_stored: false,
             })
+        }
+    }
+
+    struct TwoRotationalDeviceMapper;
+
+    impl HashDeviceMapper for TwoRotationalDeviceMapper {
+        fn device_for_path(&self, path: &Path) -> crate::platform::StorageDevice {
+            let key = if path.to_string_lossy().starts_with("disk-a") {
+                "physical:a"
+            } else {
+                "physical:b"
+            };
+            crate::platform::StorageDevice {
+                key: key.to_owned(),
+                media: crate::platform::StorageMediaClass::Rotational,
+            }
+        }
+    }
+
+    #[derive(Default)]
+    struct SchedulingPipelineIo {
+        active_by_device: Mutex<HashMap<String, usize>>,
+        maximum_by_device: Mutex<HashMap<String, usize>>,
+        active_total: AtomicUsize,
+        maximum_total: AtomicUsize,
+    }
+
+    impl SchedulingPipelineIo {
+        fn read<T>(&self, path: &Path, value: T) -> T {
+            let device = if path.to_string_lossy().starts_with("disk-a") {
+                "physical:a"
+            } else {
+                "physical:b"
+            };
+            let active_for_device = {
+                let mut active = self.active_by_device.lock().unwrap();
+                let current = active.entry(device.to_owned()).or_default();
+                *current += 1;
+                *current
+            };
+            {
+                let mut maximum = self.maximum_by_device.lock().unwrap();
+                maximum
+                    .entry(device.to_owned())
+                    .and_modify(|value| *value = (*value).max(active_for_device))
+                    .or_insert(active_for_device);
+            }
+            let active_total = self.active_total.fetch_add(1, Ordering::SeqCst) + 1;
+            let mut observed = self.maximum_total.load(Ordering::SeqCst);
+            while active_total > observed {
+                match self.maximum_total.compare_exchange_weak(
+                    observed,
+                    active_total,
+                    Ordering::SeqCst,
+                    Ordering::SeqCst,
+                ) {
+                    Ok(_) => break,
+                    Err(current) => observed = current,
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+            self.active_total.fetch_sub(1, Ordering::SeqCst);
+            *self
+                .active_by_device
+                .lock()
+                .unwrap()
+                .get_mut(device)
+                .unwrap() -= 1;
+            value
+        }
+    }
+
+    impl HashPipelineIo for SchedulingPipelineIo {
+        fn partial_hash(&self, path: &Path, _cancel: &AtomicBool) -> io::Result<PartialHashRead> {
+            Ok(self.read(
+                path,
+                PartialHashRead {
+                    hash: 7,
+                    physical_bytes_read: PARTIAL_HASH_LENGTH as u64,
+                },
+            ))
+        }
+
+        fn full_hash(
+            &self,
+            path: &Path,
+            _cancel: &AtomicBool,
+            observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
+        ) -> io::Result<cache::CachedHash> {
+            observe(FullHashIoEvent::CacheLookup(
+                cache::CacheLookupOutcome::Miss,
+            ))?;
+            observe(FullHashIoEvent::ContentReadStarted)?;
+            observe(FullHashIoEvent::ContentBytesRead(4_096))?;
+            Ok(self.read(
+                path,
+                cache::CachedHash {
+                    hash: 11,
+                    warning: None,
+                    cache_outcome: cache::CacheLookupOutcome::Miss,
+                    content_bytes_read: 4_096,
+                    cache_stored: false,
+                },
+            ))
         }
     }
 
@@ -1001,6 +1201,51 @@ mod tests {
                 PathBuf::from("duplicate-right"),
             ]]
         );
+    }
+
+    #[test]
+    fn hash_pipeline_serializes_each_rotational_device_but_overlaps_separate_devices() {
+        let map = DashMap::new();
+        map.insert(
+            4_096,
+            (0..8)
+                .map(|index| {
+                    PathBuf::from(format!(
+                        "disk-{}-{index}",
+                        if index % 2 == 0 { "a" } else { "b" }
+                    ))
+                })
+                .collect(),
+        );
+        let sink = RecordingSink::default();
+        let io = SchedulingPipelineIo::default();
+        let outcome = build_content_hash_map_with_scheduler(
+            map,
+            &AtomicBool::new(false),
+            &crate::progress::SilentReporter,
+            &sink,
+            &io,
+            &TwoRotationalDeviceMapper,
+            DeviceReadPolicy::for_test(4, 4),
+        )
+        .unwrap();
+
+        assert_eq!(
+            io.maximum_by_device.lock().unwrap().clone(),
+            HashMap::from([("physical:a".to_owned(), 1), ("physical:b".to_owned(), 1)])
+        );
+        assert_eq!(io.maximum_total.load(Ordering::SeqCst), 2);
+        assert_eq!(outcome.partial_hashes_attempted, 8);
+        assert_eq!(outcome.full_hash_requests, 8);
+        assert_eq!(outcome.full_hash_content_reads_completed, 8);
+        assert_eq!(outcome.hash_pipeline_resolved_files, 8);
+        let mut duplicates = outcome
+            .confirmed_duplicates
+            .iter()
+            .flat_map(|entry| entry.value().clone())
+            .collect::<Vec<_>>();
+        duplicates.sort();
+        assert_eq!(duplicates.len(), 8);
     }
 
     #[test]

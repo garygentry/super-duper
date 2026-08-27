@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "gate": "SOP6-device-aware-scheduler",
+  "decision": "device-reader-policy-v1",
+  "softwareBuild": {
+    "parentCommit": "7c98ee306f4b99aad4e0a133eefc212bfb48f736",
+    "schedulerSourceSha256": "CCE944FC36AEE08EA3B556A0E05A1A740D8BD352624321040E541EC5CF183B8C",
+    "hashPipelineSourceSha256": "70A09333FF9551AB7DF8A25F092D55366DBF188686591BA22AC8B3AC58ACBC36",
+    "windowsMappingSourceSha256": "9FAAB0217F216F6C5B1932935DD9D28167D776A2E905C99916909BE89B37D76B"
+  },
+  "rawEvidence": [
+    {
+      "path": "docs/evidence/scan-device-scheduler-ssd-20260826.json",
+      "sha256": "BE18D52569290337F5918E747DBBDCC5239AAEE69D22D378890632FFD80AD3B6"
+    },
+    {
+      "path": "docs/evidence/scan-device-scheduler-hdd-20260826.json",
+      "sha256": "B209FA1BA9C6CBFAC4B2C4D2CAE97685C461D7475AA173BD769F7176CCBF8C71"
+    }
+  ],
+  "method": {
+    "fixture": "16 deterministic 64 MiB ordinary files; 1 GiB per arm",
+    "contentSignature": "all four arms on each device retained the same ordered 16-file xxHash64 vector",
+    "readPath": "1 MiB aligned direct/unbuffered reads to exclude the Windows file cache from the device comparison",
+    "order": "1,N,N,1",
+    "samplesPerReaderCount": 2,
+    "failedSamplesDiscarded": 0,
+    "hardwareSerialPersisted": false
+  },
+  "selectedPolicy": {
+    "rotationalReaders": 1,
+    "solidStateReaders": 4,
+    "unknownOrAmbiguousReaders": 1,
+    "globalReaderCeiling": "available logical parallelism, minimum 1",
+    "differentPhysicalDevicesMayOverlap": true
+  },
+  "comparisons": [
+    {
+      "mediaClass": "rotational",
+      "deviceKey": "physical:0",
+      "capacityBytes": 14000500764672,
+      "candidateReaders": 2,
+      "oneReaderAverageWallNanos": 7039691500,
+      "candidateAverageWallNanos": 7339530700,
+      "candidateWallDeltaPercent": 4.2593,
+      "oneReaderAverageThroughputBytesPerSecond": 152530282,
+      "candidateAverageThroughputBytesPerSecond": 146302497,
+      "candidateThroughputDeltaPercent": -4.0830,
+      "oneReaderAverageDeviceLatencyMicros": 6542,
+      "candidateAverageDeviceLatencyMicros": 13611,
+      "selection": "one_reader",
+      "rationale": "Two readers were slower, reduced throughput, and approximately doubled device latency."
+    },
+    {
+      "mediaClass": "solid_state",
+      "deviceKey": "physical:2",
+      "capacityBytes": 998621835264,
+      "candidateReaders": 4,
+      "oneReaderAverageWallNanos": 794395750,
+      "candidateAverageWallNanos": 405619250,
+      "candidateWallDeltaPercent": -48.9399,
+      "oneReaderAverageThroughputBytesPerSecond": 1427505032,
+      "candidateAverageThroughputBytesPerSecond": 2647749730,
+      "candidateThroughputDeltaPercent": 85.4809,
+      "oneReaderAverageDeviceLatencyMicros": 377,
+      "candidateAverageDeviceLatencyMicros": 1352,
+      "selection": "four_readers",
+      "rationale": "Four readers materially reduced wall time and raised throughput while remaining within the fixed bounded policy."
+    }
+  ],
+  "correctnessAndMemory": {
+    "bytesPerArm": 1073741824,
+    "processReadBytesPerArm": 1073741824,
+    "processReadOperationsPerArm": 1040,
+    "checksumMismatchCount": 0,
+    "maximumObservedPrivateBytes": 1171456,
+    "maximumObservedWorkingSetBytes": 8425472,
+    "fixtureRemovedAfterEachProfile": true
+  },
+  "scope": {
+    "accepted": "reader concurrency by physical device and seek-penalty media class",
+    "excluded": [
+      "path locality",
+      "bucket ordering",
+      "buffer size",
+      "read ahead",
+      "partial-prefix reuse",
+      "SOP7 and later gates"
+    ]
+  }
+}
