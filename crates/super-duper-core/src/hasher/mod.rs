@@ -1,6 +1,9 @@
 pub mod cache;
 #[cfg(test)]
 mod read_path;
+// SOP8a establishes the owned store before SOP8b/SOP8c wire signature capture and production I/O.
+#[allow(dead_code)]
+pub(crate) mod repeat_cache;
 mod scheduler;
 pub mod xxhash;
 

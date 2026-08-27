@@ -18,12 +18,12 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept `SOP7f-read-path-acceptance` and close SOP7
+- Latest completed slice: accept `SOP8a-versioned-bounded-cache-store`
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP8-repeat-run-cache`
-- Next boundary: implement only `SOP8a-versioned-bounded-cache-store`
+- Next boundary: implement only `SOP8b-qualified-content-signature`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -197,7 +197,7 @@ each build with zero warnings/errors and pass 145 Core, 74 Infrastructure, and 3
 operator-only Infrastructure skips. SOP8 implementation, unrelated physical campaigns, and the
 parked stream did not run.
 
-The SOP8 boundary audit is complete and no implementation has started. The current lazy global
+The SOP8 boundary audit was completed before implementation. The current lazy global
 RocksDB value is an unversioned full hash keyed by canonical path/size/nanosecond modified time;
 partial reads always repeat, non-colliding files never enter the cache, renames miss, capacity is
 unbounded, and decoded hits lack a post-lookup signature check. Discovery already de-duplicates
@@ -208,6 +208,16 @@ selected-default accessible session control plus final verifier. Legacy/corrupt/
 evidence always falls back to reads. SOP6 reader ceilings, SOP7 read policy, exact results, hard
 links, cancellation, memory/telemetry guarantees, retained cache evidence, and deletion locks stay
 fixed.
+
+`SOP8a-versioned-bounded-cache-store` is accepted. A new owned/reopenable v2 RocksDB contract
+defines closed `reuse_verified`/`revalidate_content` policies with the safe forced-read default,
+bounded physical identity/change-token keys, partial plus optional full hashes, exact replay and
+conflict rejection, and atomic entry/order/count/sequence writes. It caps live v2 entries at
+1,500,000 and prunes the deterministic oldest set to 1,350,000 using at most 1,024 keys per batch.
+Open repairs missing order/count/sequence state, removes orphan/malformed indices, preserves legacy
+keys without admitting them as hits, and makes corrupt v2 entries ineligible/prunable. Production
+still uses the unchanged legacy lookup; no read path, counters, worker/Core/WPF contract, schema,
+profile, campaign, or deletion lock changed.
 
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
@@ -372,10 +382,11 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Implement only `SOP8a-versioned-bounded-cache-store`. Introduce the owned, reopenable, versioned
-policy/store contract and its isolated bounds/corruption/recovery tests without changing production
-hash lookup behavior. Do not begin signature qualification, pipeline reuse, UI, measurement, SOP9,
-or parked release validation until SOP8a accepts.
+Implement only `SOP8b-qualified-content-signature`. Add the injected fail-closed signature seam and
+local Windows implementation with stable physical identity, byte length, nanosecond modified time,
+and a content-change token plus before/after equality. Do not wire cache hits into the production
+hash pipeline or begin telemetry/protocol/UI, measurement, SOP9, or parked release validation until
+SOP8b accepts.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -462,6 +473,15 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Accepted `SOP8a-versioned-bounded-cache-store` passes 7 focused store tests and the full Core
+library (47 passed, 2 intentional physical profiles ignored). Strict Core Clippy passes with the
+four previously documented allowances plus two unchanged integration-test instances of the newly
+reported `needless_borrows_for_generic_args` lint. Coverage proves closed policy parsing and forced
+default, create/reopen/replay/conflict, newer-schema rejection without modification, bounded
+identity/token/key/value/order encodings, deterministic oldest pruning, corrupt-entry fallback and
+pruning, atomic metadata/order recovery, and untouched legacy keys. `git diff --check` passes.
+Production hash lookup remains unchanged and no physical/profile/UI/worker/schema/campaign ran.
 
 The SOP8 package-definition slice is documentation-only. The complete startup and latest-commit
 audit found a clean `wpf-poc` worktree at `88b1ffa`, with the scan plan/handoff agreeing on SOP8 and
@@ -843,6 +863,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-27 | this session | Accept SOP8a with an owned/reopenable v2 store, safe forced default, fixed entry/encoding limits, deterministic 1,500,000-to-1,350,000 pruning, bounded recovery, exact replay/conflict, and corrupt/legacy ineligibility while leaving production hash lookup untouched. | Implement only `SOP8b-qualified-content-signature`; keep production hits, telemetry/protocol/UI, measurement, SOP9, and parked validation out of scope until it accepts. |
 | 2026-08-27 | this session | Audit the existing full-only path/size/mtime global cache, repair the stale ROADMAP checkpoint, and define five finite SOP8 packages with explicit store/signature/integration/measurement/UI correctness and acceptance boundaries before implementation. | Implement only `SOP8a-versioned-bounded-cache-store`; keep later SOP8 packages, SOP9, unrelated campaigns, and parked release validation out of scope until its dependency accepts. |
 | 2026-08-27 | this session | Accept SOP7f and close SOP7 with a named verifier pinning every retained artifact/decision, unchanged SOP6 reader ceilings and production locks, strict focused Clippy, and clean full Debug/Release Rust and Windows matrices. | Advance only to defining finite SOP8 packages; do not start SOP8 implementation, SOP9 campaigns, or parked release validation. |
 | 2026-08-27 | this session | Correct SOP7d with separately versioned fixed-factor evidence, scope the sequential hint to rotational/unknown, and accept SOP7e with prefix reuse rejected after exact byte savings but SSD regression and incoherent HDD evidence. | Advance only to `SOP7f-read-path-acceptance`; keep SOP8+, unrelated campaigns, and parked release validation out of scope. |
