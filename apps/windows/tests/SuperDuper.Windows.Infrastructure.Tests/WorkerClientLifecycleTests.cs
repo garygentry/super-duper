@@ -145,6 +145,8 @@ public sealed class WorkerClientLifecycleTests
             var started = await client.StartRunAsync(session.Id);
             var terminalEvent = await terminal.Task.WaitAsync(TimeSpan.FromSeconds(30));
             var durable = await client.GetRunAsync(started.Id);
+            var performanceHistory = await client.GetPerformanceRunsAsync(pageSize: 25);
+            var performance = await client.GetPerformanceSnapshotAsync(productRunId: started.Id);
             var warnings = await client.GetRunWarningsAsync(
                 new RunWarningQuery(
                     started.Id,
@@ -463,6 +465,12 @@ public sealed class WorkerClientLifecycleTests
 
             Assert.AreEqual(1, sessions.Total);
             Assert.AreEqual("run.completed", terminalEvent);
+            Assert.IsTrue(performanceHistory.Runs.Count is > 0 and <= 25);
+            Assert.IsFalse(performanceHistory.ExecutorEnabled);
+            Assert.AreEqual(started.Id, performance.Run.ProductRunId);
+            Assert.IsTrue(performance.Phases.Count <= 6);
+            Assert.IsTrue(performance.Devices.Count <= 64);
+            Assert.IsFalse(performance.ExecutorEnabled);
             Assert.AreEqual(0, acrossDriveGroups.Total);
             Assert.AreEqual(0, threeCopyGroups.Total);
             Assert.AreEqual(0, threeCopyRootFacets.Total);

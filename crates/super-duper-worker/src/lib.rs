@@ -41,7 +41,9 @@ use super_duper_core::storage::recycle_operation::RecycleOperationError;
 use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::root_reconciliation::ReviewLiveRootError;
 use super_duper_core::storage::Database;
-use super_duper_core::telemetry::{ProgressObservation, ProgressReducer, TelemetryPhase};
+use super_duper_core::telemetry::{
+    ProgressObservation, ProgressReducer, StatusDatabase, TelemetryPhase,
+};
 use super_duper_core::{AppConfig, ScanEngine};
 
 mod progress_projection;
@@ -62,6 +64,7 @@ const MAXIMUM_CURSOR_CHARACTERS: usize = MAXIMUM_FRAME_BYTES / 2;
 const MAXIMUM_OPERATION_ID_CHARACTERS: usize = 128;
 const EVENT_INTERVAL: Duration = Duration::from_millis(100);
 const DATABASE_PROGRESS_INTERVAL: Duration = Duration::from_millis(500);
+const PERFORMANCE_HISTORY_PAGE_SIZE: i64 = 25;
 
 #[derive(Debug)]
 pub enum WorkerError {
@@ -264,6 +267,24 @@ struct WarningSortParameters {
     field: String,
     #[serde(default = "default_descending")]
     direction: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PerformanceRunPageParameters {
+    #[serde(default)]
+    before_id: Option<i64>,
+    #[serde(default = "default_performance_history_page_size")]
+    page_size: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PerformanceSnapshotParameters {
+    #[serde(default)]
+    status_run_id: Option<i64>,
+    #[serde(default)]
+    product_run_id: Option<i64>,
 }
 
 impl Default for WarningSortParameters {
@@ -1262,6 +1283,11 @@ impl SharedState {
             .map_err(internal_database_error)
     }
 
+    fn status_database(&self) -> Result<StatusDatabase, ProtocolFailure> {
+        StatusDatabase::open_reader(&self.status_database_path.to_string_lossy())
+            .map_err(|error| ProtocolFailure::new("database_error", error.to_string()))
+    }
+
     fn active_run_id(&self) -> Option<i64> {
         self.active
             .lock()
@@ -1488,6 +1514,8 @@ impl WorkerSession {
             "run.get" => self.run_get(request),
             "run_exclusion.page" => self.run_exclusion_page(request),
             "warning.page" => self.warning_page(request),
+            "performance.run.page" => self.performance_run_page(request),
+            "performance.snapshot.get" => self.performance_snapshot_get(request),
             "run.start" => self.run_start(request),
             "run.cancel" => self.run_cancel(request),
             "review_plan.get" => self.review_plan_get(request),
@@ -1786,6 +1814,72 @@ impl WorkerSession {
             "runStatus": snapshot.run_status,
             "diagnosticLog": diagnostic_log_metadata(self.state.diagnostic_log_path.as_deref()),
             "nextCursor": next_cursor,
+            "executorEnabled": false,
+        }))
+    }
+
+    fn performance_run_page(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
+        let parameters: PerformanceRunPageParameters = parse_parameters(request)?;
+        if !(1..=PERFORMANCE_HISTORY_PAGE_SIZE).contains(&parameters.page_size)
+            || parameters.before_id.is_some_and(|id| id <= 0)
+        {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "performance.run.page requires pageSize between 1 and 25 and a positive beforeId",
+            ));
+        }
+        let database = self.state.status_database()?;
+        let runs = database
+            .list_runs(parameters.before_id, parameters.page_size as usize)
+            .map_err(|error| ProtocolFailure::new("database_error", error.to_string()))?;
+        let next_before_id = (runs.len() == parameters.page_size as usize)
+            .then(|| runs.last().map(|run| run.id))
+            .flatten();
+        Ok(json!({
+            "runs": runs,
+            "nextBeforeId": next_before_id,
+            "executorEnabled": false,
+        }))
+    }
+
+    fn performance_snapshot_get(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<Value, ProtocolFailure> {
+        let parameters: PerformanceSnapshotParameters = parse_parameters(request)?;
+        if parameters.status_run_id.is_some() == parameters.product_run_id.is_some()
+            || parameters.status_run_id.is_some_and(|id| id <= 0)
+            || parameters.product_run_id.is_some_and(|id| id <= 0)
+        {
+            return Err(ProtocolFailure::new(
+                "invalid_request",
+                "performance.snapshot.get requires exactly one positive statusRunId or productRunId",
+            ));
+        }
+        let database = self.state.status_database()?;
+        let run = match parameters.status_run_id {
+            Some(id) => database.get_run(id),
+            None => database.get_run_by_product_run_id(parameters.product_run_id.unwrap()),
+        }
+        .map_err(|error| ProtocolFailure::new("database_error", error.to_string()))?;
+        let counters = database
+            .get_run_counters(run.id)
+            .map_err(|error| ProtocolFailure::new("database_error", error.to_string()))?;
+        let phases = database
+            .get_run_phases(run.id)
+            .map_err(|error| ProtocolFailure::new("database_error", error.to_string()))?;
+        let host = database
+            .get_host_performance_summary(run.id)
+            .map_err(|error| ProtocolFailure::new("database_error", error.to_string()))?;
+        let devices = database
+            .get_device_performance_summaries(run.id)
+            .map_err(|error| ProtocolFailure::new("database_error", error.to_string()))?;
+        Ok(json!({
+            "run": run,
+            "counters": counters,
+            "phases": phases,
+            "host": host,
+            "devices": devices,
             "executorEnabled": false,
         }))
     }
@@ -7179,6 +7273,10 @@ fn default_result_page_size() -> i64 {
     DEFAULT_RESULT_PAGE_SIZE
 }
 
+fn default_performance_history_page_size() -> i64 {
+    PERFORMANCE_HISTORY_PAGE_SIZE
+}
+
 fn default_group_sort_field() -> String {
     "recoverableBytes".to_owned()
 }
@@ -7237,7 +7335,10 @@ mod tests {
     use super_duper_core::hasher::xxhash::hash_file_streaming;
     use super_duper_core::platform;
     use super_duper_core::storage::models::ScannedFile;
-    use super_duper_core::telemetry::{METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION};
+    use super_duper_core::telemetry::{
+        StatusRunStart, StatusRunTerminal, TelemetryRunState, METRICS_CONTRACT_VERSION,
+        PROGRESS_CONTRACT_VERSION,
+    };
     use tempfile::TempDir;
 
     const HELLO: &str = r#"{"type":"request","id":"hello-1","method":"hello","params":{"protocolVersions":[1],"client":{"name":"protocol-test","version":"1.0.0"}}}"#;
@@ -7256,6 +7357,99 @@ mod tests {
             overridden.status_database_path,
             PathBuf::from("diagnostics/custom-status.db")
         );
+    }
+
+    #[test]
+    fn performance_queries_are_bounded_persisted_and_execution_disabled() {
+        let temp = TempDir::new().unwrap();
+        let product_path = temp.path().join("worker.db");
+        let status_path = temp.path().join("status.db");
+        let mut status = StatusDatabase::open_connection(status_path.to_str().unwrap()).unwrap();
+        for product_run_id in 1..=26 {
+            let (run, _) = status
+                .begin_run(&StatusRunStart {
+                    operation_id: format!("performance-{product_run_id}"),
+                    product_run_id: Some(product_run_id),
+                    engine_version: "engine-test".to_owned(),
+                    worker_version: Some("worker-test".to_owned()),
+                    app_version: Some("app-test".to_owned()),
+                    product_schema_version: Some(14),
+                    input_signature: "same-input".to_owned(),
+                    started_unix_millis: 1_700_000_000_000 + product_run_id,
+                })
+                .unwrap();
+            status
+                .finish_run(
+                    run.id,
+                    &StatusRunTerminal {
+                        state: TelemetryRunState::Completed,
+                        completed_unix_millis: 1_700_000_001_000 + product_run_id,
+                        monotonic_nanos: 1_000_000_000,
+                        error_code: None,
+                        error_message: None,
+                    },
+                )
+                .unwrap();
+        }
+        drop(status);
+
+        let options = WorkerOptions::new(product_path).with_status_database_path(status_path);
+        let (sender, _receiver) = mpsc::channel();
+        let state = SharedState::new(options.clone(), sender).unwrap();
+        let mut session = WorkerSession::new(state);
+        session.handle_line(HELLO).unwrap();
+        let history: Value = serde_json::from_str(
+            &session
+                .handle_line(
+                    &json!({
+                        "type":"request", "id":"history", "method":"performance.run.page",
+                        "params":{"pageSize":25}
+                    })
+                    .to_string(),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(history["result"]["runs"].as_array().unwrap().len(), 25);
+        assert_eq!(history["result"]["runs"][0]["productRunId"], 26);
+        assert!(history["result"]["nextBeforeId"].as_i64().is_some());
+        assert_eq!(history["result"]["executorEnabled"], false);
+
+        let snapshot: Value = serde_json::from_str(
+            &session
+                .handle_line(
+                    &json!({
+                        "type":"request", "id":"snapshot", "method":"performance.snapshot.get",
+                        "params":{"productRunId":26}
+                    })
+                    .to_string(),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(snapshot["result"]["run"]["productRunId"], 26);
+        assert_eq!(snapshot["result"]["phases"].as_array().unwrap().len(), 0);
+        assert_eq!(snapshot["result"]["devices"].as_array().unwrap().len(), 0);
+        assert_eq!(snapshot["result"]["executorEnabled"], false);
+        drop(session);
+
+        let (sender, _receiver) = mpsc::channel();
+        let state = SharedState::new(options, sender).unwrap();
+        let mut restarted = WorkerSession::new(state);
+        restarted.handle_line(HELLO).unwrap();
+        let restored: Value = serde_json::from_str(
+            &restarted
+                .handle_line(
+                    &json!({
+                        "type":"request", "id":"restored", "method":"performance.snapshot.get",
+                        "params":{"productRunId":26}
+                    })
+                    .to_string(),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(restored["result"]["run"]["state"], "completed");
     }
 
     fn execute(temp: &TempDir, requests: &[String]) -> Vec<Value> {

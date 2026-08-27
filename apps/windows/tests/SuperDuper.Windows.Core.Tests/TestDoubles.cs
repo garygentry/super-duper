@@ -203,6 +203,24 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
         GetRunHandler?.Invoke(runId, cancellationToken)
         ?? Task.FromResult(Runs.Single(run => run.Id == runId));
 
+    public Func<long?, int, CancellationToken, Task<WorkerPerformanceRunPage>>? PerformanceRunsHandler { get; set; }
+
+    public Task<WorkerPerformanceRunPage> GetPerformanceRunsAsync(
+        long? beforeId = null,
+        int pageSize = 25,
+        CancellationToken cancellationToken = default) =>
+        PerformanceRunsHandler?.Invoke(beforeId, pageSize, cancellationToken)
+        ?? Task.FromResult(new WorkerPerformanceRunPage([], null, false));
+
+    public Func<long?, long?, CancellationToken, Task<WorkerPerformanceSnapshot>>? PerformanceSnapshotHandler { get; set; }
+
+    public Task<WorkerPerformanceSnapshot> GetPerformanceSnapshotAsync(
+        long? statusRunId = null,
+        long? productRunId = null,
+        CancellationToken cancellationToken = default) =>
+        PerformanceSnapshotHandler?.Invoke(statusRunId, productRunId, cancellationToken)
+        ?? Task.FromException<WorkerPerformanceSnapshot>(new InvalidOperationException("No performance snapshot configured."));
+
     public Task<WorkerRunExclusionPage> GetRunExclusionsAsync(
         long runId,
         long offset = 0,

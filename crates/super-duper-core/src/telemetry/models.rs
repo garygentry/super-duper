@@ -591,7 +591,8 @@ pub enum WriteDisposition {
     Replayed,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StatusPhaseSummary {
     pub phase: TelemetryPhase,
     pub state: TelemetryPhaseState,
@@ -600,11 +601,36 @@ pub struct StatusPhaseSummary {
     pub active_nanos: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StatusCounterSummary {
     pub metric: String,
     pub value: u64,
     pub updated_sequence: u64,
+}
+
+/// Fixed-size host gauges for one run. Raw samples remain worker-owned.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostPerformanceSummary {
+    pub latest: Option<HostSample>,
+    pub peak_process_private_bytes: Option<u64>,
+    pub peak_process_working_set_bytes: Option<u64>,
+    pub peak_system_cpu_basis_points: Option<u32>,
+    pub minimum_system_available_memory_bytes: Option<u64>,
+}
+
+/// Fixed-size current and peak gauges for one run-scoped device descriptor.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DevicePerformanceSummary {
+    pub descriptor: DeviceDescriptor,
+    pub latest: Option<DeviceSample>,
+    pub peak_read_bytes_per_second: Option<u64>,
+    pub peak_read_iops_millis: Option<u64>,
+    pub peak_average_read_latency_micros: Option<u64>,
+    pub peak_active_millis_per_second: Option<u32>,
+    pub peak_queue_depth_millis: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

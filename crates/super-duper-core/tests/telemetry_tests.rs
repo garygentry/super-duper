@@ -544,7 +544,15 @@ fn status_queries_use_stable_bounded_cursors_and_fixed_summaries() {
             .begin_run(&run_start(&format!("query-run-{index}")))
             .unwrap();
         database.flush(run.id, &flush(1, index * 10)).unwrap();
-        database.flush(run.id, &flush(2, index * 10 + 1)).unwrap();
+        let mut second = flush(2, index * 10 + 1);
+        if index == 3 {
+            second
+                .host_sample
+                .as_mut()
+                .unwrap()
+                .process_peak_working_set_bytes = Some(9_000);
+        }
+        database.flush(run.id, &second).unwrap();
         database
             .finish_run(
                 run.id,
@@ -585,6 +593,25 @@ fn status_queries_use_stable_bounded_cursors_and_fixed_summaries() {
     let devices = database.get_run_devices(run_ids[2]).unwrap();
     assert_eq!(devices.len(), 1);
     assert_eq!(devices[0].device_key, "physical:0");
+    assert_eq!(
+        database.get_run_by_product_run_id(42).unwrap().id,
+        run_ids[2]
+    );
+    let host_summary = database.get_host_performance_summary(run_ids[2]).unwrap();
+    assert_eq!(host_summary.latest.as_ref().unwrap().sequence, 2);
+    assert_eq!(host_summary.peak_process_private_bytes, None);
+    assert_eq!(host_summary.peak_process_working_set_bytes, Some(9_000));
+    assert_eq!(host_summary.peak_system_cpu_basis_points, None);
+    let device_summaries = database
+        .get_device_performance_summaries(run_ids[2])
+        .unwrap();
+    assert_eq!(device_summaries.len(), 1);
+    assert_eq!(device_summaries[0].latest.as_ref().unwrap().sequence, 2);
+    assert_eq!(
+        device_summaries[0].peak_read_bytes_per_second,
+        Some(25_000_000)
+    );
+    assert_eq!(device_summaries[0].peak_read_iops_millis, None);
 
     let host_first = database.list_host_samples(run_ids[2], 0, 1).unwrap();
     assert_eq!(host_first[0].sequence, 1);

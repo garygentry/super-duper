@@ -18,13 +18,13 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept `SOP3d-accessible-warning-entry-and-acceptance` with a count-aware
-  Alt+W Progress entry into the bounded History drilldown and separate diagnostic-log disclosure
+- Latest completed slice: accept `SOP4-performance-tab` with query-only fixed summaries and a
+  bounded accessible live/history Performance surface
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
-- Current gate: `SOP4-performance-tab`
-- Next boundary: implement only `SOP4-performance-tab`
+- Current gate: `SOP5-skip-singleton-size-buckets`
+- Next boundary: implement only `SOP5-skip-singleton-size-buckets`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -58,8 +58,8 @@ complete inside its bound; its empty-aggregate defect prevented native invalid-e
 serialization. The recovered write-once incident retains zero completed/measured arms, null
 aggregates, cleanup facts, and an unevaluated strict <1% wall/CPU gate. That gate did not pass. Do
 not run v1/v2 or design SOP2f-v3. The unresolved representative-overhead risk is assigned to SOP9,
-where it may be observed during useful real-drive acceptance work. SOP3 is now accepted; the next
-dependency boundary is SOP4.
+where it may be observed during useful real-drive acceptance work. SOP3 and SOP4 are now accepted;
+the next dependency boundary is SOP5.
 
 `SOP3a-live-warning-accounting` is accepted as the first of four finite SOP3 packages. The audit
 found that schema-v14 completed-run aggregates/examples, worker paging, the five-page Core cache,
@@ -100,6 +100,17 @@ supplemental metadata, separate from the shell recovery log, and explicitly says
 durable warning truth. Loaded-STA evidence covers keyboard reachability, stable automation IDs and
 names, focus, the 25-row UI bound, and latest-only `MostRecent` announcements. No Rust, worker,
 schema, SOP4, campaign, or parked-stream work changed.
+
+`SOP4-performance-tab` is accepted as three finite coherent packages. The worker exposes only a
+25-run newest-first page and one fixed snapshot from a query-only status-database connection; SQL
+owns latest/peak reduction, and raw host/device samples never cross the process boundary. Core hard-
+caps 25 history, six phase, and 64 device rows, refreshes live from accepted progress/lifecycle,
+preserves explicit unavailable values, and labels device/volume, input-signature, or software-build
+differences before showing a selected retained comparison. The virtualized WPF tab uses native
+keyboard controls, stable automation, system brushes, latest-only announcements, and preserves
+operator focus during live updates. Restart reconstruction and representative 25/64-row history
+are deterministic. Production execution remains disabled. No schema migration, SOP5+, physical or
+representative campaign, or parked-stream work ran.
 
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
@@ -264,9 +275,9 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance only to `SOP4-performance-tab`. Start from the accepted telemetry, progress, and warning
-contracts and keep its live/history collections bounded. Do not begin SOP5 or later optimization
-gates, another representative campaign, or any parked release-validation work.
+Advance only to `SOP5-skip-singleton-size-buckets`. Start from the accepted telemetry, progress,
+warning, and Performance contracts. Do not begin SOP6 or later optimization gates, another
+representative/physical campaign, or any parked release-validation work.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -335,7 +346,7 @@ before committing the next slice.
 These remain open unless a later committed slice cites qualifying evidence or an explicit reviewed
 decision:
 
-- `SOP3` through `SOP9` in `docs/scan-optimization-plan.md`; SOP9 also owns the unresolved SOP2
+- `SOP5` through `SOP9` in `docs/scan-optimization-plan.md`; SOP9 also owns the unresolved SOP2
   representative-overhead risk because the strict <1% wall/CPU gate was waived unmeasured
 - Physical Narrator and NVDA acceptance
 - Windows high-contrast acceptance
@@ -353,6 +364,20 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Accepted `SOP4-performance-tab` passes `Verify-WindowsPerformanceTab.ps1`: focused status-store,
+worker restart/protocol, Core, typed real-worker client, and loaded-STA tests prove query-only fixed
+summaries, 25/6/64 collection bounds, live/lifecycle refresh, explicit unavailable values, device/
+input/build comparison labels, restart continuity, representative history, keyboard focus, stable
+automation, system brushes, and `MostRecent` announcements. Full Debug and Release Rust matrices
+each pass 181 tests with the same 5 operator profiles ignored. Full Debug and Release Windows
+matrices each pass 145 Core, 74 Infrastructure, and 3 loaded-STA smoke tests with the same 5
+operator-only Infrastructure tests skipped. XAML/PowerShell parsing, production-lock checks, and
+`git diff --check` pass. The Rust matrix was run serially after the unchanged 120 ms heartbeat test
+showed its known scheduler sensitivity under the initial parallel run; its four-sample threshold
+and production cadence were not changed. No representative/physical campaign, SOP5+, or parked-
+stream work ran. SOP2 remains `accepted_with_operator_waiver`; its strict <1% representative gate
+remains unevaluated, not passed.
 
 Accepted `SOP3d-accessible-warning-entry-and-acceptance` passes the named
 `Verify-WindowsAccessibleWarningEntry.ps1` verifier: 7 focused Core tests and 1 loaded-STA WPF test.
@@ -627,6 +652,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-26 | this session | Accept `SOP4-performance-tab`: add query-only 25-run and fixed one-run summaries, bounded live Core projection and device/input/build-qualified comparison, and a virtualized keyboard/automation/system-brush Performance tab with explicit unavailable, focus, restart, representative-history, and latest-only announcement evidence. | Implement only `SOP5-skip-singleton-size-buckets`; keep SOP6+, representative/physical campaigns, and parked release validation out of scope. |
 | 2026-08-26 | this session | Accept `SOP3d-accessible-warning-entry-and-acceptance` and close SOP3: add one count-aware Alt+W Progress entry into the existing 25-row/five-page History drilldown, preserve warning-grid focus and terminal/restart truth, disclose page-owned diagnostic application-log metadata separately from durable warnings, and retain system-brush/stable-automation/latest-only announcement behavior. | Implement only `SOP4-performance-tab`; keep SOP5+, representative/physical campaigns, and parked release validation out of scope. |
 | 2026-08-26 | this session | Accept `SOP3c-bounded-current-warning-view-model`: project the complete durable warning snapshot in one reusable Core active/completed drilldown with generation cancellation, revision-aware five-page caching, 25-row binding, exact accounted/live status, restart reconstruction, and an immutable one-way terminal latch; delegate completed Run history paging without a WPF change. | Implement only `SOP3d-accessible-warning-entry-and-acceptance`; keep SOP4, later optimization, campaigns, and parked release validation out of scope. |
 | 2026-08-26 | this session | Accept `SOP3b-active-warning-page-snapshot`: add schema-v15 durable warning revisions, one-snapshot page truth, revision/status-bound cursors, active-mutation and terminal-handoff stale rejection, restart reconstruction, and separate client-configured diagnostic-log metadata. | Implement only `SOP3c-bounded-current-warning-view-model`; keep the WPF/Progress entry, SOP4, later optimization, campaigns, and parked stream out of scope. |

@@ -83,6 +83,9 @@
                         <TabItem AutomationProperties.AutomationId="PreflightTab" Header="Preflight">
                             <views:PreflightView DataContext="{Binding Preflight}" />
                         </TabItem>
+                        <TabItem AutomationProperties.AutomationId="PerformanceTab" Header="_Performance">
+                            <views:PerformanceView x:Name="PerformanceWorkspace" DataContext="{Binding Performance}" />
+                        </TabItem>
                     </TabControl>
 
                     <Border Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"

@@ -2,16 +2,17 @@ use std::collections::{HashMap, HashSet};
 
 use chrono::Utc;
 use rusqlite::{
-    params, params_from_iter, types::Value, Connection, Error as SqlError, OptionalExtension,
-    TransactionBehavior,
+    params, params_from_iter, types::Value, Connection, Error as SqlError, OpenFlags,
+    OptionalExtension, TransactionBehavior,
 };
 use thiserror::Error;
 
 use super::models::{
-    CounterKind, DeviceDescriptor, DeviceSample, HostSample, MetricInvariantError,
-    StatusCounterSummary, StatusPhaseSummary, StatusRetentionPolicy, StatusRetentionResult,
-    StatusRunRecord, StatusRunStart, StatusRunTerminal, TelemetryFlush, TelemetryPhase,
-    TelemetryPhaseState, TelemetryRunState, WriteDisposition, METRICS_CONTRACT_VERSION,
+    CounterKind, DeviceDescriptor, DevicePerformanceSummary, DeviceSample, HostPerformanceSummary,
+    HostSample, MetricInvariantError, StatusCounterSummary, StatusPhaseSummary,
+    StatusRetentionPolicy, StatusRetentionResult, StatusRunRecord, StatusRunStart,
+    StatusRunTerminal, TelemetryFlush, TelemetryPhase, TelemetryPhaseState, TelemetryRunState,
+    WriteDisposition, METRICS_CONTRACT_VERSION,
 };
 
 pub const CURRENT_STATUS_SCHEMA_VERSION: i64 = 2;
@@ -74,6 +75,28 @@ impl StatusDatabase {
         };
         database.configure_pragmas()?;
         database.migrate_schema()?;
+        Ok(database)
+    }
+
+    /// Opens a query-only secondary connection to an already initialized status database.
+    pub fn open_reader(path: &str) -> Result<Self, StatusStoreError> {
+        let database = Self {
+            conn: Connection::open_with_flags(
+                path,
+                OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+            )?,
+        };
+        database.conn.execute_batch(
+            "PRAGMA query_only = ON;
+             PRAGMA foreign_keys = ON;
+             PRAGMA busy_timeout = 5000;",
+        )?;
+        let version = database.schema_version()?;
+        if version != CURRENT_STATUS_SCHEMA_VERSION {
+            return Err(StatusStoreError::InvalidInput(format!(
+                "status database schema version {version} is not readable by version {CURRENT_STATUS_SCHEMA_VERSION}"
+            )));
+        }
         Ok(database)
     }
 
@@ -451,6 +474,29 @@ impl StatusDatabase {
         run_by_id(&self.conn, run_id)?.ok_or(StatusStoreError::RunNotFound(run_id))
     }
 
+    pub fn get_run_by_product_run_id(
+        &self,
+        product_run_id: i64,
+    ) -> Result<StatusRunRecord, StatusStoreError> {
+        if product_run_id <= 0 {
+            return Err(StatusStoreError::InvalidInput(
+                "product run ID must be positive".to_owned(),
+            ));
+        }
+        self.conn
+            .query_row(
+                "SELECT id, operation_id, product_run_id, metrics_contract_version, engine_version,
+                        worker_version, app_version, product_schema_version, input_signature, state,
+                        started_unix_millis, completed_unix_millis, last_monotonic_nanos,
+                        last_sequence, error_code, error_message
+                 FROM status_run WHERE product_run_id = ?1 ORDER BY id DESC LIMIT 1",
+                [product_run_id],
+                status_run_from_row,
+            )
+            .optional()?
+            .ok_or(StatusStoreError::RunNotFound(product_run_id))
+    }
+
     /// List newest status runs using a strict, stable `id < before_id` cursor.
     pub fn list_runs(
         &self,
@@ -530,6 +576,121 @@ impl StatusDatabase {
                 bus_type: row.get(5)?,
                 media_type: row.get(6)?,
                 model: row.get(7)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    pub fn get_host_performance_summary(
+        &self,
+        run_id: i64,
+    ) -> Result<HostPerformanceSummary, StatusStoreError> {
+        self.ensure_run_exists(run_id)?;
+        let latest = self
+            .conn
+            .query_row(
+                "SELECT sequence, observed_unix_millis, monotonic_nanos, phase,
+                        process_cpu_nanos, process_private_bytes, process_working_set_bytes,
+                        process_peak_working_set_bytes, process_read_operations, process_read_bytes,
+                        process_write_operations, process_write_bytes, system_cpu_basis_points,
+                        system_available_memory_bytes, system_committed_memory_bytes,
+                        unavailable_counter_count
+                 FROM status_host_sample WHERE run_id = ?1 ORDER BY sequence DESC LIMIT 1",
+                [run_id],
+                host_sample_from_row,
+            )
+            .optional()?;
+        let peaks = self.conn.query_row(
+            "SELECT MAX(process_private_bytes),
+                    MAX(COALESCE(process_peak_working_set_bytes, process_working_set_bytes)),
+                    MAX(system_cpu_basis_points), MIN(system_available_memory_bytes)
+             FROM status_host_sample WHERE run_id = ?1",
+            [run_id],
+            |row| {
+                Ok((
+                    optional_sql_u64_from_row(row, 0)?,
+                    optional_sql_u64_from_row(row, 1)?,
+                    row.get::<_, Option<u32>>(2)?,
+                    optional_sql_u64_from_row(row, 3)?,
+                ))
+            },
+        )?;
+        Ok(HostPerformanceSummary {
+            latest,
+            peak_process_private_bytes: peaks.0,
+            peak_process_working_set_bytes: peaks.1,
+            peak_system_cpu_basis_points: peaks.2,
+            minimum_system_available_memory_bytes: peaks.3,
+        })
+    }
+
+    pub fn get_device_performance_summaries(
+        &self,
+        run_id: i64,
+    ) -> Result<Vec<DevicePerformanceSummary>, StatusStoreError> {
+        self.ensure_run_exists(run_id)?;
+        let mut statement = self.conn.prepare(
+            "WITH latest_sequence AS (
+                 SELECT device_key, MAX(sequence) AS sequence
+                 FROM status_device_sample WHERE run_id = ?1 GROUP BY device_key
+             ), peaks AS (
+                 SELECT device_key, MAX(read_bytes_per_second) AS peak_read_bytes_per_second,
+                        MAX(read_iops_millis) AS peak_read_iops_millis,
+                        MAX(average_read_latency_micros) AS peak_average_read_latency_micros,
+                        MAX(active_millis_per_second) AS peak_active_millis_per_second,
+                        MAX(queue_depth_millis) AS peak_queue_depth_millis
+                 FROM status_device_sample WHERE run_id = ?1 GROUP BY device_key
+             )
+             SELECT d.device_key, d.volume_key, d.filesystem, d.capacity_bytes,
+                    d.free_bytes_at_start, d.bus_type, d.media_type, d.model,
+                    sample.sequence, sample.read_bytes_per_second, sample.read_iops_millis,
+                    sample.average_read_latency_micros, sample.active_millis_per_second,
+                    sample.queue_depth_millis, sample.unavailable_counter_count,
+                    peaks.peak_read_bytes_per_second, peaks.peak_read_iops_millis,
+                    peaks.peak_average_read_latency_micros, peaks.peak_active_millis_per_second,
+                    peaks.peak_queue_depth_millis
+             FROM status_device d
+             LEFT JOIN latest_sequence latest ON latest.device_key = d.device_key
+             LEFT JOIN status_device_sample sample
+                ON sample.run_id = d.run_id AND sample.device_key = d.device_key
+               AND sample.sequence = latest.sequence
+             LEFT JOIN peaks ON peaks.device_key = d.device_key
+             WHERE d.run_id = ?1 ORDER BY d.device_key, d.volume_key",
+        )?;
+        let rows = statement.query_map([run_id], |row| {
+            let device_key: String = row.get(0)?;
+            let latest_sequence = optional_sql_u64_from_row(row, 8)?;
+            let latest = if let Some(sequence) = latest_sequence {
+                Some(DeviceSample {
+                    sequence,
+                    device_key: device_key.clone(),
+                    read_bytes_per_second: optional_sql_u64_from_row(row, 9)?,
+                    read_iops_millis: optional_sql_u64_from_row(row, 10)?,
+                    average_read_latency_micros: optional_sql_u64_from_row(row, 11)?,
+                    active_millis_per_second: row.get(12)?,
+                    queue_depth_millis: optional_sql_u64_from_row(row, 13)?,
+                    unavailable_counter_count: row.get(14)?,
+                })
+            } else {
+                None
+            };
+            Ok(DevicePerformanceSummary {
+                descriptor: DeviceDescriptor {
+                    device_key: device_key.clone(),
+                    volume_key: row.get(1)?,
+                    filesystem: row.get(2)?,
+                    capacity_bytes: optional_sql_u64_from_row(row, 3)?,
+                    free_bytes_at_start: optional_sql_u64_from_row(row, 4)?,
+                    bus_type: row.get(5)?,
+                    media_type: row.get(6)?,
+                    model: row.get(7)?,
+                },
+                latest,
+                peak_read_bytes_per_second: optional_sql_u64_from_row(row, 15)?,
+                peak_read_iops_millis: optional_sql_u64_from_row(row, 16)?,
+                peak_average_read_latency_micros: optional_sql_u64_from_row(row, 17)?,
+                peak_active_millis_per_second: row.get(18)?,
+                peak_queue_depth_millis: optional_sql_u64_from_row(row, 19)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)

@@ -52,6 +52,16 @@ public interface IWorkerClient : IAsyncDisposable
 
     Task<WorkerRun> GetRunAsync(long runId, CancellationToken cancellationToken = default);
 
+    Task<WorkerPerformanceRunPage> GetPerformanceRunsAsync(
+        long? beforeId = null,
+        int pageSize = 25,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkerPerformanceSnapshot> GetPerformanceSnapshotAsync(
+        long? statusRunId = null,
+        long? productRunId = null,
+        CancellationToken cancellationToken = default);
+
     Task<WorkerRunExclusionPage> GetRunExclusionsAsync(
         long runId,
         long offset = 0,

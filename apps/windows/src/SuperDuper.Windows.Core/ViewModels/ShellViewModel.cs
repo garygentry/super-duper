@@ -67,6 +67,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             runId => _progressGate.MarkCancelling(runId),
             OpenProgressWarningsAsync);
         History = new RunHistoryViewModel(workerClient, NavigateToWarningDuplicateSetAsync);
+        Performance = new PerformanceViewModel(workerClient);
         DuplicateFiles = new DuplicateFilesViewModel(workerClient, clipboard, explorer);
         DuplicateFolders = new DuplicateFoldersViewModel(workerClient, clipboard, explorer);
         Preflight = new PreflightViewModel(
@@ -108,6 +109,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     public ScanProgressViewModel Progress { get; }
 
     public RunHistoryViewModel History { get; }
+
+    public PerformanceViewModel Performance { get; }
 
     public DuplicateFilesViewModel DuplicateFiles { get; }
 
@@ -390,6 +393,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         Progress.Dispose();
         _progressGate.Dispose();
         History.Dispose();
+        Performance.Dispose();
         DuplicateFiles.Dispose();
         DuplicateFolders.Dispose();
         Preflight.Dispose();
@@ -416,6 +420,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         Setup.BeginNew();
         History.Clear();
         Progress.ShowRun(null);
+        _ = Performance.ShowRunAsync(null);
         _ = DuplicateFiles.ShowRunAsync(null);
         _ = DuplicateFolders.ShowRunAsync(null);
         _ = Preflight.ShowRunAsync(null);
@@ -500,6 +505,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             var latest = History.Runs.FirstOrDefault()?.Run;
             selected.StatusText = latest is null ? "No scans yet" : DisplayFormatting.Status(latest.Status);
             Progress.ShowRun(History.SelectedRun?.Run);
+            await Performance.ShowRunAsync(History.SelectedRun?.Run, token);
             await DuplicateFiles.ShowRunAsync(History.SelectedRun?.Run, token);
             await DuplicateFolders.ShowRunAsync(History.SelectedRun?.Run, token);
             await Preflight.ShowRunAsync(History.SelectedRun?.Run, token);
@@ -543,6 +549,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             SetActiveRun(run);
             History.Upsert(run, select: true);
             Progress.ShowRun(run);
+            _ = Performance.ShowRunAsync(run);
             SelectedTabIndex = 1;
             StatusTitle = $"Scanning {session.Name}";
             StatusDetail = "The scan is running in the Rust worker.";
@@ -652,6 +659,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     {
         _reviewLiveStateWorkerClient?.ObserveReviewLiveState(run);
         Progress.ShowRun(run);
+        _ = Performance.ShowRunAsync(run);
         _ = DuplicateFiles.ShowRunAsync(run);
         _ = DuplicateFolders.ShowRunAsync(run);
         _ = Preflight.ShowRunAsync(run);
@@ -762,6 +770,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         {
             return;
         }
+        Performance.ObserveProgress(progress.RunId, progress.Sequence);
         if (progress.RunId == ActiveRunId)
         {
             StatusTitle = DisplayFormatting.Phase(progress.Phase);
@@ -780,6 +789,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             ObserveProgressLifecycle(run);
         }
         History.Upsert(run, select: run.Id == ActiveRunId || run.Status == "running");
+        Performance.ObserveLifecycle(run);
         Progress.ApplyLifecycle(run);
         DuplicateFiles.ApplyLifecycle(run);
         DuplicateFolders.ApplyLifecycle(run);
@@ -882,6 +892,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         DisplaySessionName = "Sessions";
         History.Clear();
         Progress.ShowRun(null);
+        _ = Performance.ShowRunAsync(null);
         _ = DuplicateFiles.ShowRunAsync(null);
         _ = DuplicateFolders.ShowRunAsync(null);
         _ = Preflight.ShowRunAsync(null);
@@ -894,6 +905,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         {
             await History.LoadAsync(sessionId);
             Progress.ShowRun(History.SelectedRun?.Run);
+            await Performance.ShowRunAsync(History.SelectedRun?.Run);
             await DuplicateFiles.ShowRunAsync(History.SelectedRun?.Run);
             await DuplicateFolders.ShowRunAsync(History.SelectedRun?.Run);
             await Preflight.ShowRunAsync(History.SelectedRun?.Run);

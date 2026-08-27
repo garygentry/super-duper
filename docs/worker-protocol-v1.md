@@ -26,6 +26,10 @@ The third slice adds separately persisted named ordered-preferred-scan-root conf
 read-only virtual preview. Preview never writes a review decision, validates a live path, or exposes
 deletion.
 
+The scan-optimization SOP4 addition exposes query-only bounded performance history and fixed
+current/peak summaries from the separate worker-owned status database. It never returns raw host or
+device samples and never changes the production execution lock.
+
 The transport is UTF-8 newline-delimited JSON (JSONL) over redirected standard input and standard
 output. It is a local process boundary, not a network API.
 
@@ -376,6 +380,47 @@ and requires the same completed run/session. A missing target produces actionabl
 cancellation or a changed run/page rejects the late resolution. This is client navigation only:
 `warning.page` remains read-only, the aggregate remains immutable, and no other warning code infers
 a target from message text, examples, or paths.
+
+## Performance Status Commands
+
+These commands open a query-only secondary connection to the separate status database. They do not
+read the filesystem, change scan/product state, reconcile a running status record, or return raw
+time-series samples.
+
+### `performance.run.page`
+
+Params are optional positive `beforeId` and `pageSize` from 1 through 25 (default 25):
+
+```json
+{"type":"request","id":"ph1","method":"performance.run.page","params":{"pageSize":25}}
+```
+
+The result contains newest-first fixed run headers under `runs`, a strict `id < beforeId`
+`nextBeforeId` when a full page may have an older page, and `executorEnabled:false`. Each header
+includes status-run ID, optional product-run ID, metrics/engine/worker/app/product-schema versions,
+non-path input signature, lifecycle state/timestamps, last monotonic duration/sequence, and optional
+terminal error fields. The Windows surface binds only this one 25-row page.
+
+### `performance.snapshot.get`
+
+Exactly one positive `statusRunId` or `productRunId` is required:
+
+```json
+{"type":"request","id":"ps1","method":"performance.snapshot.get","params":{"productRunId":19}}
+```
+
+The result contains one `run` header, at most 43 fixed `counters`, at most six `phases`, one `host`
+summary, at most 64 `devices`, and `executorEnabled:false`. `host.latest` is the newest bounded gauge
+plus persisted peak process-memory/system-CPU and minimum-available-memory values. Every device row
+contains its run-scoped descriptor, optional newest gauge, and persisted peak read-throughput,
+IOPS, latency, active-time, and queue values. Missing providers remain JSON `null`; the client must
+label them unavailable rather than substituting zero. SQL computes current/peak summaries inside
+the worker-owned database, so no complete sample history crosses into Core or WPF.
+
+Comparison is client-side over two bounded snapshots. Device/volume identity, the non-path input
+signature, and every recorded software/schema version are compared exactly; a mismatch is disclosed
+and the values are not described as like-for-like. Both commands are additive protocol-v1 reads and
+retain the permanent disabled-executor response.
 
 ## Run Events and Ordering
 

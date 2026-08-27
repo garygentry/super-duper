@@ -4,10 +4,11 @@ mod sampler;
 mod status_db;
 
 pub use models::{
-    CounterKind, DeviceDescriptor, DeviceSample, HostSample, MetricInvariantError, ScanCounters,
-    StatusCounterSummary, StatusPhaseSummary, StatusRetentionPolicy, StatusRetentionResult,
-    StatusRunRecord, StatusRunStart, StatusRunTerminal, TelemetryFlush, TelemetryPhase,
-    TelemetryPhaseState, TelemetryRunState, WriteDisposition, METRICS_CONTRACT_VERSION,
+    CounterKind, DeviceDescriptor, DevicePerformanceSummary, DeviceSample, HostPerformanceSummary,
+    HostSample, MetricInvariantError, ScanCounters, StatusCounterSummary, StatusPhaseSummary,
+    StatusRetentionPolicy, StatusRetentionResult, StatusRunRecord, StatusRunStart,
+    StatusRunTerminal, TelemetryFlush, TelemetryPhase, TelemetryPhaseState, TelemetryRunState,
+    WriteDisposition, METRICS_CONTRACT_VERSION,
 };
 pub use progress::{
     ActiveDeviceProgress, ActiveDeviceUnavailableReason, CandidateFunnelProgress,

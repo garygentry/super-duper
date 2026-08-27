@@ -350,6 +350,24 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
             new { runId },
             cancellationToken).ConfigureAwait(false)).Run;
 
+    public Task<WorkerPerformanceRunPage> GetPerformanceRunsAsync(
+        long? beforeId = null,
+        int pageSize = 25,
+        CancellationToken cancellationToken = default) =>
+        InvokeAsync<WorkerPerformanceRunPage>(
+            "performance.run.page",
+            new { beforeId, pageSize },
+            cancellationToken);
+
+    public Task<WorkerPerformanceSnapshot> GetPerformanceSnapshotAsync(
+        long? statusRunId = null,
+        long? productRunId = null,
+        CancellationToken cancellationToken = default) =>
+        InvokeAsync<WorkerPerformanceSnapshot>(
+            "performance.snapshot.get",
+            new { statusRunId, productRunId },
+            cancellationToken);
+
     public Task<WorkerRunExclusionPage> GetRunExclusionsAsync(
         long runId,
         long offset = 0,

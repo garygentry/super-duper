@@ -64,6 +64,100 @@ public sealed record WorkerSessionPage(IReadOnlyList<WorkerSessionDefinition> Se
 
 public sealed record WorkerRunPage(IReadOnlyList<WorkerRun> Runs, long Total);
 
+public sealed record WorkerPerformanceRun(
+    long Id,
+    string OperationId,
+    long? ProductRunId,
+    uint MetricsContractVersion,
+    string EngineVersion,
+    string? WorkerVersion,
+    string? AppVersion,
+    long? ProductSchemaVersion,
+    string InputSignature,
+    string State,
+    long? StartedUnixMillis,
+    long? CompletedUnixMillis,
+    ulong LastMonotonicNanos,
+    ulong LastSequence,
+    string? ErrorCode,
+    string? ErrorMessage);
+
+public sealed record WorkerPerformanceRunPage(
+    IReadOnlyList<WorkerPerformanceRun> Runs,
+    long? NextBeforeId,
+    bool ExecutorEnabled);
+
+public sealed record WorkerPerformanceCounter(string Metric, ulong Value, ulong UpdatedSequence);
+
+public sealed record WorkerPerformancePhase(
+    string Phase,
+    string State,
+    ulong? StartedMonotonicNanos,
+    ulong? CompletedMonotonicNanos,
+    ulong ActiveNanos);
+
+public sealed record WorkerHostPerformanceSample(
+    ulong Sequence,
+    long ObservedUnixMillis,
+    ulong MonotonicNanos,
+    string? Phase,
+    ulong? ProcessCpuNanos,
+    ulong? ProcessPrivateBytes,
+    ulong? ProcessWorkingSetBytes,
+    ulong? ProcessPeakWorkingSetBytes,
+    ulong? ProcessReadOperations,
+    ulong? ProcessReadBytes,
+    ulong? ProcessWriteOperations,
+    ulong? ProcessWriteBytes,
+    uint? SystemCpuBasisPoints,
+    ulong? SystemAvailableMemoryBytes,
+    ulong? SystemCommittedMemoryBytes,
+    uint UnavailableCounterCount);
+
+public sealed record WorkerHostPerformanceSummary(
+    WorkerHostPerformanceSample? Latest,
+    ulong? PeakProcessPrivateBytes,
+    ulong? PeakProcessWorkingSetBytes,
+    uint? PeakSystemCpuBasisPoints,
+    ulong? MinimumSystemAvailableMemoryBytes);
+
+public sealed record WorkerDeviceDescriptor(
+    string DeviceKey,
+    string VolumeKey,
+    string? Filesystem,
+    ulong? CapacityBytes,
+    ulong? FreeBytesAtStart,
+    string? BusType,
+    string? MediaType,
+    string? Model);
+
+public sealed record WorkerDevicePerformanceSample(
+    ulong Sequence,
+    string DeviceKey,
+    ulong? ReadBytesPerSecond,
+    ulong? ReadIopsMillis,
+    ulong? AverageReadLatencyMicros,
+    uint? ActiveMillisPerSecond,
+    ulong? QueueDepthMillis,
+    uint UnavailableCounterCount);
+
+public sealed record WorkerDevicePerformanceSummary(
+    WorkerDeviceDescriptor Descriptor,
+    WorkerDevicePerformanceSample? Latest,
+    ulong? PeakReadBytesPerSecond,
+    ulong? PeakReadIopsMillis,
+    ulong? PeakAverageReadLatencyMicros,
+    uint? PeakActiveMillisPerSecond,
+    ulong? PeakQueueDepthMillis);
+
+public sealed record WorkerPerformanceSnapshot(
+    WorkerPerformanceRun Run,
+    IReadOnlyList<WorkerPerformanceCounter> Counters,
+    IReadOnlyList<WorkerPerformancePhase> Phases,
+    WorkerHostPerformanceSummary Host,
+    IReadOnlyList<WorkerDevicePerformanceSummary> Devices,
+    bool ExecutorEnabled);
+
 public sealed record WorkerRunExclusion(
     long Id,
     long RunId,

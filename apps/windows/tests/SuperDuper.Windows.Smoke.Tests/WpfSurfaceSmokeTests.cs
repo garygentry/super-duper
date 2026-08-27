@@ -64,6 +64,7 @@ public sealed class WpfSurfaceSmokeTests
             var history = new RunHistoryView();
             var preflight = new PreflightView();
             AssertScanProgressSurface();
+            AssertPerformanceSurface();
             AssertSurface(
                 files,
                 "FileSearch",
@@ -1221,6 +1222,51 @@ public sealed class WpfSurfaceSmokeTests
         }
     }
 
+    private static void AssertPerformanceSurface()
+    {
+        var data = new PerformanceSurfaceData();
+        var performance = new PerformanceView { DataContext = data };
+        var host = new Window { Width = 820, Height = 720, Content = performance };
+        host.Show();
+        host.Activate();
+        host.UpdateLayout();
+        DrainDispatcher();
+
+        var refresh = FindByAutomationId<Button>(performance, "RefreshPerformance");
+        var compare = FindByAutomationId<Button>(performance, "ComparePerformanceRun");
+        var phaseGrid = FindByAutomationId<DataGrid>(performance, "PerformancePhaseGrid");
+        var deviceGrid = FindByAutomationId<DataGrid>(performance, "PerformanceDeviceGrid");
+        var historyGrid = FindByAutomationId<DataGrid>(performance, "PerformanceHistoryGrid");
+        var status = FindByAutomationId<TextBlock>(performance, "PerformanceStatus");
+        var healthCard = FindByAutomationId<Border>(performance, "PerformanceHealthCard");
+
+        Assert.AreEqual("Alt+R", AutomationProperties.GetAccessKey(refresh));
+        Assert.AreEqual("Alt+C", AutomationProperties.GetAccessKey(compare));
+        Assert.AreEqual(SystemColors.ActiveBorderBrush, healthCard.BorderBrush);
+        Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(phaseGrid));
+        Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(deviceGrid));
+        Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(historyGrid));
+        Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(deviceGrid));
+        Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(historyGrid));
+        Assert.AreEqual(6, phaseGrid.Items.Count);
+        Assert.AreEqual(64, deviceGrid.Items.Count);
+        Assert.AreEqual(25, historyGrid.Items.Count);
+        Assert.AreEqual(
+            AutomationNotificationProcessing.MostRecent,
+            AutomationNotificationBehavior.GetNotificationProcessing(status));
+        Assert.AreEqual("PerformanceRefresh", AutomationNotificationBehavior.GetActivityId(status));
+        StringAssert.Contains(FindByAutomationId<TextBlock>(performance, "PerformanceUnavailableCounters").Text, "unavailable");
+
+        Assert.IsTrue(refresh.Focus());
+        Keyboard.Focus(refresh);
+        data.StatusMessage = "A coalesced live refresh completed.";
+        host.UpdateLayout();
+        DrainDispatcher();
+        Assert.IsTrue(refresh.IsKeyboardFocused, "A live refresh displaced the operator's keyboard focus.");
+
+        host.Close();
+    }
+
     private static void AssertFolderSurface(DuplicateFoldersView folders)
     {
         var search = FindByAutomationId<TextBox>(folders, "FolderSearch");
@@ -1438,6 +1484,68 @@ public sealed class WpfSurfaceSmokeTests
                 yield return descendant;
             }
         }
+    }
+
+    private sealed class PerformanceSurfaceData : INotifyPropertyChanged
+    {
+        private string _statusMessage = "Loaded bounded representative history.";
+        public bool HasRun => true;
+        public bool HasError => false;
+        public string? ErrorMessage => null;
+        public string StatusMessage { get => _statusMessage; set { _statusMessage = value; PropertyChanged?.Invoke(this, new(nameof(StatusMessage))); } }
+        public long AnnouncementVersion => 1;
+        public string RunStatus => "Completed";
+        public string RunDuration => "00.00:00:05";
+        public string FullReadThroughput => "10 MB/s";
+        public string CpuSummary => "Unavailable";
+        public string MemorySummary => "Unavailable";
+        public string CandidateFunnel => "100 discovered → 20 metadata-only → 80 candidates → 70 partial → 50 full requests → 10 duplicate items";
+        public string CacheSummary => "60% hits";
+        public string WarningSummary => "3";
+        public string UnavailableSummary => "9 cumulative; current host counters unavailable";
+        public string CurrentPeakRead => "25 MB/s";
+        public string ComparisonMessage => "Same volume/device, scan inputs, and software build.";
+        public string ComparisonDuration => "00.00:00:04";
+        public string ComparisonThroughput => "9 MB/s";
+        public string ComparisonWarnings => "2";
+        public string ComparisonPeakRead => "23 MB/s";
+        public ProgressSurfaceCommand RefreshCommand { get; } = new();
+        public ProgressSurfaceCommand CompareCommand { get; } = new();
+        public IReadOnlyList<PerformanceSurfaceRow> Phases { get; } = Enumerable.Range(1, 6).Select(index => PerformanceSurfaceRow.CreatePhase(index)).ToArray();
+        public IReadOnlyList<PerformanceSurfaceRow> Devices { get; } = Enumerable.Range(1, 64).Select(index => PerformanceSurfaceRow.CreateDevice(index)).ToArray();
+        public IReadOnlyList<PerformanceSurfaceRow> History { get; } = Enumerable.Range(1, 25).Select(index => PerformanceSurfaceRow.CreateRun(index)).ToArray();
+        public PerformanceSurfaceRow? SelectedComparisonRun { get; set; }
+        public event PropertyChangedEventHandler? PropertyChanged;
+    }
+
+    private sealed class PerformanceSurfaceRow
+    {
+        public string Phase { get; init; } = "Full hashing";
+        public string State { get; init; } = "Completed";
+        public string Duration { get; init; } = "00:00:05.000";
+        public string Device { get; init; } = "Fixture SSD";
+        public string Volume { get; init; } = "volume:c";
+        public string Details { get; init; } = "SSD · NVMe · NTFS";
+        public string Capacity { get; init; } = "1 TB";
+        public string FreeAtStart { get; init; } = "500 GB";
+        public string CurrentRead { get; init; } = "Unavailable";
+        public string PeakRead { get; init; } = "25 MB/s";
+        public string CurrentIops { get; init; } = "Unavailable";
+        public string PeakIops { get; init; } = "150 IOPS";
+        public string CurrentLatency { get; init; } = "Unavailable";
+        public string PeakLatency { get; init; } = "15 ms";
+        public string CurrentActive { get; init; } = "Unavailable";
+        public string PeakActive { get; init; } = "80 %";
+        public string CurrentQueue { get; init; } = "Unavailable";
+        public string PeakQueue { get; init; } = "3 depth";
+        public string Availability { get; init; } = "5 unavailable counters in latest sample";
+        public string Run { get; init; } = "Scan 1";
+        public string Status { get; init; } = "Completed";
+        public string Started { get; init; } = "8/26/2026 1:00 AM";
+        public string Build { get; init; } = "engine test · worker test · app test";
+        public static PerformanceSurfaceRow CreatePhase(int index) => new() { Phase = $"Phase {index}" };
+        public static PerformanceSurfaceRow CreateDevice(int index) => new() { Device = $"Drive {index}", Volume = $"volume:{index}" };
+        public static PerformanceSurfaceRow CreateRun(int index) => new() { Run = $"Scan {index}" };
     }
 
     private sealed class ProgressSurfaceData : INotifyPropertyChanged
