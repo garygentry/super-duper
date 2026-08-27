@@ -7,24 +7,27 @@ use std::ptr;
 use winapi::shared::minwindef::DWORD;
 use winapi::um::fileapi::{
     CreateFileW, GetFileAttributesW, GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
-    INVALID_FILE_ATTRIBUTES, OPEN_EXISTING,
+    FILE_BASIC_INFO, INVALID_FILE_ATTRIBUTES, OPEN_EXISTING,
 };
 use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
 use winapi::um::ioapiset::DeviceIoControl;
-use winapi::um::winbase::FILE_FLAG_BACKUP_SEMANTICS;
+use winapi::um::minwinbase::FileBasicInfo;
+use winapi::um::winbase::{GetFileInformationByHandleEx, FILE_FLAG_BACKUP_SEMANTICS};
 use winapi::um::winioctl::{IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, VOLUME_DISK_EXTENTS};
 use winapi::um::winnt::{
     FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_OFFLINE, FILE_ATTRIBUTE_REPARSE_POINT,
     FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
 };
 
-use super::{PathSafety, StorageDevice, StorageMediaClass};
+use super::{ContentSignatureMetadata, PathSafety, StorageDevice, StorageMediaClass};
 
 const FILE_ATTRIBUTE_RECALL_ON_OPEN: DWORD = 0x0004_0000;
 const FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS: DWORD = 0x0040_0000;
 const IOCTL_STORAGE_QUERY_PROPERTY: DWORD = 0x002d_1400;
 const STORAGE_DEVICE_SEEK_PENALTY_PROPERTY: DWORD = 7;
 const PROPERTY_STANDARD_QUERY: DWORD = 0;
+const WINDOWS_TO_UNIX_EPOCH_100NS: i64 = 116_444_736_000_000_000;
+const HUNDRED_NANOSECONDS_PER_SECOND: i64 = 10_000_000;
 
 #[repr(C)]
 struct StoragePropertyQuery {
@@ -263,10 +266,82 @@ pub fn file_identity(path: &Path) -> io::Result<Option<String>> {
     )))
 }
 
+/// Read only file attributes required to qualify repeat-cache reuse. The handle requests no data
+/// access and keeps delete/write sharing enabled, matching the scanner's non-locking behavior.
+pub(crate) fn content_signature_metadata(path: &Path) -> io::Result<ContentSignatureMetadata> {
+    let mut wide = path.as_os_str().encode_wide().collect::<Vec<_>>();
+    wide.push(0);
+    let handle = unsafe {
+        CreateFileW(
+            wide.as_ptr(),
+            FILE_READ_ATTRIBUTES,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            ptr::null_mut(),
+            OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS,
+            ptr::null_mut(),
+        )
+    };
+    if handle == INVALID_HANDLE_VALUE {
+        return Err(io::Error::last_os_error());
+    }
+
+    let result = (|| {
+        let mut standard = unsafe { zeroed::<BY_HANDLE_FILE_INFORMATION>() };
+        if unsafe { GetFileInformationByHandle(handle, &mut standard) } == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let mut basic = unsafe { zeroed::<FILE_BASIC_INFO>() };
+        if unsafe {
+            GetFileInformationByHandleEx(
+                handle,
+                FileBasicInfo,
+                &mut basic as *mut FILE_BASIC_INFO as *mut _,
+                size_of::<FILE_BASIC_INFO>() as DWORD,
+            )
+        } == 0
+        {
+            return Err(io::Error::last_os_error());
+        }
+
+        let file_index =
+            ((standard.nFileIndexHigh as u64) << DWORD::BITS) | standard.nFileIndexLow as u64;
+        let size = ((standard.nFileSizeHigh as u64) << DWORD::BITS) | standard.nFileSizeLow as u64;
+        let modified_ticks = unsafe { *basic.LastWriteTime.QuadPart() };
+        let change_ticks = unsafe { *basic.ChangeTime.QuadPart() };
+        let modified_unix_nanos = modified_ticks
+            .checked_sub(WINDOWS_TO_UNIX_EPOCH_100NS)
+            .and_then(|ticks| ticks.checked_mul(100))
+            .filter(|value| *value > 0);
+        Ok(ContentSignatureMetadata {
+            stable_identity: Some(format!(
+                "{:08x}:{file_index:016x}",
+                standard.dwVolumeSerialNumber
+            )),
+            size,
+            modified_unix_nanos,
+            modified_time_is_coarse: modified_ticks <= 0
+                || modified_ticks % HUNDRED_NANOSECONDS_PER_SECOND == 0,
+            content_change_token: (change_ticks > 0)
+                .then(|| format!("windows-change-time:{change_ticks:016x}")),
+        })
+    })();
+    let close_result = unsafe { CloseHandle(handle) };
+    match (result, close_result) {
+        (Err(error), _) => Err(error),
+        (Ok(_), 0) => Err(io::Error::last_os_error()),
+        (Ok(metadata), _) => Ok(metadata),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::collections::HashMap;
+    use std::fs;
+    use std::thread;
+    use std::time::Duration;
+    use tempfile::TempDir;
 
     struct FakeProbe {
         disks: io::Result<Vec<u32>>,
@@ -295,6 +370,38 @@ mod tests {
             disks,
             seek_penalties: HashMap::from([(7, penalty)]),
         }
+    }
+
+    #[test]
+    fn metadata_only_content_signature_tracks_identity_rename_and_content_change() {
+        let temp = TempDir::new().unwrap();
+        let original = temp.path().join("original.bin");
+        let renamed = temp.path().join("renamed.bin");
+        fs::write(&original, vec![0x31; 4096]).unwrap();
+        let first = content_signature_metadata(&original).unwrap();
+        assert_eq!(first.size, 4096);
+        assert!(first.stable_identity.is_some());
+        assert!(first.modified_unix_nanos.is_some());
+        assert!(first.content_change_token.is_some());
+
+        fs::rename(&original, &renamed).unwrap();
+        let after_rename = content_signature_metadata(&renamed).unwrap();
+        assert_eq!(after_rename.stable_identity, first.stable_identity);
+        assert_eq!(after_rename.size, first.size);
+        assert_ne!(
+            after_rename.content_change_token,
+            first.content_change_token
+        );
+
+        thread::sleep(Duration::from_millis(2));
+        fs::write(&renamed, vec![0x52; 4096]).unwrap();
+        let after_edit = content_signature_metadata(&renamed).unwrap();
+        assert_eq!(after_edit.stable_identity, first.stable_identity);
+        assert_eq!(after_edit.size, first.size);
+        assert_ne!(
+            after_edit.content_change_token,
+            after_rename.content_change_token
+        );
     }
 
     #[test]

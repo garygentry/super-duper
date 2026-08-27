@@ -61,6 +61,129 @@ pub(crate) struct CacheSignatureKey {
     pub content_change_token: String,
 }
 
+pub(crate) trait ContentSignatureProbe: Send + Sync {
+    fn observe(&self, path: &Path) -> io::Result<crate::platform::ContentSignatureMetadata>;
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct SystemContentSignatureProbe;
+
+impl ContentSignatureProbe for SystemContentSignatureProbe {
+    fn observe(&self, path: &Path) -> io::Result<crate::platform::ContentSignatureMetadata> {
+        crate::platform::content_signature_metadata(path)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SignatureIneligibleReason {
+    MetadataUnavailable,
+    StableIdentityUnavailable,
+    ModifiedTimeUnavailable,
+    CoarseModifiedTime,
+    ContentChangeTokenUnavailable,
+    InvalidSignature,
+}
+
+impl SignatureIneligibleReason {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::MetadataUnavailable => "metadata_unavailable",
+            Self::StableIdentityUnavailable => "stable_identity_unavailable",
+            Self::ModifiedTimeUnavailable => "modified_time_unavailable",
+            Self::CoarseModifiedTime => "coarse_modified_time",
+            Self::ContentChangeTokenUnavailable => "content_change_token_unavailable",
+            Self::InvalidSignature => "invalid_signature",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ContentSignatureObservation {
+    Qualified(CacheSignatureKey),
+    Ineligible(SignatureIneligibleReason),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ContentSignatureWindow {
+    Unchanged(CacheSignatureKey),
+    Changed,
+    Ineligible(SignatureIneligibleReason),
+}
+
+pub(crate) fn observe_content_signature(
+    path: &Path,
+    probe: &dyn ContentSignatureProbe,
+) -> ContentSignatureObservation {
+    let metadata = match probe.observe(path) {
+        Ok(metadata) => metadata,
+        Err(_) => {
+            return ContentSignatureObservation::Ineligible(
+                SignatureIneligibleReason::MetadataUnavailable,
+            )
+        }
+    };
+    let stable_identity = match metadata.stable_identity {
+        Some(value) => value,
+        None => {
+            return ContentSignatureObservation::Ineligible(
+                SignatureIneligibleReason::StableIdentityUnavailable,
+            )
+        }
+    };
+    let modified_unix_nanos = match metadata.modified_unix_nanos {
+        Some(value) if value > 0 => value,
+        _ => {
+            return ContentSignatureObservation::Ineligible(
+                SignatureIneligibleReason::ModifiedTimeUnavailable,
+            )
+        }
+    };
+    if metadata.modified_time_is_coarse {
+        return ContentSignatureObservation::Ineligible(
+            SignatureIneligibleReason::CoarseModifiedTime,
+        );
+    }
+    let content_change_token = match metadata.content_change_token {
+        Some(value) => value,
+        None => {
+            return ContentSignatureObservation::Ineligible(
+                SignatureIneligibleReason::ContentChangeTokenUnavailable,
+            )
+        }
+    };
+    let signature = CacheSignatureKey {
+        stable_identity,
+        size: metadata.size,
+        modified_unix_nanos,
+        content_change_token,
+    };
+    match signature.validate() {
+        Ok(()) => ContentSignatureObservation::Qualified(signature),
+        Err(_) => {
+            ContentSignatureObservation::Ineligible(SignatureIneligibleReason::InvalidSignature)
+        }
+    }
+}
+
+pub(crate) fn compare_content_signatures(
+    before: ContentSignatureObservation,
+    after: ContentSignatureObservation,
+) -> ContentSignatureWindow {
+    match (before, after) {
+        (
+            ContentSignatureObservation::Qualified(before),
+            ContentSignatureObservation::Qualified(after),
+        ) if before == after => ContentSignatureWindow::Unchanged(before),
+        (ContentSignatureObservation::Qualified(_), ContentSignatureObservation::Qualified(_)) => {
+            ContentSignatureWindow::Changed
+        }
+        (ContentSignatureObservation::Ineligible(reason), _)
+        | (_, ContentSignatureObservation::Ineligible(reason)) => {
+            ContentSignatureWindow::Ineligible(reason)
+        }
+    }
+}
+
 impl CacheSignatureKey {
     pub(crate) fn validate(&self) -> io::Result<()> {
         validate_bounded_text(
@@ -512,7 +635,45 @@ fn bincode_error(error: bincode::Error) -> io::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::VecDeque;
+    use std::sync::Mutex;
     use tempfile::TempDir;
+
+    struct FakeSignatureProbe {
+        observations: Mutex<VecDeque<io::Result<crate::platform::ContentSignatureMetadata>>>,
+    }
+
+    impl FakeSignatureProbe {
+        fn new(observations: Vec<io::Result<crate::platform::ContentSignatureMetadata>>) -> Self {
+            Self {
+                observations: Mutex::new(observations.into()),
+            }
+        }
+    }
+
+    impl ContentSignatureProbe for FakeSignatureProbe {
+        fn observe(&self, _path: &Path) -> io::Result<crate::platform::ContentSignatureMetadata> {
+            self.observations
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("fake signature observation")
+        }
+    }
+
+    fn metadata(
+        id: &str,
+        modified: i64,
+        change: &str,
+    ) -> crate::platform::ContentSignatureMetadata {
+        crate::platform::ContentSignatureMetadata {
+            stable_identity: Some(id.to_owned()),
+            size: 4096,
+            modified_unix_nanos: Some(modified),
+            modified_time_is_coarse: false,
+            content_change_token: Some(change.to_owned()),
+        }
+    }
 
     fn signature(id: usize) -> CacheSignatureKey {
         CacheSignatureKey {
@@ -527,6 +688,102 @@ mod tests {
         CachedContentHashes {
             partial_hash: id as u64 + 10,
             full_hash: (id % 2 == 0).then_some(id as u64 + 100),
+        }
+    }
+
+    #[test]
+    fn signature_window_accepts_path_aliases_only_when_all_content_evidence_matches() {
+        let unchanged = metadata("volume:1:file:7", 1_234_567_890, "change:9");
+        let probe = FakeSignatureProbe::new(vec![Ok(unchanged.clone()), Ok(unchanged)]);
+        let before = observe_content_signature(Path::new("first-name"), &probe);
+        let after = observe_content_signature(Path::new("renamed-or-linked-alias"), &probe);
+        assert_eq!(
+            compare_content_signatures(before, after),
+            ContentSignatureWindow::Unchanged(CacheSignatureKey {
+                stable_identity: "volume:1:file:7".to_owned(),
+                size: 4096,
+                modified_unix_nanos: 1_234_567_890,
+                content_change_token: "change:9".to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn signature_window_rejects_preserved_modified_time_content_edits_and_identity_reuse() {
+        let preserved_modified = 1_234_567_890;
+        let changed_content = compare_content_signatures(
+            ContentSignatureObservation::Qualified(CacheSignatureKey {
+                stable_identity: "volume:1:file:7".to_owned(),
+                size: 4096,
+                modified_unix_nanos: preserved_modified,
+                content_change_token: "change:9".to_owned(),
+            }),
+            ContentSignatureObservation::Qualified(CacheSignatureKey {
+                stable_identity: "volume:1:file:7".to_owned(),
+                size: 4096,
+                modified_unix_nanos: preserved_modified,
+                content_change_token: "change:10".to_owned(),
+            }),
+        );
+        assert_eq!(changed_content, ContentSignatureWindow::Changed);
+
+        let reused_identity = compare_content_signatures(
+            ContentSignatureObservation::Qualified(CacheSignatureKey {
+                stable_identity: "volume:1:file:7".to_owned(),
+                size: 4096,
+                modified_unix_nanos: preserved_modified,
+                content_change_token: "change:9".to_owned(),
+            }),
+            ContentSignatureObservation::Qualified(CacheSignatureKey {
+                stable_identity: "volume:1:file:8".to_owned(),
+                size: 4096,
+                modified_unix_nanos: preserved_modified,
+                content_change_token: "change:9".to_owned(),
+            }),
+        );
+        assert_eq!(reused_identity, ContentSignatureWindow::Changed);
+    }
+
+    #[test]
+    fn signature_qualification_fails_closed_for_every_unavailable_or_coarse_field() {
+        let mut cases = Vec::new();
+        cases.push((
+            Err(io::Error::new(ErrorKind::PermissionDenied, "blocked")),
+            SignatureIneligibleReason::MetadataUnavailable,
+        ));
+        let mut missing_identity = metadata("id", 1_234_567_890, "change");
+        missing_identity.stable_identity = None;
+        cases.push((
+            Ok(missing_identity),
+            SignatureIneligibleReason::StableIdentityUnavailable,
+        ));
+        let mut missing_modified = metadata("id", 1_234_567_890, "change");
+        missing_modified.modified_unix_nanos = None;
+        cases.push((
+            Ok(missing_modified),
+            SignatureIneligibleReason::ModifiedTimeUnavailable,
+        ));
+        let mut coarse = metadata("id", 1_000_000_000, "change");
+        coarse.modified_time_is_coarse = true;
+        cases.push((Ok(coarse), SignatureIneligibleReason::CoarseModifiedTime));
+        let mut missing_change = metadata("id", 1_234_567_890, "change");
+        missing_change.content_change_token = None;
+        cases.push((
+            Ok(missing_change),
+            SignatureIneligibleReason::ContentChangeTokenUnavailable,
+        ));
+        let mut invalid = metadata("id", 1_234_567_890, "change");
+        invalid.stable_identity = Some("\0".to_owned());
+        cases.push((Ok(invalid), SignatureIneligibleReason::InvalidSignature));
+
+        for (observation, expected) in cases {
+            let probe = FakeSignatureProbe::new(vec![observation]);
+            assert_eq!(
+                observe_content_signature(Path::new("candidate"), &probe),
+                ContentSignatureObservation::Ineligible(expected),
+                "{}",
+                expected.as_str()
+            );
         }
     }
 

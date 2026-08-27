@@ -20,6 +20,15 @@ pub(crate) struct StorageDevice {
     pub media: StorageMediaClass,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ContentSignatureMetadata {
+    pub stable_identity: Option<String>,
+    pub size: u64,
+    pub modified_unix_nanos: Option<i64>,
+    pub modified_time_is_coarse: bool,
+    pub content_change_token: Option<String>,
+}
+
 impl StorageDevice {
     pub(crate) fn mapping_unavailable() -> Self {
         Self {
@@ -93,6 +102,11 @@ pub fn file_identity(path: &Path) -> io::Result<Option<String>> {
     windows::file_identity(path)
 }
 
+#[cfg(target_os = "windows")]
+pub(crate) fn content_signature_metadata(path: &Path) -> io::Result<ContentSignatureMetadata> {
+    windows::content_signature_metadata(path)
+}
+
 #[cfg(unix)]
 pub fn file_identity(path: &Path) -> io::Result<Option<String>> {
     use std::os::unix::fs::MetadataExt;
@@ -105,9 +119,44 @@ pub fn file_identity(path: &Path) -> io::Result<Option<String>> {
     )))
 }
 
+#[cfg(unix)]
+pub(crate) fn content_signature_metadata(path: &Path) -> io::Result<ContentSignatureMetadata> {
+    use std::os::unix::fs::MetadataExt;
+
+    let metadata = std::fs::metadata(path)?;
+    let modified_unix_nanos = metadata
+        .mtime()
+        .checked_mul(1_000_000_000)
+        .and_then(|seconds| seconds.checked_add(metadata.mtime_nsec()))
+        .filter(|value| *value > 0);
+    Ok(ContentSignatureMetadata {
+        stable_identity: Some(format!("{:016x}:{:016x}", metadata.dev(), metadata.ino())),
+        size: metadata.len(),
+        modified_unix_nanos,
+        modified_time_is_coarse: metadata.mtime_nsec() == 0,
+        content_change_token: Some(format!(
+            "unix-ctime:{:016x}:{:08x}",
+            metadata.ctime(),
+            metadata.ctime_nsec()
+        )),
+    })
+}
+
 #[cfg(not(any(target_os = "windows", unix)))]
 pub fn file_identity(_path: &Path) -> io::Result<Option<String>> {
     Ok(None)
+}
+
+#[cfg(not(any(target_os = "windows", unix)))]
+pub(crate) fn content_signature_metadata(path: &Path) -> io::Result<ContentSignatureMetadata> {
+    let metadata = std::fs::metadata(path)?;
+    Ok(ContentSignatureMetadata {
+        stable_identity: None,
+        size: metadata.len(),
+        modified_unix_nanos: None,
+        modified_time_is_coarse: true,
+        content_change_token: None,
+    })
 }
 
 pub fn get_path_without_drive_letter(path: &Path) -> PathBuf {

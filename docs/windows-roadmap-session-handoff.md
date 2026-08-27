@@ -18,12 +18,12 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept `SOP8a-versioned-bounded-cache-store`
+- Latest completed slice: accept `SOP8b-qualified-content-signature`
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP8-repeat-run-cache`
-- Next boundary: implement only `SOP8b-qualified-content-signature`
+- Next boundary: implement only `SOP8c-partial-full-cache-integration`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -219,6 +219,16 @@ keys without admitting them as hits, and makes corrupt v2 entries ineligible/pru
 still uses the unchanged legacy lookup; no read path, counters, worker/Core/WPF contract, schema,
 profile, campaign, or deletion lock changed.
 
+`SOP8b-qualified-content-signature` is accepted without production cache-hit integration. The
+platform-neutral seam requires stable physical identity, byte length, positive non-coarse
+nanosecond modified time, and a bounded content-change token; any missing/error/coarse/invalid field
+is explicitly ineligible, and before/after observations must be identical. Windows gathers all
+fields through a metadata-only `FILE_READ_ATTRIBUTES` handle using volume/file index, size,
+LastWriteTime, and ChangeTime. The real fixture proves identity survives rename and same-size edit,
+while ChangeTime advances for both. Windows rename reuse is deliberately rejected rather than
+weakening invalidation; the pipeline will read current content. Upstream hard-link alias de-
+duplication remains unchanged.
+
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
 protocol-v1 legacy fields. One timer-owned latest-value emitter assigns transport sequences after
@@ -382,11 +392,11 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Implement only `SOP8b-qualified-content-signature`. Add the injected fail-closed signature seam and
-local Windows implementation with stable physical identity, byte length, nanosecond modified time,
-and a content-change token plus before/after equality. Do not wire cache hits into the production
-hash pipeline or begin telemetry/protocol/UI, measurement, SOP9, or parked release validation until
-SOP8b accepts.
+Implement only `SOP8c-partial-full-cache-integration`. Wire the accepted owned store and qualified
+before/after signatures into partial and full hashing, add exact additive partial-cache telemetry
+through the worker/Core contracts, and preserve the forced-revalidation path, SOP6/SOP7 policy,
+cancellation, hard links, and memory bounds. Do not begin the physical Release comparison, session
+UI, SOP9, or parked release validation until SOP8c accepts.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -473,6 +483,15 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Accepted `SOP8b-qualified-content-signature` passes 3 focused injected qualification/window tests,
+the real Windows metadata-only identity/rename/edit test, and the full Core library (51 passed, 2
+intentional physical profiles ignored). Strict Core Clippy passes with the documented unchanged-
+file allowances. Coverage proves unchanged alias acceptance only when all fields match, preserved-
+modified-time token rejection, identity-change rejection, and explicit metadata/identity/time/
+coarse/token/invalid ineligibility. Windows rename preserves identity but changes the selected
+token, so it must miss. `git diff --check` passes; production cache/hash I/O, counters, protocol/UI,
+schema, measurement, campaigns, and deletion locks remain unchanged.
 
 Accepted `SOP8a-versioned-bounded-cache-store` passes 7 focused store tests and the full Core
 library (47 passed, 2 intentional physical profiles ignored). Strict Core Clippy passes with the
@@ -863,6 +882,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-27 | this session | Accept SOP8b with a metadata-only fail-closed physical identity/size/modified-time/content-change signature and before/after equality; retain real Windows evidence that rename preserves identity but advances ChangeTime, so rename reuse is rejected and hard-link de-duplication stays upstream. | Implement only `SOP8c-partial-full-cache-integration`; keep measurement, UI, SOP9, and parked validation out of scope until it accepts. |
 | 2026-08-27 | this session | Accept SOP8a with an owned/reopenable v2 store, safe forced default, fixed entry/encoding limits, deterministic 1,500,000-to-1,350,000 pruning, bounded recovery, exact replay/conflict, and corrupt/legacy ineligibility while leaving production hash lookup untouched. | Implement only `SOP8b-qualified-content-signature`; keep production hits, telemetry/protocol/UI, measurement, SOP9, and parked validation out of scope until it accepts. |
 | 2026-08-27 | this session | Audit the existing full-only path/size/mtime global cache, repair the stale ROADMAP checkpoint, and define five finite SOP8 packages with explicit store/signature/integration/measurement/UI correctness and acceptance boundaries before implementation. | Implement only `SOP8a-versioned-bounded-cache-store`; keep later SOP8 packages, SOP9, unrelated campaigns, and parked release validation out of scope until its dependency accepts. |
 | 2026-08-27 | this session | Accept SOP7f and close SOP7 with a named verifier pinning every retained artifact/decision, unchanged SOP6 reader ceilings and production locks, strict focused Clippy, and clean full Debug/Release Rust and Windows matrices. | Advance only to defining finite SOP8 packages; do not start SOP8 implementation, SOP9 campaigns, or parked release validation. |
