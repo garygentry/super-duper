@@ -398,7 +398,7 @@ fn build_content_hash_map_with_scheduler(
         .into_iter()
         .filter(|(_, files)| files.len() > 1)
         .collect::<Vec<_>>();
-    buckets.sort_by_key(|(file_size, _)| *file_size);
+    buckets.sort_by(|left, right| right.0.cmp(&left.0));
     let total_files = buckets.iter().map(|(_, files)| files.len()).sum();
     let batcher = HashProgressBatcher::new(sink);
 
@@ -838,6 +838,30 @@ mod tests {
     }
 
     #[derive(Default)]
+    struct OrderedPartialIo {
+        paths: Mutex<Vec<PathBuf>>,
+    }
+
+    impl HashPipelineIo for OrderedPartialIo {
+        fn partial_hash(&self, path: &Path, _cancel: &AtomicBool) -> io::Result<PartialHashRead> {
+            self.paths.lock().unwrap().push(path.to_path_buf());
+            Ok(PartialHashRead {
+                hash: hash_data(path.to_string_lossy().as_bytes()),
+                physical_bytes_read: PARTIAL_HASH_LENGTH as u64,
+            })
+        }
+
+        fn full_hash(
+            &self,
+            _path: &Path,
+            _cancel: &AtomicBool,
+            _observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
+        ) -> io::Result<cache::CachedHash> {
+            panic!("unique partial hashes must not request a full hash")
+        }
+    }
+
+    #[derive(Default)]
     struct RecordingPipelineIo {
         partial_paths: Mutex<Vec<PathBuf>>,
         full_paths: Mutex<Vec<PathBuf>>,
@@ -1200,6 +1224,43 @@ mod tests {
                 PathBuf::from("duplicate-left"),
                 PathBuf::from("duplicate-right"),
             ]]
+        );
+    }
+
+    #[test]
+    fn larger_size_buckets_are_admitted_before_smaller_buckets() {
+        let map = DashMap::new();
+        map.insert(
+            4_096,
+            vec![PathBuf::from("medium-left"), PathBuf::from("medium-right")],
+        );
+        map.insert(
+            8_192,
+            vec![PathBuf::from("large-left"), PathBuf::from("large-right")],
+        );
+        map.insert(
+            2_048,
+            vec![PathBuf::from("small-left"), PathBuf::from("small-right")],
+        );
+        let io = OrderedPartialIo::default();
+        build_content_hash_map_with_progress(
+            map,
+            &AtomicBool::new(false),
+            &crate::progress::SilentReporter,
+            &RecordingSink::default(),
+            &io,
+        )
+        .unwrap();
+        assert_eq!(
+            *io.paths.lock().unwrap(),
+            vec![
+                PathBuf::from("large-left"),
+                PathBuf::from("large-right"),
+                PathBuf::from("medium-left"),
+                PathBuf::from("medium-right"),
+                PathBuf::from("small-left"),
+                PathBuf::from("small-right"),
+            ]
         );
     }
 

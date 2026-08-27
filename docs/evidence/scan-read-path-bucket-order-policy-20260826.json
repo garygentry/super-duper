@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "gate": "SOP7-hash-read-path",
+  "package": "SOP7c-bucket-ordering",
+  "decision": "select_descending_size",
+  "softwareBuild": {
+    "baseCommit": "f816122",
+    "profileHarnessSourceSha256": "D206007410296BA705744002186EAB8BC12F328FE8263B9FEF2908000B32C233",
+    "admittedHashPipelineSourceSha256": "0DA7DFEE37BA3B78D88A4630E8841B21C84B63F047837B2257687291569B71CC"
+  },
+  "rawEvidence": [
+    {
+      "path": "docs/evidence/scan-read-path-bucket-order-ssd-20260826.json",
+      "sha256": "338C80512E70FC4A3173368FE7BF6F6D5175A35901E6B07459BA6E2ADBB19D51"
+    },
+    {
+      "path": "docs/evidence/scan-read-path-bucket-order-hdd-20260826.json",
+      "sha256": "ABEFD2AFD95AD1E1A3EEE6E6909AA4BD46E813280955AF9007B6F3C4A3851408"
+    }
+  ],
+  "method": {
+    "control": "ascending exact-size buckets",
+    "treatment": "descending exact-size buckets",
+    "fixedFactors": {
+      "withinBucketOrder": "encountered",
+      "partialPrefixBytes": 1024,
+      "fullReadBufferBytes": 65536,
+      "directUnbufferedFullReads": true,
+      "sequentialHint": false,
+      "partialPrefixReuse": false,
+      "rotationalReaders": 1,
+      "solidStateReaders": 4,
+      "unknownReaders": 1
+    },
+    "armOrder": [
+      "control",
+      "treatment",
+      "treatment",
+      "control"
+    ],
+    "fileCountPerArm": 16,
+    "baseFileBytes": 67108864,
+    "physicalBytesReadPerArm": 1073856512,
+    "failedSamplesDiscarded": 0,
+    "hardwareSerialPersisted": false
+  },
+  "preEvidenceIncident": {
+    "device": "physical:2",
+    "outcome": "invalid_no_evidence",
+    "reason": "Windows retained a transient handle during fixture cleanup after the arms, so the fail-closed harness wrote no evidence",
+    "repair": "add ten bounded 200 ms cleanup attempts, prove normal cleanup deterministically, and remove only the validated generated fixture",
+    "performanceDataRecovered": false,
+    "retryReason": "cleanup defect only; not a performance-result retry"
+  },
+  "comparisons": [
+    {
+      "mediaClass": "solid_state",
+      "deviceKey": "physical:2",
+      "controlMeanWallNanos": 1046306350,
+      "treatmentMeanWallNanos": 1010081100,
+      "treatmentWallDeltaPercent": -3.4622,
+      "treatmentThroughputDeltaPercent": 3.9257,
+      "processReadBytesPerArm": 1073856512,
+      "deviceUnavailableCounterCountPerArm": 0,
+      "selection": "descending_size"
+    },
+    {
+      "mediaClass": "rotational",
+      "deviceKey": "physical:0",
+      "controlMeanWallNanos": 8157287700,
+      "treatmentMeanWallNanos": 7469634500,
+      "treatmentWallDeltaPercent": -8.4299,
+      "treatmentThroughputDeltaPercent": 9.1264,
+      "processReadBytesPerArm": 1073856512,
+      "deviceUnavailableCounterCountPerArm": 0,
+      "selection": "descending_size"
+    }
+  ],
+  "correctnessAndCleanup": {
+    "checksumMismatchCount": 0,
+    "byteMismatchCount": 0,
+    "cancelledArmCount": 0,
+    "fixtureRemovedAfterEachRetainedProfile": true,
+    "workspaceFixtureCountAfterRuns": 0
+  },
+  "selectedPolicy": {
+    "bucketOrder": "descending_size",
+    "mediaScope": "all",
+    "readerPolicyChanged": false,
+    "pathOrderChanged": false
+  },
+  "scope": {
+    "accepted": "descending exact-size bucket admission before the unchanged partial/full pipeline",
+    "excluded": [
+      "within-bucket path order",
+      "buffer size",
+      "read ahead",
+      "partial-prefix reuse",
+      "reader-count changes",
+      "SOP8 cache policy",
+      "full-drive acceptance"
+    ]
+  }
+}

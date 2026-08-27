@@ -18,13 +18,13 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept `SOP7b-path-locality` with retained SSD/HDD evidence and reject
-  the proposed product order change
+- Latest completed slice: accept `SOP7c-bucket-ordering`, selecting descending exact-size buckets
+  from retained SSD/HDD evidence
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP7-hash-read-path`
-- Next boundary: advance only to `SOP7c-bucket-ordering`
+- Next boundary: advance only to `SOP7d-buffer-read-ahead`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -156,6 +156,17 @@ device counters; treatment improved wall only 1.2075% and throughput 1.2204%. Th
 gain does not justify changing buffered production insertion order. No sample was discarded or
 rerun, no production source changed, and bucket order, buffer/read-ahead, prefix reuse, SOP8+, and
 the parked stream remain untouched.
+
+`SOP7c-bucket-ordering` is accepted and changes production to descending exact-size bucket
+admission. All retained SSD/HDD direct-read arms preserve within-bucket order, SOP6 reader ceilings,
+64 KiB reads, no read-ahead/prefix reuse, exact checksums, 1,073,856,512 process/physical bytes, and
+complete device sampling. Descending order improved SSD mean wall 3.4622% and throughput 3.9257%,
+and rotational wall 8.4299% and throughput 9.1264%. The initial SSD invocation completed reads but
+failed closed before evidence on a transient cleanup handle; its generated directory was validated
+and removed, bounded cleanup retry was added, and only the corrected run was retained. No favorable
+result retry or discarded retained sample occurred. A deterministic order test, the evolved SOP6
+verifier, strict Clippy, and full Debug/Release Rust matrices pass. Buffer/read-ahead, prefix reuse,
+SOP8+, Windows UI, and the parked stream remain untouched.
 
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
@@ -320,11 +331,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance only to `SOP7c-bucket-ordering`. Compare accepted ascending-size order with the predeclared
-descending-size alternative on the fixed one-factor harness while preserving within-bucket order,
-SOP6 reader ceilings, buffer/read-ahead, and prefix behavior. Retain every arm, then select or reject
-the alternative before changing a production default. Do not begin SOP8 or later gates, a physical
-campaign outside SOP7's exact authority, or any parked release-validation work.
+Advance only to `SOP7d-buffer-read-ahead`. Measure the 64 KiB versus 1 MiB full-content buffer and
+the Windows sequential-read hint as separate factors with descending bucket order and every other
+accepted policy fixed. Ensure cache-miss fixture preparation before treating device metrics as
+physical evidence. Retain every arm, then select, reject, or media-scope each factor before changing
+another production default. Do not begin SOP8 or later gates, a physical campaign outside SOP7's
+exact authority, or any parked release-validation work.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -411,6 +423,15 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Accepted `SOP7c-bucket-ordering` retains
+`scan-read-path-bucket-order-{ssd,hdd}-20260826.json` plus its policy record. All eight direct 1 GiB
+arms have identical ordered hashes/bytes, fixed C/T/T/C order, available device metrics, no
+cancellation, and removed fixtures. Descending order improves SSD wall 3.4622%/throughput 3.9257%
+and rotational wall 8.4299%/throughput 9.1264%. One pre-evidence cleanup failure wrote no result;
+bounded cleanup and exact generated-fixture removal pass before the retained run. The focused order
+and six harness tests, evolved SOP6 verifier, and strict Core Clippy pass. Full Debug and Release
+Rust each pass 199 tests with 7 intentional profiles ignored and no failures.
 
 Accepted `SOP7b-path-locality` retains
 `scan-read-path-locality-{ssd,hdd}-20260826.json` plus its policy record. All eight 1 GiB arms have
@@ -753,6 +774,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-26 | this session | Accept `SOP7c-bucket-ordering`: retain complete direct SSD/HDD C/T/T/C evidence, select descending exact-size admission from 3.46%/8.43% wall improvements, add a deterministic order regression and bounded transient-handle cleanup, evolve the SOP6 historical-source check, and pass full Debug/Release Rust. | Advance only to `SOP7d-buffer-read-ahead`; keep prefix reuse, SOP8+, unrelated campaigns, and parked release validation out of scope. |
 | 2026-08-26 | this session | Accept `SOP7b-path-locality` and reject the product change: retain all fixed SSD/HDD C/T/T/C arms, explicitly scope the SSD result to cache-resident reads, record the small 1.21% idealized rotational direct-read gain, preserve exact checksums/bytes/cleanup, and leave insertion order unchanged. | Advance only to `SOP7c-bucket-ordering`; keep buffer/read-ahead, prefix reuse, SOP8+, unrelated campaigns, and parked release validation out of scope. |
 | 2026-08-26 | this session | Accept `SOP7a-read-experiment-contract`: add one test-only platform-neutral harness with fixed one-factor arms, SOP6 reader ceilings, distinct deterministic fixtures, complete write-once evidence, exact hash/byte/cancellation/memory checks, and no production-default change or physical run. | Advance only to `SOP7b-path-locality`; keep bucket order, buffer/read-ahead, prefix reuse, SOP8+, unrelated campaigns, and parked release validation out of scope until their dependencies accept. |
 | 2026-08-26 | this session | Accept `SOP6-device-aware-scheduler`: map local Windows volumes to one physical disk/seek-penalty class without candidate-content access, replace nested hash reads with fair bounded per-device queues, select 1 rotational/unknown and 4 SSD readers from retained 1/N/N/1 direct-I/O evidence, and preserve exact cancellation/counters/results plus full regression and production locks. | Advance only to `SOP7-hash-read-path`; define its finite individually measured experiments and keep SOP8+, physical work outside SOP7 authority, and parked release validation out of scope. |

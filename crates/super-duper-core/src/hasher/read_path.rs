@@ -498,6 +498,21 @@ mod windows_profile {
         Ok(())
     }
 
+    fn remove_fixture_with_bounded_retry(path: &Path) -> io::Result<()> {
+        let mut last_error = None;
+        for attempt in 0..10 {
+            match fs::remove_dir_all(path) {
+                Ok(()) => return Ok(()),
+                Err(error) => last_error = Some(error),
+            }
+            if attempt < 9 {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
+        }
+        Err(last_error
+            .unwrap_or_else(|| io::Error::new(io::ErrorKind::Other, "SOP7 fixture cleanup failed")))
+    }
+
     #[test]
     #[ignore = "SOP7 one-factor physical read-path comparison; requires explicit root/output environment"]
     fn sop7_physical_read_path_profile() {
@@ -561,7 +576,7 @@ mod windows_profile {
             "sop7-v1:{factor_name}:{file_count}:{file_bytes}:4",
             factor_name = factor.as_str()
         );
-        fs::remove_dir_all(&fixture_path).unwrap();
+        remove_fixture_with_bounded_retry(&fixture_path).unwrap();
         let evidence = serde_json::json!({
             "schemaVersion": 1,
             "gate": "SOP7-hash-read-path",
@@ -603,6 +618,16 @@ mod windows_profile {
             validate_evidence(&evidence).unwrap_err().kind(),
             io::ErrorKind::InvalidData
         );
+    }
+
+    #[test]
+    fn generated_fixture_cleanup_is_bounded_and_complete() {
+        let directory = tempfile::tempdir().unwrap();
+        let fixture = directory.path().join("super-duper-sop7-cleanup-test");
+        fs::create_dir(&fixture).unwrap();
+        fs::write(fixture.join("sample.bin"), b"sample").unwrap();
+        remove_fixture_with_bounded_retry(&fixture).unwrap();
+        assert!(!fixture.exists());
     }
 }
 

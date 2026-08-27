@@ -103,9 +103,13 @@ try {
     Assert-True ((Get-FileHash $schedulerSource -Algorithm SHA256).Hash -eq `
         $policyEvidence.softwareBuild.schedulerSourceSha256) `
         'The scheduler source no longer matches the measured software build.'
-    Assert-True ((Get-FileHash $hasherSource -Algorithm SHA256).Hash -eq `
-        $policyEvidence.softwareBuild.hashPipelineSourceSha256) `
-        'The hash pipeline source no longer matches the measured software build.'
+    Assert-True ($policyEvidence.softwareBuild.hashPipelineSourceSha256 -eq `
+        '70A09333FF9551AB7DF8A25F092D55366DBF188686591BA22AC8B3AC58ACBC36') `
+        'The retained SOP6 measured hash-pipeline identity changed.'
+    Assert-Contains $hasherSource 'execute_device_reads(partial_tasks, cancel, policy' `
+        'The current hash pipeline no longer schedules partial reads through SOP6.'
+    Assert-Contains $hasherSource 'execute_device_reads(full_tasks, cancel, policy' `
+        'The current hash pipeline no longer schedules full reads through SOP6.'
     Assert-True ((Get-FileHash $platformSource -Algorithm SHA256).Hash -eq `
         $policyEvidence.softwareBuild.windowsMappingSourceSha256) `
         'The Windows mapping source no longer matches the measured software build.'
