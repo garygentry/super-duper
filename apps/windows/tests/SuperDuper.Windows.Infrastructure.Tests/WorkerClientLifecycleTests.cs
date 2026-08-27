@@ -142,7 +142,9 @@ public sealed class WorkerClientLifecycleTests
             _ = await client.ConnectAsync();
             var session = await client.CreateSessionAsync("Lifecycle", [root], []);
             var sessions = await client.ListSessionsAsync();
-            var started = await client.StartRunAsync(session.Id);
+            var started = await client.StartRunAsync(
+                session.Id,
+                RepeatCachePolicyNames.RevalidateContent);
             var terminalEvent = await terminal.Task.WaitAsync(TimeSpan.FromSeconds(30));
             var durable = await client.GetRunAsync(started.Id);
             var performanceHistory = await client.GetPerformanceRunsAsync(pageSize: 25);
@@ -482,6 +484,12 @@ public sealed class WorkerClientLifecycleTests
             Assert.AreEqual(2, selectedRootGroups.Total);
             Assert.AreEqual("completed", durable.Status);
             Assert.AreEqual(session.Id, durable.SessionId);
+            Assert.AreEqual(
+                RepeatCachePolicyNames.RevalidateContent,
+                started.Parameters.RepeatCachePolicy);
+            Assert.AreEqual(
+                RepeatCachePolicyNames.RevalidateContent,
+                durable.Parameters.RepeatCachePolicy);
             Assert.AreEqual(0, warnings.Total);
             Assert.AreEqual(0, warnings.WarningCount);
             Assert.AreEqual(0, warnings.AccountedWarningCount);

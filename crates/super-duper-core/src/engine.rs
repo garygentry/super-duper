@@ -6,7 +6,8 @@ use crate::platform;
 use crate::progress::ProgressReporter;
 use crate::scanner;
 use crate::storage::models::{
-    CloudPolicy, RunExclusionInsert, RunParameters, RunWarningAggregateInsert, ScannedFile,
+    CloudPolicy, RepeatCachePolicy, RunExclusionInsert, RunParameters, RunWarningAggregateInsert,
+    ScannedFile,
 };
 use crate::storage::Database;
 use crate::telemetry::{
@@ -34,7 +35,7 @@ pub struct ScanEngine {
     config: AppConfig,
     db_path: String,
     hash_cache_path: PathBuf,
-    repeat_cache_policy: hasher::repeat_cache::RepeatCachePolicy,
+    repeat_cache_policy: RepeatCachePolicy,
     status_db_path: Option<String>,
     status_worker_version: Option<String>,
     status_sample_interval: Duration,
@@ -771,7 +772,7 @@ impl ScanEngine {
             hash_cache_path: std::env::var_os("HASH_CACHE_PATH")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("content_hash_cache.db")),
-            repeat_cache_policy: hasher::repeat_cache::RepeatCachePolicy::default(),
+            repeat_cache_policy: RepeatCachePolicy::default(),
             status_db_path: None,
             status_worker_version: None,
             status_sample_interval: Duration::from_secs(5),
@@ -791,13 +792,12 @@ impl ScanEngine {
         self
     }
 
-    /// Enable qualified repeat-cache reuse. The default revalidates content and only seeds cache
-    /// entries until the SOP8 measurement gate selects the shipped policy.
+    /// Select qualified repeat-cache reuse. New runs default to the measured verified-reuse policy.
     pub fn with_verified_repeat_cache_reuse(mut self, enabled: bool) -> Self {
         self.repeat_cache_policy = if enabled {
-            hasher::repeat_cache::RepeatCachePolicy::ReuseVerified
+            RepeatCachePolicy::ReuseVerified
         } else {
-            hasher::repeat_cache::RepeatCachePolicy::RevalidateContent
+            RepeatCachePolicy::RevalidateContent
         };
         self
     }
@@ -853,6 +853,7 @@ impl ScanEngine {
             roots: roots.clone(),
             ignore_patterns: self.config.ignore_patterns.clone(),
             directory_similarity_threshold_millis: 500,
+            repeat_cache_policy: self.repeat_cache_policy,
             cloud_policy: CloudPolicy::default(),
             manual_location_exclusions: Vec::new(),
             registered_cloud_locations: Vec::new(),
@@ -1135,7 +1136,7 @@ impl ScanEngine {
         let hash_io = match hasher::repeat_cache::RepeatHashCache::open(&self.hash_cache_path) {
             Ok(cache) => hasher::SystemHashPipelineIo::with_repeat_cache(
                 Arc::new(cache),
-                self.repeat_cache_policy,
+                parameters.repeat_cache_policy,
             ),
             Err(error) => {
                 warn!(
@@ -1144,7 +1145,7 @@ impl ScanEngine {
                     error
                 );
                 hasher::SystemHashPipelineIo::with_unavailable_repeat_cache(
-                    self.repeat_cache_policy,
+                    parameters.repeat_cache_policy,
                     format!("Repeat hash cache is unavailable: {error}"),
                 )
             }

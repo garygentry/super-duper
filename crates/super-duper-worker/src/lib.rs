@@ -28,11 +28,11 @@ use super_duper_core::storage::models::{
     RecoveryObservationKind, RecoveryReviewObservation, RecoveryReviewObservationInput,
     RecoveryReviewSummary, RecycleEligibilityObservation, RecycleItemResultObservation,
     RecycleOperation, RecycleOperationBatch, RecycleOperationItem, RecycleOperationView,
-    RegisteredCloudLocation, ReviewDecisionKind, ReviewFolderGroupSummary, ReviewGroupSummary,
-    ReviewLiveHintRequest, ReviewLiveRootOverflowRequest, ReviewLiveRootReconciliationRequest,
-    ReviewLiveRootState, ReviewLiveValidationRequest, ReviewPlanSummary, ReviewPlanView,
-    RunExclusion, RunParameters, RunWarningAggregate, RunWarningPageQuery, RunWarningSortField,
-    ScanRun, ScanSession, SortDirection,
+    RegisteredCloudLocation, RepeatCachePolicy, ReviewDecisionKind, ReviewFolderGroupSummary,
+    ReviewGroupSummary, ReviewLiveHintRequest, ReviewLiveRootOverflowRequest,
+    ReviewLiveRootReconciliationRequest, ReviewLiveRootState, ReviewLiveValidationRequest,
+    ReviewPlanSummary, ReviewPlanView, RunExclusion, RunParameters, RunWarningAggregate,
+    RunWarningPageQuery, RunWarningSortField, ScanRun, ScanSession, SortDirection,
 };
 use super_duper_core::storage::preference::PreferenceError;
 use super_duper_core::storage::preflight::PreflightError;
@@ -229,6 +229,15 @@ impl Default for PageParameters {
 struct IdParameters {
     #[serde(alias = "id")]
     session_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RunStartParameters {
+    #[serde(alias = "id")]
+    session_id: i64,
+    #[serde(default)]
+    repeat_cache_policy: RepeatCachePolicy,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1068,6 +1077,7 @@ struct RunParametersDto {
     roots: Vec<String>,
     ignore_patterns: Vec<String>,
     directory_similarity_threshold_millis: u16,
+    repeat_cache_policy: RepeatCachePolicy,
     cloud_policy: CloudPolicy,
     manual_location_exclusions: Vec<String>,
     registered_cloud_locations: Vec<RegisteredCloudLocation>,
@@ -3829,7 +3839,7 @@ impl WorkerSession {
     }
 
     fn run_start(&self, request: &RequestEnvelope) -> Result<Value, ProtocolFailure> {
-        let parameters: IdParameters = parse_parameters(request)?;
+        let parameters: RunStartParameters = parse_parameters(request)?;
         let _gate = self
             .state
             .work_gate
@@ -3904,6 +3914,7 @@ impl WorkerSession {
             roots: session.roots.clone(),
             ignore_patterns: session.ignore_patterns.clone(),
             directory_similarity_threshold_millis: 500,
+            repeat_cache_policy: parameters.repeat_cache_policy,
             cloud_policy: session.cloud_policy,
             manual_location_exclusions: session.manual_location_exclusions.clone(),
             registered_cloud_locations: session.registered_cloud_locations.clone(),
@@ -6195,6 +6206,7 @@ fn run_dto(run: ScanRun) -> Result<RunDto, ProtocolFailure> {
             roots: parameters.roots,
             ignore_patterns: parameters.ignore_patterns,
             directory_similarity_threshold_millis: parameters.directory_similarity_threshold_millis,
+            repeat_cache_policy: parameters.repeat_cache_policy,
             cloud_policy: parameters.cloud_policy,
             manual_location_exclusions: parameters.manual_location_exclusions,
             registered_cloud_locations: parameters.registered_cloud_locations,
@@ -7481,6 +7493,7 @@ mod tests {
             roots: vec!["Z:/persisted-only".to_owned()],
             ignore_patterns: Vec::new(),
             directory_similarity_threshold_millis: 500,
+            repeat_cache_policy: RepeatCachePolicy::RevalidateContent,
             cloud_policy: CloudPolicy::ExcludeRegisteredRoots,
             manual_location_exclusions: Vec::new(),
             registered_cloud_locations: Vec::new(),
@@ -7747,6 +7760,7 @@ mod tests {
                     roots: roots.clone(),
                     ignore_patterns: Vec::new(),
                     directory_similarity_threshold_millis: 500,
+                    repeat_cache_policy: RepeatCachePolicy::RevalidateContent,
                     cloud_policy: CloudPolicy::ExcludeRegisteredRoots,
                     manual_location_exclusions: Vec::new(),
                     registered_cloud_locations: Vec::new(),
@@ -7924,6 +7938,7 @@ mod tests {
                     roots: vec![root_path.clone()],
                     ignore_patterns: Vec::new(),
                     directory_similarity_threshold_millis: 500,
+                    repeat_cache_policy: RepeatCachePolicy::RevalidateContent,
                     cloud_policy: CloudPolicy::ExcludeRegisteredRoots,
                     manual_location_exclusions: Vec::new(),
                     registered_cloud_locations: Vec::new(),
@@ -8156,6 +8171,7 @@ mod tests {
             roots: roots.clone(),
             ignore_patterns: Vec::new(),
             directory_similarity_threshold_millis: 500,
+            repeat_cache_policy: RepeatCachePolicy::RevalidateContent,
             cloud_policy: CloudPolicy::ExcludeRegisteredRoots,
             manual_location_exclusions: Vec::new(),
             registered_cloud_locations: Vec::new(),
@@ -8369,6 +8385,7 @@ mod tests {
             roots: roots.clone(),
             ignore_patterns: Vec::new(),
             directory_similarity_threshold_millis: 500,
+            repeat_cache_policy: RepeatCachePolicy::RevalidateContent,
             cloud_policy: CloudPolicy::ExcludeRegisteredRoots,
             manual_location_exclusions: Vec::new(),
             registered_cloud_locations: Vec::new(),
@@ -8782,6 +8799,7 @@ mod tests {
                     roots: vec!["/root".to_owned()],
                     ignore_patterns: vec![],
                     directory_similarity_threshold_millis: 500,
+                    repeat_cache_policy: RepeatCachePolicy::RevalidateContent,
                     cloud_policy: Default::default(),
                     manual_location_exclusions: vec![],
                     registered_cloud_locations: vec![],
@@ -10024,6 +10042,7 @@ mod tests {
                     roots: vec!["/root".to_owned()],
                     ignore_patterns: vec![],
                     directory_similarity_threshold_millis: 500,
+                    repeat_cache_policy: RepeatCachePolicy::RevalidateContent,
                     cloud_policy: Default::default(),
                     manual_location_exclusions: vec![],
                     registered_cloud_locations: vec![],
@@ -10252,6 +10271,84 @@ mod tests {
     }
 
     #[test]
+    fn run_start_defaults_reuse_rejects_unknown_policy_and_reconstructs_exact_alternate() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("scan");
+        fs::create_dir(&root).unwrap();
+        let db_path = temp.path().join("worker.db");
+        let db = Database::open(db_path.to_str().unwrap()).unwrap();
+        db.create_session_with_cloud_settings(
+            "Repeat policy",
+            &[root.to_string_lossy().into_owned()],
+            &[],
+            CloudPolicy::ExcludeRegisteredRoots,
+            &[],
+            &[],
+            CloudDetectionStatus::Complete,
+        )
+        .unwrap();
+        drop(db);
+
+        let (sender, _receiver) = mpsc::channel();
+        let state = SharedState::new(WorkerOptions::new(&db_path), sender).unwrap();
+        let mut session = WorkerSession::new(state.clone());
+        session.handle_line(HELLO).unwrap();
+
+        let invalid: Value = serde_json::from_str(
+            &session
+                .handle_line(
+                    r#"{"type":"request","id":"invalid","method":"run.start","params":{"sessionId":1,"repeatCachePolicy":"trust_path"}}"#,
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(invalid["error"]["code"], "invalid_request");
+
+        let default_started: Value = serde_json::from_str(
+            &session
+                .handle_line(
+                    r#"{"type":"request","id":"default","method":"run.start","params":{"sessionId":1}}"#,
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            default_started["result"]["run"]["parameters"]["repeatCachePolicy"],
+            "reuse_verified"
+        );
+        let mut active = state.active.lock().unwrap();
+        while active.is_some() {
+            active = state.idle.wait(active).unwrap();
+        }
+        drop(active);
+
+        let alternate_started: Value = serde_json::from_str(
+            &session
+                .handle_line(
+                    r#"{"type":"request","id":"alternate","method":"run.start","params":{"sessionId":1,"repeatCachePolicy":"revalidate_content"}}"#,
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            alternate_started["result"]["run"]["parameters"]["repeatCachePolicy"],
+            "revalidate_content"
+        );
+        let alternate_run_id = alternate_started["result"]["run"]["id"].as_i64().unwrap();
+        let durable = get_run(&state.database().unwrap(), alternate_run_id).unwrap();
+        assert_eq!(
+            RunParameters::from_json(&durable.parameters_json)
+                .unwrap()
+                .repeat_cache_policy,
+            RepeatCachePolicy::RevalidateContent
+        );
+        let mut active = state.active.lock().unwrap();
+        while active.is_some() {
+            active = state.idle.wait(active).unwrap();
+        }
+    }
+
+    #[test]
     fn delayed_latest_progress_emits_without_another_callback_and_stops_at_terminal() {
         use super_duper_core::telemetry::{
             ActiveDeviceProgress, ActiveDeviceUnavailableReason, ProgressLogicalCounters,
@@ -10350,6 +10447,7 @@ mod tests {
             roots: vec!["/root".into()],
             ignore_patterns: vec![],
             directory_similarity_threshold_millis: 500,
+            repeat_cache_policy: RepeatCachePolicy::RevalidateContent,
             cloud_policy: Default::default(),
             manual_location_exclusions: vec![],
             registered_cloud_locations: vec![],
@@ -10648,6 +10746,7 @@ mod tests {
             roots: vec!["/root".into()],
             ignore_patterns: vec![],
             directory_similarity_threshold_millis: 500,
+            repeat_cache_policy: RepeatCachePolicy::RevalidateContent,
             cloud_policy: Default::default(),
             manual_location_exclusions: vec![],
             registered_cloud_locations: vec![],
@@ -10762,6 +10861,7 @@ mod tests {
             roots: vec!["/root".into()],
             ignore_patterns: vec![],
             directory_similarity_threshold_millis: 500,
+            repeat_cache_policy: RepeatCachePolicy::RevalidateContent,
             cloud_policy: Default::default(),
             manual_location_exclusions: vec![],
             registered_cloud_locations: vec![],
@@ -10874,6 +10974,7 @@ mod tests {
                     roots: vec!["/tmp".into()],
                     ignore_patterns: vec![],
                     directory_similarity_threshold_millis: 500,
+                    repeat_cache_policy: RepeatCachePolicy::RevalidateContent,
                     cloud_policy: Default::default(),
                     manual_location_exclusions: vec![],
                     registered_cloud_locations: vec![],

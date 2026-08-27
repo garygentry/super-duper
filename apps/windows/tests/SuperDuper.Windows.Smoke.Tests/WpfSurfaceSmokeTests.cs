@@ -64,6 +64,12 @@ public sealed class WpfSurfaceSmokeTests
             var history = new RunHistoryView();
             var preflight = new PreflightView();
             AssertScanProgressSurface();
+            var repeatPolicy = FindByAutomationId<ComboBox>(setup, "RepeatCachePolicy");
+            Assert.AreEqual("Repeat scan hash policy", AutomationProperties.GetName(repeatPolicy));
+            StringAssert.Contains(AutomationProperties.GetHelpText(repeatPolicy), "falls back");
+            Assert.IsTrue(repeatPolicy.Focusable);
+            Assert.IsTrue(KeyboardNavigation.GetIsTabStop(repeatPolicy));
+            _ = FindByAutomationId<TextBlock>(setup, "RepeatCachePolicyDescription");
             AssertPerformanceSurface();
             AssertSurface(
                 files,

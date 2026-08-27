@@ -186,6 +186,7 @@ public sealed class PreferenceRulesViewModelTests
             roots,
             [],
             500,
+            RepeatCachePolicyNames.RevalidateContent,
             CloudPolicyNames.ExcludeRegisteredRoots,
             [],
             [],

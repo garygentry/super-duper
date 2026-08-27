@@ -1,11 +1,11 @@
 use super::cache;
 use super::repeat_cache::{
     compare_content_signatures, observe_content_signature, ContentSignatureObservation,
-    ContentSignatureWindow, RepeatCacheLookup, RepeatCachePolicy, RepeatHashCache,
-    SystemContentSignatureProbe,
+    ContentSignatureWindow, RepeatCacheLookup, RepeatHashCache, SystemContentSignatureProbe,
 };
 use super::scheduler::{execute_device_reads, DeviceReadPolicy, ScheduledRead};
 use crate::progress::ProgressReporter;
+use crate::storage::models::RepeatCachePolicy;
 use dashmap::DashMap;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};

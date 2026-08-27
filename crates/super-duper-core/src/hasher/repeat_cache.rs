@@ -1,3 +1,4 @@
+use crate::storage::models::RepeatCachePolicy;
 use rocksdb::{Direction, IteratorMode, Options, WriteBatch, DB};
 use serde::{Deserialize, Serialize};
 use std::io::{self, ErrorKind};
@@ -21,24 +22,6 @@ pub(crate) const MAXIMUM_ENCODED_VALUE_BYTES: usize = 128;
 pub(crate) const MAXIMUM_ENCODED_ORDER_KEY_BYTES: usize =
     ORDER_PREFIX.len() + 10 + MAXIMUM_ENCODED_KEY_BYTES;
 const PRUNE_BATCH_ENTRIES: usize = 1024;
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RepeatCachePolicy {
-    ReuseVerified,
-    #[default]
-    RevalidateContent,
-}
-
-impl RepeatCachePolicy {
-    #[allow(dead_code)]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::ReuseVerified => "reuse_verified",
-            Self::RevalidateContent => "revalidate_content",
-        }
-    }
-}
 
 impl FromStr for RepeatCachePolicy {
     type Err = io::Error;
@@ -911,10 +894,10 @@ mod tests {
     }
 
     #[test]
-    fn policy_contract_is_closed_and_defaults_to_forced_revalidation() {
+    fn policy_contract_is_closed_and_defaults_to_measured_verified_reuse() {
         assert_eq!(
             RepeatCachePolicy::default(),
-            RepeatCachePolicy::RevalidateContent
+            RepeatCachePolicy::ReuseVerified
         );
         for policy in [
             RepeatCachePolicy::ReuseVerified,

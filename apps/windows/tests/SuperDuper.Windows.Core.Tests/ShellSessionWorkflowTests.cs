@@ -1,4 +1,5 @@
 using SuperDuper.Windows.Core.ViewModels;
+using SuperDuper.Windows.Core.Workers;
 
 namespace SuperDuper.Windows.Core.Tests;
 
@@ -47,6 +48,53 @@ public sealed class ShellSessionWorkflowTests
         {
             root.Delete(recursive: true);
         }
+    }
+
+    [TestMethod]
+    public async Task StartRunCommand_SnapshotsSelectedRepeatPolicyIntoRunHistory()
+    {
+        var client = new TestWorkerClient();
+        var session = client.AddSession("Repeat", Path.GetTempPath());
+        using var shell = CreateShell(client);
+        await shell.InitializeAsync();
+        shell.Setup.RepeatCachePolicy = RepeatCachePolicyNames.RevalidateContent;
+
+        await shell.StartRunCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(RepeatCachePolicyNames.RevalidateContent, client.LastRepeatCachePolicy);
+        Assert.AreEqual(
+            RepeatCachePolicyNames.RevalidateContent,
+            shell.History.SelectedRun?.Run.Parameters.RepeatCachePolicy);
+        Assert.AreEqual(session.Id, shell.History.SelectedRun?.Run.SessionId);
+    }
+
+    [TestMethod]
+    public async Task CancelledStaleStartCannotReplaceNewSetupOrPublishItsFailure()
+    {
+        var client = new TestWorkerClient();
+        var session = client.AddSession("First", Path.GetTempPath());
+        var completion = new TaskCompletionSource<WorkerRun>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var requestObserved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        client.StartRunHandler = (_, _, _) =>
+        {
+            requestObserved.SetResult();
+            return completion.Task;
+        };
+        using var shell = CreateShell(client);
+        await shell.InitializeAsync();
+
+        var staleStart = shell.StartRunCommand.ExecuteAsync(null);
+        await requestObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await shell.Sessions.NewSessionCommand.ExecuteAsync(null);
+        completion.SetException(new InvalidOperationException("stale start failed"));
+        await staleStart;
+
+        Assert.AreEqual("New session", shell.DisplaySessionName);
+        Assert.IsFalse(shell.HasActiveRun);
+        Assert.IsNull(shell.ContentErrorMessage);
+        Assert.AreEqual(session.Id, client.Sessions.Single().Id);
     }
 
     [DataTestMethod]

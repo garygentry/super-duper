@@ -1016,6 +1016,7 @@ mod tests {
                         roots: vec![root.clone()],
                         ignore_patterns: Vec::new(),
                         directory_similarity_threshold_millis: 500,
+                        repeat_cache_policy: Default::default(),
                         cloud_policy: CloudPolicy::ExcludeRegisteredRoots,
                         manual_location_exclusions: Vec::new(),
                         registered_cloud_locations: Vec::new(),

@@ -9,6 +9,30 @@ namespace SuperDuper.Windows.Core.Tests;
 public sealed class SessionSetupViewModelTests
 {
     [TestMethod]
+    public void RepeatCachePolicy_DefaultsToMeasuredReuseAndRejectsOpenValues()
+    {
+        var viewModel = CreateViewModel(new TestWorkerClient());
+
+        viewModel.BeginNew();
+
+        Assert.AreEqual(RepeatCachePolicyNames.ReuseVerified, viewModel.RepeatCachePolicy);
+        Assert.AreEqual(2, viewModel.RepeatCachePolicies.Count);
+        StringAssert.Contains(viewModel.RepeatCachePolicyDescription, "falls back");
+        Assert.ThrowsException<ArgumentOutOfRangeException>(
+            () => viewModel.RepeatCachePolicy = "trust_path");
+    }
+
+    [TestMethod]
+    public void RepeatCachePolicy_AlternateDisclosureExplainsContentReads()
+    {
+        var viewModel = CreateViewModel(new TestWorkerClient());
+
+        viewModel.RepeatCachePolicy = RepeatCachePolicyNames.RevalidateContent;
+
+        StringAssert.Contains(viewModel.RepeatCachePolicyDescription, "reads file content again");
+    }
+
+    [TestMethod]
     public void BeginNew_SeedsSafeWindowsIgnorePatterns()
     {
         var viewModel = CreateViewModel(new TestWorkerClient());

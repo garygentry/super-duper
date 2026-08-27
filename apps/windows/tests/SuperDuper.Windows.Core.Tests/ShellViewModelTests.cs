@@ -481,7 +481,14 @@ public sealed class ShellViewModelTests
         public Task<WorkerRunExclusionPage> GetRunExclusionsAsync(long runId, long offset = 0, int limit = 100, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<WorkerRunWarningPage> GetRunWarningsAsync(RunWarningQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
-        public Task<WorkerRun> StartRunAsync(long sessionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<WorkerRun> StartRunAsync(
+            long sessionId,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<WorkerRun> StartRunAsync(
+            long sessionId,
+            string repeatCachePolicy,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<WorkerRun> CancelRunAsync(long runId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 

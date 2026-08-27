@@ -402,13 +402,28 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
             },
             cancellationToken);
 
-    public async Task<WorkerRun> StartRunAsync(
+    public Task<WorkerRun> StartRunAsync(
         long sessionId,
         CancellationToken cancellationToken = default) =>
-        (await InvokeAsync<RunResult>(
+        StartRunAsync(sessionId, RepeatCachePolicyNames.ReuseVerified, cancellationToken);
+
+    public async Task<WorkerRun> StartRunAsync(
+        long sessionId,
+        string repeatCachePolicy,
+        CancellationToken cancellationToken = default)
+    {
+        if (!RepeatCachePolicyNames.IsSupported(repeatCachePolicy))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(repeatCachePolicy),
+                repeatCachePolicy,
+                "Unsupported repeat-cache policy.");
+        }
+        return (await InvokeAsync<RunResult>(
             "run.start",
-            new { sessionId },
+            new { sessionId, repeatCachePolicy },
             cancellationToken).ConfigureAwait(false)).Run;
+    }
 
     public async Task<WorkerRun> CancelRunAsync(
         long runId,

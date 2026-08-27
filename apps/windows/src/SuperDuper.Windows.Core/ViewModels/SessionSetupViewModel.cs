@@ -9,6 +9,8 @@ using SuperDuper.Windows.Core.Workers;
 
 namespace SuperDuper.Windows.Core.ViewModels;
 
+public sealed record RepeatCachePolicyOption(string Value, string DisplayName, string Description);
+
 public sealed class SessionSetupViewModel : ObservableObject
 {
     private readonly IWorkerClient _workerClient;
@@ -30,6 +32,7 @@ public sealed class SessionSetupViewModel : ObservableObject
     private bool _isDirty;
     private bool _suppressChanges;
     private string? _operationError;
+    private string _repeatCachePolicy = RepeatCachePolicyNames.ReuseVerified;
     private SessionValidationResult _validation = new([], [], [], ["Enter a session name."], false);
 
     public SessionSetupViewModel(
@@ -61,6 +64,18 @@ public sealed class SessionSetupViewModel : ObservableObject
 
     public ObservableCollection<CloudLocationListItemViewModel> DetectedCloudLocations { get; } = [];
 
+    public IReadOnlyList<RepeatCachePolicyOption> RepeatCachePolicies { get; } =
+    [
+        new(
+            RepeatCachePolicyNames.ReuseVerified,
+            "Reuse verified hashes (recommended)",
+            "Reuses hashes only when stable file identity and qualified change metadata still match. Any uncertainty falls back to reading the file."),
+        new(
+            RepeatCachePolicyNames.RevalidateContent,
+            "Always read file content",
+            "Bypasses cache hits and reads file content again while still refreshing verified cache entries."),
+    ];
+
     public long? SessionId
     {
         get => _sessionId;
@@ -85,6 +100,26 @@ public sealed class SessionSetupViewModel : ObservableObject
             }
         }
     }
+
+    public string RepeatCachePolicy
+    {
+        get => _repeatCachePolicy;
+        set
+        {
+            if (!RepeatCachePolicyNames.IsSupported(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "Unsupported repeat-cache policy.");
+            }
+            if (SetProperty(ref _repeatCachePolicy, value))
+            {
+                OnPropertyChanged(nameof(RepeatCachePolicyDescription));
+            }
+        }
+    }
+
+    public string RepeatCachePolicyDescription => RepeatCachePolicies
+        .Single(option => option.Value == RepeatCachePolicy)
+        .Description;
 
     public string IgnorePatternsText
     {
@@ -275,6 +310,7 @@ public sealed class SessionSetupViewModel : ObservableObject
         try
         {
             SessionId = null;
+            RepeatCachePolicy = RepeatCachePolicyNames.ReuseVerified;
             Name = "New session";
             ReplaceRoots([""]);
             IgnorePatternsText = string.Join(Environment.NewLine, SessionDefinitionValidator.SafeWindowsIgnorePatterns);

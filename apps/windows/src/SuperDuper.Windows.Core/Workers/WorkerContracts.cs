@@ -17,6 +17,15 @@ public static class CloudDetectionStatusNames
     public const string Unavailable = "unavailable";
 }
 
+public static class RepeatCachePolicyNames
+{
+    public const string ReuseVerified = "reuse_verified";
+    public const string RevalidateContent = "revalidate_content";
+
+    public static bool IsSupported(string value) =>
+        value is ReuseVerified or RevalidateContent;
+}
+
 public sealed record WorkerRegisteredCloudLocation(string Path, string ProviderId, string DisplayName);
 
 public sealed record WorkerSessionDefinition(
@@ -35,6 +44,7 @@ public sealed record WorkerRunParameters(
     IReadOnlyList<string> Roots,
     IReadOnlyList<string> IgnorePatterns,
     ushort DirectorySimilarityThresholdMillis,
+    string RepeatCachePolicy,
     string CloudPolicy,
     IReadOnlyList<string> ManualLocationExclusions,
     IReadOnlyList<WorkerRegisteredCloudLocation> RegisteredCloudLocations,

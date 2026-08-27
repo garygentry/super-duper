@@ -237,8 +237,25 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
         ?? Task.FromResult(new WorkerRunWarningPage(
             [], 0, 0, 0, 0, "terminal", "completed", DiagnosticLog, null, false));
 
-    public Task<WorkerRun> StartRunAsync(long sessionId, CancellationToken cancellationToken = default)
+    public string? LastRepeatCachePolicy { get; private set; }
+
+    public Func<long, string, CancellationToken, Task<WorkerRun>>? StartRunHandler { get; set; }
+
+    public Task<WorkerRun> StartRunAsync(
+        long sessionId,
+        CancellationToken cancellationToken = default) =>
+        StartRunAsync(sessionId, RepeatCachePolicyNames.ReuseVerified, cancellationToken);
+
+    public Task<WorkerRun> StartRunAsync(
+        long sessionId,
+        string repeatCachePolicy,
+        CancellationToken cancellationToken = default)
     {
+        LastRepeatCachePolicy = repeatCachePolicy;
+        if (StartRunHandler is not null)
+        {
+            return StartRunHandler(sessionId, repeatCachePolicy, cancellationToken);
+        }
         var session = Sessions.Single(value => value.Id == sessionId);
         var now = DateTimeOffset.UtcNow;
         var run = CreateRun(++_nextRunId, session.Id, "running", "discovering", now);
@@ -248,6 +265,7 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
                 session.Roots,
                 session.IgnorePatterns,
                 500,
+                repeatCachePolicy,
                 session.CloudPolicy,
                 session.ManualLocationExclusions,
                 session.RegisteredCloudLocations,
@@ -772,6 +790,7 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
                 [],
                 [],
                 500,
+                RepeatCachePolicyNames.RevalidateContent,
                 CloudPolicyNames.ExcludeRegisteredRoots,
                 [],
                 [],

@@ -74,6 +74,11 @@ public interface IWorkerClient : IAsyncDisposable
 
     Task<WorkerRun> StartRunAsync(long sessionId, CancellationToken cancellationToken = default);
 
+    Task<WorkerRun> StartRunAsync(
+        long sessionId,
+        string repeatCachePolicy,
+        CancellationToken cancellationToken = default);
+
     Task<WorkerRun> CancelRunAsync(long runId, CancellationToken cancellationToken = default);
 
     Task<WorkerDuplicateFileGroupPage> GetDuplicateFileGroupsAsync(

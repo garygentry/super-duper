@@ -60,11 +60,39 @@ pub struct RegisteredCloudLocation {
     pub display_name: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RepeatCachePolicy {
+    ReuseVerified,
+    RevalidateContent,
+}
+
+impl RepeatCachePolicy {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ReuseVerified => "reuse_verified",
+            Self::RevalidateContent => "revalidate_content",
+        }
+    }
+}
+
+impl Default for RepeatCachePolicy {
+    fn default() -> Self {
+        Self::ReuseVerified
+    }
+}
+
+const fn legacy_repeat_cache_policy() -> RepeatCachePolicy {
+    RepeatCachePolicy::RevalidateContent
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunParameters {
     pub roots: Vec<String>,
     pub ignore_patterns: Vec<String>,
     pub directory_similarity_threshold_millis: u16,
+    #[serde(default = "legacy_repeat_cache_policy")]
+    pub repeat_cache_policy: RepeatCachePolicy,
     #[serde(default)]
     pub cloud_policy: CloudPolicy,
     #[serde(default)]

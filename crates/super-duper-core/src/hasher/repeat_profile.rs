@@ -1,11 +1,11 @@
 use super::repeat_cache::{
-    RepeatCachePolicy, RepeatHashCache, MAXIMUM_LIVE_ENTRIES, PRUNE_TARGET_ENTRIES,
-    STORE_SCHEMA_VERSION,
+    RepeatHashCache, MAXIMUM_LIVE_ENTRIES, PRUNE_TARGET_ENTRIES, STORE_SCHEMA_VERSION,
 };
 use super::xxhash::{
     build_content_hash_map_with_progress, HashProgressDelta, HashProgressSink, SystemHashPipelineIo,
 };
 use crate::progress::SilentReporter;
+use crate::storage::models::RepeatCachePolicy;
 use crate::telemetry::{SamplerPlatform, WindowsSamplerPlatform};
 use dashmap::DashMap;
 use serde_json::{json, Value};

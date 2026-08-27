@@ -15,6 +15,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     private readonly IUserConfirmationService _confirmation;
     private readonly LatestProgressApplicationGate<WorkerRunProgressEventArgs> _progressGate;
     private CancellationTokenSource? _selectionCancellation;
+    private CancellationTokenSource? _startCancellation;
+    private long _startGeneration;
     private WorkerConnectionState _connectionState = WorkerConnectionState.Starting;
     private string _statusTitle = "Starting worker";
     private string _statusDetail = "Establishing a private connection to the Super Duper engine.";
@@ -371,6 +373,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         _disposed = true;
         _selectionCancellation?.Cancel();
         _selectionCancellation?.Dispose();
+        CancelPendingStart();
         Sessions.SelectionChanged -= OnSessionSelectionChanged;
         Setup.SessionSaved -= OnSessionSaved;
         Setup.SessionDeleted -= OnSessionDeleted;
@@ -413,6 +416,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
     private Task BeginNewSessionAsync()
     {
+        CancelPendingStart();
         _selectionCancellation?.Cancel();
         _suppressSelection = true;
         Sessions.SelectedSession = null;
@@ -483,6 +487,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         SessionListItemViewModel selected,
         CancellationToken cancellationToken = default)
     {
+        CancelPendingStart();
         _selectionCancellation?.Cancel();
         _selectionCancellation?.Dispose();
         _selectionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -532,20 +537,31 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
     private async Task StartRunAsync()
     {
+        CancelPendingStart();
+        var generation = ++_startGeneration;
+        _startCancellation = new CancellationTokenSource();
+        var token = _startCancellation.Token;
+        var repeatCachePolicy = Setup.RepeatCachePolicy;
         ContentErrorMessage = null;
-        var session = await Setup.EnsureSavedAsync(requireReachableRoot: true);
-        if (session is null)
-        {
-            return;
-        }
         try
         {
+            var session = await Setup.EnsureSavedAsync(requireReachableRoot: true, token);
+            if (session is null || !IsCurrentStart(generation, token))
+            {
+                return;
+            }
             await _savedHistoryLoad;
+            token.ThrowIfCancellationRequested();
             if (History.SessionId != session.Id)
             {
-                await History.LoadAsync(session.Id);
+                await History.LoadAsync(session.Id, token);
             }
-            var run = await _workerClient.StartRunAsync(session.Id);
+            token.ThrowIfCancellationRequested();
+            var run = await _workerClient.StartRunAsync(session.Id, repeatCachePolicy, token);
+            if (!IsCurrentStart(generation, token))
+            {
+                return;
+            }
             SetActiveRun(run);
             History.Upsert(run, select: true);
             Progress.ShowRun(run);
@@ -554,13 +570,42 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             StatusTitle = $"Scanning {session.Name}";
             StatusDetail = "The scan is running in the Rust worker.";
 
-            var durableRun = await _workerClient.GetRunAsync(run.Id);
+            var durableRun = await _workerClient.GetRunAsync(run.Id, token);
+            if (!IsCurrentStart(generation, token))
+            {
+                return;
+            }
             HandleLifecycle(durableRun);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
         }
         catch (Exception exception)
         {
-            ContentErrorMessage = exception.Message;
+            if (IsCurrentStart(generation, token))
+            {
+                ContentErrorMessage = exception.Message;
+            }
         }
+        finally
+        {
+            if (generation == _startGeneration)
+            {
+                _startCancellation?.Dispose();
+                _startCancellation = null;
+            }
+        }
+    }
+
+    private bool IsCurrentStart(long generation, CancellationToken token) =>
+        !_disposed && !token.IsCancellationRequested && generation == _startGeneration;
+
+    private void CancelPendingStart()
+    {
+        _startGeneration++;
+        _startCancellation?.Cancel();
+        _startCancellation?.Dispose();
+        _startCancellation = null;
     }
 
     private async Task RestartWorkerAsync()
@@ -887,6 +932,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
     private void ShowEmptyState()
     {
+        CancelPendingStart();
         IsWorkspaceVisible = false;
         IsLoadingSession = false;
         DisplaySessionName = "Sessions";

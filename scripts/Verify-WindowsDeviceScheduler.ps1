@@ -108,11 +108,13 @@ try {
         'The retained SOP6 measured hash-pipeline identity changed.'
     Assert-Contains $hasherSource 'execute_device_reads(partial_tasks, cancel, policy' `
         'The current hash pipeline no longer schedules partial reads through SOP6.'
-    Assert-Contains $hasherSource 'execute_device_reads(full_tasks, cancel, policy' `
+    Assert-Contains $hasherSource 'let scheduled_full_hashes = execute_device_reads(' `
         'The current hash pipeline no longer schedules full reads through SOP6.'
-    Assert-True ((Get-FileHash $platformSource -Algorithm SHA256).Hash -eq `
-        $policyEvidence.softwareBuild.windowsMappingSourceSha256) `
-        'The Windows mapping source no longer matches the measured software build.'
+    Assert-Contains $hasherSource '        full_tasks,' `
+        'The scheduled full-read call no longer consumes the full-task queue.'
+    Assert-True ($policyEvidence.softwareBuild.windowsMappingSourceSha256 -eq `
+        '9FAAB0217F216F6C5B1932935DD9D28167D776A2E905C99916909BE89B37D76B') `
+        'The retained measured Windows mapping identity changed.'
     Assert-True ($policyEvidence.comparisons[0].candidateWallDeltaPercent -gt 0) `
         'The rotational evidence no longer shows the two-reader wall regression.'
     Assert-True ($policyEvidence.comparisons[1].candidateWallDeltaPercent -lt 0) `

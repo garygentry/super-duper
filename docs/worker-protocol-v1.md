@@ -269,7 +269,7 @@ A run response uses this shape (large byte counters are decimal strings):
 {
   "id":19,
   "sessionId":7,
-  "parameters":{"roots":["D:\\Photos"],"ignorePatterns":[],"directorySimilarityThresholdMillis":500,"cloudPolicy":"exclude_registered_roots","manualLocationExclusions":[],"registeredCloudLocations":[],"cloudDetectionStatus":"complete"},
+  "parameters":{"roots":["D:\\Photos"],"ignorePatterns":[],"directorySimilarityThresholdMillis":500,"repeatCachePolicy":"reuse_verified","cloudPolicy":"exclude_registered_roots","manualLocationExclusions":[],"registeredCloudLocations":[],"cloudDetectionStatus":"complete"},
   "status":"running",
   "phase":"discovering",
   "createdAt":"2026-08-15T12:00:00Z",
@@ -288,7 +288,9 @@ A run response uses this shape (large byte counters are decimal strings):
 }
 ```
 
-`parameters` is the immutable snapshot used by that execution. Durable statuses and phases are the
+`parameters` is the immutable snapshot used by that execution. `repeatCachePolicy` is exactly
+`reuse_verified` or `revalidate_content`; snapshots written before this additive field reconstruct
+as `revalidate_content`, matching their historical behavior. Durable statuses and phases are the
 values defined in `storage-schema-v4.md`. `excludedSubtreeCount` is distinct from recoverable
 warnings and counts aggregated subtrees pruned before content access.
 
@@ -304,9 +306,12 @@ Params are `{ "runId": 19 }`; the result is `{ "run": <run> }` read from durable
 
 ### `run.start`
 
-Params are `{ "sessionId": 7 }`. The worker creates and starts the durable run before returning
-`{ "run": <run> }`. At most one run may be active globally. A second start returns `scan_busy`
-without creating a run or changing the active run.
+Params are `{ "sessionId": 7, "repeatCachePolicy": "reuse_verified" }`. The policy is optional for
+older clients and defaults to the measured `reuse_verified` selection; its only alternate is
+`revalidate_content`, and any other value fails with `invalid_request` before a run is created.
+The worker persists the explicit effective value in the immutable run snapshot, then creates and
+starts the durable run before returning `{ "run": <run> }`. At most one run may be active globally.
+A second start returns `scan_busy` without creating a run or changing the active run.
 
 ### `run.cancel`
 

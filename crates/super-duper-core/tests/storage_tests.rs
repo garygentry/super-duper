@@ -18,9 +18,9 @@ use super_duper_core::storage::models::{
     ExactFolderGroupInsert, PageCursor, PageCursorValue, PreferencePreviewScope,
     RecoveryObservationKind, RecoveryReviewObservationInput, RecoveryReviewState,
     RecycleEligibilityObservation, RecycleItemResultObservation, RegisteredCloudLocation,
-    ReviewDecisionKind, ReviewLiveHintRequest, RunExclusionInsert, RunParameters,
-    RunWarningAggregateInsert, RunWarningPageQuery, RunWarningSortField, ScannedFile,
-    SortDirection,
+    RepeatCachePolicy, ReviewDecisionKind, ReviewLiveHintRequest, RunExclusionInsert,
+    RunParameters, RunWarningAggregateInsert, RunWarningPageQuery, RunWarningSortField,
+    ScannedFile, SortDirection,
 };
 use super_duper_core::storage::preference::PreferenceError;
 use super_duper_core::storage::preflight::PreflightError;
@@ -315,6 +315,7 @@ fn parameters(roots: &[&str], ignores: &[&str]) -> RunParameters {
         roots: roots.iter().map(|value| value.to_string()).collect(),
         ignore_patterns: ignores.iter().map(|value| value.to_string()).collect(),
         directory_similarity_threshold_millis: 500,
+        repeat_cache_policy: Default::default(),
         cloud_policy: Default::default(),
         manual_location_exclusions: Vec::new(),
         registered_cloud_locations: Vec::new(),
@@ -1962,6 +1963,35 @@ fn multiple_runs_keep_parameter_snapshots_after_session_edit() {
 }
 
 #[test]
+fn repeat_cache_policy_is_immutable_and_legacy_snapshots_reconstruct_as_forced() {
+    let db = Database::open_in_memory().unwrap();
+    let session = db
+        .create_session("Repeat cache", &["C:/".to_owned()], &[])
+        .unwrap();
+    let mut selected = parameters(&["C:/"], &[]);
+    selected.repeat_cache_policy = RepeatCachePolicy::ReuseVerified;
+    let run = db.create_scan_run(session, &selected, "test").unwrap();
+
+    let stored = db.get_scan_run(run).unwrap();
+    assert_eq!(
+        RunParameters::from_json(&stored.parameters_json),
+        Some(selected)
+    );
+
+    let legacy = r#"{
+        "roots":["C:/"],
+        "ignore_patterns":[],
+        "directory_similarity_threshold_millis":500
+    }"#;
+    assert_eq!(
+        RunParameters::from_json(legacy)
+            .unwrap()
+            .repeat_cache_policy,
+        RepeatCachePolicy::RevalidateContent
+    );
+}
+
+#[test]
 fn cloud_settings_are_immutable_in_run_snapshots() {
     let db = Database::open_in_memory().unwrap();
     let first_location = RegisteredCloudLocation {
@@ -1984,6 +2014,7 @@ fn cloud_settings_are_immutable_in_run_snapshots() {
         roots: vec!["C:/".to_owned()],
         ignore_patterns: vec![],
         directory_similarity_threshold_millis: 500,
+        repeat_cache_policy: Default::default(),
         cloud_policy: CloudPolicy::ExcludeRegisteredRoots,
         manual_location_exclusions: vec!["C:/Manual".to_owned()],
         registered_cloud_locations: vec![first_location],
