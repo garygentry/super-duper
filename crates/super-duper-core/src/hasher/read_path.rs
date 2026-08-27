@@ -337,7 +337,42 @@ mod windows_profile {
     use crate::telemetry::{SamplerPlatform, WindowsSamplerPlatform};
     use std::fs;
     use std::io::Write;
+    use std::os::windows::fs::OpenOptionsExt;
     use std::time::Instant;
+
+    struct AlignedWriteBuffer {
+        pointer: *mut u8,
+        layout: std::alloc::Layout,
+    }
+
+    impl AlignedWriteBuffer {
+        fn new(bytes: usize) -> io::Result<Self> {
+            let layout = std::alloc::Layout::from_size_align(bytes, 4096).map_err(|error| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("invalid SOP7 fixture-write layout: {error}"),
+                )
+            })?;
+            let pointer = unsafe { std::alloc::alloc(layout) };
+            if pointer.is_null() {
+                return Err(io::Error::new(
+                    io::ErrorKind::OutOfMemory,
+                    "SOP7 fixture-write buffer allocation failed",
+                ));
+            }
+            Ok(Self { pointer, layout })
+        }
+
+        fn as_mut_slice(&mut self) -> &mut [u8] {
+            unsafe { std::slice::from_raw_parts_mut(self.pointer, self.layout.size()) }
+        }
+    }
+
+    impl Drop for AlignedWriteBuffer {
+        fn drop(&mut self) {
+            unsafe { std::alloc::dealloc(self.pointer, self.layout) };
+        }
+    }
 
     struct Fixture {
         root: PathBuf,
@@ -358,7 +393,7 @@ mod windows_profile {
         ));
         fs::create_dir(&fixture_root)?;
         let mut entries_by_arm = Vec::new();
-        let mut buffer = vec![0_u8; 1024 * 1024];
+        let mut aligned_buffer = AlignedWriteBuffer::new(1024 * 1024)?;
         for arm in 0..ARM_ORDER.len() {
             let mut entries = Vec::new();
             let parent_count = file_count.min(8);
@@ -372,13 +407,22 @@ mod windows_profile {
                     fs::create_dir_all(&directory)?;
                     let bucket_size = file_bytes + ((index % 4) as u64 * 4096);
                     let path = directory.join(format!("read-{index:05}.bin"));
+                    const FILE_FLAG_NO_BUFFERING: u32 = 0x2000_0000;
+                    const FILE_FLAG_WRITE_THROUGH: u32 = 0x8000_0000;
+                    const FILE_FLAG_SEQUENTIAL_SCAN: u32 = 0x0800_0000;
                     let mut file = OpenOptions::new()
                         .write(true)
                         .create_new(true)
+                        .custom_flags(
+                            FILE_FLAG_NO_BUFFERING
+                                | FILE_FLAG_WRITE_THROUGH
+                                | FILE_FLAG_SEQUENTIAL_SCAN,
+                        )
                         .open(&path)?;
                     let mut remaining = bucket_size;
                     let mut state = 0x9e37_79b9_7f4a_7c15_u64 ^ index as u64;
                     while remaining > 0 {
+                        let buffer = aligned_buffer.as_mut_slice();
                         let count = remaining.min(buffer.len() as u64) as usize;
                         for chunk in buffer[..count].chunks_mut(8) {
                             state ^= state << 13;
@@ -592,6 +636,7 @@ mod windows_profile {
             "capacityBytes": descriptor.capacity_bytes,
             "freeBytesAtStart": descriptor.free_bytes_at_start,
             "hardwareSerialPersisted": false,
+            "directUnbufferedWriteThroughFixture": true,
             "fileCountPerArm": file_count,
             "baseFileBytes": file_bytes,
             "armOrder": ARM_ORDER,
@@ -628,6 +673,19 @@ mod windows_profile {
         fs::write(fixture.join("sample.bin"), b"sample").unwrap();
         remove_fixture_with_bounded_retry(&fixture).unwrap();
         assert!(!fixture.exists());
+    }
+
+    #[test]
+    fn profile_fixture_uses_exact_aligned_file_sizes() {
+        let directory = tempfile::tempdir().unwrap();
+        let fixture = write_fixture(directory.path(), 4, 4096).unwrap();
+        for entries in &fixture.entries_by_arm {
+            for entry in entries {
+                assert_eq!(fs::metadata(&entry.path).unwrap().len(), entry.bucket_size);
+                assert_eq!(entry.bucket_size % 4096, 0);
+            }
+        }
+        remove_fixture_with_bounded_retry(&fixture.root).unwrap();
     }
 }
 

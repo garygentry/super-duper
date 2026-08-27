@@ -3,7 +3,7 @@ use super::scheduler::{execute_device_reads, DeviceReadPolicy, ScheduledRead};
 use crate::progress::ProgressReporter;
 use dashmap::DashMap;
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::hash::Hasher as _;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -12,7 +12,8 @@ use std::sync::Mutex;
 use twox_hash::XxHash64;
 
 const PARTIAL_HASH_LENGTH: usize = 1024;
-const STREAM_BUFFER_LENGTH: usize = 64 * 1024;
+const ROTATIONAL_STREAM_BUFFER_LENGTH: usize = 64 * 1024;
+const SOLID_STATE_STREAM_BUFFER_LENGTH: usize = 1024 * 1024;
 pub(crate) const HASH_PROGRESS_FILE_QUANTUM: u64 = 256;
 pub(crate) const FULL_READ_PROGRESS_BYTE_QUANTUM: u64 = 8 * 1024 * 1024;
 
@@ -145,6 +146,7 @@ pub(crate) trait HashPipelineIo: Send + Sync {
     fn full_hash(
         &self,
         path: &Path,
+        media: crate::platform::StorageMediaClass,
         cancel: &AtomicBool,
         observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
     ) -> io::Result<cache::CachedHash>;
@@ -196,10 +198,17 @@ impl HashPipelineIo for SystemHashPipelineIo {
     fn full_hash(
         &self,
         path: &Path,
+        media: crate::platform::StorageMediaClass,
         cancel: &AtomicBool,
         observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
     ) -> io::Result<cache::CachedHash> {
-        cache::get_content_hash_cancellable_observed(path, cancel, observe)
+        cache::get_content_hash_cancellable_observed(
+            path,
+            cancel,
+            stream_buffer_length(media),
+            true,
+            observe,
+        )
     }
 }
 
@@ -488,9 +497,13 @@ fn build_content_hash_map_with_scheduler(
         let collision = collision_by_size.entry(file_size).or_default();
         collision.0 += 1;
         collision.1 += files.len() as u64;
-        full_tasks.extend(files.into_iter().map(|file| ScheduledRead {
-            device: device_mapper.device_for_path(&file),
-            value: (file_size, file),
+        full_tasks.extend(files.into_iter().map(|file| {
+            let device = device_mapper.device_for_path(&file);
+            let media = device.media;
+            ScheduledRead {
+                device,
+                value: (file_size, file, media),
+            }
         }));
     }
     for (file_size, screened_files) in screened_by_size {
@@ -517,9 +530,9 @@ fn build_content_hash_map_with_scheduler(
     }
 
     let scheduled_full_hashes =
-        execute_device_reads(full_tasks, cancel, policy, |(file_size, file)| {
+        execute_device_reads(full_tasks, cancel, policy, |(file_size, file, media)| {
             batcher.check_cancelled(cancel)?;
-            populate_full_hash(&file, file_size, cancel, &batcher, io)
+            populate_full_hash(&file, file_size, media, cancel, &batcher, io)
                 .map(|hash| (file_size, file, hash))
         });
     let full_results = match scheduled_full_hashes {
@@ -604,13 +617,14 @@ impl HashOutcome {
 fn populate_full_hash(
     file: &Path,
     file_size: u64,
+    media: crate::platform::StorageMediaClass,
     cancel: &AtomicBool,
     batcher: &HashProgressBatcher<'_>,
     io: &dyn HashPipelineIo,
 ) -> io::Result<Option<u64>> {
     let mut lookup = None;
     let mut content_started = false;
-    let result = io.full_hash(file, cancel, &mut |event| match event {
+    let result = io.full_hash(file, media, cancel, &mut |event| match event {
         FullHashIoEvent::CacheLookup(outcome) => {
             lookup = Some(outcome);
             let mut delta = HashProgressDelta::default();
@@ -727,9 +741,31 @@ pub(crate) fn hash_file_streaming_observed(
     cancel: &AtomicBool,
     observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
 ) -> io::Result<u64> {
-    let mut file = File::open(path)?;
+    hash_file_streaming_observed_with_options(
+        path,
+        cancel,
+        ROTATIONAL_STREAM_BUFFER_LENGTH,
+        true,
+        observe,
+    )
+}
+
+pub(crate) fn hash_file_streaming_observed_with_options(
+    path: &Path,
+    cancel: &AtomicBool,
+    buffer_length: usize,
+    sequential_hint: bool,
+    observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
+) -> io::Result<u64> {
+    if buffer_length == 0 || buffer_length > SOLID_STATE_STREAM_BUFFER_LENGTH {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "hash stream buffer is outside the measured SOP7 bound",
+        ));
+    }
+    let mut file = open_streaming_file(path, sequential_hint)?;
     observe(FullHashIoEvent::ContentReadStarted)?;
-    let mut buffer = vec![0_u8; STREAM_BUFFER_LENGTH];
+    let mut buffer = vec![0_u8; buffer_length];
     let mut hasher = XxHash64::with_seed(0);
     let mut pending_bytes = 0_u64;
     loop {
@@ -757,6 +793,28 @@ pub(crate) fn hash_file_streaming_observed(
     }
     publish_pending_bytes(observe, &mut pending_bytes)?;
     Ok(hasher.finish())
+}
+
+pub(crate) fn stream_buffer_length(media: crate::platform::StorageMediaClass) -> usize {
+    match media {
+        crate::platform::StorageMediaClass::SolidState => SOLID_STATE_STREAM_BUFFER_LENGTH,
+        crate::platform::StorageMediaClass::Rotational
+        | crate::platform::StorageMediaClass::Unknown => ROTATIONAL_STREAM_BUFFER_LENGTH,
+    }
+}
+
+fn open_streaming_file(path: &Path, sequential_hint: bool) -> io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(target_os = "windows")]
+    if sequential_hint {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_FLAG_SEQUENTIAL_SCAN: u32 = 0x0800_0000;
+        options.custom_flags(FILE_FLAG_SEQUENTIAL_SCAN);
+    }
+    #[cfg(not(target_os = "windows"))]
+    let _ = sequential_hint;
+    options.open(path)
 }
 
 fn publish_pending_bytes(
@@ -830,6 +888,7 @@ mod tests {
         fn full_hash(
             &self,
             _path: &Path,
+            _media: crate::platform::StorageMediaClass,
             _cancel: &AtomicBool,
             _observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
         ) -> io::Result<cache::CachedHash> {
@@ -854,6 +913,7 @@ mod tests {
         fn full_hash(
             &self,
             _path: &Path,
+            _media: crate::platform::StorageMediaClass,
             _cancel: &AtomicBool,
             _observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
         ) -> io::Result<cache::CachedHash> {
@@ -888,6 +948,7 @@ mod tests {
         fn full_hash(
             &self,
             path: &Path,
+            _media: crate::platform::StorageMediaClass,
             _cancel: &AtomicBool,
             observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
         ) -> io::Result<cache::CachedHash> {
@@ -991,6 +1052,7 @@ mod tests {
         fn full_hash(
             &self,
             path: &Path,
+            _media: crate::platform::StorageMediaClass,
             _cancel: &AtomicBool,
             observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
         ) -> io::Result<cache::CachedHash> {
@@ -1025,6 +1087,7 @@ mod tests {
         fn full_hash(
             &self,
             _path: &Path,
+            _media: crate::platform::StorageMediaClass,
             _cancel: &AtomicBool,
             observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
         ) -> io::Result<cache::CachedHash> {
@@ -1067,6 +1130,7 @@ mod tests {
         fn full_hash(
             &self,
             _path: &Path,
+            _media: crate::platform::StorageMediaClass,
             _cancel: &AtomicBool,
             observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
         ) -> io::Result<cache::CachedHash> {
@@ -1120,6 +1184,7 @@ mod tests {
         fn full_hash(
             &self,
             _path: &Path,
+            _media: crate::platform::StorageMediaClass,
             _cancel: &AtomicBool,
             observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
         ) -> io::Result<cache::CachedHash> {
@@ -1438,7 +1503,7 @@ mod tests {
     fn streaming_hash_matches_in_memory_hash_across_buffer_boundaries() {
         let temp = TempDir::new().unwrap();
         let path = temp.path().join("large.bin");
-        let data: Vec<u8> = (0..(STREAM_BUFFER_LENGTH * 3 + 17))
+        let data: Vec<u8> = (0..(ROTATIONAL_STREAM_BUFFER_LENGTH * 3 + 17))
             .map(|index| (index % 251) as u8)
             .collect();
         fs::write(&path, &data).unwrap();
@@ -1449,10 +1514,62 @@ mod tests {
     }
 
     #[test]
+    fn measured_media_buffers_and_sequential_hint_preserve_exact_hashes() {
+        assert_eq!(
+            stream_buffer_length(crate::platform::StorageMediaClass::SolidState),
+            SOLID_STATE_STREAM_BUFFER_LENGTH
+        );
+        assert_eq!(
+            stream_buffer_length(crate::platform::StorageMediaClass::Rotational),
+            ROTATIONAL_STREAM_BUFFER_LENGTH
+        );
+        assert_eq!(
+            stream_buffer_length(crate::platform::StorageMediaClass::Unknown),
+            ROTATIONAL_STREAM_BUFFER_LENGTH
+        );
+        let temp = TempDir::new().unwrap();
+        let path = temp.path().join("media-buffer.bin");
+        let data = (0..(SOLID_STATE_STREAM_BUFFER_LENGTH + 17))
+            .map(|index| (index % 251) as u8)
+            .collect::<Vec<_>>();
+        fs::write(&path, &data).unwrap();
+        for buffer_length in [
+            ROTATIONAL_STREAM_BUFFER_LENGTH,
+            SOLID_STATE_STREAM_BUFFER_LENGTH,
+        ] {
+            for sequential_hint in [false, true] {
+                let hash = hash_file_streaming_observed_with_options(
+                    &path,
+                    &AtomicBool::new(false),
+                    buffer_length,
+                    sequential_hint,
+                    &mut |_| Ok(()),
+                )
+                .unwrap();
+                assert_eq!(hash, hash_data(&data));
+            }
+        }
+        for invalid in [0, SOLID_STATE_STREAM_BUFFER_LENGTH + 1] {
+            assert_eq!(
+                hash_file_streaming_observed_with_options(
+                    &path,
+                    &AtomicBool::new(false),
+                    invalid,
+                    true,
+                    &mut |_| Ok(()),
+                )
+                .unwrap_err()
+                .kind(),
+                io::ErrorKind::InvalidInput
+            );
+        }
+    }
+
+    #[test]
     fn observed_stream_reports_exact_remainder_bytes() {
         let temp = TempDir::new().unwrap();
         let path = temp.path().join("observed.bin");
-        let data = vec![7_u8; STREAM_BUFFER_LENGTH * 3 + 17];
+        let data = vec![7_u8; ROTATIONAL_STREAM_BUFFER_LENGTH * 3 + 17];
         fs::write(&path, &data).unwrap();
         let mut events = Vec::new();
         let hash = hash_file_streaming_observed(&path, &AtomicBool::new(false), &mut |event| {
@@ -1478,7 +1595,7 @@ mod tests {
     fn observed_stream_retains_bytes_before_cancellation() {
         let temp = TempDir::new().unwrap();
         let path = temp.path().join("cancel-observed.bin");
-        fs::write(&path, vec![9_u8; STREAM_BUFFER_LENGTH * 2]).unwrap();
+        fs::write(&path, vec![9_u8; ROTATIONAL_STREAM_BUFFER_LENGTH * 2]).unwrap();
         let cancel = AtomicBool::new(false);
         let mut checks = 0;
         let mut observed_bytes = 0;
@@ -1497,7 +1614,7 @@ mod tests {
         })
         .unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::Interrupted);
-        assert_eq!(observed_bytes, STREAM_BUFFER_LENGTH as u64);
+        assert_eq!(observed_bytes, ROTATIONAL_STREAM_BUFFER_LENGTH as u64);
     }
 
     #[test]

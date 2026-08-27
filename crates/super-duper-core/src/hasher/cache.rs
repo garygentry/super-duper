@@ -53,12 +53,16 @@ pub fn get_content_hash_cancellable(
     file: &Path,
     cancel_token: &AtomicBool,
 ) -> io::Result<CachedHash> {
-    get_content_hash_cancellable_observed(file, cancel_token, &mut |_| Ok(()))
+    let media = crate::platform::storage_device_for_path(file).media;
+    let buffer_length = super::xxhash::stream_buffer_length(media);
+    get_content_hash_cancellable_observed(file, cancel_token, buffer_length, true, &mut |_| Ok(()))
 }
 
 pub(crate) fn get_content_hash_cancellable_observed(
     file: &Path,
     cancel_token: &AtomicBool,
+    buffer_length: usize,
+    sequential_hint: bool,
     observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
 ) -> io::Result<CachedHash> {
     let canonical_path = fs::canonicalize(file)?.to_string_lossy().into_owned();
@@ -114,7 +118,13 @@ pub(crate) fn get_content_hash_cancellable_observed(
     }
 
     observe(FullHashIoEvent::CacheLookup(cache_outcome))?;
-    let hash = super::xxhash::hash_file_streaming_observed(file, cancel_token, observe)?;
+    let hash = super::xxhash::hash_file_streaming_observed_with_options(
+        file,
+        cancel_token,
+        buffer_length,
+        sequential_hint,
+        observe,
+    )?;
     let metadata_after_hash = fs::metadata(file)?;
     if metadata_after_hash.len() != size
         || metadata_modified_timestamp(&metadata_after_hash)? != modified_timestamp

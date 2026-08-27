@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "gate": "SOP7-hash-read-path",
+  "package": "SOP7d-buffer-read-ahead",
+  "decision": "select_media_buffer_and_sequential_hint",
+  "softwareBuild": {
+    "baseCommit": "5494e13",
+    "profileHarnessSourceSha256": "0F8A2F1CCC987EB8FE2DD9A4BAD26D986FF30C9E9DE80C7E435A40ED2BA310BD",
+    "admittedHashPipelineSourceSha256": "5FCACF495D6A41639A1696BCE099DCEC0BC968962B04FBDA53A40FA140D1BF9E",
+    "admittedCacheSourceSha256": "7450EADB61C86CBD3184F4173C1ADAA83E9C9FCEF478CA59E1A9105C6C8080FA"
+  },
+  "rawEvidence": [
+    {
+      "path": "docs/evidence/scan-read-path-buffer-size-ssd-20260826.json",
+      "sha256": "7C2D48F8CF8D1E5FDFAAC0EE64417E0914FA06A54AFE67FC8081CD8516ED309C"
+    },
+    {
+      "path": "docs/evidence/scan-read-path-buffer-size-hdd-20260826.json",
+      "sha256": "FB48882773606B5E7BE88B6C52D7E8A63B3556403E2CE54C6C697F5BE14AA872"
+    },
+    {
+      "path": "docs/evidence/scan-read-path-sequential-hint-ssd-20260826.json",
+      "sha256": "2ED2766AE36E0482D2E2DF78C3E6A29ACD641E9FCE6C665F239463DC1537C4D5"
+    },
+    {
+      "path": "docs/evidence/scan-read-path-sequential-hint-hdd-20260826.json",
+      "sha256": "0CD18B65220D9416F01EA0DC580ACCFE515625A4A7D9AEF29B55227116D57FF6"
+    }
+  ],
+  "method": {
+    "fixturePreparation": "aligned direct/unbuffered write-through files prevent the just-created fixture from populating the buffered-read cache",
+    "fixedFactors": {
+      "bucketOrder": "descending_size",
+      "withinBucketOrder": "encountered",
+      "partialPrefixBytes": 1024,
+      "partialPrefixReuse": false,
+      "rotationalReaders": 1,
+      "solidStateReaders": 4,
+      "unknownReaders": 1
+    },
+    "armOrder": [
+      "control",
+      "treatment",
+      "treatment",
+      "control"
+    ],
+    "fileCountPerArm": 16,
+    "baseFileBytes": 67108864,
+    "physicalBytesReadPerArm": 1073856512,
+    "failedSamplesDiscarded": 0,
+    "hardwareSerialPersisted": false
+  },
+  "bufferComparisons": [
+    {
+      "mediaClass": "solid_state",
+      "deviceKey": "physical:2",
+      "controlBufferBytes": 65536,
+      "treatmentBufferBytes": 1048576,
+      "controlMeanWallNanos": 750716450,
+      "treatmentMeanWallNanos": 529314150,
+      "treatmentWallDeltaPercent": -29.4921,
+      "treatmentThroughputDeltaPercent": 42.3401,
+      "treatmentProcessCpuDeltaPercent": 35.2941,
+      "selection": "1048576_bytes",
+      "rationale": "The SSD wall/throughput gain is material; the higher sampled CPU and maximum 4 MiB aggregate buffer at four readers remain explicit and bounded."
+    },
+    {
+      "mediaClass": "rotational",
+      "deviceKey": "physical:0",
+      "controlBufferBytes": 65536,
+      "treatmentBufferBytes": 1048576,
+      "controlMeanWallNanos": 9392578650,
+      "treatmentMeanWallNanos": 9896530950,
+      "treatmentWallDeltaPercent": 5.3654,
+      "treatmentThroughputDeltaPercent": -5.4646,
+      "selection": "65536_bytes",
+      "rationale": "The larger buffer regressed the rotational workload. Unknown media stays on the conservative rotational setting."
+    }
+  ],
+  "sequentialHintComparisons": [
+    {
+      "mediaClass": "solid_state",
+      "deviceKey": "physical:2",
+      "controlMeanWallNanos": 941716950,
+      "treatmentMeanWallNanos": 816117700,
+      "treatmentWallDeltaPercent": -13.3373,
+      "treatmentThroughputDeltaPercent": 22.6605,
+      "treatmentProcessCpuDeltaPercent": -2.5000,
+      "selection": "enabled"
+    },
+    {
+      "mediaClass": "rotational",
+      "deviceKey": "physical:0",
+      "controlMeanWallNanos": 8854194350,
+      "treatmentMeanWallNanos": 8159113900,
+      "treatmentWallDeltaPercent": -7.8503,
+      "treatmentThroughputDeltaPercent": 8.5485,
+      "treatmentProcessCpuDeltaPercent": -46.1538,
+      "selection": "enabled"
+    }
+  ],
+  "correctnessAndBounds": {
+    "checksumMismatchCount": 0,
+    "byteMismatchCount": 0,
+    "unavailableDeviceSampleCount": 0,
+    "cancelledArmCount": 0,
+    "fixtureRemovedAfterEachProfile": true,
+    "maximumBufferBytesPerReader": 1048576,
+    "maximumSelectedSolidStateAggregateBufferBytes": 4194304,
+    "maximumRotationalOrUnknownAggregateBufferBytes": 65536,
+    "maximumBytesBetweenCancellationChecks": 1048576
+  },
+  "selectedPolicy": {
+    "solidStateBufferBytes": 1048576,
+    "rotationalBufferBytes": 65536,
+    "unknownBufferBytes": 65536,
+    "windowsSequentialReadHint": true,
+    "readerPolicyChanged": false,
+    "bucketOrderChangedByThisPackage": false,
+    "pathOrderChanged": false
+  },
+  "scope": {
+    "accepted": "media-scoped full-content buffer size plus Windows sequential-read hint",
+    "excluded": [
+      "partial-hash length",
+      "partial-prefix reuse",
+      "reader-count changes",
+      "SOP8 cache policy",
+      "full-drive acceptance"
+    ]
+  }
+}
