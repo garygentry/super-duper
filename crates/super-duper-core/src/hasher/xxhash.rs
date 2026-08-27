@@ -1,4 +1,9 @@
 use super::cache;
+use super::repeat_cache::{
+    compare_content_signatures, observe_content_signature, ContentSignatureObservation,
+    ContentSignatureWindow, RepeatCacheLookup, RepeatCachePolicy, RepeatHashCache,
+    SystemContentSignatureProbe,
+};
 use super::scheduler::{execute_device_reads, DeviceReadPolicy, ScheduledRead};
 use crate::progress::ProgressReporter;
 use dashmap::DashMap;
@@ -8,7 +13,7 @@ use std::hash::Hasher as _;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use twox_hash::XxHash64;
 
 const PARTIAL_HASH_LENGTH: usize = 1024;
@@ -25,6 +30,10 @@ pub(crate) struct HashProgressDelta {
     pub partial_hashes_succeeded: u64,
     pub partial_hashes_failed: u64,
     pub partial_hash_bytes_read: u64,
+    pub partial_hash_cache_hits: u64,
+    pub partial_hash_cache_misses: u64,
+    pub partial_hash_cache_errors: u64,
+    pub partial_hash_cache_stores: u64,
     pub partial_collision_buckets: u64,
     pub partial_collision_files: u64,
     pub partial_collision_bytes: u64,
@@ -68,6 +77,10 @@ impl HashProgressDelta {
             partial_hashes_succeeded,
             partial_hashes_failed,
             partial_hash_bytes_read,
+            partial_hash_cache_hits,
+            partial_hash_cache_misses,
+            partial_hash_cache_errors,
+            partial_hash_cache_stores,
             partial_collision_buckets,
             partial_collision_files,
             partial_collision_bytes,
@@ -127,10 +140,22 @@ impl HashProgressSink for LocalHashProgressSink {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PartialHashRead {
     pub hash: u64,
     pub physical_bytes_read: u64,
+    pub cache_outcome: Option<cache::CacheLookupOutcome>,
+    pub cache_stored: bool,
+    pub warning: Option<String>,
+    pub verified_signature: Option<super::repeat_cache::CacheSignatureKey>,
+}
+
+#[derive(Debug)]
+pub(crate) struct FullHashRead {
+    pub hash: u64,
+    pub warning: Option<String>,
+    pub cache_outcome: Option<cache::CacheLookupOutcome>,
+    pub cache_stored: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -146,10 +171,12 @@ pub(crate) trait HashPipelineIo: Send + Sync {
     fn full_hash(
         &self,
         path: &Path,
+        partial_hash: u64,
+        partial_signature: Option<&super::repeat_cache::CacheSignatureKey>,
         media: crate::platform::StorageMediaClass,
         cancel: &AtomicBool,
         observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
-    ) -> io::Result<cache::CachedHash>;
+    ) -> io::Result<FullHashRead>;
 }
 
 pub(crate) trait HashDeviceMapper: Send + Sync {
@@ -183,33 +210,250 @@ impl HashDeviceMapper for SystemHashDeviceMapper {
     }
 }
 
-#[derive(Debug, Default)]
-pub(crate) struct SystemHashPipelineIo;
+pub(crate) struct SystemHashPipelineIo {
+    repeat_cache: Option<Arc<RepeatHashCache>>,
+    repeat_cache_policy: RepeatCachePolicy,
+    startup_warning: Mutex<Option<String>>,
+}
+
+impl Default for SystemHashPipelineIo {
+    fn default() -> Self {
+        Self {
+            repeat_cache: None,
+            repeat_cache_policy: RepeatCachePolicy::default(),
+            startup_warning: Mutex::new(None),
+        }
+    }
+}
+
+impl SystemHashPipelineIo {
+    pub(crate) fn with_repeat_cache(
+        repeat_cache: Arc<RepeatHashCache>,
+        repeat_cache_policy: RepeatCachePolicy,
+    ) -> Self {
+        Self {
+            repeat_cache: Some(repeat_cache),
+            repeat_cache_policy,
+            startup_warning: Mutex::new(None),
+        }
+    }
+
+    pub(crate) fn with_unavailable_repeat_cache(
+        repeat_cache_policy: RepeatCachePolicy,
+        warning: String,
+    ) -> Self {
+        Self {
+            repeat_cache: None,
+            repeat_cache_policy,
+            startup_warning: Mutex::new(Some(warning)),
+        }
+    }
+
+    fn take_startup_warning(&self) -> Option<String> {
+        self.startup_warning
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take()
+    }
+
+    fn lookup(
+        &self,
+        before: &ContentSignatureObservation,
+        require_full: bool,
+    ) -> (
+        Option<u64>,
+        Option<cache::CacheLookupOutcome>,
+        Option<String>,
+    ) {
+        if self.repeat_cache_policy != RepeatCachePolicy::ReuseVerified {
+            return (None, None, None);
+        }
+        let Some(cache_store) = self.repeat_cache.as_ref() else {
+            return (None, Some(cache::CacheLookupOutcome::Error), None);
+        };
+        let ContentSignatureObservation::Qualified(signature) = before else {
+            return (None, Some(cache::CacheLookupOutcome::Error), None);
+        };
+        match cache_store.lookup(signature) {
+            Ok(RepeatCacheLookup::Hit(hashes)) => {
+                let hash = if require_full {
+                    hashes.full_hash
+                } else {
+                    Some(hashes.partial_hash)
+                };
+                match hash {
+                    Some(hash) => (Some(hash), Some(cache::CacheLookupOutcome::Hit), None),
+                    None => (None, Some(cache::CacheLookupOutcome::Miss), None),
+                }
+            }
+            Ok(RepeatCacheLookup::Miss) => (None, Some(cache::CacheLookupOutcome::Miss), None),
+            Ok(RepeatCacheLookup::Ineligible(reason)) => (
+                None,
+                Some(cache::CacheLookupOutcome::Error),
+                Some(format!("Repeat cache entry is ineligible: {reason}")),
+            ),
+            Err(error) => (
+                None,
+                Some(cache::CacheLookupOutcome::Error),
+                Some(format!("Repeat cache lookup failed: {error}")),
+            ),
+        }
+    }
+}
 
 impl HashPipelineIo for SystemHashPipelineIo {
     fn partial_hash(&self, path: &Path, cancel: &AtomicBool) -> io::Result<PartialHashRead> {
+        let probe = SystemContentSignatureProbe;
+        let mut before = observe_content_signature(path, &probe);
+        let (cached_hash, mut cache_outcome, mut warning) = self.lookup(&before, false);
+        if let Some(startup_warning) = self.take_startup_warning() {
+            append_warning(&mut warning, startup_warning);
+        }
+        if let Some(hash) = cached_hash {
+            let after_lookup = observe_content_signature(path, &probe);
+            match compare_content_signatures(before.clone(), after_lookup.clone()) {
+                ContentSignatureWindow::Unchanged(signature) => {
+                    return Ok(PartialHashRead {
+                        hash,
+                        physical_bytes_read: 0,
+                        cache_outcome,
+                        cache_stored: false,
+                        warning,
+                        verified_signature: Some(signature),
+                    });
+                }
+                ContentSignatureWindow::Changed | ContentSignatureWindow::Ineligible(_) => {
+                    cache_outcome = Some(cache::CacheLookupOutcome::Error);
+                    before = after_lookup;
+                }
+            }
+        }
         let data = read_portion(path, cancel)?;
+        let hash = hash_data(&data);
+        let mut cache_stored = false;
+        let verified_signature =
+            match compare_content_signatures(before, observe_content_signature(path, &probe)) {
+                ContentSignatureWindow::Unchanged(signature) => Some(signature),
+                ContentSignatureWindow::Changed => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "file changed while its partial hash was being read",
+                    ));
+                }
+                ContentSignatureWindow::Ineligible(_) => None,
+            };
+        if let (Some(cache_store), Some(signature)) =
+            (self.repeat_cache.as_ref(), verified_signature.as_ref())
+        {
+            match cache_store.store_partial(signature, hash) {
+                Ok(super::repeat_cache::RepeatCacheStoreOutcome::Stored) => cache_stored = true,
+                Ok(super::repeat_cache::RepeatCacheStoreOutcome::Replayed) => {}
+                Err(error) => append_warning(
+                    &mut warning,
+                    format!("Repeat cache partial store failed: {error}"),
+                ),
+            }
+        }
         Ok(PartialHashRead {
-            hash: hash_data(&data),
+            hash,
             physical_bytes_read: data.len() as u64,
+            cache_outcome,
+            cache_stored,
+            warning,
+            verified_signature,
         })
     }
 
     fn full_hash(
         &self,
         path: &Path,
+        partial_hash: u64,
+        partial_signature: Option<&super::repeat_cache::CacheSignatureKey>,
         media: crate::platform::StorageMediaClass,
         cancel: &AtomicBool,
         observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
-    ) -> io::Result<cache::CachedHash> {
-        cache::get_content_hash_cancellable_observed(
+    ) -> io::Result<FullHashRead> {
+        let probe = SystemContentSignatureProbe;
+        let mut before = observe_content_signature(path, &probe);
+        let signature_matches_partial = matches!(
+            (&before, partial_signature),
+            (ContentSignatureObservation::Qualified(current), Some(expected)) if current == expected
+        );
+        let (cached_hash, mut cache_outcome, mut warning) = if signature_matches_partial {
+            self.lookup(&before, true)
+        } else if self.repeat_cache_policy == RepeatCachePolicy::ReuseVerified {
+            (None, Some(cache::CacheLookupOutcome::Error), None)
+        } else {
+            (None, None, None)
+        };
+        if let Some(hash) = cached_hash {
+            let after_lookup = observe_content_signature(path, &probe);
+            match compare_content_signatures(before.clone(), after_lookup.clone()) {
+                ContentSignatureWindow::Unchanged(_) => {
+                    observe(FullHashIoEvent::CacheLookup(cache::CacheLookupOutcome::Hit))?;
+                    return Ok(FullHashRead {
+                        hash,
+                        warning,
+                        cache_outcome,
+                        cache_stored: false,
+                    });
+                }
+                ContentSignatureWindow::Changed | ContentSignatureWindow::Ineligible(_) => {
+                    cache_outcome = Some(cache::CacheLookupOutcome::Error);
+                    before = after_lookup;
+                }
+            }
+        }
+        if let Some(outcome) = cache_outcome {
+            observe(FullHashIoEvent::CacheLookup(outcome))?;
+        }
+        let hash = hash_file_streaming_observed_with_options(
             path,
             cancel,
             stream_buffer_length(media),
             stream_sequential_hint(media),
             observe,
-        )
+        )?;
+        let mut cache_stored = false;
+        match compare_content_signatures(before, observe_content_signature(path, &probe)) {
+            ContentSignatureWindow::Unchanged(signature) => {
+                if let Some(cache_store) = self.repeat_cache.as_ref() {
+                    if partial_signature.is_some_and(|expected| expected == &signature) {
+                        match cache_store.store_full(&signature, partial_hash, hash) {
+                            Ok(super::repeat_cache::RepeatCacheStoreOutcome::Stored) => {
+                                cache_stored = true
+                            }
+                            Ok(super::repeat_cache::RepeatCacheStoreOutcome::Replayed) => {}
+                            Err(error) => append_warning(
+                                &mut warning,
+                                format!("Repeat cache full store failed: {error}"),
+                            ),
+                        }
+                    }
+                }
+            }
+            ContentSignatureWindow::Changed => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "file changed while its full hash was being read",
+                ));
+            }
+            ContentSignatureWindow::Ineligible(_) => {}
+        }
+        Ok(FullHashRead {
+            hash,
+            warning,
+            cache_outcome,
+            cache_stored,
+        })
     }
+}
+
+fn append_warning(warning: &mut Option<String>, message: String) {
+    *warning = Some(match warning.take() {
+        Some(previous) => format!("{previous}; {message}"),
+        None => message,
+    });
 }
 
 struct HashProgressBatcher<'a> {
@@ -332,6 +576,10 @@ pub struct HashOutcome {
     pub partial_hashes_succeeded: u64,
     pub partial_hashes_failed: u64,
     pub partial_hash_bytes_read: u64,
+    pub partial_hash_cache_hits: u64,
+    pub partial_hash_cache_misses: u64,
+    pub partial_hash_cache_errors: u64,
+    pub partial_hash_cache_stores: u64,
     pub partial_collision_buckets: u64,
     pub partial_collision_files: u64,
     pub partial_collision_bytes: u64,
@@ -372,7 +620,13 @@ pub fn build_content_hash_map_with_stats(
     progress: &dyn ProgressReporter,
 ) -> io::Result<HashOutcome> {
     let sink = LocalHashProgressSink::default();
-    build_content_hash_map_with_progress(map, cancel, progress, &sink, &SystemHashPipelineIo)
+    build_content_hash_map_with_progress(
+        map,
+        cancel,
+        progress,
+        &sink,
+        &SystemHashPipelineIo::default(),
+    )
 }
 
 pub(crate) fn build_content_hash_map_with_progress(
@@ -419,6 +673,7 @@ fn build_content_hash_map_with_scheduler(
         file_size: u64,
         file: PathBuf,
         hash: Option<u64>,
+        signature: Option<super::repeat_cache::CacheSignatureKey>,
     }
     let partial_tasks = buckets
         .into_iter()
@@ -438,11 +693,26 @@ fn build_content_hash_map_with_scheduler(
             partial_screened_bytes: file_size,
             ..Default::default()
         };
+        let mut signature = None;
         let hash = match io.partial_hash(&file, cancel) {
             Ok(read) => {
                 delta.files_hashed = 1;
                 delta.partial_hashes_succeeded = 1;
                 delta.partial_hash_bytes_read = read.physical_bytes_read;
+                match read.cache_outcome {
+                    Some(cache::CacheLookupOutcome::Hit) => delta.partial_hash_cache_hits = 1,
+                    Some(cache::CacheLookupOutcome::Miss) => delta.partial_hash_cache_misses = 1,
+                    Some(cache::CacheLookupOutcome::Error) => delta.partial_hash_cache_errors = 1,
+                    None => {}
+                }
+                if read.cache_stored {
+                    delta.partial_hash_cache_stores = 1;
+                }
+                if let Some(warning) = read.warning {
+                    tracing::warn!("{}: {}", file.display(), warning);
+                    delta.warning_count = 1;
+                }
+                signature = read.verified_signature;
                 Some(read.hash)
             }
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {
@@ -461,6 +731,7 @@ fn build_content_hash_map_with_scheduler(
             file_size,
             file,
             hash,
+            signature,
         })
     });
     let partial_results = match scheduled_partials {
@@ -476,7 +747,9 @@ fn build_content_hash_map_with_scheduler(
     };
     emit_legacy_progress(progress, &sink.snapshot(), total_files);
 
-    let mut partial_groups = HashMap::<(u64, u64), Vec<PathBuf>>::new();
+    let mut partial_groups =
+        HashMap::<(u64, u64), Vec<(PathBuf, Option<super::repeat_cache::CacheSignatureKey>)>>::new(
+        );
     let mut screened_by_size = HashMap::<u64, u64>::new();
     for result in partial_results {
         *screened_by_size.entry(result.file_size).or_default() += 1;
@@ -484,25 +757,25 @@ fn build_content_hash_map_with_scheduler(
             partial_groups
                 .entry((result.file_size, hash))
                 .or_default()
-                .push(result.file);
+                .push((result.file, result.signature));
         }
     }
 
     let mut collision_by_size = HashMap::<u64, (u64, u64)>::new();
     let mut full_tasks = Vec::new();
-    for ((file_size, _), files) in partial_groups {
+    for ((file_size, partial_hash), files) in partial_groups {
         if files.len() <= 1 {
             continue;
         }
         let collision = collision_by_size.entry(file_size).or_default();
         collision.0 += 1;
         collision.1 += files.len() as u64;
-        full_tasks.extend(files.into_iter().map(|file| {
+        full_tasks.extend(files.into_iter().map(|(file, signature)| {
             let device = device_mapper.device_for_path(&file);
             let media = device.media;
             ScheduledRead {
                 device,
-                value: (file_size, file, media),
+                value: (file_size, partial_hash, signature, file, media),
             }
         }));
     }
@@ -529,12 +802,25 @@ fn build_content_hash_map_with_scheduler(
         )?;
     }
 
-    let scheduled_full_hashes =
-        execute_device_reads(full_tasks, cancel, policy, |(file_size, file, media)| {
+    let scheduled_full_hashes = execute_device_reads(
+        full_tasks,
+        cancel,
+        policy,
+        |(file_size, partial_hash, signature, file, media)| {
             batcher.check_cancelled(cancel)?;
-            populate_full_hash(&file, file_size, media, cancel, &batcher, io)
-                .map(|hash| (file_size, file, hash))
-        });
+            populate_full_hash(
+                &file,
+                file_size,
+                partial_hash,
+                signature.as_ref(),
+                media,
+                cancel,
+                &batcher,
+                io,
+            )
+            .map(|hash| (file_size, file, hash))
+        },
+    );
     let full_results = match scheduled_full_hashes {
         Ok(results) => results,
         Err(error) if error.kind() == io::ErrorKind::Interrupted => {
@@ -586,6 +872,10 @@ impl HashOutcome {
             partial_hashes_succeeded: value.partial_hashes_succeeded,
             partial_hashes_failed: value.partial_hashes_failed,
             partial_hash_bytes_read: value.partial_hash_bytes_read,
+            partial_hash_cache_hits: value.partial_hash_cache_hits,
+            partial_hash_cache_misses: value.partial_hash_cache_misses,
+            partial_hash_cache_errors: value.partial_hash_cache_errors,
+            partial_hash_cache_stores: value.partial_hash_cache_stores,
             partial_collision_buckets: value.partial_collision_buckets,
             partial_collision_files: value.partial_collision_files,
             partial_collision_bytes: value.partial_collision_bytes,
@@ -617,6 +907,8 @@ impl HashOutcome {
 fn populate_full_hash(
     file: &Path,
     file_size: u64,
+    partial_hash: u64,
+    partial_signature: Option<&super::repeat_cache::CacheSignatureKey>,
     media: crate::platform::StorageMediaClass,
     cancel: &AtomicBool,
     batcher: &HashProgressBatcher<'_>,
@@ -624,54 +916,57 @@ fn populate_full_hash(
 ) -> io::Result<Option<u64>> {
     let mut lookup = None;
     let mut content_started = false;
-    let result = io.full_hash(file, media, cancel, &mut |event| match event {
-        FullHashIoEvent::CacheLookup(outcome) => {
-            lookup = Some(outcome);
-            let mut delta = HashProgressDelta::default();
-            match outcome {
-                cache::CacheLookupOutcome::Hit => delta.full_hash_cache_hits = 1,
-                cache::CacheLookupOutcome::Miss => delta.full_hash_cache_misses = 1,
-                cache::CacheLookupOutcome::Error => delta.full_hash_cache_errors = 1,
+    let result = io.full_hash(
+        file,
+        partial_hash,
+        partial_signature,
+        media,
+        cancel,
+        &mut |event| match event {
+            FullHashIoEvent::CacheLookup(outcome) => {
+                lookup = Some(outcome);
+                let mut delta = HashProgressDelta::default();
+                match outcome {
+                    cache::CacheLookupOutcome::Hit => delta.full_hash_cache_hits = 1,
+                    cache::CacheLookupOutcome::Miss => delta.full_hash_cache_misses = 1,
+                    cache::CacheLookupOutcome::Error => delta.full_hash_cache_errors = 1,
+                }
+                batcher.record(delta, 0, false)
             }
-            batcher.record(delta, 0, false)
-        }
-        FullHashIoEvent::ContentReadStarted => {
-            content_started = true;
-            batcher.record(
+            FullHashIoEvent::ContentReadStarted => {
+                content_started = true;
+                batcher.record(
+                    HashProgressDelta {
+                        full_hash_content_reads_started: 1,
+                        ..Default::default()
+                    },
+                    0,
+                    false,
+                )
+            }
+            FullHashIoEvent::ContentBytesRead(bytes) => batcher.record(
                 HashProgressDelta {
-                    full_hash_content_reads_started: 1,
+                    full_hash_bytes_read: bytes,
                     ..Default::default()
                 },
                 0,
                 false,
-            )
-        }
-        FullHashIoEvent::ContentBytesRead(bytes) => batcher.record(
-            HashProgressDelta {
-                full_hash_bytes_read: bytes,
-                ..Default::default()
-            },
-            0,
-            false,
-        ),
-        FullHashIoEvent::CancellationCheck { cancelled } => batcher.cancellation_check(cancelled),
-    });
+            ),
+            FullHashIoEvent::CancellationCheck { cancelled } => {
+                batcher.cancellation_check(cancelled)
+            }
+        },
+    );
 
     match result {
         Ok(outcome) => {
-            let observed = lookup.ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "full hash I/O omitted cache lookup outcome",
-                )
-            })?;
-            if observed != outcome.cache_outcome {
+            if lookup != outcome.cache_outcome {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "full hash I/O returned conflicting cache lookup outcome",
                 ));
             }
-            if outcome.cache_outcome != cache::CacheLookupOutcome::Hit && !content_started {
+            if outcome.cache_outcome != Some(cache::CacheLookupOutcome::Hit) && !content_started {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "cache fallback completed without content-read start",
@@ -853,9 +1148,21 @@ fn cancelled_error() -> io::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hasher::repeat_cache;
     use std::fs;
     use std::sync::atomic::AtomicUsize;
     use tempfile::TempDir;
+
+    fn uncached_partial(hash: u64, physical_bytes_read: u64) -> PartialHashRead {
+        PartialHashRead {
+            hash,
+            physical_bytes_read,
+            cache_outcome: None,
+            cache_stored: false,
+            warning: None,
+            verified_signature: None,
+        }
+    }
 
     #[derive(Default)]
     struct RecordingSink {
@@ -883,19 +1190,21 @@ mod tests {
 
     impl HashPipelineIo for UniquePartialIo {
         fn partial_hash(&self, path: &Path, _cancel: &AtomicBool) -> io::Result<PartialHashRead> {
-            Ok(PartialHashRead {
-                hash: hash_data(path.to_string_lossy().as_bytes()),
-                physical_bytes_read: PARTIAL_HASH_LENGTH as u64,
-            })
+            Ok(uncached_partial(
+                hash_data(path.to_string_lossy().as_bytes()),
+                PARTIAL_HASH_LENGTH as u64,
+            ))
         }
 
         fn full_hash(
             &self,
             _path: &Path,
+            _partial_hash: u64,
+            _partial_signature: Option<&repeat_cache::CacheSignatureKey>,
             _media: crate::platform::StorageMediaClass,
             _cancel: &AtomicBool,
             _observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
-        ) -> io::Result<cache::CachedHash> {
+        ) -> io::Result<FullHashRead> {
             panic!("unique partial hashes must not request a full hash")
         }
     }
@@ -908,19 +1217,21 @@ mod tests {
     impl HashPipelineIo for OrderedPartialIo {
         fn partial_hash(&self, path: &Path, _cancel: &AtomicBool) -> io::Result<PartialHashRead> {
             self.paths.lock().unwrap().push(path.to_path_buf());
-            Ok(PartialHashRead {
-                hash: hash_data(path.to_string_lossy().as_bytes()),
-                physical_bytes_read: PARTIAL_HASH_LENGTH as u64,
-            })
+            Ok(uncached_partial(
+                hash_data(path.to_string_lossy().as_bytes()),
+                PARTIAL_HASH_LENGTH as u64,
+            ))
         }
 
         fn full_hash(
             &self,
             _path: &Path,
+            _partial_hash: u64,
+            _partial_signature: Option<&repeat_cache::CacheSignatureKey>,
             _media: crate::platform::StorageMediaClass,
             _cancel: &AtomicBool,
             _observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
-        ) -> io::Result<cache::CachedHash> {
+        ) -> io::Result<FullHashRead> {
             panic!("unique partial hashes must not request a full hash")
         }
     }
@@ -943,19 +1254,18 @@ mod tests {
             } else {
                 hash_data(name.as_bytes())
             };
-            Ok(PartialHashRead {
-                hash,
-                physical_bytes_read: PARTIAL_HASH_LENGTH as u64,
-            })
+            Ok(uncached_partial(hash, PARTIAL_HASH_LENGTH as u64))
         }
 
         fn full_hash(
             &self,
             path: &Path,
+            _partial_hash: u64,
+            _partial_signature: Option<&repeat_cache::CacheSignatureKey>,
             _media: crate::platform::StorageMediaClass,
             _cancel: &AtomicBool,
             observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
-        ) -> io::Result<cache::CachedHash> {
+        ) -> io::Result<FullHashRead> {
             self.full_opens.fetch_add(1, Ordering::Relaxed);
             self.full_paths.lock().unwrap().push(path.to_path_buf());
             observe(FullHashIoEvent::CacheLookup(
@@ -963,11 +1273,10 @@ mod tests {
             ))?;
             observe(FullHashIoEvent::ContentReadStarted)?;
             observe(FullHashIoEvent::ContentBytesRead(4_096))?;
-            Ok(cache::CachedHash {
+            Ok(FullHashRead {
                 hash: 11,
                 warning: None,
-                cache_outcome: cache::CacheLookupOutcome::Miss,
-                content_bytes_read: 4_096,
+                cache_outcome: Some(cache::CacheLookupOutcome::Miss),
                 cache_stored: false,
             })
         }
@@ -1044,22 +1353,18 @@ mod tests {
 
     impl HashPipelineIo for SchedulingPipelineIo {
         fn partial_hash(&self, path: &Path, _cancel: &AtomicBool) -> io::Result<PartialHashRead> {
-            Ok(self.read(
-                path,
-                PartialHashRead {
-                    hash: 7,
-                    physical_bytes_read: PARTIAL_HASH_LENGTH as u64,
-                },
-            ))
+            Ok(self.read(path, uncached_partial(7, PARTIAL_HASH_LENGTH as u64)))
         }
 
         fn full_hash(
             &self,
             path: &Path,
+            _partial_hash: u64,
+            _partial_signature: Option<&repeat_cache::CacheSignatureKey>,
             _media: crate::platform::StorageMediaClass,
             _cancel: &AtomicBool,
             observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
-        ) -> io::Result<cache::CachedHash> {
+        ) -> io::Result<FullHashRead> {
             observe(FullHashIoEvent::CacheLookup(
                 cache::CacheLookupOutcome::Miss,
             ))?;
@@ -1067,11 +1372,10 @@ mod tests {
             observe(FullHashIoEvent::ContentBytesRead(4_096))?;
             Ok(self.read(
                 path,
-                cache::CachedHash {
+                FullHashRead {
                     hash: 11,
                     warning: None,
-                    cache_outcome: cache::CacheLookupOutcome::Miss,
-                    content_bytes_read: 4_096,
+                    cache_outcome: Some(cache::CacheLookupOutcome::Miss),
                     cache_stored: false,
                 },
             ))
@@ -1082,19 +1386,18 @@ mod tests {
 
     impl HashPipelineIo for LongFullReadIo {
         fn partial_hash(&self, _path: &Path, _cancel: &AtomicBool) -> io::Result<PartialHashRead> {
-            Ok(PartialHashRead {
-                hash: 7,
-                physical_bytes_read: PARTIAL_HASH_LENGTH as u64,
-            })
+            Ok(uncached_partial(7, PARTIAL_HASH_LENGTH as u64))
         }
 
         fn full_hash(
             &self,
             _path: &Path,
+            _partial_hash: u64,
+            _partial_signature: Option<&repeat_cache::CacheSignatureKey>,
             _media: crate::platform::StorageMediaClass,
             _cancel: &AtomicBool,
             observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
-        ) -> io::Result<cache::CachedHash> {
+        ) -> io::Result<FullHashRead> {
             observe(FullHashIoEvent::CacheLookup(
                 cache::CacheLookupOutcome::Miss,
             ))?;
@@ -1102,11 +1405,10 @@ mod tests {
             observe(FullHashIoEvent::ContentBytesRead(
                 FULL_READ_PROGRESS_BYTE_QUANTUM,
             ))?;
-            Ok(cache::CachedHash {
+            Ok(FullHashRead {
                 hash: 11,
                 warning: None,
-                cache_outcome: cache::CacheLookupOutcome::Miss,
-                content_bytes_read: FULL_READ_PROGRESS_BYTE_QUANTUM,
+                cache_outcome: Some(cache::CacheLookupOutcome::Miss),
                 cache_stored: false,
             })
         }
@@ -1125,19 +1427,18 @@ mod tests {
 
     impl HashPipelineIo for ScenarioIo {
         fn partial_hash(&self, _path: &Path, _cancel: &AtomicBool) -> io::Result<PartialHashRead> {
-            Ok(PartialHashRead {
-                hash: 5,
-                physical_bytes_read: PARTIAL_HASH_LENGTH as u64,
-            })
+            Ok(uncached_partial(5, PARTIAL_HASH_LENGTH as u64))
         }
 
         fn full_hash(
             &self,
             _path: &Path,
+            _partial_hash: u64,
+            _partial_signature: Option<&repeat_cache::CacheSignatureKey>,
             _media: crate::platform::StorageMediaClass,
             _cancel: &AtomicBool,
             observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
-        ) -> io::Result<cache::CachedHash> {
+        ) -> io::Result<FullHashRead> {
             let lookup = match self.0 {
                 FullScenario::Hit => cache::CacheLookupOutcome::Hit,
                 FullScenario::LookupErrorFallback => cache::CacheLookupOutcome::Error,
@@ -1145,11 +1446,10 @@ mod tests {
             };
             observe(FullHashIoEvent::CacheLookup(lookup))?;
             if matches!(self.0, FullScenario::Hit) {
-                return Ok(cache::CachedHash {
+                return Ok(FullHashRead {
                     hash: 13,
                     warning: None,
-                    cache_outcome: lookup,
-                    content_bytes_read: 0,
+                    cache_outcome: Some(lookup),
                     cache_stored: false,
                 });
             }
@@ -1161,15 +1461,14 @@ mod tests {
                     "injected read failure",
                 ));
             }
-            Ok(cache::CachedHash {
+            Ok(FullHashRead {
                 hash: 13,
                 warning: match self.0 {
                     FullScenario::LookupErrorFallback => Some("injected lookup error".to_owned()),
                     FullScenario::StoreError => Some("injected store error".to_owned()),
                     _ => None,
                 },
-                cache_outcome: lookup,
-                content_bytes_read: 123,
+                cache_outcome: Some(lookup),
                 cache_stored: matches!(self.0, FullScenario::MissStored),
             })
         }
@@ -1179,19 +1478,18 @@ mod tests {
 
     impl HashPipelineIo for CancelFullIo {
         fn partial_hash(&self, _path: &Path, _cancel: &AtomicBool) -> io::Result<PartialHashRead> {
-            Ok(PartialHashRead {
-                hash: 17,
-                physical_bytes_read: PARTIAL_HASH_LENGTH as u64,
-            })
+            Ok(uncached_partial(17, PARTIAL_HASH_LENGTH as u64))
         }
 
         fn full_hash(
             &self,
             _path: &Path,
+            _partial_hash: u64,
+            _partial_signature: Option<&repeat_cache::CacheSignatureKey>,
             _media: crate::platform::StorageMediaClass,
             _cancel: &AtomicBool,
             observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
-        ) -> io::Result<cache::CachedHash> {
+        ) -> io::Result<FullHashRead> {
             observe(FullHashIoEvent::CacheLookup(
                 cache::CacheLookupOutcome::Miss,
             ))?;
@@ -1214,6 +1512,190 @@ mod tests {
             &ScenarioIo(scenario),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn qualified_repeat_cache_reuses_both_hash_stages_after_reopen_and_rejects_edits() {
+        let temp = TempDir::new().unwrap();
+        let file = temp.path().join("candidate.bin");
+        let cache_path = temp.path().join("repeat-cache");
+        fs::write(&file, vec![0x41; 4_096]).unwrap();
+        let cancel = AtomicBool::new(false);
+
+        let (partial_hash, full_hash) = {
+            let cache_store = Arc::new(RepeatHashCache::open(&cache_path).unwrap());
+            let io = SystemHashPipelineIo::with_repeat_cache(
+                cache_store,
+                RepeatCachePolicy::RevalidateContent,
+            );
+            let partial = io.partial_hash(&file, &cancel).unwrap();
+            assert_eq!(partial.cache_outcome, None);
+            assert!(partial.cache_stored);
+            let mut events = Vec::new();
+            let full = io
+                .full_hash(
+                    &file,
+                    partial.hash,
+                    partial.verified_signature.as_ref(),
+                    crate::platform::StorageMediaClass::SolidState,
+                    &cancel,
+                    &mut |event| {
+                        events.push(event);
+                        Ok(())
+                    },
+                )
+                .unwrap();
+            assert_eq!(full.cache_outcome, None);
+            assert!(full.cache_stored);
+            assert!(events.contains(&FullHashIoEvent::ContentReadStarted));
+            (partial.hash, full.hash)
+        };
+
+        {
+            let cache_store = Arc::new(RepeatHashCache::open(&cache_path).unwrap());
+            let io = SystemHashPipelineIo::with_repeat_cache(
+                cache_store,
+                RepeatCachePolicy::ReuseVerified,
+            );
+            let partial = io.partial_hash(&file, &cancel).unwrap();
+            assert_eq!(partial.hash, partial_hash);
+            assert_eq!(partial.physical_bytes_read, 0);
+            assert_eq!(partial.cache_outcome, Some(cache::CacheLookupOutcome::Hit));
+            let mut events = Vec::new();
+            let full = io
+                .full_hash(
+                    &file,
+                    partial.hash,
+                    partial.verified_signature.as_ref(),
+                    crate::platform::StorageMediaClass::SolidState,
+                    &cancel,
+                    &mut |event| {
+                        events.push(event);
+                        Ok(())
+                    },
+                )
+                .unwrap();
+            assert_eq!(full.hash, full_hash);
+            assert_eq!(full.cache_outcome, Some(cache::CacheLookupOutcome::Hit));
+            assert_eq!(
+                events,
+                vec![FullHashIoEvent::CacheLookup(cache::CacheLookupOutcome::Hit)]
+            );
+
+            std::thread::sleep(std::time::Duration::from_millis(2));
+            fs::write(&file, vec![0x42; 4_096]).unwrap();
+            let changed = io.partial_hash(&file, &cancel).unwrap();
+            assert_ne!(changed.hash, partial_hash);
+            assert_ne!(changed.cache_outcome, Some(cache::CacheLookupOutcome::Hit));
+            assert!(changed.physical_bytes_read > 0);
+        }
+    }
+
+    #[test]
+    fn repeat_cache_pipeline_reconciles_exact_partial_full_hits_stores_and_bytes() {
+        let temp = TempDir::new().unwrap();
+        let left = temp.path().join("left.bin");
+        let right = temp.path().join("right.bin");
+        let cache_path = temp.path().join("repeat-cache");
+        fs::write(&left, vec![0x5a; 4_096]).unwrap();
+        fs::write(&right, vec![0x5a; 4_096]).unwrap();
+        let candidates = || {
+            let map = DashMap::new();
+            map.insert(4_096, vec![left.clone(), right.clone()]);
+            map
+        };
+
+        let forced = {
+            let io = SystemHashPipelineIo::with_repeat_cache(
+                Arc::new(RepeatHashCache::open(&cache_path).unwrap()),
+                RepeatCachePolicy::RevalidateContent,
+            );
+            let sink = RecordingSink::default();
+            build_content_hash_map_with_progress(
+                candidates(),
+                &AtomicBool::new(false),
+                &crate::progress::SilentReporter,
+                &sink,
+                &io,
+            )
+            .unwrap()
+        };
+        assert_eq!(forced.confirmed_duplicates.len(), 1);
+        assert_eq!(forced.partial_hash_cache_stores, 2);
+        assert_eq!(forced.full_hash_cache_stores, 2);
+        assert_eq!(
+            forced.partial_hash_bytes_read,
+            2 * PARTIAL_HASH_LENGTH as u64
+        );
+        assert_eq!(forced.full_hash_bytes_read, 8_192);
+        assert_eq!(forced.partial_hash_cache_hits, 0);
+        assert_eq!(forced.full_hash_cache_hits, 0);
+
+        let reused = {
+            let io = SystemHashPipelineIo::with_repeat_cache(
+                Arc::new(RepeatHashCache::open(&cache_path).unwrap()),
+                RepeatCachePolicy::ReuseVerified,
+            );
+            let sink = RecordingSink::default();
+            build_content_hash_map_with_progress(
+                candidates(),
+                &AtomicBool::new(false),
+                &crate::progress::SilentReporter,
+                &sink,
+                &io,
+            )
+            .unwrap()
+        };
+        assert_eq!(reused.confirmed_duplicates.len(), 1);
+        assert_eq!(reused.partial_hash_cache_hits, 2);
+        assert_eq!(reused.full_hash_cache_hits, 2);
+        assert_eq!(reused.partial_hash_bytes_read, 0);
+        assert_eq!(reused.full_hash_bytes_read, 0);
+        assert_eq!(reused.partial_hash_cache_stores, 0);
+        assert_eq!(reused.full_hash_cache_stores, 0);
+        assert_eq!(
+            *reused.confirmed_duplicates.iter().next().unwrap().key(),
+            *forced.confirmed_duplicates.iter().next().unwrap().key()
+        );
+    }
+
+    #[test]
+    fn mutation_between_partial_and_full_never_stores_a_stale_partial_hash() {
+        let temp = TempDir::new().unwrap();
+        let file = temp.path().join("changing.bin");
+        let cache_path = temp.path().join("repeat-cache");
+        fs::write(&file, vec![0x11; 4_096]).unwrap();
+        let cancel = AtomicBool::new(false);
+
+        let io = SystemHashPipelineIo::with_repeat_cache(
+            Arc::new(RepeatHashCache::open(&cache_path).unwrap()),
+            RepeatCachePolicy::RevalidateContent,
+        );
+        let partial = io.partial_hash(&file, &cancel).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        fs::write(&file, vec![0x22; 4_096]).unwrap();
+        let full = io
+            .full_hash(
+                &file,
+                partial.hash,
+                partial.verified_signature.as_ref(),
+                crate::platform::StorageMediaClass::SolidState,
+                &cancel,
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+        assert!(!full.cache_stored);
+        drop(io);
+
+        let reused = SystemHashPipelineIo::with_repeat_cache(
+            Arc::new(RepeatHashCache::open(&cache_path).unwrap()),
+            RepeatCachePolicy::ReuseVerified,
+        )
+        .partial_hash(&file, &cancel)
+        .unwrap();
+        assert_ne!(reused.hash, partial.hash);
+        assert_ne!(reused.cache_outcome, Some(cache::CacheLookupOutcome::Hit));
+        assert!(reused.physical_bytes_read > 0);
     }
 
     #[test]

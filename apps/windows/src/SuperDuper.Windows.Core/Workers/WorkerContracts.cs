@@ -1130,6 +1130,10 @@ public sealed record WorkerScanProgressCounters
     public required ulong PartialHashesSucceeded { get; init; }
     public required ulong PartialHashesFailed { get; init; }
     public required string PartialHashBytesRead { get; init; }
+    public required ulong PartialHashCacheHits { get; init; }
+    public required ulong PartialHashCacheMisses { get; init; }
+    public required ulong PartialHashCacheErrors { get; init; }
+    public required ulong PartialHashCacheStores { get; init; }
     public required ulong PartialCollisionBuckets { get; init; }
     public required ulong PartialCollisionFiles { get; init; }
     public required string PartialCollisionBytes { get; init; }

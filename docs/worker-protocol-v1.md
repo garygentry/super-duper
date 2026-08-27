@@ -409,7 +409,7 @@ Exactly one positive `statusRunId` or `productRunId` is required:
 {"type":"request","id":"ps1","method":"performance.snapshot.get","params":{"productRunId":19}}
 ```
 
-The result contains one `run` header, at most 43 fixed `counters`, at most six `phases`, one `host`
+The result contains one `run` header, at most 47 fixed `counters`, at most six `phases`, one `host`
 summary, at most 64 `devices`, and `executorEnabled:false`. `host.latest` is the newest bounded gauge
 plus persisted peak process-memory/system-CPU and minimum-available-memory values. Every device row
 contains its run-scoped descriptor, optional newest gauge, and persisted peak read-throughput,
@@ -430,7 +430,7 @@ The implemented lifecycle events are `run.started`, `run.progress`, `run.complet
 Progress data is:
 
 ```json
-{"runId":19,"sequence":8,"status":"running","phase":"hashing","filesDiscovered":8000,"bytesDiscovered":"45000000000","filesHashed":1200,"warningCount":3,"currentPath":"D:\\Photos\\2025\\image.jpg","progress":{"progressContractVersion":1,"metricsContractVersion":2,"revision":37,"monotonicNanos":12500000000,"phase":"candidate_screening","phaseElapsedNanos":9200000000,"counters":{"discoveredFiles":8000,"discoveredBytes":"45000000000"},"logical":{"partialScreenedFiles":1200,"partialScreenedBytes":"8900000000"},"funnel":{"discovered":{"files":8000,"logicalBytes":"45000000000"}},"partialReadRates":{"recent":{"state":"available","rate":{"filesPerSecondMillis":123400,"physicalBytesPerSecond":"810000000","windowNanos":5000000000}}},"fullReadRates":{"recent":{"state":"unavailable","reason":"no_elapsed_time"}},"cacheHitRateBasisPoints":null,"warningCount":3,"activeDevices":{"state":"unavailable","reason":"mapping_unavailable"},"remainingKnownWork":{"stage":"hash_pipeline","files":6800,"logicalBytes":"36100000000"},"eta":{"state":"unavailable","reason":"window_warming"}}}
+{"runId":19,"sequence":8,"status":"running","phase":"hashing","filesDiscovered":8000,"bytesDiscovered":"45000000000","filesHashed":1200,"warningCount":3,"currentPath":"D:\\Photos\\2025\\image.jpg","progress":{"progressContractVersion":1,"metricsContractVersion":3,"revision":37,"monotonicNanos":12500000000,"phase":"candidate_screening","phaseElapsedNanos":9200000000,"counters":{"discoveredFiles":8000,"discoveredBytes":"45000000000"},"logical":{"partialScreenedFiles":1200,"partialScreenedBytes":"8900000000"},"funnel":{"discovered":{"files":8000,"logicalBytes":"45000000000"}},"partialReadRates":{"recent":{"state":"available","rate":{"filesPerSecondMillis":123400,"physicalBytesPerSecond":"810000000","windowNanos":5000000000}}},"fullReadRates":{"recent":{"state":"unavailable","reason":"no_elapsed_time"}},"cacheHitRateBasisPoints":null,"warningCount":3,"activeDevices":{"state":"unavailable","reason":"mapping_unavailable"},"remainingKnownWork":{"stage":"hash_pipeline","files":6800,"logicalBytes":"36100000000"},"eta":{"state":"unavailable","reason":"window_warming"}}}
 ```
 
 - The example abbreviates the nested `counters`, `logical`, `funnel`, and rate objects. The worker

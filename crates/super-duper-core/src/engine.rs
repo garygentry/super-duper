@@ -33,6 +33,8 @@ use twox_hash::XxHash64;
 pub struct ScanEngine {
     config: AppConfig,
     db_path: String,
+    hash_cache_path: PathBuf,
+    repeat_cache_policy: hasher::repeat_cache::RepeatCachePolicy,
     status_db_path: Option<String>,
     status_worker_version: Option<String>,
     status_sample_interval: Duration,
@@ -247,6 +249,26 @@ impl RunTelemetry {
             self.counters.partial_hash_bytes_read,
             delta.partial_hash_bytes_read,
             "partial_hash_bytes_read"
+        );
+        checked_add!(
+            self.counters.partial_hash_cache_hits,
+            delta.partial_hash_cache_hits,
+            "partial_hash_cache_hits"
+        );
+        checked_add!(
+            self.counters.partial_hash_cache_misses,
+            delta.partial_hash_cache_misses,
+            "partial_hash_cache_misses"
+        );
+        checked_add!(
+            self.counters.partial_hash_cache_errors,
+            delta.partial_hash_cache_errors,
+            "partial_hash_cache_errors"
+        );
+        checked_add!(
+            self.counters.partial_hash_cache_stores,
+            delta.partial_hash_cache_stores,
+            "partial_hash_cache_stores"
         );
         checked_add!(
             self.counters.partial_collision_buckets,
@@ -746,6 +768,10 @@ impl ScanEngine {
         Self {
             config,
             db_path: "super_duper.db".to_string(),
+            hash_cache_path: std::env::var_os("HASH_CACHE_PATH")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("content_hash_cache.db")),
+            repeat_cache_policy: hasher::repeat_cache::RepeatCachePolicy::default(),
             status_db_path: None,
             status_worker_version: None,
             status_sample_interval: Duration::from_secs(5),
@@ -757,6 +783,22 @@ impl ScanEngine {
 
     pub fn with_db_path(mut self, path: &str) -> Self {
         self.db_path = path.to_string();
+        self
+    }
+
+    pub fn with_hash_cache_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.hash_cache_path = path.into();
+        self
+    }
+
+    /// Enable qualified repeat-cache reuse. The default revalidates content and only seeds cache
+    /// entries until the SOP8 measurement gate selects the shipped policy.
+    pub fn with_verified_repeat_cache_reuse(mut self, enabled: bool) -> Self {
+        self.repeat_cache_policy = if enabled {
+            hasher::repeat_cache::RepeatCachePolicy::ReuseVerified
+        } else {
+            hasher::repeat_cache::RepeatCachePolicy::RevalidateContent
+        };
         self
     }
 
@@ -1090,12 +1132,29 @@ impl ScanEngine {
         let hash_start = Instant::now();
         let hash_progress_sink =
             EngineHashProgressSink::new(telemetry.clone(), progress, hashing_telemetry_start);
+        let hash_io = match hasher::repeat_cache::RepeatHashCache::open(&self.hash_cache_path) {
+            Ok(cache) => hasher::SystemHashPipelineIo::with_repeat_cache(
+                Arc::new(cache),
+                self.repeat_cache_policy,
+            ),
+            Err(error) => {
+                warn!(
+                    "Repeat hash cache '{}' is unavailable; continuing with content reads: {}",
+                    self.hash_cache_path.display(),
+                    error
+                );
+                hasher::SystemHashPipelineIo::with_unavailable_repeat_cache(
+                    self.repeat_cache_policy,
+                    format!("Repeat hash cache is unavailable: {error}"),
+                )
+            }
+        };
         let hash_outcome = match hasher::build_content_hash_map_with_progress(
             traversal.size_to_files,
             &self.cancel_token,
             progress,
             &hash_progress_sink,
-            &hasher::SystemHashPipelineIo,
+            &hash_io,
         ) {
             Ok(outcome) => outcome,
             Err(_) if self.cancel_token.load(Ordering::Relaxed) => return Err(Error::Cancelled),
@@ -1111,6 +1170,10 @@ impl ScanEngine {
             telemetry.counters.partial_hashes_succeeded = hash_outcome.partial_hashes_succeeded;
             telemetry.counters.partial_hashes_failed = hash_outcome.partial_hashes_failed;
             telemetry.counters.partial_hash_bytes_read = hash_outcome.partial_hash_bytes_read;
+            telemetry.counters.partial_hash_cache_hits = hash_outcome.partial_hash_cache_hits;
+            telemetry.counters.partial_hash_cache_misses = hash_outcome.partial_hash_cache_misses;
+            telemetry.counters.partial_hash_cache_errors = hash_outcome.partial_hash_cache_errors;
+            telemetry.counters.partial_hash_cache_stores = hash_outcome.partial_hash_cache_stores;
             telemetry.counters.partial_collision_buckets = hash_outcome.partial_collision_buckets;
             telemetry.counters.partial_collision_files = hash_outcome.partial_collision_files;
             telemetry.counters.partial_collision_bytes = hash_outcome.partial_collision_bytes;

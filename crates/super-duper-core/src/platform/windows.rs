@@ -384,6 +384,7 @@ mod tests {
         assert!(first.modified_unix_nanos.is_some());
         assert!(first.content_change_token.is_some());
 
+        thread::sleep(Duration::from_millis(2));
         fs::rename(&original, &renamed).unwrap();
         let after_rename = content_signature_metadata(&renamed).unwrap();
         assert_eq!(after_rename.stable_identity, first.stable_identity);

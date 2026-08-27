@@ -13,7 +13,7 @@ public sealed class WorkerRunProgressParserTests
         var parsed = Parse(ValidData);
 
         Assert.AreEqual(1U, parsed.Progress.ProgressContractVersion);
-        Assert.AreEqual(2U, parsed.Progress.MetricsContractVersion);
+        Assert.AreEqual(3U, parsed.Progress.MetricsContractVersion);
         Assert.AreEqual("100", parsed.Progress.Counters.DiscoveredBytes);
         Assert.AreEqual("mapping_unavailable", parsed.Progress.ActiveDevices.Reason);
         Assert.IsNull(parsed.Progress.RemainingKnownWork);
@@ -32,7 +32,7 @@ public sealed class WorkerRunProgressParserTests
             ValidData.Replace("\"remainingKnownWork\":null,", string.Empty),
             ValidData.Replace("\"progressContractVersion\":1", "\"ProgressContractVersion\":1"),
             ValidData.Replace("\"progressContractVersion\":1", "\"progressContractVersion\":9"),
-            ValidData.Replace("\"metricsContractVersion\":2", "\"metricsContractVersion\":9"),
+            ValidData.Replace("\"metricsContractVersion\":3", "\"metricsContractVersion\":9"),
             ValidData.Replace("\"100\"", "\"18446744073709551616\""),
             ValidData.Replace("\"100\"", "\"0100\""),
             ValidData.Replace("\"mapping_unavailable\"", "\"invented_reason\""),
@@ -121,7 +121,7 @@ public sealed class WorkerRunProgressParserTests
           "runId":19,"sequence":1,"status":"running","phase":"discovering",
           "filesDiscovered":1,"bytesDiscovered":"100","filesHashed":0,"warningCount":0,
           "progress":{
-            "progressContractVersion":1,"metricsContractVersion":2,"revision":1,
+            "progressContractVersion":1,"metricsContractVersion":3,"revision":1,
             "monotonicNanos":1000000000,"phase":"discovering","phaseElapsedNanos":1000000000,
             "counters":{
               "discoveredFiles":1,"discoveredBytes":"100","zeroByteFiles":0,
@@ -132,6 +132,8 @@ public sealed class WorkerRunProgressParserTests
               "duplicateCandidateBytes":"0","metadataResolvedFiles":0,
               "metadataResolvedBytes":"0","partialHashesAttempted":0,
               "partialHashesSucceeded":0,"partialHashesFailed":0,"partialHashBytesRead":"0",
+              "partialHashCacheHits":0,"partialHashCacheMisses":0,
+              "partialHashCacheErrors":0,"partialHashCacheStores":0,
               "partialCollisionBuckets":0,"partialCollisionFiles":0,"partialCollisionBytes":"0",
               "fullHashRequests":0,"fullHashCacheHits":0,"fullHashCacheMisses":0,
               "fullHashCacheErrors":0,"fullHashCacheStores":0,"fullHashContentReadsStarted":0,

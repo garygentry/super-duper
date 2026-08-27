@@ -77,7 +77,7 @@ fn flush(sequence: u64, discovered_files: u64) -> TelemetryFlush {
 
 #[test]
 fn metric_contract_has_stable_unique_identifiers() {
-    assert_eq!(METRICS_CONTRACT_VERSION, 2);
+    assert_eq!(METRICS_CONTRACT_VERSION, 3);
     let mut identifiers = CounterKind::ALL
         .iter()
         .map(|kind| kind.as_str())
@@ -140,7 +140,7 @@ fn counter_invariants_accept_partial_progress_and_reject_semantic_mixing() {
     invalid.full_hash_content_reads_started = 3;
     assert_eq!(
         invalid.validate().unwrap_err().0,
-        "content reads require a cache miss or cache error"
+        "content reads cannot include cache-hit requests"
     );
 
     let overflow = ScanCounters {

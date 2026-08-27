@@ -766,13 +766,15 @@ fn funnel(observation: &ProgressObservation) -> CandidateFunnelProgress {
 }
 
 fn cache_hit_rate(counters: &ScanCounters) -> Option<u32> {
-    let outcomes = u128::from(counters.full_hash_cache_hits)
+    let hits =
+        u128::from(counters.partial_hash_cache_hits) + u128::from(counters.full_hash_cache_hits);
+    let outcomes = hits
+        + u128::from(counters.partial_hash_cache_misses)
+        + u128::from(counters.partial_hash_cache_errors)
         + u128::from(counters.full_hash_cache_misses)
         + u128::from(counters.full_hash_cache_errors);
-    (outcomes > 0).then(|| {
-        u32::try_from(u128::from(counters.full_hash_cache_hits) * BASIS_POINTS / outcomes)
-            .expect("basis points fit in u32")
-    })
+    (outcomes > 0)
+        .then(|| u32::try_from(hits * BASIS_POINTS / outcomes).expect("basis points fit in u32"))
 }
 
 fn remaining_work(observation: &ProgressObservation) -> Option<RemainingKnownWork> {

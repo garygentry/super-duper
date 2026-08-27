@@ -1,9 +1,10 @@
 # Scan Progress Contract v1
 
 This contract is the platform-neutral cumulative truth for `SOP2-progress-reporting`. It is
-separate from metrics contract v2: SOP2a defined and tested the projection without migrating status
-history, SOP2b connected one serialized producer to live and durable counter truth, and SOP2c added
-the bounded worker transport projection.
+separate from the embedded metrics contract: SOP2a defined and tested the projection without
+migrating status history, SOP2b connected one serialized producer to live and durable counter
+truth, and SOP2c added the bounded worker transport projection. SOP8c advanced the metrics contract
+to v3 by adding partial-cache hit/miss/error/store counters without changing progress contract v1.
 
 ## Version and units
 

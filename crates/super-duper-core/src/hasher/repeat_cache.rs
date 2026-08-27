@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::io::{self, ErrorKind};
 use std::path::Path;
 use std::str::FromStr;
+use std::sync::Mutex;
 
 const STORE_SCHEMA_VERSION: u32 = 2;
 const SCHEMA_KEY: &[u8] = b"\0super-duper/repeat-cache/schema";
@@ -260,6 +261,7 @@ impl StoreLimits {
 pub(crate) struct RepeatHashCache {
     db: DB,
     limits: StoreLimits,
+    writes: Mutex<()>,
 }
 
 impl RepeatHashCache {
@@ -298,7 +300,11 @@ impl RepeatHashCache {
                 db.write(batch).map_err(rocks_error)?;
             }
         }
-        let cache = Self { db, limits };
+        let cache = Self {
+            db,
+            limits,
+            writes: Mutex::new(()),
+        };
         cache.reconcile()?;
         Ok(cache)
     }
@@ -317,6 +323,18 @@ impl RepeatHashCache {
     }
 
     pub(crate) fn store(
+        &self,
+        signature: &CacheSignatureKey,
+        hashes: CachedContentHashes,
+    ) -> io::Result<RepeatCacheStoreOutcome> {
+        let _write = self
+            .writes
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        self.store_unlocked(signature, hashes)
+    }
+
+    fn store_unlocked(
         &self,
         signature: &CacheSignatureKey,
         hashes: CachedContentHashes,
@@ -359,6 +377,83 @@ impl RepeatHashCache {
         batch.put(NEXT_SEQUENCE_KEY, next_sequence.to_be_bytes());
         self.db.write(batch).map_err(rocks_error)?;
         Ok(RepeatCacheStoreOutcome::Stored)
+    }
+
+    pub(crate) fn store_partial(
+        &self,
+        signature: &CacheSignatureKey,
+        partial_hash: u64,
+    ) -> io::Result<RepeatCacheStoreOutcome> {
+        let _write = self
+            .writes
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        match self.lookup(signature)? {
+            RepeatCacheLookup::Hit(existing) if existing.partial_hash == partial_hash => {
+                Ok(RepeatCacheStoreOutcome::Replayed)
+            }
+            RepeatCacheLookup::Hit(_) => Err(io::Error::new(
+                ErrorKind::InvalidData,
+                "repeat-cache partial hash conflicts with an identical verified signature",
+            )),
+            RepeatCacheLookup::Miss => self.store_unlocked(
+                signature,
+                CachedContentHashes {
+                    partial_hash,
+                    full_hash: None,
+                },
+            ),
+            RepeatCacheLookup::Ineligible(reason) => Err(io::Error::new(
+                ErrorKind::InvalidData,
+                format!("repeat-cache entry is ineligible: {reason}"),
+            )),
+        }
+    }
+
+    pub(crate) fn store_full(
+        &self,
+        signature: &CacheSignatureKey,
+        partial_hash: u64,
+        full_hash: u64,
+    ) -> io::Result<RepeatCacheStoreOutcome> {
+        let _write = self
+            .writes
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        match self.lookup(signature)? {
+            RepeatCacheLookup::Hit(existing)
+                if existing.partial_hash == partial_hash
+                    && existing.full_hash == Some(full_hash) =>
+            {
+                Ok(RepeatCacheStoreOutcome::Replayed)
+            }
+            RepeatCacheLookup::Hit(existing)
+                if existing.partial_hash == partial_hash && existing.full_hash.is_none() =>
+            {
+                self.replace_hashes(
+                    signature,
+                    CachedContentHashes {
+                        partial_hash,
+                        full_hash: Some(full_hash),
+                    },
+                )
+            }
+            RepeatCacheLookup::Hit(_) => Err(io::Error::new(
+                ErrorKind::InvalidData,
+                "repeat-cache full hash conflicts with an identical verified signature",
+            )),
+            RepeatCacheLookup::Miss => self.store_unlocked(
+                signature,
+                CachedContentHashes {
+                    partial_hash,
+                    full_hash: Some(full_hash),
+                },
+            ),
+            RepeatCacheLookup::Ineligible(reason) => Err(io::Error::new(
+                ErrorKind::InvalidData,
+                format!("repeat-cache entry is ineligible: {reason}"),
+            )),
+        }
     }
 
     pub(crate) fn stats(&self) -> io::Result<RepeatCacheStats> {
@@ -514,6 +609,30 @@ impl RepeatHashCache {
     fn read_next_sequence(&self) -> io::Result<u64> {
         read_u64_key(&self.db, NEXT_SEQUENCE_KEY, "repeat-cache next sequence")
     }
+
+    fn replace_hashes(
+        &self,
+        signature: &CacheSignatureKey,
+        hashes: CachedContentHashes,
+    ) -> io::Result<RepeatCacheStoreOutcome> {
+        let entry_key = encode_entry_key(signature)?;
+        let value = self
+            .db
+            .get(&entry_key)
+            .map_err(rocks_error)?
+            .ok_or_else(|| {
+                io::Error::new(
+                    ErrorKind::NotFound,
+                    "repeat-cache entry disappeared during upgrade",
+                )
+            })?;
+        let mut stored = decode_entry(&value)?;
+        stored.hashes = hashes;
+        self.db
+            .put(entry_key, encode_entry(stored)?)
+            .map_err(rocks_error)?;
+        Ok(RepeatCacheStoreOutcome::Stored)
+    }
 }
 
 fn validate_bounded_text(value: &str, maximum: usize, field: &str) -> io::Result<()> {
@@ -636,7 +755,7 @@ fn bincode_error(error: bincode::Error) -> io::Error {
 mod tests {
     use super::*;
     use std::collections::VecDeque;
-    use std::sync::Mutex;
+    use std::sync::{Arc, Mutex};
     use tempfile::TempDir;
 
     struct FakeSignatureProbe {
@@ -846,6 +965,42 @@ mod tests {
             ErrorKind::InvalidData
         );
         assert_eq!(cache.stats().unwrap().live_entries, 1);
+    }
+
+    #[test]
+    fn concurrent_pipeline_stores_preserve_exact_count_and_unique_order() {
+        let temp = TempDir::new().unwrap();
+        let cache = Arc::new(RepeatHashCache::open(temp.path()).unwrap());
+        let threads = (0..32)
+            .map(|id| {
+                let cache = cache.clone();
+                std::thread::spawn(move || cache.store(&signature(id), hashes(id)).unwrap())
+            })
+            .collect::<Vec<_>>();
+        for thread in threads {
+            assert_eq!(thread.join().unwrap(), RepeatCacheStoreOutcome::Stored);
+        }
+        assert_eq!(cache.stats().unwrap().live_entries, 32);
+        assert_eq!(cache.read_count().unwrap(), 32);
+        let mut order_sequences = cache
+            .db
+            .iterator(IteratorMode::From(ORDER_PREFIX, Direction::Forward))
+            .take_while(|item| {
+                item.as_ref()
+                    .is_ok_and(|(key, _)| key.starts_with(ORDER_PREFIX))
+            })
+            .map(|item| {
+                let (key, _) = item.unwrap();
+                u64::from_be_bytes(
+                    key[ORDER_PREFIX.len()..ORDER_PREFIX.len() + 8]
+                        .try_into()
+                        .unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        order_sequences.sort_unstable();
+        order_sequences.dedup();
+        assert_eq!(order_sequences.len(), 32);
     }
 
     #[test]

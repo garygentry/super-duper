@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const METRICS_CONTRACT_VERSION: u32 = 2;
+pub const METRICS_CONTRACT_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -110,6 +110,10 @@ pub enum CounterKind {
     PartialHashesSucceeded,
     PartialHashesFailed,
     PartialHashBytesRead,
+    PartialHashCacheHits,
+    PartialHashCacheMisses,
+    PartialHashCacheErrors,
+    PartialHashCacheStores,
     PartialCollisionBuckets,
     PartialCollisionFiles,
     PartialCollisionBytes,
@@ -135,7 +139,7 @@ pub enum CounterKind {
 }
 
 impl CounterKind {
-    pub const ALL: [Self; 43] = [
+    pub const ALL: [Self; 47] = [
         Self::DiscoveredFiles,
         Self::DiscoveredBytes,
         Self::ZeroByteFiles,
@@ -157,6 +161,10 @@ impl CounterKind {
         Self::PartialHashesSucceeded,
         Self::PartialHashesFailed,
         Self::PartialHashBytesRead,
+        Self::PartialHashCacheHits,
+        Self::PartialHashCacheMisses,
+        Self::PartialHashCacheErrors,
+        Self::PartialHashCacheStores,
         Self::PartialCollisionBuckets,
         Self::PartialCollisionFiles,
         Self::PartialCollisionBytes,
@@ -204,6 +212,10 @@ impl CounterKind {
             Self::PartialHashesSucceeded => "partial_hashes_succeeded",
             Self::PartialHashesFailed => "partial_hashes_failed",
             Self::PartialHashBytesRead => "partial_hash_bytes_read",
+            Self::PartialHashCacheHits => "partial_hash_cache_hits",
+            Self::PartialHashCacheMisses => "partial_hash_cache_misses",
+            Self::PartialHashCacheErrors => "partial_hash_cache_errors",
+            Self::PartialHashCacheStores => "partial_hash_cache_stores",
             Self::PartialCollisionBuckets => "partial_collision_buckets",
             Self::PartialCollisionFiles => "partial_collision_files",
             Self::PartialCollisionBytes => "partial_collision_bytes",
@@ -230,7 +242,7 @@ impl CounterKind {
     }
 }
 
-/// Monotonic cumulative scan counters for metrics contract v2.
+/// Monotonic cumulative scan counters for metrics contract v3.
 ///
 /// `discovered_files` includes logical zero-byte files and hard-link aliases. Size-bucket and hash
 /// counters describe first-physical, non-empty files only. `candidate_*` records files admitted to
@@ -264,6 +276,10 @@ pub struct ScanCounters {
     pub partial_hashes_succeeded: u64,
     pub partial_hashes_failed: u64,
     pub partial_hash_bytes_read: u64,
+    pub partial_hash_cache_hits: u64,
+    pub partial_hash_cache_misses: u64,
+    pub partial_hash_cache_errors: u64,
+    pub partial_hash_cache_stores: u64,
     pub partial_collision_buckets: u64,
     pub partial_collision_files: u64,
     pub partial_collision_bytes: u64,
@@ -312,6 +328,10 @@ impl ScanCounters {
             CounterKind::PartialHashesSucceeded => self.partial_hashes_succeeded,
             CounterKind::PartialHashesFailed => self.partial_hashes_failed,
             CounterKind::PartialHashBytesRead => self.partial_hash_bytes_read,
+            CounterKind::PartialHashCacheHits => self.partial_hash_cache_hits,
+            CounterKind::PartialHashCacheMisses => self.partial_hash_cache_misses,
+            CounterKind::PartialHashCacheErrors => self.partial_hash_cache_errors,
+            CounterKind::PartialHashCacheStores => self.partial_hash_cache_stores,
             CounterKind::PartialCollisionBuckets => self.partial_collision_buckets,
             CounterKind::PartialCollisionFiles => self.partial_collision_files,
             CounterKind::PartialCollisionBytes => self.partial_collision_bytes,
@@ -410,6 +430,21 @@ impl ScanCounters {
             "partial hash outcomes cannot exceed attempts",
         )?;
         invariant(
+            sum_leq(
+                &[
+                    self.partial_hash_cache_hits,
+                    self.partial_hash_cache_misses,
+                    self.partial_hash_cache_errors,
+                ],
+                self.partial_hashes_attempted,
+            ),
+            "partial cache lookup outcomes cannot exceed partial hash attempts",
+        )?;
+        invariant(
+            self.partial_hash_cache_stores <= self.partial_hashes_succeeded,
+            "partial cache stores require successful partial hashes",
+        )?;
+        invariant(
             self.partial_collision_files <= self.partial_hashes_succeeded,
             "partial collision files must have a successful partial hash",
         )?;
@@ -429,10 +464,10 @@ impl ScanCounters {
             "cache lookup outcomes cannot exceed full hash requests",
         )?;
         invariant(
-            self.full_hash_cache_misses
-                .checked_add(self.full_hash_cache_errors)
-                .is_some_and(|content_reads| self.full_hash_content_reads_started <= content_reads),
-            "content reads require a cache miss or cache error",
+            self.full_hash_requests
+                .checked_sub(self.full_hash_cache_hits)
+                .is_some_and(|read_eligible| self.full_hash_content_reads_started <= read_eligible),
+            "content reads cannot include cache-hit requests",
         )?;
         invariant(
             sum_leq(

@@ -18,12 +18,12 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept `SOP8b-qualified-content-signature`
+- Latest completed slice: accept `SOP8c-partial-full-cache-integration`
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP8-repeat-run-cache`
-- Next boundary: implement only `SOP8c-partial-full-cache-integration`
+- Next boundary: execute only `SOP8d-repeat-policy-measurement`
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -229,6 +229,18 @@ while ChangeTime advances for both. Windows rename reuse is deliberately rejecte
 weakening invalidation; the pipeline will read current content. Upstream hard-link alias de-
 duplication remains unchanged.
 
+`SOP8c-partial-full-cache-integration` is accepted with forced revalidation still the provisional
+default. Each scan owns the versioned bounded store. The partial stage either performs a qualified
+before/after hit or reads the accepted 1 KiB prefix and seeds it; the full stage receives that exact
+verified partial signature, so a mutation between stages cannot bind an old prefix hash to new
+content. Full reads retain SOP7's media buffer/hint policy and no-prefix-reuse decision. Cache open,
+lookup, corrupt-entry, and store failures remain recoverable read fallbacks with bounded warnings;
+parallel stores serialize only entry-count/order metadata and do not change SOP6 reader ceilings.
+Metrics contract v3 adds partial hit/miss/error/store counters, all 47 fixed counters serialize
+through the worker and are strictly parsed/validated by Core, and cache-hit rates combine both
+stages without relabeling logical work as physical bytes. Exact duplicate, hard-link, cancellation,
+bounded-memory, telemetry, and deletion-lock behavior is unchanged. No SOP8 measurement or UI ran.
+
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
 protocol-v1 legacy fields. One timer-owned latest-value emitter assigns transport sequences after
@@ -392,11 +404,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Implement only `SOP8c-partial-full-cache-integration`. Wire the accepted owned store and qualified
-before/after signatures into partial and full hashing, add exact additive partial-cache telemetry
-through the worker/Core contracts, and preserve the forced-revalidation path, SOP6/SOP7 policy,
-cancellation, hard links, and memory bounds. Do not begin the physical Release comparison, session
-UI, SOP9, or parked release validation until SOP8c accepts.
+Execute only `SOP8d-repeat-policy-measurement` under its predeclared write-once contract. Use the
+fixed 512 MiB collision-heavy local fixture and forced/reuse/reuse/forced arm order, including warm
+same-process and reopened-store reuse. Retain all samples and failures, exact results/read savings,
+host/media/process I/O, CPU/memory, cleanup, and policy decision. Do not retry for a favorable
+sample, change the provisional default before evidence selects it, begin session UI, start SOP9 or
+another physical campaign, or resume parked release validation.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -483,6 +496,21 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Accepted `SOP8c-partial-full-cache-integration` passes focused production-path tests for exact
+forced partial/full stores and physical bytes, same-process and reopened-store qualified hits with
+zero physical bytes, exact duplicate-key equality, edits and between-stage mutation rejection,
+concurrent count/order integrity, cache/read/error reconciliation, and the existing cancellation,
+SOP6 reader, SOP7 read-policy, hard-link, and exact-result regressions. Metrics contract v3 exposes
+47 fixed counters; focused defensive parser tests and the real-worker lifecycle pass. The complete
+Debug and serial Release Rust matrices each pass 217 tests with 7 intentional profiles ignored;
+strict Core/worker Clippy passes with eight explicitly allowed unchanged-file lint classes. The
+first concurrent Release attempt observed one instead of two heartbeat samples in the existing
+timing test; the clean serial matrix passed it without a product change. The Debug Windows solution
+passes 145 Core, 74 Infrastructure, and 3 loaded-STA smoke tests with 5 operator-only skips. The
+Windows build is warning-free and `git diff --check` passes. Forced revalidation remains default;
+no SOP8d evidence, UI/session contract, product schema, SOP9 campaign, parked validation, or
+production deletion lock changed.
 
 Accepted `SOP8b-qualified-content-signature` passes 3 focused injected qualification/window tests,
 the real Windows metadata-only identity/rename/edit test, and the full Core library (51 passed, 2
@@ -882,6 +910,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-27 | this session | Accept SOP8c: the owned bounded store now serves partial and full stages only across qualified before/after windows; a carried partial signature prevents between-stage cache poisoning, parallel store metadata is serialized, metrics v3 carries four partial-cache counters through worker/Core, and forced revalidation remains default with SOP6/SOP7/hard-link/cancellation/memory/deletion locks unchanged. | Execute only the write-once `SOP8d-repeat-policy-measurement`; do not begin UI/default shipping, SOP9, another campaign, or parked validation. |
 | 2026-08-27 | this session | Accept SOP8b with a metadata-only fail-closed physical identity/size/modified-time/content-change signature and before/after equality; retain real Windows evidence that rename preserves identity but advances ChangeTime, so rename reuse is rejected and hard-link de-duplication stays upstream. | Implement only `SOP8c-partial-full-cache-integration`; keep measurement, UI, SOP9, and parked validation out of scope until it accepts. |
 | 2026-08-27 | this session | Accept SOP8a with an owned/reopenable v2 store, safe forced default, fixed entry/encoding limits, deterministic 1,500,000-to-1,350,000 pruning, bounded recovery, exact replay/conflict, and corrupt/legacy ineligibility while leaving production hash lookup untouched. | Implement only `SOP8b-qualified-content-signature`; keep production hits, telemetry/protocol/UI, measurement, SOP9, and parked validation out of scope until it accepts. |
 | 2026-08-27 | this session | Audit the existing full-only path/size/mtime global cache, repair the stale ROADMAP checkpoint, and define five finite SOP8 packages with explicit store/signature/integration/measurement/UI correctness and acceptance boundaries before implementation. | Implement only `SOP8a-versioned-bounded-cache-store`; keep later SOP8 packages, SOP9, unrelated campaigns, and parked release validation out of scope until its dependency accepts. |

@@ -6,7 +6,7 @@ namespace SuperDuper.Windows.Core.Workers;
 public static class WorkerProgressContract
 {
     public const uint ProgressContractVersion = 1;
-    public const uint MetricsContractVersion = 2;
+    public const uint MetricsContractVersion = 3;
     public const int MaximumActiveDevices = 64;
 
     private static readonly HashSet<string> LegacyPhases =
@@ -123,6 +123,12 @@ public static class WorkerProgressContract
                 counters.PartialHashesFailed,
                 counters.PartialHashesAttempted)
             || !CheckedSumAtMost(
+                counters.PartialHashCacheHits,
+                counters.PartialHashCacheMisses,
+                counters.PartialHashCacheErrors,
+                counters.PartialHashesAttempted)
+            || counters.PartialHashCacheStores > counters.PartialHashesSucceeded
+            || !CheckedSumAtMost(
                 counters.FullHashCacheHits,
                 counters.FullHashCacheMisses,
                 counters.FullHashCacheErrors,
@@ -217,6 +223,10 @@ public static class WorkerProgressContract
         values.Add(counters.PartialHashesSucceeded);
         values.Add(counters.PartialHashesFailed);
         if (!AddUnsigned(values, counters.PartialHashBytesRead, "counters.partialHashBytesRead", out error)) return false;
+        values.Add(counters.PartialHashCacheHits);
+        values.Add(counters.PartialHashCacheMisses);
+        values.Add(counters.PartialHashCacheErrors);
+        values.Add(counters.PartialHashCacheStores);
         values.Add(counters.PartialCollisionBuckets);
         values.Add(counters.PartialCollisionFiles);
         if (!AddUnsigned(values, counters.PartialCollisionBytes, "counters.partialCollisionBytes", out error)) return false;
