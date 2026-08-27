@@ -18,12 +18,12 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept `SOP9a-write-once-campaign-tooling`
-- Worktree at the start of SOP9a: clean at `663e728`
+- Latest completed slice: accept `SOP9b-representative-cancellation`
+- Worktree at the start of SOP9b: clean at `ee15ce6`
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP9-large-drive-acceptance` in progress
-- Next boundary: consume only fixed `sop9b-representative-cancellation-v1` on D:
+- Next boundary: consume only fixed `sop9c-single-drive-reference-repeat-v1` on E:
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -519,6 +519,24 @@ required gates are open.
 
 ## Latest verification baseline
 
+Accepted `SOP9b-representative-cancellation` passes
+`Verify-WindowsLargeDriveCancellation.ps1`. The sole fixed D: physical identity is consumed; its
+manifest, append-only journal, terminal evidence, and path-free committed summary are pinned by
+exact SHA-256 and were not retried. The `revalidate_content` arm discovered 2,727,118 logical files
+and 11,698,178,946,036 bytes, classified 363,432 singleton files without content reads and 180 hard-
+link aliases outside recoverable copies, then accepted 256 partial reads/262,144 bytes before the
+runner requested cancellation. Terminal `cancelled` followed 2,408.5771 ms later; no progress
+followed terminal and empty result digests prove no partial duplicate result was represented as
+completed. Nine product/status warnings, the complete file/byte funnel, one cancelled queued item,
+and zero telemetry loss/flush errors reconcile. All 166 host and device samples remain within the
+100,000/64 retention caps, five unavailable counter observations remain explicit, and peak observed
+working set/private bytes are 3,290,181,632/3,713,601,536. The bundle retains 5,881 progress frames,
+18,996,432 serialized bytes, status commit sequence 169, 806,912 status-database bytes, and
+54,476,916 process-write bytes as non-causal SOP2-scale proxies; without an observer-off
+counterfactual, the strict `<1%` gate remains unevaluated and did not pass. Cleanup stopped the owned
+worker without force and removed validated campaign state. The verifier also pins SOP6 reader
+ceilings, SOP7 read policy, SOP8 new/legacy policy truth, and every production deletion lock.
+
 Accepted `SOP9a-write-once-campaign-tooling` passes
 `Verify-WindowsLargeDriveAcceptanceTooling.ps1`. The verifier revalidates the three absent physical
 campaign identities and D:/E:/H: hardware without starting them, then runs one temporary forced/
@@ -981,6 +999,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-27 | this session | Accept the sole SOP9b physical cancellation attempt: retain the fixed D: identity without retry, cancel 2.409 seconds after measured hash-read work begins, reconcile 2.727 million logical files/11.698 TB plus singleton/hard-link/warning/status truth, publish no completed result or post-terminal progress, retain bounded resource/device and SOP2 proxies, and clean up exactly. | Consume only `sop9c-single-drive-reference-repeat-v1` on E:, then verify/document/commit it before SOP9d. |
 | 2026-08-27 | this session | Accept SOP9a with a path-free query-only snapshot helper, manifest-before-run/append-only/write-once runner, deterministic valid forced/reuse and injected-failure evidence, exact cleanup, fixed physical preflight, retained historical hashes, focused Release correctness, and production locks. | Consume only `sop9b-representative-cancellation-v1` on D:, then verify/document/commit it before SOP9c. |
 | 2026-08-27 | this session | Audit SOP9 dependencies, operator-evidence requirements, retained artifacts/tooling, unresolved SOP2 risk, and available hardware; define five fixed tooling/cancellation/single-drive/multi-drive/acceptance packages with write-once/no-favorable-retry retention and explicit correctness, measurement, cleanup, and acceptance criteria. | Implement only `SOP9a-write-once-campaign-tooling`; do not start representative D:/E: I/O until it accepts. |
 | 2026-08-27 | this session | Accept SOP8e and close SOP8: carry measured-default `reuse_verified` plus forced alternate through immutable run truth, closed worker/Core contracts, a generation-scoped accessible Setup choice, and a named verifier pinning all retained evidence, prior read policies, regressions, full Debug/Release matrices, and production locks. | Stop before dependency-ready `SOP9-large-drive-acceptance`; it remains unaudited and not started. |

@@ -1,0 +1,86 @@
+{
+  "allOutcomesRetained": true,
+  "artifactHashes": {
+    "acceptanceEvidenceSha256": "7057503390c2f4b9111075bce7b454c06b9f2f23876c6e315018224489a7be79",
+    "attemptJournalSha256": "e8fb061f18af370cd07802760418063d2bff3aa34b8a5cf7956bb63c03a1b2a2",
+    "manifestSha256": "97bf404f5e18c55d680dee7db95f3d22f2789fe4ade2e714001310905d997150"
+  },
+  "build": {
+    "snapshotToolSha256": "3e79d775dffa36a21b37796db4a681f485d4b53f72aee37a37a1dcfd58ee1f00",
+    "workerSha256": "47196cadb28cc4e772894d4bc014ea16a0d251733fac34a243a30ee78d7bacdc"
+  },
+  "campaignId": "sop9b-representative-cancellation-v1",
+  "capturedAtUtc": "2026-08-27T23:52:28.9542174Z",
+  "cleanup": {
+    "errors": 0,
+    "stateRemoved": true,
+    "workerForced": false,
+    "workerStopped": true
+  },
+  "correctness": {
+    "cancelledWorkItems": 1,
+    "candidateBytes": 5501135780109,
+    "candidateFiles": 2350177,
+    "discoveredBytes": 11698178946036,
+    "discoveredLogicalFiles": 2727118,
+    "duplicateFileGroupsPublished": 0,
+    "duplicateFolderGroupsPublished": 0,
+    "fileResultSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "folderResultSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fullHashBytesRead": 0,
+    "hardLinkAliasBytes": 4107729758,
+    "hardLinkAliasFiles": 180,
+    "metadataResolvedBytes": 6192935436169,
+    "metadataResolvedFiles": 363432,
+    "partialHashBytesRead": 262144,
+    "partialHashesSucceeded": 256,
+    "productWarningCount": 9,
+    "statusWarningCount": 9,
+    "terminalStatus": "cancelled",
+    "warningAccountingComplete": true,
+    "zeroByteFiles": 13329
+  },
+  "gate": "SOP9-large-drive-acceptance",
+  "identity": {
+    "deviceKeySha256": "468d788dc4d7976bdeedc8183d754c393cdd9cdbef277faed54a7edd20cb028a",
+    "manifestRootIdentitySha256": "25176a623236914040aa0caf4b44622e672b7b50d796b8f2812da9004a232f05",
+    "productRootIdentitySha256": "80e01b38de6ae5ff38304bc0a0bd524c772d163ee01f5a595eb850d4b65241ef"
+  },
+  "measurement": {
+    "cancellationLatencyMilliseconds": 2408.5771,
+    "maximumFramesPerObservedSecond": 10,
+    "peakPrivateBytes": 3713601536,
+    "peakWorkingSetBytes": 3290181632,
+    "processCpuNanos": 118000000000,
+    "processReadBytes": 96171951,
+    "processWriteBytes": 54476916,
+    "progressFrameCount": 5881,
+    "progressSerializedBytes": 18996432,
+    "retainedStatusCommitSequence": 169,
+    "statusDatabaseBytes": 806912,
+    "wallMilliseconds": 831081.2399
+  },
+  "noFavorableRetry": true,
+  "package": "SOP9b-representative-cancellation",
+  "policy": "revalidate_content",
+  "sampling": {
+    "deviceActiveMillisPerSecondP50": 1000,
+    "deviceAverageReadLatencyMicrosP50": 4509,
+    "deviceAverageReadLatencyMicrosP99": 27692,
+    "deviceQueueDepthMillisP50": 6000,
+    "deviceReadBytesPerSecondP50": 4948770,
+    "deviceReadBytesPerSecondP99": 8907033,
+    "deviceSampleCount": 166,
+    "deviceUnavailableCounterTotal": 4,
+    "hostSampleCount": 166,
+    "hostUnavailableCounterTotal": 1
+  },
+  "sop2ObserverRisk": {
+    "causalAttributionAvailable": false,
+    "residualRisk": "At-scale frame, status-write, process-resource, and device proxies are retained, but there is no observer-off counterfactual.",
+    "strictGateEvaluated": false,
+    "strictGatePassed": false
+  },
+  "status": "accepted",
+  "writeOnceIdentityConsumed": true
+}
