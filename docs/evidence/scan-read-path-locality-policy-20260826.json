@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "gate": "SOP7-hash-read-path",
+  "package": "SOP7b-path-locality",
+  "decision": "reject_product_change",
+  "softwareBuild": {
+    "acceptedHarnessCommit": "f91ec53",
+    "profileHarnessSourceSha256": "3AF610C7156D32E9DE70FBA3227EF507AD4524F545EA4AF98F5A9F728D7C0489"
+  },
+  "rawEvidence": [
+    {
+      "path": "docs/evidence/scan-read-path-locality-ssd-20260826.json",
+      "sha256": "5BFAB850D5F4644C95EE31A0A15AEEACDEF75375AA4E4BF36D126C08AD8D1903"
+    },
+    {
+      "path": "docs/evidence/scan-read-path-locality-hdd-20260826.json",
+      "sha256": "4EDE50A2569F9349A02E3A756C51841E0F3E1C96ABE4FF0E2BCA96DF550383B7"
+    }
+  ],
+  "method": {
+    "factor": "deterministic parent-then-path order within each unchanged size bucket",
+    "fixedFactors": {
+      "bucketOrder": "ascending_size",
+      "partialPrefixBytes": 1024,
+      "fullReadBufferBytes": 65536,
+      "sequentialHint": false,
+      "partialPrefixReuse": false,
+      "rotationalReaders": 1,
+      "solidStateReaders": 4,
+      "unknownReaders": 1
+    },
+    "armOrder": [
+      "control",
+      "treatment",
+      "treatment",
+      "control"
+    ],
+    "fileCountPerArm": 16,
+    "baseFileBytes": 67108864,
+    "physicalBytesReadPerArm": 1073856512,
+    "failedSamplesDiscarded": 0,
+    "hardwareSerialPersisted": false
+  },
+  "comparisons": [
+    {
+      "mediaClass": "solid_state",
+      "deviceKey": "physical:2",
+      "workload": "buffered cached-read locality",
+      "controlMeanWallNanos": 110748800,
+      "treatmentMeanWallNanos": 123562250,
+      "treatmentWallDeltaPercent": 11.5698,
+      "treatmentThroughputDeltaPercent": -10.4500,
+      "processReadBytesPerArm": 1073856512,
+      "deviceSamplingHealth": "two control samples explicitly unavailable; near-zero device reads show the just-created fixtures remained cache-resident",
+      "selection": "reject",
+      "rationale": "The treatment materially regressed the declared cached workload. This sample does not claim physical SSD locality evidence and was not rerun."
+    },
+    {
+      "mediaClass": "rotational",
+      "deviceKey": "physical:0",
+      "workload": "direct-unbuffered allocation-locality",
+      "controlMeanWallNanos": 7235118650,
+      "treatmentMeanWallNanos": 7147751250,
+      "treatmentWallDeltaPercent": -1.2075,
+      "treatmentThroughputDeltaPercent": 1.2204,
+      "processReadBytesPerArm": 1073856512,
+      "deviceUnavailableCounterCountPerArm": 0,
+      "controlMeanDeviceLatencyMicros": 405,
+      "treatmentMeanDeviceLatencyMicros": 402,
+      "selection": "reject",
+      "rationale": "The small synthetic direct-read improvement is insufficient to justify changing buffered production order, especially when the idealized fixture explicitly aligns allocation with parent paths."
+    }
+  ],
+  "correctnessAndCleanup": {
+    "checksumMismatchCount": 0,
+    "byteMismatchCount": 0,
+    "cancelledArmCount": 0,
+    "fixtureRemovedAfterEachProfile": true,
+    "profileProcessCountAfterRuns": 0,
+    "workspaceFixtureCountAfterRuns": 0
+  },
+  "selectedPolicy": {
+    "pathOrder": "accepted_insertion_order_unchanged",
+    "mediaScope": "none",
+    "productionSourceChanged": false
+  },
+  "scope": {
+    "accepted": "retain both comparisons and reject the path-locality product change",
+    "excluded": [
+      "bucket ordering",
+      "buffer size",
+      "read ahead",
+      "partial-prefix reuse",
+      "reader-count changes",
+      "SOP8 cache policy",
+      "full-drive acceptance"
+    ]
+  }
+}

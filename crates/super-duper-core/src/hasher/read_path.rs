@@ -79,6 +79,7 @@ struct ReadPlan {
     buffer_bytes: usize,
     sequential_hint: bool,
     reuse_partial_prefix: bool,
+    direct_unbuffered_full_read: bool,
 }
 
 impl ReadPlan {
@@ -89,11 +90,20 @@ impl ReadPlan {
             buffer_bytes: CONTROL_BUFFER_BYTES,
             sequential_hint: false,
             reuse_partial_prefix: false,
+            direct_unbuffered_full_read: false,
         }
     }
 
     fn for_arm(factor: ExperimentFactor, variant: ArmVariant) -> Self {
         let mut plan = Self::control();
+        if matches!(
+            factor,
+            ExperimentFactor::PathLocality | ExperimentFactor::BucketOrder
+        ) {
+            // Ordering experiments must reach the physical device; this setting is identical in
+            // both arms and is not a treatment variable.
+            plan.direct_unbuffered_full_read = true;
+        }
         if variant == ArmVariant::Treatment {
             match factor {
                 ExperimentFactor::PathLocality => plan.path_order = PathOrder::ParentThenPath,
@@ -187,6 +197,13 @@ fn read_for_profile(path: &Path, plan: ReadPlan, cancel: &AtomicBool) -> io::Res
     let prefix_bytes = partial_file.read(&mut prefix)?;
     prefix.truncate(prefix_bytes);
 
+    #[cfg(target_os = "windows")]
+    if plan.direct_unbuffered_full_read {
+        let mut result = read_full_unbuffered(path, plan.buffer_bytes, cancel)?;
+        result.physical_bytes = result.physical_bytes.saturating_add(prefix_bytes as u64);
+        return Ok(result);
+    }
+
     let mut full_file = open_profile_file(path, plan.sequential_hint)?;
     let mut hasher = XxHash64::with_seed(0);
     let mut physical_bytes = prefix_bytes as u64;
@@ -213,6 +230,68 @@ fn read_for_profile(path: &Path, plan: ReadPlan, cancel: &AtomicBool) -> io::Res
         hash: hasher.finish(),
         physical_bytes,
     })
+}
+
+#[cfg(target_os = "windows")]
+fn read_full_unbuffered(
+    path: &Path,
+    buffer_bytes: usize,
+    cancel: &AtomicBool,
+) -> io::Result<ReadResult> {
+    use std::alloc::{alloc, dealloc, Layout};
+    use std::os::windows::fs::OpenOptionsExt;
+
+    const FILE_FLAG_NO_BUFFERING: u32 = 0x2000_0000;
+    const FILE_FLAG_SEQUENTIAL_SCAN: u32 = 0x0800_0000;
+    if buffer_bytes % 4096 != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "SOP7 direct-read buffer must be 4 KiB aligned",
+        ));
+    }
+    let mut file = OpenOptions::new()
+        .read(true)
+        .custom_flags(FILE_FLAG_NO_BUFFERING | FILE_FLAG_SEQUENTIAL_SCAN)
+        .open(path)?;
+    let layout = Layout::from_size_align(buffer_bytes, 4096).map_err(|error| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("invalid SOP7 direct-read layout: {error}"),
+        )
+    })?;
+    let pointer = unsafe { alloc(layout) };
+    if pointer.is_null() {
+        return Err(io::Error::new(
+            io::ErrorKind::OutOfMemory,
+            "SOP7 direct-read buffer allocation failed",
+        ));
+    }
+    let buffer = unsafe { std::slice::from_raw_parts_mut(pointer, buffer_bytes) };
+    let mut hasher = XxHash64::with_seed(0);
+    let mut physical_bytes = 0_u64;
+    let result = loop {
+        if cancel.load(Ordering::Acquire) {
+            break Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "SOP7 profile cancelled during direct content read",
+            ));
+        }
+        match file.read(buffer) {
+            Ok(0) => {
+                break Ok(ReadResult {
+                    hash: hasher.finish(),
+                    physical_bytes,
+                });
+            }
+            Ok(count) => {
+                hasher.write(&buffer[..count]);
+                physical_bytes = physical_bytes.saturating_add(count as u64);
+            }
+            Err(error) => break Err(error),
+        }
+    };
+    unsafe { dealloc(pointer, layout) };
+    result
 }
 
 fn validate_factor_isolation(factor: ExperimentFactor) -> io::Result<()> {
@@ -282,37 +361,43 @@ mod windows_profile {
         let mut buffer = vec![0_u8; 1024 * 1024];
         for arm in 0..ARM_ORDER.len() {
             let mut entries = Vec::new();
-            for index in 0..file_count {
-                let directory = fixture_root
-                    .join(format!("arm-{arm}"))
-                    .join(format!("parent-{:02}", index % 8));
-                fs::create_dir_all(&directory)?;
-                let bucket_size = file_bytes + ((index % 4) as u64 * 4096);
-                let path = directory.join(format!("read-{index:05}.bin"));
-                let mut file = OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(&path)?;
-                let mut remaining = bucket_size;
-                let mut state = 0x9e37_79b9_7f4a_7c15_u64 ^ index as u64;
-                while remaining > 0 {
-                    let count = remaining.min(buffer.len() as u64) as usize;
-                    for chunk in buffer[..count].chunks_mut(8) {
-                        state ^= state << 13;
-                        state ^= state >> 7;
-                        state ^= state << 17;
-                        chunk.copy_from_slice(&state.to_le_bytes()[..chunk.len()]);
+            let parent_count = file_count.min(8);
+            // Create each parent's files together so the locality arm has a declared
+            // allocation-locality workload. Control order is restored to stable ID below.
+            for parent in 0..parent_count {
+                for index in (parent..file_count).step_by(parent_count) {
+                    let directory = fixture_root
+                        .join(format!("arm-{arm}"))
+                        .join(format!("parent-{parent:02}"));
+                    fs::create_dir_all(&directory)?;
+                    let bucket_size = file_bytes + ((index % 4) as u64 * 4096);
+                    let path = directory.join(format!("read-{index:05}.bin"));
+                    let mut file = OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(&path)?;
+                    let mut remaining = bucket_size;
+                    let mut state = 0x9e37_79b9_7f4a_7c15_u64 ^ index as u64;
+                    while remaining > 0 {
+                        let count = remaining.min(buffer.len() as u64) as usize;
+                        for chunk in buffer[..count].chunks_mut(8) {
+                            state ^= state << 13;
+                            state ^= state >> 7;
+                            state ^= state << 17;
+                            chunk.copy_from_slice(&state.to_le_bytes()[..chunk.len()]);
+                        }
+                        file.write_all(&buffer[..count])?;
+                        remaining -= count as u64;
                     }
-                    file.write_all(&buffer[..count])?;
-                    remaining -= count as u64;
+                    file.sync_all()?;
+                    entries.push(ProfileEntry {
+                        stable_id: index,
+                        bucket_size,
+                        path,
+                    });
                 }
-                file.sync_all()?;
-                entries.push(ProfileEntry {
-                    stable_id: index,
-                    bucket_size,
-                    path,
-                });
             }
+            entries.sort_by_key(|entry| entry.stable_id);
             entries.rotate_left(arm % file_count);
             entries_by_arm.push(entries);
         }
@@ -366,6 +451,7 @@ mod windows_profile {
             "physicalBytesRead": physical_bytes,
             "checksums": results.iter().map(|(_, result)| format!("{:016x}", result.hash)).collect::<Vec<_>>(),
             "cancelled": false,
+            "directUnbufferedFullReads": plan.direct_unbuffered_full_read,
             "selectedReaderCeiling": match device.media {
                 crate::platform::StorageMediaClass::SolidState => crate::hasher::scheduler::SOLID_STATE_READERS,
                 crate::platform::StorageMediaClass::Rotational => crate::hasher::scheduler::ROTATIONAL_READERS,
