@@ -18,7 +18,7 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept `SOP8c-partial-full-cache-integration`
+- Latest completed slice: predeclare the executable `SOP8d-repeat-policy-measurement` harness
 - Worktree after that commit: clean
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
@@ -240,6 +240,15 @@ Metrics contract v3 adds partial hit/miss/error/store counters, all 47 fixed cou
 through the worker and are strictly parsed/validated by Core, and cache-hit rates combine both
 stages without relabeling logical work as physical bytes. Exact duplicate, hard-link, cancellation,
 bounded-memory, telemetry, and deletion-lock behavior is unchanged. No SOP8 measurement or UI ran.
+
+The executable SOP8d harness is predeclared but has not run. Its Release-only ignored test creates
+exactly 128 4 MiB files (512 MiB total) as 64 exact pairs sharing one 1 KiB prefix, runs
+forced/reuse/reuse/forced with same-process then reopened-store reuse, and writes exactly one JSON
+artifact. It records exact hash/result signatures, app-read and cache counters, wall/CPU/memory/
+process-I/O/device observations, store/signature/read-policy identities, cancellation, cleanup, all
+samples, medians/tails, and the selected default. Invalid campaigns also consume the write-once
+path; no favorable retry is permitted. Two small non-physical generator/validator tests and strict
+Core Clippy pass. The sole authorized profile invocation is next.
 
 An earlier implementation slice accepts `SOP2c-worker-progress-projection`. The worker now reduces
 the accepted typed observations and projects the complete additive snapshot while retaining the
@@ -910,6 +919,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-27 | this session | Predeclare the executable SOP8d Release profiler with a fixed 512 MiB/64-pair collision-heavy fixture, forced/reuse/reuse/forced order, same-process and reopened-store ownership, exact read/result/cache/cancellation/cleanup validation, complete host/process/device evidence, write-once invalid-or-valid output, and no retry. No physical arm ran. | Execute the profiler exactly once at its pinned output; retain success or failure and select the default from all samples without tuning. |
 | 2026-08-27 | this session | Accept SOP8c: the owned bounded store now serves partial and full stages only across qualified before/after windows; a carried partial signature prevents between-stage cache poisoning, parallel store metadata is serialized, metrics v3 carries four partial-cache counters through worker/Core, and forced revalidation remains default with SOP6/SOP7/hard-link/cancellation/memory/deletion locks unchanged. | Execute only the write-once `SOP8d-repeat-policy-measurement`; do not begin UI/default shipping, SOP9, another campaign, or parked validation. |
 | 2026-08-27 | this session | Accept SOP8b with a metadata-only fail-closed physical identity/size/modified-time/content-change signature and before/after equality; retain real Windows evidence that rename preserves identity but advances ChangeTime, so rename reuse is rejected and hard-link de-duplication stays upstream. | Implement only `SOP8c-partial-full-cache-integration`; keep measurement, UI, SOP9, and parked validation out of scope until it accepts. |
 | 2026-08-27 | this session | Accept SOP8a with an owned/reopenable v2 store, safe forced default, fixed entry/encoding limits, deterministic 1,500,000-to-1,350,000 pruning, bounded recovery, exact replay/conflict, and corrupt/legacy ineligibility while leaving production hash lookup untouched. | Implement only `SOP8b-qualified-content-signature`; keep production hits, telemetry/protocol/UI, measurement, SOP9, and parked validation out of scope until it accepts. |

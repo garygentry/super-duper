@@ -5,7 +5,7 @@ use std::path::Path;
 use std::str::FromStr;
 use std::sync::Mutex;
 
-const STORE_SCHEMA_VERSION: u32 = 2;
+pub(crate) const STORE_SCHEMA_VERSION: u32 = 2;
 const SCHEMA_KEY: &[u8] = b"\0super-duper/repeat-cache/schema";
 const COUNT_KEY: &[u8] = b"\0super-duper/repeat-cache/count";
 const NEXT_SEQUENCE_KEY: &[u8] = b"\0super-duper/repeat-cache/next-sequence";
@@ -31,6 +31,7 @@ pub enum RepeatCachePolicy {
 }
 
 impl RepeatCachePolicy {
+    #[allow(dead_code)]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::ReuseVerified => "reuse_verified",
@@ -86,6 +87,7 @@ pub(crate) enum SignatureIneligibleReason {
 }
 
 impl SignatureIneligibleReason {
+    #[allow(dead_code)]
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::MetadataUnavailable => "metadata_unavailable",
@@ -322,6 +324,7 @@ impl RepeatHashCache {
         Ok(RepeatCacheLookup::Hit(stored.hashes))
     }
 
+    #[allow(dead_code)]
     pub(crate) fn store(
         &self,
         signature: &CacheSignatureKey,
@@ -456,6 +459,7 @@ impl RepeatHashCache {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn stats(&self) -> io::Result<RepeatCacheStats> {
         let mut stats = RepeatCacheStats::default();
         for item in self
