@@ -18,12 +18,12 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: audit SOP9 and define its five dependency-ordered packages before work
-- Worktree at the start of that slice: clean at `29a392c`
+- Latest completed slice: accept `SOP9a-write-once-campaign-tooling`
+- Worktree at the start of SOP9a: clean at `663e728`
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP9-large-drive-acceptance` in progress
-- Next boundary: implement only `SOP9a-write-once-campaign-tooling`; run no representative scan
+- Next boundary: consume only fixed `sop9b-representative-cancellation-v1` on D:
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -426,12 +426,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Implement only `SOP9a-write-once-campaign-tooling`. The SOP9 dependency/hardware/tooling audit is
-complete and its five finite packages are authoritative in `docs/scan-optimization-plan.md`. Do not
-start D: or E: representative I/O until SOP9a's deterministic fixture, failure-retention, cleanup,
-schema, verifier, historical-evidence, and production-lock checks accept. After SOP9a, consume only
-the fixed SOP9b D: cancellation identity, then continue in package order. Every outcome is retained;
-SOP2's waived strict representative overhead gate remains unevaluated and must not be revived.
+Consume only `sop9b-representative-cancellation-v1` on D: with the accepted Release runner. Its
+fixed `revalidate_content` run cancels after the first accepted hashing-read progress boundary. The
+manifest/journal must be reserved before build/run, and success, failure, unavailable counters,
+cancellation, evidence-finalization, and cleanup outcomes all consume and remain under that one
+identity. Verify, document, and commit SOP9b before starting SOP9c. SOP2's waived strict
+representative overhead gate remains unevaluated and must not be revived.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -518,6 +518,19 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Accepted `SOP9a-write-once-campaign-tooling` passes
+`Verify-WindowsLargeDriveAcceptanceTooling.ps1`. The verifier revalidates the three absent physical
+campaign identities and D:/E:/H: hardware without starting them, then runs one temporary forced/
+reuse fixture with identical file/folder digests, 2 singleton metadata resolutions, one hard-link
+alias, 4 partial plus 4 full reuse hits, zero warnings, at most 3 observed frames/second, retained
+commit/database/process-write proxies, and exact scoped cleanup. A tooling-only injected failure
+retains its manifest, append-only failure journal, invalid evidence, and diagnostic state. Eight
+historical evidence hashes, legacy forced reconstruction, singleton zero-open, closed worker policy,
+query-only helper compilation, strict example Clippy with four unchanged-source allowances,
+PowerShell parsing, diff checks, and all production locks pass. Terminal status replay rows remain
+zero by the accepted retention policy and are not misreported as missing observation. No
+representative run, SOP2f campaign, parked validation, or deletion capability ran.
 
 The SOP9 package-definition slice is documentation-only. The complete startup audit found a clean
 `wpf-poc` worktree at `29a392c`, preserved SOP8 as accepted, inspected its closing diff and all
@@ -968,6 +981,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-27 | this session | Accept SOP9a with a path-free query-only snapshot helper, manifest-before-run/append-only/write-once runner, deterministic valid forced/reuse and injected-failure evidence, exact cleanup, fixed physical preflight, retained historical hashes, focused Release correctness, and production locks. | Consume only `sop9b-representative-cancellation-v1` on D:, then verify/document/commit it before SOP9c. |
 | 2026-08-27 | this session | Audit SOP9 dependencies, operator-evidence requirements, retained artifacts/tooling, unresolved SOP2 risk, and available hardware; define five fixed tooling/cancellation/single-drive/multi-drive/acceptance packages with write-once/no-favorable-retry retention and explicit correctness, measurement, cleanup, and acceptance criteria. | Implement only `SOP9a-write-once-campaign-tooling`; do not start representative D:/E: I/O until it accepts. |
 | 2026-08-27 | this session | Accept SOP8e and close SOP8: carry measured-default `reuse_verified` plus forced alternate through immutable run truth, closed worker/Core contracts, a generation-scoped accessible Setup choice, and a named verifier pinning all retained evidence, prior read policies, regressions, full Debug/Release matrices, and production locks. | Stop before dependency-ready `SOP9-large-drive-acceptance`; it remains unaudited and not started. |
 | 2026-08-27 | this session | Accept the sole SOP8d write-once Release comparison: both same-process and reopened-store reuse saved exact 128 KiB partial plus 512 MiB full/process reads, preserved 64 groups/128 items with zero warnings, improved median wall 89.54%, retained all samples and explicit unavailable values, passed cancellation/cleanup, and selected `reuse_verified` without retry. | Implement only `SOP8e-session-policy-and-acceptance`; production stays forced until it carries the selected default and alternate. |
