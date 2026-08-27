@@ -299,11 +299,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Advance only to `SOP7-hash-read-path`. Start from the accepted SOP6 per-device scheduler and define
-SOP7's smallest finite dependency-ordered experiments before implementation. Admit only individually
-measured path-locality, bucket-ordering, buffer/read-ahead, or partial-prefix changes. Do not begin
-SOP8 or later gates, a physical campaign outside SOP7's exact authority, or any parked release-
-validation work.
+Advance only to `SOP7a-read-experiment-contract`, the first of six finite SOP7 packages. Add the
+one-factor strategy/order seams and deterministic write-once profiling harness without changing
+production defaults or running a full-drive campaign. Later packages separately measure path
+locality, bucket ordering, buffer/read-ahead behavior, and bounded partial-prefix reuse. Do not
+begin SOP8 or later gates, a physical campaign outside SOP7's exact authority, or any parked
+release-validation work.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
