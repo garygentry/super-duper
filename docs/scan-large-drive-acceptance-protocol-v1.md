@@ -13,6 +13,14 @@ SOP9 package ledger.
 | `sop9c-single-drive-reference-repeat-v1` | E: / physical HDD 1 | `revalidate_content`, `reuse_verified` | both `completed` |
 | `sop9d-multi-drive-reference-repeat-v1` | D: + E: / physical HDDs 0 + 1 | `revalidate_content`, `reuse_verified` | both `completed` |
 
+V1 disposition is now fixed. SOP9b is accepted. The sole SOP9c V1 identity was consumed on
+2026-08-27/28 and is retained as invalid: its forced arm entered result persistence, then the
+runner's 180-second protocol-frame deadline fired before a terminal frame, force-stopped the worker,
+preserved diagnostic state, and never started `reuse_verified`. V1 cannot be rerun or overwritten.
+SOP9d remains unconsumed but blocked by its SOP9c dependency. A corrected protocol version and new
+single-drive identity require the plan/handoff update and explicit operator authority described
+below; neither is authorized by this document.
+
 The evidence path is `artifacts/windows-sop9-large-drive/<identity>`. The isolated state path is
 `H:\super-duper-sop9-state\<identity>`. Both must be absent before the attempt. Drive letters,
 physical mappings, NTFS, media type, health, capacity, and at least 50 GiB of H: free space are

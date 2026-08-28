@@ -1,0 +1,164 @@
+{
+  "allOutcomesRetained": true,
+  "artifactHashes": {
+    "acceptanceEvidenceSha256": "f1900c634d7f3291f3b2a4a9f91e1d5db702d2432c081a535346ca00b13e3378",
+    "attemptJournalSha256": "8252eb97b00f63009aa3cf40d0746812f73e0bbfbe27933b1abc343c512c6fef",
+    "manifestSha256": "ef91597adcc8b877e7769f209ada1d6a37ad45d0d2917eb3e48afb34eb2ecf17",
+    "snapshotBuildLogSha256": "d265cb0ed9d7d95792d4a79e177cc4c66897cbd98af57c4bd074ecef3d8dbf48",
+    "workerBuildLogSha256": "584e1498a75786370a41671da1aefc23b8f32b84883eef3c6d46524d5815499a",
+    "workerStderrSha256": "ad419954edcbe0cefe769a8182a7b5f7f1adf19ff7d555f87e58128b4ae559a3"
+  },
+  "blocker": {
+    "causalDefect": "The V1 runner treated 180 seconds without a protocol frame during active result persistence as a terminal timeout, then force-stopped the worker.",
+    "decisionRequired": "A separately reviewed V2 protocol and a new fixed campaign identity require explicit operator authority. V1 cannot be retried or overwritten.",
+    "sop9dAuthorized": false,
+    "v2Authorized": false
+  },
+  "build": {
+    "runnerSourceSha256": "52ab9fad55c13a8dea0e9da123e9f8f5630351ef726f8afa54d3cce9701281ba",
+    "snapshotToolSha256": "3e79d775dffa36a21b37796db4a681f485d4b53f72aee37a37a1dcfd58ee1f00",
+    "sourceCommit": "45bb70e4bf8932cb18bdecb2b004344751e6a7bb",
+    "workerSha256": "47196cadb28cc4e772894d4bc014ea16a0d251733fac34a243a30ee78d7bacdc"
+  },
+  "campaignId": "sop9c-single-drive-reference-repeat-v1",
+  "capturedAtUtc": "2026-08-28T05:50:22.7887291Z",
+  "cleanup": {
+    "errors": [
+      "Worker exited with code -1."
+    ],
+    "statePreservedForDiagnostics": true,
+    "stateRemovalAttempted": false,
+    "stateRemoved": false,
+    "workerForced": true,
+    "workerStopped": false
+  },
+  "diagnosticStateArtifacts": [
+    {
+      "bytes": 30193861,
+      "lastWriteUtc": "2026-08-28T05:44:16.0319820Z",
+      "name": "hash-cache/000008.log",
+      "sha256": "47cd83fc41ccc43f3c84098f18ee683434d1e12c421768ae42f3c3585af766d4"
+    },
+    {
+      "bytes": 11286468,
+      "lastWriteUtc": "2026-08-28T01:56:50.5756478Z",
+      "name": "hash-cache/000009.sst",
+      "sha256": "3bcc653556339a9a63ff8e81b966468b40e40d79fbe418063c589c32763cd5aa"
+    },
+    {
+      "bytes": 16,
+      "lastWriteUtc": "2026-08-28T00:02:40.3766860Z",
+      "name": "hash-cache/CURRENT",
+      "sha256": "9c283f6e81028b9eb0760d918ee4bc0aa256ed3b926393c1734c760c4bd724fd"
+    },
+    {
+      "bytes": 36,
+      "lastWriteUtc": "2026-08-28T00:02:40.3536898Z",
+      "name": "hash-cache/IDENTITY",
+      "sha256": "cad7db0f72fd9a48d4b11f0c2032f3d2d994fd98ad2b93403fe34e70c9f2c3a2"
+    },
+    {
+      "bytes": 0,
+      "lastWriteUtc": "2026-08-28T00:02:40.3536898Z",
+      "name": "hash-cache/LOCK",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 71449,
+      "lastWriteUtc": "2026-08-28T00:02:40.3516908Z",
+      "name": "hash-cache/LOG",
+      "sha256": "3993fe523b5d56a23cbe52e8737720911e7bfdc209b1e9a2ee2b0262440529f9"
+    },
+    {
+      "bytes": 248,
+      "lastWriteUtc": "2026-08-28T01:56:50.5966484Z",
+      "name": "hash-cache/MANIFEST-000005",
+      "sha256": "ac77f0b017bf72fb6eb465c14ae2047fa39ff53ef4941f274bbd96dce1ec2482"
+    },
+    {
+      "bytes": 7251,
+      "lastWriteUtc": "2026-08-28T00:02:40.3806915Z",
+      "name": "hash-cache/OPTIONS-000007",
+      "sha256": "4be10f8da527d60ab8ff7a9323619db9b2b795233aab487bd79147945669bd9b"
+    },
+    {
+      "bytes": 638976,
+      "lastWriteUtc": "2026-08-28T00:00:58.2158945Z",
+      "name": "product.db",
+      "sha256": "50b0aa72ceff3d682b72a0b35d7d981cb5f4df6a9e79dffb48373678dc42eeb2"
+    },
+    {
+      "bytes": 32768,
+      "lastWriteUtc": "2026-08-27T23:58:36.1106795Z",
+      "name": "product.db-shm",
+      "sha256": "4504fa2b2b0e10667a18e1ed1472a94092bc8a0773cfac8ce8058bc85dfa30ef"
+    },
+    {
+      "bytes": 4120032,
+      "lastWriteUtc": "2026-08-28T05:47:16.4435227Z",
+      "name": "product.db-wal",
+      "sha256": "18272213d64e455bb4e2cd68e88f3ab2b056854a98262a21731bdfd65cef5483"
+    },
+    {
+      "bytes": 17936384,
+      "lastWriteUtc": "2026-08-28T05:41:33.1173236Z",
+      "name": "status.db",
+      "sha256": "88c8d8c4d39b0d3160afab9cc83b47038f54f2a15f7fe2a6787b2c2ee1c10502"
+    },
+    {
+      "bytes": 32768,
+      "lastWriteUtc": "2026-08-27T23:58:36.1292360Z",
+      "name": "status.db-shm",
+      "sha256": "7c68cf02f8a58c5679bb00429652a61df85f717d8360fed2a00fce193ac9cf7b"
+    },
+    {
+      "bytes": 4181832,
+      "lastWriteUtc": "2026-08-28T05:47:43.9133162Z",
+      "name": "status.db-wal",
+      "sha256": "87b0757498efabf0f86fd475768a54cf3935612d87e6e4bb5fcff2ca4691abd9"
+    }
+  ],
+  "gate": "SOP9-large-drive-acceptance",
+  "identity": {
+    "manifestRootIdentitySha256": "8697e248ec3caa2ea4732549f9a45e960590a42ff6e26019294af595c187b760",
+    "stateIdentitySha256": "d85177b843393db8721a9b88507e8fbe41f2c53c98808a3626d5ac4965639bf5"
+  },
+  "measurement": {
+    "armToFailureMilliseconds": 20920355.7799,
+    "campaignToFailureMilliseconds": 20924107.4619,
+    "cleanupDelayMilliseconds": 30185.196,
+    "discoveryDurationMilliseconds": 244141.692,
+    "frameTimeoutIntervalMilliseconds": 180033.3426,
+    "fullHashBytesReadAtLastProgress": 256449196445,
+    "hashingDurationMilliseconds": 20496093.733,
+    "lastProgressFrameCount": 20554,
+    "lastProgressPhase": "persisting",
+    "lastProgressSequence": 20554,
+    "partialHashBytesReadAtLastProgress": 583624783,
+    "unavailableDeviceReasonAtLastProgress": "mapping_unavailable"
+  },
+  "noFavorableRetry": true,
+  "package": "SOP9c-single-drive-reference-repeat",
+  "policiesDeclared": [
+    "revalidate_content",
+    "reuse_verified"
+  ],
+  "policyArmsStarted": [
+    "revalidate_content"
+  ],
+  "resultEvidence": {
+    "completedArms": 0,
+    "fileResultsEqual": false,
+    "folderResultsEqual": false,
+    "reuseArmStarted": false,
+    "terminalEvents": 0
+  },
+  "sop2ObserverRisk": {
+    "causalAttributionAvailable": false,
+    "residualRisk": "At-scale progress/read proxies are retained, but no completed arm snapshot or observer-off counterfactual exists.",
+    "strictGateEvaluated": false,
+    "strictGatePassed": false
+  },
+  "status": "blocked_invalid_campaign",
+  "writeOnceIdentityConsumed": true
+}
