@@ -4,9 +4,13 @@ param(
         'tooling_fixture',
         'sop9b-representative-cancellation-v1',
         'sop9c-single-drive-reference-repeat-v1',
+        'sop9c-single-drive-reference-repeat-v2',
         'sop9d-multi-drive-reference-repeat-v1')]
     [string]$Campaign = 'tooling_fixture',
+    [switch]$DescribeOnly,
+    [switch]$VerifyPersistenceWatchdog,
     [switch]$PreflightOnly,
+    [switch]$RunPhysicalCampaign,
     [switch]$SkipBuild,
     [switch]$InjectToolingFailureAfterStateReservation,
     [string]$ToolingRoot
@@ -14,6 +18,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'Sop9PersistenceWatchdog.ps1')
 
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $worker = Join-Path $repo 'target/release/super-duper-worker.exe'
@@ -44,6 +49,10 @@ function Get-CampaignDefinition([string]$Name, [string]$FixtureRoot) {
                 Policies = @('revalidate_content', 'reuse_verified')
                 ExpectedTerminal = 'completed'
                 CancelAfterFirstHashProgress = $false
+                FrameWatchdog = [pscustomobject]@{
+                    Mode = 'fixed_frame_v1'
+                    FrameTimeoutSeconds = 180
+                }
                 EvidenceRoot = Join-Path (Split-Path -Parent $FixtureRoot) 'evidence'
                 StateRoot = Join-Path (Split-Path -Parent $FixtureRoot) 'state'
             }
@@ -57,6 +66,10 @@ function Get-CampaignDefinition([string]$Name, [string]$FixtureRoot) {
                 Policies = @('revalidate_content')
                 ExpectedTerminal = 'cancelled'
                 CancelAfterFirstHashProgress = $true
+                FrameWatchdog = [pscustomobject]@{
+                    Mode = 'fixed_frame_v1'
+                    FrameTimeoutSeconds = 180
+                }
                 EvidenceRoot = Join-Path $repo "artifacts/windows-sop9-large-drive/$Name"
                 StateRoot = "H:\super-duper-sop9-state\$Name"
             }
@@ -70,6 +83,31 @@ function Get-CampaignDefinition([string]$Name, [string]$FixtureRoot) {
                 Policies = @('revalidate_content', 'reuse_verified')
                 ExpectedTerminal = 'completed'
                 CancelAfterFirstHashProgress = $false
+                FrameWatchdog = [pscustomobject]@{
+                    Mode = 'fixed_frame_v1'
+                    FrameTimeoutSeconds = 180
+                }
+                EvidenceRoot = Join-Path $repo "artifacts/windows-sop9-large-drive/$Name"
+                StateRoot = "H:\super-duper-sop9-state\$Name"
+            }
+        }
+        'sop9c-single-drive-reference-repeat-v2' {
+            return [pscustomobject]@{
+                Id = $Name
+                Physical = $true
+                RootIds = @('E:')
+                Roots = @('E:\')
+                Policies = @('revalidate_content', 'reuse_verified')
+                ExpectedTerminal = 'completed'
+                CancelAfterFirstHashProgress = $false
+                FrameWatchdog = [pscustomobject]@{
+                    Mode = 'persistence_activity_v2'
+                    FrameTimeoutSeconds = 180
+                    ProbeIntervalSeconds = 5
+                    PersistenceIdleTimeoutSeconds = 900
+                    PersistenceAbsoluteTimeoutSeconds = 86400
+                    JournalIntervalSeconds = 600
+                }
                 EvidenceRoot = Join-Path $repo "artifacts/windows-sop9-large-drive/$Name"
                 StateRoot = "H:\super-duper-sop9-state\$Name"
             }
@@ -83,6 +121,10 @@ function Get-CampaignDefinition([string]$Name, [string]$FixtureRoot) {
                 Policies = @('revalidate_content', 'reuse_verified')
                 ExpectedTerminal = 'completed'
                 CancelAfterFirstHashProgress = $false
+                FrameWatchdog = [pscustomobject]@{
+                    Mode = 'fixed_frame_v1'
+                    FrameTimeoutSeconds = 180
+                }
                 EvidenceRoot = Join-Path $repo "artifacts/windows-sop9-large-drive/$Name"
                 StateRoot = "H:\super-duper-sop9-state\$Name"
             }
@@ -189,7 +231,7 @@ function Invoke-Checked([scriptblock]$Command, [string]$Description, [string]$Lo
     if ($LASTEXITCODE -ne 0) { throw "$Description failed with exit code $LASTEXITCODE." }
 }
 
-function Start-CampaignWorker([string]$ProductDb, [string]$StatusDb, [string]$CachePath) {
+function Start-CampaignWorker([string]$ProductDb, [string]$StatusDb, [string]$CachePath, $FrameWatchdog) {
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $worker
     $start.WorkingDirectory = Split-Path $worker
@@ -207,6 +249,10 @@ function Start-CampaignWorker([string]$ProductDb, [string]$StatusDb, [string]$Ca
     [pscustomobject]@{
         Process = $process
         Stderr = $process.StandardError.ReadToEndAsync()
+        ProductDb = $ProductDb
+        StatusDb = $StatusDb
+        FrameWatchdog = $FrameWatchdog
+        PendingRead = $null
         NextId = 0L
         Stopped = $false
         Terminal = @{}
@@ -216,6 +262,11 @@ function Start-CampaignWorker([string]$ProductDb, [string]$StatusDb, [string]$Ca
         ProgressSecondCounts = @{}
         MaximumFramesPerSecond = @{}
         LastJournalPhase = @{}
+        PersistencePhaseStarted = @{}
+        PersistenceLastActivity = @{}
+        PersistenceFingerprint = @{}
+        PersistenceActivityCount = @{}
+        PersistenceLastJournal = @{}
     }
 }
 
@@ -234,6 +285,24 @@ function Register-WorkerFrame($Connection, $Frame, [int]$SerializedBytes) {
             [int]($Connection.MaximumFramesPerSecond[$key] ?? 0),
             [int]$Connection.ProgressSecondCounts[$secondKey])
         $phase = [string]$Frame.data.progress.phase
+        if ($phase -eq 'persisting' -and
+            $Connection.FrameWatchdog.Mode -eq 'persistence_activity_v2' -and
+            -not $Connection.PersistencePhaseStarted.ContainsKey($key)) {
+            $now = [DateTimeOffset]::UtcNow
+            $Connection.PersistencePhaseStarted[$key] = $now
+            $Connection.PersistenceLastActivity[$key] = $now
+            $Connection.PersistenceFingerprint[$key] = Get-Sop9PersistenceStateFingerprint `
+                $Connection.ProductDb
+            $Connection.PersistenceActivityCount[$key] = 0L
+            $Connection.PersistenceLastJournal[$key] = $now
+            Add-Journal 'persistence_watchdog_started' ([ordered]@{
+                runId = $runId
+                mode = $Connection.FrameWatchdog.Mode
+                probeIntervalSeconds = $Connection.FrameWatchdog.ProbeIntervalSeconds
+                idleTimeoutSeconds = $Connection.FrameWatchdog.PersistenceIdleTimeoutSeconds
+                absoluteTimeoutSeconds = $Connection.FrameWatchdog.PersistenceAbsoluteTimeoutSeconds
+            })
+        }
         if ($Connection.LastJournalPhase[$key] -ne $phase -or $Connection.ProgressFrameCount[$key] % 600 -eq 0) {
             $Connection.LastJournalPhase[$key] = $phase
             Add-Journal 'run_progress' ([ordered]@{
@@ -250,17 +319,99 @@ function Register-WorkerFrame($Connection, $Frame, [int]$SerializedBytes) {
     }
     if ($Frame.event -in @('run.completed', 'run.cancelled', 'run.failed')) {
         $runId = [long]$Frame.data.run.id
-        $Connection.Terminal[$runId.ToString([Globalization.CultureInfo]::InvariantCulture)] = $Frame.data.run
+        $key = $runId.ToString([Globalization.CultureInfo]::InvariantCulture)
+        $Connection.Terminal[$key] = $Frame.data.run
+        if ($Connection.PersistencePhaseStarted.ContainsKey($key)) {
+            Add-Journal 'persistence_watchdog_completed' ([ordered]@{
+                runId = $runId
+                durationMilliseconds = ([DateTimeOffset]::UtcNow -
+                    [DateTimeOffset]$Connection.PersistencePhaseStarted[$key]).TotalMilliseconds
+                observedActivityChanges = [long]$Connection.PersistenceActivityCount[$key]
+            })
+        }
         Add-Journal 'run_terminal' ([ordered]@{ runId = $runId; status = $Frame.data.run.status })
     }
 }
 
-function Read-WorkerFrame($Connection, [int]$TimeoutSeconds = 180) {
-    $read = $Connection.Process.StandardOutput.ReadLineAsync()
-    if (-not $read.Wait([TimeSpan]::FromSeconds($TimeoutSeconds))) {
-        throw 'Timed out waiting for a worker protocol frame.'
+function Read-WorkerFrame($Connection, [int]$TimeoutSeconds = 0) {
+    if ($TimeoutSeconds -le 0) {
+        $TimeoutSeconds = [int]$Connection.FrameWatchdog.FrameTimeoutSeconds
+    }
+    if ($null -eq $Connection.PendingRead) {
+        $Connection.PendingRead = $Connection.Process.StandardOutput.ReadLineAsync()
+    }
+    $read = $Connection.PendingRead
+    $readStarted = [DateTimeOffset]::UtcNow
+    while (-not $read.IsCompleted) {
+        $persistenceKey = @($Connection.PersistencePhaseStarted.Keys | Where-Object {
+            -not $Connection.Terminal.ContainsKey($_)
+        } | Select-Object -First 1)
+        if ($persistenceKey.Count -eq 0 -or
+            $Connection.FrameWatchdog.Mode -ne 'persistence_activity_v2') {
+            $remaining = $TimeoutSeconds - ([DateTimeOffset]::UtcNow - $readStarted).TotalSeconds
+            if ($remaining -le 0 -or
+                -not $read.Wait([TimeSpan]::FromSeconds([Math]::Max(0, $remaining)))) {
+                throw 'Timed out waiting for a worker protocol frame.'
+            }
+            break
+        }
+
+        $key = [string]$persistenceKey[0]
+        if ($Connection.Process.HasExited) { throw 'Worker stdout closed unexpectedly.' }
+        $now = [DateTimeOffset]::UtcNow
+        $fingerprint = Get-Sop9PersistenceStateFingerprint $Connection.ProductDb
+        $stateChanged = $fingerprint -ne [string]$Connection.PersistenceFingerprint[$key]
+        $decision = Get-Sop9PersistenceWatchdogDecision $now `
+            ([DateTimeOffset]$Connection.PersistencePhaseStarted[$key]) `
+            ([DateTimeOffset]$Connection.PersistenceLastActivity[$key]) `
+            $stateChanged `
+            ([int]$Connection.FrameWatchdog.PersistenceIdleTimeoutSeconds) `
+            ([int]$Connection.FrameWatchdog.PersistenceAbsoluteTimeoutSeconds)
+        if ($decision -eq 'timeout_absolute') {
+            Add-Journal 'persistence_watchdog_timeout' ([ordered]@{
+                runId = [long]$key
+                reason = 'absolute_phase_bound'
+                activityChanges = [long]$Connection.PersistenceActivityCount[$key]
+            })
+            throw 'Persistence exceeded the V2 absolute phase bound.'
+        }
+        if ($decision -eq 'timeout_idle') {
+            Add-Journal 'persistence_watchdog_timeout' ([ordered]@{
+                runId = [long]$key
+                reason = 'state_activity_idle_bound'
+                activityChanges = [long]$Connection.PersistenceActivityCount[$key]
+            })
+            throw 'Persistence produced no state-file activity inside the V2 idle bound.'
+        }
+        if ($stateChanged) {
+            $Connection.PersistenceFingerprint[$key] = $fingerprint
+            $Connection.PersistenceLastActivity[$key] = $now
+            $Connection.PersistenceActivityCount[$key] =
+                1L + [long]$Connection.PersistenceActivityCount[$key]
+            $journalElapsed = ($now - [DateTimeOffset]$Connection.PersistenceLastJournal[$key]).TotalSeconds
+            if ($journalElapsed -ge [int]$Connection.FrameWatchdog.JournalIntervalSeconds) {
+                $Connection.PersistenceLastJournal[$key] = $now
+                Add-Journal 'persistence_watchdog_activity' ([ordered]@{
+                    runId = [long]$key
+                    activityChanges = [long]$Connection.PersistenceActivityCount[$key]
+                    phaseElapsedMilliseconds = ($now -
+                        [DateTimeOffset]$Connection.PersistencePhaseStarted[$key]).TotalMilliseconds
+                })
+            }
+        }
+
+        $now = [DateTimeOffset]::UtcNow
+        $absoluteRemaining = [int]$Connection.FrameWatchdog.PersistenceAbsoluteTimeoutSeconds -
+            ($now - [DateTimeOffset]$Connection.PersistencePhaseStarted[$key]).TotalSeconds
+        $idleRemaining = [int]$Connection.FrameWatchdog.PersistenceIdleTimeoutSeconds -
+            ($now - [DateTimeOffset]$Connection.PersistenceLastActivity[$key]).TotalSeconds
+        $waitSeconds = [Math]::Min(
+            [double]$Connection.FrameWatchdog.ProbeIntervalSeconds,
+            [Math]::Min($absoluteRemaining, $idleRemaining))
+        if ($read.Wait([TimeSpan]::FromSeconds([Math]::Max(0.001, $waitSeconds)))) { break }
     }
     $line = $read.Result
+    $Connection.PendingRead = $null
     if ($null -eq $line) { throw 'Worker stdout closed unexpectedly.' }
     try { $frame = $line | ConvertFrom-Json -Depth 100 }
     catch { throw 'Worker stdout contained malformed protocol JSON.' }
@@ -356,6 +507,11 @@ function Get-Snapshot([string]$ProductDb, [string]$StatusDb, [long]$RunId) {
     finally { $process.Dispose() }
 }
 
+if ($VerifyPersistenceWatchdog) {
+    Test-Sop9PersistenceWatchdogController | ConvertTo-Json -Depth 10
+    return
+}
+
 $toolingBase = if ([string]::IsNullOrWhiteSpace($ToolingRoot)) {
     Join-Path ([IO.Path]::GetTempPath()) ('super-duper-sop9-tooling-' + [guid]::NewGuid().ToString('N'))
 } else {
@@ -364,6 +520,28 @@ $toolingBase = if ([string]::IsNullOrWhiteSpace($ToolingRoot)) {
 $fixtureRoot = if ($Campaign -eq 'tooling_fixture') { New-ToolingFixture $toolingBase } else { $null }
 $definition = Get-CampaignDefinition $Campaign $fixtureRoot
 
+if ($DescribeOnly) {
+    [pscustomobject]@{
+        campaignId = $definition.Id
+        physical = $definition.Physical
+        rootIds = $definition.RootIds
+        policies = $definition.Policies
+        expectedTerminal = $definition.ExpectedTerminal
+        cancelAfterFirstHashProgress = $definition.CancelAfterFirstHashProgress
+        frameWatchdog = $definition.FrameWatchdog
+    } | ConvertTo-Json -Depth 10
+    return
+}
+
+if ($definition.Physical -and -not $PreflightOnly -and -not $RunPhysicalCampaign) {
+    throw 'Physical SOP9 execution requires the separately authorized -RunPhysicalCampaign switch.'
+}
+if (-not $definition.Physical -and $RunPhysicalCampaign) {
+    throw '-RunPhysicalCampaign is restricted to a fixed physical SOP9 identity.'
+}
+if ($PreflightOnly -and $RunPhysicalCampaign) {
+    throw 'Specify only one of -PreflightOnly or -RunPhysicalCampaign.'
+}
 if ($definition.Physical -and $SkipBuild) { throw 'Physical SOP9 campaigns may not skip the pinned Release build.' }
 if ($definition.Physical -and $InjectToolingFailureAfterStateReservation) {
     throw 'Failure injection is restricted to the non-representative tooling fixture.'
@@ -402,6 +580,7 @@ $manifest = [ordered]@{
     policies = $definition.Policies
     expectedTerminal = $definition.ExpectedTerminal
     cancelAfterFirstHashProgress = $definition.CancelAfterFirstHashProgress
+    frameWatchdog = $definition.FrameWatchdog
     noFavorableRetry = $true
     sop2ObserverRisk = [ordered]@{
         strictGateEvaluated = $false
@@ -455,7 +634,7 @@ try {
         snapshotToolSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $snapshotTool).Hash.ToLowerInvariant()
     })
 
-    $script:connection = Start-CampaignWorker $productDb $statusDb $cachePath
+    $script:connection = Start-CampaignWorker $productDb $statusDb $cachePath $definition.FrameWatchdog
     Add-Journal 'worker_started' ([ordered]@{ processId = $script:connection.Process.Id })
     $hello = Send-WorkerRequest $script:connection 'hello' @{
         protocolVersions = @(1)
@@ -494,6 +673,17 @@ try {
             $previousProcess[$metric] = $processCumulative[$metric]
         }
         $key = $run.id.ToString([Globalization.CultureInfo]::InvariantCulture)
+        $persistenceWatchdog = if ($script:connection.PersistencePhaseStarted.ContainsKey($key)) {
+            [ordered]@{
+                mode = $definition.FrameWatchdog.Mode
+                durationMilliseconds = ([DateTimeOffset]::UtcNow -
+                    [DateTimeOffset]$script:connection.PersistencePhaseStarted[$key]).TotalMilliseconds
+                observedActivityChanges = [long]$script:connection.PersistenceActivityCount[$key]
+                idleTimeoutSeconds = $definition.FrameWatchdog.PersistenceIdleTimeoutSeconds
+                absoluteTimeoutSeconds = $definition.FrameWatchdog.PersistenceAbsoluteTimeoutSeconds
+            }
+        }
+        else { $null }
         $arms.Add([ordered]@{
             ordinal = $arms.Count
             policy = $policy
@@ -505,6 +695,7 @@ try {
             progressFrameCount = [long]($script:connection.ProgressFrameCount[$key] ?? 0L)
             progressSerializedBytes = [long]($script:connection.ProgressBytes[$key] ?? 0L)
             maximumFramesPerObservedSecond = [int]($script:connection.MaximumFramesPerSecond[$key] ?? 0)
+            persistenceWatchdog = $persistenceWatchdog
             processCumulative = $processCumulative
             processDelta = $processDelta
             statusDatabaseBytes = (Get-Item -LiteralPath $statusDb).Length

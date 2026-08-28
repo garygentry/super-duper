@@ -19,7 +19,9 @@ runner's 180-second protocol-frame deadline fired before a terminal frame, force
 preserved diagnostic state, and never started `reuse_verified`. V1 cannot be rerun or overwritten.
 SOP9d remains unconsumed but blocked by its SOP9c dependency. A corrected protocol version and new
 single-drive identity require the plan/handoff update and explicit operator authority described
-below; neither is authorized by this document.
+below; neither is authorized by this document. The operator later authorized and accepted the
+design-only [`sop9c-single-drive-reference-repeat-v2`](scan-large-drive-acceptance-protocol-v2.md)
+protocol. That separate document does not authorize its physical invocation; V1 remains immutable.
 
 The evidence path is `artifacts/windows-sop9-large-drive/<identity>`. The isolated state path is
 `H:\super-duper-sop9-state\<identity>`. Both must be absent before the attempt. Drive letters,
