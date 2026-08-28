@@ -22,6 +22,10 @@ single-drive identity require the plan/handoff update and explicit operator auth
 below; neither is authorized by this document. The operator later authorized and accepted the
 design-only [`sop9c-single-drive-reference-repeat-v2`](scan-large-drive-acceptance-protocol-v2.md)
 protocol. That separate document does not authorize its physical invocation; V1 remains immutable.
+The operator subsequently granted the separate one-time V2 execution authority. That identity is
+now consumed and retained invalid after its campaign host ended following preflight/state setup and
+builds but before worker start; the V2 protocol records the exact disposition. Neither V1 nor V2 may
+be rerun or overwritten.
 
 The evidence path is `artifacts/windows-sop9-large-drive/<identity>`. The isolated state path is
 `H:\super-duper-sop9-state\<identity>`. Both must be absent before the attempt. Drive letters,

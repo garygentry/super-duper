@@ -18,16 +18,15 @@ completed session work uncommitted or substitute work from the parked stream.
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept the design-only
-  `SOP9c-single-drive-reference-repeat-v2-protocol` without consuming its physical identity
-- Worktree at the start of the V2 design: clean at `775ebe8`
+- Latest completed slice: consume and retain the sole authorized
+  `sop9c-single-drive-reference-repeat-v2` physical attempt as invalid without retry
+- Worktree at the start of V2 execution: clean at `6dd1e1a`
 - Active stream: large-drive scan optimization and observability
 - Active plan: `docs/scan-optimization-plan.md`
-- Current gate: `SOP9-large-drive-acceptance` blocked at the operator-execution boundary for
+- Current gate: `SOP9-large-drive-acceptance` blocked after the consumed invalid V2 attempt for
   `SOP9c-single-drive-reference-repeat`
-- Next boundary: obtain separate explicit operator approval for exactly one V2 physical invocation
-  under fixed identity `sop9c-single-drive-reference-repeat-v2`; do not execute it, rerun V1, or
-  start SOP9d without that authority
+- Next boundary: obtain an explicit operator decision only after a separately reviewed causal defect
+  supports a successor design/identity, or retain the blocker; do not rerun V1/V2 or start SOP9d
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
@@ -208,9 +207,18 @@ defect: it owns one pending stdout read, keeps 180 seconds outside persistence, 
 database/WAL metadata every five seconds, fails after 15 minutes without state activity, and keeps
 an absolute 24-hour persistence cap with at-most-ten-minute activity journaling. The design verifier
 passes pure fake-time and temporary metadata-activity tests plus source/authority/safety checks.
-No build, physical preflight, worker, E: I/O, V2 evidence/state reservation, V1 diagnostic mutation,
-SOP9d, or parked validation ran. The V2 identity is unconsumed and requires separate execution
-authority.
+At design acceptance, no build, physical preflight, worker, E: I/O, V2 evidence/state reservation,
+V1 diagnostic mutation, SOP9d, or parked validation ran; the identity was then unconsumed. Its later
+separately authorized disposition follows.
+
+The sole separately authorized V2 invocation is now consumed and retained invalid. Its write-once
+manifest and journal record one reservation, passed fixed E: preflight, scoped state creation, and
+both pinned Release builds. The consuming campaign host then ended before `worker_started`, an arm,
+or native evidence finalization; the surfaced guarded second admission correctly refused the
+existing identity. The post-exit audit found no worker and no scoped V2 state. The path-free recovered
+incident records zero scan/result/measurement truth and does not invent a product, runner, watchdog,
+or cleanup cause. V1/V2 cannot be rerun; a successor design requires a separately reviewed causal
+defect plus explicit operator authority, and SOP9d/SOP9e remain dependency-blocked.
 
 The SOP8 boundary audit was completed before implementation. The current lazy global
 RocksDB value is an unversioned full hash keyed by canonical path/size/nanosecond modified time;
@@ -441,12 +449,13 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Stop before any physical campaign. The V2 protocol and runner are committed under the new fixed
-`sop9c-single-drive-reference-repeat-v2` identity, but the design authorization explicitly did not
-authorize invocation. Obtain separate explicit operator approval for exactly one V2 physical
-invocation before running its command. Do not rerun/overwrite V1, delete or mutate its diagnostic
-state, reserve V2 evidence/state, consume SOP9d, or substitute another drive. SOP2's waived strict
-representative overhead gate remains unevaluated and must not be revived.
+Stop before any further physical campaign. The sole authorized
+`sop9c-single-drive-reference-repeat-v2` identity is consumed and invalid after a pre-worker campaign-
+host interruption. Do not rerun/overwrite V1/V2, delete or mutate V1 diagnostic state or retained V2
+evidence, consume SOP9d, or substitute another drive. A successor protocol and identity require a
+separately reviewed causal defect plus explicit operator design and execution authority; none is
+currently established or granted. SOP2's waived strict representative overhead gate remains
+unevaluated and must not be revived.
 
 The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
 campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
@@ -534,6 +543,16 @@ required gates are open.
 
 ## Latest verification baseline
 
+The consumed invalid V2 attempt passes `Verify-WindowsLargeDriveSingleDriveV2Invalid.ps1`. The
+verifier pins the manifest, four-event append-only journal, and both Release build logs by exact
+SHA-256. It proves one reservation; fixed E: identity; forced/reuse order; completed-terminal and
+180-second/5-second/15-minute/24-hour watchdog contract; passed preflight; scoped state creation; and
+build-ready hashes, followed by no worker, arm, terminal, native acceptance evidence, scan result, or
+measurement. It also checks the post-exit absence of the scoped V2 state and worker, the guarded
+second admission, consumed/no-retry authority, honestly unevaluated SOP2 risk, SOP6/SOP7/SOP8
+policies, and every production lock. The recovered record does not attribute an unproved product,
+runner, watchdog, or cleanup cause. SOP9c is `blocked_invalid_campaign`; SOP9d/SOP9e remain blocked.
+
 Accepted `SOP9c-single-drive-reference-repeat-v2-protocol` passes
 `Verify-WindowsLargeDriveSingleDriveV2Protocol.ps1`. The verifier parses the runner, pure watchdog
 helper, and itself; executes only the fake-time controller and source-only V2 description; and uses
@@ -560,8 +579,8 @@ worker, recorded exit code -1, skipped state removal, and preserved the owned pr
 state for diagnostics. There is no worker terminal event, completed/measured arm, result digest,
 reuse arm, or favorable retry. The verifier also pins the honestly unevaluated SOP2 gate, SOP6
 reader ceilings, SOP7 read policy, SOP8 new/legacy policy truth, and every production deletion lock.
-SOP9c is `blocked_invalid_campaign`; V2/new-identity authority is an operator decision, and SOP9d/
-SOP9e are dependency-blocked.
+V1 remains an immutable `blocked_invalid_campaign` incident; its separately reviewed V2 successor
+was later accepted and consumed invalid as described above. SOP9d/SOP9e are dependency-blocked.
 
 Accepted `SOP9b-representative-cancellation` passes
 `Verify-WindowsLargeDriveCancellation.ps1`. The sole fixed D: physical identity is consumed; its
@@ -1043,6 +1062,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-28 | this session | Consume and retain the sole authorized SOP9c V2 invocation as invalid without retry: preserve its write-once reservation, passed fixed E: preflight, scoped state creation, and pinned builds; record that the consuming host ended before worker start/native finalization, the guarded second admission refused reuse, and post-exit worker/state are absent. Pin zero scan/result/measurement truth without causal invention while preserving SOP2 and all production locks. | Stop physical work. Do not rerun V1/V2 or start SOP9d. A successor design/identity requires a separately reviewed causal defect and explicit operator design and execution authority; otherwise retain the blocker. |
 | 2026-08-28 | this session | Accept the design-only SOP9c V2 protocol under new unconsumed identity `sop9c-single-drive-reference-repeat-v2`: retain one pending stdout read, keep the 180-second non-persistence bound, and use five-second owned database/WAL metadata probes with a 15-minute idle limit, 24-hour absolute persistence cap, and bounded journal. Pure/source-only verification preserves V1 diagnostics, SOP2 residual risk, and production locks without physical I/O. | Obtain separate explicit operator approval for exactly one V2 physical invocation. Do not execute it, rerun V1, mutate V1 diagnostics, consume SOP9d, or start parked validation without that authority. |
 | 2026-08-28 | this session | Retain and pin the sole SOP9c V1 physical attempt as invalid without retry: its forced E: arm completed discovery/hashing, reached persistence with 20,554 frames and 256.449 GB full reads, then the V1 180-second frame deadline force-stopped the worker before terminal, preserved diagnostic state, and never started reuse. The path-free summary and verifier preserve zero-result/cleanup/SOP2/safety truth. | Stop physical work. Obtain explicit operator authority before designing a separately reviewed V2/new fixed single-drive identity; do not rerun V1, delete diagnostics, consume SOP9d, or start parked validation. |
 | 2026-08-27 | this session | Accept the sole SOP9b physical cancellation attempt: retain the fixed D: identity without retry, cancel 2.409 seconds after measured hash-read work begins, reconcile 2.727 million logical files/11.698 TB plus singleton/hard-link/warning/status truth, publish no completed result or post-terminal progress, retain bounded resource/device and SOP2 proxies, and clean up exactly. | Consume only `sop9c-single-drive-reference-repeat-v1` on E:, then verify/document/commit it before SOP9d. |

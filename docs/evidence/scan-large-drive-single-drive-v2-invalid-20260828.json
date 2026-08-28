@@ -1,0 +1,92 @@
+{
+  "schema": "sop9c-single-drive-v2-invalid-campaign-recovery-v1",
+  "gate": "SOP9-large-drive-acceptance",
+  "package": "SOP9c-single-drive-reference-repeat",
+  "campaignId": "sop9c-single-drive-reference-repeat-v2",
+  "status": "blocked_invalid_campaign",
+  "writeOnceIdentityConsumed": true,
+  "authority": {
+    "approvedInvocations": 1,
+    "invocationsConsumed": 1,
+    "retryAuthorized": false,
+    "command": "& .\\scripts\\Invoke-WindowsLargeDriveAcceptance.ps1 -Campaign sop9c-single-drive-reference-repeat-v2 -RunPhysicalCampaign"
+  },
+  "repository": {
+    "sourceCommit": "6dd1e1ae5ff15d624a70b7b5c6c0f3f097a23c97",
+    "runnerSha256": "14263bbb1cf8b04834fa73cd3f0e2a5cc391c517a22edfc09034cb6f5a60b176",
+    "designVerifierSha256": "3168e837ef5c6033174eb766f8eed13dd1a8d6fdeba22410ee7055480bb61d4d",
+    "protocolAtExecutionSha256": "16e4c19c896b11bea8da32ebb052236a07c4cb348dc04a6acd941560fb9e4837"
+  },
+  "artifactHashes": {
+    "attemptJournalSha256": "bfb28b05b3175e4707ad0d552cd8a0eb5bae10e9fe5676e907ccbf95f178408f",
+    "manifestSha256": "b74224eabfc2bfcd0e4fb263d2c23ee5d3419d0a5318ea9376334b695d0236db",
+    "snapshotBuildLogSha256": "511e8f16ab5eecb99f83f50ce5bb85d4c443ddf719489ca0b5f775399c1811eb",
+    "workerBuildLogSha256": "ceab621d252fed0bc838651f3f1eb4ee080e3b3891a506a3bd3488ab66792807"
+  },
+  "execution": {
+    "reservedAtUtc": "2026-08-28T23:08:54.8214222Z",
+    "lastRetainedEventAtUtc": "2026-08-28T23:09:10.7950617Z",
+    "retainedEventOrder": [
+      "attempt_reserved",
+      "physical_preflight_passed",
+      "state_created",
+      "build_ready"
+    ],
+    "fixedPhysicalPreflightPassed": true,
+    "stateCreationReported": true,
+    "releaseBuildsReportedReady": true,
+    "workerStarted": false,
+    "armsStarted": 0,
+    "terminalEvents": 0,
+    "acceptanceEvidenceCreated": false,
+    "guardedSecondAdmissionObserved": true,
+    "guardedSecondAdmissionError": "SOP9 evidence is write-once and already exists: C:\\Users\\gary\\workspace\\super-duper\\artifacts\\windows-sop9-large-drive\\sop9c-single-drive-reference-repeat-v2",
+    "classification": "campaign_host_interrupted_after_build_ready_before_worker_start",
+    "causalDefectEstablished": false,
+    "notes": "The retained journal proves that one host consumed V2 and reached build_ready. The surfaced authorized command failed closed because that evidence already existed. The consuming host then ended without another journal event or native invalid-evidence finalization. No evidence establishes a worker or scan start."
+  },
+  "build": {
+    "workerSha256": "47196cadb28cc4e772894d4bc014ea16a0d251733fac34a243a30ee78d7bacdc",
+    "snapshotToolSha256": "3e79d775dffa36a21b37796db4a681f485d4b53f72aee37a37a1dcfd58ee1f00"
+  },
+  "resultEvidence": {
+    "completedArms": 0,
+    "fileResultsEqual": false,
+    "folderResultsEqual": false,
+    "reuseArmStarted": false,
+    "scanStarted": false,
+    "measurementAvailable": false
+  },
+  "cleanupAudit": {
+    "auditedAtUtc": "2026-08-28T23:10:39.5781465Z",
+    "scopedStateAbsent": true,
+    "scopedWorkerProcessCount": 0,
+    "scopedCampaignHostCount": 0,
+    "nativeCleanupRecordAvailable": false,
+    "inference": "PowerShell termination can run the runner finally block without reaching native evidence serialization; state absence is observed post-exit, not claimed from a retained cleanup journal event."
+  },
+  "sop2ObserverRisk": {
+    "strictGateEvaluated": false,
+    "strictGatePassed": false,
+    "causalAttributionAvailable": false,
+    "residualRisk": "No arm or observer-off counterfactual exists. The strict representative overhead gate remains unevaluated."
+  },
+  "blocker": {
+    "sop9cAccepted": false,
+    "sop9dAuthorized": false,
+    "successorProtocolAuthorized": false,
+    "decisionRequired": "Do not rerun V2. A successor identity requires a separately reviewed causal defect and explicit operator design and execution authority; otherwise SOP9c remains blocked."
+  },
+  "recovery": {
+    "kind": "post_exit_incident_record",
+    "generatedByCampaignRunner": false,
+    "containsEstimatedMeasurementValues": false,
+    "rawEvidenceModified": false,
+    "allProvableOutcomesRetained": true,
+    "notes": [
+      "This record preserves only facts recoverable from the write-once manifest/journal/build logs, the surfaced fail-closed admission error, and the post-exit state/process audit.",
+      "It is not completed-arm evidence and does not establish a product, worker, watchdog, scan, or cleanup defect.",
+      "No retry, favorable replacement, SOP9d invocation, SOP2f revival, deletion unlock, or parked release-validation work is authorized."
+    ]
+  }
+}

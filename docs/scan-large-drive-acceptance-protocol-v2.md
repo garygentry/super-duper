@@ -5,6 +5,19 @@ This protocol corrects the demonstrated V1 campaign-runner defect for
 this design-only slice on 2026-08-28; exactly one physical invocation requires a separate explicit
 operator approval after this protocol, its runner, and its verifier are committed and reviewed.
 
+That separate approval was later granted and is now consumed. The sole V2 invocation retained its
+manifest and append-only journal, passed the fixed physical preflight, created scoped state, and
+completed both pinned Release builds. The consuming campaign host then ended before `worker_started`,
+an arm, or native evidence finalization. The surfaced guarded admission failed closed because the V2
+evidence root already existed. A post-exit audit found no worker and no scoped V2 state. The recovered
+path-free [incident record](evidence/scan-large-drive-single-drive-v2-invalid-20260828.json) pins the
+four raw files, zero scan/result/measurement truth, cleanup observations, and consumed authority
+without attributing an unproved product, runner, watchdog, or cleanup cause.
+
+V2 is invalid and cannot be rerun or overwritten. A successor protocol/identity requires a separately
+reviewed causal defect and explicit operator design and execution authority. None is granted here;
+SOP9c remains blocked and SOP9d/SOP9e remain dependency-blocked.
+
 Nothing in this protocol authorizes deletion, Recycle Bin execution, an SOP2f rerun, SOP9d, parked
 release validation, a substitute root, or modification/removal of retained V1 evidence or diagnostic
 state.
@@ -80,9 +93,8 @@ incident summary, checks the V2 protocol/plan/handoff state, and preserves every
 lock. It performs no build, physical preflight, worker start, E: scan, evidence reservation, or H:
 campaign-state creation/removal.
 
-After the design commit, an operator may separately authorize exactly one command for the fixed V2
-identity. The execution command must include the fail-closed `-RunPhysicalCampaign` switch; naming
-the identity alone cannot reserve evidence or start the worker. That later approval consumes the
-identity whether setup, build, preflight, an arm, finalization, or cleanup succeeds or fails. Without
-that approval, V2 remains ready but unconsumed,
-SOP9c remains blocked, and SOP9d/SOP9e remain dependency-blocked.
+After the design commit, an operator could separately authorize exactly one command for the fixed V2
+identity. The execution command had to include the fail-closed `-RunPhysicalCampaign` switch; naming
+the identity alone could not reserve evidence or start the worker. That approval consumed the
+identity whether setup, build, preflight, an arm, finalization, or cleanup succeeded or failed. It is
+now consumed by the invalid outcome above. Do not run that command again.
