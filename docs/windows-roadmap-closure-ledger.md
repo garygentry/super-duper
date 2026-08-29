@@ -8,18 +8,59 @@ known to the authoritative plans. Acceptance of this ledger accepts the inventor
 model; it does not accept gates whose state is not `accepted`, authorize a physical/provider/
 performance campaign, or enable Recycle Bin execution.
 
-As of 2026-08-25 the operator has parked this ledger as the Windows release-validation stream while
-large-drive scan optimization and observability advance under
-[`scan-optimization-plan.md`](scan-optimization-plan.md). Parking changes only work selection: every
-gate, dependency, evidence record, completion requirement, and production safety lock below remains
-unchanged. Before final feature-complete, resume this ledger exactly at `WPM8-high-contrast` and
-continue in dependency order.
+As of 2026-08-28 this ledger is the active Windows release-validation stream. The large-drive scan
+optimization and observability plan is parked at its consumed invalid SOP9c V2 causal-evidence
+boundary. Active scheduling does not authorize a physical/provider/performance campaign or
+`WPM11-production-wiring`. The first boundary remains `WPM8-high-contrast`, pending explicit
+operator authority for one qualifying physical pass; after each completed gate, continue from the
+first dependency-ready row unless that gate's acceptance contract requires a stop.
 
 The authoritative product criteria remain in
 [`windows-post-mvp-ux-plan.md`](windows-post-mvp-ux-plan.md). The dual-stream checkpoint and one-session
 authorization remain in
 [`windows-roadmap-session-handoff.md`](windows-roadmap-session-handoff.md). Historical iteration
 slices are cited only as evidence for a criterion or prerequisite; they are not separate gates.
+
+The reusable state-independent cold-start prompt is
+[`windows-release-validation-kickoff-prompt.md`](windows-release-validation-kickoff-prompt.md).
+
+### Resumable execution checkpoint
+
+- Active gate: `WPM8-high-contrast`, still `blocked` on explicit operator authority and a qualifying
+  interactive Windows 11 x64 desktop where the theme may be changed.
+- Exact next action after approval: run Setup, Duplicate files, and Duplicate folders once at
+  default and minimum size under Windows high contrast; retain the first pass or failure and stop
+  before `WPM8-multi-monitor-dpi`.
+- Parked stream: `SOP9-large-drive-acceptance` with
+  `SOP9c-single-drive-reference-repeat` retained as `blocked_invalid_campaign`; do not select work
+  from it.
+- Production boundary: keep `CanSubmit:false`, the disabled executor, every
+  `executorEnabled:false` response, and the absence of **Move to Recycle Bin now** until all
+  `WPM11-production-wiring` dependencies accept and a separate explicit approval is recorded.
+
+### Cold-start and anti-spin protocol
+
+1. Audit `HEAD`, the worktree, recent history, and the complete latest commit before acting.
+2. Read `AGENTS.md`, this ledger, the reusable kickoff prompt, and only the handoff's `Session
+   objective`, `Current checkpoint`, `Immediate next step`, `Required startup audit`, `Non-negotiable
+   boundaries`, and `Completion loop`. Then read only the selected gate's sections in
+   `windows-post-mvp-ux-plan.md` and its directly linked acceptance procedure. Historical accepted
+   slices and decision logs are evidence, not a startup reading queue.
+3. Select the first dependency-ready non-accepted gate in the queue. State its exact authority,
+   prerequisites, completion check, non-goals, and whether its action requires another approval.
+4. Never reopen `accepted` or `locally_exhausted` work without its documented reopen condition.
+   Never add progressively narrower tests or audits after the named completion criterion passes.
+5. Retain the first qualifying physical/performance/provider outcome, including failure. Do not
+   tune, replace, discard, or rerun evidence merely to obtain a pass.
+6. Complete and commit as many dependency-ready local packages as remain coherent and authorized.
+   Continue immediately after a passing gate unless its procedure says stop, authority changes, or
+   an external prerequisite blocks progress. Keep each commit bounded to one gate or inseparable
+   gate group.
+7. After two identical failures with no new evidence, record the blocker and smallest next
+   experiment. Advance only to an explicitly independent ready lane; do not mine adjacent narrow
+   gaps or substitute the parked scan stream.
+8. After every completed gate or coherent group, update this ledger, the product plan, `ROADMAP.md`,
+   and the handoff, then verify and commit before continuing.
 
 ## Completion contract
 
@@ -190,12 +231,12 @@ bullets for Milestones 7-14 respectively, totaling 37.
 
 ## Dependency-ordered queue
 
-Only the first row is authorized for the next session. Other `ready` gates are explicit independent
-lanes, not substitute work under that authorization.
+The first row is the selected next gate, not physical-campaign authority. Other `ready` gates are
+explicit independent lanes, not substitutes for a missing approval or failed prerequisite.
 
 | Order | Lane | Gate or coherent group | Dependency status | Next action and verifier |
 |---:|---|---|---|---|
-| 1 | Physical accessibility evidence — **first authorized gate** | WPM8-high-contrast | The operator explicitly skipped Narrator without accepting or waiving `WPM8-narrator-nvda`; an interactive desktop where the Windows theme may be changed remains required | Run the documented Setup/File/Folder review once at default and minimum size under Windows high contrast, retain pass or failure, and stop before DPI or another gate. |
+| 1 | Physical accessibility evidence — **selected next gate; run authority pending** | WPM8-high-contrast | The operator explicitly skipped Narrator without accepting or waiving `WPM8-narrator-nvda`; an interactive desktop and explicit authority for one pass where the Windows theme may be changed remain required | After approval, run the documented Setup/File/Folder review once at default and minimum size under Windows high contrast, retain pass or failure, and stop before DPI or another gate. |
 | 2 | Accepted foundation | WPM11-recovery-review-persistence + WPM11-recovery-review-ui + WPM11-ambiguous-start | Accepted | Preserve schema-v11 append-only semantics, bounded checklist/history, immutable source evidence, retained campaign bundles, and disabled execution locks; reopen only for a reproduced defect. |
 | 3 | Accepted foundation | WPM12-external-invalidation + WPM12-watcher-overflow + WPM12-event-coalescing | Accepted | Preserve schema-v12/v13 authority, bounded page/root/hint ownership, restart reconstruction, visible trust failure, the global ten-per-second update bound, immutable history, and every production lock; reopen only for a reproduced defect. |
 | 4 | Accepted foundation | WPM13-warning-drilldown + WPM13-bounded-memory + WPM13-action-navigation | Accepted | Preserve schema-v14 accounting/examples, sort-bound paging, fixed cache/binding, the single stable-run hash-warning action, and every production lock; reopen only for a reproduced defect. |
@@ -251,6 +292,7 @@ acceptance`.
 
 | Date | Gate(s) | Decision or evidence accepted | Resulting next gate |
 |---|---|---|---|
+| 2026-08-28 | Roadmap scheduling and execution control | Rescheduled this finite release-validation ledger as the active plan, parked scan optimization at its immutable SOP9c blocker, and added gate-targeted cold-start, audit-once, no-narrow-gap, multi-package, first-evidence-retention, and distinct-authority rules plus a reusable prompt. No campaign, product code, evidence, or production lock changed. | `WPM8-high-contrast` is selected next but requires separate explicit authority for exactly one qualifying physical pass. |
 | 2026-08-23 | All ledger rows | Accepted the finite criterion/decision inventory and reconciled milestone statuses; no open gate was inferred passed or deferred. | WPM7-opt-in-policy-scope + WPM14-required-scope + WPM14-completion-contract |
 | 2026-08-23 | WPM7-opt-in-policy-scope + WPM14-required-scope + WPM14-completion-contract | Accepted fail-closed-only Milestone 7 scope; required WPM14 accessibility/state/instrumentation/Release-scale/cloud scope; four WPM14 follow-ons; and operator-accepted plus production-enabled completion. Preserved separate explicit authorization for WPM11 production wiring. | WPM11-recovery-workflow |
 | 2026-08-23 | WPM11-recovery-workflow | Committed the complete decision package without selecting a model or changing product behavior; gate exits `ready for user decision`. | WPM11-recovery-workflow remains the only authorized gate until the reviewer chooses Option A, Option B with the explicit waiver, or a named revision. |

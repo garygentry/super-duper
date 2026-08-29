@@ -2,10 +2,13 @@
 
 ## Status
 
-Parked release-validation roadmap for the Windows duplicate-review experience as of 2026-08-25.
-Its gates, evidence, completion contract, and safety boundaries remain authoritative and unchanged;
-before final feature-complete it resumes at `WPM8-high-contrast`. The currently scheduled roadmap
-stream is the separate [`Large-Drive Scan Optimization and Observability Plan`](scan-optimization-plan.md).
+Active release-validation roadmap for the Windows duplicate-review experience as of 2026-08-28.
+Its finite work-selection authority is the
+[`Windows roadmap closure ledger`](windows-roadmap-closure-ledger.md), and its reusable cold-start
+prompt is [`windows-release-validation-kickoff-prompt.md`](windows-release-validation-kickoff-prompt.md).
+The current boundary is `WPM8-high-contrast`, pending explicit authority for one qualifying physical
+pass. The separate [`Large-Drive Scan Optimization and Observability Plan`](scan-optimization-plan.md)
+is parked at its consumed invalid SOP9c V2 causal-evidence boundary.
 
 Milestone 6
 release-acceptance remediation and the required fail-closed Milestone 7 policy are complete; the
@@ -21,8 +24,9 @@ and read-only recovery reconstruction, but production still injects the disabled
 exposes no action. Its provider/physical/performance evidence, policy decisions, recovery
 resolution, and production-enablement gates remain open. Milestone 12 now has accepted bounded
 external invalidation, durable watcher-overflow/dirty-root reconciliation, and watcher-event
-coalescing foundations; in-app outcomes remain blocked. Milestone 13 is planned except for earlier durable
-source-data hooks. Milestone 14 remains planned; its
+  coalescing foundations; in-app outcomes remain blocked. Milestone 13's bounded warning drilldown,
+  100,000-aggregate memory evidence, and first stable-target action are accepted; outcome audit
+  remains blocked. Milestone 14 remains planned; its
 required scope and the roadmap completion contract are accepted, and four reviewed follow-ons are
 deferred.
 
@@ -4128,9 +4132,9 @@ Initial targets should be measured and refined on representative Windows 11 hard
 
 ## Release-Validation Resume Point
 
-When this parked stream resumes, advance only `WPM8-high-contrast`, contingent on an interactive
-Windows 11 x64 desktop where the
-operator authorizes changing the Windows theme and can inspect the complete read-only workflow.
+The active stream starts at `WPM8-high-contrast`, contingent on an interactive Windows 11 x64
+desktop where the operator explicitly authorizes one physical pass, changing the Windows theme, and
+inspection of the complete read-only workflow. Scheduling this stream does not grant that authority.
 Preserve the `WPM8-narrator-nvda` bundle and its `skipped_by_operator`/`not_run` disposition without
 claiming acceptance. Run Setup, Duplicate files, and Duplicate folders at default and minimum size,
 retain the first pass or failure, then stop. Do not begin multi-monitor DPI, provider, mutation,

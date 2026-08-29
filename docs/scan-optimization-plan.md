@@ -2,10 +2,11 @@
 
 ## Status
 
-Active implementation plan. The current pipeline audit and all six telemetry-foundation packages
-are complete. This is the scheduled roadmap stream while the Windows post-MVP release-validation
-checklist is parked. Before the product is declared feature complete, the release-validation stream
-must resume at `WPM8-high-contrast` and follow its closure ledger to completion.
+Parked implementation and acceptance plan. The current pipeline audit and all six telemetry-
+foundation packages are complete. The Windows post-MVP release-validation stream is now active under
+[`windows-roadmap-closure-ledger.md`](windows-roadmap-closure-ledger.md). Do not resume this scan
+stream unless the handoff explicitly reschedules it after genuinely new SOP9c causal evidence or a
+reviewed scope/disposition change.
 
 Current execution checkpoint:
 

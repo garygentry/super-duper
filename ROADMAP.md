@@ -18,14 +18,14 @@ MVP. The previous Windows app implementation was removed before the current WPF 
 
 | Stream | Scheduling state | Authority | Next boundary |
 |---|---|---|---|
-| Large-drive scan optimization and observability | Blocked after the consumed invalid SOP9c V2 attempt; SOP9a-SOP9b accepted, SOP9c V1/V2 retained invalid | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) | A read-only review of the retained V2 manifest, four-event journal, build logs, post-exit audit, and runner control flow establishes no causal product, runner, watchdog, cleanup, or campaign defect. The host interruption alone cannot justify a successor. Preserve `SOP9c-single-drive-reference-repeat` as `blocked_invalid_campaign`; do not rerun V1/V2, alter retained evidence/V1 diagnostics, reserve a successor, or start SOP9d. Only new causal evidence could return a separately versioned successor design for explicit operator approval, and any later physical invocation would require another separate approval. Preserve SOP6/SOP7 policies, both SOP8 policy values and immutable history, exact duplicate/hard-link behavior, telemetry/memory guarantees, the honestly unevaluated SOP2 residual risk, and every production lock. Do not substitute parked release validation. |
-| Windows post-MVP release validation | Parked by operator; gates and evidence preserved | [`docs/windows-roadmap-closure-ledger.md`](docs/windows-roadmap-closure-ledger.md) and [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md) | Before final feature-complete, resume exactly at `WPM8-high-contrast`, then follow the ledger dependency order. |
+| Windows post-MVP release validation | Active; finite closure ledger controls work selection | [`docs/windows-roadmap-closure-ledger.md`](docs/windows-roadmap-closure-ledger.md), [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md), and [`docs/windows-release-validation-kickoff-prompt.md`](docs/windows-release-validation-kickoff-prompt.md) | Start at the operator-authority boundary for `WPM8-high-contrast`. Active scheduling does not authorize the physical pass: obtain explicit approval for one qualifying interactive high-contrast run, retain its first pass or failure, and stop before multi-monitor DPI. Then resume from the ledger's first dependency-ready gate without reopening accepted work or manufacturing narrower gaps. Production Recycle Bin execution remains disabled until every dependency accepts and `WPM11-production-wiring` receives its own later explicit approval. |
+| Large-drive scan optimization and observability | Blocked after the consumed invalid SOP9c V2 attempt; parked at a causal-evidence/authority boundary; SOP9a-SOP9b accepted and SOP9c V1/V2 retained invalid | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) | Preserve `SOP9c-single-drive-reference-repeat` as `blocked_invalid_campaign`. Do not rerun V1/V2, alter retained evidence/V1 diagnostics, reserve a successor, or start SOP9d. Only genuinely new causal evidence may return a separately versioned successor design for explicit operator approval, and any later physical invocation requires another distinct approval. Preserve SOP6/SOP7/SOP8 policies, the honestly unevaluated SOP2 residual risk, and every production lock. |
 
 The shared startup checkpoint is
-[`docs/windows-roadmap-session-handoff.md`](docs/windows-roadmap-session-handoff.md). Only one named
-gate or coherent gate group is active in a session. Parking the release-validation stream changes
-work scheduling, not its completion contract, evidence, safety boundaries, or production execution
-locks.
+[`docs/windows-roadmap-session-handoff.md`](docs/windows-roadmap-session-handoff.md). Work advances
+through finite named gates or coherent gate groups, with bounded commits and gate-specific authority.
+Parking the scan stream changes work scheduling, not its retained evidence, blocker, safety
+boundaries, or write-once contracts.
 
 ## Now - Safety And Correctness
 
@@ -128,7 +128,7 @@ commit `6f1c405` fixed them and closed the full code-complete gate. Post-MVP wor
 longer gated on release remediation.
 
 The detailed post-MVP duplicate-review, cloud-safety, deletion, live-reconciliation, and Activity
-roadmap is retained as the parked release-validation checklist in
+roadmap is the active release-validation plan in
 [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md), with finite gate state in the
 [`Windows roadmap closure ledger`](docs/windows-roadmap-closure-ledger.md). The required Milestone 7
 surface is the accepted fail-closed `exclude_registered_roots` policy;

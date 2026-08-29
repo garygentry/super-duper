@@ -1,5 +1,9 @@
 # Scan Optimization New-Session Kickoff Prompt
 
+This stream is parked at the consumed invalid SOP9c V2 causal-evidence boundary. Use this prompt only
+after `windows-roadmap-session-handoff.md` explicitly reschedules the scan stream; its existence is
+not authority to resume V1/V2, design a successor, or start SOP9d.
+
 Copy the prompt below into a new coding session. It is intentionally state-independent: the agent
 must read the committed checkpoint and continue from it, so reusing the prompt never restarts
 accepted work.

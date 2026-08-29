@@ -8,31 +8,35 @@ linked plans remain authoritative.
 
 ## Session objective
 
-Advance one named gate or one explicitly named coherent gate group from the currently scheduled
-roadmap stream. The large-drive scan optimization and observability stream is active. The Windows
-post-MVP closure ledger is parked as a release-validation checklist and must resume before final
-feature-complete. Verify in proportion to risk, update the selected stream's authority and this
-handoff, and commit the bounded slice as one focused commit before ending the session. Do not leave
-completed session work uncommitted or substitute work from the parked stream.
+Advance finite dependency-ready gates from the currently scheduled roadmap stream. The Windows
+post-MVP closure ledger is active as the release-validation plan; the large-drive scan optimization
+stream is parked at its SOP9c causal-evidence boundary. Keep each commit bounded to one gate or one
+inseparable coherent group, but continue through additional ready local packages in the same session
+when their authority and context remain sound. Respect every gate-specific stop and distinct
+physical/provider/performance/production approval. Do not leave completed work uncommitted, replay
+accepted audits, manufacture narrower gaps, or substitute work from the parked stream.
 
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: review the consumed invalid V2 facts at the operator-decision boundary,
-  establish no causal defect, and retain SOP9c blocked without a successor
-- Worktree at the start of the causal review: clean at `4866ab5`
-- Active stream: large-drive scan optimization and observability
-- Active plan: `docs/scan-optimization-plan.md`
-- Current gate: `SOP9-large-drive-acceptance` blocked after the consumed invalid V2 attempt for
-  `SOP9c-single-drive-reference-repeat`
-- Next boundary: retain `SOP9c-single-drive-reference-repeat` as `blocked_invalid_campaign`; only
-  new causal evidence may return a separately versioned successor design for explicit operator
-  approval, and any physical invocation requires another separate approval; do not rerun V1/V2 or
-  start SOP9d
-- Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
-- Prior D: stress run: stopped by the operator; no live scan must be preserved for this work
-- Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` before final
-  feature-complete
+- Latest completed slice: reschedule Windows post-MVP release validation as the active finite plan,
+  park the scan stream at its immutable SOP9c blocker, and add efficient cold-start/anti-spin control
+- Worktree at the start of the scheduling transition: clean at `b9b5146`
+- Active stream: Windows post-MVP release validation
+- Active plan: `docs/windows-roadmap-closure-ledger.md`, with product criteria in
+  `docs/windows-post-mvp-ux-plan.md`
+- Current gate: `WPM8-high-contrast`, selected next but still blocked on explicit operator authority
+  and a qualifying interactive Windows 11 x64 desktop
+- Next boundary: obtain explicit authority for exactly one high-contrast physical pass; then run
+  Setup, Duplicate files, and Duplicate folders at default and minimum size, retain the first pass
+  or failure, and stop before multi-monitor DPI or another gate
+- Reusable new-session prompt: `docs/windows-release-validation-kickoff-prompt.md`
+- Live-process state must be re-audited at cold start. Final documentation verification observed
+  `artifacts/windows-x64/super-duper-worker.exe` PID 69720, started 2026-08-28 21:46:03 -04:00; this
+  session did not start, inspect through protocol, stop, or mutate it
+- Parked stream: large-drive scan optimization and observability at
+  `SOP9c-single-drive-reference-repeat=blocked_invalid_campaign`; only genuinely new causal evidence
+  and distinct design/execution approvals can reopen it
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 required fail-closed cloud safety: accepted; both unavailable opt-in policies are
   reviewed deferred follow-ons
@@ -52,6 +56,11 @@ completed session work uncommitted or substitute work from the parked stream.
   stable-target warning action are accepted; outcome audit remains blocked
 - Milestone 14: planned; required scope and the operator-accepted/production-enabled completion
   contract are accepted; four reviewed follow-ons are deferred
+
+## Historical accepted-slice record
+
+The following retained history supports earlier accepted/blocked states. Cold-start sessions should
+skip to `Immediate next step` unless the selected gate cites a specific record below.
 
 `SOP2f-progress-acceptance` is `waived_by_operator_unmeasured`, and SOP2 is
 `accepted_with_operator_waiver`. SOP2a through SOP2e are accepted; functional verification and the
@@ -458,36 +467,36 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Stop before any further physical campaign. The sole authorized
-`sop9c-single-drive-reference-repeat-v2` identity is consumed and invalid after a pre-worker campaign-
-host interruption. Do not rerun/overwrite V1/V2, delete or mutate V1 diagnostic state or retained V2
-evidence, consume SOP9d, or substitute another drive. A successor protocol and identity require a
-separately reviewed causal defect; the completed retained-evidence review establishes none. Preserve
-the blocker unless new causal evidence is supplied. Only then could the operator separately approve
-a versioned successor design, and any later physical invocation would require another distinct
-approval. SOP2's waived strict representative overhead gate remains unevaluated and must not be
-revived.
+Release validation is active at `WPM8-high-contrast`, but scheduling is not physical-run authority.
+Obtain explicit approval for exactly one qualifying interactive pass that may change the Windows
+theme. After approval, run only the documented Setup/File/Folder workflow at default and minimum
+size, retain the first pass or failure, update the ledger/handoff, and stop before multi-monitor DPI
+or another gate. If authority or the interactive prerequisite is absent, report that exact blocker;
+do not substitute a narrower audit, another accessibility gate, provider/mutation work, or the parked
+scan stream.
 
-The parked release-validation resume point remains `WPM8-high-contrast`. Do not run that physical
-campaign or substitute another closure-ledger gate unless the operator reschedules the stream.
+Keep the scan stream parked. Do not rerun/overwrite SOP9c V1/V2, mutate V1 diagnostics or retained V2
+evidence, reserve a successor, start SOP9d, or revive SOP2f. Only genuinely new causal evidence may
+return a separately versioned successor design for distinct operator design and execution approvals.
 
 ## Required startup audit
 
 Before editing:
 
 1. Run `git status --short`, inspect recent history, and inspect the complete latest commit diff.
-2. Read `AGENTS.md` and these authoritative documents:
-   - `ROADMAP.md`
-   - `docs/windows-mvp-plan.md`
-   - `docs/windows-post-mvp-ux-plan.md`
-   - `docs/windows-recycle-bin-acceptance.md`
-   - `docs/windows-roadmap-closure-ledger.md`
-   - `docs/scan-optimization-plan.md`
-   - `docs/scan-optimization-kickoff-prompt.md`
+2. Read `AGENTS.md`, `docs/windows-roadmap-closure-ledger.md`, and
+   `docs/windows-release-validation-kickoff-prompt.md` completely. In this handoff, read `Session
+   objective`, `Current checkpoint`, `Immediate next step`, `Required startup audit`, `Non-negotiable
+   boundaries`, and `Completion loop`; skip `Historical accepted-slice record` and the decision log
+   unless the selected gate cites them. Read `ROADMAP.md` scheduling and the parked scan plan's current
+   checkpoint. Then read only the selected gate's product/acceptance sections in
+   `docs/windows-post-mvp-ux-plan.md` and its directly linked procedure (for Milestone 11, usually
+   `docs/windows-recycle-bin-acceptance.md`). Do not replay full historical iteration logs or accepted
+   milestone implementation narrative during cold start.
 3. Confirm that the checkpoint above still matches `HEAD` and the worktree.
-4. Confirm which roadmap stream is scheduled, identify its exact authorized gate ID, and confirm
-   dependencies. Do not select from the parked stream. During a bootstrap only, inventory gates
-   instead of selecting implementation.
+4. Confirm the scheduled stream, select the ledger's first dependency-ready non-accepted gate, and
+   distinguish scheduling from any separate physical/provider/performance/production authority. Do
+   not select from the parked stream or re-audit accepted/`locally_exhausted` work.
 5. Inspect code and tests only for the authorized gate, then state the evidence that permits edits,
    the verifier that closes it, and which gates remain outside the slice.
 
@@ -553,6 +562,20 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+From clean `b9b5146`, the documentation-only scheduling transition changes eight roadmap/memory
+files and no product code, retained evidence, campaign state, or production lock. All relative
+Markdown links in the touched files resolve, both reusable prompt code fences are balanced, current-
+state consistency checks find no stale active-scan/parked-release phrasing, and `git diff --check`
+passes. The active boundary is therefore durably discoverable as `WPM8-high-contrast` with physical
+run authority still pending; scan optimization remains parked at SOP9c.
+
+`Verify-WindowsLargeDriveSingleDriveV2Invalid.ps1` passed its immutable evidence, document-state,
+policy, residual-risk, and production-lock assertions after the scheduling wording was made
+compatible, then stopped at its final live-process guard because the independently running worker
+PID 69720 above existed. No process action was authorized or taken. This is an external verification
+prerequisite, not new SOP9c evidence or permission to inspect/interrupt the worker; rerun the verifier
+after a future cold-start audit confirms that no worker is active.
 
 At clean `4866ab5`, `Verify-WindowsLargeDriveSingleDriveV2Invalid.ps1` passes again. The read-only
 causal review also confirms that the immutable four-event journal ends at `build_ready`, the next
@@ -1057,14 +1080,16 @@ and prerequisites genuinely call for them.
 For each session:
 
 1. Audit current state and preserve unrelated work.
-2. Confirm the scheduled stream and select one ready named gate or coherent gate group from its
-   authoritative plan.
+2. Confirm the scheduled stream and select the first dependency-ready non-accepted named gate or
+   coherent gate group from its authoritative plan.
 3. Confirm its dependencies, evidence for edits, completion check, and explicit non-goals.
 4. Implement only that gate. If a prerequisite is missing or the gate is locally exhausted, update
-   its authoritative plan and stop without manufacturing a code slice.
+   its authoritative plan and stop or advance only to an explicitly independent ready lane without
+   manufacturing a code slice.
 5. Add regression coverage required by the named criterion; do not enumerate unrelated edge cases.
 6. Update the selected stream's gate state and relevant authoritative documentation without
-   overstating acceptance. Update the parked ledger only when its scheduling or its own gates change.
+   overstating acceptance. Do not update the parked scan plan unless its scheduling or evidence
+   boundary changes.
 7. Run proportional verification and `git diff --check`.
 8. Review the final diff against every boundary above.
 9. Commit one focused commit.
@@ -1074,11 +1099,14 @@ For each session:
     clean. A session with completed changes is not finished until its commit succeeds.
 12. Report the commit, gate disposition, verification, skipped gates, blocker or next ready gate,
     and any user decision required.
+13. If the completed gate does not require a stop and another dependency-ready local package is
+    authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-08-28 | this session | Reschedule the finite Windows post-MVP release-validation ledger as the active plan, park scan optimization at its immutable SOP9c blocker, add a state-independent release-validation kickoff prompt, and make cold starts gate-targeted with explicit audit-once, no-narrow-gap, multi-package, first-evidence-retention, and distinct-authority rules. | Obtain explicit authority for exactly one qualifying `WPM8-high-contrast` physical pass. Run only its documented default/minimum-size Setup/File/Folder workflow, retain pass or failure, and stop before multi-monitor DPI. |
 | 2026-08-28 | this session | Complete the operator-boundary causal review of the immutable V2 manifest, four-event journal, build logs, post-exit audit, and runner transition after `build_ready`; establish that the host interruption provides no causal product, runner, watchdog, cleanup, or campaign defect and cannot justify a successor. Preserve all evidence, policies, residual-risk truth, and locks. | Retain SOP9c as `blocked_invalid_campaign`. Only new causal evidence may return a separately versioned successor design for explicit operator approval; any later physical invocation requires another separate approval. Do not rerun V1/V2 or start SOP9d. |
 | 2026-08-28 | this session | Consume and retain the sole authorized SOP9c V2 invocation as invalid without retry: preserve its write-once reservation, passed fixed E: preflight, scoped state creation, and pinned builds; record that the consuming host ended before worker start/native finalization, the guarded second admission refused reuse, and post-exit worker/state are absent. Pin zero scan/result/measurement truth without causal invention while preserving SOP2 and all production locks. | Stop physical work. Do not rerun V1/V2 or start SOP9d. A successor design/identity requires a separately reviewed causal defect and explicit operator design and execution authority; otherwise retain the blocker. |
 | 2026-08-28 | this session | Accept the design-only SOP9c V2 protocol under new unconsumed identity `sop9c-single-drive-reference-repeat-v2`: retain one pending stdout read, keep the 180-second non-persistence bound, and use five-second owned database/WAL metadata probes with a 15-minute idle limit, 24-hour absolute persistence cap, and bounded journal. Pure/source-only verification preserves V1 diagnostics, SOP2 residual risk, and production locks without physical I/O. | Obtain separate explicit operator approval for exactly one V2 physical invocation. Do not execute it, rerun V1, mutate V1 diagnostics, consume SOP9d, or start parked validation without that authority. |
