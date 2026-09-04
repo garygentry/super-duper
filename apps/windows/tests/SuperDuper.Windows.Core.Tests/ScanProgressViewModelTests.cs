@@ -55,6 +55,26 @@ public sealed class ScanProgressViewModelTests
     }
 
     [TestMethod]
+    public void Elapsed_UsesCumulativeHoursBeyondOneDay()
+    {
+        var startedAt = new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
+        var run = TestWorkerClient.CreateRun(
+            1,
+            1,
+            "completed",
+            "finalizing",
+            startedAt) with
+        {
+            CompletedAt = startedAt.AddHours(49).AddMinutes(2).AddSeconds(3),
+        };
+        using var viewModel = new ScanProgressViewModel(new TestWorkerClient(), new ImmediateDispatcher());
+
+        viewModel.ShowRun(run);
+
+        Assert.AreEqual("49:02:03", viewModel.Elapsed);
+    }
+
+    [TestMethod]
     public void ApplyProgress_IgnoresOutOfOrderSequence()
     {
         var client = new TestWorkerClient();

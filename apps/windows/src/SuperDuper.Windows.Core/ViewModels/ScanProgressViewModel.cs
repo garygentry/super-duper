@@ -221,8 +221,9 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
             var started = Run.StartedAt ?? Run.CreatedAt;
             var end = Run.CompletedAt ?? DateTimeOffset.UtcNow;
             var elapsed = end > started ? end - started : TimeSpan.Zero;
-            return elapsed.TotalHours >= 1
-                ? elapsed.ToString(@"h\:mm\:ss")
+            var totalHours = elapsed.Ticks / TimeSpan.TicksPerHour;
+            return totalHours >= 1
+                ? FormattableString.Invariant($"{totalHours}:{elapsed.Minutes:00}:{elapsed.Seconds:00}")
                 : elapsed.ToString(@"m\:ss");
         }
     }

@@ -19,9 +19,11 @@ accepted audits, manufacture narrower gaps, or substitute work from the parked s
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: reschedule Windows post-MVP release validation as the active finite plan,
-  park the scan stream at its immutable SOP9c blocker, and add efficient cold-start/anti-spin control
-- Worktree at the start of the scheduling transition: clean at `b9b5146`
+- Latest completed slice: fix the reproduced Progress session timer wrap after 24 hours by displaying
+  cumulative hours and retaining deterministic 49-hour regression coverage under
+  `WPM14-state-coherence`; the gate remains blocked on its end-to-end dependencies
+- Worktree at the start of this fix: `README.md` already modified by the operator at `ba549ac`; the
+  unrelated change remains untouched
 - Active stream: Windows post-MVP release validation
 - Active plan: `docs/windows-roadmap-closure-ledger.md`, with product criteria in
   `docs/windows-post-mvp-ux-plan.md`
@@ -31,9 +33,11 @@ accepted audits, manufacture narrower gaps, or substitute work from the parked s
   Setup, Duplicate files, and Duplicate folders at default and minimum size, retain the first pass
   or failure, and stop before multi-monitor DPI or another gate
 - Reusable new-session prompt: `docs/windows-release-validation-kickoff-prompt.md`
-- Live-process state must be re-audited at cold start. Final documentation verification observed
-  `artifacts/windows-x64/super-duper-worker.exe` PID 69720, started 2026-08-28 21:46:03 -04:00; this
-  session did not start, inspect through protocol, stop, or mutate it
+- Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first
+  observed WPF PID 20404 and worker PID 16496 responsive during the operator's multi-day scan. A
+  later read-only check found both processes absent and run 4 durably `cancelled` in `finalizing` at
+  2026-09-04 17:41:03Z with 3,547,188 discovered, 3,512,178 hashed, 43,934 warnings, and no run error;
+  this timer fix did not request cancellation or mutate runtime state
 - Parked stream: large-drive scan optimization and observability at
   `SOP9c-single-drive-reference-repeat=blocked_invalid_campaign`; only genuinely new causal evidence
   and distinct design/execution approvals can reopen it
@@ -562,6 +566,15 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+The reproduced `WPM14-state-coherence` Progress session-timer defect is corrected without changing
+scan lifecycle or runtime state. Elapsed sessions now retain cumulative hours instead of formatting
+the wrapping 0-23 `TimeSpan.Hours` component; a fixed completed-run case verifies 49:02:03 exactly.
+The focused `ScanProgressViewModelTests` suite passes 17/17, the complete Core suite passes 150/150,
+and the Debug .NET 10 solution passes 227 tests with five explicitly gated Infrastructure tests
+skipped. The then-running operator scan and its runtime files were not touched; a later read-only
+check found its durable graceful cancellation record described above. `WPM14-state-coherence`
+remains blocked on its listed production mutation/reconciliation/Activity dependencies.
 
 From clean `b9b5146`, the documentation-only scheduling transition changes eight roadmap/memory
 files and no product code, retained evidence, campaign state, or production lock. All relative
@@ -1106,6 +1119,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-09-04 | this session | Fix the reproduced `WPM14-state-coherence` Progress timer wrap after 24 hours by formatting cumulative hours, and retain a deterministic 49-hour Core regression while leaving the live operator scan untouched. | Keep `WPM14-state-coherence` blocked on its named end-to-end dependencies. The active release-validation boundary remains explicit authority for exactly one `WPM8-high-contrast` physical pass; the larger scan-remediation design remains separate. |
 | 2026-08-28 | this session | Reschedule the finite Windows post-MVP release-validation ledger as the active plan, park scan optimization at its immutable SOP9c blocker, add a state-independent release-validation kickoff prompt, and make cold starts gate-targeted with explicit audit-once, no-narrow-gap, multi-package, first-evidence-retention, and distinct-authority rules. | Obtain explicit authority for exactly one qualifying `WPM8-high-contrast` physical pass. Run only its documented default/minimum-size Setup/File/Folder workflow, retain pass or failure, and stop before multi-monitor DPI. |
 | 2026-08-28 | this session | Complete the operator-boundary causal review of the immutable V2 manifest, four-event journal, build logs, post-exit audit, and runner transition after `build_ready`; establish that the host interruption provides no causal product, runner, watchdog, cleanup, or campaign defect and cannot justify a successor. Preserve all evidence, policies, residual-risk truth, and locks. | Retain SOP9c as `blocked_invalid_campaign`. Only new causal evidence may return a separately versioned successor design for explicit operator approval; any later physical invocation requires another separate approval. Do not rerun V1/V2 or start SOP9d. |
 | 2026-08-28 | this session | Consume and retain the sole authorized SOP9c V2 invocation as invalid without retry: preserve its write-once reservation, passed fixed E: preflight, scoped state creation, and pinned builds; record that the consuming host ended before worker start/native finalization, the guarded second admission refused reuse, and post-exit worker/state are absent. Pin zero scan/result/measurement truth without causal invention while preserving SOP2 and all production locks. | Stop physical work. Do not rerun V1/V2 or start SOP9d. A successor design/identity requires a separately reviewed causal defect and explicit operator design and execution authority; otherwise retain the blocker. |
