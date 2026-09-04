@@ -18,14 +18,14 @@ MVP. The previous Windows app implementation was removed before the current WPF 
 
 | Stream | Scheduling state | Authority | Next boundary |
 |---|---|---|---|
-| Windows post-MVP release validation | Active; finite closure ledger controls work selection | [`docs/windows-roadmap-closure-ledger.md`](docs/windows-roadmap-closure-ledger.md), [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md), and [`docs/windows-release-validation-kickoff-prompt.md`](docs/windows-release-validation-kickoff-prompt.md) | Start at the operator-authority boundary for `WPM8-high-contrast`. Active scheduling does not authorize the physical pass: obtain explicit approval for one qualifying interactive high-contrast run, retain its first pass or failure, and stop before multi-monitor DPI. Then resume from the ledger's first dependency-ready gate without reopening accepted work or manufacturing narrower gaps. Production Recycle Bin execution remains disabled until every dependency accepts and `WPM11-production-wiring` receives its own later explicit approval. |
-| Large-drive scan optimization and observability | Blocked after the consumed invalid SOP9c V2 attempt; parked at a causal-evidence/authority boundary; SOP9a-SOP9b accepted and SOP9c V1/V2 retained invalid | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) | Preserve `SOP9c-single-drive-reference-repeat` as `blocked_invalid_campaign`. Do not rerun V1/V2, alter retained evidence/V1 diagnostics, reserve a successor, or start SOP9d. Only genuinely new causal evidence may return a separately versioned successor design for explicit operator approval, and any later physical invocation requires another distinct approval. Preserve SOP6/SOP7/SOP8 policies, the honestly unevaluated SOP2 residual risk, and every production lock. |
+| Large-drive scan optimization and observability | Active at the user-approved `SOP10-large-folder-analysis-remediation`; its causal baseline is accepted and the first implementation package is ready | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) and [`docs/scan-optimization-kickoff-prompt.md`](docs/scan-optimization-kickoff-prompt.md) | Implement the dependency-ordered SOP10 local packages: bounded streaming exact-folder analysis, exact-only product behavior, scan-resistant verified-hash retention, explicit folder-analysis progress, and synthetic Release-scale acceptance. Do not rerun consumed SOP9c identities or start a physical full-drive scan without a separate explicit approval. |
+| Windows post-MVP release validation | Parked with its finite closure ledger intact | [`docs/windows-roadmap-closure-ledger.md`](docs/windows-roadmap-closure-ledger.md), [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md), and [`docs/windows-release-validation-kickoff-prompt.md`](docs/windows-release-validation-kickoff-prompt.md) | Resume at `WPM8-high-contrast` only after SOP10 reaches its documented boundary and the operator explicitly authorizes one qualifying physical high-contrast pass. Production Recycle Bin execution remains disabled. |
 
 The shared startup checkpoint is
 [`docs/windows-roadmap-session-handoff.md`](docs/windows-roadmap-session-handoff.md). Work advances
 through finite named gates or coherent gate groups, with bounded commits and gate-specific authority.
-Parking the scan stream changes work scheduling, not its retained evidence, blocker, safety
-boundaries, or write-once contracts.
+Rescheduling the scan stream changes work selection, not retained SOP9 evidence, consumed campaign
+identities, safety boundaries, production locks, or the parked Windows ledger.
 
 ## Now - Safety And Correctness
 

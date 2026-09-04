@@ -8,22 +8,22 @@ At the beginning of every coding session, read and follow
 `docs/windows-roadmap-session-handoff.md` before choosing or starting work. It schedules and
 coordinates both durable roadmap streams:
 
-- the active Windows post-MVP release-validation plan in
-  `docs/windows-roadmap-closure-ledger.md` (with reusable kickoff prompt in
-  `docs/windows-release-validation-kickoff-prompt.md`); and
-- the parked large-drive scan optimization and observability plan in
-  `docs/scan-optimization-plan.md`.
+- the active large-drive scan optimization and observability plan in
+  `docs/scan-optimization-plan.md` (with reusable kickoff prompt in
+  `docs/scan-optimization-kickoff-prompt.md`); and
+- the parked Windows post-MVP release-validation plan in
+  `docs/windows-roadmap-closure-ledger.md`.
 
 For an efficient cold start, audit Git; read the handoff's current-control sections and the active
-closure ledger completely; then read only the selected gate's product/acceptance sections and
-directly linked procedure. Do not load the handoff's historical accepted-slice record or decision
-log unless the selected gate cites it. Do not
+roadmap plan completely; then read only the selected gate's directly linked code, tests, and
+procedures. Do not load the handoff's historical accepted-slice record or decision log unless the
+selected gate cites it. Do not
 replay historical iteration logs or re-audit accepted/`locally_exhausted` gates without a documented
 reopen condition. Active scheduling is not physical/provider/performance-campaign or production-
-wiring authority; obtain every distinct approval required by the ledger. Do not infer work from the
-parked scan plan. Keep the handoff and the selected stream's authoritative plan updated after every
-completed gate or coherent gate group; once both roadmap streams are complete, remove this startup
-instruction.
+wiring authority; obtain every distinct approval required by the active plan. Do not infer work
+from the parked Windows plan. Keep the handoff and the selected stream's authoritative plan updated
+after every completed gate or coherent gate group; once both roadmap streams are complete, remove
+this startup instruction.
 
 ## Current State
 

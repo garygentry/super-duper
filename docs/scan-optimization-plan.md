@@ -2,34 +2,26 @@
 
 ## Status
 
-Parked implementation and acceptance plan. The current pipeline audit and all six telemetry-
-foundation packages are complete. The Windows post-MVP release-validation stream is now active under
-[`windows-roadmap-closure-ledger.md`](windows-roadmap-closure-ledger.md). Do not resume this scan
-stream unless the handoff explicitly reschedules it after genuinely new SOP9c causal evidence or a
-reviewed scope/disposition change.
+Active implementation plan. The operator's 2026-09-02 through 2026-09-04 scan supplied new causal
+evidence for a distinct large-folder-analysis bottleneck and explicitly approved the remediation
+plan for implementation in a new session. The Windows post-MVP release-validation stream is parked
+intact under [`windows-roadmap-closure-ledger.md`](windows-roadmap-closure-ledger.md).
 
 Current execution checkpoint:
 
-- current gate: `SOP9-large-drive-acceptance` blocked after the consumed invalid V2 attempt for
-  `SOP9c-single-drive-reference-repeat`;
-- next boundary: retain `SOP9c-single-drive-reference-repeat` as `blocked_invalid_campaign` because
-  the retained evidence establishes no causal defect; only new causal evidence may return a
-  separately versioned successor design for explicit operator approval, and physical invocation
-  would require another separate approval; do not rerun V1/V2 or start SOP9d;
-- last accepted work package: `SOP9c-single-drive-reference-repeat-v2-protocol`;
-- latest decision slice: a read-only review of the retained V2 manifest, four-event journal, build
-  logs, post-exit audit, and runner control flow found no reviewable causal product, runner,
-  watchdog, cleanup, or campaign defect; the host interruption alone is insufficient;
-- latest retained slice: the sole authorized V2 invocation consumed its write-once identity, passed
-  physical preflight, created scoped state, and completed both builds, but its campaign host ended
-  before worker start or native finalization; zero arms/results/measurements exist, the guarded second
-  admission failed closed, and the post-exit audit found no worker or scoped V2 state;
-- prior retained slice: the consumed SOP9c V1 identity is invalid after the runner's 180-second
-  protocol-frame deadline force-stopped an active persistence phase; diagnostic state is preserved;
-- latest design slice: V2 fixes only that causal deadline defect with a one-pending-read,
-  persistence-activity watchdog; the design remains accepted, while its physical identity is now
-  consumed and invalid;
-- prior D: stress run: stopped by the operator after the read-only baseline observation;
+- current gate: `SOP10-large-folder-analysis-remediation`, `ready` after accepted causal baseline
+  package `SOP10a-large-run-causal-baseline`;
+- next package: `SOP10b-streaming-exact-folder-analysis`; implement the bounded structural/verified
+  bottom-up analysis contract before cache-capacity, progress-surface, or scale-acceptance work;
+- rerun decision: do not rerun the old build. The cancelled run's legacy cache cannot safely seed
+  the qualified current cache because it lacks the stable identity/change-token proof. The first
+  fixed run must conservatively hash misses once; later unchanged runs default to verified reuse;
+- retained SOP9 boundary: `SOP9c-single-drive-reference-repeat` remains
+  `blocked_invalid_campaign`; V1/V2 are consumed and must not be rerun or repurposed, and SOP9d does
+  not become ready through SOP10;
+- physical boundary: this activation authorizes local code, deterministic fixtures, builds, and
+  synthetic scale verification. It does not authorize launching another full-drive scan; obtain
+  separate explicit approval after the fixed Release build and rerun checklist are ready;
 - canonical new-session prompt: [`scan-optimization-kickoff-prompt.md`](scan-optimization-kickoff-prompt.md).
 
 This plan exists because representative use includes several roughly 10 TB drives. A full baseline
@@ -135,6 +127,34 @@ The source audit also found a concrete optimization gap:
   does not collide never reach the cache at all. SOP8 must carry one before/after verified content
   signature to both partial and full decisions, make missing/coarse/unavailable signature fields a
   forced-read fallback, and never turn a cache error into a scan failure or false hit.
+
+### 2026-09-04 large-folder causal evidence
+
+The operator-confirmed cancelled run 4 is diagnostic evidence for SOP10, not a completed result or
+a successor SOP9 campaign. Read-only inspection records 3,547,188 discovered files,
+14,671,213,149,032 logical bytes, 3,512,178 files hashed, 632,694 directory nodes, 43,934 warnings,
+no run error, and durable `cancelled`/`finalizing` state after about 64 hours 23 minutes. The WPF and
+worker were initially responsive; the operator later cancelled and closed the app deliberately.
+
+The causal source review found three independent unbounded costs after hashing:
+
+- `dir_fingerprint::build_directory_fingerprints_cancellable` issues correlated file-count/size
+  updates and then prepares direct-file and child-fingerprint queries per directory. On the retained
+  database, the direct-file predicate could choose `idx_file_run_hash` instead of
+  `idx_file_run_parent`; the per-directory shape magnifies any plan error across 632,694 nodes.
+- `exact_folders::build_candidates` clones each scanned-file record into every ancestor directory,
+  making time and memory proportional to the sum of file depths instead of files plus directories.
+- The engine always runs approximate Jaccard `dir_similarity` after exact-folder verification even
+  though the product decision is now exact duplicate folders only. Persisting complete descendant
+  hash sets as JSON and comparing approximate candidates is unnecessary product work.
+
+The shipped qualified cache is correct but undersized for this workload: its 1,500,000 live-entry
+cap and 1,350,000 prune target are below the observed multi-million-file candidate set, so a long
+scan can evict early verified entries before the next run. The operator selected a performance-first
+policy: preserve the safe `reuse_verified` default and user-selectable `revalidate_content`
+alternate, protect the active scan generation from churn, retain full hashes preferentially, and
+bound disk growth with a 5,000,000 normal live target, 4,500,000 post-prune target, and 10,000,000
+hard high-water mark during an active generation.
 
 ## Goals and non-goals
 
@@ -283,6 +303,7 @@ unavailable-counter states, and coalesced UI Automation announcements are accept
 | `SOP7-hash-read-path` | `local_code` | `accepted` | `SOP6-device-aware-scheduler` | Benchmark path locality, bucket ordering, buffer/read-ahead size, and reuse of the partial prefix during full hashing. Admit only individually measured changes. | Each retained A/B run records bytes, IOPS, queue, latency, throughput, CPU, memory, and wall time; changes that do not improve the declared workload are rejected or scoped. |
 | `SOP8-repeat-run-cache` | `local_code` | `accepted` | `SOP2-progress-reporting`, `SOP7-hash-read-path` | Turn the existing always-on canonical-path/size/time full-hash cache into an explicit repeat-scan policy. Evaluate a session UI choice between signature-qualified reuse and forced content revalidation; define stable identity, rename, hard-link, timestamp-resolution, partial/full-hash, cross-session, and bounded-eviction semantics without using name/date alone as correctness proof. | Warm same-session and cross-session fixtures prove the selected default and UI policy, exact invalidation/correctness, partial/full read accounting, rename/hard-link behavior, cache bounds, corruption fallback, and measured read/wall-time savings. |
 | `SOP9-large-drive-acceptance` | `operator_evidence` | `in_progress` | `SOP4-performance-tab` through `SOP8-repeat-run-cache` | Retain representative single- and multi-drive Release runs, including failures, select defaults from evidence, and observe the unresolved SOP2 representative-overhead risk during useful real-drive acceptance work rather than another standalone synthetic campaign. | Duplicate results match reference fixtures; singleton reads are zero; telemetry/warning accounting is complete; memory and UI bounds hold; before/after device and wall-time evidence is retained without retry-only acceptance. Any SOP2 observer-overhead observation is reported as measured at SOP9 scale or remains explicit residual risk; the waived strict <1% SOP2 gate is not retroactively declared passed. |
+| `SOP10-large-folder-analysis-remediation` | `local_code` | `ready` | `SOP8-repeat-run-cache`, `SOP10a-large-run-causal-baseline` | Replace per-directory and per-ancestor work with bounded streaming exact-folder analysis, remove automatic approximate similarity, make the qualified cache scan-resistant at the observed scale, and expose actionable folder-analysis progress. | Exact duplicate results and safety invariants remain unchanged; deterministic and Release-scale fixtures satisfy the published pass/memory/time bounds; unchanged repeat scans hit qualified partial/full hashes by default while the user can force revalidation; no consumed SOP9 campaign is rerun. |
 
 ## Telemetry-foundation work-package ledger
 
@@ -441,6 +462,22 @@ justified or authorized.
 | `SOP9d-multi-drive-reference-repeat` | `blocked_dependency` | SOP9c | Consume one fixed D:+E: Release campaign with `revalidate_content` then `reuse_verified`, exercising independent physical-device queues and cross-drive exact results. | Both completed arms have identical ordered file/folder result digests and aggregates; hard-link and cross-drive physical-item semantics remain exact; singleton reads are zero; D: and E: never exceed SOP6's one-reader rotational ceilings while both devices may progress independently; SOP7 and SOP8 policies, warning truth, and immutable history hold. | Retain per-arm and per-device wall/resource/process-I/O distributions and tails, overlap/reader-ceiling evidence, cache/read savings, progress/status cost proxies, explicit unavailable values, and honest comparison with the historical incomplete D: diagnostic baseline without treating unlike inputs as an A/B result. | Same consumed-identity, append-only, no-favorable-retry contract as SOP9c. Preserve every partial arm, failure, cancellation, unavailable sample, finalization problem, and cleanup result; remove only validated campaign-owned state after durable evidence permits it. | Do not consume the fixed SOP9d identity while SOP9c is blocked. After its dependency accepts, both arms, per-device/correctness/accounting/bound checks, and the complete bundle verifier must pass; otherwise the retained result blocks this package pending the precise hardware/operator/protocol decision. |
 | `SOP9e-large-drive-acceptance` | `blocked_dependency` | SOP9b, SOP9c, SOP9d | Pin every SOP9 artifact and decision, run the proportionate full acceptance matrix, report default suitability and residual risks, and close SOP9 without changing selected policies or production execution. | The named verifier pins exact result equality, singleton zero-read truth, hard-link behavior, cancellation, warning/telemetry reconciliation, bounded memory/UI/query collections, immutable new/legacy policies, SOP6/SOP7/SOP8 decisions, retained rejected alternatives, and all deletion locks. | Report every retained sample and failure, median/tail only where the fixed sample set supports them, device/wall/cache evidence, sampling health, and SOP2 proxy measurements. The waived strict `<1%` SOP2 representative gate remains explicitly unevaluated; any causal overhead not measured remains residual risk. | Verify evidence directories are write-once and complete, attempt registries contain no favorable retry, owned state/process cleanup is exact or its failure is retained, and no evidence or rejected alternative was overwritten or deleted. | Remains blocked until SOP9c and SOP9d accept. The final named verifier plus full Debug/Release Rust and Windows matrices must pass with production execution disabled. Update this plan, `ROADMAP.md`, and the handoff to accepted only when all physical packages qualify; otherwise retain the real blocker without starting parked release validation. |
 
+## Large-folder-analysis remediation work-package ledger
+
+SOP10 is a distinct product-remediation gate justified by the operator's multi-day run. It does not
+reclassify or reopen the consumed SOP9c campaigns. Complete local packages in dependency order and
+stop at a packaged fixed Release build plus rerun checklist; a new full-drive run is a separate
+operator-authority boundary.
+
+| Package ID | State | Dependencies | Bounded outcome | Completion check | Evidence/commit |
+|---|---|---|---|---|---|
+| `SOP10a-large-run-causal-baseline` | `accepted` | SOP8e | Preserve the read-only run facts, identify the post-hash query/algorithm costs, record the exact-only and performance-first cache decisions, and make an evidence-based rerun recommendation without touching the active process. | Durable run facts and source/query-shape evidence distinguish healthy hashing from unbounded folder analysis; the operator-confirmed cancellation is recorded; no runtime file is mutated and no SOP9 identity is reopened. | This documentation slice records run 4's exact durable counts/state, 632,694 directory nodes, per-directory query amplification, ancestor cloning, automatic Jaccard work, the undersized qualified-cache bound, and the operator's exact-only/performance-first choices. The separate timer fix is committed at `768b3bf`; the operator confirmed the subsequent cancellation and app close. |
+| `SOP10b-streaming-exact-folder-analysis` | `ready` | SOP10a | Replace correlated/per-directory scans and per-file-per-ancestor cloning with one bounded ordered file stream plus a bottom-up directory structure. Compute structural Merkle-style candidates from relative names/types/sizes and child fingerprints, then compute verified fingerprints only for colliding structural candidates using existing exact content truth. Persist directory counts/sizes/fingerprints and suppress nested groups deterministically. | Deterministic deep/wide tree fixtures match the existing exact-folder groups, member ordering, sizes, hard-link semantics, warning behavior, cancellation, and nested suppression. Instrumented storage tests prove no per-directory `scanned_file` query, no file record cloned into every ancestor, bounded batches, and no more than three ordered `scanned_file` passes. |
+| `SOP10c-exact-only-folder-product` | `blocked_dependency` | SOP10b | Remove automatic Jaccard similarity computation and descendant hash-set JSON from the scan path; retain exact duplicate folders as the only product result. Keep legacy similarity rows/query compatibility read-only where required, but new runs write no approximate pairs. | Engine/CLI/worker/Core/WPF contracts and fixtures expose identical exact folder results with zero new approximate rows or Jaccard pass. Schema/restart compatibility, cancellation, review/preflight relationships, and production deletion locks pass. |
+| `SOP10d-scan-resistant-qualified-cache` | `blocked_dependency` | SOP10b | Evolve the qualified cache to a versioned scan-generation policy that protects current-generation entries, prefers entries with full hashes, targets 5,000,000 live entries, prunes completed generations to 4,500,000, and enforces a 10,000,000 hard active high-water mark with explicit warnings/fallback. Preserve signature qualification and bounded repair batches. | Store tests cover migration/newer-version refusal, replay/conflict, active-generation protection, full-before-partial retention, deterministic completed-generation pruning, hard-cap behavior, corruption/recovery, reopen, and disk-full fallback. A fixture exceeding the old 1,500,000 cap retains early and late qualified hits across reopen without unbounded memory. |
+| `SOP10e-repeat-policy-and-folder-progress` | `blocked_dependency` | SOP10c, SOP10d | Preserve `reuse_verified` as the default and `revalidate_content` as the user override through immutable run history, and add bounded folder-analysis substage progress for hierarchy, structural candidates, verification, and persistence. Keep the cumulative-hour timer behavior accepted at `768b3bf`. | Rust/worker/Core/WPF tests prove closed policy values, unchanged default/override/restart behavior, qualified unchanged-file partial/full hits, forced-read bypass, generation-safe cache metrics, monotonic bounded substage progress, cancellation, accessible text/automation, and no stale terminal update. |
+| `SOP10f-release-scale-acceptance` | `blocked_dependency` | SOP10e | Add a deterministic generated-store profile approximating 3,550,000 files and 633,000 directories, including deep/wide trees, structural collisions, exact duplicate folders, nonduplicates, hard links, cache hits/misses, warnings, and cancellation. Produce a fixed Release build and an operator rerun checklist without starting a physical scan. | The profile preserves exact result digests, uses no more than three ordered `scanned_file` passes, performs zero Jaccard work, completes folder analysis under 30 minutes with peak private memory below 2 GiB on the designated host, and proves cache bounds plus same-process/reopened unchanged hits. Full Debug/Release Rust and Windows matrices, named verifier, diff checks, production locks, and package artifact checks pass. If either resource threshold fails, retain the first result and repair the demonstrated cause before one separately versioned rerun. |
+
 ## Work selection and evidence rules
 
 - `SOP2f-progress-acceptance` is `waived_by_operator_unmeasured`, and SOP2 is
@@ -465,6 +502,7 @@ justified or authorized.
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-09-04 | Activate `SOP10-large-folder-analysis-remediation` with exact-only folder results and a performance-first qualified-cache policy; accept the causal baseline and begin with streaming exact-folder analysis. | The operator's deliberately cancelled 64-hour run retained 3,547,188 files and 632,694 directories, while source/query evidence shows per-directory scans, per-ancestor file cloning, and automatic Jaccard work after hashing. The qualified cache is correct but its 1.5M cap is smaller than the observed candidate set. Local implementation and synthetic verification are authorized; a physical rerun remains separately gated. |
 | 2026-08-25 | Create a separate scan-scale and observability stream; park, do not discard, the Windows release-validation checklist. | Multiple 10 TB drives make whole-run time a primary product concern, while the release checklist must still resume before final feature-complete. |
 | 2026-08-25 | Treat exact-size singleton short-circuiting as an open measured optimization. | Exact-size grouping exists, but the current partial-hash pass still opens singleton files. |
 | 2026-08-25 | Put durable telemetry before algorithm changes and keep it in a separate worker-owned local status database. | Accurate cumulative counters and device evidence are required to explain progress, compare runs, and avoid contaminating immutable product-result truth with sampled operational data. |

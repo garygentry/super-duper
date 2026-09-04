@@ -1,12 +1,13 @@
 # Windows Release-Validation New-Session Kickoff Prompt
 
-Copy the prompt below into a new coding session. It is intentionally state-independent: the agent
-must audit the committed checkpoint and continue from the ledger rather than trusting the prompt's
-historical expectations.
+This stream is currently parked while SOP10 scan remediation is active. Copy the prompt below only
+after `windows-roadmap-session-handoff.md` reschedules Windows release validation. It is
+intentionally state-independent: the agent must audit the committed checkpoint and continue from
+the ledger rather than trusting the prompt's historical expectations.
 
 ```text
-Continue the active Windows post-MVP release-validation roadmap toward its reviewed completion
-contract.
+When the committed handoff identifies Windows release validation as active, continue that roadmap
+toward its reviewed completion contract.
 
 First follow AGENTS.md. Audit HEAD, the worktree, recent history, and the complete latest commit.
 Read docs/windows-roadmap-closure-ledger.md completely. In
@@ -20,9 +21,8 @@ truth. Do not replay accepted historical slices or mine full iteration logs.
 Select the ledger's first dependency-ready non-accepted gate. State its exact prerequisites,
 authority, bounded action, completion check, non-goals, and production-lock impact before acting.
 Active scheduling is not physical/provider/performance-campaign or WPM11 production-wiring
-authority. Obtain every separate explicit approval required by the selected row. Preserve the parked
-scan stream at SOP9c blocked_invalid_campaign; do not rerun V1/V2, design a successor, start SOP9d,
-or substitute scan work.
+authority. Obtain every separate explicit approval required by the selected row. Do not interrupt
+or substitute work from whichever roadmap stream the committed handoff parks.
 
 Work efficiently through as many dependency-ready local packages as can be completed and verified
 coherently. Keep each commit bounded to one gate or inseparable gate group, update the ledger,

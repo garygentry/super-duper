@@ -8,9 +8,9 @@ linked plans remain authoritative.
 
 ## Session objective
 
-Advance finite dependency-ready gates from the currently scheduled roadmap stream. The Windows
-post-MVP closure ledger is active as the release-validation plan; the large-drive scan optimization
-stream is parked at its SOP9c causal-evidence boundary. Keep each commit bounded to one gate or one
+Advance finite dependency-ready gates from the currently scheduled roadmap stream. The large-drive
+scan optimization plan is active at the user-approved SOP10 remediation; the Windows post-MVP
+closure ledger is parked intact. Keep each commit bounded to one gate or one
 inseparable coherent group, but continue through additional ready local packages in the same session
 when their authority and context remain sound. Respect every gate-specific stop and distinct
 physical/provider/performance/production approval. Do not leave completed work uncommitted, replay
@@ -19,28 +19,27 @@ accepted audits, manufacture narrower gaps, or substitute work from the parked s
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: fix the reproduced Progress session timer wrap after 24 hours by displaying
-  cumulative hours and retaining deterministic 49-hour regression coverage under
-  `WPM14-state-coherence`; the gate remains blocked on its end-to-end dependencies
-- Worktree at the start of this fix: `README.md` already modified by the operator at `ba549ac`; the
-  unrelated change remains untouched
-- Active stream: Windows post-MVP release validation
-- Active plan: `docs/windows-roadmap-closure-ledger.md`, with product criteria in
-  `docs/windows-post-mvp-ux-plan.md`
-- Current gate: `WPM8-high-contrast`, selected next but still blocked on explicit operator authority
-  and a qualifying interactive Windows 11 x64 desktop
-- Next boundary: obtain explicit authority for exactly one high-contrast physical pass; then run
-  Setup, Duplicate files, and Duplicate folders at default and minimum size, retain the first pass
-  or failure, and stop before multi-monitor DPI or another gate
-- Reusable new-session prompt: `docs/windows-release-validation-kickoff-prompt.md`
+- Latest completed slice: accept `SOP10a-large-run-causal-baseline`, activate the approved exact-only
+  and performance-first `SOP10-large-folder-analysis-remediation`, and publish its dependency-ordered
+  implementation/scale-verification prompt without reopening consumed SOP9 campaigns
+- Worktree at the start of this plan activation: `README.md` already modified by the operator at
+  `768b3bf`; the unrelated change remains untouched
+- Active stream and plan: `docs/scan-optimization-plan.md`
+- Current gate: `SOP10-large-folder-analysis-remediation`; causal baseline SOP10a is accepted
+- Next package: `SOP10b-streaming-exact-folder-analysis`, followed in dependency order by exact-only
+  product behavior, scan-resistant qualified cache retention, repeat-policy/progress acceptance, and
+  synthetic Release-scale acceptance
+- Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first
   observed WPF PID 20404 and worker PID 16496 responsive during the operator's multi-day scan. A
   later read-only check found both processes absent and run 4 durably `cancelled` in `finalizing` at
   2026-09-04 17:41:03Z with 3,547,188 discovered, 3,512,178 hashed, 43,934 warnings, and no run error;
-  this timer fix did not request cancellation or mutate runtime state
-- Parked stream: large-drive scan optimization and observability at
-  `SOP9c-single-drive-reference-repeat=blocked_invalid_campaign`; only genuinely new causal evidence
-  and distinct design/execution approvals can reopen it
+  the operator confirmed that they deliberately cancelled the run and closed the app; the timer fix
+  did not request cancellation or mutate runtime state
+- Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` only after the
+  SOP10 boundary and its separate physical authority are satisfied
+- Retained SOP9 boundary: `SOP9c-single-drive-reference-repeat=blocked_invalid_campaign`; V1/V2
+  remain consumed and SOP10 does not authorize their rerun or make SOP9d ready
 - MVP Milestones 0-6: implemented and code complete
 - Milestone 7 required fail-closed cloud safety: accepted; both unavailable opt-in policies are
   reviewed deferred follow-ons
@@ -471,32 +470,29 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Release validation is active at `WPM8-high-contrast`, but scheduling is not physical-run authority.
-Obtain explicit approval for exactly one qualifying interactive pass that may change the Windows
-theme. After approval, run only the documented Setup/File/Folder workflow at default and minimum
-size, retain the first pass or failure, update the ledger/handoff, and stop before multi-monitor DPI
-or another gate. If authority or the interactive prerequisite is absent, report that exact blocker;
-do not substitute a narrower audit, another accessibility gate, provider/mutation work, or the parked
-scan stream.
+Execute `SOP10b-streaming-exact-folder-analysis` from the active scan plan, then continue through
+each dependency-ready local SOP10 package while context and verification remain sound. Preserve the
+approved exact-only folder result, qualified-cache default/override, cache generation/capacity
+bounds, deterministic scale thresholds, and all correctness/safety locks. Use small deterministic
+fixtures while iterating and stop at a verified fixed Release build plus operator rerun checklist.
 
-Keep the scan stream parked. Do not rerun/overwrite SOP9c V1/V2, mutate V1 diagnostics or retained V2
-evidence, reserve a successor, start SOP9d, or revive SOP2f. Only genuinely new causal evidence may
-return a separately versioned successor design for distinct operator design and execution approvals.
+Do not launch a physical full-drive scan without separate explicit approval. Do not rerun/overwrite
+SOP9c V1/V2, mutate their retained evidence/diagnostics, reserve a successor identity, start SOP9d,
+or revive SOP2f. Keep Windows release validation parked; when it resumes its first boundary remains
+`WPM8-high-contrast` with separate physical authority.
 
 ## Required startup audit
 
 Before editing:
 
 1. Run `git status --short`, inspect recent history, and inspect the complete latest commit diff.
-2. Read `AGENTS.md`, `docs/windows-roadmap-closure-ledger.md`, and
-   `docs/windows-release-validation-kickoff-prompt.md` completely. In this handoff, read `Session
+2. Read `AGENTS.md`, `docs/scan-optimization-plan.md`, and
+   `docs/scan-optimization-kickoff-prompt.md` completely. In this handoff, read `Session
    objective`, `Current checkpoint`, `Immediate next step`, `Required startup audit`, `Non-negotiable
    boundaries`, and `Completion loop`; skip `Historical accepted-slice record` and the decision log
-   unless the selected gate cites them. Read `ROADMAP.md` scheduling and the parked scan plan's current
-   checkpoint. Then read only the selected gate's product/acceptance sections in
-   `docs/windows-post-mvp-ux-plan.md` and its directly linked procedure (for Milestone 11, usually
-   `docs/windows-recycle-bin-acceptance.md`). Do not replay full historical iteration logs or accepted
-   milestone implementation narrative during cold start.
+   unless the selected gate cites them. Read `ROADMAP.md` scheduling, then inspect only the code,
+   tests, and procedures directly linked by the selected SOP10 package. Do not replay historical
+   iteration logs, accepted packages, or the parked Windows milestone narrative during cold start.
 3. Confirm that the checkpoint above still matches `HEAD` and the worktree.
 4. Confirm the scheduled stream, select the ledger's first dependency-ready non-accepted gate, and
    distinguish scheduling from any separate physical/provider/performance/production authority. Do
@@ -566,6 +562,15 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+The user-confirmed shutdown closes the live-process ambiguity: run 4 was deliberately cancelled and
+the app closed. The accepted SOP10a causal baseline records exact durable run/directory facts and
+the three post-hash amplification mechanisms without mutating runtime state. The active scan plan
+now publishes five dependency-ordered implementation/acceptance packages after SOP10a, preserves
+the qualified reuse default plus forced override, fixes exact-only folder behavior and cache bounds,
+and keeps physical rerun authority separate. Markdown-link resolution, prompt-fence balance,
+current-state consistency, and `git diff --check` pass for this activation slice; no product code,
+runtime state, retained evidence, or production lock changed.
 
 The reproduced `WPM14-state-coherence` Progress session-timer defect is corrected without changing
 scan lifecycle or runtime state. Elapsed sessions now retain cumulative hours instead of formatting
@@ -1101,7 +1106,7 @@ For each session:
    manufacturing a code slice.
 5. Add regression coverage required by the named criterion; do not enumerate unrelated edge cases.
 6. Update the selected stream's gate state and relevant authoritative documentation without
-   overstating acceptance. Do not update the parked scan plan unless its scheduling or evidence
+   overstating acceptance. Do not update the parked Windows plan unless its scheduling or evidence
    boundary changes.
 7. Run proportional verification and `git diff --check`.
 8. Review the final diff against every boundary above.
@@ -1109,7 +1114,8 @@ For each session:
 10. Update this handoff's checkpoint, immediate next gate, verification baseline, and decision log
     as part of that commit.
 11. Confirm `HEAD` contains every completed in-scope change from the session and the worktree is
-    clean. A session with completed changes is not finished until its commit succeeds.
+    clean except for any explicitly documented pre-existing operator changes. A session with
+    completed changes is not finished until its commit succeeds.
 12. Report the commit, gate disposition, verification, skipped gates, blocker or next ready gate,
     and any user decision required.
 13. If the completed gate does not require a stop and another dependency-ready local package is
@@ -1119,6 +1125,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-09-04 | this session | Record the operator-confirmed cancellation/app close; accept `SOP10a-large-run-causal-baseline`; activate the exact-only, performance-first `SOP10-large-folder-analysis-remediation`; and publish finite streaming-analysis, product, cache, progress, and Release-scale packages without reopening SOP9. | Begin `SOP10b-streaming-exact-folder-analysis` and continue dependency-ready local packages. Stop at the fixed Release build/rerun checklist; obtain separate approval before any physical full-drive scan. |
 | 2026-09-04 | this session | Fix the reproduced `WPM14-state-coherence` Progress timer wrap after 24 hours by formatting cumulative hours, and retain a deterministic 49-hour Core regression while leaving the live operator scan untouched. | Keep `WPM14-state-coherence` blocked on its named end-to-end dependencies. The active release-validation boundary remains explicit authority for exactly one `WPM8-high-contrast` physical pass; the larger scan-remediation design remains separate. |
 | 2026-08-28 | this session | Reschedule the finite Windows post-MVP release-validation ledger as the active plan, park scan optimization at its immutable SOP9c blocker, add a state-independent release-validation kickoff prompt, and make cold starts gate-targeted with explicit audit-once, no-narrow-gap, multi-package, first-evidence-retention, and distinct-authority rules. | Obtain explicit authority for exactly one qualifying `WPM8-high-contrast` physical pass. Run only its documented default/minimum-size Setup/File/Folder workflow, retain pass or failure, and stop before multi-monitor DPI. |
 | 2026-08-28 | this session | Complete the operator-boundary causal review of the immutable V2 manifest, four-event journal, build logs, post-exit audit, and runner transition after `build_ready`; establish that the host interruption provides no causal product, runner, watchdog, cleanup, or campaign defect and cannot justify a successor. Preserve all evidence, policies, residual-risk truth, and locks. | Retain SOP9c as `blocked_invalid_campaign`. Only new causal evidence may return a separately versioned successor design for explicit operator approval; any later physical invocation requires another separate approval. Do not rerun V1/V2 or start SOP9d. |

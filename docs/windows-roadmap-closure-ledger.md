@@ -8,12 +8,11 @@ known to the authoritative plans. Acceptance of this ledger accepts the inventor
 model; it does not accept gates whose state is not `accepted`, authorize a physical/provider/
 performance campaign, or enable Recycle Bin execution.
 
-As of 2026-08-28 this ledger is the active Windows release-validation stream. The large-drive scan
-optimization and observability plan is parked at its consumed invalid SOP9c V2 causal-evidence
-boundary. Active scheduling does not authorize a physical/provider/performance campaign or
-`WPM11-production-wiring`. The first boundary remains `WPM8-high-contrast`, pending explicit
-operator authority for one qualifying physical pass; after each completed gate, continue from the
-first dependency-ready row unless that gate's acceptance contract requires a stop.
+As of 2026-09-04 this Windows release-validation stream is parked while the user-approved
+large-drive `SOP10-large-folder-analysis-remediation` is active. Parking does not accept or reopen
+any row and does not authorize a physical/provider/performance campaign or
+`WPM11-production-wiring`. When this ledger resumes, the first boundary remains
+`WPM8-high-contrast`, pending explicit operator authority for one qualifying physical pass.
 
 The authoritative product criteria remain in
 [`windows-post-mvp-ux-plan.md`](windows-post-mvp-ux-plan.md). The dual-stream checkpoint and one-session
@@ -26,14 +25,13 @@ The reusable state-independent cold-start prompt is
 
 ### Resumable execution checkpoint
 
-- Active gate: `WPM8-high-contrast`, still `blocked` on explicit operator authority and a qualifying
+- Resume gate: `WPM8-high-contrast`, still `blocked` on explicit operator authority and a qualifying
   interactive Windows 11 x64 desktop where the theme may be changed.
 - Exact next action after approval: run Setup, Duplicate files, and Duplicate folders once at
   default and minimum size under Windows high contrast; retain the first pass or failure and stop
   before `WPM8-multi-monitor-dpi`.
-- Parked stream: `SOP9-large-drive-acceptance` with
-  `SOP9c-single-drive-reference-repeat` retained as `blocked_invalid_campaign`; do not select work
-  from it.
+- Active external stream: `SOP10-large-folder-analysis-remediation` in
+  `scan-optimization-plan.md`; retained SOP9c V1/V2 identities remain consumed and may not be rerun.
 - Production boundary: keep `CanSubmit:false`, the disabled executor, every
   `executorEnabled:false` response, and the absence of **Move to Recycle Bin now** until all
   `WPM11-production-wiring` dependencies accept and a separate explicit approval is recorded.
@@ -58,7 +56,7 @@ The reusable state-independent cold-start prompt is
    gate group.
 7. After two identical failures with no new evidence, record the blocker and smallest next
    experiment. Advance only to an explicitly independent ready lane; do not mine adjacent narrow
-   gaps or substitute the parked scan stream.
+   gaps or substitute work from outside the selected Windows gate.
 8. After every completed gate or coherent group, update this ledger, the product plan, `ROADMAP.md`,
    and the handoff, then verify and commit before continuing.
 
