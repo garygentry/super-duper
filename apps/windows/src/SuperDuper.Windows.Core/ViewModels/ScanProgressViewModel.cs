@@ -18,6 +18,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
     private ulong _lastProgressRevision;
     private IReadOnlyList<ulong>? _lastCumulativeValues;
     private WorkerScanProgressSnapshot? _progressSnapshot;
+    private WorkerFolderAnalysisProgress? _folderAnalysis;
     private ulong? _lastAnnouncementMonotonicNanos;
     private string? _lastAnnouncementStatus;
     private string? _lastAnnouncementPhase;
@@ -153,6 +154,10 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
 
     public string ProgressPhaseElapsed => ScanProgressProjection.PhaseElapsed(ProgressSnapshot);
 
+    public string FolderAnalysisProgress => ScanProgressProjection.FolderAnalysis(_folderAnalysis);
+
+    public bool IsFolderAnalysis => Run?.Phase == "analyzing_folders";
+
     public string PartialRecentRate =>
         ScanProgressProjection.Rate(ProgressSnapshot?.PartialReadRates.Recent);
 
@@ -201,6 +206,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
     public string ProgressAnnouncement => ProgressSnapshot is not { } snapshot
         ? string.Empty
         : $"Scan progress. {Status}. {Phase}. "
+            + (IsFolderAnalysis ? $"{FolderAnalysisProgress}. " : string.Empty)
             + $"{snapshot.Funnel.Discovered.Files:N0} discovered; "
             + $"{snapshot.Funnel.PartialScreened.Files:N0} partial screened of "
             + $"{snapshot.Funnel.HashPipelineCandidates.Files:N0} hash candidates. "
@@ -240,6 +246,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         _lastAnnouncementMonotonicNanos = null;
         _lastAnnouncementStatus = null;
         _lastAnnouncementPhase = null;
+        _folderAnalysis = null;
         ProgressSnapshot = null;
         CurrentPath = null;
         Message = null;
@@ -256,11 +263,14 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
             || progress.Sequence <= _lastSequence
             || (Run.Status == "cancelling" && progress.Status == "running")
             || !WorkerProgressContract.TryValidate(progress, out _)
-            || progress.Progress.Revision <= _lastProgressRevision
+            || progress.Progress.Revision < _lastProgressRevision
             || !WorkerProgressContract.TryGetCumulativeValues(
                 progress,
                 out var cumulativeValues,
                 out _)
+            || (progress.Progress.Revision == _lastProgressRevision
+                && (!FolderProgressAdvances(_folderAnalysis, progress.FolderAnalysis)
+                    || !SameCumulativeValues(_lastCumulativeValues, cumulativeValues)))
             || HasRegression(_lastCumulativeValues, cumulativeValues))
         {
             return false;
@@ -268,6 +278,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         _lastSequence = progress.Sequence;
         _lastProgressRevision = progress.Progress.Revision;
         _lastCumulativeValues = cumulativeValues.ToArray();
+        _folderAnalysis = progress.FolderAnalysis;
         Run = Run with
         {
             Status = progress.Status,
@@ -280,6 +291,8 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         CurrentPath = progress.CurrentPath;
         Message = progress.Message;
         ProgressSnapshot = progress.Progress;
+        OnPropertyChanged(nameof(FolderAnalysisProgress));
+        OnPropertyChanged(nameof(IsFolderAnalysis));
         UpdateProgressAnnouncement(progress);
         UpdateTimer();
         return true;
@@ -320,6 +333,36 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         }
         return false;
     }
+
+    private static bool SameCumulativeValues(
+        IReadOnlyList<ulong>? previous,
+        IReadOnlyList<ulong> proposed) =>
+        previous is not null && previous.SequenceEqual(proposed);
+
+    private static bool FolderProgressAdvances(
+        WorkerFolderAnalysisProgress? previous,
+        WorkerFolderAnalysisProgress? proposed)
+    {
+        if (previous is null || proposed is null)
+        {
+            return previous is null && proposed is not null;
+        }
+        var previousRank = FolderSubstageRank(previous.Substage);
+        var proposedRank = FolderSubstageRank(proposed.Substage);
+        return proposedRank > previousRank
+            || (proposedRank == previousRank
+                && proposed.Total == previous.Total
+                && proposed.Completed > previous.Completed);
+    }
+
+    private static int FolderSubstageRank(string substage) => substage switch
+    {
+        "hierarchy" => 0,
+        "structural_candidates" => 1,
+        "verification" => 2,
+        "persistence" => 3,
+        _ => -1,
+    };
 
     private async Task CancelAsync()
     {
@@ -406,6 +449,8 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ExcludedSubtreeCount));
         OnPropertyChanged(nameof(Elapsed));
         OnPropertyChanged(nameof(DetailedProgressUnavailableMessage));
+        OnPropertyChanged(nameof(FolderAnalysisProgress));
+        OnPropertyChanged(nameof(IsFolderAnalysis));
         OnPropertyChanged(nameof(ActiveDevices));
         OnPropertyChanged(nameof(RemainingWork));
         OnPropertyChanged(nameof(EstimatedTimeRemaining));
@@ -420,6 +465,8 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasDetailedProgress));
         OnPropertyChanged(nameof(DetailedProgressUnavailableMessage));
         OnPropertyChanged(nameof(ProgressPhaseElapsed));
+        OnPropertyChanged(nameof(FolderAnalysisProgress));
+        OnPropertyChanged(nameof(IsFolderAnalysis));
         OnPropertyChanged(nameof(PartialRecentRate));
         OnPropertyChanged(nameof(PartialCumulativeRate));
         OnPropertyChanged(nameof(FullRecentRate));

@@ -41,6 +41,16 @@ internal static class ScanProgressProjection
     internal static string PhaseElapsed(WorkerScanProgressSnapshot? snapshot) =>
         snapshot is null ? "—" : DurationFromNanos(snapshot.PhaseElapsedNanos);
 
+    internal static string FolderAnalysis(WorkerFolderAnalysisProgress? progress) => progress switch
+    {
+        null => "Waiting for bounded folder-analysis progress",
+        { Substage: "hierarchy" } => FolderStage("Building hierarchy", progress),
+        { Substage: "structural_candidates" } => FolderStage("Finding structural candidates", progress),
+        { Substage: "verification" } => FolderStage("Verifying exact content", progress),
+        { Substage: "persistence" } => FolderStage("Persisting exact folders", progress),
+        _ => "Unavailable — unsupported folder-analysis substage",
+    };
+
     internal static string Rate(WorkerProgressRateValue? value) => value switch
     {
         null => "Unavailable — no progress sample",
@@ -111,6 +121,9 @@ internal static class ScanProgressProjection
         WorkerProgressQuantity quantity,
         string automationId) =>
         new(name, quantity.Files, quantity.LogicalBytes, automationId);
+
+    private static string FolderStage(string label, WorkerFolderAnalysisProgress progress) =>
+        $"{label}: {progress.Completed:N0} of {progress.Total:N0}";
 
     private static string Scaled(ulong value, ulong scale) =>
         ((decimal)value / scale).ToString("0.###", CultureInfo.CurrentCulture);

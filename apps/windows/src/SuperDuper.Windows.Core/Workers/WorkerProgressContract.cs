@@ -36,6 +36,14 @@ public static class WorkerProgressContract
         "not_applicable",
     ];
 
+    private static readonly HashSet<string> FolderAnalysisSubstages =
+    [
+        "hierarchy",
+        "structural_candidates",
+        "verification",
+        "persistence",
+    ];
+
     public static bool TryValidate(WorkerRunProgressEventArgs? progress, out string error)
     {
         if (progress is null)
@@ -89,6 +97,16 @@ public static class WorkerProgressContract
         {
             error = "typed and legacy progress phases do not agree";
             return false;
+        }
+        if (progress.FolderAnalysis is { } folder)
+        {
+            if (progress.Phase != "analyzing_folders"
+                || !FolderAnalysisSubstages.Contains(folder.Substage)
+                || folder.Completed > folder.Total)
+            {
+                error = "folder-analysis progress is invalid";
+                return false;
+            }
         }
         if (snapshot.CacheHitRateBasisPoints > 10_000)
         {

@@ -1065,6 +1065,17 @@ public sealed class WorkerRunProgressEventArgs : EventArgs
     public string? CurrentPath { get; init; }
 
     public string? Message { get; init; }
+
+    public WorkerFolderAnalysisProgress? FolderAnalysis { get; init; }
+}
+
+public sealed class WorkerFolderAnalysisProgress
+{
+    public required string Substage { get; init; }
+
+    public required ulong Completed { get; init; }
+
+    public required ulong Total { get; init; }
 }
 
 public sealed class WorkerScanProgressSnapshot

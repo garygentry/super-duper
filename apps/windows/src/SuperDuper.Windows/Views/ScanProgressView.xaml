@@ -237,6 +237,11 @@
                 <StackPanel Grid.Row="6" Margin="0,16,0,0">
                     <TextBlock FontWeight="SemiBold" Text="Current activity" />
                     <TextBlock Margin="0,7,0,0" TextWrapping="Wrap"
+                               automation:AutomationProperties.AutomationId="ScanFolderAnalysisProgress"
+                               automation:AutomationProperties.Name="{Binding FolderAnalysisProgress, StringFormat='Folder analysis: {0}'}"
+                               Text="{Binding FolderAnalysisProgress}"
+                               Visibility="{Binding IsFolderAnalysis, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <TextBlock Margin="0,7,0,0" TextWrapping="Wrap"
                                automation:AutomationProperties.AutomationId="ScanCurrentActivity"
                                automation:AutomationProperties.Name="{Binding Message, StringFormat='Current scan activity: {0}'}"
                                Text="{Binding Message}" />

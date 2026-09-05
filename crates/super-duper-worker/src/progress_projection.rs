@@ -11,6 +11,14 @@ pub(crate) struct LegacyProgressProjection {
     pub files_hashed: usize,
     pub warning_count: usize,
     pub current_path: Option<String>,
+    pub folder_analysis: Option<FolderAnalysisProgress>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct FolderAnalysisProgress {
+    pub substage: &'static str,
+    pub completed: u64,
+    pub total: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -141,6 +149,13 @@ pub(crate) fn progress_event_data(
         data["message"] = Value::String(
             "The scan encountered recoverable warnings; see local diagnostics.".to_owned(),
         );
+    }
+    if let Some(folder) = &legacy.folder_analysis {
+        data["folderAnalysis"] = json!({
+            "substage": folder.substage,
+            "completed": folder.completed,
+            "total": folder.total,
+        });
     }
     Ok(data)
 }
@@ -427,6 +442,11 @@ mod tests {
                         files_hashed: 4,
                         warning_count: 3,
                         current_path: None,
+                        folder_analysis: Some(FolderAnalysisProgress {
+                            substage: "verification",
+                            completed: 5,
+                            total: 8,
+                        }),
                     },
                 },
             },
@@ -460,5 +480,8 @@ mod tests {
             data["progress"]["activeDevices"]["reason"],
             "mapping_unavailable"
         );
+        assert_eq!(data["folderAnalysis"]["substage"], "verification");
+        assert_eq!(data["folderAnalysis"]["completed"], 5);
+        assert_eq!(data["folderAnalysis"]["total"], 8);
     }
 }

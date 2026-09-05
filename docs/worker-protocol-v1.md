@@ -435,7 +435,7 @@ The implemented lifecycle events are `run.started`, `run.progress`, `run.complet
 Progress data is:
 
 ```json
-{"runId":19,"sequence":8,"status":"running","phase":"hashing","filesDiscovered":8000,"bytesDiscovered":"45000000000","filesHashed":1200,"warningCount":3,"currentPath":"D:\\Photos\\2025\\image.jpg","progress":{"progressContractVersion":1,"metricsContractVersion":3,"revision":37,"monotonicNanos":12500000000,"phase":"candidate_screening","phaseElapsedNanos":9200000000,"counters":{"discoveredFiles":8000,"discoveredBytes":"45000000000"},"logical":{"partialScreenedFiles":1200,"partialScreenedBytes":"8900000000"},"funnel":{"discovered":{"files":8000,"logicalBytes":"45000000000"}},"partialReadRates":{"recent":{"state":"available","rate":{"filesPerSecondMillis":123400,"physicalBytesPerSecond":"810000000","windowNanos":5000000000}}},"fullReadRates":{"recent":{"state":"unavailable","reason":"no_elapsed_time"}},"cacheHitRateBasisPoints":null,"warningCount":3,"activeDevices":{"state":"unavailable","reason":"mapping_unavailable"},"remainingKnownWork":{"stage":"hash_pipeline","files":6800,"logicalBytes":"36100000000"},"eta":{"state":"unavailable","reason":"window_warming"}}}
+{"runId":19,"sequence":8,"status":"running","phase":"analyzing_folders","filesDiscovered":8000,"bytesDiscovered":"45000000000","filesHashed":1200,"warningCount":3,"folderAnalysis":{"substage":"verification","completed":500,"total":900},"progress":{"progressContractVersion":1,"metricsContractVersion":3,"revision":37,"monotonicNanos":12500000000,"phase":"analyzing_folders","phaseElapsedNanos":9200000000,"counters":{"discoveredFiles":8000,"discoveredBytes":"45000000000"},"logical":{"partialScreenedFiles":1200,"partialScreenedBytes":"8900000000"},"funnel":{"discovered":{"files":8000,"logicalBytes":"45000000000"}},"partialReadRates":{"recent":{"state":"available","rate":{"filesPerSecondMillis":123400,"physicalBytesPerSecond":"810000000","windowNanos":5000000000}}},"fullReadRates":{"recent":{"state":"unavailable","reason":"no_elapsed_time"}},"cacheHitRateBasisPoints":null,"warningCount":3,"activeDevices":{"state":"unavailable","reason":"no_active_io"},"remainingKnownWork":null,"eta":{"state":"unavailable","reason":"not_applicable"}}}
 ```
 
 - The example abbreviates the nested `counters`, `logical`, `funnel`, and rate objects. The worker
@@ -455,6 +455,11 @@ Progress data is:
   `progress.counters.discoveredFiles` includes them and pairs that total with
   `progress.counters.zeroByteFiles`.
 - `currentPath` and `message` are optional and intentionally throttled.
+- `folderAnalysis` is present only for bounded folder-analysis updates. Its closed `substage` is
+  `hierarchy`, `structural_candidates`, `verification`, or `persistence`; `completed` and `total`
+  are JSON numbers with `completed <= total`. The producer reports at substage boundaries and at
+  most once per 1,024 completed units, while the common latest-only transport retains the 10 Hz
+  frame ceiling.
 - Progress observations are reduced in the worker, so `progress` contains reducer-derived recent
   and cumulative rates, cache effectiveness, remaining work, and ETA or an explicit unavailable
   reason. Active-device state is passed through without exposing paths; the current producer uses
@@ -469,6 +474,8 @@ Progress data is:
   states, and valid cumulative/funnel invariants. It ignores additive unknown fields. After parsing,
   Core independently rejects wrong-run, duplicate/out-of-order, regressing,
   running-after-cancelling, and post-terminal frames before applying the latest accepted snapshot.
+  Folder substage frames may reuse the latest source `progress.revision`; Core accepts that only
+  when the closed substage/order and its fixed-total completed count advance monotonically.
 - The first progress frame may emit immediately. Every later ordinary frame is at least 100 ms
   after the preceding frame, which permits no more than ten frames in every half-open interval
   `[t, t + 1 second)`. Updates are latest-wins. A phase change replaces pending state and is emitted

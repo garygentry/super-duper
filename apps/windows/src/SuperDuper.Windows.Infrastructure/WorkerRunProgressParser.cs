@@ -135,6 +135,12 @@ internal static class WorkerRunProgressParser
         RequireString(data, "status", "phase", "bytesDiscovered");
         OptionalKind(data, "currentPath", JsonValueKind.String);
         OptionalKind(data, "message", JsonValueKind.String);
+        if (data.TryGetProperty("folderAnalysis", out var folderAnalysis))
+        {
+            RequireKind(folderAnalysis, JsonValueKind.Object, "folderAnalysis");
+            RequireString(folderAnalysis, "substage");
+            RequireNumber(folderAnalysis, "completed", "total");
+        }
 
         var snapshot = RequireObject(data, "progress");
         RequireNumber(

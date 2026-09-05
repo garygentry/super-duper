@@ -1,3 +1,22 @@
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FolderAnalysisSubstage {
+    Hierarchy,
+    StructuralCandidates,
+    Verification,
+    Persistence,
+}
+
+impl FolderAnalysisSubstage {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Hierarchy => "hierarchy",
+            Self::StructuralCandidates => "structural_candidates",
+            Self::Verification => "verification",
+            Self::Persistence => "persistence",
+        }
+    }
+}
+
 /// Trait for reporting scan progress.
 ///
 /// CLI implements with tracing/indicatif, FFI implements with C function pointer callbacks.
@@ -36,6 +55,13 @@ pub trait ProgressReporter: Send + Sync {
     fn on_db_write_complete(&self, _rows: usize, _duration_secs: f64) {}
     fn on_dir_analysis_start(&self) {}
     fn on_dir_analysis_progress(&self, _completed: usize, _total: usize) {}
+    fn on_dir_analysis_substage(
+        &self,
+        _substage: FolderAnalysisSubstage,
+        _completed: usize,
+        _total: usize,
+    ) {
+    }
     fn on_dir_analysis_complete(
         &self,
         _fingerprints: usize,

@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
+use std::sync::Mutex;
 use super_duper_core::analysis::exact_folders;
+use super_duper_core::progress::{FolderAnalysisSubstage, ProgressReporter};
 use super_duper_core::storage::models::{
     DuplicateFolderGroupFilter, DuplicateFolderGroupPageQuery, DuplicateFolderGroupSortField,
     RunParameters, ScannedFile, SortDirection,
@@ -109,6 +111,68 @@ fn streaming_tree_is_single_pass_bottom_up_and_batched() {
     assert_eq!(result.largest_persistence_batch, 1_024);
     assert_eq!(result.directory_fingerprints as i64, node_count);
     assert_eq!(page(&db, run).total, 2);
+}
+
+#[derive(Default)]
+struct FolderProgressRecorder {
+    updates: Mutex<Vec<(FolderAnalysisSubstage, usize, usize)>>,
+}
+
+impl ProgressReporter for FolderProgressRecorder {
+    fn on_dir_analysis_substage(
+        &self,
+        substage: FolderAnalysisSubstage,
+        completed: usize,
+        total: usize,
+    ) {
+        self.updates
+            .lock()
+            .unwrap()
+            .push((substage, completed, total));
+    }
+}
+
+#[test]
+fn folder_substage_progress_is_ordered_monotonic_complete_and_bounded() {
+    let temp = TempDir::new().unwrap();
+    let db = Database::open_in_memory().unwrap();
+    let run = create_run(&db, temp.path(), "folder-progress");
+    db.insert_scanned_files(&[
+        file(run, temp.path(), "left/nested/item.bin", 2, 9),
+        file(run, temp.path(), "right/nested/item.bin", 2, 9),
+    ])
+    .unwrap();
+    let progress = FolderProgressRecorder::default();
+
+    exact_folders::analyze_exact_folders_cancellable(
+        &db,
+        run,
+        &AtomicBool::new(false),
+        &progress,
+    )
+    .unwrap();
+
+    let updates = progress.updates.into_inner().unwrap();
+    assert!(updates.len() <= 16);
+    assert!(updates
+        .windows(2)
+        .all(|pair| pair[0].0 <= pair[1].0
+            && (pair[0].0 != pair[1].0
+                || (pair[0].2 == pair[1].2 && pair[0].1 <= pair[1].1))));
+    for substage in [
+        FolderAnalysisSubstage::Hierarchy,
+        FolderAnalysisSubstage::StructuralCandidates,
+        FolderAnalysisSubstage::Verification,
+        FolderAnalysisSubstage::Persistence,
+    ] {
+        let stage = updates
+            .iter()
+            .filter(|update| update.0 == substage)
+            .collect::<Vec<_>>();
+        assert_eq!(stage.first().unwrap().1, 0);
+        assert_eq!(stage.last().unwrap().1, stage.last().unwrap().2);
+        assert!(stage.iter().all(|update| update.1 <= update.2));
+    }
 }
 
 fn page(db: &Database, run_id: i64) -> super_duper_core::storage::models::DuplicateFolderGroupPage {

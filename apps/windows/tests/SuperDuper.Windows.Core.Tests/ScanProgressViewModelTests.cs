@@ -145,6 +145,51 @@ public sealed class ScanProgressViewModelTests
     }
 
     [TestMethod]
+    public void FolderAnalysisProgress_AllowsSameSnapshotRevisionOnlyForMonotonicSubstages()
+    {
+        var client = new TestWorkerClient();
+        var run = client.AddRun(1, "running", "analyzing_folders");
+        using var viewModel = new ScanProgressViewModel(client, new ImmediateDispatcher());
+        viewModel.ShowRun(run);
+        var hierarchy = new WorkerFolderAnalysisProgress
+        {
+            Substage = "hierarchy",
+            Completed = 1,
+            Total = 10,
+        };
+        Assert.IsTrue(viewModel.ApplyProgress(ProgressTestData.Hashing(
+            run.Id,
+            sequence: 1,
+            revision: 7,
+            legacyPhase: "analyzing_folders",
+            typedPhase: "analyzing_folders",
+            folderAnalysis: hierarchy)));
+        Assert.AreEqual("Building hierarchy: 1 of 10", viewModel.FolderAnalysisProgress);
+        Assert.IsTrue(viewModel.IsFolderAnalysis);
+
+        Assert.IsTrue(viewModel.ApplyProgress(ProgressTestData.Hashing(
+            run.Id,
+            sequence: 2,
+            revision: 7,
+            legacyPhase: "analyzing_folders",
+            typedPhase: "analyzing_folders",
+            folderAnalysis: new WorkerFolderAnalysisProgress
+            {
+                Substage = "verification",
+                Completed = 3,
+                Total = 6,
+            })));
+        Assert.AreEqual("Verifying exact content: 3 of 6", viewModel.FolderAnalysisProgress);
+        Assert.IsFalse(viewModel.ApplyProgress(ProgressTestData.Hashing(
+            run.Id,
+            sequence: 3,
+            revision: 7,
+            legacyPhase: "analyzing_folders",
+            typedPhase: "analyzing_folders",
+            folderAnalysis: hierarchy)));
+    }
+
+    [TestMethod]
     public void AcceptedProgress_CoalescesAnnouncementsAndRejectedProgressStaysSilent()
     {
         var client = new TestWorkerClient();

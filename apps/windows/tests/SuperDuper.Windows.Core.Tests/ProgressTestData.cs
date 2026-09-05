@@ -68,7 +68,10 @@ internal static class ProgressTestData
         long runId = 1,
         ulong sequence = 1,
         ulong revision = 1,
-        string status = "running")
+        string status = "running",
+        string legacyPhase = "hashing",
+        string typedPhase = "candidate_screening",
+        WorkerFolderAnalysisProgress? folderAnalysis = null)
     {
         var counters = EmptyCounters() with
         {
@@ -118,19 +121,20 @@ internal static class ProgressTestData
             RunId = runId,
             Sequence = sequence,
             Status = status,
-            Phase = "hashing",
+            Phase = legacyPhase,
             FilesDiscovered = 10,
             BytesDiscovered = "10000",
             FilesHashed = 4,
             WarningCount = 0,
             CurrentPath = @"C:\Data\candidate.bin",
+            FolderAnalysis = folderAnalysis,
             Progress = new WorkerScanProgressSnapshot
             {
                 ProgressContractVersion = WorkerProgressContract.ProgressContractVersion,
                 MetricsContractVersion = WorkerProgressContract.MetricsContractVersion,
                 Revision = revision,
                 MonotonicNanos = 12_000_000_000,
-                Phase = "candidate_screening",
+                Phase = typedPhase,
                 PhaseElapsedNanos = 10_000_000_000,
                 Counters = counters,
                 Logical = logical,

@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
-use super_duper_core::progress::ProgressReporter;
+use super_duper_core::progress::{FolderAnalysisSubstage, ProgressReporter};
 use super_duper_core::storage::live_hints::ReviewLiveHintError;
 use super_duper_core::storage::live_validation::ReviewLiveValidationError;
 use super_duper_core::storage::models::{
@@ -42,14 +42,15 @@ use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::root_reconciliation::ReviewLiveRootError;
 use super_duper_core::storage::Database;
 use super_duper_core::telemetry::{
-    ProgressObservation, ProgressReducer, StatusDatabase, TelemetryPhase,
+    ProgressObservation, ProgressReducer, ScanProgressSnapshot, StatusDatabase, TelemetryPhase,
 };
 use super_duper_core::{AppConfig, ScanEngine};
 
 mod progress_projection;
 
 use progress_projection::{
-    progress_event_data, LatestValueCoalescer, LegacyProgressProjection, PendingProgress,
+    progress_event_data, FolderAnalysisProgress, LatestValueCoalescer, LegacyProgressProjection,
+    PendingProgress,
 };
 
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -4184,6 +4185,8 @@ struct ProgressState {
     phase_warning_base: usize,
     current_path: Option<String>,
     last_database_write: Option<Instant>,
+    latest_snapshot: Option<ScanProgressSnapshot>,
+    folder_analysis: Option<FolderAnalysisProgress>,
 }
 
 impl WorkerProgressReporter {
@@ -4221,6 +4224,8 @@ impl WorkerProgressReporter {
                 phase_warning_base: 0,
                 current_path: None,
                 last_database_write: None,
+                latest_snapshot: None,
+                folder_analysis: None,
             }),
             reducer: Mutex::new(ProgressReducer::new()),
             projection,
@@ -4254,6 +4259,9 @@ impl WorkerProgressReporter {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         if let Some(phase) = phase {
             progress.phase = phase;
+            if phase != "analyzing_folders" {
+                progress.folder_analysis = None;
+            }
         }
         if let Some(path) = current_path.filter(|path| !path.is_empty()) {
             progress.current_path = Some(path.to_owned());
@@ -4428,6 +4436,7 @@ impl ProgressReporter for WorkerProgressReporter {
                 .files_hashed
                 .max(snapshot.counters.partial_hashes_succeeded as usize);
             progress.warning_count = progress.warning_count.max(snapshot.warning_count as usize);
+            progress.latest_snapshot = Some(snapshot.clone());
             (
                 LegacyProgressProjection {
                     phase: progress.phase,
@@ -4436,6 +4445,7 @@ impl ProgressReporter for WorkerProgressReporter {
                     files_hashed: progress.files_hashed,
                     warning_count: progress.warning_count,
                     current_path: progress.current_path.clone(),
+                    folder_analysis: progress.folder_analysis.clone(),
                 },
                 progress.warning_count > progress.durable_warning_count,
             )
@@ -4525,6 +4535,49 @@ impl ProgressReporter for WorkerProgressReporter {
 
     fn on_dir_analysis_progress(&self, _completed: usize, _total: usize) {
         self.update(None, None, false);
+    }
+
+    fn on_dir_analysis_substage(
+        &self,
+        substage: FolderAnalysisSubstage,
+        completed: usize,
+        total: usize,
+    ) {
+        let pending = {
+            let mut progress = self
+                .progress
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            progress.folder_analysis = Some(FolderAnalysisProgress {
+                substage: substage.as_str(),
+                completed: completed as u64,
+                total: total as u64,
+            });
+            progress
+                .latest_snapshot
+                .clone()
+                .map(|snapshot| PendingProgress {
+                    snapshot,
+                    legacy: LegacyProgressProjection {
+                        phase: progress.phase,
+                        files_discovered: progress.files_discovered,
+                        bytes_discovered: progress.bytes_discovered,
+                        files_hashed: progress.files_hashed,
+                        warning_count: progress.warning_count,
+                        current_path: progress.current_path.clone(),
+                        folder_analysis: progress.folder_analysis.clone(),
+                    },
+                })
+        };
+        self.update(None, None, false);
+        if let Some(pending) = pending {
+            let (projection, wake) = &*self.projection;
+            projection
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .submit(pending, self.cancel_token.load(Ordering::Acquire));
+            wake.notify_one();
+        }
     }
 
     fn on_dir_analysis_complete(
@@ -10423,6 +10476,58 @@ mod tests {
         reporter.finish_progress();
         reporter.on_progress_observation(&observation(3, 4, 1, u64::MAX));
         assert!(receiver.recv_timeout(Duration::from_millis(150)).is_err());
+    }
+
+    #[test]
+    fn folder_substage_updates_are_latest_only_bounded_and_keep_source_revision() {
+        use super_duper_core::telemetry::{
+            ActiveDeviceProgress, ActiveDeviceUnavailableReason, ProgressLogicalCounters,
+            ProgressObservation, ScanCounters, METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION,
+        };
+
+        let temp = TempDir::new().unwrap();
+        let db_path = temp.path().join("worker.db");
+        let (sender, receiver) = mpsc::channel();
+        let state = SharedState::new(WorkerOptions::new(&db_path), sender).unwrap();
+        let reporter = WorkerProgressReporter::new(state, 41, Arc::new(AtomicBool::new(false)));
+        reporter.on_progress_observation(&ProgressObservation {
+            progress_contract_version: PROGRESS_CONTRACT_VERSION,
+            metrics_contract_version: METRICS_CONTRACT_VERSION,
+            monotonic_nanos: 1,
+            phase: TelemetryPhase::AnalyzingFolders,
+            phase_started_monotonic_nanos: 0,
+            candidate_totals_known: true,
+            final_results_complete: false,
+            counters: ScanCounters::default(),
+            logical: ProgressLogicalCounters::default(),
+            active_devices: ActiveDeviceProgress::Unavailable {
+                reason: ActiveDeviceUnavailableReason::NoActiveIo,
+            },
+        });
+        let first: Value = serde_json::from_str(
+            &receiver
+                .recv_timeout(Duration::from_millis(500))
+                .expect("initial folder-analysis frame"),
+        )
+        .unwrap();
+        let source_revision = first["data"]["progress"]["revision"].clone();
+
+        reporter.on_dir_analysis_substage(FolderAnalysisSubstage::Hierarchy, 0, 10);
+        reporter.on_dir_analysis_substage(FolderAnalysisSubstage::Hierarchy, 5, 10);
+        reporter.on_dir_analysis_substage(FolderAnalysisSubstage::Verification, 3, 6);
+        let latest: Value = serde_json::from_str(
+            &receiver
+                .recv_timeout(Duration::from_millis(500))
+                .expect("coalesced folder-analysis frame"),
+        )
+        .unwrap();
+        assert_eq!(latest["data"]["sequence"], 2);
+        assert_eq!(latest["data"]["progress"]["revision"], source_revision);
+        assert_eq!(latest["data"]["folderAnalysis"]["substage"], "verification");
+        assert_eq!(latest["data"]["folderAnalysis"]["completed"], 3);
+        assert_eq!(latest["data"]["folderAnalysis"]["total"], 6);
+        assert!(receiver.recv_timeout(Duration::from_millis(150)).is_err());
+        reporter.finish_progress();
     }
 
     #[test]

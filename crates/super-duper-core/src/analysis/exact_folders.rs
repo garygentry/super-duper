@@ -1,5 +1,5 @@
 use crate::hasher::cache;
-use crate::progress::ProgressReporter;
+use crate::progress::{FolderAnalysisSubstage, ProgressReporter};
 use crate::storage::models::{ExactFolderGroupInsert, ScannedFile};
 use crate::storage::Database;
 use rusqlite::params;
@@ -12,6 +12,7 @@ use std::time::UNIX_EPOCH;
 use twox_hash::XxHash64;
 
 const PERSIST_BATCH_SIZE: usize = 1_024;
+const PROGRESS_BATCH_SIZE: usize = 1_024;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct ExactFolderAnalysis {
@@ -92,16 +93,29 @@ pub fn analyze_exact_folders_cancellable(
     let mut directories = Vec::<DirectoryState>::new();
     let mut by_path = HashMap::<String, usize>::new();
     let mut streamed_files = 0usize;
+    report_substage(progress, FolderAnalysisSubstage::Hierarchy, 0, total_files);
     let visited = db.visit_scanned_files_ordered(run_id, |file| {
         check_cancelled(cancel_token)?;
         add_file_to_tree(&mut directories, &mut by_path, file);
         streamed_files += 1;
-        progress.on_dir_analysis_progress(streamed_files, total_files);
+        report_substage_batched(
+            progress,
+            FolderAnalysisSubstage::Hierarchy,
+            streamed_files,
+            total_files,
+        );
         Ok(())
     })?;
+    debug_assert_eq!(visited, streamed_files);
 
     let mut structural_classes = BTreeMap::<Vec<StructuralAtom>, u64>::new();
     let mut next_structural_class = 1u64;
+    report_substage(
+        progress,
+        FolderAnalysisSubstage::StructuralCandidates,
+        0,
+        directories.len(),
+    );
     for index in (0..directories.len()).rev() {
         check_cancelled(cancel_token)?;
         directories[index]
@@ -143,6 +157,12 @@ pub fn analyze_exact_folders_cancellable(
         });
         directories[index].structural_class = class;
         directories[index].structural_fingerprint = fingerprint_structure(&key);
+        report_substage_batched(
+            progress,
+            FolderAnalysisSubstage::StructuralCandidates,
+            directories.len() - index,
+            directories.len(),
+        );
     }
 
     let mut structural_counts = HashMap::<u64, usize>::new();
@@ -157,6 +177,23 @@ pub fn analyze_exact_folders_cancellable(
     let mut verified_classes = BTreeMap::<(u64, Vec<VerifiedAtom>), u64>::new();
     let mut next_verified_class = 1u64;
     let mut warning_count = 0usize;
+    let verification_total = directories
+        .iter()
+        .filter(|directory| {
+            structural_counts
+                .get(&directory.structural_class)
+                .copied()
+                .unwrap_or_default()
+                >= 2
+        })
+        .count();
+    let mut verification_completed = 0usize;
+    report_substage(
+        progress,
+        FolderAnalysisSubstage::Verification,
+        0,
+        verification_total,
+    );
     for index in (0..directories.len()).rev() {
         check_cancelled(cancel_token)?;
         if structural_counts
@@ -213,9 +250,12 @@ pub fn analyze_exact_folders_cancellable(
             directories[index].verified_class = Some(class);
             directories[index].verified_fingerprint = Some(fingerprint_verified(&key));
         }
-        progress.on_dir_analysis_progress(
-            visited + directories.len() - index,
-            visited + directories.len(),
+        verification_completed += 1;
+        report_substage_batched(
+            progress,
+            FolderAnalysisSubstage::Verification,
+            verification_completed,
+            verification_total,
         );
     }
 
@@ -258,8 +298,25 @@ pub fn analyze_exact_folders_cancellable(
             })
     });
 
-    persist_directory_nodes(db, run_id, &mut directories, cancel_token)?;
-    persist_directory_fingerprints(db, &directories, cancel_token)?;
+    let persistence_total = directories
+        .len()
+        .saturating_mul(2)
+        .saturating_add(groups.len());
+    report_substage(
+        progress,
+        FolderAnalysisSubstage::Persistence,
+        0,
+        persistence_total,
+    );
+    persist_directory_nodes(
+        db,
+        run_id,
+        &mut directories,
+        cancel_token,
+        progress,
+        persistence_total,
+    )?;
+    persist_directory_fingerprints(db, &directories, cancel_token, progress, persistence_total)?;
     let inserts = groups
         .iter()
         .map(|group| ExactFolderGroupInsert {
@@ -280,6 +337,12 @@ pub fn analyze_exact_folders_cancellable(
         })
         .collect::<Vec<_>>();
     let visible_groups = db.replace_exact_folder_groups(run_id, &inserts, cancel_token)?;
+    report_substage(
+        progress,
+        FolderAnalysisSubstage::Persistence,
+        persistence_total,
+        persistence_total,
+    );
     Ok(ExactFolderAnalysis {
         visible_groups,
         retained_groups: inserts.len(),
@@ -403,6 +466,8 @@ fn persist_directory_nodes(
     run_id: i64,
     directories: &mut [DirectoryState],
     cancel_token: &AtomicBool,
+    progress: &dyn ProgressReporter,
+    progress_total: usize,
 ) -> Result<(), crate::Error> {
     db.connection().execute(
         "DELETE FROM directory_node WHERE run_id = ?1",
@@ -436,6 +501,12 @@ fn persist_directory_nodes(
             }
         }
         tx.commit()?;
+        report_substage(
+            progress,
+            FolderAnalysisSubstage::Persistence,
+            end,
+            progress_total,
+        );
     }
     Ok(())
 }
@@ -444,8 +515,10 @@ fn persist_directory_fingerprints(
     db: &Database,
     directories: &[DirectoryState],
     cancel_token: &AtomicBool,
+    progress: &dyn ProgressReporter,
+    progress_total: usize,
 ) -> Result<(), crate::Error> {
-    for chunk in directories.chunks(PERSIST_BATCH_SIZE) {
+    for (chunk_index, chunk) in directories.chunks(PERSIST_BATCH_SIZE).enumerate() {
         check_cancelled(cancel_token)?;
         let tx = db.connection().unchecked_transaction()?;
         {
@@ -463,8 +536,37 @@ fn persist_directory_fingerprints(
             }
         }
         tx.commit()?;
+        report_substage(
+            progress,
+            FolderAnalysisSubstage::Persistence,
+            directories
+                .len()
+                .saturating_add(((chunk_index + 1) * PERSIST_BATCH_SIZE).min(directories.len())),
+            progress_total,
+        );
     }
     Ok(())
+}
+
+fn report_substage_batched(
+    progress: &dyn ProgressReporter,
+    substage: FolderAnalysisSubstage,
+    completed: usize,
+    total: usize,
+) {
+    if completed == total || completed % PROGRESS_BATCH_SIZE == 0 {
+        report_substage(progress, substage, completed, total);
+    }
+}
+
+fn report_substage(
+    progress: &dyn ProgressReporter,
+    substage: FolderAnalysisSubstage,
+    completed: usize,
+    total: usize,
+) {
+    progress.on_dir_analysis_substage(substage, completed, total);
+    progress.on_dir_analysis_progress(completed, total);
 }
 
 fn fingerprint_structure(values: &[StructuralAtom]) -> String {

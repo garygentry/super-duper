@@ -83,6 +83,25 @@ public sealed class WorkerRunProgressParserTests
     }
 
     [TestMethod]
+    public void FolderAnalysisSubstageBindsAndInvalidShapesFailClosed()
+    {
+        var json = ValidData
+            .Replace("\"phase\":\"discovering\"", "\"phase\":\"analyzing_folders\"")
+            .Replace(
+                "\"filesDiscovered\":1",
+                "\"folderAnalysis\":{\"substage\":\"verification\",\"completed\":5,\"total\":8},\"filesDiscovered\":1");
+
+        var parsed = Parse(json);
+
+        Assert.AreEqual("verification", parsed.FolderAnalysis?.Substage);
+        Assert.AreEqual(5UL, parsed.FolderAnalysis?.Completed);
+        Assert.ThrowsException<WorkerProtocolException>(() => Parse(
+            json.Replace("\"completed\":5", "\"completed\":9")));
+        Assert.ThrowsException<WorkerProtocolException>(() => Parse(
+            json.Replace("\"verification\"", "\"invented\"")));
+    }
+
+    [TestMethod]
     public void FunnelWarningLegacyAndTaggedVariantMismatchesFailClosed()
     {
         string[] invalid =

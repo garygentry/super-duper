@@ -1150,6 +1150,9 @@ public sealed class WpfSurfaceSmokeTests
             FindByAutomationId<TextBlock>(progress, "ScanEstimatedTimeRemaining").Text);
         Assert.AreEqual(data.HashPipelineCandidateContext,
             FindByAutomationId<TextBlock>(progress, "ScanCandidateContext").Text);
+        var folderProgress = FindByAutomationId<TextBlock>(progress, "ScanFolderAnalysisProgress");
+        Assert.AreEqual(data.FolderAnalysisProgress, folderProgress.Text);
+        StringAssert.Contains(AutomationProperties.GetName(folderProgress), "Folder analysis");
         Assert.AreEqual(
             SystemColors.ControlTextBrush,
             FindByAutomationId<Border>(progress, "ScanProgressError").BorderBrush);
@@ -1567,7 +1570,11 @@ public sealed class WpfSurfaceSmokeTests
 
         public string Status => "Running";
 
-        public string Phase => "Hashing";
+        public string Phase => "Analyzing folders";
+
+        public bool IsFolderAnalysis => true;
+
+        public string FolderAnalysisProgress => "Verifying exact content: 5 of 8";
 
         public string CancelButtonText => "_Cancel scan";
 

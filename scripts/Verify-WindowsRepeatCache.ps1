@@ -15,6 +15,10 @@ $workerSource = Join-Path $repo 'crates/super-duper-worker/src/lib.rs'
 $setupSource = Join-Path $repo 'apps/windows/src/SuperDuper.Windows.Core/ViewModels/SessionSetupViewModel.cs'
 $setupView = Join-Path $repo 'apps/windows/src/SuperDuper.Windows/Views/SessionSetupView.xaml'
 $operationViewModel = Join-Path $repo 'apps/windows/src/SuperDuper.Windows.Core/ViewModels/RecycleOperationViewModel.cs'
+$scanProgressViewModel = Join-Path $repo 'apps/windows/src/SuperDuper.Windows.Core/ViewModels/ScanProgressViewModel.cs'
+$scanProgressView = Join-Path $repo 'apps/windows/src/SuperDuper.Windows/Views/ScanProgressView.xaml'
+$exactFolderSource = Join-Path $repo 'crates/super-duper-core/src/analysis/exact_folders.rs'
+$protocolDocument = Join-Path $repo 'docs/worker-protocol-v1.md'
 $compositionRoot = Join-Path $repo 'apps/windows/src/SuperDuper.Windows/App.xaml.cs'
 $sop7Verifier = Join-Path $PSScriptRoot 'Verify-WindowsHashReadPath.ps1'
 
@@ -107,6 +111,14 @@ try {
         'The Setup default is no longer verified reuse.'
     Assert-Contains $setupView 'AutomationProperties.AutomationId="RepeatCachePolicy"' `
         'The accessible repeat-cache choice is missing.'
+    Assert-Contains $exactFolderSource 'FolderAnalysisSubstage::StructuralCandidates' `
+        'Bounded structural-candidate folder progress is missing.'
+    Assert-Contains $scanProgressViewModel 'FolderProgressAdvances' `
+        'Core no longer rejects regressing folder-analysis progress.'
+    Assert-Contains $scanProgressView 'AutomationProperties.AutomationId="ScanFolderAnalysisProgress"' `
+        'The accessible folder-analysis progress surface is missing.'
+    Assert-Contains $protocolDocument '`hierarchy`, `structural_candidates`, `verification`, or `persistence`' `
+        'The closed folder-analysis progress protocol is undocumented.'
     Assert-Contains $operationViewModel 'public bool CanSubmit => false;' `
         'RecycleOperationViewModel.CanSubmit is no longer locked false.'
     Assert-Contains $compositionRoot `
@@ -123,12 +135,18 @@ try {
         'Qualified partial/full reuse and invalidation failed.'
     Invoke-Checked { cargo test -p super-duper-core --lib mutation_between_partial_and_full_never_stores_a_stale_partial_hash } `
         'Between-stage mutation protection failed.'
+    Invoke-Checked { cargo test -p super-duper-core --test exact_folder_tests folder_substage_progress_is_ordered_monotonic_complete_and_bounded -- --exact } `
+        'Bounded folder-analysis substage progress failed.'
     Invoke-Checked { cargo test -p super-duper-core --test storage_tests repeat_cache_policy_is_immutable_and_legacy_snapshots_reconstruct_as_forced -- --exact } `
         'Immutable/legacy run policy reconstruction failed.'
     Invoke-Checked { cargo test -p super-duper-worker tests::run_start_defaults_reuse_rejects_unknown_policy_and_reconstructs_exact_alternate -- --exact } `
         'Worker repeat-policy start validation failed.'
-    Invoke-Checked { dotnet test apps/windows/tests/SuperDuper.Windows.Core.Tests/SuperDuper.Windows.Core.Tests.csproj --filter 'FullyQualifiedName~SessionSetupViewModelTests|FullyQualifiedName~ShellSessionWorkflowTests' } `
+    Invoke-Checked { cargo test -p super-duper-worker tests::folder_substage_updates_are_latest_only_bounded_and_keep_source_revision -- --exact } `
+        'Worker folder-analysis latest-only projection failed.'
+    Invoke-Checked { dotnet test apps/windows/tests/SuperDuper.Windows.Core.Tests/SuperDuper.Windows.Core.Tests.csproj --filter 'FullyQualifiedName~SessionSetupViewModelTests|FullyQualifiedName~ShellSessionWorkflowTests|FullyQualifiedName~ScanProgressViewModelTests' } `
         'Core selected-default, generation, or history tests failed.'
+    Invoke-Checked { dotnet test apps/windows/tests/SuperDuper.Windows.Infrastructure.Tests/SuperDuper.Windows.Infrastructure.Tests.csproj --filter 'FullyQualifiedName~WorkerRunProgressParserTests' } `
+        'Infrastructure folder-analysis progress parsing failed.'
     Invoke-Checked { dotnet test apps/windows/tests/SuperDuper.Windows.Smoke.Tests/SuperDuper.Windows.Smoke.Tests.csproj --filter 'FullyQualifiedName~ResultsSurfaces_LoadOnStaWithSystemThemeVirtualizationAndAutomationIds' } `
         'Loaded-STA accessibility/system-theme test failed.'
 
