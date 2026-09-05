@@ -19,14 +19,15 @@ accepted audits, manufacture narrower gaps, or substitute work from the parked s
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept `SOP10e-repeat-policy-and-folder-progress` with unchanged closed
-  default/override policy, four bounded folder-analysis substages, latest-only transport, defensive
-  Core monotonicity, and accessible WPF status
+- Latest completed slice: retain the first SOP10f scale attempt as `invalid_harness_failure` after
+  its post-analysis evidence query referenced a nonexistent legacy similarity column; pin its
+  journal/summary and repair only that query for a separately versioned v2
 - Worktree at the start of this plan activation: `README.md` already modified by the operator at
   `768b3bf`; the unrelated change remains untouched
 - Active stream and plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP10-large-folder-analysis-remediation`; SOP10a through SOP10e are accepted
-- Next package: `SOP10f-release-scale-acceptance`
+- Next package: complete `SOP10f-release-scale-acceptance` with exactly one v2 synthetic attempt,
+  then full matrices and fixed Release packaging
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first
   observed WPF PID 20404 and worker PID 16496 responsive during the operator's multi-day scan. A
@@ -468,8 +469,9 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Execute `SOP10f-release-scale-acceptance` from the active scan plan. Retain its first deterministic
-scale result and complete the fixed Release build plus checklist while verification remains sound. Preserve the
+Execute only the separately versioned SOP10f v2 attempt after the committed query-only repair. V1 is
+consumed and retained invalid; do not reuse it. Then complete the fixed Release build plus checklist
+while verification remains sound. Preserve the
 approved exact-only folder result, qualified-cache default/override, cache generation/capacity
 bounds, deterministic scale thresholds, and all correctness/safety locks. Use small deterministic
 fixtures while iterating and stop at a verified fixed Release build plus operator rerun checklist.
@@ -560,6 +562,14 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+SOP10f v1 at `f2303c0` is retained `invalid_harness_failure`. Its immutable journal records the
+fixed 3,550,000-file/633,000-directory declaration, a 1,361,498,112-byte generated database, and
+`analysis_started`; after analysis returned, the evidence finalizer queried nonexistent legacy
+`directory_similarity.dir1_id` and the test ended at 69.97 seconds before serializing analysis,
+resource, threshold, or exact-result truth. The retained summary does not reinterpret missing
+evidence. The only repair changes that query to the schema-v14 run-owned `run_id` column. The v1
+identity cannot be reused; exactly one separately versioned v2 synthetic attempt is next.
 
 Accepted `SOP10e-repeat-policy-and-folder-progress` preserves `reuse_verified` as the closed default,
 `revalidate_content` as the immutable override, qualified unchanged-file partial/full hits, and
@@ -1162,6 +1172,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-09-05 | this session | Retain SOP10f v1 invalid after its post-analysis finalizer queried nonexistent `directory_similarity.dir1_id`; pin its 3.55M/633K declaration, 1.361 GB generated-database fact, journal hash, missing-result truth, and same-identity refusal. Repair only the query to use schema-v14 `run_id`. | Run exactly one separately versioned v2 synthetic scale identity, then complete full matrices and fixed Release packaging if it qualifies. Physical scans remain separately authorized. |
 | 2026-09-05 | this session | Accept SOP10e: preserve the closed repeat-policy default/override/history while publishing four 1,024-unit-batched folder substages through the 10 Hz latest-only worker path, defensive same-revision Core validation, and accessible WPF text. | Execute the first retained `SOP10f-release-scale-acceptance` result, then full matrices and fixed Release packaging; keep physical scans, consumed SOP9 identities, parked release validation, and production deletion wiring out of scope. |
 | 2026-09-05 | this session | Accept SOP10d: migrate the qualified cache to crash-recoverable schema-v3 generations, protect active scans through a 10,000,000 hard ceiling, prune completed generations to 4,500,000 with full-hash preference and bounded repair, and retain first/last hits in the first exact 1,500,002-entry Release reopen fixture. | Implement `SOP10e-repeat-policy-and-folder-progress`; keep physical scans, consumed SOP9 identities, parked release validation, and production deletion wiring out of scope. |
 | 2026-09-05 | this session | Accept coherent SOP10b/SOP10c: replace per-directory queries and per-ancestor file clones with one ordered direct-child tree, bottom-up exact structural/verified equivalence, 1,024-row persistence batches, deterministic nested suppression, and zero automatic Jaccard/new similarity rows. | Implement `SOP10d-scan-resistant-qualified-cache`; keep physical scans, consumed SOP9 identities, parked release validation, and production deletion wiring out of scope. |

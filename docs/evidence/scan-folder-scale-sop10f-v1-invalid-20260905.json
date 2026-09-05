@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "gate": "SOP10f-release-scale-acceptance",
+  "attempt": "scan-folder-scale-sop10f-v1",
+  "status": "invalid_harness_failure",
+  "buildCommit": "f2303c0ebcbf73a60aa245c98f921d04e2db3d5c",
+  "firstResultRetained": true,
+  "rerunSameIdentityAllowed": false,
+  "elapsedTestMilliseconds": 69970,
+  "retainedJournal": "scan-folder-scale-sop10f-20260905.attempt.jsonl",
+  "retainedJournalSha256": "1EFD472C94F0E2F4CCE575EB698AA2D2101AF0001945C54245974E87B786A183",
+  "retainedFacts": {
+    "scannedFileCount": 3550000,
+    "expectedDirectoryCount": 633000,
+    "databaseBytesBeforeAnalysis": 1361498112,
+    "analysisStarted": true,
+    "analysisResultAvailable": false,
+    "resourceThresholdEvaluated": false,
+    "exactResultEvaluated": false
+  },
+  "failure": {
+    "kind": "evidence_finalizer_query_defect",
+    "message": "The post-analysis evidence query referenced nonexistent legacy column directory_similarity.dir1_id; schema v14 uses run_id, dir_a_id, and dir_b_id.",
+    "sourceLineAtFailure": 351
+  },
+  "repairBoundary": "Correct only the demonstrated similarity-count query and use a separately versioned v2 write-once identity. Do not reinterpret this attempt as product or threshold evidence."
+}

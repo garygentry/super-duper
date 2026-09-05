@@ -342,9 +342,7 @@ fn directory_count(db: &Database, run_id: i64) -> usize {
 fn similarity_pair_count(db: &Database, run_id: i64) -> usize {
     db.connection()
         .query_row(
-            "SELECT COUNT(*) FROM directory_similarity similarity
-             JOIN directory_node left_node ON left_node.id = similarity.dir1_id
-             WHERE left_node.run_id = ?1",
+            "SELECT COUNT(*) FROM directory_similarity WHERE run_id = ?1",
             params![run_id],
             |row| row.get(0),
         )
