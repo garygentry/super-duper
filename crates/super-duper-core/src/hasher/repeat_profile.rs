@@ -1,5 +1,6 @@
 use super::repeat_cache::{
-    RepeatHashCache, MAXIMUM_LIVE_ENTRIES, PRUNE_TARGET_ENTRIES, STORE_SCHEMA_VERSION,
+    RepeatHashCache, ACTIVE_HARD_HIGH_WATER_ENTRIES, NORMAL_LIVE_TARGET_ENTRIES,
+    POST_PRUNE_TARGET_ENTRIES, STORE_SCHEMA_VERSION,
 };
 use super::xxhash::{
     build_content_hash_map_with_progress, HashProgressDelta, HashProgressSink, SystemHashPipelineIo,
@@ -476,8 +477,9 @@ fn sop8_repeat_cache_policy_profile() {
             },
             "store": {
                 "schemaVersion": STORE_SCHEMA_VERSION,
-                "maximumLiveEntries": MAXIMUM_LIVE_ENTRIES,
-                "pruneTargetEntries": PRUNE_TARGET_ENTRIES,
+                "normalLiveTargetEntries": NORMAL_LIVE_TARGET_ENTRIES,
+                "postPruneTargetEntries": POST_PRUNE_TARGET_ENTRIES,
+                "activeHardHighWaterEntries": ACTIVE_HARD_HIGH_WATER_ENTRIES,
                 "liveEntriesAfterArms": store_stats.live_entries,
                 "encodedKeyBytesAfterArms": store_stats.encoded_key_bytes,
                 "encodedValueBytesAfterArms": store_stats.encoded_value_bytes

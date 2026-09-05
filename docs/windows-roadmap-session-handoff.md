@@ -19,15 +19,15 @@ accepted audits, manufacture narrower gaps, or substitute work from the parked s
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: accept coherent packages `SOP10b-streaming-exact-folder-analysis` and
-  `SOP10c-exact-only-folder-product` with one ordered file stream, bottom-up exact equivalence,
-  bounded persistence, deterministic suppression, and zero automatic Jaccard work
+- Latest completed slice: accept `SOP10d-scan-resistant-qualified-cache` with crash-recoverable
+  schema-v3 generations, no active-scan churn, full-hash-first completed-generation pruning, and
+  fixed 5,000,000/4,500,000/10,000,000 bounds
 - Worktree at the start of this plan activation: `README.md` already modified by the operator at
   `768b3bf`; the unrelated change remains untouched
 - Active stream and plan: `docs/scan-optimization-plan.md`
-- Current gate: `SOP10-large-folder-analysis-remediation`; SOP10a through SOP10c are accepted
-- Next package: `SOP10d-scan-resistant-qualified-cache`, followed by repeat-policy/folder-progress
-  acceptance and synthetic Release-scale acceptance
+- Current gate: `SOP10-large-folder-analysis-remediation`; SOP10a through SOP10d are accepted
+- Next package: `SOP10e-repeat-policy-and-folder-progress`, followed by synthetic Release-scale
+  acceptance
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first
   observed WPF PID 20404 and worker PID 16496 responsive during the operator's multi-day scan. A
@@ -469,7 +469,7 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Execute `SOP10d-scan-resistant-qualified-cache` from the active scan plan, then continue through
+Execute `SOP10e-repeat-policy-and-folder-progress` from the active scan plan, then continue through
 each dependency-ready local SOP10 package while context and verification remain sound. Preserve the
 approved exact-only folder result, qualified-cache default/override, cache generation/capacity
 bounds, deterministic scale thresholds, and all correctness/safety locks. Use small deterministic
@@ -561,6 +561,19 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Accepted `SOP10d-scan-resistant-qualified-cache` advances the qualified store to schema v3 and
+migrates only already-qualified v2 signatures into completed generation zero. Each open reserves a
+crash-recoverable active generation; entries remain intact throughout the scan up to the explicit
+10,000,000 hard high-water mark, where existing hash-pipeline warning/fallback behavior continues
+content reads without weakening correctness. Clean completion and interrupted-open recovery prune
+to 4,500,000 entries in 1,024-entry batches, preferring full hashes over partial-only or corrupt
+entries, while the 5,000,000 normal target remains the scan-resistant steady-state threshold. The
+exact Release generated-store fixture retained early and late qualified hits across reopen for
+1,500,002 entries in its first 13.94-second result. Thirteen focused tests, the full Core matrix
+(165 passed, nine intentional profiles ignored), strict Core Clippy, PowerShell verifier parsing,
+and diff checks pass. The retained SOP8 evidence remains immutable; no runtime cache/database,
+physical scan, SOP9 identity, parked gate, or production deletion lock changed.
 
 Accepted `SOP10b-streaming-exact-folder-analysis` and `SOP10c-exact-only-folder-product` replace
 both post-hash amplification paths in the production engine. One stable `ORDER BY id` visitor
@@ -1137,6 +1150,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-09-05 | this session | Accept SOP10d: migrate the qualified cache to crash-recoverable schema-v3 generations, protect active scans through a 10,000,000 hard ceiling, prune completed generations to 4,500,000 with full-hash preference and bounded repair, and retain first/last hits in the first exact 1,500,002-entry Release reopen fixture. | Implement `SOP10e-repeat-policy-and-folder-progress`; keep physical scans, consumed SOP9 identities, parked release validation, and production deletion wiring out of scope. |
 | 2026-09-05 | this session | Accept coherent SOP10b/SOP10c: replace per-directory queries and per-ancestor file clones with one ordered direct-child tree, bottom-up exact structural/verified equivalence, 1,024-row persistence batches, deterministic nested suppression, and zero automatic Jaccard/new similarity rows. | Implement `SOP10d-scan-resistant-qualified-cache`; keep physical scans, consumed SOP9 identities, parked release validation, and production deletion wiring out of scope. |
 | 2026-09-04 | this session | Record the operator-confirmed cancellation/app close; accept `SOP10a-large-run-causal-baseline`; activate the exact-only, performance-first `SOP10-large-folder-analysis-remediation`; and publish finite streaming-analysis, product, cache, progress, and Release-scale packages without reopening SOP9. | Begin `SOP10b-streaming-exact-folder-analysis` and continue dependency-ready local packages. Stop at the fixed Release build/rerun checklist; obtain separate approval before any physical full-drive scan. |
 | 2026-09-04 | this session | Fix the reproduced `WPM14-state-coherence` Progress timer wrap after 24 hours by formatting cumulative hours, and retain a deterministic 49-hour Core regression while leaving the live operator scan untouched. | Keep `WPM14-state-coherence` blocked on its named end-to-end dependencies. The active release-validation boundary remains explicit authority for exactly one `WPM8-high-contrast` physical pass; the larger scan-remediation design remains separate. |

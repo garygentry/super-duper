@@ -4,17 +4,21 @@ use serde::{Deserialize, Serialize};
 use std::io::{self, ErrorKind};
 use std::path::Path;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
-pub(crate) const STORE_SCHEMA_VERSION: u32 = 2;
+pub(crate) const STORE_SCHEMA_VERSION: u32 = 3;
 const SCHEMA_KEY: &[u8] = b"\0super-duper/repeat-cache/schema";
 const COUNT_KEY: &[u8] = b"\0super-duper/repeat-cache/count";
 const NEXT_SEQUENCE_KEY: &[u8] = b"\0super-duper/repeat-cache/next-sequence";
+const ACTIVE_GENERATION_KEY: &[u8] = b"\0super-duper/repeat-cache/active-generation";
+const NEXT_GENERATION_KEY: &[u8] = b"\0super-duper/repeat-cache/next-generation";
 const ENTRY_PREFIX: &[u8] = b"\0super-duper/repeat-cache/entry/";
 const ORDER_PREFIX: &[u8] = b"\0super-duper/repeat-cache/order/";
 
-pub(crate) const MAXIMUM_LIVE_ENTRIES: u64 = 1_500_000;
-pub(crate) const PRUNE_TARGET_ENTRIES: u64 = 1_350_000;
+pub(crate) const NORMAL_LIVE_TARGET_ENTRIES: u64 = 5_000_000;
+pub(crate) const POST_PRUNE_TARGET_ENTRIES: u64 = 4_500_000;
+pub(crate) const ACTIVE_HARD_HIGH_WATER_ENTRIES: u64 = 10_000_000;
 pub(crate) const MAXIMUM_STABLE_IDENTITY_BYTES: usize = 512;
 pub(crate) const MAXIMUM_CHANGE_TOKEN_BYTES: usize = 256;
 pub(crate) const MAXIMUM_ENCODED_KEY_BYTES: usize = 1024;
@@ -222,21 +226,33 @@ pub(crate) struct RepeatCacheStats {
 struct StoredEntry {
     version: u32,
     sequence: u64,
+    generation: u64,
+    hashes: CachedContentHashes,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct StoredEntryV2 {
+    version: u32,
+    sequence: u64,
     hashes: CachedContentHashes,
 }
 
 #[derive(Debug, Clone, Copy)]
 struct StoreLimits {
-    maximum_entries: u64,
-    prune_target: u64,
+    normal_live_target: u64,
+    post_prune_target: u64,
+    active_hard_high_water: u64,
 }
 
 impl StoreLimits {
     fn validate(self) -> io::Result<Self> {
-        if self.maximum_entries == 0 || self.prune_target >= self.maximum_entries {
+        if self.post_prune_target == 0
+            || self.post_prune_target >= self.normal_live_target
+            || self.normal_live_target >= self.active_hard_high_water
+        {
             return Err(io::Error::new(
                 ErrorKind::InvalidInput,
-                "repeat-cache limits require 0 < prune target < maximum entries",
+                "repeat-cache limits require 0 < post-prune < normal target < active hard high-water",
             ));
         }
         Ok(self)
@@ -247,6 +263,8 @@ pub(crate) struct RepeatHashCache {
     db: DB,
     limits: StoreLimits,
     writes: Mutex<()>,
+    generation: u64,
+    generation_completed: AtomicBool,
 }
 
 impl RepeatHashCache {
@@ -254,8 +272,9 @@ impl RepeatHashCache {
         Self::open_with_limits(
             path,
             StoreLimits {
-                maximum_entries: MAXIMUM_LIVE_ENTRIES,
-                prune_target: PRUNE_TARGET_ENTRIES,
+                normal_live_target: NORMAL_LIVE_TARGET_ENTRIES,
+                post_prune_target: POST_PRUNE_TARGET_ENTRIES,
+                active_hard_high_water: ACTIVE_HARD_HIGH_WATER_ENTRIES,
             },
         )
     }
@@ -265,32 +284,42 @@ impl RepeatHashCache {
         let mut options = Options::default();
         options.create_if_missing(true);
         let db = DB::open(&options, path).map_err(rocks_error)?;
-        match db.get(SCHEMA_KEY).map_err(rocks_error)? {
+        let existing_version = match db.get(SCHEMA_KEY).map_err(rocks_error)? {
             Some(value) => {
                 let version = decode_u32(&value, "repeat-cache schema version")?;
-                if version != STORE_SCHEMA_VERSION {
+                if version != 2 && version != STORE_SCHEMA_VERSION {
                     return Err(io::Error::new(
                         ErrorKind::InvalidData,
                         format!(
-                            "unsupported repeat-cache schema version {version}; expected {STORE_SCHEMA_VERSION}"
+                            "unsupported repeat-cache schema version {version}; expected 2 or {STORE_SCHEMA_VERSION}"
                         ),
                     ));
                 }
+                version
             }
             None => {
                 let mut batch = WriteBatch::default();
                 batch.put(SCHEMA_KEY, STORE_SCHEMA_VERSION.to_be_bytes());
                 batch.put(COUNT_KEY, 0u64.to_be_bytes());
                 batch.put(NEXT_SEQUENCE_KEY, 1u64.to_be_bytes());
+                batch.put(NEXT_GENERATION_KEY, 1u64.to_be_bytes());
                 db.write(batch).map_err(rocks_error)?;
+                STORE_SCHEMA_VERSION
             }
+        };
+        if existing_version == 2 {
+            migrate_v2_entries(&db)?;
         }
-        let cache = Self {
+        let mut cache = Self {
             db,
             limits,
             writes: Mutex::new(()),
+            generation: 0,
+            generation_completed: AtomicBool::new(false),
         };
         cache.reconcile()?;
+        cache.recover_interrupted_generation()?;
+        cache.generation = cache.begin_generation()?;
         Ok(cache)
     }
 
@@ -338,10 +367,12 @@ impl RepeatHashCache {
             ));
         }
 
-        let mut count = self.read_count()?;
-        if count >= self.limits.maximum_entries {
-            self.prune_to_target()?;
-            count = self.read_count()?;
+        let count = self.read_count()?;
+        if count >= self.limits.active_hard_high_water {
+            return Err(io::Error::new(
+                ErrorKind::Other,
+                "repeat-cache active generation reached its hard high-water mark",
+            ));
         }
         let sequence = self.read_next_sequence()?;
         let next_sequence = sequence.checked_add(1).ok_or_else(|| {
@@ -353,6 +384,7 @@ impl RepeatHashCache {
         let value = encode_entry(StoredEntry {
             version: STORE_SCHEMA_VERSION,
             sequence,
+            generation: self.generation,
             hashes,
         })?;
         let order_key = encode_order_key(sequence, &entry_key)?;
@@ -519,9 +551,62 @@ impl RepeatHashCache {
         metadata.put(COUNT_KEY, count.to_be_bytes());
         metadata.put(NEXT_SEQUENCE_KEY, next_sequence.to_be_bytes());
         self.db.write(metadata).map_err(rocks_error)?;
-        if count > self.limits.maximum_entries {
-            self.prune_to_target()?;
+        if count > self.limits.active_hard_high_water {
+            self.prune_to_target(self.limits.post_prune_target, None)?;
         }
+        Ok(())
+    }
+
+    fn begin_generation(&self) -> io::Result<u64> {
+        let generation = self.read_next_generation().unwrap_or(1).max(1);
+        let next = generation.checked_add(1).ok_or_else(|| {
+            io::Error::new(ErrorKind::InvalidData, "repeat-cache generation exhausted")
+        })?;
+        let mut batch = WriteBatch::default();
+        batch.put(ACTIVE_GENERATION_KEY, generation.to_be_bytes());
+        batch.put(NEXT_GENERATION_KEY, next.to_be_bytes());
+        self.db.write(batch).map_err(rocks_error)?;
+        Ok(generation)
+    }
+
+    fn recover_interrupted_generation(&self) -> io::Result<()> {
+        if self
+            .db
+            .get(ACTIVE_GENERATION_KEY)
+            .map_err(rocks_error)?
+            .is_some()
+        {
+            self.db.delete(ACTIVE_GENERATION_KEY).map_err(rocks_error)?;
+        }
+        // A cleanly finished generation is already at this target. Repeating the
+        // bounded prune also closes the crash window between clearing the active
+        // marker and completing finalization without churning entries mid-scan.
+        self.prune_to_target(self.limits.post_prune_target, None)?;
+        Ok(())
+    }
+
+    pub(crate) fn finish_generation(&self) -> io::Result<()> {
+        if self.generation_completed.load(Ordering::Acquire) {
+            return Ok(());
+        }
+        let _write = self
+            .writes
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if self.generation_completed.load(Ordering::Acquire) {
+            return Ok(());
+        }
+        let active = self
+            .db
+            .get(ACTIVE_GENERATION_KEY)
+            .map_err(rocks_error)?
+            .map(|value| decode_u64(&value, "repeat-cache active generation"))
+            .transpose()?;
+        if active == Some(self.generation) {
+            self.db.delete(ACTIVE_GENERATION_KEY).map_err(rocks_error)?;
+        }
+        self.prune_to_target(self.limits.post_prune_target, None)?;
+        self.generation_completed.store(true, Ordering::Release);
         Ok(())
     }
 
@@ -556,30 +641,51 @@ impl RepeatHashCache {
         }
     }
 
-    fn prune_to_target(&self) -> io::Result<()> {
+    fn prune_to_target(&self, target: u64, protected_generation: Option<u64>) -> io::Result<()> {
         let mut count = self.read_count()?;
-        while count > self.limits.prune_target {
-            let wanted =
-                (count - self.limits.prune_target).min(PRUNE_BATCH_ENTRIES as u64) as usize;
+        while count > target {
+            let wanted = (count - target).min(PRUNE_BATCH_ENTRIES as u64) as usize;
             let mut batch = WriteBatch::default();
             let mut removed = 0usize;
-            for item in self
-                .db
-                .iterator(IteratorMode::From(ORDER_PREFIX, Direction::Forward))
-            {
-                let (order_key, _) = item.map_err(rocks_error)?;
-                if !order_key.starts_with(ORDER_PREFIX) || removed == wanted {
+            for retain_full in [true, false] {
+                for item in self
+                    .db
+                    .iterator(IteratorMode::From(ORDER_PREFIX, Direction::Forward))
+                {
+                    let (order_key, _) = item.map_err(rocks_error)?;
+                    if !order_key.starts_with(ORDER_PREFIX) || removed == wanted {
+                        break;
+                    }
+                    let entry_key = decode_order_entry_key(&order_key)?;
+                    let stored = self
+                        .db
+                        .get(entry_key)
+                        .map_err(rocks_error)?
+                        .and_then(|value| decode_entry(&value).ok());
+                    if stored
+                        .as_ref()
+                        .is_some_and(|entry| protected_generation == Some(entry.generation))
+                        || stored
+                            .as_ref()
+                            .is_some_and(|entry| entry.hashes.full_hash.is_some() == retain_full)
+                    {
+                        continue;
+                    }
+                    batch.delete(entry_key);
+                    batch.delete(order_key);
+                    removed += 1;
+                }
+                if removed == wanted {
                     break;
                 }
-                let entry_key = decode_order_entry_key(&order_key)?;
-                batch.delete(entry_key);
-                batch.delete(order_key);
-                removed += 1;
             }
             if removed == 0 {
+                if protected_generation.is_some() {
+                    return Ok(());
+                }
                 return Err(io::Error::new(
-                    ErrorKind::InvalidData,
-                    "repeat-cache order index cannot satisfy bounded pruning",
+                    ErrorKind::Other,
+                    "repeat-cache cannot prune below the active-generation protection boundary",
                 ));
             }
             count -= removed as u64;
@@ -595,6 +701,14 @@ impl RepeatHashCache {
 
     fn read_next_sequence(&self) -> io::Result<u64> {
         read_u64_key(&self.db, NEXT_SEQUENCE_KEY, "repeat-cache next sequence")
+    }
+
+    fn read_next_generation(&self) -> io::Result<u64> {
+        read_u64_key(
+            &self.db,
+            NEXT_GENERATION_KEY,
+            "repeat-cache next generation",
+        )
     }
 
     fn replace_hashes(
@@ -620,6 +734,53 @@ impl RepeatHashCache {
             .map_err(rocks_error)?;
         Ok(RepeatCacheStoreOutcome::Stored)
     }
+}
+
+impl Drop for RepeatHashCache {
+    fn drop(&mut self) {
+        if let Err(error) = self.finish_generation() {
+            tracing::warn!("Unable to finalize repeat-cache generation: {error}");
+        }
+    }
+}
+
+fn migrate_v2_entries(db: &DB) -> io::Result<()> {
+    let mut batch = WriteBatch::default();
+    let mut batch_count = 0usize;
+    for item in db.iterator(IteratorMode::From(ENTRY_PREFIX, Direction::Forward)) {
+        let (key, value) = item.map_err(rocks_error)?;
+        if !key.starts_with(ENTRY_PREFIX) {
+            break;
+        }
+        if let Ok(entry) = bincode::deserialize::<StoredEntryV2>(&value) {
+            if entry.version == 2 {
+                batch.put(
+                    key,
+                    encode_entry(StoredEntry {
+                        version: STORE_SCHEMA_VERSION,
+                        sequence: entry.sequence,
+                        generation: 0,
+                        hashes: entry.hashes,
+                    })?,
+                );
+                batch_count += 1;
+            }
+        }
+        if batch_count == PRUNE_BATCH_ENTRIES {
+            db.write(batch).map_err(rocks_error)?;
+            batch = WriteBatch::default();
+            batch_count = 0;
+        }
+    }
+    if batch_count != 0 {
+        db.write(batch).map_err(rocks_error)?;
+    }
+    let mut metadata = WriteBatch::default();
+    metadata.put(SCHEMA_KEY, STORE_SCHEMA_VERSION.to_be_bytes());
+    if db.get(NEXT_GENERATION_KEY).map_err(rocks_error)?.is_none() {
+        metadata.put(NEXT_GENERATION_KEY, 1u64.to_be_bytes());
+    }
+    db.write(metadata).map_err(rocks_error)
 }
 
 fn validate_bounded_text(value: &str, maximum: usize, field: &str) -> io::Result<()> {
@@ -1002,7 +1163,8 @@ mod tests {
         );
         drop(cache);
 
-        let options = Options::default();
+        let mut options = Options::default();
+        options.create_if_missing(true);
         let db = DB::open(&options, temp.path()).unwrap();
         db.put(SCHEMA_KEY, (STORE_SCHEMA_VERSION + 1).to_be_bytes())
             .unwrap();
@@ -1064,8 +1226,9 @@ mod tests {
         let cache = RepeatHashCache::open_with_limits(
             temp.path(),
             StoreLimits {
-                maximum_entries: 2,
-                prune_target: 1,
+                normal_live_target: 3,
+                post_prune_target: 2,
+                active_hard_high_water: 4,
             },
         )
         .unwrap();
@@ -1075,6 +1238,7 @@ mod tests {
         ));
         cache.store(&signature(1), hashes(1)).unwrap();
         cache.store(&signature(2), hashes(2)).unwrap();
+        cache.finish_generation().unwrap();
         assert_eq!(cache.lookup(&corrupt).unwrap(), RepeatCacheLookup::Miss);
         assert_eq!(
             cache.lookup(&signature(1)).unwrap(),
@@ -1097,6 +1261,7 @@ mod tests {
             let value = encode_entry(StoredEntry {
                 version: STORE_SCHEMA_VERSION,
                 sequence: 41,
+                generation: 0,
                 hashes: hashes(3),
             })
             .unwrap();
@@ -1133,31 +1298,192 @@ mod tests {
         let cache = RepeatHashCache::open_with_limits(
             temp.path(),
             StoreLimits {
-                maximum_entries: 5,
-                prune_target: 3,
+                normal_live_target: 5,
+                post_prune_target: 3,
+                active_hard_high_water: 7,
             },
         )
         .unwrap();
         for id in 0..6 {
             cache.store(&signature(id), hashes(id)).unwrap();
         }
+        cache.finish_generation().unwrap();
         let stats = cache.stats().unwrap();
-        assert_eq!(stats.live_entries, 4);
+        assert_eq!(stats.live_entries, 3);
         assert!(stats.encoded_key_bytes <= stats.live_entries * MAXIMUM_ENCODED_KEY_BYTES as u64);
         assert!(
             stats.encoded_value_bytes <= stats.live_entries * MAXIMUM_ENCODED_VALUE_BYTES as u64
         );
-        for id in 0..2 {
-            assert_eq!(
-                cache.lookup(&signature(id)).unwrap(),
+        for id in 0..6 {
+            let expected = if id % 2 == 0 {
+                RepeatCacheLookup::Hit(hashes(id))
+            } else {
                 RepeatCacheLookup::Miss
+            };
+            assert_eq!(cache.lookup(&signature(id)).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn schema_two_entries_migrate_once_as_completed_generation() {
+        let temp = TempDir::new().unwrap();
+        let key = signature(41);
+        let encoded_key = encode_entry_key(&key).unwrap();
+        let mut options = Options::default();
+        options.create_if_missing(true);
+        {
+            let db = DB::open(&options, temp.path()).unwrap();
+            db.put(SCHEMA_KEY, 2u32.to_be_bytes()).unwrap();
+            db.put(COUNT_KEY, 1u64.to_be_bytes()).unwrap();
+            db.put(NEXT_SEQUENCE_KEY, 2u64.to_be_bytes()).unwrap();
+            db.put(
+                &encoded_key,
+                bincode::serialize(&StoredEntryV2 {
+                    version: 2,
+                    sequence: 1,
+                    hashes: hashes(41),
+                })
+                .unwrap(),
+            )
+            .unwrap();
+            db.put(encode_order_key(1, &encoded_key).unwrap(), [])
+                .unwrap();
+        }
+
+        let cache = RepeatHashCache::open(temp.path()).unwrap();
+        assert_eq!(
+            cache.lookup(&key).unwrap(),
+            RepeatCacheLookup::Hit(hashes(41))
+        );
+        let stored = decode_entry(&cache.db.get(&encoded_key).unwrap().unwrap()).unwrap();
+        assert_eq!(stored.generation, 0);
+        assert_eq!(
+            decode_u32(&cache.db.get(SCHEMA_KEY).unwrap().unwrap(), "schema").unwrap(),
+            STORE_SCHEMA_VERSION
+        );
+        drop(cache);
+
+        let reopened = RepeatHashCache::open(temp.path()).unwrap();
+        assert_eq!(
+            reopened.lookup(&key).unwrap(),
+            RepeatCacheLookup::Hit(hashes(41))
+        );
+        assert_eq!(reopened.stats().unwrap().live_entries, 1);
+    }
+
+    #[test]
+    fn active_generation_is_protected_until_hard_high_water_and_full_hashes_win_pruning() {
+        let temp = TempDir::new().unwrap();
+        let limits = StoreLimits {
+            normal_live_target: 3,
+            post_prune_target: 2,
+            active_hard_high_water: 5,
+        };
+        {
+            let cache = RepeatHashCache::open_with_limits(temp.path(), limits).unwrap();
+            for id in 0..5 {
+                cache.store(&signature(id), hashes(id)).unwrap();
+            }
+            let error = cache.store(&signature(5), hashes(5)).unwrap_err();
+            assert!(error.to_string().contains("hard high-water"));
+            assert_eq!(cache.stats().unwrap().live_entries, 5);
+            cache.finish_generation().unwrap();
+            assert_eq!(cache.stats().unwrap().live_entries, 2);
+            assert_eq!(
+                cache.lookup(&signature(2)).unwrap(),
+                RepeatCacheLookup::Hit(hashes(2))
+            );
+            assert_eq!(
+                cache.lookup(&signature(4)).unwrap(),
+                RepeatCacheLookup::Hit(hashes(4))
             );
         }
-        for id in 2..6 {
+
+        let cache = RepeatHashCache::open_with_limits(temp.path(), limits).unwrap();
+        for id in 5..8 {
+            cache.store(&signature(id), hashes(id)).unwrap();
+        }
+        for id in 5..8 {
             assert_eq!(
                 cache.lookup(&signature(id)).unwrap(),
                 RepeatCacheLookup::Hit(hashes(id))
             );
         }
+        assert_eq!(
+            cache.lookup(&signature(2)).unwrap(),
+            RepeatCacheLookup::Hit(hashes(2))
+        );
+        assert_eq!(
+            cache.lookup(&signature(4)).unwrap(),
+            RepeatCacheLookup::Hit(hashes(4))
+        );
+        cache.finish_generation().unwrap();
+        assert_eq!(cache.stats().unwrap().live_entries, 2);
+        assert_eq!(
+            cache.lookup(&signature(6)).unwrap(),
+            RepeatCacheLookup::Hit(hashes(6))
+        );
+        assert_eq!(
+            cache.lookup(&signature(4)).unwrap(),
+            RepeatCacheLookup::Hit(hashes(4))
+        );
+    }
+
+    #[test]
+    #[ignore = "SOP10d generated-store scale fixture"]
+    fn generated_store_above_legacy_cap_retains_early_and_late_hits_after_reopen() {
+        const ENTRY_COUNT: usize = 1_500_002;
+
+        let temp = TempDir::new().unwrap();
+        let cache = RepeatHashCache::open(temp.path()).unwrap();
+        let mut batch = WriteBatch::default();
+        let mut batch_count = 0usize;
+        for id in 0..ENTRY_COUNT {
+            let signature = signature(id);
+            let entry_key = encode_entry_key(&signature).unwrap();
+            let sequence = id as u64 + 1;
+            batch.put(
+                &entry_key,
+                encode_entry(StoredEntry {
+                    version: STORE_SCHEMA_VERSION,
+                    sequence,
+                    generation: cache.generation,
+                    hashes: hashes(id),
+                })
+                .unwrap(),
+            );
+            batch.put(encode_order_key(sequence, &entry_key).unwrap(), []);
+            batch_count += 1;
+            if batch_count == PRUNE_BATCH_ENTRIES {
+                cache.db.write(batch).unwrap();
+                batch = WriteBatch::default();
+                batch_count = 0;
+            }
+        }
+        if batch_count != 0 {
+            cache.db.write(batch).unwrap();
+        }
+        let mut metadata = WriteBatch::default();
+        metadata.put(COUNT_KEY, (ENTRY_COUNT as u64).to_be_bytes());
+        metadata.put(NEXT_SEQUENCE_KEY, (ENTRY_COUNT as u64 + 1).to_be_bytes());
+        cache.db.write(metadata).unwrap();
+        cache.finish_generation().unwrap();
+        drop(cache);
+
+        let reopened = RepeatHashCache::open(temp.path()).unwrap();
+        assert_eq!(
+            reopened.lookup(&signature(0)).unwrap(),
+            RepeatCacheLookup::Hit(hashes(0))
+        );
+        assert_eq!(
+            reopened.lookup(&signature(ENTRY_COUNT - 1)).unwrap(),
+            RepeatCacheLookup::Hit(hashes(ENTRY_COUNT - 1))
+        );
+        let stats = reopened.stats().unwrap();
+        assert_eq!(stats.live_entries, ENTRY_COUNT as u64);
+        assert!(stats.encoded_key_bytes <= stats.live_entries * MAXIMUM_ENCODED_KEY_BYTES as u64);
+        assert!(
+            stats.encoded_value_bytes <= stats.live_entries * MAXIMUM_ENCODED_VALUE_BYTES as u64
+        );
     }
 }

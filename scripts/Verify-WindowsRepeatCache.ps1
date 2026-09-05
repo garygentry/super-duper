@@ -85,12 +85,16 @@ try {
             "Forced arm $($sample.arm) changed its process read bytes."
     }
 
-    Assert-Contains $storeSource 'pub(crate) const STORE_SCHEMA_VERSION: u32 = 2;' `
-        'The repeat-cache store schema changed.'
-    Assert-Contains $storeSource 'pub(crate) const MAXIMUM_LIVE_ENTRIES: u64 = 1_500_000;' `
-        'The repeat-cache live-entry cap changed.'
-    Assert-Contains $storeSource 'pub(crate) const PRUNE_TARGET_ENTRIES: u64 = 1_350_000;' `
-        'The repeat-cache prune target changed.'
+    Assert-Contains $storeSource 'pub(crate) const STORE_SCHEMA_VERSION: u32 = 3;' `
+        'The repeat-cache generation schema changed.'
+    Assert-Contains $storeSource 'pub(crate) const NORMAL_LIVE_TARGET_ENTRIES: u64 = 5_000_000;' `
+        'The repeat-cache normal live target changed.'
+    Assert-Contains $storeSource 'pub(crate) const POST_PRUNE_TARGET_ENTRIES: u64 = 4_500_000;' `
+        'The repeat-cache post-prune target changed.'
+    Assert-Contains $storeSource 'pub(crate) const ACTIVE_HARD_HIGH_WATER_ENTRIES: u64 = 10_000_000;' `
+        'The repeat-cache active hard high-water mark changed.'
+    Assert-Contains $storeSource 'generated_store_above_legacy_cap_retains_early_and_late_hits_after_reopen' `
+        'The repeat-cache legacy-cap scale regression fixture is missing.'
     Assert-Contains $modelsSource 'RepeatCachePolicy::RevalidateContent' `
         'Legacy run snapshots no longer fail back to historical forced reads.'
     Assert-Contains $engineSource 'parameters.repeat_cache_policy' `
