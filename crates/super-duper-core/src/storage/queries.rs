@@ -561,6 +561,31 @@ impl Database {
         Ok(files)
     }
 
+    /// Visit one run's immutable file snapshots in stable insertion order without materializing
+    /// the complete result set. Folder analysis uses this as its single ordered file pass.
+    pub fn visit_scanned_files_ordered<F>(
+        &self,
+        run_id: i64,
+        mut visitor: F,
+    ) -> std::result::Result<usize, crate::Error>
+    where
+        F: FnMut(ScannedFile) -> std::result::Result<(), crate::Error>,
+    {
+        let mut statement = self.connection().prepare(
+            "SELECT id, run_id, root_path, canonical_path, relative_path, file_name,
+                    parent_dir, drive_letter, file_size, last_modified, partial_hash,
+                    content_hash, file_identity, warning_message, marked_deleted
+             FROM scanned_file WHERE run_id = ?1 ORDER BY id",
+        )?;
+        let mut rows = statement.query(params![run_id])?;
+        let mut visited = 0usize;
+        while let Some(row) = rows.next()? {
+            visitor(map_file(row)?)?;
+            visited += 1;
+        }
+        Ok(visited)
+    }
+
     pub fn update_scanned_file_content_hash(
         &self,
         run_id: i64,

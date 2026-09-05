@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
-use super_duper_core::analysis::{dir_fingerprint, exact_folders};
+use super_duper_core::analysis::exact_folders;
 use super_duper_core::storage::models::{
     DuplicateFolderGroupFilter, DuplicateFolderGroupPageQuery, DuplicateFolderGroupSortField,
     RunParameters, ScannedFile, SortDirection,
@@ -60,7 +60,6 @@ fn file(run_id: i64, root: &Path, relative: &str, size: i64, hash: i64) -> Scann
 }
 
 fn analyze(db: &Database, run_id: i64) -> exact_folders::ExactFolderAnalysis {
-    dir_fingerprint::build_directory_fingerprints(db, run_id).unwrap();
     exact_folders::analyze_exact_folders_cancellable(
         db,
         run_id,
@@ -68,6 +67,48 @@ fn analyze(db: &Database, run_id: i64) -> exact_folders::ExactFolderAnalysis {
         &SilentReporter,
     )
     .unwrap()
+}
+
+#[test]
+fn streaming_tree_is_single_pass_bottom_up_and_batched() {
+    let temp = TempDir::new().unwrap();
+    let db = Database::open_in_memory().unwrap();
+    let run = create_run(&db, temp.path(), "streaming");
+    let mut files = Vec::new();
+    for index in 0..1_030 {
+        files.push(file(
+            run,
+            temp.path(),
+            &format!("wide-{index:04}/item.bin"),
+            1,
+            7,
+        ));
+    }
+    for copy in ["deep-a", "deep-b"] {
+        files.push(file(
+            run,
+            temp.path(),
+            &format!("{copy}/a/b/c/d/e/f/g/h/item.bin"),
+            2,
+            9,
+        ));
+    }
+    db.insert_scanned_files(&files).unwrap();
+
+    let result = analyze(&db, run);
+    let node_count: i64 = db
+        .connection()
+        .query_row(
+            "SELECT COUNT(*) FROM directory_node WHERE run_id = ?1",
+            rusqlite::params![run],
+            |row| row.get(0),
+        )
+        .unwrap();
+
+    assert_eq!(result.scanned_file_passes, 1);
+    assert_eq!(result.largest_persistence_batch, 1_024);
+    assert_eq!(result.directory_fingerprints as i64, node_count);
+    assert_eq!(page(&db, run).total, 2);
 }
 
 fn page(db: &Database, run_id: i64) -> super_duper_core::storage::models::DuplicateFolderGroupPage {
@@ -234,4 +275,14 @@ fn hard_link_aliases_do_not_form_recoverable_file_or_folder_copies() {
 
     assert_eq!(result.duplicate_groups, 0);
     assert_eq!(result.duplicate_folder_groups, 0);
+    assert_eq!(result.dir_similarity_pairs, 0);
+
+    let db = Database::open(db_path.to_str().unwrap()).unwrap();
+    let similarity_rows: i64 = db
+        .connection()
+        .query_row("SELECT COUNT(*) FROM directory_similarity", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(similarity_rows, 0);
 }

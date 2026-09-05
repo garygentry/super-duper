@@ -1,4 +1,4 @@
-use crate::analysis::{dir_fingerprint, dir_similarity, exact_folders};
+use crate::analysis::exact_folders;
 use crate::config::{self, AppConfig};
 use crate::error::Error;
 use crate::hasher;
@@ -1345,12 +1345,6 @@ impl ScanEngine {
             analysis_telemetry_start,
         );
         let dir_start = Instant::now();
-        let dir_fingerprints = dir_fingerprint::build_directory_fingerprints_cancellable(
-            db,
-            run_id,
-            &self.cancel_token,
-            progress,
-        )?;
         let exact_folder_analysis = exact_folders::analyze_exact_folders_cancellable(
             db,
             run_id,
@@ -1374,13 +1368,8 @@ impl ScanEngine {
             warning_aggregates.push(warning);
         }
         db.replace_run_warning_aggregates(run_id, &warning_aggregates)?;
-        let dir_similarity_pairs = dir_similarity::compute_directory_similarity_cancellable(
-            db,
-            run_id,
-            0.5,
-            &self.cancel_token,
-            progress,
-        )?;
+        let dir_fingerprints = exact_folder_analysis.directory_fingerprints;
+        let dir_similarity_pairs = 0;
         let dir_duration = dir_start.elapsed();
         {
             let mut telemetry = telemetry
