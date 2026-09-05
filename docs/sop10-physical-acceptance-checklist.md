@@ -59,4 +59,3 @@ hard-link recovery counts, a result-digest mismatch, a folder substage that regr
 without bounded updates, false warning/cancellation state, cache growth beyond the published
 5,000,000/4,500,000/10,000,000 policy, or sustained resource behavior inconsistent with the retained
 Release-scale result. Do not tune and rerun under the same identity.
-
