@@ -3,7 +3,7 @@
 Updated 2026-09-08. [Execution plan](execution-plan.md) owns gate status.
 
 - Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; no switch/worktree/merge/push.
-- Latest implementation: `b20341a` (UIR-03d). This checkpoint update prepares operator evidence only.
+- Latest implementation: `b20341a` (UIR-03d). This update records the continuation audit from `86127a5`.
 - Completed gates: UIR-00/01/02. **UIR-03 remains in_progress**; UIR-03a/b/c/d are implemented.
 - UIR-03d: scrolling Files/History pages with bounded native grids, full-width comparison context,
   wrapping commands and minimum widths for complete decision/path/warning actions. The 900x600
@@ -31,9 +31,10 @@ Updated 2026-09-08. [Execution plan](execution-plan.md) owns gate status.
   physical 100/150/200% monitor/DPI checks. Renders are 96-DPI system-brush fixtures, not physical
   acceptance. Representative folder/review/performance coverage remains in later gates. UIR-03
   cannot close on automation alone. UIR-04 monitoring/Scan again follows; A08/A16/A17 remain required.
-- This session: unchanged fixture build-only and `-Show` build passed, zero warnings/errors;
-  no regression matrix rerun. Initial sandbox SDK access failed; SDK-enabled build was approved.
-  Documentation/diff checks apply to this preparation; prior test totals above are retained.
+- This continuation: clean Git and read-only process audit; fixture 17052/session 1 and operator
+  36316/17612 remain present at their expected paths. Sandbox window metadata does not establish
+  visibility. Operator report requested; still pending. No build/test/launch was repeated.
+  Documentation/diff checks only; prior fixture build and test totals above are retained.
 - Runtime: operator WPF 36316 and worker 17612 at `artifacts/windows-x64` remained untouched.
   Interactive fictional fixture PID 17052/session 1 was launched and left available for review.
   Logs/temp are ignored under `artifacts/uir03-operator`; output is `artifacts/uir03-desktop-fixture`.

@@ -28,11 +28,12 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   UIR-03 remains in_progress; UIR-00/01/02 remain complete.
 - Next slice: operator A01/A02/A09 desktop walkthrough. Local viewport access is verified at
   1180x760/900x600 and with a toolbar allowance; physical acceptance remains unrun.
-- Latest preparation: unchanged fictional fixture built and launched; operator observations were
-  requested and remain pending. See the session record in
+- Latest preparation: continuation from `86127a5` confirmed the existing fictional fixture and
+  operator app/worker processes; visibility and observations were requested and remain pending.
+  No build/test/launch was repeated. See the continuation audit in
   `plans/ui-redesign/evidence/uir-03-desktop-walkthrough.md`; no desktop acceptance inferred.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`. Latest implementation is
-  `b20341a` (UIR-03d); the current update records operator-session preparation only.
+  `b20341a` (UIR-03d); the current update records the read-only continuation audit only.
 - Session handoffs require a printed copyable continuation prompt tailored to the committed
   checkpoint and exact next slice; follow the redesign session guide.
 - Current artifacts: findings, product direction, screen/state/copy specification, visual guidance,
@@ -601,6 +602,12 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Continuation from `86127a5` (2026-09-08): Git clean, preserved branch confirmed, read-only
+`Get-Process` confirmed fixture 17052 and operator 36316/17612 at expected paths. CIM access was
+denied; sandbox window metadata cannot confirm operator visibility. Documentation checks only;
+no build/test/launch repeated. Operator observations remain pending; see the walkthrough's
+continuation audit. Prior verification below is retained, not rerun.
 
 Operator-session preparation (2026-09-08, unchanged `b20341a`): build-only and `-Show` fixture
 builds pass with zero warnings/errors; the fictional process launched. Initial sandbox SDK access
@@ -1277,6 +1284,14 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+### 2026-09-08 - UIR-03 continuation audit, operator evidence still pending
+
+Started clean at `86127a5`; preserved `wpf-poc` at `deefa40`. Read-only audit confirmed the
+existing fixture 17052/session 1 and operator app/worker 36316/17612 at expected paths; all left
+untouched. Requested actual operator observations and visibility confirmation. No response or
+new defect evidence yet; retain UIR-03 in_progress and the same next slice. No duplicate fixture,
+build/test rerun, campaign or product change. Documentation/diff checks only.
 
 ### 2026-09-08 - UIR-03 operator fixture launched, observations pending
 

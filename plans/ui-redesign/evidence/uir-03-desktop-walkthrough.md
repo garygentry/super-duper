@@ -86,3 +86,27 @@ in_progress**; collect the requested observations, fix any evidenced defect with
 and required integration, then assess desktop acceptance. UIR-04 remains dependent; full S03 stays
 UIR-05. A08/A16/A17, disabled deletion, worker ownership, collection bounds and correctness
 protections remain unchanged. No physical scan or consumed campaign ran.
+
+## 2026-09-08 continuation audit
+
+At 19:44 EDT, the continuation started from clean `86127a5` on `codex/ui-redesign`;
+`wpf-poc` still resolved to `deefa40ebe607b785b395a29a6282e8b417a9b14`.
+Command-scoped `safe.directory` resolved Git's sandbox ownership check without changing global
+configuration. `Get-CimInstance Win32_Process` returned access denied; read-only `Get-Process`
+confirmed fixture PID 17052 in session 1 at the expected `artifacts/uir03-desktop-fixture`
+executable, and operator app/worker PIDs 36316/17612 at `artifacts/windows-x64`.
+The process API returned zero window handles and empty window titles in this sandbox; that does
+not establish either visibility or invisibility to the operator. All three processes were left
+untouched. No duplicate fixture, build, test, scan or runtime-state access was started.
+
+The task requested visibility confirmation and actual A01/A02/A09 observations using the prepared
+walkthrough above. No operator response has been received in this continuation; all pending/unrun
+rows remain unchanged. No product defect is evidenced. UIR-03 remains **in_progress**, with
+desktop acceptance pending and UIR-04 still dependent. The exact next action is to collect the
+operator report (including visibility), record observed behavior, fix reproducible defects using
+focused tests and required integration, and assess the shell acceptance criteria. Do not repeat
+this preparation or the verified viewport prerequisite merely to fill the missing operator evidence.
+
+This continuation changes documentation only. Prior fixture builds, Windows Debug/Release tests
+and Rust tests above are retained evidence, not rerun. Verification: documentation link targets,
+final diff review and `git diff --check`.
