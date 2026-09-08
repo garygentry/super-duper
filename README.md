@@ -1,18 +1,13 @@
 # Super Duper
 
-A high-performance duplicate file detector written in Rust. Super Duper scans large file
-collections, confirms duplicates by content rather than filename, identifies near-duplicate
-directory trees, and stages reviewed deletion plans locally.
+A high-performance duplicate file detector written in Rust with a Windows front-end. Super Duper scans large file collections, confirms duplicates by content rather than filename, identifies near-duplicate directory trees, and stages reviewed deletion plans locally.
 
-The repository contains the Rust engine, CLI, reusable FFI boundary, versioned worker process, and
-the Windows 11 x64 WPF MVP.
+The repository contains the Rust engine, CLI, reusable FFI boundary, versioned worker process, and the Windows 11 x64 WPF MVP.
 
 ## Features
 
-- Two-tier hashing: exact file size, then a 1 KB XxHash64 partial hash, then full-content hashing
-  only for candidates
-- Streaming full-file hashing with a bounded buffer and a RocksDB cache keyed by canonical path,
-  size, and high-resolution modified timestamp
+- Two-tier hashing: exact file size, then a 1 KB XxHash64 partial hash, then full-content hashing only for candidates
+- Streaming full-file hashing with a bounded buffer and a RocksDB cache keyed by canonical path, size, and high-resolution modified timestamp
 - SQLite session storage for scans, duplicate groups, directory analysis, and deletion plans
 - Directory fingerprinting and Jaccard similarity for exact, subset, and near-match folder trees
 - Exact duplicate-folder verification by relative structure and content, with redundant nested
@@ -26,9 +21,7 @@ the Windows 11 x64 WPF MVP.
 
 ## Architecture
 
-Super Duper is a Cargo workspace. The Rust core library owns the product logic; the CLI links it
-directly, the FFI crate exposes a stable boundary for future native interfaces, and the Windows app
-connects to the Rust engine through a long-lived JSONL worker process.
+Super Duper is a Cargo workspace. The Rust core library owns the product logic; the CLI links it directly, the FFI crate exposes a stable boundary for future native interfaces, and the Windows app connects to the Rust engine through a long-lived JSONL worker process.
 
 ```text
 super-duper/
@@ -57,19 +50,18 @@ super-duper/
 
 ### Prerequisites
 
-| Tool | Notes |
-|---|---|
-| Rust toolchain | `rustup` recommended, stable channel |
-| `libclang-dev` | Required by RocksDB's bindgen step on Linux |
-| .NET SDK | 10.0.303 or a compatible 10.0 patch; required for the Windows app |
-| Windows | Windows 11 x64 for building and running the WPF application |
-| Windows SDK | A Windows 11 SDK capable of targeting `10.0.22000.0` |
+| Tool           | Notes                                                             |
+| -------------- | ----------------------------------------------------------------- |
+| Rust toolchain | `rustup` recommended, stable channel                              |
+| `libclang-dev` | Required by RocksDB's bindgen step on Linux                       |
+| .NET SDK       | 10.0.303 or a compatible 10.0 patch; required for the Windows app |
+| Windows        | Windows 11 x64 for building and running the WPF application       |
+| Windows SDK    | A Windows 11 SDK capable of targeting `10.0.22000.0`              |
 
 ### Build The Windows Application
 
 Open PowerShell in the repository root (the directory containing `Cargo.toml`) and build Rust
-before .NET. The WPF project copies the worker for the selected configuration beside the Windows
-executable.
+before .NET. The WPF project copies the worker for the selected configuration beside the Windows executable.
 
 ```powershell
 # Debug engine, worker, Windows application, and tests
@@ -222,14 +214,14 @@ cargo run -p super-duper-cli -- truncate-db
 
 Configured via a `.env` file in the working directory when needed.
 
-| Variable | Default | Description |
-|---|---|---|
-| `TRACING_LEVEL` | `info` | Log verbosity: `trace`, `debug`, `info`, `warn`, `error` |
-| `LOG_FILE_PATH` | `./logs/sd.log` | File log output path |
-| `HASH_CACHE_PATH` | `content_hash_cache.db` | RocksDB hash cache location |
-| `SUPER_DUPER_DB_PATH` | `super_duper.db` beside worker | Worker-owned SQLite database override |
-| `SUPER_DUPER_LOG` | `super_duper_core=info,super_duper_worker=info` | Worker stderr tracing filter |
-| `SUPER_DUPER_WORKER_PATH` | Auto-detected | Absolute Windows worker executable override |
+| Variable                  | Default                                         | Description                                              |
+| ------------------------- | ----------------------------------------------- | -------------------------------------------------------- |
+| `TRACING_LEVEL`           | `info`                                          | Log verbosity: `trace`, `debug`, `info`, `warn`, `error` |
+| `LOG_FILE_PATH`           | `./logs/sd.log`                                 | File log output path                                     |
+| `HASH_CACHE_PATH`         | `content_hash_cache.db`                         | RocksDB hash cache location                              |
+| `SUPER_DUPER_DB_PATH`     | `super_duper.db` beside worker                  | Worker-owned SQLite database override                    |
+| `SUPER_DUPER_LOG`         | `super_duper_core=info,super_duper_worker=info` | Worker stderr tracing filter                             |
+| `SUPER_DUPER_WORKER_PATH` | Auto-detected                                   | Absolute Windows worker executable override              |
 
 ## Database
 
@@ -242,23 +234,23 @@ run policy.
 
 Key tables:
 
-| Table | Purpose |
-|---|---|
-| `scan_session` | Named, editable scan definitions |
-| `scan_run` | Immutable executions, parameter snapshots, lifecycle, and counters |
-| `run_exclusion` | Run-owned cloud/manual subtree exclusions recorded before content access |
-| `scanned_file` | Immutable per-run file snapshots with root-relative paths |
-| `duplicate_group` | Confirmed duplicate sets owned by one run |
-| `duplicate_group_member` | Duplicate group membership |
-| `duplicate_folder_group` | Verified exact-folder groups, including retained suppression state |
-| `duplicate_folder_group_member` | Run-owned duplicate-folder roots |
-| `directory_node` | Per-run directory tree aggregates |
-| `directory_fingerprint` | Per-directory content fingerprints |
-| `directory_similarity` | Precomputed Jaccard pairs |
-| `review_plan` | One active durable review plan per immutable completed run |
-| `review_decision` | Manual keep/remove/undecided decisions with immutable file snapshots |
-| `review_command` | Idempotent review-mutation ledger |
-| `deletion_plan` | Files staged for deletion |
+| Table                           | Purpose                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------ |
+| `scan_session`                  | Named, editable scan definitions                                         |
+| `scan_run`                      | Immutable executions, parameter snapshots, lifecycle, and counters       |
+| `run_exclusion`                 | Run-owned cloud/manual subtree exclusions recorded before content access |
+| `scanned_file`                  | Immutable per-run file snapshots with root-relative paths                |
+| `duplicate_group`               | Confirmed duplicate sets owned by one run                                |
+| `duplicate_group_member`        | Duplicate group membership                                               |
+| `duplicate_folder_group`        | Verified exact-folder groups, including retained suppression state       |
+| `duplicate_folder_group_member` | Run-owned duplicate-folder roots                                         |
+| `directory_node`                | Per-run directory tree aggregates                                        |
+| `directory_fingerprint`         | Per-directory content fingerprints                                       |
+| `directory_similarity`          | Precomputed Jaccard pairs                                                |
+| `review_plan`                   | One active durable review plan per immutable completed run               |
+| `review_decision`               | Manual keep/remove/undecided decisions with immutable file snapshots     |
+| `review_command`                | Idempotent review-mutation ledger                                        |
+| `deletion_plan`                 | Files staged for deletion                                                |
 
 ## FFI Boundary
 
