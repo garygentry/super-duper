@@ -23,10 +23,14 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest completed slice: UIR-00 preservation/isolation and UIR-01 evaluation/specification package.
-- Next gate: UIR-02 direction walkthrough; product implementation has not started.
+- Latest completed slice: UIR-02 high-level direction feedback, including long-scan/rescan requirements
+  and a durable Codex multi-session procedure. UIR-00/01 remain complete.
+- Next gate: UIR-03 shell/context local implementation; product implementation has not started.
+- Compact redesign checkpoint: `plans/ui-redesign/session-checkpoint.md`; use its linked kickoff
+  prompt and session guide to continue in this same checkout/branch.
 - Current artifacts: findings, product direction, screen/state/copy specification, visual guidance,
-  capability map, interactive fictional concept, validation matrix and finite execution ledger.
+  capability map, interactive fictional concept, validation matrix and finite execution ledger,
+  plus `scan-and-rescan-experience.md` (A08/A16/A17). User direction acceptance is not native acceptance.
 - Validation: planning/prototype checks only, recorded in
   `plans/ui-redesign/discovery/prototype-verification.md`; no native acceptance claimed.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
@@ -473,10 +477,11 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-Review the concrete UI concept and scope under `plans/ui-redesign/` (UIR-02), record material
-feedback in its decisions ledger, then proceed through the named implementation/test gates when
-the user directs implementation. All work stays on `codex/ui-redesign`. No WPF code was changed
-by UIR-01. Re-audit the still-open app/worker before builds or runtime actions; use isolated fixture
+The operator accepted the high-level UI direction with explicit long-scan and repeat-scan feedback.
+UIR-02 is complete; UIR-03 is next for shell/context implementation. Follow the compact
+`plans/ui-redesign/session-checkpoint.md` and execution ledger, then prioritize UIR-04 monitoring
+and Scan again. All work stays on `codex/ui-redesign`. No WPF code was changed by UIR-00/01/02.
+Re-audit the still-open app/worker before builds or runtime actions; use isolated fixture
 state/output and do not interrupt the operator's application for design verification.
 
 SOP10 is finished. Do not select another scan package. The operator explicitly accepted the
@@ -497,7 +502,8 @@ Before editing:
 
 1. Run `git status --short`, inspect recent history, and inspect the complete latest commit diff.
 2. Read `AGENTS.md`, `plans/ui-redesign/README.md`, and
-   `plans/ui-redesign/execution-plan.md` completely. In this handoff, read `Session
+   `plans/ui-redesign/execution-plan.md` and `plans/ui-redesign/session-checkpoint.md` completely.
+   Use `plans/ui-redesign/codex-session-guide.md` for multi-session procedure. In this handoff, read `Session
    objective`, `Current checkpoint`, `Immediate next step`, `Required startup audit`, `Non-negotiable
    boundaries`, and `Completion loop`; skip `Historical accepted-slice record` and the decision log
    unless the selected gate cites them. Read `ROADMAP.md` scheduling, then inspect only the code,
@@ -573,6 +579,12 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Latest UI requirements update (2026-09-08): UIR-02 captures user direction acceptance, explicit
+long-scan diagnostics/progress and persistent qualified rescan reuse (A16/A17), plus the compact
+checkpoint/session guide/kickoff prompt. Source/contract inspection and local document consistency,
+link and whitespace checks only; no product tests, WPF implementation or new native acceptance.
+The prior prototype remains illustrative and was not changed or re-accepted in this update.
 
 Latest UI redesign slice (2026-09-08): UIR-00/01 preserved the prior checkout/README on `wpf-poc`
 at `deefa40`, established `codex/ui-redesign`, and completed the planning/specification package.
@@ -1221,7 +1233,8 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
-| 2026-09-08 | this UI redesign planning commit | UIR-00/01: preserve all current work on `wpf-poc` at `deefa40`, create and remain on `codex/ui-redesign`, capture findings and a concrete design/specification/prototype/validation package, and route future sessions to its execution ledger. | UIR-02 direction walkthrough, then scoped implementation/testing on this same branch; no Recycle Bin enablement or consumed campaign rerun. |
+| 2026-09-08 | this UI feedback/session-procedure commit | UIR-02: high-level direction accepted; long-scan monitoring and qualified persistent rescans become explicit A16/A17 requirements. Add compact checkpoint and reusable Codex kickoff. | UIR-03 shell/context, then UIR-04 scan/rescan. Stay on codex/ui-redesign; no native acceptance or production enablement inferred. |
+| 2026-09-08 | 0827b28 | UIR-00/01: preserve all current work on `wpf-poc` at `deefa40`, create and remain on `codex/ui-redesign`, capture findings and a concrete design/specification/prototype/validation package, and route future sessions to its execution ledger. | UIR-02 direction walkthrough, then scoped implementation/testing on this same branch; no Recycle Bin enablement or consumed campaign rerun. |
 | 2026-09-05 | this session | Accept SOP10f and the local SOP10 boundary: retain the first valid v2 scale result under the 30-minute/2-GiB ceilings with exact one-pass/no-Jaccard results, pass the 1,500,002-entry cache fixture, strict lint, full Debug/Release matrices, safety locks, and fresh fixed Release package, and publish the isolated operator checklist. | No dependency-ready local package remains. Await separate operator authority naming exact physical roots, a new acceptance identity, and isolated state paths; keep the Windows stream parked. |
 | 2026-09-08 | this session | Retain consumed `sop10-physical-v1`: both fixed-Release runs completed with identical immutable input/policy signatures, exact file/folder digests, warning truth, and zero similarity rows; the first run had zero qualified hits and the repeat reused 127 partial/118 full hashes with zero misses/stores. Record that the 158.597/232.176 ms folder-analysis phases left no durable evidence of individual observation for all four transient substages. | Await explicit operator disposition of the substage-observation gap. Do not rerun the identity or start the parked Windows stream. |
 | 2026-09-08 | this session | Record the operator's explicit `accepted_with_observation_limit` disposition for consumed `sop10-physical-v1` and finish SOP10 while retaining the transient-substage evidence limitation. | No scan package remains. Do not rerun any SOP10/SOP9 campaign. Keep Windows validation parked until `WPM8-high-contrast` receives separate explicit physical authority. |

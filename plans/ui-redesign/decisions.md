@@ -17,22 +17,22 @@ promoted to operator acceptance. User instructions outrank these planning defaul
 | D10 | Start saves valid setup; explicit Save remains; dirty navigation offers Save/Discard/Stay | Recommended interaction refinement; no automatic persistence of every edit |
 | D11 | No new thumbnails, preview, export, saved filters, pause/resume or global select-all | Scope control; existing deferred features remain deferred |
 | D12 | Prototype uses fictional local state and explicit scenario controls | Implemented artifact boundary; all engine/file actions are illustrative |
+| D13 | Accept the high-level workspace direction, with long-scan/rescan refinements | User: “This looks good” on 2026-09-08. D03-D06/D09-D10 remain the chosen direction; detailed native usability acceptance is still pending |
+| D14 | Long scans are a primary workflow: live phase/current activity/progress with expandable diagnostics | Explicit user requirement; `scan-and-rescan-experience.md`, A08/A16; honest measured values, no invented whole-scan ETA |
+| D15 | Repeat scans discover current files and retain qualifying persisted hash work across runs | Explicit user requirement; A17. Existing engine reuse is retained; new/deleted/changed files affect new results, not historical snapshots |
+| D16 | Use bounded local slices, committed handoffs and one checkout/branch across Codex sessions | Recommended execution procedure in `codex-session-guide.md`; no additional task or automation created |
 
-## Direction walkthrough (UIR-02)
+## Direction feedback (UIR-02 complete)
 
-Review three concrete choices: whether the primary grouping fits the user's workflow; whether
-the set-list/copy-comparison layout exposes the information they use to choose keepers; and whether
-the Review area clearly communicates planning and validation with execution unavailable.
+The operator accepted the high-level direction and requested stronger support for hours/days-long
+scans, real-time activity, optional technical detail, and repeat scans that preserve hash work while
+accounting for added/deleted files. These are now explicit screen requirements and acceptance cases.
+UIR-02 closes as direction feedback, without asserting that a full interactive walkthrough occurred.
+UIR-03 is the next local implementation gate. Native/user acceptance remains UIR-08/09.
 
-Recommended procedure: walk through the prototype's completed Files, Folders, Review, and running /
-cancelled scenarios; record any material change to D04-D06 or D09 here, then proceed through the
-execution ledger. Cosmetic preferences should be resolved through normal iteration instead of
-creating unnecessary approval stops. Do not claim the user has accepted the unseen prototype.
-
-The current turn prepares artifacts rather than beginning WPF changes, consistent with the user's
-request to continue evaluation until design/specification artifacts exist. Once the user directs
-implementation or accepts this procedure, routine implementation within the chosen scope can proceed
-without repeated permission requests. Physical/provider/production authority remains distinct.
+This update prepares the requested requirements and multi-session procedure; no WPF implementation
+starts here. Cosmetic preferences can evolve during implementation without repeated approval stops.
+Physical/provider/production authority remains distinct.
 
 ## Questions deferred to evidence, not user guesswork
 

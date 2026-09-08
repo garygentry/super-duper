@@ -1,6 +1,6 @@
 # Screen and interaction specification
 
-Version 1, recommended design. IDs below map to [validation](validation.md). They specify behavior,
+Version 2, accepted high-level direction with long-scan/rescan refinements. IDs below map to [validation](validation.md). They specify behavior,
 not a particular XAML control implementation. Prototype omissions are listed in its readme.
 
 ## S01 Shared shell and context
@@ -27,6 +27,10 @@ not a particular XAML control implementation. Prototype omissions are listed in 
 
 ## S02 Scan setup and monitoring
 
+The detailed [long-scan and rescan contract](scan-and-rescan-experience.md) is part of this screen's
+specification. It defines progress denominators, update freshness, diagnostic disclosure, Scan again,
+persistent hash reuse and new/changed/deleted-file behavior. Implement against A08/A16/A17.
+
 Setup starts with location selection, then a short exclusions summary, then the primary Start scan
 action. Use one 'Add folder or drive' picker and a secondary 'Enter path' option. Each selected
 location shows a friendly label/path, detection/availability status and an explicitly named Remove
@@ -35,7 +39,8 @@ commands keep the exact canonical value. Normalization is part of validation wit
 explanation of overlapping roots, not a technical primary button.
 
 Default repeat policy: reuse verified hashes. Explain 'Reuse previous checks for unchanged files;
-uncertain files are read again.' Preserve the explicit full-revalidation choice in Advanced.
+uncertain files are read again.' Preserve the explicit `revalidate_content` choice in Advanced,
+labeled 'Re-read candidate content'; normal candidate filtering still applies.
 Registered cloud-root exclusions remain visible before starting. Advanced also holds ignore globs
 and manual exclusions, with examples and inline errors. Do not replace fail-closed detection failure
 with a dismissible warning or offer the deferred cloud opt-ins.

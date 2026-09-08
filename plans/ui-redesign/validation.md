@@ -23,6 +23,8 @@ performance, native accessibility, or deletion safety.
 | A13 | Existing query/page/cache/update ceilings remain; result size does not grow WPF collections; no I/O on dispatcher or unnecessary eager background panes | F13 | Instrumented collection/query tests and named existing scale verifier; UIR-08 |
 | A14 | Choosing locations, exclusions, explicit saving and Start match the existing safe policy; dirty navigation is predictable; only one run starts | F14 | Setup/Shell tests including unreachable roots, failed cloud detection, save/start races; UIR-04 |
 | A15 | Production execution remains disabled; no action, shortcut, context menu or false outcome implies files can be recycled | Boundary | Source/contract assertions + full regression; every integration gate |
+| A16 | Current activity, measured phase bars and expandable exact diagnostics remain usable over multi-day runs; freshness, no-progress and worker failure stay distinct | D14 | Controlled clock/progress sequences, stale frames, restore/minimize, UIA cadence/focus and unavailable states; UIR-04/07/08 |
+| A17 | Scan again performs fresh discovery with persistent qualified cache reuse; added/deleted/changed files affect only the new run; repeat policy and prior run context remain clear | D15 | Small isolated real-worker rescan/restart fixture, existing hash-signature regressions and Shell/history tests; UIR-04/07/08 |
 
 ## Scripted design/user walkthrough
 
@@ -51,6 +53,21 @@ should describe what they expect before activating decisions. Record observation
    remains usable, retry the correct operation and verify no mixed-context result or false success.
 10. Accessibility: repeat the key file-review path entirely by keyboard and with each supported screen
     reader; inspect long-path/narrow/theme/DPI states and focus restoration.
+11. Long duration: inject more than 48 hours of elapsed time, a large-file read with an unchanged path,
+    a stable-rate phase, unknown totals, absent updates and a real worker exit. Explain each state;
+    details remain readable, focus stays put and lifecycle completion stops animation.
+12. Rescan: complete a small fixture scan, restart the isolated worker with the same cache, then scan
+    unchanged files, add a duplicate, remove a copy and change content. Verify fresh membership and
+    qualified hit/read outcomes without editing the earlier run's results or carrying decisions.
+
+For A17, preserve result history and the cache across runs: the existing engine deletion-rescan test
+truncates the result database and does not establish this combined Windows workflow. Retain a known
+fixture manifest and compare exact result membership with fresh revalidation
+under identical parameters. Include missing roots, change-token invalidation with same size/preserved
+modified time, conservative cache fallback, and cancellation followed by a new run. Reuse existing
+signature tests for platform edge cases; add missing UI/worker integration coverage instead of
+duplicating engine tests. An unchanged repeat may still perform discovery/analysis reads; do not
+assert whole-scan zero I/O or guaranteed wall-time savings. Full coverage is pending implementation.
 
 Record task completion, misinterpretations, assistance required and unexpected scope changes.
 No pass if the user cannot distinguish selection, marked intent, validation, and execution status.

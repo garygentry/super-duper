@@ -1,7 +1,7 @@
 # Windows UI redesign
 
-Status: implementation specification candidate, prepared 2026-09-08. Product implementation has
-not started. The package records the recommended direction and its limits; it is not a claim of
+Status: high-level direction accepted with long-scan/rescan feedback, updated 2026-09-08. Product
+implementation has not started. The package records the accepted direction and its limits; it is not a claim of
 operator usability acceptance or Windows release acceptance.
 
 ## Start here
@@ -15,6 +15,9 @@ operator usability acceptance or Windows release acceptance.
 5. Consult [capability mapping](capability-map.md) before assuming a new backend feature is needed.
 6. Execute [the staged procedure](execution-plan.md), using [validation](validation.md) as the
    acceptance checklist. [Decisions](decisions.md) distinguishes recommendations from approval.
+7. Read [long scans and repeat scans](scan-and-rescan-experience.md) for monitoring, diagnostics and
+   persistent hash reuse. Use the [Codex session guide](codex-session-guide.md),
+   [current checkpoint](session-checkpoint.md) and [kickoff prompt](session-kickoff-prompt.md) across tasks.
 
 The prototype is a design aid, not a browser-based replacement for WPF. The Markdown specifications
 are authoritative if its intentionally small fictional dataset or simplified interactions differ.
@@ -39,11 +42,13 @@ are authoritative if its intentionally small fictional dataset or simplified int
 |---|---|---|
 | UIR-00 Preserve and isolate | complete | `deefa40` on `wpf-poc`; dedicated branch created |
 | UIR-01 Evaluation and specification | complete | This package, local prototype checks, and discovery record |
-| UIR-02 Direction walkthrough | ready | User walkthrough of the concept and documented scope decisions |
-| UIR-03 through UIR-09 | planned | See execution plan; no product implementation or acceptance claimed |
+| UIR-02 Direction feedback | complete | User accepted the high-level direction; long-scan/rescan requirements captured |
+| UIR-03 Shell and context | ready | Next local implementation gate; see compact session checkpoint |
+| UIR-04 through UIR-09 | planned | See execution plan; no product implementation or acceptance claimed |
 
-The next useful user review is whether the Results workspace, explicit scan context, and separate
-Review area match how they want to work. Small visual preferences can evolve during implementation.
+The next step is UIR-03 shell/context implementation. User feedback accepts the high-level direction;
+it does not establish a completed prototype walkthrough or native usability acceptance.
+Small visual preferences can evolve during implementation.
 Execution enablement and physical/provider campaigns retain their separate authority requirements.
 
 ## Completion definition

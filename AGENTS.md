@@ -11,7 +11,8 @@ merge back, rebase or delete the redesign branch unless the user explicitly chan
 
 At the beginning of every coding session, read and follow
 `docs/windows-roadmap-session-handoff.md` before choosing or starting work. For the redesign,
-read `plans/ui-redesign/README.md` and `plans/ui-redesign/execution-plan.md`, then only the selected
+read `plans/ui-redesign/README.md`, `plans/ui-redesign/execution-plan.md` and the compact
+`plans/ui-redesign/session-checkpoint.md`, then only the selected
 gate's linked specifications, code and tests. The redesign package owns the new UI scope and next
 step. Do not restart or re-audit the retained streams merely to begin UI work:
 
@@ -31,6 +32,10 @@ wiring authority; obtain every distinct approval required by the active plan. Do
 from the parked Windows plan. Keep the handoff and the selected stream's authoritative plan updated
 after every completed gate or coherent gate group; once all scheduled roadmap streams are complete, remove
 this startup instruction.
+
+Use `plans/ui-redesign/codex-session-guide.md` for multi-session execution and update its compact
+checkpoint with each coherent slice. Long-scan monitoring and persistent qualified rescan reuse
+are required by `plans/ui-redesign/scan-and-rescan-experience.md` (A08/A16/A17).
 
 ## Current State
 

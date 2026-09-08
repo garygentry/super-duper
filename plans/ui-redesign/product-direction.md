@@ -7,6 +7,11 @@ about copies across large drives. Optimize for repeated, often lengthy review by
 their folders. First use should be approachable, but the main experience should remain efficient
 for many results, deep paths, large drives, and long-running scans.
 
+Hours/days-long monitoring and repeat scans are first-class journeys. Provide measured live phase,
+current activity and progress with optional technical diagnostics. Scan again freshly discovers
+current locations and retains qualified hash reuse, so additions/deletions affect new results while
+expensive unchanged-file work can be reused. See [the scan contract](scan-and-rescan-experience.md).
+
 The primary questions are: What am I scanning? Which scan am I viewing? Where are the duplicates?
 Which copies will I retain? What is marked for removal? What needs checking?
 

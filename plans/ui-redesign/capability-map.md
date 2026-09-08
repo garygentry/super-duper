@@ -18,6 +18,8 @@ This is a design feasibility assessment, not a re-acceptance of historical gates
 | Four-area shell and selected-run context | `MainWindow.xaml`, `ShellViewModel`, `RunHistoryViewModel` | WPF/Core composition; replace numeric tab coupling with explicit destinations, retain generations |
 | Independent loading | `ShellViewModel.SelectSessionAsync` awaits Performance, file, folder and Preflight loads | Core lifecycle change; characterize order/generation and remove global loading dependency without duplicate requests |
 | Setup and safe repeat policy | `SessionSetupViewModel.EnsureSavedAsync`, root/cloud services | Presentation; preserve save-before-start and validation gates |
+| Long-scan live summary/details | `ScanProgressViewModel`, `ScanProgressProjection`, progress counters/funnel/rates/current path and folder substage contract | Core/WPF composition; local receipt-time freshness; no per-file byte percentage or invented overall ETA |
+| Scan again with persistent hash reuse | Engine fresh discovery; `RepeatHashCache` v3; `reuse_verified` / `revalidate_content`; immutable run policy | Existing backend capability; preserve configured cache across runs/restarts, explain reuse and test changed membership; no new cache/database or run-diff API |
 | Compact file results | `DuplicateFilesViewModel`, group/member/facet APIs | Presentation; existing server-side sort/filter meanings unchanged |
 | Folder comparison | `DuplicateFoldersViewModel`, exact group/member APIs | Presentation; retain current-page Explorer selection and exact folder relationships |
 | Manual Keep/Remove/Reset | `SetReviewDecisionAsync`, `SetReviewFolderDecisionAsync` | Recompose existing mutation flow; expected revision and operation identity stay authoritative |
