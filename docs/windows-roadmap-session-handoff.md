@@ -8,26 +8,29 @@ linked plans remain authoritative.
 
 ## Session objective
 
-Advance finite dependency-ready gates from the currently scheduled roadmap stream. The large-drive
-scan optimization plan is active at the user-approved SOP10 remediation; the Windows post-MVP
-closure ledger is parked intact. Keep each commit bounded to one gate or one
-inseparable coherent group, but continue through additional ready local packages in the same session
-when their authority and context remain sound. Respect every gate-specific stop and distinct
-physical/provider/performance/production approval. Do not leave completed work uncommitted, replay
-accepted audits, manufacture narrower gaps, or substitute work from the parked stream.
+The operator activated a Windows UI redesign on 2026-09-08. Follow
+[`plans/ui-redesign/README.md`](../plans/ui-redesign/README.md) and its
+[`execution plan`](../plans/ui-redesign/execution-plan.md). Preserve all prior work on `wpf-poc`
+at `deefa40`; keep every redesign plan, implementation and test on `codex/ui-redesign` until
+implementation is complete. Do not switch branches, merge back, rebase or delete the branch unless
+the operator explicitly changes this instruction. SOP10 is finished and Windows post-MVP release
+validation stays parked. The redesign does not authorize production Recycle Bin execution or any
+consumed/physical/provider campaign. Commit each coherent completed in-scope slice and its checkpoint.
 
 ## Current checkpoint
 
-- Branch: `wpf-poc`
-- Latest completed slice: accept consumed `sop10-physical-v1` as
-  `accepted_with_observation_limit` and finish SOP10
-- Worktree at the start of this plan activation: `README.md` already modified by the operator at
-  `768b3bf`; the unrelated change remains untouched
-- Active stream and plan: `docs/scan-optimization-plan.md`
-- Current gate: `SOP10-large-folder-analysis-remediation`, accepted locally; SOP10a through SOP10f
-  are accepted
-- Next package: none. SOP10 is finished; do not rerun any consumed SOP10 or SOP9 identity
-- Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
+- Branch: `codex/ui-redesign`; remain here for plans, implementation and tests until completion.
+- Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
+  operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
+- Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
+- Latest completed slice: UIR-00 preservation/isolation and UIR-01 evaluation/specification package.
+- Next gate: UIR-02 direction walkthrough; product implementation has not started.
+- Current artifacts: findings, product direction, screen/state/copy specification, visual guidance,
+  capability map, interactive fictional concept, validation matrix and finite execution ledger.
+- Validation: planning/prototype checks only, recorded in
+  `plans/ui-redesign/discovery/prototype-verification.md`; no native acceptance claimed.
+- Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
+  do not rerun SOP10 or SOP9 identities.
 - Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first
   observed WPF PID 20404 and worker PID 16496 responsive during the operator's multi-day scan. A
   later read-only check found both processes absent and run 4 durably `cancelled` in `finalizing` at
@@ -470,6 +473,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
+Review the concrete UI concept and scope under `plans/ui-redesign/` (UIR-02), record material
+feedback in its decisions ledger, then proceed through the named implementation/test gates when
+the user directs implementation. All work stays on `codex/ui-redesign`. No WPF code was changed
+by UIR-01. Re-audit the still-open app/worker before builds or runtime actions; use isolated fixture
+state/output and do not interrupt the operator's application for design verification.
+
 SOP10 is finished. Do not select another scan package. The operator explicitly accepted the
 consumed `sop10-physical-v1` campaign as `accepted_with_observation_limit`: both runs completed with
 matching exact results and qualified repeat-cache hits, while retaining the lack of durable proof
@@ -487,14 +496,15 @@ or revive SOP2f. Keep Windows release validation parked; when it resumes its fir
 Before editing:
 
 1. Run `git status --short`, inspect recent history, and inspect the complete latest commit diff.
-2. Read `AGENTS.md`, `docs/scan-optimization-plan.md`, and
-   `docs/scan-optimization-kickoff-prompt.md` completely. In this handoff, read `Session
+2. Read `AGENTS.md`, `plans/ui-redesign/README.md`, and
+   `plans/ui-redesign/execution-plan.md` completely. In this handoff, read `Session
    objective`, `Current checkpoint`, `Immediate next step`, `Required startup audit`, `Non-negotiable
    boundaries`, and `Completion loop`; skip `Historical accepted-slice record` and the decision log
    unless the selected gate cites them. Read `ROADMAP.md` scheduling, then inspect only the code,
-   tests, and procedures directly linked by the selected SOP10 package. Do not replay historical
+   tests, and procedures directly linked by the selected UIR gate. Do not replay historical
    iteration logs, accepted packages, or the parked Windows milestone narrative during cold start.
 3. Confirm that the checkpoint above still matches `HEAD` and the worktree.
+   Confirm the branch is `codex/ui-redesign`; do not silently change it or discard work if it differs.
 4. Confirm the scheduled stream, select the ledger's first dependency-ready non-accepted gate, and
    distinguish scheduling from any separate physical/provider/performance/production authority. Do
    not select from the parked stream or re-audit accepted/`locally_exhausted` work.
@@ -563,6 +573,12 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Latest UI redesign slice (2026-09-08): UIR-00/01 preserved the prior checkout/README on `wpf-poc`
+at `deefa40`, established `codex/ui-redesign`, and completed the planning/specification package.
+Prototype syntax, links, fictional decision/reset/overlap/revision/state flows and responsive browser
+layouts were checked; see `plans/ui-redesign/discovery/prototype-verification.md`. No product build,
+native accessibility acceptance, physical campaign or production execution ran in this slice.
 
 The retained `sop10-physical-v1` campaign completed two fixed-Release runs under the same immutable
 parameter signature, `reuse_verified` policy, complete registered-cloud-root exclusion, and
@@ -1205,6 +1221,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-09-08 | this UI redesign planning commit | UIR-00/01: preserve all current work on `wpf-poc` at `deefa40`, create and remain on `codex/ui-redesign`, capture findings and a concrete design/specification/prototype/validation package, and route future sessions to its execution ledger. | UIR-02 direction walkthrough, then scoped implementation/testing on this same branch; no Recycle Bin enablement or consumed campaign rerun. |
 | 2026-09-05 | this session | Accept SOP10f and the local SOP10 boundary: retain the first valid v2 scale result under the 30-minute/2-GiB ceilings with exact one-pass/no-Jaccard results, pass the 1,500,002-entry cache fixture, strict lint, full Debug/Release matrices, safety locks, and fresh fixed Release package, and publish the isolated operator checklist. | No dependency-ready local package remains. Await separate operator authority naming exact physical roots, a new acceptance identity, and isolated state paths; keep the Windows stream parked. |
 | 2026-09-08 | this session | Retain consumed `sop10-physical-v1`: both fixed-Release runs completed with identical immutable input/policy signatures, exact file/folder digests, warning truth, and zero similarity rows; the first run had zero qualified hits and the repeat reused 127 partial/118 full hashes with zero misses/stores. Record that the 158.597/232.176 ms folder-analysis phases left no durable evidence of individual observation for all four transient substages. | Await explicit operator disposition of the substage-observation gap. Do not rerun the identity or start the parked Windows stream. |
 | 2026-09-08 | this session | Record the operator's explicit `accepted_with_observation_limit` disposition for consumed `sop10-physical-v1` and finish SOP10 while retaining the transient-substage evidence limitation. | No scan package remains. Do not rerun any SOP10/SOP9 campaign. Keep Windows validation parked until `WPM8-high-contrast` receives separate explicit physical authority. |

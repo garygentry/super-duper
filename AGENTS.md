@@ -4,25 +4,32 @@ Guidance for fresh coding-agent sessions in this repository.
 
 ## Active Roadmap Streams
 
-At the beginning of every coding session, read and follow
-`docs/windows-roadmap-session-handoff.md` before choosing or starting work. It schedules and
-coordinates both durable roadmap streams:
+The operator activated the Windows UI redesign on 2026-09-08. All redesign plans, prototypes,
+implementation and tests stay on `codex/ui-redesign` until implementation is complete. The prior
+checkout and operator README edit are preserved on `wpf-poc` at `deefa40`. Do not switch branches,
+merge back, rebase or delete the redesign branch unless the user explicitly changes this instruction.
 
-- the active large-drive scan optimization and observability plan in
+At the beginning of every coding session, read and follow
+`docs/windows-roadmap-session-handoff.md` before choosing or starting work. For the redesign,
+read `plans/ui-redesign/README.md` and `plans/ui-redesign/execution-plan.md`, then only the selected
+gate's linked specifications, code and tests. The redesign package owns the new UI scope and next
+step. Do not restart or re-audit the retained streams merely to begin UI work:
+
+- the completed-at-SOP10 large-drive scan optimization and observability plan in
   `docs/scan-optimization-plan.md` (with reusable kickoff prompt in
   `docs/scan-optimization-kickoff-prompt.md`); and
 - the parked Windows post-MVP release-validation plan in
   `docs/windows-roadmap-closure-ledger.md`.
 
-For an efficient cold start, audit Git; read the handoff's current-control sections and the active
-roadmap plan completely; then read only the selected gate's directly linked code, tests, and
+For an efficient cold start, audit Git; read the handoff's current-control sections and the selected
+stream's execution plan completely; then read only the selected gate's directly linked code, tests, and
 procedures. Do not load the handoff's historical accepted-slice record or decision log unless the
 selected gate cites it. Do not
 replay historical iteration logs or re-audit accepted/`locally_exhausted` gates without a documented
 reopen condition. Active scheduling is not physical/provider/performance-campaign or production-
 wiring authority; obtain every distinct approval required by the active plan. Do not infer work
 from the parked Windows plan. Keep the handoff and the selected stream's authoritative plan updated
-after every completed gate or coherent gate group; once both roadmap streams are complete, remove
+after every completed gate or coherent gate group; once all scheduled roadmap streams are complete, remove
 this startup instruction.
 
 ## Current State
