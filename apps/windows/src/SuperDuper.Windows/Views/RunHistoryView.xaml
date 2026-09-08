@@ -2,32 +2,31 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:accessibility="clr-namespace:SuperDuper.Windows.Accessibility">
+    <ScrollViewer AutomationProperties.AutomationId="HistoryWorkspaceScrollViewer"
+                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <Grid Margin="{StaticResource PageContentInset}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <Grid Margin="0,0,0,16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+        <StackPanel Margin="0,0,0,16">
             <StackPanel>
                 <TextBlock Style="{StaticResource PageTitle}" Text="Run history" />
                 <TextBlock Margin="0,5,12,0" TextWrapping="Wrap" Text="Completed, cancelled, failed, and interrupted scans remain available after restart." />
             </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal">
+            <WrapPanel Margin="0,8,0,0">
                 <Button AutomationProperties.AutomationId="OpenRunWarnings"
                         AutomationProperties.Name="Review persisted warnings for the selected run"
                         Command="{Binding OpenWarningsCommand}"
                         Content="_Review warnings" />
                 <Button Margin="8,0,0,0" Command="{Binding RefreshCommand}" Content="Refresh" />
-            </StackPanel>
-        </Grid>
+            </WrapPanel>
+        </StackPanel>
 
         <Grid Grid.Row="1">
-            <DataGrid x:Name="RunHistoryGrid" AutoGenerateColumns="False"
+            <DataGrid x:Name="RunHistoryGrid" AutoGenerateColumns="False" MinHeight="144" MaxHeight="300"
+                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
                       AutomationProperties.AutomationId="RunHistoryGrid"
                       AutomationProperties.Name="Run history"
                       EnableColumnVirtualization="True"
@@ -81,12 +80,12 @@
                 Visibility="{Binding IsWarningDrilldownOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
             <StackPanel>
                 <DockPanel>
-                    <TextBlock Style="{StaticResource SectionTitle}" Text="Persisted run warnings" />
                     <Button DockPanel.Dock="Right"
                             AutomationProperties.AutomationId="CloseRunWarnings"
                             AutomationProperties.Name="Close run warning details and return to run history"
                             Command="{Binding CloseWarningsCommand}"
                             Content="Close" />
+                    <TextBlock Style="{StaticResource SectionTitle}" Text="Persisted run warnings" />
                 </DockPanel>
                 <TextBlock Margin="0,6,0,8"
                            Text="Counts are durable aggregates; each row retains at most three representative examples."
@@ -119,7 +118,8 @@
                     </StackPanel>
                 </Border>
                 <DataGrid x:Name="RunWarningGrid"
-                          MaxHeight="260"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          MinHeight="144" MaxHeight="260"
                           AutoGenerateColumns="False"
                           AutomationProperties.AutomationId="RunWarningGrid"
                           AutomationProperties.Name="Persisted run warning aggregates"
@@ -131,10 +131,10 @@
                           VirtualizingPanel.IsVirtualizing="True"
                           VirtualizingPanel.VirtualizationMode="Recycling">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Width="120" Header="Phase" SortMemberPath="Phase" Binding="{Binding Phase}" />
-                        <DataGridTextColumn Width="90" Header="Count" SortMemberPath="OccurrenceCount" SortDirection="Descending" Binding="{Binding OccurrenceCount}" />
-                        <DataGridTextColumn Width="2*" Header="Warning" SortMemberPath="Message" Binding="{Binding Message}" />
-                        <DataGridTemplateColumn Width="170" Header="Action" CanUserSort="False">
+                        <DataGridTextColumn Width="120" MinWidth="120" Header="Phase" SortMemberPath="Phase" Binding="{Binding Phase}" />
+                        <DataGridTextColumn Width="90" MinWidth="90" Header="Count" SortMemberPath="OccurrenceCount" SortDirection="Descending" Binding="{Binding OccurrenceCount}" />
+                        <DataGridTextColumn Width="2*" MinWidth="180" Header="Warning" SortMemberPath="Message" Binding="{Binding Message}" />
+                        <DataGridTemplateColumn Width="210" MinWidth="210" Header="Action" CanUserSort="False">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Button AutomationProperties.AutomationId="{Binding Id, StringFormat=RunWarningHashResults-{0}}"
@@ -160,7 +160,7 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTemplateColumn Width="3*" Header="Representative examples" CanUserSort="False">
+                        <DataGridTemplateColumn Width="3*" MinWidth="240" Header="Representative examples" CanUserSort="False">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <ItemsControl ItemsSource="{Binding Examples}">
@@ -192,7 +192,7 @@
                            Text="{Binding WarningErrorMessage}"
                            TextWrapping="Wrap"
                            Visibility="{Binding HasWarningError, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                <WrapPanel Margin="0,8,0,0">
                     <Button AutomationProperties.AutomationId="NextRunWarningPage"
                             AutomationProperties.Name="Load the next bounded warning aggregate page"
                             Command="{Binding NextWarningPageCommand}"
@@ -208,8 +208,9 @@
                             Command="{Binding CancelWarningNavigationCommand}"
                             Content="_Cancel navigation"
                             Visibility="{Binding IsWarningNavigationPending, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                </StackPanel>
+                </WrapPanel>
             </StackPanel>
         </Border>
     </Grid>
+    </ScrollViewer>
 </UserControl>

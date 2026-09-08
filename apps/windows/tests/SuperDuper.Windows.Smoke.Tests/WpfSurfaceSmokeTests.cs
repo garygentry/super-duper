@@ -340,9 +340,8 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(8, DuplicateFilesView.SetNavigationFocusAttemptLimit);
             StringAssert.Contains(AutomationProperties.GetName(previousSet), "focus returns");
             StringAssert.Contains(AutomationProperties.GetName(nextSet), "focus returns");
-            Assert.AreEqual(
-                "Resize duplicate group and selected-set areas",
-                AutomationProperties.GetName(FindByAutomationId<GridSplitter>(files, "FileResultsSplitter")));
+            Assert.AreEqual(ScrollBarVisibility.Auto,
+                FindByAutomationId<ScrollViewer>(files, "FileWorkspaceScrollViewer").VerticalScrollBarVisibility);
             var keyboardOrder = new FrameworkElement[]
             {
                 FindByAutomationId<TextBox>(files, "FileSearch"),
@@ -369,7 +368,6 @@ public sealed class WpfSurfaceSmokeTests
                 FindByAutomationId<Button>(files, "FilePreviousGroupPage"),
                 FindByAutomationId<Button>(files, "FileNextGroupPage"),
                 FindByAutomationId<Button>(files, "FileClearFilters"),
-                FindByAutomationId<GridSplitter>(files, "FileResultsSplitter"),
                 previousSet,
                 nextSet,
                 FindByAutomationId<DataGrid>(files, "FileMembersGrid"),
@@ -379,7 +377,7 @@ public sealed class WpfSurfaceSmokeTests
                 FindByAutomationId<Button>(files, "FileNextMemberPage"),
             };
             CollectionAssert.AreEqual(
-                Enumerable.Range(0, keyboardOrder.Length).ToArray(),
+                Enumerable.Range(0, keyboardOrder.Length + 1).Where(index => index != 24).ToArray(),
                 keyboardOrder.Select(KeyboardNavigation.GetTabIndex).ToArray());
             AssertPrimaryFileFiltersReflow(files);
             var fileMemberHeaders = FindByAutomationId<DataGrid>(files, "FileMembersGrid")

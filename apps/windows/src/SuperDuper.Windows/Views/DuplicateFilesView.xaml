@@ -4,13 +4,17 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
              xmlns:accessibility="clr-namespace:SuperDuper.Windows.Accessibility">
+    <!-- Interim stacked results: the page scrolls when shell chrome or disclosures need space.
+         Bound each native grid so its rows remain virtualized. UIR-05 owns the final split. -->
+    <ScrollViewer automation:AutomationProperties.AutomationId="FileWorkspaceScrollViewer"
+                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <Grid Margin="{StaticResource PageContentInset}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="3*" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="2*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <StackPanel Margin="0,0,0,14">
@@ -740,7 +744,8 @@
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <DataGrid x:Name="GroupsGrid"
+            <DataGrid x:Name="GroupsGrid" MinHeight="180" MaxHeight="300"
+                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
                       automation:AutomationProperties.AutomationId="FileGroupsGrid"
                       automation:AutomationProperties.Name="Duplicate file groups"
                       AutoGenerateColumns="False"
@@ -799,7 +804,7 @@
                            accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
                            accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
                            accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFileGroupQuery"
-                           Text="{Binding GroupCountText}" />
+                           Text="{Binding GroupCountText}" TextWrapping="Wrap" />
                 <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate file group paging" Orientation="Horizontal">
                     <Button
                             KeyboardNavigation.TabIndex="21"
@@ -868,25 +873,13 @@
             </StackPanel>
         </Grid>
 
-        <GridSplitter Grid.Row="3"
-                      Height="8"
-                      HorizontalAlignment="Stretch"
-                      KeyboardNavigation.TabIndex="24"
-                      automation:AutomationProperties.AutomationId="FileResultsSplitter"
-                      automation:AutomationProperties.Name="Resize duplicate group and selected-set areas"
-                      ResizeDirection="Rows" />
-
         <Grid Grid.Row="4" Margin="0,10,0,0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <Grid Margin="0,0,0,8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+            <StackPanel Margin="0,0,0,8">
                 <StackPanel>
                     <TextBlock automation:AutomationProperties.AutomationId="FileSelectedSetName"
                                automation:AutomationProperties.LiveSetting="Polite"
@@ -918,8 +911,8 @@
                                Text="{Binding SelectedReviewSummaryText}"
                                TextWrapping="Wrap" />
                 </StackPanel>
-                <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                    <TextBlock HorizontalAlignment="Right"
+                <StackPanel Margin="0,8,0,0">
+                    <TextBlock TextWrapping="Wrap"
                                automation:AutomationProperties.AutomationId="FileMemberCount"
                                automation:AutomationProperties.LiveSetting="Polite"
                                automation:AutomationProperties.Name="{Binding SelectedSetStatusAnnouncement}"
@@ -950,8 +943,9 @@
                                 ToolTip="Next duplicate set (Alt+N); returns focus to the selected group" />
                     </StackPanel>
                 </StackPanel>
-            </Grid>
-            <DataGrid x:Name="MembersGrid"
+            </StackPanel>
+            <DataGrid x:Name="MembersGrid" MinHeight="180" MaxHeight="300"
+                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
                       Grid.Row="1"
                       automation:AutomationProperties.AutomationId="FileMembersGrid"
                       automation:AutomationProperties.Name="Files in selected duplicate group"
@@ -965,7 +959,7 @@
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling">
                 <DataGrid.Columns>
-                    <DataGridTemplateColumn Width="190" Header="Selected root">
+                    <DataGridTemplateColumn Width="190" MinWidth="190" Header="Selected root">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock automation:AutomationProperties.Name="{Binding SelectedRoot, StringFormat='Selected root: {0}'}"
@@ -986,11 +980,11 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTextColumn Width="70" Header="Drive" Binding="{Binding Drive}" />
-                    <DataGridTextColumn Width="125" Header="Modified" Binding="{Binding Modified}" />
-                    <DataGridTextColumn Width="95" Header="Size" Binding="{Binding Size}" />
-                    <DataGridTextColumn Width="95" Header="Decision" Binding="{Binding Decision}" />
-                    <DataGridTemplateColumn Width="235" Header="Working state">
+                    <DataGridTextColumn Width="70" MinWidth="70" Header="Drive" Binding="{Binding Drive}" />
+                    <DataGridTextColumn Width="125" MinWidth="125" Header="Modified" Binding="{Binding Modified}" />
+                    <DataGridTextColumn Width="95" MinWidth="95" Header="Size" Binding="{Binding Size}" />
+                    <DataGridTextColumn Width="95" MinWidth="95" Header="Decision" Binding="{Binding Decision}" />
+                    <DataGridTemplateColumn Width="235" MinWidth="235" Header="Working state">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock automation:AutomationProperties.Name="{Binding LiveStateAutomationName}"
@@ -1000,7 +994,7 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Width="260" Header="Review decision">
+                    <DataGridTemplateColumn Width="300" MinWidth="300" Header="Review decision">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">
@@ -1026,7 +1020,7 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Width="190" Header="Actions">
+                    <DataGridTemplateColumn Width="280" MinWidth="280" Header="Actions">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">
@@ -1046,11 +1040,7 @@
                     </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
-            <Grid Grid.Row="2" Margin="0,8,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+            <StackPanel Grid.Row="2" Margin="0,8,0,0">
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock automation:AutomationProperties.AutomationId="FileDetailError"
                                automation:AutomationProperties.LiveSetting="Assertive"
@@ -1084,7 +1074,7 @@
                                TextTrimming="CharacterEllipsis"
                                Visibility="{Binding HasLiveValidationError, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </StackPanel>
-                <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate file member paging" Orientation="Horizontal">
+                <WrapPanel automation:AutomationProperties.Name="Duplicate file member paging">
                     <Button x:Name="ValidateFilePageButton"
                             Margin="0,0,8,0"
                             KeyboardNavigation.TabIndex="28"
@@ -1113,8 +1103,8 @@
                             automation:AutomationProperties.Name="Next selected-set member page"
                             Command="{Binding NextMemberPageCommand}"
                             Content="Next copies" />
-                </StackPanel>
-            </Grid>
+                </WrapPanel>
+            </StackPanel>
             <Border Grid.Row="1"
                     Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
                     automation:AutomationProperties.Name="Loading selected duplicate set members"
@@ -1136,4 +1126,5 @@
             </StackPanel>
         </Grid>
     </Grid>
+    </ScrollViewer>
 </UserControl>

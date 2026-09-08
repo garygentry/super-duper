@@ -1,6 +1,6 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-03 in progress; UIR-03a/b/c implemented; populated layout and desktop acceptance remain open. Stay on `codex/ui-redesign`.
+Status: UIR-03 in progress; UIR-03a/b/c/d implemented; local viewport access verified, desktop acceptance remains open. Stay on `codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -11,7 +11,7 @@ all safety/evidence gates. Its open execution criteria are not absorbed or marke
 | UIR-00 | complete | Preserve current work and create dedicated branch | `wpf-poc` at `deefa40`; `codex/ui-redesign` created from it |
 | UIR-01 | complete | Findings, direction, specifications, concept, capability mapping, validation and procedure | Package internally checked; prototype limitations recorded; no WPF implementation |
 | UIR-02 | complete | High-level direction accepted; operator feedback incorporated | D13-D15; no native or full prototype walkthrough acceptance inferred |
-| UIR-03 | in_progress | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c implemented; [latest evidence](evidence/uir-03c-populated-shell.md). Integration matrix passes; populated layout and A01/A02/A09 desktop acceptance remain open; next UIR-03d below |
+| UIR-03 | in_progress | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c/d implemented; [latest evidence](evidence/uir-03d-viewport-access.md). Local viewport access and Windows Debug/Release integration pass; operator A01/A02/A09 desktop acceptance remains open |
 | UIR-04 | planned | Setup, Scan again, persistent reuse explanation, live monitoring/details and terminal summaries | UIR-03; A05/A06/A08/A14/A15/A16/A17 with controlled clock, lifecycle and rescan fixtures |
 | UIR-05 | planned | File/folder results, compact filters, list/detail comparison, decisions and path actions | UIR-03; A03/A04/A05/A06/A11/A13/A15 and existing query/focus/page contracts |
 | UIR-06 | planned | Dedicated Review, existing rule workflow, whole-plan validation and evidence access | UIR-05; A04/A10/A15 including revision, survivor, overlap, reversal and restart |
@@ -48,14 +48,22 @@ Debug/Release Rust builds/tests and Windows builds/tests pass: 226 Rust tests (1
 170 Core, 75 Infrastructure (five operator-only skips), and four WPF methods per configuration.
 See [evidence and remaining layout failures](evidence/uir-03c-populated-shell.md).
 
-**Next slice: UIR-03d, local_code** — resolve the populated shell viewport blockers before the
-A01/A02/A09 desktop walkthrough: Files can have no usable grids at 900x600, comparison is crowded
-at 1180x760, and narrow History is cramped. Preserve readable resources and the 900x600 minimum;
-verify reachable rows/actions and same-run focus/scroll after the layout correction. Keep the full
-S03 result workflow in UIR-05. Use the prepared [fictional walkthrough](evidence/uir-03-desktop-walkthrough.md).
-Physical keyboard/Narrator/NVDA/theme/high-contrast/text enlargement/multi-monitor DPI remain
-unrun; record the exact missing checks and request operator action only after local blockers are
-fixed. The automated integration matrix is now recorded, but does not close UIR-03 by itself.
+UIR-03d (2026-09-08) resolves the local populated viewport blockers with scrolling Files/History
+pages, bounded virtualized grids, stacked/wrapping context and action bars, and minimum widths for
+complete comparison/warning actions. Shared readable sizes and the 900x600 minimum are preserved.
+The corrected long-path fixture verifies clipped bounds, actual focus handlers, nonzero same-run
+page/grid scroll and selection retention, including an 80-DIP desktop-toolbar allowance at minimum
+size. Debug/Release paired worker builds and Windows integration pass (170 Core, 75 Infrastructure
+with five operator-only skips, four WPF methods each). See [evidence](evidence/uir-03d-viewport-access.md).
+The interim stacked Files layout replaces its vertical split adjustment; the full adjustable S03
+layout, compact search/totals and A03 no-horizontal-scroll/60% requirements remain in UIR-05.
+
+**Exact next slice: UIR-03 desktop acceptance — operator A01/A02/A09 walkthrough.** The local
+viewport prerequisite is verified. Request the specific [fictional walkthrough](evidence/uir-03-desktop-walkthrough.md)
+using `scripts/Invoke-UiRedesignFixture.ps1 -Show`, record observations/defects and assess acceptance.
+Physical keyboard/Narrator/NVDA/theme/high-contrast/text enlargement/multi-monitor DPI remain unrun.
+Do not substitute automated evidence for these checks or mark UIR-03 complete before its required
+desktop evidence is available. UIR-04 remains dependent on UIR-03.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read

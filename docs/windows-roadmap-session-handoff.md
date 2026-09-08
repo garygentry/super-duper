@@ -23,22 +23,23 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest completed slice: UIR-03c shared screen resources, bounded long-name headers, populated
-  MainWindow/fake-service fixtures, real programmatic focus and same-run native scroll verification.
+- Latest completed slice: UIR-03d populated viewport access: scrolling Files/History pages, bounded
+  grids, complete reachable actions, corrected long-path fixture and same-run page/grid retention.
   UIR-03 remains in_progress; UIR-00/01/02 remain complete.
-- Next slice: UIR-03d populated viewport fixes before the A01/A02/A09 desktop walkthrough.
-  Files can lose grid access at 900x600; normal comparison and narrow History remain cramped.
+- Next slice: operator A01/A02/A09 desktop walkthrough. Local viewport access is verified at
+  1180x760/900x600 and with a toolbar allowance; physical acceptance remains unrun.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`. Latest implementation is this
-  UIR-03c commit, parent `c91c458`; see Git for its final hash.
+  UIR-03d commit, parent `aef8839`; see Git for its final hash.
 - Session handoffs require a printed copyable continuation prompt tailored to the committed
   checkpoint and exact next slice; follow the redesign session guide.
 - Current artifacts: findings, product direction, screen/state/copy specification, visual guidance,
   capability map, interactive fictional concept, validation matrix and finite execution ledger,
   plus `scan-and-rescan-experience.md` (A08/A16/A17). User direction acceptance is not native acceptance.
-- Validation: Debug/Release Rust build/test (226 passed, 10 ignored each), Windows build/test
-  (170 Core, 75 Infrastructure/five operator-only skips, four WPF methods each) pass.
-  Populated 1180x760/900x600 captures expose remaining layout defects; physical acceptance is pending.
-  See `plans/ui-redesign/evidence/uir-03c-populated-shell.md`; operator PIDs 36316/17612 untouched.
+- Validation: UIR-03d paired worker builds and Windows Debug/Release build/test pass (170 Core,
+  75 Infrastructure/five operator-only skips, four WPF methods each). UIR-03c Rust tests remain
+  the retained 226-passed/10-ignored baseline; no Rust/shared contract changed in this slice.
+  Reachability, actual focus handlers and retention pass; S03/A03 and physical acceptance stay open.
+  See `plans/ui-redesign/evidence/uir-03d-viewport-access.md`; operator PIDs 36316/17612 untouched.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
   do not rerun SOP10 or SOP9 identities.
 - Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first
@@ -484,11 +485,14 @@ performance, and later-gate campaigns remain untouched.
 ## Immediate next step
 
 The operator accepted the high-level UI direction with explicit long-scan and repeat-scan feedback.
-UIR-03a/b/c are implemented; UIR-03 remains in_progress. Next is UIR-03d: repair populated
-viewport blockers at 900x600/1180x760 and prepare qualifying A01/A02/A09 desktop acceptance using
-`plans/ui-redesign/evidence/uir-03-desktop-walkthrough.md`. Automated programmatic focus/scroll and
-the isolated Debug/Release matrix pass; cramped/zero viewports and physical evidence remain open.
-Follow the compact checkpoint and ledger, then prioritize UIR-04 monitoring and Scan again.
+UIR-03a/b/c/d are implemented; UIR-03 remains in_progress. Next is the operator A01/A02/A09
+desktop walkthrough using `plans/ui-redesign/evidence/uir-03-desktop-walkthrough.md` and
+`scripts/Invoke-UiRedesignFixture.ps1 -Show` (build only without `-Show`). UIR-03d resolves local
+viewport access at 900x600/1180x760 with bounded scrolling sections and complete reachable actions;
+the full adjustable S03/A03 layout remains UIR-05. Programmatic focus/scroll and isolated Windows
+Debug/Release integration pass. Physical keyboard, Narrator/NVDA, theme/high contrast, text
+enlargement and physical DPI remain unrun. Request the specific operator walkthrough, record its
+observations and assess UIR-03 before advancing to UIR-04 monitoring and Scan again.
 All work stays on `codex/ui-redesign`.
 Re-audit the still-open app/worker before builds or runtime actions; use isolated fixture
 state/output and do not interrupt the operator's application for design verification.
@@ -589,13 +593,15 @@ required gates are open.
 
 ## Latest verification baseline
 
-Redesign UIR-03c: isolated Debug/Release Rust builds/tests (226 passed/10 ignored each), Windows
-builds/tests (170 Core, 75 Infrastructure/five operator-only skips, four WPF methods each) pass.
-Actual MainWindow programmatic focus, warning return and native same-run scroll have populated
-fixture assertions. Final focused WPF reruns pass; the standalone fake-service host starts/exits
-cleanly. Captures expose remaining narrow/normal viewport limits. Physical accessibility, theme,
-DPI and the desktop walkthrough remain pending. See
-`plans/ui-redesign/evidence/uir-03c-populated-shell.md`; retained stream evidence below is unchanged.
+Redesign UIR-03d: paired Rust worker builds and isolated Windows Debug/Release builds/tests pass
+(170 Core, 75 Infrastructure/five operator-only skips, four WPF methods each). UIR-03c's Rust test
+baseline remains 226 passed/10 ignored; no Rust/shared contract changes required rerunning it.
+Populated viewport assertions verify reachable rows/actions, actual focus handlers and same-run
+selection/nonzero page/grid scroll, with disclosures and a minimum-size toolbar allowance. The
+standalone fake-service host builds and exits cleanly with hidden `--verify`. Local viewport access
+is verified; full S03/A03, physical accessibility, theme, DPI and the operator walkthrough remain
+pending. See `plans/ui-redesign/evidence/uir-03d-viewport-access.md`; retained stream evidence below
+is unchanged.
 
 Previous UI implementation slice (2026-09-08): UIR-03a passes 158 Core tests and four loaded-STA WPF
 tests; isolated Debug WPF build has zero warnings/errors. Shell-only captures at 1180x760 and
@@ -1255,6 +1261,17 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+### 2026-09-08 - UIR-03d viewport prerequisite
+
+- Replaced the cramped Files composition with an interim scrolling page and bounded grids;
+  comparison/warning actions retain complete widths, and narrow History sections remain reachable.
+  The former split adjustment and full S03/A03 layout remain UIR-05; readable sizes/minimum unchanged.
+- Corrected displayed long-path fixture fields and verified actual focus/visible bounds plus exact
+  same-run page/grid retention after disclosure layout settles. Paired worker builds and Windows
+  Debug/Release integration pass; failed test evidence is retained under `artifacts/uir03d`.
+- Local viewport prerequisite complete; UIR-03 remains in_progress pending the specific operator
+  A01/A02/A09 walkthrough and required physical evidence. No production/campaign authority changed.
 
 ### 2026-09-08 - UIR-03c bounded implementation
 

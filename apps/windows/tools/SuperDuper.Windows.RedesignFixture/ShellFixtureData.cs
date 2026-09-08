@@ -30,13 +30,18 @@ internal sealed class ShellFixtureData : IDisposable
             FileQueries++;
             return Task.FromResult(new WorkerDuplicateFileGroupPage(
                 Enumerable.Range(1, 25).Select(id => new WorkerDuplicateFileGroup(id, query.RunId,
-                    "4096", 2, "4096", $"{id:00} — {name}.jpg", "jpg")).ToArray(), 25, null, null)
+                    "4096", 2, "4096", $"{id:00} — {name}.jpg", "jpg")
+                { DistinctSelectedRootCount = 2, DistinctDriveCount = 1 }).ToArray(), 25, null, null)
             { Summary = new WorkerDuplicateFileReviewSummary(25, 50, "102400", "4096") });
         };
         client.MemberPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFileMemberPage(
             Enumerable.Range(1, 2).Select(id => new WorkerDuplicateFileMember(id, query.GroupId,
-                $@"C:\fixture\copy-{id}\{name}.jpg", $"{name}.jpg", $@"C:\fixture\copy-{id}",
-                "4096", "0")).ToArray(), 2, null, null));
+                $@"{session.Roots[id - 1]}\travel\{name}.jpg", $"{name}.jpg", $@"{session.Roots[id - 1]}\travel",
+                "4096", "1704067200000000000")
+            {
+                RootPath = session.Roots[id - 1], RelativePath = $@"travel\{name}.jpg", DriveLetter = "C:",
+            }).ToArray(), 2, null, null)
+        { ReviewSummary = new WorkerReviewGroupSummary(query.GroupId, 0, 0, 2, 2) });
         client.RunWarningsHandler = (query, _) => Task.FromResult(new WorkerRunWarningPage(
             [new WorkerRunWarningAggregate(1, query.RunId, "hashing", "scan", RunHistoryViewModel.HashWarningCode,
                 "warning", "Fictional unavailable copy; inspect immutable duplicate results.", 1,
