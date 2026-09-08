@@ -3,7 +3,7 @@
 Updated 2026-09-08. [Execution plan](execution-plan.md) owns gate status.
 
 - Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; no switch/worktree/merge/push.
-- Latest implementation: this UIR-03d commit, parent `aef8839`. Resolve its hash from Git.
+- Latest implementation: `b20341a` (UIR-03d). This checkpoint update prepares operator evidence only.
 - Completed gates: UIR-00/01/02. **UIR-03 remains in_progress**; UIR-03a/b/c/d are implemented.
 - UIR-03d: scrolling Files/History pages with bounded native grids, full-width comparison context,
   wrapping commands and minimum widths for complete decision/path/warning actions. The 900x600
@@ -23,16 +23,21 @@ Updated 2026-09-08. [Execution plan](execution-plan.md) owns gate status.
 - **Exact next slice: UIR-03 desktop acceptance — operator A01/A02/A09 walkthrough.** The local
   viewport prerequisite is verified. Use [the prepared walkthrough](evidence/uir-03-desktop-walkthrough.md)
   and `scripts/Invoke-UiRedesignFixture.ps1 -Show`; the launcher builds only without `-Show`.
-  Request/record the operator's actual context, delayed-pane, focus, retention and layout observations.
+  Fixture built/launched on 2026-09-08; the task requested context, delayed-pane, focus, retention
+  and layout observations. **Operator response/visibility confirmation remains pending.** Record
+  actual findings in the walkthrough's session record; pending is not acceptance or a defect.
   Assess UIR-03 acceptance from evidence; do not advance to UIR-04 prematurely.
 - Unrun: physical keyboard, Narrator/NVDA, light/dark/high contrast, Windows text enlargement and
   physical 100/150/200% monitor/DPI checks. Renders are 96-DPI system-brush fixtures, not physical
   acceptance. Representative folder/review/performance coverage remains in later gates. UIR-03
   cannot close on automation alone. UIR-04 monitoring/Scan again follows; A08/A16/A17 remain required.
+- This session: unchanged fixture build-only and `-Show` build passed, zero warnings/errors;
+  no regression matrix rerun. Initial sandbox SDK access failed; SDK-enabled build was approved.
+  Documentation/diff checks apply to this preparation; prior test totals above are retained.
 - Runtime: operator WPF 36316 and worker 17612 at `artifacts/windows-x64` remained untouched.
-  Task outputs/state/logs/TRX/captures are ignored under `artifacts/uir03d`; standalone output is
-  `artifacts/uir03-desktop-fixture`. Owned test workers and hidden fixture PID 48404 exited.
-  Re-audit processes next session; do not reuse old PIDs as authority.
+  Interactive fictional fixture PID 17052/session 1 was launched and left available for review.
+  Logs/temp are ignored under `artifacts/uir03-operator`; output is `artifacts/uir03-desktop-fixture`.
+  Re-audit before reuse/launch; do not duplicate the fixture or reuse old PIDs as authority.
 - Boundaries: production deletion disabled; ownership/engine/worker/cache/protocol/query ceilings
   and survivor/revision/overlap protections unchanged. SOP10 consumed/complete; Windows post-MVP
   release validation parked. The remaining UIR-03 prerequisite is operator desktop evidence.

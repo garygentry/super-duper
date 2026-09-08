@@ -11,7 +11,7 @@ all safety/evidence gates. Its open execution criteria are not absorbed or marke
 | UIR-00 | complete | Preserve current work and create dedicated branch | `wpf-poc` at `deefa40`; `codex/ui-redesign` created from it |
 | UIR-01 | complete | Findings, direction, specifications, concept, capability mapping, validation and procedure | Package internally checked; prototype limitations recorded; no WPF implementation |
 | UIR-02 | complete | High-level direction accepted; operator feedback incorporated | D13-D15; no native or full prototype walkthrough acceptance inferred |
-| UIR-03 | in_progress | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c/d implemented; [latest evidence](evidence/uir-03d-viewport-access.md). Local viewport access and Windows Debug/Release integration pass; operator A01/A02/A09 desktop acceptance remains open |
+| UIR-03 | in_progress | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c/d implemented; [viewport evidence](evidence/uir-03d-viewport-access.md). Local viewport access and Windows Debug/Release integration pass; [fixture launched, operator observations requested/pending](evidence/uir-03-desktop-walkthrough.md#2026-09-08-operator-session-preparation); desktop acceptance remains open |
 | UIR-04 | planned | Setup, Scan again, persistent reuse explanation, live monitoring/details and terminal summaries | UIR-03; A05/A06/A08/A14/A15/A16/A17 with controlled clock, lifecycle and rescan fixtures |
 | UIR-05 | planned | File/folder results, compact filters, list/detail comparison, decisions and path actions | UIR-03; A03/A04/A05/A06/A11/A13/A15 and existing query/focus/page contracts |
 | UIR-06 | planned | Dedicated Review, existing rule workflow, whole-plan validation and evidence access | UIR-05; A04/A10/A15 including revision, survivor, overlap, reversal and restart |
@@ -61,6 +61,10 @@ layout, compact search/totals and A03 no-horizontal-scroll/60% requirements rema
 **Exact next slice: UIR-03 desktop acceptance — operator A01/A02/A09 walkthrough.** The local
 viewport prerequisite is verified. Request the specific [fictional walkthrough](evidence/uir-03-desktop-walkthrough.md)
 using `scripts/Invoke-UiRedesignFixture.ps1 -Show`, record observations/defects and assess acceptance.
+On 2026-09-08 the unchanged `b20341a` fixture built and launched as PID 17052; observations were
+requested in the task and remain pending. Re-audit before reuse; do not launch a duplicate or
+repeat local verification merely because operator evidence is missing. No new product defect or
+desktop acceptance is established by launch. See the walkthrough's session record for logs/limits.
 Physical keyboard/Narrator/NVDA/theme/high-contrast/text enlargement/multi-monitor DPI remain unrun.
 Do not substitute automated evidence for these checks or mark UIR-03 complete before its required
 desktop evidence is available. UIR-04 remains dependent on UIR-03.

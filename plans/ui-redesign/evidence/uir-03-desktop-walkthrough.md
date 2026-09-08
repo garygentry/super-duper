@@ -1,6 +1,6 @@
 # Prepared A01/A02/A09 desktop walkthrough
 
-Status: **ready for operator walkthrough, not performed**. UIR-03d's local viewport prerequisite
+Status: **fixture launched; operator observations requested and pending**. UIR-03d's local viewport prerequisite
 is verified in [the viewport evidence](uir-03d-viewport-access.md). This is a fictional shell walkthrough, not a
 real scan, deletion campaign, release-smoke substitute or physical acceptance result.
 
@@ -41,3 +41,48 @@ For each step record observations and unexpected scope changes, not merely click
 Automation currently establishes programmatic focus only. The fake data do not establish worker
 performance, screen-reader cadence over a real long scan, representative result scale or A17 rescan
 acceptance. Those requirements retain their later gates and separately isolated procedures.
+
+## 2026-09-08 operator session preparation
+
+Implementation under review: `b20341a` (UIR-03d). Git started clean on `codex/ui-redesign`;
+`wpf-poc` remained `deefa40ebe607b785b395a29a6282e8b417a9b14`. Latest implementation diff and the
+selected walkthrough/fixture were reviewed. No product or test code changed in this preparation.
+
+The default-sandbox build failed with MSB4184 because installed Windows SDK metadata under
+`C:\Users\gary\AppData\Local\Microsoft SDKs` was inaccessible. SDK-enabled execution was approved;
+`./scripts/Invoke-UiRedesignFixture.ps1` then passed with zero warnings/errors. The authorized
+`./scripts/Invoke-UiRedesignFixture.ps1 -Show` also built with zero warnings/errors and launched
+fixture PID 17052 in interactive session 1. Process presence is launch evidence, not proof that
+the operator saw or tested the window. Operator visibility has not yet been confirmed.
+
+Logs: ignored `artifacts/uir03-operator/fixture-build.log` and `fixture-show.log`; child TEMP/TMP:
+`artifacts/uir03-operator/temp`. Build output remains `artifacts/uir03-desktop-fixture`, separate
+from the operator's app. The initial CIM process query was denied; read-only `Get-Process`
+established executable paths instead. Operator WPF PID 36316 and worker PID 17612 remained at
+`artifacts/windows-x64`, untouched. The fixture is left available for the requested walkthrough;
+re-audit processes before reuse or launch, and close only the fictional window normally.
+
+The operator was asked in this task for context, delayed-pane responsiveness/error scope, actual
+focus, same-run selection/page/grid/progress scroll, and reachable rows/actions/shared styles at
+both toolbar sizes. Record the exact action, observed result and size for defects. No response or
+operator observation is recorded yet; pending rows below are not passes or failures.
+
+| Observation | Current evidence / disposition |
+|---|---|
+| Fixture visible to operator; environment, theme, text scale, DPI | Awaiting operator report |
+| A01 selected run 1 versus active run 2; History highlight versus Open scan | Awaiting operator report |
+| A02 Delay folders; navigation while pending; Fail pending folders error scope | Awaiting operator report |
+| Warning Close/result navigation and actual focused control | Awaiting operator report |
+| Same-run selected group, visible rows, page/grid and Progress scroll | Awaiting operator report |
+| A09 shared styles, disabled reasons, rows/actions at 1180x760 and 900x600 | Awaiting operator report |
+| Physical keyboard, Narrator/NVDA, theme/high contrast, text enlargement, physical DPI | Unrun; no acceptance inferred |
+
+Verification in this session is fixture build/launch and documentation checks only: final diff
+review, `git diff --check`, and 29 local documentation links passed. The prior
+UIR-03d Debug/Release integration (170 Core, 75 Infrastructure with five operator-only skips,
+four WPF methods each, paired worker builds) and UIR-03c Rust 226-passed/10-ignored baseline
+are retained, not rerun. There is no newly evidenced product defect to fix yet. **UIR-03 remains
+in_progress**; collect the requested observations, fix any evidenced defect with focused tests
+and required integration, then assess desktop acceptance. UIR-04 remains dependent; full S03 stays
+UIR-05. A08/A16/A17, disabled deletion, worker ownership, collection bounds and correctness
+protections remain unchanged. No physical scan or consumed campaign ran.

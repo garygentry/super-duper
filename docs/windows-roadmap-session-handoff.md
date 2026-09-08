@@ -28,8 +28,11 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   UIR-03 remains in_progress; UIR-00/01/02 remain complete.
 - Next slice: operator A01/A02/A09 desktop walkthrough. Local viewport access is verified at
   1180x760/900x600 and with a toolbar allowance; physical acceptance remains unrun.
-- Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`. Latest implementation is this
-  UIR-03d commit, parent `aef8839`; see Git for its final hash.
+- Latest preparation: unchanged fictional fixture built and launched; operator observations were
+  requested and remain pending. See the session record in
+  `plans/ui-redesign/evidence/uir-03-desktop-walkthrough.md`; no desktop acceptance inferred.
+- Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`. Latest implementation is
+  `b20341a` (UIR-03d); the current update records operator-session preparation only.
 - Session handoffs require a printed copyable continuation prompt tailored to the committed
   checkpoint and exact next slice; follow the redesign session guide.
 - Current artifacts: findings, product direction, screen/state/copy specification, visual guidance,
@@ -40,6 +43,9 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   the retained 226-passed/10-ignored baseline; no Rust/shared contract changed in this slice.
   Reachability, actual focus handlers and retention pass; S03/A03 and physical acceptance stay open.
   See `plans/ui-redesign/evidence/uir-03d-viewport-access.md`; operator PIDs 36316/17612 untouched.
+- Current operator fixture: PID 17052/session 1 launched through the authorized `-Show` script,
+  left available for review. Logs/temp: ignored `artifacts/uir03-operator`; output:
+  `artifacts/uir03-desktop-fixture`. Re-audit before reuse or launch; no duplicate needed.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
   do not rerun SOP10 or SOP9 identities.
 - Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first
@@ -493,6 +499,9 @@ the full adjustable S03/A03 layout remains UIR-05. Programmatic focus/scroll and
 Debug/Release integration pass. Physical keyboard, Narrator/NVDA, theme/high contrast, text
 enlargement and physical DPI remain unrun. Request the specific operator walkthrough, record its
 observations and assess UIR-03 before advancing to UIR-04 monitoring and Scan again.
+The fixture has now been launched and these observations requested; the operator response and
+visibility confirmation are pending. Resume by recording that response and fixing any evidenced
+defects, not repeating the locally verified prerequisite or treating process launch as acceptance.
 All work stays on `codex/ui-redesign`.
 Re-audit the still-open app/worker before builds or runtime actions; use isolated fixture
 state/output and do not interrupt the operator's application for design verification.
@@ -592,6 +601,13 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Operator-session preparation (2026-09-08, unchanged `b20341a`): build-only and `-Show` fixture
+builds pass with zero warnings/errors; the fictional process launched. Initial sandbox SDK access
+failed with MSB4184; approved SDK-enabled execution succeeded with isolated outputs/temp.
+Documentation/diff checks only beyond this build/launch; no test matrix rerun and no operator
+observations received yet. See the session record in
+`plans/ui-redesign/evidence/uir-03-desktop-walkthrough.md`. UIR-03 remains in_progress.
 
 Redesign UIR-03d: paired Rust worker builds and isolated Windows Debug/Release builds/tests pass
 (170 Core, 75 Infrastructure/five operator-only skips, four WPF methods each). UIR-03c's Rust test
@@ -1261,6 +1277,16 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+### 2026-09-08 - UIR-03 operator fixture launched, observations pending
+
+The unchanged `b20341a` fixture built and launched through `Invoke-UiRedesignFixture.ps1 -Show`.
+Requested operator context, delayed-pane, focus, retention and layout/style observations in the
+task; no response or physical acceptance is recorded. The walkthrough holds explicit pending
+rows. No new product defect is established and no product code changed. Retain UIR-03 in_progress
+and UIR-04's dependency. Fixture PID 17052 is left for review; operator 36316/17612 untouched.
+Re-audit before reuse/launch. Verification is build/launch and documentation checks only; prior
+integration/Rust baselines and every campaign/safety boundary remain unchanged.
 
 ### 2026-09-08 - UIR-03d viewport prerequisite
 

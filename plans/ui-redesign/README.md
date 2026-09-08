@@ -46,7 +46,8 @@ are authoritative if its intentionally small fictional dataset or simplified int
 | UIR-03 Shell and context | in_progress | UIR-03a/b/c/d implemented; [viewport evidence](evidence/uir-03d-viewport-access.md); next operator A01/A02/A09 desktop acceptance |
 | UIR-04 through UIR-09 | planned | See execution plan; no product implementation or acceptance claimed |
 
-The next step is the prepared operator A01/A02/A09 shell desktop walkthrough; UIR-03d's local viewport prerequisite is verified. User feedback accepts the high-level direction;
+The A01/A02/A09 fictional fixture has been built and launched; [operator observations are pending](evidence/uir-03-desktop-walkthrough.md#2026-09-08-operator-session-preparation).
+The next step is to collect those observations and assess shell desktop acceptance; UIR-03d's local viewport prerequisite is verified. User feedback accepts the high-level direction;
 it does not establish a completed prototype walkthrough or native usability acceptance.
 Small visual preferences can evolve during implementation.
 Execution enablement and physical/provider campaigns retain their separate authority requirements.
