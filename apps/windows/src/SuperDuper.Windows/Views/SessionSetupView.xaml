@@ -6,10 +6,9 @@
     <ScrollViewer HorizontalContentAlignment="Stretch"
                   HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="28" MaxWidth="880" HorizontalAlignment="Stretch">
-            <TextBlock FontSize="22" FontWeight="SemiBold" Text="Session setup" />
+        <StackPanel Margin="{StaticResource PageContentInset}" MaxWidth="880" HorizontalAlignment="Stretch">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Session setup" />
             <TextBlock Margin="0,5,0,22"
-                       Opacity="0.68"
                        Text="Choose what this reusable session scans and what it ignores."
                        TextWrapping="Wrap" />
 
@@ -45,7 +44,6 @@
                                      Text="{Binding Path, UpdateSourceTrigger=PropertyChanged}" />
                             <Button Grid.Column="1"
                                     Margin="8,0,0,0"
-                                    Padding="9,3"
                                     Command="{Binding DataContext.RemoveRootCommand, ElementName=Root}"
                                     CommandParameter="{Binding}"
                                     Content="Remove" />
@@ -74,8 +72,7 @@
             <TextBlock Margin="0,5,0,20"
                        AutomationProperties.AutomationId="RepeatCachePolicyDescription"
                        AutomationProperties.Name="{Binding RepeatCachePolicyDescription}"
-                       FontSize="12"
-                       Opacity="0.68"
+                       Style="{StaticResource CaptionText}"
                        Text="{Binding RepeatCachePolicyDescription}"
                        TextWrapping="Wrap" />
 
@@ -103,7 +100,6 @@
                     <TextBlock Margin="0,4,0,0"
                                AutomationProperties.AutomationId="CloudPolicyDescription"
                                AutomationProperties.Name="Registered Cloud Files subtrees are pruned before file metadata, canonicalization, identity, or content access."
-                               Opacity="0.68"
                                Text="Registered Cloud Files subtrees are pruned before file metadata, canonicalization, identity, or content access."
                                TextWrapping="Wrap" />
                     <TextBlock Margin="0,8,0,0"
@@ -133,7 +129,7 @@
                                     <StackPanel>
                                         <TextBlock FontWeight="SemiBold" Text="{Binding ProviderName}" />
                                         <TextBlock Margin="0,2,0,0" Text="{Binding Path}" TextWrapping="Wrap" />
-                                        <TextBlock Margin="0,2,0,0" FontSize="12" Opacity="0.7" Text="{Binding Behavior}" TextWrapping="Wrap" />
+                                        <TextBlock Margin="0,2,0,0" Style="{StaticResource CaptionText}" Text="{Binding Behavior}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>
@@ -144,8 +140,7 @@
 
             <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Manual cloud location exclusions" />
             <TextBlock Margin="0,4,0,7"
-                       FontSize="12"
-                       Opacity="0.66"
+                       Style="{StaticResource CaptionText}"
                        Text="Enter one absolute path per line for providers that do not register with Windows Cloud Files." />
             <TextBox MinHeight="72"
                      AutomationProperties.AutomationId="ManualCloudLocationExclusions"
@@ -159,8 +154,7 @@
 
             <TextBlock Margin="0,20,0,0" FontWeight="SemiBold" Text="Ignore patterns" />
             <TextBlock Margin="0,4,0,7"
-                       FontSize="12"
-                       Opacity="0.66"
+                       Style="{StaticResource CaptionText}"
                        Text="Enter one glob pattern per line. New sessions start with Windows-safe defaults." />
             <TextBox MinHeight="130"
                      AutomationProperties.AutomationId="IgnorePatterns"
@@ -182,7 +176,7 @@
             </Border>
             <Border Margin="0,12,0,0"
                     Padding="12"
-                    BorderBrush="#C84B31"
+                    BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
                     BorderThickness="1"
                     CornerRadius="6"
                     Visibility="{Binding HasValidationErrors, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -190,7 +184,7 @@
             </Border>
             <Border Margin="0,12,0,0"
                     Padding="12"
-                    BorderBrush="#C84B31"
+                    BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
                     BorderThickness="1"
                     CornerRadius="6"
                     Visibility="{Binding HasOperationError, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -198,10 +192,9 @@
             </Border>
 
             <StackPanel Margin="0,22,0,0" Orientation="Horizontal">
-                <Button MinWidth="96" Padding="12,7" Command="{Binding SaveCommand}" Content="Save" />
+                <Button MinWidth="96" Command="{Binding SaveCommand}" Content="Save" />
                 <Button Margin="10,0,0,0"
                         MinWidth="96"
-                        Padding="12,7"
                         Command="{Binding DeleteCommand}"
                         Content="Delete" />
                 <ProgressBar Margin="14,0,0,0"

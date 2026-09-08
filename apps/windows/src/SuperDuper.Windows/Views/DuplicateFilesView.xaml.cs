@@ -152,11 +152,13 @@ public partial class DuplicateFilesView : UserControl
         return false;
     }
 
-    internal async Task<bool> RestoreGroupGridFocusAsync()
+    internal async Task<bool> RestoreGroupGridFocusAsync(Func<bool>? isCurrent = null)
     {
         for (var attempt = 0; attempt < SetNavigationFocusAttemptLimit; attempt++)
         {
-            if (await Dispatcher.InvokeAsync(RestoreGroupGridFocus, SetNavigationFocusPriority)
+            if (isCurrent?.Invoke() == false) return false;
+            if (await Dispatcher.InvokeAsync(
+                    () => isCurrent?.Invoke() != false && RestoreGroupGridFocus(), SetNavigationFocusPriority)
                 && GroupsGrid.IsKeyboardFocusWithin)
             {
                 return true;

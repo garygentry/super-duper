@@ -113,7 +113,12 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         RestartWorkerCommand = new AsyncRelayCommand(RestartWorkerAsync, () => CanRestartWorker);
         ClearContentErrorCommand = new RelayCommand(() => ContentErrorMessage = null);
         OpenScanCommand = new RelayCommand(OpenHighlightedScan, () => IsConnected && History.SelectedRun is not null && !History.IsLoading && !IsLoadingSession);
-        ViewProgressCommand = new RelayCommand(() => SelectedDestination = WorkspaceDestination.ScanProgress);
+        ViewProgressCommand = new RelayCommand(() =>
+        {
+            SelectedDestination = WorkspaceDestination.ScanProgress;
+            FocusTarget = "scan-navigation";
+            FocusRequestVersion++;
+        });
     }
 
     public SessionListViewModel Sessions { get; }

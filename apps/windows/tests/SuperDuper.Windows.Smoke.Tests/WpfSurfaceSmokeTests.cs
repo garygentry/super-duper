@@ -58,6 +58,7 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(ThemeMode.System, app.ThemeMode);
 
             var files = new DuplicateFilesView();
+            ((Expander)files.FindName("FileFiltersExpander")).IsExpanded = true;
             var folders = new DuplicateFoldersView();
             var sessions = new SessionListView();
             var setup = new SessionSetupView();
@@ -1087,6 +1088,7 @@ public sealed class WpfSurfaceSmokeTests
             Assert.IsTrue(locationCards.IsKeyboardFocusWithin);
 
             focusHost.Close();
+            PopulatedShellFixture.Verify();
             app.Shutdown();
         });
     }

@@ -4,7 +4,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
              xmlns:accessibility="clr-namespace:SuperDuper.Windows.Accessibility">
-    <Grid Margin="24">
+    <Grid Margin="{StaticResource PageContentInset}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="3*" />
@@ -14,9 +14,8 @@
 
         <StackPanel Margin="0,0,0,14">
             <StackPanel>
-                <TextBlock FontSize="22" FontWeight="SemiBold" Text="Exact duplicate folders" />
+                <TextBlock Style="{StaticResource PageTitle}" Text="Exact duplicate folders" />
                 <TextBlock Margin="0,4,0,0"
-                           Opacity="0.68"
                            Text="Root names may differ. Nested matches covered by a larger exact root are suppressed."
                            TextWrapping="Wrap" />
             </StackPanel>
@@ -31,12 +30,11 @@
                          automation:AutomationProperties.AutomationId="FolderMinimumSize"
                          automation:AutomationProperties.Name="Minimum folder size in bytes"
                          Text="{Binding MinimumSizeText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Minimum folder size in bytes" />
-                <Button x:Name="FolderApplyFilters" Padding="13,7"
+                <Button x:Name="FolderApplyFilters"
                         automation:AutomationProperties.AutomationId="FolderApplyFilters"
                         Command="{Binding ApplyFiltersCommand}" Content="Apply filters" />
             </WrapPanel>
             <TextBlock Margin="0,8,0,0"
-                       Opacity="0.78"
                        automation:AutomationProperties.AutomationId="FolderCombinedReviewSummary"
                        automation:AutomationProperties.LiveSetting="Polite"
                        Text="{Binding ReviewPlanSummaryText}"
@@ -62,7 +60,6 @@
             <Grid Grid.Row="1" Margin="0,9,0,0">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <TextBlock VerticalAlignment="Center"
-                           Opacity="0.68"
                            automation:AutomationProperties.AutomationId="FolderGroupCount"
                            automation:AutomationProperties.LiveSetting="Polite"
                            automation:AutomationProperties.Name="{Binding GroupStatusAnnouncement}"
@@ -72,19 +69,19 @@
                            accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFolderGroupQuery"
                            Text="{Binding GroupCountText}" />
                 <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate folder group paging" Orientation="Horizontal">
-                    <Button Padding="10,4" Command="{Binding PreviousPageCommand}" Content="Previous" />
-                    <Button Margin="8,0,0,0" Padding="10,4" Command="{Binding NextPageCommand}" Content="Next" />
-                    <Button Margin="8,0,0,0" Padding="10,4" Command="{Binding ClearFiltersCommand}" Content="Clear filters" />
+                    <Button Command="{Binding PreviousPageCommand}" Content="Previous" />
+                    <Button Margin="8,0,0,0" Command="{Binding NextPageCommand}" Content="Next" />
+                    <Button Margin="8,0,0,0" Command="{Binding ClearFiltersCommand}" Content="Clear filters" />
                 </StackPanel>
             </Grid>
             <Border Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" Opacity="0.94"
                     Visibility="{Binding IsLoadingOverlayVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <ProgressBar Width="150" Height="4" IsIndeterminate="True" />
-                    <TextBlock Margin="0,9,0,0" Opacity="0.7" Text="Loading duplicate folder groups…" />
+                    <TextBlock Margin="0,9,0,0" Text="Loading duplicate folder groups…" />
                 </StackPanel>
             </Border>
-            <Border Padding="16" HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="#C84B31" BorderThickness="1" CornerRadius="7"
+            <Border Padding="16" HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" BorderThickness="1" CornerRadius="7"
                     automation:AutomationProperties.AutomationId="FolderGroupError"
                     automation:AutomationProperties.LiveSetting="Assertive"
                     automation:AutomationProperties.Name="{Binding GroupErrorAnnouncement}"
@@ -97,13 +94,13 @@
             </Border>
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
                         Visibility="{Binding IsUnavailable, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="Results unavailable" />
-                <TextBlock Margin="0,6,0,0" MaxWidth="560" Opacity="0.68" Text="{Binding StateMessage}" TextAlignment="Center" TextWrapping="Wrap" />
+                <TextBlock HorizontalAlignment="Center" Style="{StaticResource PageTitle}" Text="Results unavailable" />
+                <TextBlock Margin="0,6,0,0" MaxWidth="560" Text="{Binding StateMessage}" TextAlignment="Center" TextWrapping="Wrap" />
             </StackPanel>
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
                         Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="No exact duplicate folders" />
-                <TextBlock Margin="0,6,0,0" Opacity="0.68" Text="{Binding StateMessage}" />
+                <TextBlock HorizontalAlignment="Center" Style="{StaticResource PageTitle}" Text="No exact duplicate folders" />
+                <TextBlock Margin="0,6,0,0" Text="{Binding StateMessage}" />
             </StackPanel>
         </Grid>
 
@@ -114,22 +111,19 @@
             <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="Folder-copy locations" />
+                    <TextBlock Style="{StaticResource SectionTitle}" Text="Folder-copy locations" />
                     <TextBlock Margin="0,3,0,0"
-                               Opacity="0.82"
                                automation:AutomationProperties.AutomationId="FolderRelationshipSummary"
                                automation:AutomationProperties.Name="Selected exact-folder relationship summary"
                                Text="{Binding SelectedRelationshipSummaryText}"
                                TextWrapping="Wrap" />
                     <TextBlock Margin="0,3,0,0"
-                               Opacity="0.72"
                                automation:AutomationProperties.AutomationId="FolderSelectedReviewSummary"
                                automation:AutomationProperties.LiveSetting="Polite"
                                Text="{Binding SelectedReviewSummaryText}"
                                TextWrapping="Wrap" />
                 </StackPanel>
                 <TextBlock Grid.Column="1"
-                           Opacity="0.68"
                            automation:AutomationProperties.AutomationId="FolderMemberCount"
                            automation:AutomationProperties.LiveSetting="Polite"
                            automation:AutomationProperties.Name="{Binding MemberStatusAnnouncement}"
@@ -180,13 +174,13 @@
                             <StackPanel>
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="{Binding FolderName}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Style="{StaticResource SectionTitle}" Text="{Binding FolderName}" TextTrimming="CharacterEllipsis" />
                                     <TextBlock Grid.Column="1" Margin="10,0,0,0" FontWeight="SemiBold" Text="{Binding Decision}" />
                                 </Grid>
                                 <TextBlock Margin="0,9,0,0" FontWeight="SemiBold" Text="Location" />
                                 <TextBlock Margin="0,2,0,0" Text="{Binding ParentLocation}" TextWrapping="Wrap" />
                                 <TextBlock Margin="0,9,0,0" FontWeight="SemiBold" Text="Shared path context" />
-                                <TextBlock Margin="0,2,0,0" Opacity="0.72" Text="{Binding SharedPathContext}" TextWrapping="Wrap" />
+                                <TextBlock Margin="0,2,0,0" Text="{Binding SharedPathContext}" TextWrapping="Wrap" />
                                 <TextBlock Margin="0,9,0,3" FontWeight="SemiBold" Text="Differs here" />
                                 <Border Padding="7,4"
                                         Background="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"
@@ -206,19 +200,19 @@
                                          Text="{Binding Path, Mode=OneWay}"
                                          TextWrapping="NoWrap" />
                                 <WrapPanel Margin="0,12,0,0">
-                                    <Button Padding="7,2"
+                                    <Button
                                             automation:AutomationProperties.Name="{Binding KeepAutomationName}"
                                             automation:AutomationProperties.HelpText="Records a review choice only; it does not delete or validate the folder."
                                             Command="{Binding DataContext.KeepFolderCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
                                             Content="Keep" />
-                                    <Button Margin="6,0,0,0" Padding="7,2"
+                                    <Button Margin="6,0,0,0"
                                             automation:AutomationProperties.Name="{Binding RemoveAutomationName}"
                                             automation:AutomationProperties.HelpText="Records a review choice only; it does not delete or validate the folder."
                                             Command="{Binding DataContext.RemoveFolderCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
                                             Content="Remove" />
-                                    <Button Margin="6,0,0,0" Padding="7,2"
+                                    <Button Margin="6,0,0,0"
                                             automation:AutomationProperties.Name="{Binding UndecideAutomationName}"
                                             automation:AutomationProperties.HelpText="Returns this immutable folder copy to Undecided."
                                             Command="{Binding DataContext.UndecideFolderCommand, ElementName=Root}"
@@ -226,12 +220,12 @@
                                             Content="Undecided" />
                                 </WrapPanel>
                                 <WrapPanel Margin="0,7,0,0">
-                                    <Button Padding="7,2"
+                                    <Button
                                             automation:AutomationProperties.Name="{Binding CopyPathAutomationName}"
                                             Command="{Binding DataContext.CopyPathCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
                                             Content="Copy path" />
-                                    <Button Margin="6,0,0,0" Padding="7,2"
+                                    <Button Margin="6,0,0,0"
                                             automation:AutomationProperties.AutomationId="{Binding RevealAutomationId}"
                                             automation:AutomationProperties.Name="{Binding RevealAutomationName}"
                                             automation:AutomationProperties.HelpText="Shows only this immutable-page folder copy. Press Alt+E from its selected location card for the same action."
@@ -288,7 +282,7 @@
                                Visibility="{Binding HasExplorerError, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate folder member paging" Orientation="Horizontal">
-                    <Button x:Name="SelectFolderPageInExplorerButton" Margin="0,0,8,0" Padding="10,4"
+                    <Button x:Name="SelectFolderPageInExplorerButton" Margin="0,0,8,0"
                             automation:AutomationProperties.AccessKey="Alt+G"
                             automation:AutomationProperties.AutomationId="FolderSelectPageInExplorer"
                             automation:AutomationProperties.Name="Select current folder-copy page in Explorer"
@@ -296,13 +290,13 @@
                             IsEnabled="{Binding CanSelectPageInExplorer}"
                             Click="OnSelectFolderPageInExplorerClick"
                             Content="Select pa_ge in Explorer" />
-                    <Button x:Name="PreviousFolderCardsButton" Padding="10,4"
+                    <Button x:Name="PreviousFolderCardsButton"
                             automation:AutomationProperties.AutomationId="PreviousFolderCardsButton"
                             automation:AutomationProperties.Name="Previous folder-copy location page"
                             IsEnabled="{Binding CanMoveMembersPrevious}"
                             Click="OnFolderCardPageClick"
                             Content="Previous folders" />
-                    <Button x:Name="NextFolderCardsButton" Margin="8,0,0,0" Padding="10,4"
+                    <Button x:Name="NextFolderCardsButton" Margin="8,0,0,0"
                             automation:AutomationProperties.AutomationId="NextFolderCardsButton"
                             automation:AutomationProperties.Name="Next folder-copy location page"
                             IsEnabled="{Binding CanMoveMembersNext}"
@@ -314,12 +308,12 @@
                     Visibility="{Binding IsDetailLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <ProgressBar Width="130" Height="4" IsIndeterminate="True" />
-                    <TextBlock Margin="0,8,0,0" Opacity="0.68" Text="Loading duplicate roots…" />
+                    <TextBlock Margin="0,8,0,0" Text="Loading duplicate roots…" />
                 </StackPanel>
             </Border>
             <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
                         Visibility="{Binding IsDetailEmpty, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <TextBlock FontSize="17" FontWeight="SemiBold" Text="No duplicate roots to display" />
+                <TextBlock Style="{StaticResource SectionTitle}" Text="No duplicate roots to display" />
             </StackPanel>
         </Grid>
     </Grid>

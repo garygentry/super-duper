@@ -1,7 +1,7 @@
 # Windows UI redesign
 
 Status: high-level direction accepted with long-scan/rescan feedback, updated 2026-09-08. Product
-implementation includes UIR-03a/b shell/context and four-area navigation. The package records the accepted direction and its limits; it is not a claim of
+implementation includes UIR-03a/b/c shell/context, shared resources and populated verification. The package records the accepted direction and its limits; it is not a claim of
 operator usability acceptance or Windows release acceptance.
 
 ## Start here
@@ -43,10 +43,10 @@ are authoritative if its intentionally small fictional dataset or simplified int
 | UIR-00 Preserve and isolate | complete | `deefa40` on `wpf-poc`; dedicated branch created |
 | UIR-01 Evaluation and specification | complete | This package, local prototype checks, and discovery record |
 | UIR-02 Direction feedback | complete | User accepted the high-level direction; long-scan/rescan requirements captured |
-| UIR-03 Shell and context | in_progress | UIR-03a/b implemented and tested; [evidence](evidence/uir-03b-workspace-navigation.md); next UIR-03c |
+| UIR-03 Shell and context | in_progress | UIR-03a/b/c implemented and matrix-tested; [evidence](evidence/uir-03c-populated-shell.md); next UIR-03d viewport fixes and desktop acceptance |
 | UIR-04 through UIR-09 | planned | See execution plan; no product implementation or acceptance claimed |
 
-The next step is UIR-03c shared resource adoption and populated shell/focus acceptance preparation. User feedback accepts the high-level direction;
+The next step is UIR-03d populated viewport fixes before the prepared shell desktop walkthrough. User feedback accepts the high-level direction;
 it does not establish a completed prototype walkthrough or native usability acceptance.
 Small visual preferences can evolve during implementation.
 Execution enablement and physical/provider campaigns retain their separate authority requirements.

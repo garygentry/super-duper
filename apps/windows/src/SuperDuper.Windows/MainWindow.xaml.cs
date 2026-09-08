@@ -15,15 +15,21 @@ public partial class MainWindow : Window
     private Task _initialization = Task.CompletedTask;
     private bool _shutdownStarted;
     private bool _shutdownComplete;
+    private long _focusNavigationGeneration;
 
     public MainWindow(ShellViewModel viewModel, IWorkerClient workerClient)
+        : this(viewModel, workerClient, ownsWorkerLifetime: true) { }
+
+    // The isolated presentation fixture supplies fake services and manages their lifetime.
+    internal MainWindow(ShellViewModel viewModel, IWorkerClient workerClient, bool ownsWorkerLifetime)
     {
         InitializeComponent();
         ViewModel = viewModel;
         _workerClient = workerClient;
         DataContext = viewModel;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
-        Closing += OnClosing;
+        Closed += (_, _) => ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        if (ownsWorkerLifetime) Closing += OnClosing;
     }
 
     public ShellViewModel ViewModel { get; }
@@ -38,30 +44,29 @@ public partial class MainWindow : Window
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(ShellViewModel.SelectedDestination)) _focusNavigationGeneration++;
         if (e.PropertyName != nameof(ShellViewModel.FocusRequestVersion))
         {
             return;
         }
-        if (ViewModel.FocusTarget == "start-scan")
+        var version = ViewModel.FocusRequestVersion;
+        var target = ViewModel.FocusTarget;
+        var destination = ViewModel.SelectedDestination;
+        var navigation = _focusNavigationGeneration;
+        bool IsCurrent() => IsLoaded && ViewModel.FocusRequestVersion == version
+            && ViewModel.SelectedDestination == destination && _focusNavigationGeneration == navigation;
+        _ = Dispatcher.BeginInvoke(() =>
         {
-            _ = Dispatcher.BeginInvoke(
-                () => StartScanButton.Focus(),
-                DispatcherPriority.Background);
-        }
-        else if (ViewModel.FocusTarget is "results-navigation" or "scan-navigation")
-        {
-            var destination = ViewModel.SelectedDestination;
-            _ = Dispatcher.BeginInvoke(() =>
+            if (!IsCurrent()) return;
+            if (target == "start-scan") StartScanButton.Focus();
+            else if (target is "results-navigation" or "scan-navigation")
             {
-                if (ViewModel.SelectedDestination != destination) return;
-                var tabs = ViewModel.FocusTarget == "results-navigation" ? ResultsTabs : ScanTabs;
+                var tabs = target == "results-navigation" ? ResultsTabs : ScanTabs;
                 (tabs.SelectedItem as System.Windows.Controls.TabItem)?.Focus();
-            }, DispatcherPriority.Background);
-        }
-        else if (ViewModel.FocusTarget == "duplicate-file-groups")
-        {
-            _ = DuplicateFilesWorkspace.RestoreGroupGridFocusAsync();
-        }
+            }
+            else if (target == "duplicate-file-groups")
+                _ = DuplicateFilesWorkspace.RestoreGroupGridFocusAsync(IsCurrent);
+        }, DispatcherPriority.Background);
     }
 
     private void OnClosing(object? sender, CancelEventArgs e)

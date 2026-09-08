@@ -14,11 +14,9 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock VerticalAlignment="Center"
-                       FontSize="19"
-                       FontWeight="SemiBold"
+                       Style="{StaticResource SectionTitle}"
                        Text="Sessions" />
             <Button Grid.Column="1"
-                    Padding="8,4"
                     Command="{Binding RefreshCommand}"
                     Content="Refresh"
                     ToolTip="Reload sessions" />
@@ -41,7 +39,7 @@
                     <DataTemplate>
                         <StackPanel Margin="8,7">
                             <TextBlock FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Margin="0,3,0,0" FontSize="12" Opacity="0.66" Text="{Binding StatusText}" />
+                            <TextBlock Margin="0,3,0,0" Style="{StaticResource CaptionText}" Text="{Binding StatusText}" />
                         </StackPanel>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
@@ -52,7 +50,7 @@
                         VerticalAlignment="Center"
                         Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <ProgressBar Width="120" Height="4" IsIndeterminate="True" />
-                <TextBlock Margin="0,10,0,0" Opacity="0.7" Text="Loading sessions…" />
+                <TextBlock Margin="0,10,0,0" Text="Loading sessions…" />
             </StackPanel>
         </Grid>
 
@@ -62,7 +60,7 @@
                        Text="{Binding ErrorMessage}"
                        TextWrapping="Wrap"
                        Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}" />
-            <Button Padding="12,8"
+            <Button
                     HorizontalContentAlignment="Left"
                     Command="{Binding NewSessionCommand}"
                     Content="＋  New session" />

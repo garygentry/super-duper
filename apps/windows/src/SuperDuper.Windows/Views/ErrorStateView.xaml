@@ -4,7 +4,7 @@
     <Border Margin="20"
             Padding="16"
             VerticalAlignment="Top"
-            BorderBrush="#C84B31"
+            BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
             BorderThickness="1"
             CornerRadius="8">
         <Grid>
@@ -13,10 +13,10 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock FontSize="16" FontWeight="SemiBold" Text="Something needs attention" />
+                <TextBlock Style="{StaticResource SectionTitle}" Text="Something needs attention" />
                 <TextBlock Margin="0,5,16,0" Text="{Binding ContentErrorMessage}" TextWrapping="Wrap" />
             </StackPanel>
-            <Button Grid.Column="1" Padding="10,5" Command="{Binding ClearContentErrorCommand}" Content="Dismiss" />
+            <Button Grid.Column="1" Command="{Binding ClearContentErrorCommand}" Content="Dismiss" />
         </Grid>
     </Border>
 </UserControl>

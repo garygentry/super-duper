@@ -7,8 +7,8 @@
              AutomationProperties.Name="Preflight validation workspace"
              PreviewKeyDown="OnPreviewKeyDown">
     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="24" MaxWidth="1040">
-            <TextBlock FontSize="24" FontWeight="SemiBold" Text="Preflight validation" />
+        <StackPanel Margin="{StaticResource PageContentInset}" MaxWidth="1040">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Preflight validation" />
             <TextBlock Margin="0,6,0,0"
                        Text="Validate reviewed removals against immutable scan snapshots. Preflight never deletes, schedules, or sends files to the Recycle Bin."
                        TextWrapping="Wrap" />
@@ -23,7 +23,7 @@
                     <TextBlock Margin="0,7,0,0"
                                Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
                                Text="{Binding RevisionStatus}" TextWrapping="Wrap" />
-                    <Button x:Name="StartPreflightButton" Margin="0,14,0,0" Padding="14,7"
+                    <Button x:Name="StartPreflightButton" Margin="0,14,0,0"
                             HorizontalAlignment="Left"
                             AutomationProperties.AutomationId="StartPreflightButton"
                             AutomationProperties.Name="Run preflight validation; no files will be deleted"
@@ -44,7 +44,7 @@
                                  Maximum="{Binding ProgressMaximum, Mode=OneWay}"
                                  Value="{Binding ProgressValue, Mode=OneWay}" />
                     <TextBlock Margin="0,8,0,0" Text="{Binding ProgressText}" />
-                    <Button Margin="0,12,0,0" Padding="14,7" HorizontalAlignment="Left"
+                    <Button Margin="0,12,0,0" HorizontalAlignment="Left"
                             AutomationProperties.AutomationId="CancelPreflightButton"
                             AutomationProperties.Name="Cancel preflight validation"
                             Command="{Binding CancelCommand}" Content="Cancel preflight" />
@@ -53,12 +53,11 @@
 
             <StackPanel Margin="0,20,0,0"
                         Visibility="{Binding HasPreflight, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <TextBlock x:Name="PreflightSummaryHeading" Focusable="True" FontSize="19"
-                           FontWeight="SemiBold" AutomationProperties.AutomationId="PreflightSummaryHeading"
+                <TextBlock x:Name="PreflightSummaryHeading" Focusable="True" Style="{StaticResource SectionTitle}" AutomationProperties.AutomationId="PreflightSummaryHeading"
                            AutomationProperties.Name="{Binding StatusSummary}" Text="Preflight summary" />
                 <TextBlock Margin="0,6,0,0" AutomationProperties.AutomationId="PreflightStatusSummary"
                            Text="{Binding StatusSummary}" TextWrapping="Wrap" />
-                <TextBlock Margin="0,4,0,0" Opacity="0.72"
+                <TextBlock Margin="0,4,0,0"
                            Text="Ready means the item matched only during this validation generation; it is not approval to delete."
                            TextWrapping="Wrap" />
                 <ListView Margin="0,14,0,0" MinHeight="180" MaxHeight="420"
@@ -92,9 +91,9 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Button Padding="12,6" AutomationProperties.AutomationId="PreflightPreviousPageButton"
+                    <Button AutomationProperties.AutomationId="PreflightPreviousPageButton"
                             Command="{Binding PreviousPageCommand}" Content="Previous page" />
-                    <Button Grid.Column="1" Margin="8,0,0,0" Padding="12,6"
+                    <Button Grid.Column="1" Margin="8,0,0,0"
                             AutomationProperties.AutomationId="PreflightNextPageButton"
                             Command="{Binding NextPageCommand}" Content="Next page" />
                     <TextBlock Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Center"
@@ -106,7 +105,7 @@
                     BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
                     BorderThickness="1" CornerRadius="6">
                 <StackPanel DataContext="{Binding Operation}">
-                    <TextBlock FontSize="19" FontWeight="SemiBold" Focusable="True"
+                    <TextBlock Style="{StaticResource SectionTitle}" Focusable="True"
                                AutomationProperties.AutomationId="RecycleOperationHeading"
                                AutomationProperties.Name="Recycle Bin operation foundation"
                                Text="Recycle Bin operation foundation" />
@@ -186,9 +185,9 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Button Padding="12,6" AutomationProperties.AutomationId="RecycleOperationPreviousPageButton"
+                            <Button AutomationProperties.AutomationId="RecycleOperationPreviousPageButton"
                                     Command="{Binding PreviousPageCommand}" Content="Previous operation page" />
-                            <Button Grid.Column="1" Margin="8,0,0,0" Padding="12,6"
+                            <Button Grid.Column="1" Margin="8,0,0,0"
                                     AutomationProperties.AutomationId="RecycleOperationNextPageButton"
                                     Command="{Binding NextPageCommand}" Content="Next operation page" />
                             <TextBlock Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Center"
@@ -203,7 +202,7 @@
                                 Visibility="{Binding IsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <StackPanel>
                                 <TextBlock x:Name="RecoveryReviewStatusHeading" Focusable="True"
-                                           FontSize="18" FontWeight="SemiBold"
+                                           Style="{StaticResource SectionTitle}"
                                            AutomationProperties.AutomationId="RecoveryReviewStatusHeading"
                                            AutomationProperties.Name="{Binding ReviewStatus}"
                                            Text="Recovery review" />
@@ -216,17 +215,17 @@
                                            AutomationProperties.Name="{Binding ReviewBoundary}"
                                            Text="{Binding ReviewBoundary}" TextWrapping="Wrap" />
                                 <WrapPanel Margin="0,10,0,0">
-                                    <Button Margin="0,0,8,8" Padding="12,6"
+                                    <Button Margin="0,0,8,8"
                                             AutomationProperties.AutomationId="RecoveryReviewCopySummaryButton"
                                             AutomationProperties.Name="Copy durable recovery review status"
                                             Command="{Binding CopyReviewSummaryCommand}"
                                             Content="Copy review status" />
-                                    <Button Margin="0,0,8,8" Padding="12,6"
+                                    <Button Margin="0,0,8,8"
                                             AutomationProperties.AutomationId="RecoveryReviewOpenRecycleBinButton"
                                             AutomationProperties.Name="Open Windows Recycle Bin for independent manual inspection"
                                             Command="{Binding OpenRecycleBinCommand}"
                                             Content="Open Recycle Bin" />
-                                    <Button Margin="0,0,8,8" Padding="12,6"
+                                    <Button Margin="0,0,8,8"
                                             AutomationProperties.AutomationId="RecoveryReviewFreshScanButton"
                                             AutomationProperties.Name="Navigate to start a fresh scan; do not retry this operation"
                                             Command="{Binding NavigateToFreshScanCommand}"
@@ -240,12 +239,12 @@
                                            AutomationProperties.Name="{Binding SelectedEvidence}"
                                            Text="{Binding SelectedEvidence}" TextWrapping="Wrap" />
                                 <WrapPanel Margin="0,8,0,0">
-                                    <Button Margin="0,0,8,8" Padding="12,6"
+                                    <Button Margin="0,0,8,8"
                                             AutomationProperties.AutomationId="RecoveryReviewCopyEvidenceButton"
                                             AutomationProperties.Name="Copy durable evidence for the selected unknown item"
                                             Command="{Binding CopyEvidenceCommand}"
                                             Content="Copy evidence" />
-                                    <Button Margin="0,0,8,8" Padding="12,6"
+                                    <Button Margin="0,0,8,8"
                                             AutomationProperties.AutomationId="RecoveryReviewCopyPathButton"
                                             AutomationProperties.Name="Copy stored source path for independent inspection"
                                             Command="{Binding CopyPathCommand}"
@@ -292,14 +291,14 @@
                                                  AutomationProperties.Name="Required correction reason, maximum 500 characters"
                                                  IsEnabled="{Binding CanEdit}"
                                                  Text="{Binding CorrectionReason, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <Button Margin="0,7,0,0" Padding="12,6" HorizontalAlignment="Left"
+                                        <Button Margin="0,7,0,0" HorizontalAlignment="Left"
                                                 AutomationProperties.AutomationId="RecoveryReviewCancelCorrectionButton"
                                                 AutomationProperties.Name="Cancel append-only correction"
                                                 Command="{Binding CancelCorrectionCommand}"
                                                 Content="Cancel correction" />
                                     </StackPanel>
                                 </Border>
-                                <Button Margin="0,9,0,0" Padding="12,6" HorizontalAlignment="Left"
+                                <Button Margin="0,9,0,0" HorizontalAlignment="Left"
                                         AutomationProperties.AutomationId="RecoveryReviewRecordButton"
                                         AutomationProperties.Name="Record append-only operator observation; original evidence remains unchanged"
                                         Command="{Binding RecordObservationCommand}"
@@ -342,17 +341,17 @@
                                     </ListView.ItemTemplate>
                                 </ListView>
                                 <WrapPanel Margin="0,8,0,0">
-                                    <Button Margin="0,0,8,8" Padding="12,6"
+                                    <Button Margin="0,0,8,8"
                                             AutomationProperties.AutomationId="RecoveryReviewPreviousHistoryButton"
                                             AutomationProperties.Name="Previous recovery review history page; focus returns to history"
                                             Command="{Binding PreviousHistoryPageCommand}"
                                             Content="Previous history page" />
-                                    <Button Margin="0,0,8,8" Padding="12,6"
+                                    <Button Margin="0,0,8,8"
                                             AutomationProperties.AutomationId="RecoveryReviewNextHistoryButton"
                                             AutomationProperties.Name="Next recovery review history page; focus returns to history"
                                             Command="{Binding NextHistoryPageCommand}"
                                             Content="Next history page" />
-                                    <Button Margin="0,0,8,8" Padding="12,6"
+                                    <Button Margin="0,0,8,8"
                                             AutomationProperties.AutomationId="RecoveryReviewBeginCorrectionButton"
                                             AutomationProperties.Name="Correct the selected current observation for the selected immutable item; preserve the prior record"
                                             Command="{Binding BeginCorrectionCommand}"
@@ -369,7 +368,7 @@
                                            AutomationProperties.LiveSetting="Assertive"
                                            Text="{Binding ReadErrorMessage}" TextWrapping="Wrap"
                                            Visibility="{Binding HasReadError, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                <Button Margin="0,7,0,0" Padding="12,6" HorizontalAlignment="Left"
+                                <Button Margin="0,7,0,0" HorizontalAlignment="Left"
                                         AutomationProperties.AutomationId="RecoveryReviewRetryReadButton"
                                         AutomationProperties.Name="Retry the exact failed recovery review read"
                                         Command="{Binding RetryReadCommand}"
@@ -382,8 +381,7 @@
                                            AutomationProperties.LiveSetting="Assertive"
                                            Text="{Binding MutationErrorMessage}" TextWrapping="Wrap"
                                            Visibility="{Binding HasMutationError, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                <Button x:Name="RecoveryReviewRetryMutationButton" Margin="0,7,0,0"
-                                        Padding="12,6" HorizontalAlignment="Left"
+                                <Button x:Name="RecoveryReviewRetryMutationButton" Margin="0,7,0,0" HorizontalAlignment="Left"
                                         AutomationProperties.AutomationId="RecoveryReviewRetryMutationButton"
                                         AutomationProperties.Name="Retry the exact failed append-only observation request; do not retry operation work"
                                         Command="{Binding RetryMutationCommand}"
@@ -417,7 +415,7 @@
                                accessibility:AutomationNotificationBehavior.ActivityId="RecycleOperationError"
                                Text="{Binding ErrorMessage}" TextWrapping="Wrap"
                                Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                    <Button Margin="0,8,0,0" Padding="12,6" HorizontalAlignment="Left"
+                    <Button Margin="0,8,0,0" HorizontalAlignment="Left"
                             AutomationProperties.AutomationId="RecycleOperationRetryPageButton"
                             AutomationProperties.Name="Retry loading the same Recycle Bin operation details request; this does not retry the operation"
                             Command="{Binding RetryPageCommand}"

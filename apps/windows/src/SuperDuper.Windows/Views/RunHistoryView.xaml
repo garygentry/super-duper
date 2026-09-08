@@ -2,7 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:accessibility="clr-namespace:SuperDuper.Windows.Accessibility">
-    <Grid Margin="28">
+    <Grid Margin="{StaticResource PageContentInset}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -14,16 +14,15 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock FontSize="22" FontWeight="SemiBold" Text="Run history" />
-                <TextBlock Margin="0,5,0,0" Opacity="0.68" Text="Completed, cancelled, failed, and interrupted scans remain available after restart." />
+                <TextBlock Style="{StaticResource PageTitle}" Text="Run history" />
+                <TextBlock Margin="0,5,12,0" TextWrapping="Wrap" Text="Completed, cancelled, failed, and interrupted scans remain available after restart." />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal">
                 <Button AutomationProperties.AutomationId="OpenRunWarnings"
                         AutomationProperties.Name="Review persisted warnings for the selected run"
-                        Padding="12,6"
                         Command="{Binding OpenWarningsCommand}"
                         Content="_Review warnings" />
-                <Button Margin="8,0,0,0" Padding="12,6" Command="{Binding RefreshCommand}" Content="Refresh" />
+                <Button Margin="8,0,0,0" Command="{Binding RefreshCommand}" Content="Refresh" />
             </StackPanel>
         </Grid>
 
@@ -54,18 +53,18 @@
             <StackPanel HorizontalAlignment="Center"
                         VerticalAlignment="Center"
                         Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="No scans yet" />
-                <TextBlock Margin="0,6,0,0" Opacity="0.68" Text="Start this session’s first scan from the header." />
+                <TextBlock HorizontalAlignment="Center" Style="{StaticResource PageTitle}" Text="No scans yet" />
+                <TextBlock Margin="0,6,0,0" Text="Start this session’s first scan from the header." />
             </StackPanel>
             <StackPanel HorizontalAlignment="Center"
                         VerticalAlignment="Center"
                         Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <ProgressBar Width="140" Height="4" IsIndeterminate="True" />
-                <TextBlock Margin="0,9,0,0" Opacity="0.68" Text="Loading history…" />
+                <TextBlock Margin="0,9,0,0" Text="Loading history…" />
             </StackPanel>
             <Border Padding="14"
                     VerticalAlignment="Top"
-                    BorderBrush="#C84B31"
+                    BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
                     BorderThickness="1"
                     CornerRadius="6"
                     Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -82,7 +81,7 @@
                 Visibility="{Binding IsWarningDrilldownOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
             <StackPanel>
                 <DockPanel>
-                    <TextBlock FontSize="18" FontWeight="SemiBold" Text="Persisted run warnings" />
+                    <TextBlock Style="{StaticResource SectionTitle}" Text="Persisted run warnings" />
                     <Button DockPanel.Dock="Right"
                             AutomationProperties.AutomationId="CloseRunWarnings"
                             AutomationProperties.Name="Close run warning details and return to run history"
@@ -144,7 +143,7 @@
                                             CommandParameter="{Binding}"
                                             Content="_Open duplicate results">
                                         <Button.Style>
-                                            <Style TargetType="Button">
+                                            <Style TargetType="Button" BasedOn="{StaticResource ShellAction}">
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                 <Style.Triggers>
                                                     <MultiDataTrigger>

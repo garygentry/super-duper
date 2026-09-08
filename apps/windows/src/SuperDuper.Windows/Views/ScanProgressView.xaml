@@ -5,20 +5,11 @@
              xmlns:accessibility="clr-namespace:SuperDuper.Windows.Accessibility"
              automation:AutomationProperties.Name="Scan progress">
     <UserControl.Resources>
-        <Style x:Key="ProgressCard" TargetType="Border">
-            <Setter Property="Margin" Value="0,0,8,8" />
-            <Setter Property="Padding" Value="12" />
-            <Setter Property="CornerRadius" Value="7" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" />
-        </Style>
-        <Style x:Key="SecondaryProgressText" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-        </Style>
+        <Style x:Key="ProgressCard" TargetType="Border" BasedOn="{StaticResource SharedCard}" />
+        <Style x:Key="SecondaryProgressText" TargetType="TextBlock" BasedOn="{StaticResource ShellBody}" />
     </UserControl.Resources>
 
-    <Grid Margin="28" KeyboardNavigation.TabNavigation="Continue">
+    <Grid Margin="{StaticResource PageContentInset}" KeyboardNavigation.TabNavigation="Continue">
         <ScrollViewer VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       Focusable="False"
@@ -41,8 +32,7 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel>
                         <TextBlock x:Name="ScanProgressStatusHeading"
-                                   FontSize="22"
-                                   FontWeight="SemiBold"
+                                   Style="{StaticResource PageTitle}"
                                    Focusable="True"
                                    KeyboardNavigation.IsTabStop="False"
                                    automation:AutomationProperties.AutomationId="ScanProgressStatus"
@@ -55,7 +45,6 @@
                                    Text="{Binding Phase}" />
                     </StackPanel>
                     <Button Grid.Column="1"
-                            Padding="14,7"
                             Command="{Binding CancelCommand}"
                             Content="{Binding CancelButtonText}"
                             IsEnabledChanged="OnCancelButtonIsEnabledChanged"
@@ -75,7 +64,7 @@
                     <Border Style="{StaticResource ProgressCard}">
                         <StackPanel>
                             <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Run elapsed" />
-                            <TextBlock Margin="0,4,0,0" FontSize="20" FontWeight="SemiBold"
+                            <TextBlock Margin="0,4,0,0" Style="{StaticResource PageTitle}"
                                        automation:AutomationProperties.AutomationId="ScanRunElapsed"
                                        Text="{Binding Elapsed}" />
                         </StackPanel>
@@ -83,7 +72,7 @@
                     <Border Style="{StaticResource ProgressCard}">
                         <StackPanel>
                             <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Phase elapsed" />
-                            <TextBlock Margin="0,4,0,0" FontSize="20" FontWeight="SemiBold"
+                            <TextBlock Margin="0,4,0,0" Style="{StaticResource PageTitle}"
                                        automation:AutomationProperties.AutomationId="ScanPhaseElapsed"
                                        Text="{Binding ProgressPhaseElapsed}" />
                         </StackPanel>
@@ -91,7 +80,7 @@
                     <Border Style="{StaticResource ProgressCard}">
                         <StackPanel>
                             <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Warnings" />
-                            <TextBlock Margin="0,4,0,0" FontSize="20" FontWeight="SemiBold"
+                            <TextBlock Margin="0,4,0,0" Style="{StaticResource PageTitle}"
                                        automation:AutomationProperties.AutomationId="ScanWarningCount"
                                        Text="{Binding WarningCount}" />
                             <Button Margin="0,8,0,0"
@@ -107,7 +96,7 @@
                     <Border Style="{StaticResource ProgressCard}">
                         <StackPanel>
                             <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Excluded locations" />
-                            <TextBlock Margin="0,4,0,0" FontSize="20" FontWeight="SemiBold"
+                            <TextBlock Margin="0,4,0,0" Style="{StaticResource PageTitle}"
                                        automation:AutomationProperties.AutomationId="ScanExcludedLocationCount"
                                        Text="{Binding ExcludedSubtreeCount}" />
                         </StackPanel>
@@ -115,7 +104,7 @@
                 </UniformGrid>
 
                 <StackPanel Grid.Row="3" Margin="0,14,0,0">
-                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="File and logical-byte funnel" />
+                    <TextBlock Style="{StaticResource SectionTitle}" Text="File and logical-byte funnel" />
                     <TextBlock Margin="0,3,0,10" Style="{StaticResource SecondaryProgressText}"
                                Text="Six successive cumulative outcomes; byte totals are logical file sizes." />
                     <TextBlock Margin="0,0,0,10"
@@ -149,7 +138,7 @@
                                         automation:AutomationProperties.Name="{Binding AutomationName}">
                                     <StackPanel>
                                         <TextBlock Style="{StaticResource SecondaryProgressText}" Text="{Binding Name}" />
-                                        <TextBlock Margin="0,4,0,0" FontSize="18" FontWeight="SemiBold"
+                                        <TextBlock Margin="0,4,0,0" Style="{StaticResource SectionTitle}"
                                                    Text="{Binding FilesText, StringFormat='{}{0} files'}" />
                                         <TextBlock Margin="0,2,0,0" Style="{StaticResource SecondaryProgressText}"
                                                    Text="{Binding BytesText, StringFormat='{}{0} logical'}" />
@@ -161,7 +150,7 @@
                 </StackPanel>
 
                 <StackPanel Grid.Row="4" Margin="0,14,0,0">
-                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="Physical read throughput" />
+                    <TextBlock Style="{StaticResource SectionTitle}" Text="Physical read throughput" />
                     <TextBlock Margin="0,3,0,10" Style="{StaticResource SecondaryProgressText}"
                                Text="Recent and cumulative rates include their measured windows and physical-I/O units." />
                     <UniformGrid Columns="2">
@@ -193,7 +182,7 @@
                 </StackPanel>
 
                 <StackPanel Grid.Row="5" Margin="0,14,0,0">
-                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="Work, cache, and estimate" />
+                    <TextBlock Style="{StaticResource SectionTitle}" Text="Work, cache, and estimate" />
                     <UniformGrid Margin="0,10,0,0" Columns="2">
                         <Border Style="{StaticResource ProgressCard}">
                             <StackPanel>
@@ -283,7 +272,7 @@
                     </Style.Triggers>
                 </Style>
             </StackPanel.Style>
-            <TextBlock HorizontalAlignment="Center" FontSize="22" FontWeight="SemiBold" Text="No scan selected" />
+            <TextBlock HorizontalAlignment="Center" Style="{StaticResource PageTitle}" Text="No scan selected" />
             <TextBlock Margin="0,7,0,0"
                        Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"
                        Text="Start a scan or select one from Run history." />

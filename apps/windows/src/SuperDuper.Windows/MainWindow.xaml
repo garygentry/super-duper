@@ -7,6 +7,7 @@
         xmlns:vm="clr-namespace:SuperDuper.Windows.Core.ViewModels;assembly=SuperDuper.Windows.Core"
         mc:Ignorable="d"
         Title="Super Duper"
+        FontSize="14"
         Icon="Assets/AppIcon/SuperDuper.ico"
         Width="1180"
         Height="760"
@@ -45,7 +46,9 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel>
-                            <TextBlock Style="{StaticResource ShellTitle}" Text="{Binding WorkspaceSessionName}" />
+                            <TextBlock Style="{StaticResource ShellTitle}" Text="{Binding WorkspaceSessionName}"
+                                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding WorkspaceSessionName}" />
                             <TextBlock AutomationProperties.AutomationId="SelectedScanContext"
                                        Margin="0,4,12,0" Style="{StaticResource ShellBody}" Text="{Binding SelectedScanContext}" />
                             <TextBlock Style="{StaticResource ShellBody}" Text="Loading saved scan…"
@@ -57,8 +60,12 @@
                                 MinWidth="112"
                                 Style="{StaticResource ShellPrimaryAction}"
                                 Command="{Binding StartRunCommand}"
+                                ToolTip="{Binding StartRunLabel}"
+                                ToolTipService.ShowOnDisabled="True"
+                                AutomationProperties.Name="{Binding StartRunLabel}"
+                                VerticalAlignment="Center"
                                 MaxWidth="200">
-                            <TextBlock Text="{Binding StartRunLabel}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding StartRunLabel}" TextTrimming="CharacterEllipsis" />
                         </Button>
                     </Grid>
                 </Border>
@@ -76,13 +83,16 @@
                                     AutomationProperties.Name="View active scan progress"
                                     Content="View progress" Command="{Binding ViewProgressCommand}" />
                             <StackPanel>
-                                <TextBlock Style="{StaticResource ShellBody}">
+                                <TextBlock Style="{StaticResource ShellBody}" TextWrapping="NoWrap"
+                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding ActiveScanName}">
                                     <Run Text="Active scan: " /><Run Text="{Binding ActiveScanName, Mode=OneWay}" />
-                                    <Run Text=" · " /><Run Text="{Binding Progress.Phase, Mode=OneWay}" />
+                                </TextBlock>
+                                <TextBlock Style="{StaticResource ShellBody}">
+                                    <Run Text="{Binding Progress.Phase, Mode=OneWay}" />
                                     <Run Text=" · " /><Run Text="{Binding Progress.Elapsed, Mode=OneWay}" />
                                     <Run Text=" · Warnings: " /><Run Text="{Binding Progress.WarningCount, Mode=OneWay}" />
+                                    <Run Text=" · Another scan cannot start yet." />
                                 </TextBlock>
-                                <TextBlock Style="{StaticResource ShellBody}" Text="Another scan cannot start until this scan stops." />
                             </StackPanel>
                         </DockPanel>
                     </Border>
@@ -149,7 +159,8 @@
                                 <TabItem AutomationProperties.AutomationId="RunHistoryTab" Header="_Scans" Tag="{x:Static vm:WorkspaceDestination.History}">
                                     <DockPanel>
                                         <StackPanel DockPanel.Dock="Top" Margin="24,8">
-                                            <TextBlock Style="{StaticResource ShellBody}" Text="{Binding HistoryContext}" />
+                                            <TextBlock Style="{StaticResource ShellBody}" Text="{Binding HistoryContext}"
+                                                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding HistoryContext}" />
                                             <Button Margin="0,8,0,0" HorizontalAlignment="Left" Style="{StaticResource ShellPrimaryAction}"
                                                         AutomationProperties.AutomationId="OpenScan" AutomationProperties.Name="Open highlighted scan in the workspace"
                                                         Content="_Open scan" Command="{Binding OpenScanCommand}" />

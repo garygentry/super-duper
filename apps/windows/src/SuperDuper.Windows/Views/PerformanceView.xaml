@@ -5,33 +5,24 @@
              xmlns:accessibility="clr-namespace:SuperDuper.Windows.Accessibility"
              automation:AutomationProperties.Name="Performance telemetry">
     <UserControl.Resources>
-        <Style x:Key="PerformanceCard" TargetType="Border">
-            <Setter Property="Margin" Value="0,0,8,8" />
-            <Setter Property="Padding" Value="12" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" />
-            <Setter Property="CornerRadius" Value="7" />
-        </Style>
-        <Style x:Key="SecondaryPerformanceText" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-        </Style>
+        <Style x:Key="PerformanceCard" TargetType="Border" BasedOn="{StaticResource SharedCard}" />
+        <Style x:Key="SecondaryPerformanceText" TargetType="TextBlock" BasedOn="{StaticResource ShellBody}" />
     </UserControl.Resources>
 
-    <ScrollViewer Margin="28" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+    <ScrollViewer Margin="{StaticResource PageContentInset}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                   Focusable="False" automation:AutomationProperties.AutomationId="PerformanceScrollViewer">
         <StackPanel KeyboardNavigation.TabNavigation="Continue">
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock x:Name="PerformanceHeading" FontSize="22" FontWeight="SemiBold"
+                    <TextBlock x:Name="PerformanceHeading" Style="{StaticResource PageTitle}"
                                Focusable="True" KeyboardNavigation.IsTabStop="False"
                                automation:AutomationProperties.AutomationId="PerformanceHeading"
                                Text="Performance" />
                     <TextBlock Margin="0,4,0,0" Style="{StaticResource SecondaryPerformanceText}"
                                Text="Worker-owned, bounded current and retained telemetry. Unavailable counters are never shown as zero." />
                 </StackPanel>
-                <Button Grid.Column="1" Padding="14,7" Command="{Binding RefreshCommand}" Content="_Refresh"
+                <Button Grid.Column="1" Command="{Binding RefreshCommand}" Content="_Refresh"
                         automation:AutomationProperties.AccessKey="Alt+R"
                         automation:AutomationProperties.AutomationId="RefreshPerformance"
                         automation:AutomationProperties.Name="Refresh bounded performance telemetry" />
@@ -51,16 +42,16 @@
                        AutomationProperties.LiveSetting="Assertive" />
 
             <UniformGrid Margin="0,18,0,0" Columns="4">
-                <Border Style="{StaticResource PerformanceCard}"><StackPanel><TextBlock Style="{StaticResource SecondaryPerformanceText}" Text="Run health" /><TextBlock Margin="0,4,0,0" FontSize="18" FontWeight="SemiBold" Text="{Binding RunStatus}" /><TextBlock Style="{StaticResource SecondaryPerformanceText}" Text="{Binding RunDuration, StringFormat='Duration {0}'}" /></StackPanel></Border>
-                <Border Style="{StaticResource PerformanceCard}"><StackPanel><TextBlock Style="{StaticResource SecondaryPerformanceText}" Text="Full-read throughput" /><TextBlock Margin="0,4,0,0" FontSize="18" FontWeight="SemiBold" Text="{Binding FullReadThroughput}" TextWrapping="Wrap" /></StackPanel></Border>
-                <Border Style="{StaticResource PerformanceCard}"><StackPanel><TextBlock Style="{StaticResource SecondaryPerformanceText}" Text="CPU" /><TextBlock Margin="0,4,0,0" FontSize="18" FontWeight="SemiBold" Text="{Binding CpuSummary}" TextWrapping="Wrap" /></StackPanel></Border>
-                <Border Style="{StaticResource PerformanceCard}"><StackPanel><TextBlock Style="{StaticResource SecondaryPerformanceText}" Text="Process memory" /><TextBlock Margin="0,4,0,0" FontSize="18" FontWeight="SemiBold" Text="{Binding MemorySummary}" TextWrapping="Wrap" /></StackPanel></Border>
+                <Border Style="{StaticResource PerformanceCard}"><StackPanel><TextBlock Style="{StaticResource SecondaryPerformanceText}" Text="Run health" /><TextBlock Margin="0,4,0,0" Style="{StaticResource SectionTitle}" Text="{Binding RunStatus}" /><TextBlock Style="{StaticResource SecondaryPerformanceText}" Text="{Binding RunDuration, StringFormat='Duration {0}'}" /></StackPanel></Border>
+                <Border Style="{StaticResource PerformanceCard}"><StackPanel><TextBlock Style="{StaticResource SecondaryPerformanceText}" Text="Full-read throughput" /><TextBlock Margin="0,4,0,0" Style="{StaticResource SectionTitle}" Text="{Binding FullReadThroughput}" TextWrapping="Wrap" /></StackPanel></Border>
+                <Border Style="{StaticResource PerformanceCard}"><StackPanel><TextBlock Style="{StaticResource SecondaryPerformanceText}" Text="CPU" /><TextBlock Margin="0,4,0,0" Style="{StaticResource SectionTitle}" Text="{Binding CpuSummary}" TextWrapping="Wrap" /></StackPanel></Border>
+                <Border Style="{StaticResource PerformanceCard}"><StackPanel><TextBlock Style="{StaticResource SecondaryPerformanceText}" Text="Process memory" /><TextBlock Margin="0,4,0,0" Style="{StaticResource SectionTitle}" Text="{Binding MemorySummary}" TextWrapping="Wrap" /></StackPanel></Border>
             </UniformGrid>
 
             <Border Margin="0,8,0,0" Style="{StaticResource PerformanceCard}"
                     automation:AutomationProperties.AutomationId="PerformanceHealthCard">
                 <StackPanel>
-                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="Candidate and cache health" />
+                    <TextBlock Style="{StaticResource SectionTitle}" Text="Candidate and cache health" />
                     <TextBlock Margin="0,5,0,0" Text="{Binding CandidateFunnel}" TextWrapping="Wrap" automation:AutomationProperties.AutomationId="PerformanceCandidateFunnel" />
                     <TextBlock Margin="0,4,0,0" Text="{Binding CacheSummary, StringFormat='Cache: {0}'}" TextWrapping="Wrap" />
                     <TextBlock Margin="0,4,0,0" Text="{Binding WarningSummary, StringFormat='Warnings: {0}'}" />
@@ -68,7 +59,7 @@
                 </StackPanel>
             </Border>
 
-            <TextBlock Margin="0,18,0,7" FontSize="17" FontWeight="SemiBold" Text="Phase durations" />
+            <TextBlock Margin="0,18,0,7" Style="{StaticResource SectionTitle}" Text="Phase durations" />
             <DataGrid MaxHeight="220" AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding Phases}"
                       EnableColumnVirtualization="True" EnableRowVirtualization="True"
                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
@@ -81,7 +72,7 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-            <TextBlock Margin="0,18,0,3" FontSize="17" FontWeight="SemiBold" Text="Drive information and device load" />
+            <TextBlock Margin="0,18,0,3" Style="{StaticResource SectionTitle}" Text="Drive information and device load" />
             <TextBlock Margin="0,0,0,7" Style="{StaticResource SecondaryPerformanceText}" Text="Current and peak values are persisted summaries; each unavailable provider value remains labeled unavailable." />
             <DataGrid MaxHeight="300" AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding Devices}"
                       EnableColumnVirtualization="True" EnableRowVirtualization="True"
@@ -108,7 +99,7 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-            <TextBlock Margin="0,18,0,3" FontSize="17" FontWeight="SemiBold" Text="Retained run comparison" />
+            <TextBlock Margin="0,18,0,3" Style="{StaticResource SectionTitle}" Text="Retained run comparison" />
             <TextBlock Margin="0,0,0,7" Style="{StaticResource SecondaryPerformanceText}" Text="Only the newest 25 telemetry runs are loaded. Comparison labels device, input, or build differences instead of implying equivalence." />
             <DataGrid MaxHeight="240" AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding History}"
                       SelectedItem="{Binding SelectedComparisonRun, Mode=TwoWay}"
@@ -124,7 +115,7 @@
                     <DataGridTextColumn Width="*" Header="Software build" Binding="{Binding Build}" />
                 </DataGrid.Columns>
             </DataGrid>
-            <Button Margin="0,8,0,0" HorizontalAlignment="Left" Padding="14,7" Command="{Binding CompareCommand}" Content="_Compare selected run"
+            <Button Margin="0,8,0,0" HorizontalAlignment="Left" Command="{Binding CompareCommand}" Content="_Compare selected run"
                     automation:AutomationProperties.AccessKey="Alt+C"
                     automation:AutomationProperties.AutomationId="ComparePerformanceRun"
                     automation:AutomationProperties.Name="Compare selected bounded telemetry run" />
