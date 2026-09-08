@@ -2,6 +2,12 @@
 
 Status: ready for a separately authorized operator run. This checklist does not authorize a scan.
 
+Retained attempt: `sop10-physical-v1` is consumed. Its two runs completed with matching exact
+results and qualified repeat-cache reuse, but no durable record proves that all four transient
+folder-substage labels were individually observed during the 158.597/232.176 ms analysis phases.
+See [`evidence/scan-folder-remediation-sop10-physical-v1-20260908.json`](evidence/scan-folder-remediation-sop10-physical-v1-20260908.json).
+Do not rerun that identity; full checklist disposition requires an explicit operator decision.
+
 ## Authority and isolation
 
 Before starting, record explicit operator approval for the exact roots, the new acceptance identity,

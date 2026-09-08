@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "gate": "SOP10-large-folder-analysis-remediation",
+  "campaignIdentity": "sop10-physical-v1",
+  "status": "completed_with_substage_observation_gap",
+  "verifiedSourceCommit": "de48b3c2c79d4f9bfd65a256389ad02ff56a3c1f",
+  "authority": {
+    "authorizedAtLocalDate": "2026-09-07",
+    "startedImmediately": true,
+    "exactRootIdentitySha256": "5c86dc623bbdde8d2aaef507baf912778620cbcdf4538c3c62b3f081f0baf7b5",
+    "isolatedStateIdentitySha256": "40f18cf51ea37bee4e8a608024fecc7e0b56842f8a61be86b76e3af1295564b1",
+    "identityConsumed": true,
+    "favorableRerunAllowed": false
+  },
+  "preflight": {
+    "appAndWorkerInitiallyAbsent": true,
+    "artifactHashesMatched": true,
+    "identityAndStateInitiallyAbsent": true,
+    "rootAndStateOnDistinctPhysicalDisks": true,
+    "rootVolume": {
+      "fileSystem": "NTFS",
+      "mediaType": "SSD",
+      "healthStatus": "Healthy",
+      "sizeBytes": 511015403520
+    },
+    "stateVolume": {
+      "fileSystem": "NTFS",
+      "mediaType": "HDD",
+      "healthStatus": "Healthy",
+      "sizeBytes": 14000500764672
+    }
+  },
+  "fixedRelease": {
+    "appExeSha256": "EDBDE26E98FCAE033E3CE3847D182FAE86C98DCBD239A6C25525D08FB4CEEBB8",
+    "workerExeSha256": "8BC38DC9781FE418511A0FA45C0EFFEC39482209DE81AF62C3377EC1DC61CFD6",
+    "appDllSha256": "F31EB02187F3E1B39FF7BBA73B75F70E9DC40D2415640A3ACABB88166A6AED43"
+  },
+  "immutableParameters": {
+    "parameterSignatureSha256": "a7283ff06e658363dc6a5ef3dd5f678a416c04494fc2ee1b17b685a33b6aa848",
+    "repeatCachePolicy": "reuse_verified",
+    "cloudPolicy": "exclude_registered_roots",
+    "cloudDetectionStatus": "complete",
+    "manualLocationExclusionCount": 0,
+    "registeredCloudLocationCount": 3
+  },
+  "runs": [
+    {
+      "runId": 1,
+      "status": "completed",
+      "startedAt": "2026-09-07T22:20:30.764972300Z",
+      "completedAt": "2026-09-07T22:20:34.982413200Z",
+      "elapsedMilliseconds": 4217.4409,
+      "folderAnalysisMilliseconds": 158.597,
+      "filesDiscovered": 3181,
+      "bytesDiscovered": 420988885653,
+      "directoryNodes": 683,
+      "duplicateFileGroups": 115,
+      "duplicateFolderGroups": 46,
+      "similarityRows": 0,
+      "warningCount": 4,
+      "warningAccountingComplete": true,
+      "partialHashBytesRead": 584074,
+      "partialHashCacheHits": 0,
+      "partialHashCacheMisses": 127,
+      "partialHashCacheStores": 127,
+      "fullHashBytesRead": 143621077,
+      "fullHashCacheHits": 0,
+      "fullHashCacheMisses": 118,
+      "fullHashCacheStores": 118,
+      "fileResultSha256": "868835d0c589cff77fbff21e4d25d8038910cd9c71aa52016eb9910507756c73",
+      "folderResultSha256": "50874a81c1f1e56236dd73c13f90e31f0477d061466ac28584f7d5520f1feaaa"
+    },
+    {
+      "runId": 2,
+      "status": "completed",
+      "startedAt": "2026-09-08T15:16:39.824744900Z",
+      "completedAt": "2026-09-08T15:16:43.911121900Z",
+      "elapsedMilliseconds": 4086.377,
+      "folderAnalysisMilliseconds": 232.176,
+      "filesDiscovered": 3181,
+      "bytesDiscovered": 420988885653,
+      "directoryNodes": 683,
+      "duplicateFileGroups": 115,
+      "duplicateFolderGroups": 46,
+      "similarityRows": 0,
+      "warningCount": 4,
+      "warningAccountingComplete": true,
+      "partialHashBytesRead": 457035,
+      "partialHashCacheHits": 127,
+      "partialHashCacheMisses": 0,
+      "partialHashCacheStores": 0,
+      "fullHashBytesRead": 5700277,
+      "fullHashCacheHits": 118,
+      "fullHashCacheMisses": 0,
+      "fullHashCacheStores": 0,
+      "fileResultSha256": "868835d0c589cff77fbff21e4d25d8038910cd9c71aa52016eb9910507756c73",
+      "folderResultSha256": "50874a81c1f1e56236dd73c13f90e31f0477d061466ac28584f7d5520f1feaaa"
+    }
+  ],
+  "checks": {
+    "bothRunsCompleted": true,
+    "immutableParametersEqual": true,
+    "exactFileResultsEqual": true,
+    "exactFolderResultsEqual": true,
+    "zeroAutomaticSimilarityRows": true,
+    "firstRunHadZeroQualifiedHits": true,
+    "repeatRunReusedQualifiedPartialHashes": true,
+    "repeatRunReusedQualifiedFullHashes": true,
+    "repeatRunHadZeroQualifiedMissesOrStores": true,
+    "warningTruthEqualAndAccounted": true,
+    "telemetryFlushErrorsZero": true,
+    "telemetrySamplesLostZero": true,
+    "cacheFootprintBytesAfterRepeat": 83660,
+    "folderSubstageFramesRetained": false
+  },
+  "warningAggregate": {
+    "phase": "analyzing_folders",
+    "category": "scan",
+    "code": "exact_folder_verification_warning",
+    "occurrenceCountPerRun": 4
+  },
+  "observationGap": "Both physical runs completed in about four seconds and folder analysis lasted only 158.597 and 232.176 milliseconds. The app-owned worker stream and diagnostic log retained terminal phase timing but no auditable record proving that an operator observed each of the four transient folder-analysis substage labels.",
+  "disposition": "The physical correctness, exact-result, cloud-policy, warning-accounting, and qualified repeat-cache checks pass. Full checklist acceptance requires an explicit operator decision on the retained substage-observation gap. Do not rerun this consumed identity."
+}

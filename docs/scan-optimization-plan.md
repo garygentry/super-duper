@@ -11,18 +11,20 @@ Current execution checkpoint:
 
 - current gate: `SOP10-large-folder-analysis-remediation`, `accepted` at the fixed Release build and
   operator-checklist boundary; packages `SOP10a` through `SOP10f` are accepted;
-- next package: none. No dependency-ready local package remains in this stream. A physical
-  first/repeat acceptance run is a separate operator-authority boundary and must use a new identity,
-  explicit roots, and isolated state paths from `docs/sop10-physical-acceptance-checklist.md`;
+- next package: none. No dependency-ready local package remains in this stream. The separately
+  authorized `sop10-physical-v1` first/repeat campaign is consumed and retained with matching exact
+  results and qualified repeat-cache hits, but no auditable record that all four transient folder
+  substages were individually observed. Await operator disposition; do not rerun the identity;
 - rerun decision: do not rerun the old build. The cancelled run's legacy cache cannot safely seed
   the qualified current cache because it lacks the stable identity/change-token proof. The first
   fixed run must conservatively hash misses once; later unchanged runs default to verified reuse;
 - retained SOP9 boundary: `SOP9c-single-drive-reference-repeat` remains
   `blocked_invalid_campaign`; V1/V2 are consumed and must not be rerun or repurposed, and SOP9d does
   not become ready through SOP10;
-- physical boundary: this activation authorizes local code, deterministic fixtures, builds, and
-  synthetic scale verification. It does not authorize launching another full-drive scan; obtain
-  separate explicit approval after the fixed Release build and rerun checklist are ready;
+- physical boundary: `sop10-physical-v1` used separately authorized exact root and isolated state
+  identities. Both runs completed, the first had zero qualified hits, the unchanged repeat reused
+  127 partial and 118 full hashes, exact digests matched, and new runs wrote zero similarity rows.
+  The short 158.597/232.176 ms folder-analysis phases left no retained per-substage observation;
 - canonical new-session prompt: [`scan-optimization-kickoff-prompt.md`](scan-optimization-kickoff-prompt.md).
 
 This plan exists because representative use includes several roughly 10 TB drives. A full baseline
@@ -509,6 +511,7 @@ operator-authority boundary.
 | 2026-09-05 | Accept `SOP10e-repeat-policy-and-folder-progress` without changing the selected cache policies. | `reuse_verified` remains the closed default and `revalidate_content` the immutable override. Folder analysis now reports hierarchy, structural-candidate, exact-verification, and persistence progress in 1,024-unit producer batches through the existing 10 Hz latest-only worker/Core/WPF path, with same-source-revision snapshot identity, monotonic substage checks, cancellation/terminal silence, and accessible status text. |
 | 2026-09-05 | Retain SOP10f v1 as an invalid harness attempt and permit one separately versioned v2 after a query-only repair. | V1 reached `analysis_started` for the fixed 3.55M/633K declaration but its post-analysis finalizer referenced nonexistent legacy `directory_similarity.dir1_id`; therefore it retained no product, resource, threshold, or exact-result truth. The journal and failure summary are immutable, the identity cannot be reused, and v2 changes only the count query to schema-v14 `run_id`. |
 | 2026-09-05 | Accept SOP10f and the local SOP10 remediation boundary on the first v2 result. | The fixed Release scale result passed its unchanged time/memory/result/pass bounds; the named verifier passed cache-scale reuse, full matrices, safety locks, diff checks, and fresh package artifacts. No physical scan ran. Further acceptance requires separate authority for explicit roots and a new isolated identity. |
+| 2026-09-08 | Retain the consumed `sop10-physical-v1` two-run result with one observation gap. | Both fixed-Release runs completed against the separately authorized root and isolated state. Immutable policy/input signatures, exact file/folder digests, counts, warnings, and zero similarity rows match. The first run had zero qualified hits; the unchanged repeat reused 127 partial and 118 full hashes with zero qualified misses/stores. Because both runs lasted about four seconds and folder analysis lasted only 158.597/232.176 ms, no durable evidence proves that all four transient substage labels were individually observed. Do not rerun this identity; obtain operator disposition of the gap. |
 | 2026-08-25 | Create a separate scan-scale and observability stream; park, do not discard, the Windows release-validation checklist. | Multiple 10 TB drives make whole-run time a primary product concern, while the release checklist must still resume before final feature-complete. |
 | 2026-08-25 | Treat exact-size singleton short-circuiting as an open measured optimization. | Exact-size grouping exists, but the current partial-hash pass still opens singleton files. |
 | 2026-08-25 | Put durable telemetry before algorithm changes and keep it in a separate worker-owned local status database. | Accurate cumulative counters and device evidence are required to explain progress, compare runs, and avoid contaminating immutable product-result truth with sampled operational data. |
