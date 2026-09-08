@@ -45,6 +45,15 @@ of that capability. [Official AGENTS.md guidance](https://learn.chatgpt.com/docs
 6. Continue in the same task if useful, or start a fresh task with the same kickoff prompt after a
    coherent checkpoint. Before an intentional stop, record incomplete work, exact failing command,
    next action and live test processes. Never mark a gate passed to simplify a handoff.
+7. At every session handoff with remaining work, print a complete, copyable continuation prompt
+   in a fenced `text` block in the final response. A link to the checkpoint alone is insufficient.
+   Tailor the [reusable kickoff](session-kickoff-prompt.md) to the final committed state: include
+   checkout/branch and preservation rules, latest implementation commit, startup reading route,
+   exact next bounded slice and acceptance criteria, verification/runtime isolation requirements,
+   unresolved limitations or blockers, and the update/review/commit/report obligations. Require
+   the following session to print its own updated continuation prompt. Do not start another task
+   or perform the next slice merely because the user asks to print this prompt. If implementation
+   is blocked, name the precise prerequisite instead of inventing further work.
 
 ## Recommended sequence
 

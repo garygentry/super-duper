@@ -29,6 +29,9 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   UIR-03 remains in_progress; UIR-00/01/02 remain complete.
 - Compact redesign checkpoint: `plans/ui-redesign/session-checkpoint.md`; use its linked kickoff
   prompt and session guide to continue in this same checkout/branch.
+- Session handoffs now require a printed, copyable continuation prompt tailored to the committed
+  checkpoint and exact next slice. Latest product commit remains `3775d42`; this process update
+  changes no implementation, verification result or gate status.
 - Current artifacts: findings, product direction, screen/state/copy specification, visual guidance,
   capability map, interactive fictional concept, validation matrix and finite execution ledger,
   plus `scan-and-rescan-experience.md` (A08/A16/A17). User direction acceptance is not native acceptance.
@@ -1236,7 +1239,8 @@ For each session:
     clean except for any explicitly documented pre-existing operator changes. A session with
     completed changes is not finished until its commit succeeds.
 12. Report the commit, gate disposition, verification, skipped gates, blocker or next ready gate,
-    and any user decision required.
+    and any user decision required. When work remains, end with a copyable continuation prompt
+    for the exact next slice, following `plans/ui-redesign/codex-session-guide.md`.
 13. If the completed gate does not require a stop and another dependency-ready local package is
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
@@ -1244,6 +1248,7 @@ For each session:
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|
+| 2026-09-08 | this continuation-process commit | Require a printed, tailored continuation prompt at each session handoff; update startup guidance, session procedure and reusable kickoff. Documentation-only checks; no product changes/tests rerun. | UIR-03b remains next; implementation baseline 3775d42 and UIR-03 in_progress unchanged. |
 | 2026-09-08 | this UIR-03a commit | Implement semantic shell destinations, independent active progress/selected results, scoped setup/history loading, demand-loaded Performance and shared shell resources. 158 Core / 4 WPF tests pass. | UIR-03b four-area composition, explicit Open scan and deferred result/review loads; UIR-03 remains in_progress, native acceptance pending. |
 | 2026-09-08 | this UI feedback/session-procedure commit | UIR-02: high-level direction accepted; long-scan monitoring and qualified persistent rescans become explicit A16/A17 requirements. Add compact checkpoint and reusable Codex kickoff. | UIR-03 shell/context, then UIR-04 scan/rescan. Stay on codex/ui-redesign; no native acceptance or production enablement inferred. |
 | 2026-09-08 | 0827b28 | UIR-00/01: preserve all current work on `wpf-poc` at `deefa40`, create and remain on `codex/ui-redesign`, capture findings and a concrete design/specification/prototype/validation package, and route future sessions to its execution ledger. | UIR-02 direction walkthrough, then scoped implementation/testing on this same branch; no Recycle Bin enablement or consumed campaign rerun. |

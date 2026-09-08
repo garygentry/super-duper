@@ -59,6 +59,8 @@ record partial progress without calling the gate complete. Run UIR-04 next after
 6. Stop for actual missing authority/evidence or a design decision affecting user intent. Prepare
    a concrete reviewable result first; do not ask repeatedly about reversible implementation choices.
 7. At completion remain on the redesign branch. Merge/push/release only on later user instruction.
+8. At session handoff with remaining work, print the next session's copyable continuation prompt
+   in the final response, tailored to the committed checkpoint as required by the session guide.
 
 ## Branch durability and checkpoints
 

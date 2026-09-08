@@ -4,8 +4,8 @@ Use this in the existing task or a fresh task opened directly in the same local 
 
 ```text
 Continue the Super Duper Windows UI redesign in C:\Users\gary\workspace\super-duper.
-Work directly in this existing checkout on codex/ui-redesign. All current work is preserved on
-wpf-poc at deefa40. Keep all redesign planning, implementation and testing on codex/ui-redesign;
+Work directly in this existing checkout on codex/ui-redesign. Preserve the pre-redesign baseline
+on wpf-poc at deefa40. Keep all redesign planning, implementation and testing on codex/ui-redesign;
 do not create/switch branches, create another worktree, merge, rebase, push or delete branches.
 
 Audit Git first and preserve unexpected edits. Read AGENTS.md, the current-control sections of
@@ -28,4 +28,6 @@ Before finishing, review the diff, update the gate ledger, compact checkpoint an
 record test evidence and remaining limitations, and commit completed in-scope work on this branch.
 Report what works, what was verified, the commit, and the exact next slice. Do not mark the entire
 redesign complete before UIR-09's actual native/user acceptance criteria are met.
+End the final response with a copyable continuation prompt tailored to the newly committed
+checkpoint and exact next slice, including these same handoff obligations.
 ```

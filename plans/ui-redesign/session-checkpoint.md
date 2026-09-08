@@ -3,8 +3,9 @@
 Updated 2026-09-08. [Execution plan](execution-plan.md) owns gate status.
 
 - Required branch: `codex/ui-redesign`. Preserved baseline: `wpf-poc` at `deefa40`.
-- Implementation baseline: `422c3e7`; this UIR-03a commit follows it. Resolve the completed slice
-  from Git history rather than treating the baseline as a reset target.
+- Latest implementation commit: `3775d42` (UIR-03a), following baseline `422c3e7`.
+  This subsequent process-only update requires a printed continuation prompt at each handoff;
+  it changes no product code or gate status.
 - Completed gates: UIR-00/01/02. **UIR-03 remains in_progress**, with UIR-03a implemented.
 - UIR-03a: semantic destinations replace numeric routing; shared shell/recovery resources;
   dated selected/monitoring identities; independent global progress/cancellation; lifecycle

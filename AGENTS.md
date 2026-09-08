@@ -36,6 +36,8 @@ this startup instruction.
 Use `plans/ui-redesign/codex-session-guide.md` for multi-session execution and update its compact
 checkpoint with each coherent slice. Long-scan monitoring and persistent qualified rescan reuse
 are required by `plans/ui-redesign/scan-and-rescan-experience.md` (A08/A16/A17).
+At every session handoff with remaining work, print a copyable continuation prompt in the final
+response, tailored to the committed checkpoint and exact next slice; follow the session guide.
 
 ## Current State
 
