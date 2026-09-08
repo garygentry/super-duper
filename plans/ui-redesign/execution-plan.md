@@ -1,6 +1,6 @@
 # Planning, implementation and testing procedure
 
-Status: direction accepted with long-scan/rescan feedback; UIR-03 is next. Stay on `codex/ui-redesign`.
+Status: UIR-03 in progress; first shell/context slice implemented. Stay on `codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -11,7 +11,7 @@ all safety/evidence gates. Its open execution criteria are not absorbed or marke
 | UIR-00 | complete | Preserve current work and create dedicated branch | `wpf-poc` at `deefa40`; `codex/ui-redesign` created from it |
 | UIR-01 | complete | Findings, direction, specifications, concept, capability mapping, validation and procedure | Package internally checked; prototype limitations recorded; no WPF implementation |
 | UIR-02 | complete | High-level direction accepted; operator feedback incorporated | D13-D15; no native or full prototype walkthrough acceptance inferred |
-| UIR-03 | ready | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-02; A01/A02/A09/A15 and focused Shell/WPF regressions pass |
+| UIR-03 | in_progress | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a implemented; [evidence](evidence/uir-03a-shell-context.md). Full A01/A02/A09/A15 acceptance remains open; next UIR-03b below |
 | UIR-04 | planned | Setup, Scan again, persistent reuse explanation, live monitoring/details and terminal summaries | UIR-03; A05/A06/A08/A14/A15/A16/A17 with controlled clock, lifecycle and rescan fixtures |
 | UIR-05 | planned | File/folder results, compact filters, list/detail comparison, decisions and path actions | UIR-03; A03/A04/A05/A06/A11/A13/A15 and existing query/focus/page contracts |
 | UIR-06 | planned | Dedicated Review, existing rule workflow, whole-plan validation and evidence access | UIR-05; A04/A10/A15 including revision, survivor, overlap, reversal and restart |
@@ -25,6 +25,19 @@ gates are named `local_code` scopes; each entry lists the findings/acceptance cr
 the work, so future agents need not mine historical accepted slices for artificial reopen reasons.
 
 ## Working method
+
+UIR-03a (2026-09-08) establishes named destinations behind the retained seven tabs, independent
+active progress/cancellation while browsing history, dated selected/monitoring context, shared
+shell/recovery styles, history generation guards, setup readiness and demand-loaded Performance.
+158 Core tests and four loaded-STA WPF tests pass in isolated Debug outputs. This is partial
+implementation, not native acceptance or UIR-03 completion.
+
+**Next slice: UIR-03b** — compose Scan / Results / Review / History using semantic destinations;
+make History row selection harmless and add explicit Open scan with an independent workspace run;
+defer file/folder/review loads until opened, retaining bounded same-run state. Test delayed Open
+scan/navigation, current warnings across sessions, active completion/exit without retargeting and
+native focus after regrouping. Finish shell resource adoption and prepare the A01/A02/A09
+walkthrough before claiming UIR-03 acceptance.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read

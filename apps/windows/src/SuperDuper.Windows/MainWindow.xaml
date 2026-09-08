@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:views="clr-namespace:SuperDuper.Windows.Views"
+        xmlns:vm="clr-namespace:SuperDuper.Windows.Core.ViewModels;assembly=SuperDuper.Windows.Core"
         mc:Ignorable="d"
         Title="Super Duper"
         Icon="Assets/AppIcon/SuperDuper.ico"
@@ -35,7 +36,7 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <Border Padding="24,16"
+                <Border Padding="{StaticResource ShellContentInset}"
                         BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
                         BorderThickness="0,0,0,1">
                     <Grid>
@@ -44,60 +45,93 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel>
-                            <TextBlock FontSize="24" FontWeight="SemiBold" Text="{Binding DisplaySessionName}" />
-                            <TextBlock Margin="0,3,0,0" Opacity="0.65" Text="Find exact duplicate files with a durable scan history." />
+                            <TextBlock Style="{StaticResource ShellTitle}" Text="{Binding DisplaySessionName}" />
+                            <TextBlock AutomationProperties.AutomationId="SelectedScanContext"
+                                       Margin="0,4,12,0" Style="{StaticResource ShellBody}" Text="{Binding SelectedScanContext}" />
+                            <TextBlock Style="{StaticResource ShellBody}" Text="Loading saved scan…"
+                                       Visibility="{Binding IsLoadingSession, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         </StackPanel>
                         <Button Grid.Column="1"
                                 x:Name="StartScanButton"
                                 AutomationProperties.AutomationId="StartScanButton"
                                 MinWidth="112"
-                                Padding="16,8"
+                                Style="{StaticResource ShellPrimaryAction}"
                                 Command="{Binding StartRunCommand}"
                                 Content="Start scan" />
                     </Grid>
                 </Border>
 
                 <Grid Grid.Row="1">
-                    <views:EmptyStateView Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Border Style="{StaticResource ShellStatusBanner}" Margin="12,8"
+                            Visibility="{Binding HasActiveRun, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Margin="12,0,0,0" Style="{StaticResource ShellAction}"
+                                    AutomationProperties.AutomationId="ViewActiveProgress"
+                                    AutomationProperties.Name="View active scan progress"
+                                    Content="View progress" Command="{Binding ViewProgressCommand}" />
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource ShellBody}">
+                                    <Run Text="Active scan: " /><Run Text="{Binding ActiveScanName, Mode=OneWay}" />
+                                    <Run Text=" · " /><Run Text="{Binding Progress.Phase, Mode=OneWay}" />
+                                    <Run Text=" · " /><Run Text="{Binding Progress.Elapsed, Mode=OneWay}" />
+                                    <Run Text=" · Warnings: " /><Run Text="{Binding Progress.WarningCount, Mode=OneWay}" />
+                                </TextBlock>
+                                <TextBlock Style="{StaticResource ShellBody}" Text="Another scan cannot start until this scan stops." />
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                    <views:EmptyStateView Grid.Row="1" Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
                     <TabControl x:Name="MainTabs"
+                                Grid.Row="1"
                                 AutomationProperties.AutomationId="MainTabs"
                                 AutomationProperties.Name="Session workspace tabs"
-                                SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}"
+                                SelectedValuePath="Tag"
+                                SelectedValue="{Binding SelectedDestination, Mode=TwoWay}"
                                 Visibility="{Binding IsWorkspaceVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <TabItem AutomationProperties.AutomationId="SetupTab" Header="Setup">
-                            <views:SessionSetupView DataContext="{Binding Setup}" />
+                        <TabItem AutomationProperties.AutomationId="SetupTab" Header="Setup" Tag="{x:Static vm:WorkspaceDestination.ScanSetup}">
+                            <Grid>
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsSetupAvailable}" Value="False">
+                                                <Setter Property="Visibility" Value="Hidden" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Grid.Style>
+                                <views:SessionSetupView DataContext="{Binding Setup}" />
+                            </Grid>
                         </TabItem>
-                        <TabItem AutomationProperties.AutomationId="ProgressTab" Header="Progress">
-                            <views:ScanProgressView DataContext="{Binding Progress}" />
+                        <TabItem AutomationProperties.AutomationId="ProgressTab" Header="Progress" Tag="{x:Static vm:WorkspaceDestination.ScanProgress}">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Top" Margin="24,8" Style="{StaticResource ShellBody}"
+                                           AutomationProperties.AutomationId="ProgressScanContext" Text="{Binding ProgressScanContext}" />
+                                <views:ScanProgressView DataContext="{Binding Progress}" />
+                            </DockPanel>
                         </TabItem>
-                        <TabItem AutomationProperties.AutomationId="RunHistoryTab" Header="Run history">
+                        <TabItem AutomationProperties.AutomationId="RunHistoryTab" Header="Run history" Tag="{x:Static vm:WorkspaceDestination.History}">
                             <views:RunHistoryView DataContext="{Binding History}" />
                         </TabItem>
-                        <TabItem AutomationProperties.AutomationId="DuplicateFilesTab" Header="Duplicate files">
+                        <TabItem AutomationProperties.AutomationId="DuplicateFilesTab" Header="Duplicate files" Tag="{x:Static vm:WorkspaceDestination.FileResults}">
                             <views:DuplicateFilesView x:Name="DuplicateFilesWorkspace" DataContext="{Binding DuplicateFiles}" />
                         </TabItem>
-                        <TabItem AutomationProperties.AutomationId="DuplicateFoldersTab" Header="Duplicate folders">
+                        <TabItem AutomationProperties.AutomationId="DuplicateFoldersTab" Header="Duplicate folders" Tag="{x:Static vm:WorkspaceDestination.FolderResults}">
                             <views:DuplicateFoldersView DataContext="{Binding DuplicateFolders}" />
                         </TabItem>
-                        <TabItem AutomationProperties.AutomationId="PreflightTab" Header="Preflight">
+                        <TabItem AutomationProperties.AutomationId="PreflightTab" Header="Preflight" Tag="{x:Static vm:WorkspaceDestination.Review}">
                             <views:PreflightView DataContext="{Binding Preflight}" />
                         </TabItem>
-                        <TabItem AutomationProperties.AutomationId="PerformanceTab" Header="_Performance">
+                        <TabItem AutomationProperties.AutomationId="PerformanceTab" Header="_Performance" Tag="{x:Static vm:WorkspaceDestination.Performance}">
                             <views:PerformanceView x:Name="PerformanceWorkspace" DataContext="{Binding Performance}" />
                         </TabItem>
                     </TabControl>
 
-                    <Border Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
-                            Opacity="0.9"
-                            Visibility="{Binding IsLoadingSession, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <ProgressBar Width="160" Height="5" IsIndeterminate="True" />
-                            <TextBlock Margin="0,10,0,0" Opacity="0.7" Text="Loading session…" />
-                        </StackPanel>
-                    </Border>
-
-                    <views:ErrorStateView Panel.ZIndex="10"
+                    <views:ErrorStateView Grid.Row="1" Panel.ZIndex="10"
                                           Visibility="{Binding HasContentError, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </Grid>
             </Grid>
@@ -106,10 +140,10 @@
         <Grid Margin="32"
               Visibility="{Binding IsStarting, Converter={StaticResource BooleanToVisibilityConverter}}">
             <StackPanel Width="540" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <TextBlock HorizontalAlignment="Center" FontSize="28" FontWeight="SemiBold" Text="{Binding StatusTitle}" />
+                <TextBlock HorizontalAlignment="Center" Style="{StaticResource ShellTitle}" Text="{Binding StatusTitle}" />
                 <TextBlock Margin="0,9,0,20"
                            HorizontalAlignment="Center"
-                           Opacity="0.7"
+                           Style="{StaticResource ShellBody}"
                            Text="{Binding StatusDetail}"
                            TextAlignment="Center"
                            TextWrapping="Wrap" />
@@ -123,16 +157,14 @@
                     Padding="28"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
-                    BorderBrush="#C84B31"
-                    BorderThickness="1"
-                    CornerRadius="10">
+                    Style="{StaticResource ShellStatusBanner}">
                 <StackPanel>
-                    <TextBlock FontSize="25" FontWeight="SemiBold" Text="{Binding StatusTitle}" />
+                    <TextBlock Style="{StaticResource ShellTitle}" Text="{Binding StatusTitle}" />
                     <TextBlock Margin="0,10,0,0" Text="{Binding StatusDetail}" TextWrapping="Wrap" />
                     <TextBlock Margin="0,20,0,5" FontWeight="SemiBold" Text="Worker executable" />
                     <TextBox IsReadOnly="True" Text="{Binding WorkerExecutablePath, Mode=OneWay}" TextWrapping="Wrap" />
                     <TextBlock Margin="0,12,0,0"
-                               Opacity="0.7"
+                               Style="{StaticResource ShellBody}"
                                Text="Correct the executable, database, or permissions issue if needed, then restart the worker in place."
                                TextWrapping="Wrap" />
                     <TextBlock Margin="0,18,0,5" FontWeight="SemiBold" Text="Diagnostic log" />
@@ -142,7 +174,7 @@
                             AutomationProperties.Name="Restart worker and recover"
                             HorizontalAlignment="Left"
                             MinWidth="140"
-                            Padding="14,7"
+                            Style="{StaticResource ShellAction}"
                             Command="{Binding RestartWorkerCommand}"
                             Content="Restart worker" />
                 </StackPanel>
@@ -150,6 +182,7 @@
         </Grid>
 
         <StatusBar Grid.Row="1">
+            <StatusBarItem><TextBlock Text="Scan engine:" /></StatusBarItem>
             <StatusBarItem>
                 <TextBlock Text="{Binding StatusTitle}" />
             </StatusBarItem>

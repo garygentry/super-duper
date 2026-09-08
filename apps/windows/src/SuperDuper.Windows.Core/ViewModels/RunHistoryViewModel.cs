@@ -23,6 +23,7 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
     private bool _isWarningNavigationPending;
     private string _focusTarget = string.Empty;
     private long _focusRequestVersion;
+    private long _loadGeneration;
 
     public RunHistoryViewModel(
         IWorkerClient workerClient,
@@ -178,6 +179,12 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
 
     public async Task LoadAsync(long sessionId, CancellationToken cancellationToken = default)
     {
+        var generation = ++_loadGeneration;
+        if (SessionId != sessionId)
+        {
+            Runs.Clear();
+            SelectedRun = null;
+        }
         SessionId = sessionId;
         IsLoading = true;
         ErrorMessage = null;
@@ -188,6 +195,7 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
             while (true)
             {
                 var page = await _workerClient.ListRunsAsync(sessionId, offset, PageSize, cancellationToken);
+                if (generation != _loadGeneration || cancellationToken.IsCancellationRequested) return;
                 runs.AddRange(page.Runs);
                 offset += page.Runs.Count;
                 if (offset >= page.Total || page.Runs.Count == 0)
@@ -209,20 +217,25 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            throw;
+            // Cancellation only dismisses this history request; a newer context owns the view.
         }
         catch (Exception exception)
         {
-            ErrorMessage = exception.Message;
+            if (generation == _loadGeneration && !cancellationToken.IsCancellationRequested)
+            {
+                ErrorMessage = exception.Message;
+            }
         }
         finally
         {
-            IsLoading = false;
+            if (generation == _loadGeneration) IsLoading = false;
         }
     }
 
     public void Clear()
     {
+        ++_loadGeneration;
+        IsLoading = false;
         CloseWarnings(restoreFocus: false);
         SessionId = null;
         Runs.Clear();
@@ -474,6 +487,7 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        ++_loadGeneration;
         _warningDrilldown.PropertyChanged -= WarningDrilldownPropertyChanged;
         CloseWarnings(restoreFocus: false);
         _warningDrilldown.Dispose();

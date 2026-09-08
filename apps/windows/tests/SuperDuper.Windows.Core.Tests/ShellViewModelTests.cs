@@ -93,7 +93,7 @@ public sealed class ShellViewModelTests
     {
         var client = new TestWorkerClient();
         using var viewModel = CreateViewModel(client);
-        viewModel.SelectedTabIndex = 5;
+        viewModel.SelectedDestination = WorkspaceDestination.Review;
         await viewModel.Preflight.Operation.RecoveryReview.ShowOperationAsync(
             TestWorkerClient.CreateRecycleOperation(8, 12, 7, 4) with
             {
@@ -103,7 +103,7 @@ public sealed class ShellViewModelTests
 
         await viewModel.Preflight.Operation.RecoveryReview.NavigateToFreshScanCommand.ExecuteAsync(null);
 
-        Assert.AreEqual(0, viewModel.SelectedTabIndex);
+        Assert.AreEqual(WorkspaceDestination.ScanSetup, viewModel.SelectedDestination);
         Assert.AreEqual("start-scan", viewModel.FocusTarget);
         Assert.IsTrue(viewModel.FocusRequestVersion > 0);
     }
@@ -130,12 +130,12 @@ public sealed class ShellViewModelTests
                 [warning], 1, 1, 1, 10, "terminal", "completed", TestWorkerClient.DiagnosticLog, null, false));
         using var viewModel = CreateViewModel(client);
         await viewModel.InitializeAsync();
-        viewModel.SelectedTabIndex = 2;
+        viewModel.SelectedDestination = WorkspaceDestination.History;
         await viewModel.History.OpenWarningsCommand.ExecuteAsync(null);
 
         await viewModel.History.NavigateWarningCommand.ExecuteAsync(warning);
 
-        Assert.AreEqual(3, viewModel.SelectedTabIndex);
+        Assert.AreEqual(WorkspaceDestination.FileResults, viewModel.SelectedDestination);
         Assert.AreEqual(run.Id, viewModel.DuplicateFiles.Run?.Id);
         Assert.AreEqual("duplicate-file-groups", viewModel.FocusTarget);
         Assert.IsTrue(viewModel.FocusRequestVersion > 0);
@@ -177,14 +177,14 @@ public sealed class ShellViewModelTests
         using (var viewModel = CreateViewModel(client))
         {
             await viewModel.InitializeAsync();
-            viewModel.SelectedTabIndex = 1;
+            viewModel.SelectedDestination = WorkspaceDestination.ScanProgress;
             Assert.IsTrue(viewModel.Progress.ApplyProgress(ProgressTestData.Discovery(
                 active.Id,
                 warningCount: 4)));
 
             await viewModel.Progress.OpenWarningsCommand.ExecuteAsync(null);
 
-            Assert.AreEqual(2, viewModel.SelectedTabIndex);
+            Assert.AreEqual(WorkspaceDestination.History, viewModel.SelectedDestination);
             Assert.AreEqual(active.Id, viewModel.History.SelectedRun?.Id);
             Assert.AreEqual("warnings", viewModel.History.FocusTarget);
             Assert.AreEqual(4, viewModel.History.WarningDrilldown.WarningCount);
@@ -221,10 +221,10 @@ public sealed class ShellViewModelTests
 
         using var reconstructed = CreateViewModel(client);
         await reconstructed.InitializeAsync();
-        reconstructed.SelectedTabIndex = 1;
+        reconstructed.SelectedDestination = WorkspaceDestination.ScanProgress;
         await reconstructed.Progress.OpenWarningsCommand.ExecuteAsync(null);
 
-        Assert.AreEqual(2, reconstructed.SelectedTabIndex);
+        Assert.AreEqual(WorkspaceDestination.History, reconstructed.SelectedDestination);
         Assert.IsTrue(reconstructed.History.WarningDrilldown.IsTerminalSnapshot);
         Assert.AreEqual("interrupted", reconstructed.History.WarningDrilldown.RunStatus);
         Assert.AreEqual(4, reconstructed.History.WarningDrilldown.WarningCount);

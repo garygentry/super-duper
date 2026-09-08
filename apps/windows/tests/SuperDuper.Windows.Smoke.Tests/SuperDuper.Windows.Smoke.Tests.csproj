@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+    <EmbeddedResource Include="..\..\src\SuperDuper.Windows\MainWindow.xaml" LogicalName="ShellMarkup.xaml" />
   </ItemGroup>
 
 </Project>

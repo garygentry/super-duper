@@ -121,8 +121,11 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
     public Task<WorkerSessionPage> ListSessionsAsync(long offset = 0, int limit = 100, CancellationToken cancellationToken = default) =>
         Task.FromResult(new WorkerSessionPage(Sessions.Skip((int)offset).Take(limit).ToArray(), Sessions.Count));
 
+    public Func<long, CancellationToken, Task<WorkerSessionDefinition>>? SessionHandler { get; set; }
+
     public Task<WorkerSessionDefinition> GetSessionAsync(long sessionId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Sessions.Single(session => session.Id == sessionId));
+        SessionHandler?.Invoke(sessionId, cancellationToken)
+        ?? Task.FromResult(Sessions.Single(session => session.Id == sessionId));
 
     public Task<WorkerSessionDefinition> CreateSessionAsync(
         string name,
@@ -184,12 +187,15 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
         return Task.CompletedTask;
     }
 
+    public Func<long?, CancellationToken, Task<WorkerRunPage>>? RunsHandler { get; set; }
+
     public Task<WorkerRunPage> ListRunsAsync(
         long? sessionId = null,
         long offset = 0,
         int limit = 100,
         CancellationToken cancellationToken = default)
     {
+        if (RunsHandler is not null) return RunsHandler(sessionId, cancellationToken);
         var matching = Runs
             .Where(run => sessionId is null || run.SessionId == sessionId)
             .OrderByDescending(run => run.Id)
