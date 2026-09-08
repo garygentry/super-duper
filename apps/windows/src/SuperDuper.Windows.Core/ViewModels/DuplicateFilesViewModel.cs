@@ -1009,6 +1009,7 @@ public sealed class DuplicateFilesViewModel : ObservableObject, IDisposable
             ResetAndLoadGroupsAsync(cancellationToken),
             LoadReviewPlanAsync(run.Id, reviewGeneration, _reviewCancellation.Token),
             LoadDirtyRootsAsync(run.Id, dirtyRootGeneration, _dirtyRootCancellation.Token));
+        if (Run?.Id != run.Id || reviewGeneration != _reviewGeneration || cancellationToken.IsCancellationRequested) return;
         await PreferenceRules.ShowRunAsync(run, cancellationToken);
     }
 

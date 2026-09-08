@@ -29,6 +29,13 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     private long? _activeRunId;
     private long? _activeSessionId;
     private WorkspaceDestination _selectedDestination;
+    private WorkerRun? _selectedRun;
+    private CancellationTokenSource _workspaceCancellation = new();
+    private readonly Dictionary<WorkspaceDestination, Task> _paneLoads = [];
+    private long _navigationGeneration;
+    private WorkspaceDestination _scanDestination = WorkspaceDestination.ScanSetup;
+    private WorkspaceDestination _resultsDestination = WorkspaceDestination.FileResults;
+    private WorkspaceDestination _historyDestination = WorkspaceDestination.History;
     private bool _suppressSelection;
     private bool _disposed;
     private Task _savedHistoryLoad = Task.CompletedTask;
@@ -68,6 +75,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             dispatcher,
             runId => _progressGate.MarkCancelling(runId),
             OpenProgressWarningsAsync);
+        Summary = new ScanProgressViewModel(workerClient, dispatcher, openWarnings: OpenProgressWarningsAsync);
         Progress.PropertyChanged += OnProgressPropertyChanged;
         History = new RunHistoryViewModel(workerClient, NavigateToWarningDuplicateSetAsync);
         Performance = new PerformanceViewModel(workerClient);
@@ -88,7 +96,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         Setup.SessionDeleted += OnSessionDeleted;
         Setup.PropertyChanged += OnSetupPropertyChanged;
         Sessions.PropertyChanged += OnSessionsPropertyChanged;
-        History.SelectedRunChanged += OnSelectedRunChanged;
+        History.SelectedRunChanged += OnHistorySelectionChanged;
         History.PropertyChanged += OnHistoryPropertyChanged;
         _workerClient.RunProgress += OnRunProgress;
         _workerClient.RunLifecycleChanged += OnRunLifecycleChanged;
@@ -104,6 +112,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         StartRunCommand = new AsyncRelayCommand(StartRunAsync, () => CanStartRun);
         RestartWorkerCommand = new AsyncRelayCommand(RestartWorkerAsync, () => CanRestartWorker);
         ClearContentErrorCommand = new RelayCommand(() => ContentErrorMessage = null);
+        OpenScanCommand = new RelayCommand(OpenHighlightedScan, () => IsConnected && History.SelectedRun is not null && !History.IsLoading && !IsLoadingSession);
         ViewProgressCommand = new RelayCommand(() => SelectedDestination = WorkspaceDestination.ScanProgress);
     }
 
@@ -112,6 +121,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     public SessionSetupViewModel Setup { get; }
 
     public ScanProgressViewModel Progress { get; }
+
+    public ScanProgressViewModel Summary { get; }
 
     public RunHistoryViewModel History { get; }
 
@@ -190,6 +201,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(CanStartRun));
                 StartRunCommand.NotifyCanExecuteChanged();
                 OnPropertyChanged(nameof(IsSetupAvailable));
+                OpenScanCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -197,7 +209,13 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     public string DisplaySessionName
     {
         get => _displaySessionName;
-        private set => SetProperty(ref _displaySessionName, value);
+        private set
+        {
+            if (!SetProperty(ref _displaySessionName, value)) return;
+            OnPropertyChanged(nameof(WorkspaceSessionName));
+            OnPropertyChanged(nameof(HistoryContext));
+            OnPropertyChanged(nameof(StartRunLabel));
+        }
     }
 
     public string? ContentErrorMessage
@@ -217,15 +235,61 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         get => _selectedDestination;
         set
         {
-            if (SetProperty(ref _selectedDestination, value)
-                && value == WorkspaceDestination.Performance)
+            if (!SetProperty(ref _selectedDestination, value)) return;
+            _navigationGeneration++;
+            switch (value)
             {
-                _ = Performance.ShowRunAsync(SelectedRun);
+                case WorkspaceDestination.ScanSetup or WorkspaceDestination.ScanProgress or WorkspaceDestination.ScanSummary: _scanDestination = value; break;
+                case WorkspaceDestination.FileResults or WorkspaceDestination.FolderResults: _resultsDestination = value; break;
+                case WorkspaceDestination.History or WorkspaceDestination.Performance: _historyDestination = value; break;
             }
+            OnPropertyChanged(nameof(SelectedArea));
+            OnPropertyChanged(nameof(ScanDestination));
+            OnPropertyChanged(nameof(ResultsDestination));
+            OnPropertyChanged(nameof(HistoryDestination));
+            _ = EnsurePaneAsync();
         }
     }
 
-    public WorkerRun? SelectedRun => History.SelectedRun?.Run;
+    public WorkspaceArea SelectedArea
+    {
+        get => SelectedDestination switch
+        {
+            WorkspaceDestination.ScanSetup or WorkspaceDestination.ScanProgress or WorkspaceDestination.ScanSummary => WorkspaceArea.Scan,
+            WorkspaceDestination.FileResults or WorkspaceDestination.FolderResults => WorkspaceArea.Results,
+            WorkspaceDestination.Review => WorkspaceArea.Review,
+            _ => WorkspaceArea.History,
+        };
+        set => SelectedDestination = value switch
+        {
+            WorkspaceArea.Scan => _scanDestination,
+            WorkspaceArea.Results => _resultsDestination,
+            WorkspaceArea.Review => WorkspaceDestination.Review,
+            _ => _historyDestination,
+        };
+    }
+
+    public WorkspaceDestination ScanDestination
+    {
+        get => _scanDestination;
+        set { _scanDestination = value; if (SelectedArea == WorkspaceArea.Scan) SelectedDestination = value; }
+    }
+    public WorkspaceDestination ResultsDestination
+    {
+        get => _resultsDestination;
+        set { _resultsDestination = value; if (SelectedArea == WorkspaceArea.Results) SelectedDestination = value; }
+    }
+    public WorkspaceDestination HistoryDestination
+    {
+        get => _historyDestination;
+        set { _historyDestination = value; if (SelectedArea == WorkspaceArea.History) SelectedDestination = value; }
+    }
+
+    public WorkerRun? SelectedRun => _selectedRun;
+    public string WorkspaceSessionName => SelectedRun is { } run
+        ? Sessions.Find(run.SessionId)?.Name ?? "Saved scan" : DisplaySessionName;
+    public string StartRunLabel => $"Start scan: {DisplaySessionName}";
+    public string HistoryContext => $"History: {DisplaySessionName} \u00b7 Highlight a row, then Open scan to change the workspace.";
 
     public string SelectedScanContext => SelectedRun is { } run
         ? $"Scan {run.Id} · {(run.StartedAt ?? run.CreatedAt).ToLocalTime():g} · {DisplayFormatting.Status(run.Status)} · {run.Parameters.Roots.Count} locations"
@@ -301,6 +365,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     public IRelayCommand ClearContentErrorCommand { get; }
 
     public IRelayCommand ViewProgressCommand { get; }
+
+    public IRelayCommand OpenScanCommand { get; }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -408,6 +474,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             return;
         }
         _disposed = true;
+        _workspaceCancellation.Cancel();
+        _workspaceCancellation.Dispose();
         _selectionCancellation?.Cancel();
         _selectionCancellation?.Dispose();
         CancelPendingStart();
@@ -416,7 +484,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         Setup.SessionDeleted -= OnSessionDeleted;
         Setup.PropertyChanged -= OnSetupPropertyChanged;
         Sessions.PropertyChanged -= OnSessionsPropertyChanged;
-        History.SelectedRunChanged -= OnSelectedRunChanged;
+        History.SelectedRunChanged -= OnHistorySelectionChanged;
         History.PropertyChanged -= OnHistoryPropertyChanged;
         _workerClient.RunProgress -= OnRunProgress;
         _workerClient.RunLifecycleChanged -= OnRunLifecycleChanged;
@@ -432,6 +500,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         DuplicateFiles.ReviewRevisionChanged -= OnFileReviewRevisionChanged;
         DuplicateFolders.ReviewRevisionChanged -= OnFolderReviewRevisionChanged;
         Progress.Dispose();
+        Summary.Dispose();
         Progress.PropertyChanged -= OnProgressPropertyChanged;
         _progressGate.Dispose();
         History.Dispose();
@@ -462,11 +531,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         _suppressSelection = false;
         Setup.BeginNew();
         History.Clear();
+        SetWorkspaceRun(null);
         if (!HasActiveRun) Progress.ShowRun(null);
-        _ = Performance.ShowRunAsync(null);
-        _ = DuplicateFiles.ShowRunAsync(null);
-        _ = DuplicateFolders.ShowRunAsync(null);
-        _ = Preflight.ShowRunAsync(null);
         DisplaySessionName = "New session";
         SelectedDestination = WorkspaceDestination.ScanSetup;
         IsLoadingSession = false;
@@ -493,10 +559,11 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             throw new InvalidOperationException("The warning run is no longer the selected history context.");
         }
-        if (DuplicateFiles.Run?.Id != target.Id)
-        {
-            await DuplicateFiles.ShowRunAsync(target, cancellationToken);
-        }
+        SetWorkspaceRun(target, loadPane: false);
+        SelectedDestination = WorkspaceDestination.FileResults;
+        var navigation = _navigationGeneration;
+        await EnsurePaneAsync();
+        if (navigation != _navigationGeneration || SelectedRun?.Id != target.Id) return;
         cancellationToken.ThrowIfCancellationRequested();
         if (History.SelectedRun?.Id != target.Id || DuplicateFiles.Run?.Id != target.Id)
         {
@@ -514,29 +581,32 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (Progress.Run?.Id != run.Id || run.WarningCount <= 0)
+        if ((Progress.Run?.Id != run.Id && Summary.Run?.Id != run.Id) || run.WarningCount <= 0)
         {
             return;
         }
 
+        var navigation = _navigationGeneration;
         if (History.SessionId != run.SessionId && Sessions.Find(run.SessionId) is { } session)
         {
             _suppressSelection = true;
             Sessions.SelectedSession = session;
             _suppressSelection = false;
-            var selection = SelectSessionAsync(session, cancellationToken);
+            var selection = SelectSessionAsync(session, cancellationToken, preserveWorkspace: true);
             var selectionCancellation = _selectionCancellation;
             await selection;
             if (_selectionCancellation != selectionCancellation || selectionCancellation?.IsCancellationRequested == true) return;
         }
         cancellationToken.ThrowIfCancellationRequested();
+        if (navigation != _navigationGeneration) return;
         SelectedDestination = WorkspaceDestination.History;
         await History.OpenWarningsForRunAsync(run, cancellationToken);
     }
 
     private async Task SelectSessionAsync(
         SessionListItemViewModel selected,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool preserveWorkspace = false)
     {
         CancelPendingStart();
         _selectionCancellation?.Cancel();
@@ -549,6 +619,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         DisplaySessionName = selected.Name;
         ContentErrorMessage = null;
         History.Clear();
+        if (!preserveWorkspace) SetWorkspaceRun(null);
         try
         {
             var sessionTask = _workerClient.GetSessionAsync(selected.Id, token);
@@ -561,6 +632,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             await historyTask;
             token.ThrowIfCancellationRequested();
             var latest = History.Runs.FirstOrDefault()?.Run;
+            if (!preserveWorkspace) SetWorkspaceRun(latest);
             selected.StatusText = latest is null ? "No scans yet" : DisplayFormatting.Status(latest.Status);
             if (latest?.Status is "pending" or "running" or "cancelling")
             {
@@ -615,6 +687,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             }
             SetActiveRun(run);
             History.Upsert(run, select: true);
+            SetWorkspaceRun(run);
             Progress.ShowRun(run);
             SelectedDestination = WorkspaceDestination.ScanProgress;
             StatusTitle = $"Scanning {session.Name}";
@@ -750,19 +823,62 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void OnSelectedRunChanged(object? sender, WorkerRun? run)
+    private void OnHistorySelectionChanged(object? sender, WorkerRun? run) =>
+        OpenScanCommand.NotifyCanExecuteChanged();
+
+    private void OpenHighlightedScan()
     {
+        if (History.SelectedRun?.Run is not { } run) return;
+        SetWorkspaceRun(run, loadPane: false);
+        SelectedDestination = run.Status == "completed"
+            ? WorkspaceDestination.FileResults
+            : run.Status is "pending" or "running" or "cancelling"
+                ? WorkspaceDestination.ScanProgress : WorkspaceDestination.ScanSummary;
+        _ = EnsurePaneAsync();
+        FocusTarget = run.Status == "completed" ? "results-navigation" : "scan-navigation";
+        FocusRequestVersion++;
+    }
+
+    private void SetWorkspaceRun(WorkerRun? run, bool loadPane = true)
+    {
+        var changed = _selectedRun?.Id != run?.Id || _selectedRun?.Status != run?.Status;
+        _selectedRun = run;
+        Summary.ShowRun(run?.Status is "pending" or "running" or "cancelling" ? null : run);
         OnPropertyChanged(nameof(SelectedRun));
         OnPropertyChanged(nameof(SelectedScanContext));
-        _reviewLiveStateWorkerClient?.ObserveReviewLiveState(run);
-        if (!HasActiveRun || Progress.Run?.Id != ActiveRunId)
+        OnPropertyChanged(nameof(WorkspaceSessionName));
+        if (!changed) return;
+        _workspaceCancellation.Cancel();
+        _workspaceCancellation.Dispose();
+        _workspaceCancellation = new();
+        _paneLoads.Clear();
+        _reviewLiveStateWorkerClient?.ObserveReviewLiveState(null);
+        if (!HasActiveRun || Progress.Run?.Id != ActiveRunId) Progress.ShowRun(run);
+        _ = Performance.ShowRunAsync(null);
+        _ = DuplicateFiles.ShowRunAsync(null);
+        _ = DuplicateFolders.ShowRunAsync(null);
+        _ = Preflight.ShowRunAsync(null);
+        if (loadPane) _ = EnsurePaneAsync();
+    }
+
+    // Only one set of bounded pane state is retained, for the opened workspace run.
+    private Task EnsurePaneAsync()
+    {
+        if (SelectedRun is not { } run) return Task.CompletedTask;
+        if (_paneLoads.TryGetValue(SelectedDestination, out var pending)) return pending;
+        var token = _workspaceCancellation.Token;
+        var load = SelectedDestination switch
         {
-            Progress.ShowRun(run);
-        }
-        _ = Performance.ShowRunAsync(SelectedDestination == WorkspaceDestination.Performance ? run : null);
-        _ = DuplicateFiles.ShowRunAsync(run);
-        _ = DuplicateFolders.ShowRunAsync(run);
-        _ = Preflight.ShowRunAsync(run);
+            WorkspaceDestination.FileResults => DuplicateFiles.ShowRunAsync(run, token),
+            WorkspaceDestination.FolderResults => DuplicateFolders.ShowRunAsync(run, token),
+            WorkspaceDestination.Review => Preflight.ShowRunAsync(run, token),
+            WorkspaceDestination.Performance => Performance.ShowRunAsync(run, token),
+            _ => Task.CompletedTask,
+        };
+        if (SelectedDestination == WorkspaceDestination.FileResults)
+            _reviewLiveStateWorkerClient?.ObserveReviewLiveState(run);
+        _paneLoads[SelectedDestination] = load;
+        return load;
     }
 
     private void OnHistoryPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -772,6 +888,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(SelectedScanContext));
             OnPropertyChanged(nameof(CanStartRun));
             StartRunCommand.NotifyCanExecuteChanged();
+            OpenScanCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -866,10 +983,10 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
                 ErrorMessage = "The worker exited before this run finished. Restart the worker to reconcile durable state.",
             };
             History.Upsert(unavailable, select: false);
+            if (SelectedRun?.Id == unavailable.Id) SetWorkspaceRun(unavailable);
             OnPropertyChanged(nameof(SelectedScanContext));
             Progress.ApplyLifecycle(unavailable);
-            DuplicateFiles.ApplyLifecycle(unavailable);
-            DuplicateFolders.ApplyLifecycle(unavailable);
+
             var session = Sessions.Find(unavailable.SessionId);
             if (session is not null)
             {
@@ -912,11 +1029,11 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             ObserveProgressLifecycle(run);
         }
         History.Upsert(run, select: false);
+        if (SelectedRun?.Id == run.Id) SetWorkspaceRun(run);
         OnPropertyChanged(nameof(SelectedScanContext));
         Performance.ObserveLifecycle(run);
         Progress.ApplyLifecycle(run);
-        DuplicateFiles.ApplyLifecycle(run);
-        DuplicateFolders.ApplyLifecycle(run);
+
         var session = Sessions.Find(run.SessionId);
         if (session is not null)
         {
@@ -1019,11 +1136,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         IsLoadingSession = false;
         DisplaySessionName = "Sessions";
         History.Clear();
+        SetWorkspaceRun(null);
         if (!HasActiveRun) Progress.ShowRun(null);
-        _ = Performance.ShowRunAsync(null);
-        _ = DuplicateFiles.ShowRunAsync(null);
-        _ = DuplicateFolders.ShowRunAsync(null);
-        _ = Preflight.ShowRunAsync(null);
         OnPropertyChanged(nameof(IsEmptyState));
     }
 

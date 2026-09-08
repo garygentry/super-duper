@@ -16,6 +16,7 @@ public sealed class ShellSessionWorkflowTests
         using var shell = CreateShell(client);
         await shell.InitializeAsync();
         shell.History.SelectedRun = shell.History.Runs.Single(run => run.Id == older.Id);
+        shell.OpenScanCommand.Execute(null);
         shell.SelectedDestination = WorkspaceDestination.FileResults;
 
         var progressApplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -85,6 +86,9 @@ public sealed class ShellSessionWorkflowTests
         await shell.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(5));
         Assert.IsFalse(shell.IsLoadingSession);
         Assert.AreEqual("Ready setup", shell.Setup.Name);
+        Assert.IsFalse(shell.DuplicateFiles.IsLoading);
+        Assert.AreEqual(0, groupRequests);
+        shell.SelectedDestination = WorkspaceDestination.FileResults;
         Assert.IsTrue(shell.DuplicateFiles.IsLoading);
         Assert.AreEqual(1, groupRequests, "The shell must not duplicate the selection event's query.");
         Assert.AreEqual(0, performanceRequests);
@@ -118,7 +122,7 @@ public sealed class ShellSessionWorkflowTests
 
         Assert.AreEqual("Second", shell.DisplaySessionName);
         Assert.AreEqual(current.Id, shell.SelectedRun?.Id);
-        Assert.AreEqual(current.Id, shell.DuplicateFiles.Run?.Id);
+        Assert.IsNull(shell.DuplicateFiles.Run);
         Assert.AreEqual(second.Id, shell.History.SessionId);
         Assert.IsNull(shell.History.ErrorMessage);
         Assert.IsNull(shell.ContentErrorMessage);
@@ -305,6 +309,163 @@ public sealed class ShellSessionWorkflowTests
         Assert.AreEqual("interrupted", client.Runs.Single(run => run.Id == abandoned.Id).Status);
         Assert.AreEqual("completed", client.Runs.Single(run => run.Id == completed.Id).Status);
         Assert.IsTrue(shell.StartRunCommand.CanExecute(null));
+    }
+
+    [TestMethod]
+    public async Task HighlightAndHistoryRefreshDoNotOpenOrResetWorkspacePanes()
+    {
+        var client = new TestWorkerClient();
+        var session = client.AddSession("Archive", Path.GetTempPath());
+        var old = client.AddRun(session.Id, "completed");
+        var latest = client.AddRun(session.Id, "completed");
+        var files = 0;
+        var folders = 0;
+        var reviews = 0;
+        client.GroupPageHandler = (_, _) => { files++; return Task.FromResult(new WorkerDuplicateFileGroupPage([], 0, null, null)); };
+        client.FolderGroupPageHandler = (_, _) => { folders++; return Task.FromResult(new WorkerDuplicateFolderGroupPage([], 0, null, null)); };
+        client.LatestPreflightHandler = (_, _) => { reviews++; return Task.FromResult<WorkerPreflight?>(null); };
+        using var shell = CreateShell(client);
+        await shell.InitializeAsync();
+        Assert.AreEqual(0, files + folders + reviews);
+        shell.SelectedDestination = WorkspaceDestination.FileResults;
+        shell.DuplicateFiles.SearchText = "family";
+        var groups = shell.DuplicateFiles.Groups;
+        shell.SelectedDestination = WorkspaceDestination.FolderResults;
+        shell.SelectedDestination = WorkspaceDestination.Review;
+        shell.SelectedDestination = WorkspaceDestination.History;
+        shell.History.SelectedRun = shell.History.Runs.Single(run => run.Id == old.Id);
+        await shell.History.RefreshCommand.ExecuteAsync(null);
+        Assert.AreEqual(latest.Id, shell.SelectedRun?.Id);
+        Assert.AreEqual(latest.Id, client.ObservedLiveRun?.Id);
+        shell.SelectedDestination = WorkspaceDestination.FileResults;
+        Assert.AreSame(groups, shell.DuplicateFiles.Groups);
+        Assert.AreEqual("family", shell.DuplicateFiles.SearchText);
+        Assert.AreEqual(1, files);
+        Assert.AreEqual(1, folders);
+        Assert.AreEqual(1, reviews);
+        shell.OpenScanCommand.Execute(null);
+        Assert.AreEqual(old.Id, shell.SelectedRun?.Id);
+        Assert.AreEqual(old.Id, shell.DuplicateFiles.Run?.Id);
+        Assert.IsNull(shell.DuplicateFolders.Run);
+        Assert.IsFalse(shell.Preflight.HasRun);
+        Assert.AreEqual(2, files);
+        Assert.IsFalse(shell.Preflight.Operation.CanSubmit);
+    }
+
+    [DataTestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task DelayedOpenCannotReplaceNewRunOrStealNavigation(bool fail)
+    {
+        var client = new TestWorkerClient();
+        var session = client.AddSession("Archive", Path.GetTempPath());
+        var old = client.AddRun(session.Id, "completed");
+        var latest = client.AddRun(session.Id, "completed");
+        var delayed = new TaskCompletionSource<WorkerDuplicateFileGroupPage>();
+        client.GroupPageHandler = (query, _) => query.RunId == old.Id
+            ? delayed.Task : Task.FromResult(new WorkerDuplicateFileGroupPage([], 0, null, null));
+        using var shell = CreateShell(client);
+        await shell.InitializeAsync();
+        shell.History.SelectedRun = shell.History.Runs.Single(run => run.Id == old.Id);
+        shell.OpenScanCommand.Execute(null);
+        Assert.IsTrue(shell.DuplicateFiles.IsLoading);
+        shell.History.SelectedRun = shell.History.Runs.Single(run => run.Id == latest.Id);
+        shell.OpenScanCommand.Execute(null);
+        shell.SelectedDestination = WorkspaceDestination.Review;
+        var focusVersion = shell.FocusRequestVersion;
+        if (fail) delayed.SetException(new InvalidOperationException("old files failed"));
+        else delayed.SetResult(new WorkerDuplicateFileGroupPage([], 0, null, null));
+        await Task.Yield();
+        Assert.AreEqual(latest.Id, shell.SelectedRun?.Id);
+        Assert.AreEqual(latest.Id, shell.DuplicateFiles.Run?.Id);
+        Assert.IsNull(shell.DuplicateFiles.ErrorMessage);
+        Assert.IsNull(shell.ContentErrorMessage);
+        Assert.AreEqual(WorkspaceDestination.Review, shell.SelectedDestination);
+        Assert.AreEqual(focusVersion, shell.FocusRequestVersion);
+    }
+
+    [TestMethod]
+    public async Task CurrentWarningsAcrossSessionsKeepOpenedResultsAndActiveExitIndependent()
+    {
+        var client = new TestWorkerClient();
+        var first = client.AddSession("Active locations", Path.GetTempPath());
+        var second = client.AddSession("Archive", Path.GetTempPath());
+        var active = client.AddRun(first.Id, "running", "discovering") with { WarningCount = 1 };
+        client.Runs[0] = active;
+        var old = client.AddRun(second.Id, "completed");
+        long? warningRun = null;
+        client.RunWarningsHandler = (query, _) =>
+        {
+            warningRun = query.RunId;
+            return Task.FromResult(new WorkerRunWarningPage([], 0, 0, 1, 1, "active", "running", TestWorkerClient.DiagnosticLog, null, false));
+        };
+        using var shell = CreateShell(client);
+        await shell.InitializeAsync();
+        shell.Sessions.SelectedSession = shell.Sessions.Find(second.Id);
+        shell.SelectedDestination = WorkspaceDestination.FileResults;
+        var groups = shell.DuplicateFiles.Groups;
+        await shell.Progress.OpenWarningsCommand.ExecuteAsync(null);
+        Assert.AreEqual(active.Id, warningRun);
+        Assert.AreEqual(active.Id, shell.History.SelectedRun?.Id);
+        Assert.AreEqual(old.Id, shell.SelectedRun?.Id);
+        Assert.AreEqual("Archive", shell.WorkspaceSessionName);
+        StringAssert.Contains(shell.HistoryContext, "Active locations");
+        Assert.AreEqual("Start scan: Active locations", shell.StartRunLabel);
+        Assert.AreSame(groups, shell.DuplicateFiles.Groups);
+        shell.ViewProgressCommand.Execute(null);
+        Assert.AreEqual(active.Id, shell.Progress.Run?.Id);
+        client.RaiseUnexpectedExit(23);
+        Assert.AreEqual(old.Id, shell.SelectedRun?.Id);
+        Assert.AreEqual(old.Id, shell.DuplicateFiles.Run?.Id);
+        Assert.AreEqual(WorkspaceDestination.ScanProgress, shell.SelectedDestination);
+        Assert.IsTrue(shell.IsRecoveryRequired);
+        Assert.IsFalse(shell.HasActiveRun);
+    }
+
+    [TestMethod]
+    public async Task DelayedCrossSessionWarningEntryDoesNotNavigateAfterUserLeaves()
+    {
+        var client = new TestWorkerClient();
+        var first = client.AddSession("Active", Path.GetTempPath());
+        var second = client.AddSession("Archive", Path.GetTempPath());
+        var active = client.AddRun(first.Id, "running", "discovering") with { WarningCount = 1 };
+        client.Runs[0] = active;
+        var old = client.AddRun(second.Id, "completed");
+        using var shell = CreateShell(client);
+        await shell.InitializeAsync();
+        shell.Sessions.SelectedSession = shell.Sessions.Find(second.Id);
+        var delayed = new TaskCompletionSource<WorkerSessionDefinition>();
+        client.SessionHandler = (_, _) => delayed.Task;
+        var opening = shell.Progress.OpenWarningsCommand.ExecuteAsync(null);
+        shell.SelectedDestination = WorkspaceDestination.Review;
+        delayed.SetResult(first);
+        await opening;
+        Assert.AreEqual(old.Id, shell.SelectedRun?.Id);
+        Assert.AreEqual(WorkspaceDestination.Review, shell.SelectedDestination);
+        Assert.IsFalse(shell.History.IsWarningDrilldownOpen);
+    }
+
+    [DataTestMethod]
+    [DataRow("cancelled")]
+    [DataRow("failed")]
+    [DataRow("interrupted")]
+    public async Task OpeningIncompleteRunRoutesToScanSummary(string status)
+    {
+        var client = new TestWorkerClient();
+        var session = client.AddSession("Archive", Path.GetTempPath());
+        var stopped = client.AddRun(session.Id, status);
+        var active = client.AddRun(session.Id, "running", "discovering");
+        using var shell = CreateShell(client);
+        await shell.InitializeAsync();
+        shell.History.SelectedRun = shell.History.Runs.Single(run => run.Id == stopped.Id);
+        shell.OpenScanCommand.Execute(null);
+        Assert.AreEqual(WorkspaceArea.Scan, shell.SelectedArea);
+        Assert.AreEqual(stopped.Id, shell.Summary.Run?.Id);
+        Assert.AreEqual(active.Id, shell.Progress.Run?.Id);
+        Assert.IsFalse(shell.Summary.CanCancel);
+        Assert.AreEqual(WorkspaceDestination.ScanSummary, shell.SelectedDestination);
+        Assert.IsNull(shell.DuplicateFiles.Run);
+        Assert.IsFalse(shell.Preflight.HasRun);
     }
 
     private static ShellViewModel CreateShell(TestWorkerClient client) =>

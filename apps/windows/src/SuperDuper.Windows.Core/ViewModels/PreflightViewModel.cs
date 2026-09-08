@@ -231,6 +231,7 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
         var token = _lifetime.Token;
         var generation = ++_generation;
         _run = run;
+        IsLoading = false;
         _review = null;
         Preflight = null;
         ResetPages();
@@ -271,7 +272,7 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception)
         {
-            PublishError(exception.Message);
+            if (generation == _generation && !token.IsCancellationRequested) PublishError(exception.Message);
         }
         finally
         {
@@ -288,13 +289,17 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
         {
             return;
         }
+        var generation = _generation;
+        var token = _lifetime.Token;
+        var previousPreflight = Preflight;
         try
         {
-            _review = await _worker.GetReviewPlanAsync(runId, _lifetime.Token);
-            if (Preflight is not null)
-            {
-                Preflight = await _worker.GetPreflightAsync(Preflight.Id, _lifetime.Token);
-            }
+            var review = await _worker.GetReviewPlanAsync(runId, token);
+            var preflight = previousPreflight is null ? null
+                : await _worker.GetPreflightAsync(previousPreflight.Id, token);
+            if (generation != _generation || token.IsCancellationRequested) return;
+            _review = review;
+            Preflight = preflight;
             OnPropertyChanged(nameof(PlanSummary));
             NotifyStateChanged();
             if (Preflight is not null && !Preflight.IsCurrent)
@@ -303,12 +308,12 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
                 AnnouncementVersion++;
             }
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
         }
         catch (Exception exception)
         {
-            PublishError(exception.Message);
+            if (generation == _generation && !token.IsCancellationRequested) PublishError(exception.Message);
         }
     }
 

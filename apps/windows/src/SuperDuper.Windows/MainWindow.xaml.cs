@@ -48,6 +48,16 @@ public partial class MainWindow : Window
                 () => StartScanButton.Focus(),
                 DispatcherPriority.Background);
         }
+        else if (ViewModel.FocusTarget is "results-navigation" or "scan-navigation")
+        {
+            var destination = ViewModel.SelectedDestination;
+            _ = Dispatcher.BeginInvoke(() =>
+            {
+                if (ViewModel.SelectedDestination != destination) return;
+                var tabs = ViewModel.FocusTarget == "results-navigation" ? ResultsTabs : ScanTabs;
+                (tabs.SelectedItem as System.Windows.Controls.TabItem)?.Focus();
+            }, DispatcherPriority.Background);
+        }
         else if (ViewModel.FocusTarget == "duplicate-file-groups")
         {
             _ = DuplicateFilesWorkspace.RestoreGroupGridFocusAsync();

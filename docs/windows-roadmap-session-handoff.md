@@ -23,21 +23,21 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest completed slice: UIR-03a shell/context foundations; named navigation, independent active
-  progress, dated context, shared shell resources, scoped loading and stale-load guards.
-- Next slice: UIR-03b four-area composition, explicit Open scan and remaining deferred pane loads.
-  UIR-03 remains in_progress; UIR-00/01/02 remain complete.
-- Compact redesign checkpoint: `plans/ui-redesign/session-checkpoint.md`; use its linked kickoff
-  prompt and session guide to continue in this same checkout/branch.
-- Session handoffs now require a printed, copyable continuation prompt tailored to the committed
-  checkpoint and exact next slice. Latest product commit remains `3775d42`; this process update
-  changes no implementation, verification result or gate status.
+- Latest completed slice: UIR-03b four-area workspace composition, explicit Open scan independent
+  of History highlight, demand-loaded bounded panes, independent stopped summaries/active progress,
+  and stale-load/revision guards. UIR-03 remains in_progress; UIR-00/01/02 remain complete.
+- Next slice: UIR-03c shared resource adoption and populated shell/focus acceptance preparation
+  for A01/A02/A09, then the required integration/desktop evidence before UIR-03 can close.
+- Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`. Latest implementation is the
+  UIR-03b commit containing this update, parent `9c028ca`; previous product commit `3775d42`.
+- Session handoffs require a printed copyable continuation prompt tailored to the committed
+  checkpoint and exact next slice; follow the redesign session guide.
 - Current artifacts: findings, product direction, screen/state/copy specification, visual guidance,
   capability map, interactive fictional concept, validation matrix and finite execution ledger,
   plus `scan-and-rescan-experience.md` (A08/A16/A17). User direction acceptance is not native acceptance.
-- Validation: 158 Core tests and four WPF tests pass in isolated Debug outputs; shell-only
-  1180x760/900x600 captures inspected. See `plans/ui-redesign/evidence/uir-03a-shell-context.md`.
-  Full integration and physical/native acceptance remain pending.
+- Validation: 170 Core tests and four WPF tests pass in isolated Debug outputs; shell-only
+  1180x760/900x600 captures inspected. See `plans/ui-redesign/evidence/uir-03b-workspace-navigation.md`.
+  Full integration and physical/native acceptance remain pending; operator PIDs 36316/17612 untouched.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
   do not rerun SOP10 or SOP9 identities.
 - Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first
@@ -483,9 +483,9 @@ performance, and later-gate campaigns remain untouched.
 ## Immediate next step
 
 The operator accepted the high-level UI direction with explicit long-scan and repeat-scan feedback.
-UIR-03a is implemented; UIR-03 remains in_progress. Next is UIR-03b: compose Scan / Results /
-Review / History, separate highlighted history from explicitly opened workspace run, and defer
-remaining optional pane loads while retaining bounded same-run state. Follow the compact
+UIR-03a/b are implemented; UIR-03 remains in_progress. Next is UIR-03c: finish shared resource
+adoption and prepare populated shell/focus A01/A02/A09 evidence, including warning return, pane
+reopen/scroll retention, long-name/narrow states and actual focus handlers. Follow the compact
 `plans/ui-redesign/session-checkpoint.md` and execution ledger, then prioritize UIR-04 monitoring
 and Scan again. All work stays on `codex/ui-redesign`.
 Re-audit the still-open app/worker before builds or runtime actions; use isolated fixture
@@ -587,7 +587,12 @@ required gates are open.
 
 ## Latest verification baseline
 
-Latest UI implementation slice (2026-09-08): UIR-03a passes 158 Core tests and four loaded-STA WPF
+Redesign UIR-03b: 170 Core tests and four loaded-STA WPF tests pass in isolated Debug outputs.
+Shipping WPF builds through the focused test project; shell-only captures inspected. Integrated
+Debug/Release Rust/.NET and native acceptance remain pending. See
+`plans/ui-redesign/evidence/uir-03b-workspace-navigation.md`; retained stream evidence below is unchanged.
+
+Previous UI implementation slice (2026-09-08): UIR-03a passes 158 Core tests and four loaded-STA WPF
 tests; isolated Debug WPF build has zero warnings/errors. Shell-only captures at 1180x760 and
 900x600 inspected; full screens/theme/DPI/native acceptance remain pending. Initial fixture failures
 and final commands are retained in `plans/ui-redesign/evidence/uir-03a-shell-context.md`. Operator
@@ -1245,6 +1250,14 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+### 2026-09-08 - UIR-03b bounded implementation
+
+Four semantic areas, explicit History Open scan and deferred same-run panes are implemented and
+focused-tested. Stopped summaries stay separate from active monitoring, cross-session warnings retain
+the workspace, and stale pane continuations are guarded. UIR-03 stays in_progress; next UIR-03c
+completes shared resources and populated shell/focus preparation before acceptance. Production
+execution, consumed campaign boundaries and the parked Windows stream are unchanged.
 
 | Date | Commit | Completed slice | Next boundary |
 |---|---|---|---|

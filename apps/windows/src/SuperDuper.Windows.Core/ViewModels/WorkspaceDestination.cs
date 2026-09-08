@@ -5,9 +5,18 @@ public enum WorkspaceDestination
 {
     ScanSetup,
     ScanProgress,
+    ScanSummary,
     History,
     FileResults,
     FolderResults,
     Review,
     Performance,
+}
+
+public enum WorkspaceArea
+{
+    Scan,
+    Results,
+    Review,
+    History,
 }

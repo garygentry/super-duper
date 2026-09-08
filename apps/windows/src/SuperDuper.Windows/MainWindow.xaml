@@ -45,7 +45,7 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel>
-                            <TextBlock Style="{StaticResource ShellTitle}" Text="{Binding DisplaySessionName}" />
+                            <TextBlock Style="{StaticResource ShellTitle}" Text="{Binding WorkspaceSessionName}" />
                             <TextBlock AutomationProperties.AutomationId="SelectedScanContext"
                                        Margin="0,4,12,0" Style="{StaticResource ShellBody}" Text="{Binding SelectedScanContext}" />
                             <TextBlock Style="{StaticResource ShellBody}" Text="Loading saved scan…"
@@ -57,7 +57,9 @@
                                 MinWidth="112"
                                 Style="{StaticResource ShellPrimaryAction}"
                                 Command="{Binding StartRunCommand}"
-                                Content="Start scan" />
+                                MaxWidth="200">
+                            <TextBlock Text="{Binding StartRunLabel}" TextWrapping="Wrap" />
+                        </Button>
                     </Grid>
                 </Border>
 
@@ -86,50 +88,82 @@
                     </Border>
                     <views:EmptyStateView Grid.Row="1" Visibility="{Binding IsEmptyState, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
-                    <TabControl x:Name="MainTabs"
-                                Grid.Row="1"
+                    <TabControl x:Name="MainTabs" Grid.Row="1"
                                 AutomationProperties.AutomationId="MainTabs"
-                                AutomationProperties.Name="Session workspace tabs"
-                                SelectedValuePath="Tag"
-                                SelectedValue="{Binding SelectedDestination, Mode=TwoWay}"
+                                AutomationProperties.Name="Workspace areas"
+                                ItemContainerStyle="{StaticResource ShellNavigationItem}"
+                                SelectedValuePath="Tag" SelectedValue="{Binding SelectedArea, Mode=TwoWay}"
                                 Visibility="{Binding IsWorkspaceVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <TabItem AutomationProperties.AutomationId="SetupTab" Header="Setup" Tag="{x:Static vm:WorkspaceDestination.ScanSetup}">
-                            <Grid>
-                                <Grid.Style>
-                                    <Style TargetType="Grid">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsSetupAvailable}" Value="False">
-                                                <Setter Property="Visibility" Value="Hidden" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Grid.Style>
-                                <views:SessionSetupView DataContext="{Binding Setup}" />
-                            </Grid>
+                        <TabItem Header="_Scan" Tag="{x:Static vm:WorkspaceArea.Scan}">
+                            <TabControl ItemContainerStyle="{StaticResource ShellNavigationItem}" x:Name="ScanTabs" AutomationProperties.AutomationId="ScanNavigation"
+                                        AutomationProperties.Name="Scan views" SelectedValuePath="Tag"
+                                        SelectedValue="{Binding ScanDestination, Mode=TwoWay}">
+                                <TabItem AutomationProperties.AutomationId="SetupTab" Header="_Setup" Tag="{x:Static vm:WorkspaceDestination.ScanSetup}">
+                                    <Grid>
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsSetupAvailable}" Value="False">
+                                                        <Setter Property="Visibility" Value="Hidden" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Grid.Style>
+                                        <views:SessionSetupView DataContext="{Binding Setup}" />
+                                    </Grid>
+                                </TabItem>
+                                <TabItem AutomationProperties.AutomationId="ProgressTab" Header="_Progress" Tag="{x:Static vm:WorkspaceDestination.ScanProgress}">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Margin="24,8" Style="{StaticResource ShellBody}"
+                                                    AutomationProperties.AutomationId="ProgressScanContext" Text="{Binding ProgressScanContext}" />
+                                        <views:ScanProgressView DataContext="{Binding Progress}" />
+                                    </DockPanel>
+                                </TabItem>
+                                <TabItem Header="Su_mmary" Tag="{x:Static vm:WorkspaceDestination.ScanSummary}">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Margin="24,8" Style="{StaticResource ShellBody}"
+                                                    Text="{Binding SelectedScanContext}" />
+                                        <views:ScanProgressView DataContext="{Binding Summary}" />
+                                    </DockPanel>
+                                </TabItem>
+                            </TabControl>
                         </TabItem>
-                        <TabItem AutomationProperties.AutomationId="ProgressTab" Header="Progress" Tag="{x:Static vm:WorkspaceDestination.ScanProgress}">
-                            <DockPanel>
-                                <TextBlock DockPanel.Dock="Top" Margin="24,8" Style="{StaticResource ShellBody}"
-                                           AutomationProperties.AutomationId="ProgressScanContext" Text="{Binding ProgressScanContext}" />
-                                <views:ScanProgressView DataContext="{Binding Progress}" />
-                            </DockPanel>
+                        <TabItem Header="_Results" Tag="{x:Static vm:WorkspaceArea.Results}">
+                            <TabControl ItemContainerStyle="{StaticResource ShellNavigationItem}" x:Name="ResultsTabs" AutomationProperties.AutomationId="ResultsNavigation"
+                                        AutomationProperties.Name="Results views" SelectedValuePath="Tag"
+                                        SelectedValue="{Binding ResultsDestination, Mode=TwoWay}">
+                                <TabItem AutomationProperties.AutomationId="DuplicateFilesTab" Header="_Files" Tag="{x:Static vm:WorkspaceDestination.FileResults}">
+                                    <views:DuplicateFilesView x:Name="DuplicateFilesWorkspace" DataContext="{Binding DuplicateFiles}" />
+                                </TabItem>
+                                <TabItem AutomationProperties.AutomationId="DuplicateFoldersTab" Header="F_olders" Tag="{x:Static vm:WorkspaceDestination.FolderResults}">
+                                    <views:DuplicateFoldersView DataContext="{Binding DuplicateFolders}" />
+                                </TabItem>
+                            </TabControl>
                         </TabItem>
-                        <TabItem AutomationProperties.AutomationId="RunHistoryTab" Header="Run history" Tag="{x:Static vm:WorkspaceDestination.History}">
-                            <views:RunHistoryView DataContext="{Binding History}" />
-                        </TabItem>
-                        <TabItem AutomationProperties.AutomationId="DuplicateFilesTab" Header="Duplicate files" Tag="{x:Static vm:WorkspaceDestination.FileResults}">
-                            <views:DuplicateFilesView x:Name="DuplicateFilesWorkspace" DataContext="{Binding DuplicateFiles}" />
-                        </TabItem>
-                        <TabItem AutomationProperties.AutomationId="DuplicateFoldersTab" Header="Duplicate folders" Tag="{x:Static vm:WorkspaceDestination.FolderResults}">
-                            <views:DuplicateFoldersView DataContext="{Binding DuplicateFolders}" />
-                        </TabItem>
-                        <TabItem AutomationProperties.AutomationId="PreflightTab" Header="Preflight" Tag="{x:Static vm:WorkspaceDestination.Review}">
+                        <TabItem AutomationProperties.AutomationId="PreflightTab" Header="_Review" Tag="{x:Static vm:WorkspaceArea.Review}">
                             <views:PreflightView DataContext="{Binding Preflight}" />
                         </TabItem>
-                        <TabItem AutomationProperties.AutomationId="PerformanceTab" Header="_Performance" Tag="{x:Static vm:WorkspaceDestination.Performance}">
-                            <views:PerformanceView x:Name="PerformanceWorkspace" DataContext="{Binding Performance}" />
+                        <TabItem Header="_History" Tag="{x:Static vm:WorkspaceArea.History}">
+                            <TabControl ItemContainerStyle="{StaticResource ShellNavigationItem}" AutomationProperties.AutomationId="HistoryNavigation" SelectedValuePath="Tag"
+                                        SelectedValue="{Binding HistoryDestination, Mode=TwoWay}">
+                                <TabItem AutomationProperties.AutomationId="RunHistoryTab" Header="_Scans" Tag="{x:Static vm:WorkspaceDestination.History}">
+                                    <DockPanel>
+                                        <StackPanel DockPanel.Dock="Top" Margin="24,8">
+                                            <TextBlock Style="{StaticResource ShellBody}" Text="{Binding HistoryContext}" />
+                                            <Button Margin="0,8,0,0" HorizontalAlignment="Left" Style="{StaticResource ShellPrimaryAction}"
+                                                        AutomationProperties.AutomationId="OpenScan" AutomationProperties.Name="Open highlighted scan in the workspace"
+                                                        Content="_Open scan" Command="{Binding OpenScanCommand}" />
+                                        </StackPanel>
+                                        <views:RunHistoryView DataContext="{Binding History}" />
+                                    </DockPanel>
+                                </TabItem>
+                                <TabItem AutomationProperties.AutomationId="PerformanceTab" Header="_Performance" Tag="{x:Static vm:WorkspaceDestination.Performance}">
+                                    <views:PerformanceView x:Name="PerformanceWorkspace" DataContext="{Binding Performance}" />
+                                </TabItem>
+                            </TabControl>
                         </TabItem>
                     </TabControl>
+
 
                     <views:ErrorStateView Grid.Row="1" Panel.ZIndex="10"
                                           Visibility="{Binding HasContentError, Converter={StaticResource BooleanToVisibilityConverter}}" />

@@ -8,6 +8,56 @@ namespace SuperDuper.Windows.Core.Tests;
 public sealed class PreflightViewModelTests
 {
     [TestMethod]
+    public async Task ClosingRunDuringReviewLoadClearsLoadingState()
+    {
+        var worker = new TestWorkerClient();
+        var delayed = new TaskCompletionSource<WorkerReviewPlanView>();
+        worker.ReviewPlanHandler = (_, _) => delayed.Task;
+        using var viewModel = new PreflightViewModel(worker, new RecordingConfirmation(false));
+        var loading = viewModel.ShowRunAsync(TestWorkerClient.CreateRun(7, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        Assert.IsTrue(viewModel.IsLoading);
+        await viewModel.ShowRunAsync(null);
+        Assert.IsFalse(viewModel.IsLoading);
+        delayed.SetResult(Review(7, 1, 0));
+        await loading;
+        Assert.IsFalse(viewModel.HasRun);
+        Assert.IsFalse(viewModel.IsLoading);
+    }
+
+    [TestMethod]
+    public async Task LateRevisionRefreshCannotReplaceNewRunReviewSummary()
+    {
+        var worker = new TestWorkerClient();
+        using var viewModel = new PreflightViewModel(worker, new RecordingConfirmation(false));
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(7, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var delayed = new TaskCompletionSource<WorkerReviewPlanView>();
+        worker.ReviewPlanHandler = (id, _) => id == 7 ? delayed.Task : Task.FromResult(Review(id, 1, 0));
+        var refresh = viewModel.RefreshReviewRevisionAsync(7, 2);
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(8, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        var summary = viewModel.PlanSummary;
+        delayed.SetResult(Review(7, 2, 99));
+        await refresh;
+        Assert.AreEqual(summary, viewModel.PlanSummary);
+        Assert.IsNull(viewModel.ErrorMessage);
+    }
+
+    [TestMethod]
+    public async Task LateOpenedReviewFailureCannotPublishUnderAnotherRun()
+    {
+        var worker = new TestWorkerClient();
+        var delayed = new TaskCompletionSource<WorkerReviewPlanView>();
+        worker.ReviewPlanHandler = (id, _) => id == 7 ? delayed.Task : Task.FromResult(Review(id, 1, 0));
+        using var viewModel = new PreflightViewModel(worker, new RecordingConfirmation(false));
+        var loading = viewModel.ShowRunAsync(TestWorkerClient.CreateRun(7, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(8, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        delayed.SetException(new InvalidOperationException("old review failed"));
+        await loading;
+        Assert.IsNull(viewModel.ErrorMessage);
+        Assert.IsTrue(viewModel.HasRun);
+        Assert.IsFalse(viewModel.Operation.CanSubmit);
+    }
+
+    [TestMethod]
     public async Task StartConfirmsNonDeletingReadsPollsTerminalAndLoadsBoundedDetail()
     {
         var worker = new TestWorkerClient();

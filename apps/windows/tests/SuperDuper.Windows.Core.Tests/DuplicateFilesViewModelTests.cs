@@ -7,6 +7,22 @@ namespace SuperDuper.Windows.Core.Tests;
 public sealed class DuplicateFilesViewModelTests
 {
     [TestMethod]
+    public async Task LateFileLoadCannotRestartPreferenceRulesForTheClosedRun()
+    {
+        var delayed = new TaskCompletionSource<WorkerDuplicateFileGroupPage>();
+        var client = new TestWorkerClient { GroupPageHandler = (_, _) => delayed.Task };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        var loading = viewModel.ShowRunAsync(TestWorkerClient.CreateRun(7, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        await viewModel.ShowRunAsync(null);
+        var status = viewModel.PreferenceRules.StatusMessage;
+        delayed.SetResult(new WorkerDuplicateFileGroupPage([], 0, null, null));
+        await loading;
+        Assert.IsNull(viewModel.Run);
+        Assert.AreEqual(status, viewModel.PreferenceRules.StatusMessage);
+        Assert.IsFalse(viewModel.PreferenceRules.IsBusy);
+    }
+
+    [TestMethod]
     public async Task CompletedRunLoadsMasterDetailAndExecutesPathActions()
     {
         DuplicateFileGroupQuery? lastGroupQuery = null;

@@ -3,31 +3,32 @@
 Updated 2026-09-08. [Execution plan](execution-plan.md) owns gate status.
 
 - Required branch: `codex/ui-redesign`. Preserved baseline: `wpf-poc` at `deefa40`.
-- Latest implementation commit: `3775d42` (UIR-03a), following baseline `422c3e7`.
-  This subsequent process-only update requires a printed continuation prompt at each handoff;
-  it changes no product code or gate status.
-- Completed gates: UIR-00/01/02. **UIR-03 remains in_progress**, with UIR-03a implemented.
-- UIR-03a: semantic destinations replace numeric routing; shared shell/recovery resources;
-  dated selected/monitoring identities; independent global progress/cancellation; lifecycle
-  does not select another historical run; setup readiness; latest-history generation guards;
-  demand-loaded Performance; redundant shell-owned pane loads removed.
-- Verification: 158 Core tests and four WPF tests pass; Debug WPF build succeeds with zero
-  warnings/errors. Shell-only captures at 1180x760 and 900x600 inspected. See
-  [evidence](evidence/uir-03a-shell-context.md) for commands, initial failures and limitations.
-- **Exact next slice: UIR-03b, local_code** — compose Scan / Results / Review / History; separate
-  highlighted History row from workspace run with explicit Open scan; load file/folder/review
-  only when opened, retaining bounded same-run state. Add delayed Open scan/current-warning/
-  lifecycle tests and loaded WPF focus/navigation checks. Complete A01/A02/A09 evidence before
-  closing UIR-03. UIR-04 monitoring/Scan again follows UIR-03.
-- Limits: seven tabs remain; History selection still directly selects the workspace run.
-  File/folder/review loads remain eager once selected (they no longer block setup). Full visual
-  resource adoption, four-area layout, physical keyboard/screen-reader/theme/DPI and integrated
-  Debug/Release Rust/.NET acceptance remain pending. No native acceptance claimed.
-- Runtime: operator WPF PID 36316 and worker PID 17612 observed at start/end, running from
-  `artifacts/windows-x64`. No stop, attachment, production database access or scan performed.
-  Test outputs/captures/TRX are in ignored `artifacts/uir03a`; fixture host has closed.
+- Latest implementation: the UIR-03b commit containing this checkpoint, parent `9c028ca`;
+  previous implementation `3775d42` (UIR-03a). Resolve the latest hash from Git.
+- Completed gates: UIR-00/01/02. **UIR-03 remains in_progress**, with UIR-03a/b implemented.
+- UIR-03b: four primary areas (Scan / Results / Review / History), semantic subnavigation,
+  explicit Open scan independent of highlighted History, and demand-loaded Files/Folders/Review/
+  Performance retaining one run's bounded state. Stopped-run summaries remain independent of
+  global active progress/cancellation. Current warnings can change saved-scan/history context
+  without retargeting the opened workspace; the header names that workspace and Start names its
+  saved-scan target. Late file-rule and Review loads/revision errors cannot overwrite another run.
+- Verification: 170 Core tests and four WPF tests pass in isolated Debug outputs; the WPF build
+  succeeds. Shell-only 1180x760/900x600, 96-DPI renders inspected. The loaded shell test now uses
+  the actual ShellViewModel with fake services, tests semantic regrouping/reordering, Open scan,
+  logical focus and active progress. See [evidence](evidence/uir-03b-workspace-navigation.md).
+- **Exact next slice: UIR-03c, local_code** — finish shared resources on the composed primary
+  screens; build a populated isolated shell fixture for A01/A02/A09 and verify actual shell
+  focus handlers, warning return, same-run pane reopen/scroll retention, long names and narrow
+  layout. Prepare the desktop walkthrough and the integration acceptance boundary. UIR-04
+  monitoring/Scan again follows UIR-03; A08/A16/A17 remain required.
+- Limits: screen contents largely retain their existing presentation. Shell captures use empty
+  screen slots and system theme defaults. Actual keyboard, Narrator/NVDA, theme/high-contrast,
+  physical DPI, populated shell walkthrough and integrated Debug/Release Rust/.NET matrix remain
+  pending. No native acceptance or UIR-03 completion claimed.
+- Runtime: operator WPF PID 36316 and worker PID 17612 remain at `artifacts/windows-x64`.
+  No interruption, production database access or real scan. Task outputs/TRX/captures are ignored
+  under `artifacts/uir03b`; fixture windows close after tests. Re-audit processes next session.
 - Boundaries: production deletion disabled; worker/cache/protocol/collection ceilings unchanged;
-  long-scan and persistent qualified rescan A08/A16/A17 retained; no pause/resume or run-content
-  diff; SOP10 consumed and complete, prior Windows release validation parked.
-- Open local blockers: none. Follow [guide](codex-session-guide.md) and
-  [kickoff prompt](session-kickoff-prompt.md), continuing in this checkout and branch.
+  persistent qualified rescan and long-scan requirements retained; no pause/resume or run-content
+  diff; SOP10 consumed and complete, Windows release validation parked.
+- Open local blockers: none. Continue on this checkout/branch using the [session guide](codex-session-guide.md).

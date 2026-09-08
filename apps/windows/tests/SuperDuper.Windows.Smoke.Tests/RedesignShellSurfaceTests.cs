@@ -6,6 +6,8 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Markup;
+using System.Windows.Input;
+using SuperDuper.Windows.Core.Tests;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -48,7 +50,15 @@ public sealed class RedesignShellSurfaceTests
                                 "/SuperDuper.Windows;component/Resources/ShellResources.xaml"))),
                         new XElement(wpf + "BooleanToVisibilityConverter", new XAttribute(xaml + "Key", "BooleanToVisibilityConverter")))));
                 window = (Window)XamlReader.Parse(document.ToString());
-                var fixture = new ShellFixture();
+                var client = new TestWorkerClient();
+                var session = client.AddSession("Family archive", @"C:\fixture\archive");
+                var old = client.AddRun(session.Id, "completed");
+                client.AddRun(session.Id, "running", "hashing");
+                using var fixture = new ShellViewModel(client, new TestFolderPicker(), new TestConfirmation(),
+                    new ImmediateDispatcher(), new TestClipboard(), new TestExplorer(), new TestCloudLocationService());
+                fixture.InitializeAsync().GetAwaiter().GetResult();
+                fixture.History.SelectedRun = fixture.History.Runs.Single(run => run.Id == old.Id);
+                fixture.OpenScanCommand.Execute(null);
                 window.DataContext = fixture;
                 window.ShowActivated = false;
                 window.ShowInTaskbar = false;
@@ -59,17 +69,39 @@ public sealed class RedesignShellSurfaceTests
                 Drain();
 
                 var tabs = (TabControl)window.FindName("MainTabs");
-                var review = tabs.Items.Cast<TabItem>().Single(item => Equals(item.Tag, WorkspaceDestination.Review));
+                var review = tabs.Items.Cast<TabItem>().Single(item => Equals(item.Tag, WorkspaceArea.Review));
                 tabs.Items.Remove(review);
                 tabs.Items.Insert(0, review);
                 fixture.SelectedDestination = WorkspaceDestination.Review;
                 Drain();
                 Assert.AreSame(review, tabs.SelectedItem);
-                tabs.SelectedItem = tabs.Items.Cast<TabItem>().Single(item => Equals(item.Tag, WorkspaceDestination.FileResults));
+                Assert.AreEqual(4, tabs.Items.Count);
+                tabs.SelectedItem = tabs.Items.Cast<TabItem>().Single(item => Equals(item.Tag, WorkspaceArea.Results));
                 Assert.AreEqual(WorkspaceDestination.FileResults, fixture.SelectedDestination);
+
+                Drain();
+                var results = (TabControl)window.FindName("ResultsTabs");
+                results.SelectedValue = WorkspaceDestination.FolderResults;
+                Assert.AreEqual(WorkspaceDestination.FolderResults, fixture.SelectedDestination);
+                fixture.SelectedArea = WorkspaceArea.History;
+                Drain();
+                var open = Find<Button>(window, "OpenScan");
+                Assert.IsTrue(open.IsEnabled);
+                FocusManager.SetFocusedElement(window, open);
+                Assert.AreSame(open, FocusManager.GetFocusedElement(window));
+                open.Command.Execute(null);
+                Drain();
+                Assert.AreEqual(WorkspaceArea.Results, fixture.SelectedArea);
+                Assert.AreEqual(WorkspaceDestination.FileResults, results.SelectedValue);
+                var fileTab = (TabItem)results.SelectedItem;
+                FocusManager.SetFocusedElement(window, fileTab);
+                Assert.AreSame(fileTab, FocusManager.GetFocusedElement(window));
+                Assert.IsTrue(fileTab.IsVisible);
+                Assert.IsTrue(fileTab.Focusable);
 
                 var context = Find<TextBlock>(window, "SelectedScanContext");
                 Assert.AreEqual(fixture.SelectedScanContext, context.Text);
+                Assert.IsFalse(context.Text.Contains("\u00c2"), "Context separators must remain correctly encoded.");
                 Assert.IsTrue(context.IsVisible);
                 var progress = Find<Button>(window, "ViewActiveProgress");
                 Assert.IsTrue(progress.IsVisible);
@@ -82,6 +114,8 @@ public sealed class RedesignShellSurfaceTests
                 Drain();
                 Assert.AreEqual(fixture.ProgressScanContext, Find<TextBlock>(window, "ProgressScanContext").Text);
 
+                tabs.Items.Remove(review);
+                tabs.Items.Insert(2, review);
                 fixture.SelectedDestination = WorkspaceDestination.ScanSetup;
                 Drain();
                 foreach (var size in new[] { new Size(1180, 760), new Size(900, 600) })
@@ -131,32 +165,4 @@ public sealed class RedesignShellSurfaceTests
         Dispatcher.PushFrame(frame);
     }
 
-    private sealed class ShellFixture : INotifyPropertyChanged
-    {
-        private WorkspaceDestination _destination;
-        public event PropertyChangedEventHandler? PropertyChanged;
-        public WorkspaceDestination SelectedDestination
-        {
-            get => _destination;
-            set { _destination = value; PropertyChanged?.Invoke(this, new(nameof(SelectedDestination))); }
-        }
-        public bool IsConnected => true;
-        public bool IsWorkspaceVisible => true;
-        public bool HasActiveRun => true;
-        public bool IsEmptyState => false;
-        public bool IsLoadingSession => false;
-        public bool IsSetupAvailable => true;
-        public bool HasContentError => false;
-        public bool IsStarting => false;
-        public bool IsRecoveryScreenVisible => false;
-        public string DisplaySessionName => "Family archive";
-        public string SelectedScanContext => "Scan 12 · 9/7/2026 8:30 AM · Completed · 2 locations";
-        public string ActiveScanName => "Backup drives";
-        public string ProgressScanContext => "Backup drives · Scan 13 · 9/8/2026 8:30 AM · Scanning";
-        public IRelayCommand StartRunCommand { get; } = new RelayCommand(() => { }, () => false);
-        public IRelayCommand ViewProgressCommand => new RelayCommand(() => SelectedDestination = WorkspaceDestination.ScanProgress);
-        public object Progress => new { Phase = "Hashing", Elapsed = "02:14:07", WarningCount = "4" };
-        public string StatusTitle => "Hashing";
-        public string StatusDetail => "Backup drives is scanning";
-    }
 }
