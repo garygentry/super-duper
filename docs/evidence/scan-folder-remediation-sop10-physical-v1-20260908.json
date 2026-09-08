@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "gate": "SOP10-large-folder-analysis-remediation",
   "campaignIdentity": "sop10-physical-v1",
-  "status": "completed_with_substage_observation_gap",
+  "status": "accepted_with_observation_limit",
   "verifiedSourceCommit": "de48b3c2c79d4f9bfd65a256389ad02ff56a3c1f",
   "authority": {
     "authorizedAtLocalDate": "2026-09-07",
@@ -120,5 +120,10 @@
     "occurrenceCountPerRun": 4
   },
   "observationGap": "Both physical runs completed in about four seconds and folder analysis lasted only 158.597 and 232.176 milliseconds. The app-owned worker stream and diagnostic log retained terminal phase timing but no auditable record proving that an operator observed each of the four transient folder-analysis substage labels.",
-  "disposition": "The physical correctness, exact-result, cloud-policy, warning-accounting, and qualified repeat-cache checks pass. Full checklist acceptance requires an explicit operator decision on the retained substage-observation gap. Do not rerun this consumed identity."
+  "operatorDisposition": {
+    "acceptedAtLocalDate": "2026-09-08",
+    "value": "accepted_with_observation_limit",
+    "observationGapRetained": true
+  },
+  "disposition": "The operator explicitly accepted the qualifying physical correctness, exact-result, cloud-policy, warning-accounting, and qualified repeat-cache result with the retained substage-observation limitation. SOP10 is finished. Do not rerun this consumed identity."
 }

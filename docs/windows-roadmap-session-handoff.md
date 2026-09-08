@@ -19,15 +19,14 @@ accepted audits, manufacture narrower gaps, or substitute work from the parked s
 ## Current checkpoint
 
 - Branch: `wpf-poc`
-- Latest completed slice: retain the consumed `sop10-physical-v1` first/repeat campaign with
-  matching exact results and qualified repeat-cache reuse plus one explicit substage-observation gap
+- Latest completed slice: accept consumed `sop10-physical-v1` as
+  `accepted_with_observation_limit` and finish SOP10
 - Worktree at the start of this plan activation: `README.md` already modified by the operator at
   `768b3bf`; the unrelated change remains untouched
 - Active stream and plan: `docs/scan-optimization-plan.md`
 - Current gate: `SOP10-large-folder-analysis-remediation`, accepted locally; SOP10a through SOP10f
   are accepted
-- Next package: none dependency-ready. Await operator disposition of the consumed physical
-  campaign's substage-observation gap; do not rerun its identity
+- Next package: none. SOP10 is finished; do not rerun any consumed SOP10 or SOP9 identity
 - Reusable new-session prompt: `docs/scan-optimization-kickoff-prompt.md`
 - Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first
   observed WPF PID 20404 and worker PID 16496 responsive during the operator's multi-day scan. A
@@ -471,13 +470,12 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-The local SOP10 stream has reached its accepted stopping boundary. Do not select another local
-package. The separately authorized `sop10-physical-v1` identity is consumed: both runs completed
-with matching exact results and qualified repeat-cache hits, but their roughly four-second duration
-left no durable record proving that all four transient folder substages were individually observed.
-Await operator disposition of that gap and do not rerun the identity. Preserve the approved
-exact-only folder result, qualified-cache default/override, cache generation/capacity bounds,
-deterministic scale thresholds, and all correctness/safety locks.
+SOP10 is finished. Do not select another scan package. The operator explicitly accepted the
+consumed `sop10-physical-v1` campaign as `accepted_with_observation_limit`: both runs completed with
+matching exact results and qualified repeat-cache hits, while retaining the lack of durable proof
+that all four transient folder substages were individually observed. Do not rerun the identity.
+Preserve the approved exact-only folder result, qualified-cache default/override, cache generation/
+capacity bounds, deterministic scale thresholds, and all correctness/safety locks.
 
 Do not launch a physical full-drive scan without separate explicit approval. Do not rerun/overwrite
 SOP9c V1/V2, mutate their retained evidence/diagnostics, reserve a successor identity, start SOP9d,
@@ -577,7 +575,7 @@ completed in about four seconds; folder analysis lasted 158.597/232.176 ms. The 
 phase timing are durable, but no retained stream proves that each of the four transient substage
 labels was individually observed. The identity is consumed and must not be rerun. Path-free facts
 are retained in `docs/evidence/scan-folder-remediation-sop10-physical-v1-20260908.json`; operator
-disposition of the observation gap is the next boundary.
+disposition is `accepted_with_observation_limit`; SOP10 is finished and the identity must not rerun.
 
 Accepted `SOP10f-release-scale-acceptance` retains v2 at build
 `de48b3c2c79d4f9bfd65a256389ad02ff56a3c1f` as its first valid result: 3,550,000 scanned-file rows,
@@ -1209,6 +1207,7 @@ For each session:
 |---|---|---|---|
 | 2026-09-05 | this session | Accept SOP10f and the local SOP10 boundary: retain the first valid v2 scale result under the 30-minute/2-GiB ceilings with exact one-pass/no-Jaccard results, pass the 1,500,002-entry cache fixture, strict lint, full Debug/Release matrices, safety locks, and fresh fixed Release package, and publish the isolated operator checklist. | No dependency-ready local package remains. Await separate operator authority naming exact physical roots, a new acceptance identity, and isolated state paths; keep the Windows stream parked. |
 | 2026-09-08 | this session | Retain consumed `sop10-physical-v1`: both fixed-Release runs completed with identical immutable input/policy signatures, exact file/folder digests, warning truth, and zero similarity rows; the first run had zero qualified hits and the repeat reused 127 partial/118 full hashes with zero misses/stores. Record that the 158.597/232.176 ms folder-analysis phases left no durable evidence of individual observation for all four transient substages. | Await explicit operator disposition of the substage-observation gap. Do not rerun the identity or start the parked Windows stream. |
+| 2026-09-08 | this session | Record the operator's explicit `accepted_with_observation_limit` disposition for consumed `sop10-physical-v1` and finish SOP10 while retaining the transient-substage evidence limitation. | No scan package remains. Do not rerun any SOP10/SOP9 campaign. Keep Windows validation parked until `WPM8-high-contrast` receives separate explicit physical authority. |
 | 2026-09-05 | this session | Retain SOP10f v1 invalid after its post-analysis finalizer queried nonexistent `directory_similarity.dir1_id`; pin its 3.55M/633K declaration, 1.361 GB generated-database fact, journal hash, missing-result truth, and same-identity refusal. Repair only the query to use schema-v14 `run_id`. | Run exactly one separately versioned v2 synthetic scale identity, then complete full matrices and fixed Release packaging if it qualifies. Physical scans remain separately authorized. |
 | 2026-09-05 | this session | Accept SOP10e: preserve the closed repeat-policy default/override/history while publishing four 1,024-unit-batched folder substages through the 10 Hz latest-only worker path, defensive same-revision Core validation, and accessible WPF text. | Execute the first retained `SOP10f-release-scale-acceptance` result, then full matrices and fixed Release packaging; keep physical scans, consumed SOP9 identities, parked release validation, and production deletion wiring out of scope. |
 | 2026-09-05 | this session | Accept SOP10d: migrate the qualified cache to crash-recoverable schema-v3 generations, protect active scans through a 10,000,000 hard ceiling, prune completed generations to 4,500,000 with full-hash preference and bounded repair, and retain first/last hits in the first exact 1,500,002-entry Release reopen fixture. | Implement `SOP10e-repeat-policy-and-folder-progress`; keep physical scans, consumed SOP9 identities, parked release validation, and production deletion wiring out of scope. |
