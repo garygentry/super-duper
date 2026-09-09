@@ -65,9 +65,12 @@ On 2026-09-08 the unchanged `b20341a` fixture built and launched as PID 17052; o
 requested in the task and remain pending. Re-audit before reuse; do not launch a duplicate or
 repeat local verification merely because operator evidence is missing. No new product defect or
 desktop acceptance is established by launch. See the walkthrough's session record for logs/limits.
-The continuation from `86127a5` confirmed the existing fixture and operator app/worker processes;
+The continuations from `86127a5` and `2239369` confirmed the existing fixture and operator app/worker processes;
 [visibility and observations remain pending](evidence/uir-03-desktop-walkthrough.md#2026-09-08-continuation-audit).
 No duplicate launch, repeated prerequisite verification or new implementation was performed.
+The same operator-evidence prerequisite blocks consecutive continuations. Resume substantive work
+with the operator's observations or a reported visibility problem requiring fixture assistance;
+additional preparation-only audit commits do not advance desktop acceptance.
 Physical keyboard/Narrator/NVDA/theme/high-contrast/text enlargement/multi-monitor DPI remain unrun.
 Do not substitute automated evidence for these checks or mark UIR-03 complete before its required
 desktop evidence is available. UIR-04 remains dependent on UIR-03.

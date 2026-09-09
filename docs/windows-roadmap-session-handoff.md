@@ -28,7 +28,7 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   UIR-03 remains in_progress; UIR-00/01/02 remain complete.
 - Next slice: operator A01/A02/A09 desktop walkthrough. Local viewport access is verified at
   1180x760/900x600 and with a toolbar allowance; physical acceptance remains unrun.
-- Latest preparation: continuation from `86127a5` confirmed the existing fictional fixture and
+- Latest preparation: 20:44 EDT continuation from `2239369` confirmed the existing fictional fixture and
   operator app/worker processes; visibility and observations were requested and remain pending.
   No build/test/launch was repeated. See the continuation audit in
   `plans/ui-redesign/evidence/uir-03-desktop-walkthrough.md`; no desktop acceptance inferred.
@@ -503,6 +503,9 @@ observations and assess UIR-03 before advancing to UIR-04 monitoring and Scan ag
 The fixture has now been launched and these observations requested; the operator response and
 visibility confirmation are pending. Resume by recording that response and fixing any evidenced
 defects, not repeating the locally verified prerequisite or treating process launch as acceptance.
+Consecutive continuations lack the same operator evidence. Resume substantive work with observations
+or a reported visibility problem requiring fixture assistance; another preparation-only audit does
+not advance acceptance.
 All work stays on `codex/ui-redesign`.
 Re-audit the still-open app/worker before builds or runtime actions; use isolated fixture
 state/output and do not interrupt the operator's application for design verification.
@@ -603,7 +606,7 @@ required gates are open.
 
 ## Latest verification baseline
 
-Continuation from `86127a5` (2026-09-08): Git clean, preserved branch confirmed, read-only
+Continuation from `2239369` (2026-09-08, 20:44 EDT): Git clean, preserved branch confirmed, read-only
 `Get-Process` confirmed fixture 17052 and operator 36316/17612 at expected paths. CIM access was
 denied; sandbox window metadata cannot confirm operator visibility. Documentation checks only;
 no build/test/launch repeated. Operator observations remain pending; see the walkthrough's
@@ -1284,6 +1287,14 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+### 2026-09-08 - UIR-03 repeated evidence prerequisite
+
+Started clean at `2239369`; the 20:44 EDT read-only audit found the same fixture 17052 and operator
+36316/17612 at expected paths, untouched. Requested visibility and A01/A02/A09 observations; no
+report is available. UIR-03 remains in_progress. No build/test/launch or product change was needed.
+Record the repeated missing-evidence boundary and await an operator report or visibility problem
+requiring assistance, rather than another preparation-only continuation. Documentation checks only.
 
 ### 2026-09-08 - UIR-03 continuation audit, operator evidence still pending
 

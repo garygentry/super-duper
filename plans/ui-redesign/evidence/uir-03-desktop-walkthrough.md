@@ -89,6 +89,16 @@ protections remain unchanged. No physical scan or consumed campaign ran.
 
 ## 2026-09-08 continuation audit
 
+Latest recheck: 20:44 EDT, starting clean at `2239369` on `codex/ui-redesign`.
+`wpf-poc` remains `deefa40`. Read-only `Get-Process` again found fixture 17052/session 1
+and operator app/worker 36316/17612 at the paths recorded below; all remain untouched.
+CIM access was denied and sandbox window handles/titles were again unavailable. Visibility and
+the A01/A02/A09 observations were requested in the task; no operator report is available yet.
+No new defect or acceptance result is established. No build, test or launch was repeated.
+The same missing evidence now blocks consecutive continuations: resume substantive work when
+the operator supplies observations or reports a visibility problem needing fixture assistance.
+Another audit or documentation-only continuation cannot satisfy the walkthrough.
+
 At 19:44 EDT, the continuation started from clean `86127a5` on `codex/ui-redesign`;
 `wpf-poc` still resolved to `deefa40ebe607b785b395a29a6282e8b417a9b14`.
 Command-scoped `safe.directory` resolved Git's sandbox ownership check without changing global

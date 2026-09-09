@@ -3,7 +3,7 @@
 Updated 2026-09-08. [Execution plan](execution-plan.md) owns gate status.
 
 - Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; no switch/worktree/merge/push.
-- Latest implementation: `b20341a` (UIR-03d). This update records the continuation audit from `86127a5`.
+- Latest implementation: `b20341a` (UIR-03d). This update records the 20:44 EDT recheck from `2239369`.
 - Completed gates: UIR-00/01/02. **UIR-03 remains in_progress**; UIR-03a/b/c/d are implemented.
 - UIR-03d: scrolling Files/History pages with bounded native grids, full-width comparison context,
   wrapping commands and minimum widths for complete decision/path/warning actions. The 900x600
@@ -27,6 +27,8 @@ Updated 2026-09-08. [Execution plan](execution-plan.md) owns gate status.
   and layout observations. **Operator response/visibility confirmation remains pending.** Record
   actual findings in the walkthrough's session record; pending is not acceptance or a defect.
   Assess UIR-03 acceptance from evidence; do not advance to UIR-04 prematurely.
+  Consecutive continuations lack the same report. Resume with observations or a reported visibility
+  problem requiring fixture assistance; another preparation-only continuation cannot close this gate.
 - Unrun: physical keyboard, Narrator/NVDA, light/dark/high contrast, Windows text enlargement and
   physical 100/150/200% monitor/DPI checks. Renders are 96-DPI system-brush fixtures, not physical
   acceptance. Representative folder/review/performance coverage remains in later gates. UIR-03
