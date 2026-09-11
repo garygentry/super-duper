@@ -31,11 +31,13 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   isolation, and file selection/scroll retention plus scoped layout at 1180x760/900x600.
   Visibility is established; full desktop acceptance remains open. See the scoped report in
   `plans/ui-redesign/evidence/uir-03-desktop-walkthrough.md`.
-- Next slice: explicit Open scan, warning-return/result focus and Progress scroll retention,
-  then full expanded-action/shared-style, keyboard and accessibility observations. Do not repeat
-  the passed subset without a reason. UIR-04 remains dependent on UIR-03 acceptance.
+- Second operator batch also passed: explicit Open scan, active warning Close/return focus and
+  Progress scroll retention. Six scoped passes; full keyboard input was not specifically confirmed.
+- Next slice: completed-run warning result focus, expanded controls/shared styles/recovery,
+  keyboard-only and accessibility observations. Do not repeat the six passes without a reason.
+  UIR-04 remains dependent on UIR-03 acceptance.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`. Latest implementation is
-  `b20341a` (UIR-03d); this update records the operator report from clean `deeedb4`.
+  `b20341a` (UIR-03d); this update records the second operator report from `012573f`.
 - Session handoffs require a printed copyable continuation prompt tailored to the committed
   checkpoint and exact next slice; follow the redesign session guide.
 - Current artifacts: findings, product direction, screen/state/copy specification, visual guidance,
@@ -500,14 +502,15 @@ desktop walkthrough using `plans/ui-redesign/evidence/uir-03-desktop-walkthrough
 `scripts/Invoke-UiRedesignFixture.ps1 -Show` (build only without `-Show`). UIR-03d resolves local
 viewport access at 900x600/1180x760 with bounded scrolling sections and complete reachable actions;
 the full adjustable S03/A03 layout remains UIR-05. Programmatic focus/scroll and isolated Windows
-Debug/Release integration pass. Physical keyboard, Narrator/NVDA, theme/high contrast, text
+Debug/Release integration pass. Full keyboard-only evidence is unverified; Narrator/NVDA, theme/high contrast, text
 enlargement and physical DPI remain unrun. Request the specific operator walkthrough, record its
 observations and assess UIR-03 before advancing to UIR-04 monitoring and Scan again.
 On 2026-09-11 the operator passed the three initial checks: reviewed/active context and harmless
 History highlighting, delayed-folder responsiveness/error isolation, and file selection/scroll
-retention plus scoped layout at both fixture sizes. Visibility is established. Next collect explicit
-Open scan round trips, warning-return/result focus and Progress scroll retention, followed by full
-expanded-action/shared-style, keyboard and accessibility observations. The report does not cover
+retention plus scoped layout at both fixture sizes. The second batch passed explicit Open scan,
+active warning Close/return focus and Progress scroll retention. Next collect completed-run warning
+result focus, expanded controls/shared styles/recovery, keyboard-only and accessibility observations.
+Visibility is established; keyboard input method and environment remain unspecified. The reports do not cover
 the whole prepared walkthrough. Record remaining evidence and fix any reported defect; do not
 repeat the passed subset without a reason or infer full acceptance from it.
 All work stays on `codex/ui-redesign`.
@@ -609,6 +612,10 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+Second 2026-09-11 report from `012573f`: explicit Open scan, active warning Close/return focus and
+Progress scroll retention passed, bringing the scoped total to six. No product/test or runtime
+actions in this follow-up. Documentation links and diff checks only; build/test baselines retained.
 
 2026-09-11 operator report from clean `deeedb4`: three initial fictional desktop checks passed;
 see the walkthrough's dated report for exact scope and pending observations. Existing fixture
@@ -1297,6 +1304,14 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+### 2026-09-11 - UIR-03 second operator batch passed
+
+From `012573f`, the operator reported all three navigation follow-ups pass: explicit Open scan,
+active warning Close/return focus and Progress scroll retention. Six scoped checks now passed.
+Next are completed-run warning result focus, expanded controls/shared styles/recovery, full
+keyboard-only and accessibility evidence. Input methods/environment were not specified; no full
+keyboard or accessibility acceptance inferred. Evidence/checkpoints only; no runtime/code changes.
 
 ### 2026-09-11 - UIR-03 initial operator checks passed
 

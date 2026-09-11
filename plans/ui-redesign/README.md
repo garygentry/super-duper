@@ -49,8 +49,9 @@ are authoritative if its intentionally small fictional dataset or simplified int
 On 2026-09-11 the operator [passed three initial checks](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks):
 reviewed/active scan context and harmless History highlighting, delayed-folder responsiveness/error
 isolation, and file selection/scroll retention plus scoped layout at both fixture sizes.
-Next are explicit Open scan, warning-return focus and Progress scroll retention, followed by the
-remaining shared-style, keyboard and accessibility walkthrough. UIR-03 remains in progress;
+The [second batch also passed](evidence/uir-03-desktop-walkthrough.md#2026-09-11-navigation-follow-up-passed): explicit Open scan,
+active warning Close/return focus and Progress scroll retention. Next are completed-run warning
+result focus, expanded controls/shared styles, keyboard-only and accessibility checks. UIR-03 remains in progress;
 these passes do not establish complete desktop acceptance. Latest fixture launch: PID 58144/session 1;
 re-audit before reuse. UIR-03d's automated viewport prerequisite remains verified.
 Small visual preferences can evolve during implementation.

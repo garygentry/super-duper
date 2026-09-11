@@ -1,6 +1,6 @@
 # Prepared A01/A02/A09 desktop walkthrough
 
-Status: **three initial operator checks passed on 2026-09-11; remaining walkthrough pending**. UIR-03d's local viewport prerequisite
+Status: **six scoped operator checks passed on 2026-09-11; remaining walkthrough pending**. UIR-03d's local viewport prerequisite
 is verified in [the viewport evidence](uir-03d-viewport-access.md). This is a fictional shell walkthrough, not a
 real scan, deletion campaign, release-smoke substitute or physical acceptance result.
 
@@ -41,6 +41,26 @@ For each step record observations and unexpected scope changes, not merely click
 Automation currently establishes programmatic focus only. The fake data do not establish worker
 performance, screen-reader cadence over a real long scan, representative result scale or A17 rescan
 acceptance. Those requirements retain their later gates and separately isolated procedures.
+
+## 2026-09-11 navigation follow-up passed
+
+From checkpoint `012573f`, the operator reported **"All 3 pass"** for the next numbered batch:
+
+| Check presented | Operator result | Scope of evidence |
+|---|---|---|
+| Open run 2 from History, confirm View progress shows active run 2, then reopen run 1 | Pass | Explicit run opening and active progress ownership |
+| View progress → Review warnings → Close returns focus to History | Pass | Physical warning Close/return focus reported correct |
+| Scroll Progress, visit Files, return | Pass | Same-run Progress scroll position retained |
+
+Together with the initial batch below, six scoped checks passed. No defect or missing focus outline
+was reported. Keyboard use was requested where possible, but the report does not specify the input
+method or key sequences; the full keyboard-only journey remains unverified. No environment/theme/
+text-scale/DPI or screen-reader evidence was supplied. Completed-run warning **Open duplicate
+results** focus, full expanded controls/shared styles/recovery, and keyboard/accessibility remain
+pending. Those are the next observations; do not repeat the six passes without a reopen reason.
+UIR-03 remains `in_progress`, with UIR-04 dependent on acceptance. This follow-up changes evidence
+and checkpoints only; no product/test changes, build/test reruns or fixture/runtime actions.
+Verification: documentation link targets, reviewed diff and `git diff --check`.
 
 ## 2026-09-11 initial operator checks
 

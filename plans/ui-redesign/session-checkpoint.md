@@ -3,7 +3,7 @@
 Updated 2026-09-11. [Execution plan](execution-plan.md) owns gate status.
 
 - Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; no switch/worktree/merge/push.
-- Latest implementation: `b20341a` (UIR-03d). This update records operator evidence from `deeedb4`.
+- Latest implementation: `b20341a` (UIR-03d). This update records the second operator batch from `012573f`.
 - Completed gates: UIR-00/01/02. **UIR-03 remains in_progress**; UIR-03a/b/c/d are implemented.
 - UIR-03d: scrolling Files/History pages with bounded native grids, full-width comparison context,
   wrapping commands and minimum widths for complete decision/path/warning actions. The 900x600
@@ -23,13 +23,14 @@ Updated 2026-09-11. [Execution plan](execution-plan.md) owns gate status.
 - **Operator evidence:** after a requested fixture reset and orientation, the operator reported
   "All 3 checks pass": reviewed/active context and harmless History highlighting, delayed-folder
   responsiveness/error isolation, and file selection/scroll retention plus scoped layout at both
-  fixture sizes. Visibility is established. See [scope and limits](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks).
-- **Exact next slice:** explicit Open scan round trips, warning-return/result focus and Progress
-  scroll retention; then full expanded-action/shared-style, physical keyboard and accessibility
-  observations in [the walkthrough](evidence/uir-03-desktop-walkthrough.md). The first three checks
-  do not accept the whole walkthrough. Do not repeat the passed subset without a reason.
+  fixture sizes. The second batch also passed: explicit Open scan round trips, active warning
+  Close/return focus and Progress scroll retention. Six scoped passes; see [scope and limits](evidence/uir-03-desktop-walkthrough.md#2026-09-11-navigation-follow-up-passed).
+- **Exact next slice:** completed-run warning Open duplicate results focus, full expanded controls
+  and shared styles/recovery, keyboard-only journey and physical accessibility observations in
+  [the walkthrough](evidence/uir-03-desktop-walkthrough.md). No full keyboard-only or environment/
+  reader/theme/DPI evidence is supplied yet. Do not repeat the six passed checks without a reason.
   Record actual observations, fix evidenced defects and assess UIR-03 before advancing to UIR-04.
-- Unrun: physical keyboard, Narrator/NVDA, light/dark/high contrast, Windows text enlargement and
+- Unverified: full keyboard-only journey. Unrun: Narrator/NVDA, light/dark/high contrast, Windows text enlargement and
   physical 100/150/200% monitor/DPI checks. Renders are 96-DPI system-brush fixtures, not physical
   acceptance. Representative folder/review/performance coverage remains in later gates. UIR-03
   cannot close on automation alone. UIR-04 monitoring/Scan again follows; A08/A16/A17 remain required.
