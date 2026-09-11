@@ -56,7 +56,8 @@ warning result focus and the keyboard-only journey, bringing the scoped total to
 Progress/Summary scrollbar overlap. [UIR-03e](evidence/uir-03e-scan-scrollbar-clearance.md) fixes the
 shared view and passes before/after geometry and Debug/Release integration. The operator confirms
 the overlap is corrected and the remaining styling looks good: nine scoped passes plus the fix.
-Next: Narrator, NVDA and remaining theme/contrast/text enlargement/monitor-DPI observations. Corrected fixture
+The scoped Narrator journey also passed. Next: NVDA availability/reader checks and remaining
+theme/contrast/text enlargement/monitor-DPI observations. Corrected fixture
 PID 71248/session 1 is open from `artifacts/uir03e/fixture`; re-audit before reuse. UIR-03 remains in progress.
 Small visual preferences can evolve during implementation.
 Execution enablement and physical/provider campaigns retain their separate authority requirements.

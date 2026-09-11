@@ -64,7 +64,7 @@ The new geometry regression fails before the fix with a 12-DIP overlap, then pas
 top/bottom, both sizes and the toolbar allowance. Paired worker and Windows Debug/Release integration
 pass (170 Core, 75 Infrastructure/five skips, four WPF methods each). See [evidence](evidence/uir-03e-scan-scrollbar-clearance.md).
 
-**Exact next slice: Narrator and NVDA, then remaining theme/contrast/text enlargement/physical DPI evidence.**
+**Exact next slice: NVDA availability and reader journey, then remaining theme/contrast/text enlargement/physical DPI evidence.**
 On 2026-09-11 the operator passed reviewed/active context and harmless History highlighting,
 delayed-folder responsiveness/error isolation, and file selection/scroll retention plus scoped
 layout at both fixture sizes. See [the report and its limits](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks).
@@ -74,8 +74,10 @@ warning result focus and the explicit keyboard-only journey (eight total), then 
 Progress/Summary scrollbar overlap. The third shared-style/expanded-controls check was interrupted.
 The operator then confirmed "Scroll overlap looks good now", closing the reported scrollbar defect.
 The subsequent "other styling looks good" report passes the interrupted check (nine scoped passes).
-Collect remaining reader/theme/high-contrast/text enlargement/multi-monitor DPI evidence, starting
-with Narrator on Files rows, active Progress and warning Close/return, and establish NVDA availability.
+The Narrator Files rows, active Progress and warning Close/return checks then passed (labels,
+selection/status, focus return, no excessive repeated speech). Establish NVDA availability and
+repeat that reader journey, then collect remaining theme/high-contrast/text enlargement/physical
+multi-monitor DPI evidence. This scoped fixture result does not accept real long-scan speech cadence.
 Do not repeat nine passes or the accepted correction
 without a reopen reason. Corrected fixture PID 71248/session 1 was launched from separate
 `artifacts/uir03e/fixture` output after the old fictional window was path-verified and closed normally.

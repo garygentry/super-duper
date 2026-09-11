@@ -1,6 +1,6 @@
 # Prepared A01/A02/A09 desktop walkthrough
 
-Status: **nine scoped checks passed; scrollbar fix and remaining standard-theme styling operator-verified; accessibility pending**. UIR-03d's local viewport prerequisite
+Status: **nine scoped checks, scrollbar correction and Narrator walkthrough passed; remaining accessibility pending**. UIR-03d's local viewport prerequisite
 is verified in [the viewport evidence](uir-03d-viewport-access.md). This is a fictional shell walkthrough, not a
 real scan, deletion campaign, release-smoke substitute or physical acceptance result.
 
@@ -41,6 +41,23 @@ For each step record observations and unexpected scope changes, not merely click
 Automation currently establishes programmatic focus only. The fake data do not establish worker
 performance, screen-reader cadence over a real long scan, representative result scale or A17 rescan
 acceptance. Those requirements retain their later gates and separately isolated procedures.
+
+## 2026-09-11 Narrator walkthrough passed
+
+From `d1c440a`, the operator reported **"Checks pass"** for the requested Narrator keyboard
+walkthrough: Files group/copy rows, View progress and Review warnings → Close, checking meaningful
+labels/column names, selection and scan-status announcements, correct focus return and absence of
+excessive repeated speech. Record this scoped Narrator walkthrough as passed on the corrected
+`ae8d7d1` fictional fixture. Known environment remains standard Windows theme, 100% display scaling.
+Read-only installed `System32/Narrator.exe` metadata reports file/product version `10.0.22621.5262`;
+this is installed-executable metadata, not a separate operator-supplied version or OS build claim.
+
+NVDA availability was not answered; do not infer its pass from this Narrator report. Next establish
+NVDA availability and repeat the same reader journey if available, then collect remaining light/
+dark/high-contrast, Windows text enlargement and physical monitor-DPI evidence. No real long-scan
+announcement cadence or parked-release accessibility acceptance is claimed from this fake fixture.
+UIR-03 remains in_progress. This update changes evidence/checkpoints only; no code/build/test or
+fixture actions. Prior automated checks remain retained.
 
 ## 2026-09-11 remaining styling passed
 

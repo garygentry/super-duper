@@ -81,7 +81,8 @@ No production app, database, scan or deletion action is involved.
 
 ## Next step
 
-Collect remaining physical accessibility observations, starting with Narrator and NVDA availability.
+The scoped Narrator walkthrough subsequently passed; see the desktop walkthrough's dated report.
+Collect remaining physical accessibility observations, starting with NVDA availability and its reader journey.
 The nine passed checks and the separately verified
 scrollbar correction are retained; no repeat is needed without a reopen reason. Physical reader/theme/
 contrast/text enlargement/multi-monitor DPI evidence remains open. UIR-04 depends on UIR-03 acceptance.

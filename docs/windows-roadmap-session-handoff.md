@@ -41,8 +41,11 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Subsequent operator report "other styling looks good" passes the interrupted expanded-controls/
   shared-style check: nine scoped passes plus the scrollbar correction, in the known standard
   Windows theme/100%-display-scale environment.
-- Next slice: Narrator on Files rows, active Progress and warning Close/return; establish NVDA
-  availability, then remaining reader/theme/contrast/text enlargement/physical DPI observations.
+- Narrator scoped walkthrough passed: Files rows, active Progress and warning Close/return, including
+  labels/selection/status, focus return and no excessive repeated speech. Installed executable
+  version `10.0.22621.5262` read from file metadata. NVDA availability remains unanswered.
+- Next slice: NVDA availability and the same reader journey, then remaining theme/contrast/text
+  enlargement/physical DPI observations. This does not accept parked-release or real long-scan speech cadence.
   Do not repeat nine passes or the accepted correction without a reopen reason.
   UIR-04 remains dependent on UIR-03 acceptance.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`. Latest implementation is
@@ -510,7 +513,7 @@ desktop walkthrough using `plans/ui-redesign/evidence/uir-03-desktop-walkthrough
 `scripts/Invoke-UiRedesignFixture.ps1 -Show` (build only without `-Show`). UIR-03d resolves local
 viewport access at 900x600/1180x760 with bounded scrolling sections and complete reachable actions;
 the full adjustable S03/A03 layout remains UIR-05. Programmatic focus/scroll and isolated Windows
-Debug/Release integration pass. The scoped keyboard-only journey passed; Narrator/NVDA, theme/high contrast, text
+Debug/Release integration pass. The scoped keyboard-only and Narrator journeys passed; NVDA, theme/high contrast, text
 enlargement and physical DPI remain unrun. Request the specific operator walkthrough, record its
 observations and assess UIR-03 before advancing to UIR-04 monitoring and Scan again.
 On 2026-09-11 the operator passed the three initial checks: reviewed/active context and harmless
@@ -521,7 +524,8 @@ warning result focus and explicit keyboard-only navigation (eight total), but re
 Summary scrollbar overlap. UIR-03e fixes it with failing-before/passing-after geometry and full
 Windows Debug/Release integration. The operator confirmed the scrollbar correction on the updated
 fixture, then passed the remaining shared-style/expanded-controls check (nine scoped passes).
-Next collect Narrator, NVDA and remaining theme/contrast/text enlargement/physical DPI observations.
+The scoped Narrator journey also passed. Next establish NVDA availability/test results and collect
+remaining theme/contrast/text enlargement/physical DPI observations.
 Visibility and scoped keyboard evidence are established. The original defect occurred at both sizes
 under the standard Windows theme at 100% display scaling; the corrected-build scrollbar recheck passed.
 The reports do not cover
@@ -626,6 +630,10 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+2026-09-11 follow-up from `d1c440a`: Narrator Files rows, active Progress and warning Close/return
+checks passed by operator report. Installed Narrator file/product version `10.0.22621.5262` read
+without runtime changes. NVDA and remaining physical matrix stay open. Documentation/diff checks only.
 
 2026-09-11 follow-up from `64c114f`: operator reports "other styling looks good", passing the
 interrupted shared-style/expanded-controls check. Nine scoped passes plus the scrollbar correction;
@@ -1334,6 +1342,14 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+### 2026-09-11 - UIR-03 Narrator walkthrough passed
+
+Operator reports "Checks pass" for the requested Narrator journey, covering labels/columns,
+selection/status, focus return and no speech flooding. Record scoped fictional-fixture acceptance;
+retain real-long-scan and parked-release limits. NVDA availability is still unanswered; next collect
+that reader's evidence and remaining theme/contrast/text enlargement/physical DPI observations.
+Evidence/checkpoints only; installed Narrator version read without changing runtime. UIR-03 stays open.
 
 ### 2026-09-11 - UIR-03 standard-theme styling passed
 
