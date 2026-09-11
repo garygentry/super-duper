@@ -1,6 +1,6 @@
 # Prepared A01/A02/A09 desktop walkthrough
 
-Status: **six scoped operator checks passed on 2026-09-11; remaining walkthrough pending**. UIR-03d's local viewport prerequisite
+Status: **eight scoped operator checks passed; Progress/Summary scrollbar defect reported**. UIR-03d's local viewport prerequisite
 is verified in [the viewport evidence](uir-03d-viewport-access.md). This is a fictional shell walkthrough, not a
 real scan, deletion campaign, release-smoke substitute or physical acceptance result.
 
@@ -41,6 +41,23 @@ For each step record observations and unexpected scope changes, not merely click
 Automation currently establishes programmatic focus only. The fake data do not establish worker
 performance, screen-reader cadence over a real long scan, representative result scale or A17 rescan
 acceptance. Those requirements retain their later gates and separately isolated procedures.
+
+## 2026-09-11 keyboard/result passes and scrollbar defect
+
+From `8d2354c`, the operator reported **"1. Pass, 2. Pass"** for completed-run warning
+**Open duplicate results** opening Files with group-grid focus and the explicitly requested
+keyboard-only filters/paging/warning journey with visible focus and harmless copy selection.
+Eight scoped checks have now passed. This supplies the keyboard evidence missing in the previous
+batch; screen readers, themes/contrast, text enlargement and monitor DPI remain unrun.
+
+For the third check, the operator reported **"On Scan/Progress, Scan/Summary tabs, main body
+outer-most scroll bar overlaps right side of body content area"**. Record an A09 layout defect;
+do not mark the expanded-control/shared-style check passed. The fix, before/after geometry
+regression, integration results and runtime are in [UIR-03e evidence](uir-03e-scan-scrollbar-clearance.md).
+Next is operator verification of that fix and completion of the interrupted third check, then
+remaining physical accessibility observations. Exact operator size/theme/scaling is requested but
+not yet supplied. UIR-03 remains in progress; UIR-04 remains dependent. Earlier entries below
+preserve the evidence available at each batch.
 
 ## 2026-09-11 navigation follow-up passed
 

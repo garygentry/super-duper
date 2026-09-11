@@ -139,12 +139,14 @@ internal static class PopulatedShellFixture
                     Assert.IsTrue(Find<Button>(window, "ViewActiveProgress").IsVisible);
                     Capture(window, $"populated-{destination}-{size.Width}x{size.Height}");
                 }
+                VerifyScanScrollClearance(window, model, size);
                 VerifyViewportAccess(window, model, size);
             }
             // The standalone fixture adds a wrapping toolbar above the shipping content.
             // Reserve 80 DIPs at minimum size to cover that host's extra vertical overhead.
             ((FrameworkElement)window.Content).Margin = new Thickness(0, 80, 0, 0);
             Drain();
+            VerifyScanScrollClearance(window, model, new Size(900, 600), "-toolbar");
             VerifyViewportAccess(window, model, new Size(900, 600), "-toolbar");
         }
         finally { window.Close(); }
@@ -159,6 +161,32 @@ internal static class PopulatedShellFixture
             catch (KeyNotFoundException) { }
         }
         throw new KeyNotFoundException(id);
+    }
+
+    private static void VerifyScanScrollClearance(MainWindow window, ShellViewModel model, Size size, string host = "")
+    {
+        foreach (var destination in new[] { WorkspaceDestination.ScanProgress, WorkspaceDestination.ScanSummary })
+        {
+            model.SelectedDestination = destination;
+            Drain();
+            var scroll = Find<ScrollViewer>(window, "ScanProgressScrollViewer");
+            var content = (FrameworkElement)scroll.Content;
+            var bar = Descendants<System.Windows.Controls.Primitives.ScrollBar>(scroll)
+                .Single(candidate => candidate.Orientation == Orientation.Vertical
+                    && ReferenceEquals(candidate.TemplatedParent, scroll));
+            Assert.IsTrue(bar.IsVisible && bar.ActualWidth > 0 && scroll.ScrollableHeight > 0,
+                $"{destination}: populated scan content must exercise the outer vertical scrollbar.");
+            foreach (var bottom in new[] { false, true })
+            {
+                if (bottom) scroll.ScrollToBottom(); else scroll.ScrollToTop();
+                Drain();
+                var contentBounds = content.TransformToAncestor(window).TransformBounds(new Rect(content.RenderSize));
+                var barBounds = bar.TransformToAncestor(window).TransformBounds(new Rect(bar.RenderSize));
+                Capture(window, $"scan-clearance-{destination}-{size.Width}x{size.Height}{host}-{(bottom ? "bottom" : "top")}");
+                Assert.IsTrue(contentBounds.Right <= barBounds.Left,
+                    $"{destination} {size.Width}x{size.Height}{host}: outer scrollbar overlaps body: content={contentBounds}, scrollbar={barBounds}.");
+            }
+        }
     }
 
     private static void VerifyViewportAccess(MainWindow window, ShellViewModel model, Size size, string host = "")

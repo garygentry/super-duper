@@ -9,12 +9,15 @@
         <Style x:Key="SecondaryProgressText" TargetType="TextBlock" BasedOn="{StaticResource ShellBody}" />
     </UserControl.Resources>
 
-    <Grid Margin="{StaticResource PageContentInset}" KeyboardNavigation.TabNavigation="Continue">
+    <Grid KeyboardNavigation.TabNavigation="Continue">
         <ScrollViewer VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       Focusable="False"
                       automation:AutomationProperties.AutomationId="ScanProgressScrollViewer">
-            <Grid Visibility="{Binding HasRun, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <!-- Fluent scrollbars overlay the viewport. Keep the page inset inside the viewer
+                 so the shared Progress/Summary body ends before the scrollbar's hit area. -->
+            <Grid Margin="{StaticResource PageContentInset}"
+                  Visibility="{Binding HasRun, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -259,7 +262,7 @@
             </Grid>
         </ScrollViewer>
 
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+        <StackPanel Margin="{StaticResource PageContentInset}" HorizontalAlignment="Center" VerticalAlignment="Center"
                     automation:AutomationProperties.AutomationId="ScanProgressEmptyState"
                     automation:AutomationProperties.Name="No scan selected">
             <StackPanel.Style>

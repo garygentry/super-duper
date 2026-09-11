@@ -23,35 +23,37 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest completed slice: UIR-03d populated viewport access: scrolling Files/History pages, bounded
-  grids, complete reachable actions, corrected long-path fixture and same-run page/grid retention.
+- Latest completed local slice: UIR-03e Progress/Summary scrollbar clearance. The operator reported
+  overlap; the shared page inset now sits inside the scroll viewer. Geometry regression reproduces
+  the 12-DIP overlap before the fix and passes afterward at both sizes/top/bottom/toolbar allowance.
   UIR-03 remains in_progress; UIR-00/01/02 remain complete.
 - Latest operator evidence (2026-09-11): three initial checks passed after a requested fixture reset:
   reviewed/active context and harmless History highlighting, delayed-folder responsiveness/error
   isolation, and file selection/scroll retention plus scoped layout at 1180x760/900x600.
   Visibility is established; full desktop acceptance remains open. See the scoped report in
   `plans/ui-redesign/evidence/uir-03-desktop-walkthrough.md`.
-- Second operator batch also passed: explicit Open scan, active warning Close/return focus and
-  Progress scroll retention. Six scoped passes; full keyboard input was not specifically confirmed.
-- Next slice: completed-run warning result focus, expanded controls/shared styles/recovery,
-  keyboard-only and accessibility observations. Do not repeat the six passes without a reason.
+- Second operator batch passed explicit Open scan, active warning Close/return focus and Progress
+  scroll retention. Third batch passed completed-run warning result focus and keyboard-only navigation
+  (eight total), but reported scrollbar overlap during expanded-controls/shared-style inspection.
+- Next slice: operator recheck of corrected Progress/Summary at both sizes/top/bottom, finish the
+  expanded-controls/shared-style check, then remaining physical accessibility observations.
+  Do not repeat the eight passes without a reason. UIR-03e's operator recheck is pending.
   UIR-04 remains dependent on UIR-03 acceptance.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`. Latest implementation is
-  `b20341a` (UIR-03d); this update records the second operator report from `012573f`.
+  UIR-03e in this checkpoint's commit (baseline `8d2354c`, prior implementation `b20341a`).
 - Session handoffs require a printed copyable continuation prompt tailored to the committed
   checkpoint and exact next slice; follow the redesign session guide.
 - Current artifacts: findings, product direction, screen/state/copy specification, visual guidance,
   capability map, interactive fictional concept, validation matrix and finite execution ledger,
   plus `scan-and-rescan-experience.md` (A08/A16/A17). User direction acceptance is not native acceptance.
-- Validation: UIR-03d paired worker builds and Windows Debug/Release build/test pass (170 Core,
+- Validation: UIR-03e paired worker builds and Windows Debug/Release build/test pass (170 Core,
   75 Infrastructure/five operator-only skips, four WPF methods each). UIR-03c Rust tests remain
   the retained 226-passed/10-ignored baseline; no Rust/shared contract changed in this slice.
-  Reachability, actual focus handlers and retention pass; S03/A03 and physical acceptance stay open.
-  See `plans/ui-redesign/evidence/uir-03d-viewport-access.md`; operator PIDs 36316/17612 untouched.
-- Latest fixture launch: existing executable reopened fresh as PID 58144/session 1 for the
-  operator's reset request (earlier launch 70232). Process checks found no matching app/worker/
-  fixture before launches; no process was stopped. Output: `artifacts/uir03-desktop-fixture`;
-  prior logs/temp: ignored `artifacts/uir03-operator`. Re-audit before reuse or launch.
+  Scrollbar geometry, reachability, focus and retention pass; S03/A03 and full physical acceptance
+  stay open. See `plans/ui-redesign/evidence/uir-03e-scan-scrollbar-clearance.md`; output is `artifacts/uir03e`.
+- Latest fixture launch: corrected build PID 71248/session 1 at `artifacts/uir03e/fixture`, left open
+  for operator recheck. After verification the old fictional fixture 58144 was path-verified and
+  closed normally. Production runtime/state untouched. Re-audit before reuse or launch.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
   do not rerun SOP10 or SOP9 identities.
 - Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first
@@ -497,20 +499,23 @@ performance, and later-gate campaigns remain untouched.
 ## Immediate next step
 
 The operator accepted the high-level UI direction with explicit long-scan and repeat-scan feedback.
-UIR-03a/b/c/d are implemented; UIR-03 remains in_progress. Next is the operator A01/A02/A09
+UIR-03a/b/c/d/e are implemented; UIR-03 remains in_progress. Next is the operator A01/A02/A09
 desktop walkthrough using `plans/ui-redesign/evidence/uir-03-desktop-walkthrough.md` and
 `scripts/Invoke-UiRedesignFixture.ps1 -Show` (build only without `-Show`). UIR-03d resolves local
 viewport access at 900x600/1180x760 with bounded scrolling sections and complete reachable actions;
 the full adjustable S03/A03 layout remains UIR-05. Programmatic focus/scroll and isolated Windows
-Debug/Release integration pass. Full keyboard-only evidence is unverified; Narrator/NVDA, theme/high contrast, text
+Debug/Release integration pass. The scoped keyboard-only journey passed; Narrator/NVDA, theme/high contrast, text
 enlargement and physical DPI remain unrun. Request the specific operator walkthrough, record its
 observations and assess UIR-03 before advancing to UIR-04 monitoring and Scan again.
 On 2026-09-11 the operator passed the three initial checks: reviewed/active context and harmless
 History highlighting, delayed-folder responsiveness/error isolation, and file selection/scroll
 retention plus scoped layout at both fixture sizes. The second batch passed explicit Open scan,
-active warning Close/return focus and Progress scroll retention. Next collect completed-run warning
-result focus, expanded controls/shared styles/recovery, keyboard-only and accessibility observations.
-Visibility is established; keyboard input method and environment remain unspecified. The reports do not cover
+active warning Close/return focus and Progress scroll retention. The third batch passed completed-run
+warning result focus and explicit keyboard-only navigation (eight total), but reported a Progress/
+Summary scrollbar overlap. UIR-03e fixes it with failing-before/passing-after geometry and full
+Windows Debug/Release integration. The corrected fixture is open for operator recheck at both
+sizes/top/bottom. Finish expanded-controls/shared-style inspection and remaining physical accessibility.
+Visibility and scoped keyboard evidence are established; environment remains unspecified. The reports do not cover
 the whole prepared walkthrough. Record remaining evidence and fix any reported defect; do not
 repeat the passed subset without a reason or infer full acceptance from it.
 All work stays on `codex/ui-redesign`.
@@ -612,6 +617,14 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+UIR-03e (2026-09-11, baseline `8d2354c`): operator passed completed-run warning result focus and
+keyboard-only navigation, then reported Progress/Summary scrollbar overlap. New WPF geometry check
+fails before (12-DIP overlap) and passes after the inset fix. Paired worker and Windows Debug/Release
+builds pass with zero Windows warnings/errors; each configuration has 170 Core, 75 Infrastructure
+with five operator-only skips and four WPF passes. Separate fixture build passed; corrected fixture
+71248/session 1 opened for pending operator recheck. No Rust/shared contract changes; Rust test
+baseline retained. See `plans/ui-redesign/evidence/uir-03e-scan-scrollbar-clearance.md` for logs and limits.
 
 Second 2026-09-11 report from `012573f`: explicit Open scan, active warning Close/return focus and
 Progress scroll retention passed, bringing the scoped total to six. No product/test or runtime
@@ -1304,6 +1317,16 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+### 2026-09-11 - UIR-03e operator-reported scrollbar overlap fixed locally
+
+Third batch adds two passes (completed-run warning result focus and explicit keyboard-only journey),
+then reports Progress/Summary outer-scrollbar overlap. Eight scoped passes; shared-style/layout check
+remains open. Move the existing page inset inside the shared ScrollViewer; preserve empty-state inset.
+New geometry regression fails before and passes after, with full paired Windows Debug/Release checks.
+Old fictional fixture 58144 was path-verified/closed normally after verification; corrected fixture
+71248/session 1 is open from separate output for the requested operator recheck. UIR-03 stays open;
+remaining physical evidence and UIR-04 dependency unchanged. No production/campaign authority changed.
 
 ### 2026-09-11 - UIR-03 second operator batch passed
 

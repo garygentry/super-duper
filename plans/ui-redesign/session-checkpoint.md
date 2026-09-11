@@ -3,8 +3,12 @@
 Updated 2026-09-11. [Execution plan](execution-plan.md) owns gate status.
 
 - Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; no switch/worktree/merge/push.
-- Latest implementation: `b20341a` (UIR-03d). This update records the second operator batch from `012573f`.
-- Completed gates: UIR-00/01/02. **UIR-03 remains in_progress**; UIR-03a/b/c/d are implemented.
+- Latest implementation: UIR-03e in this checkpoint's commit (baseline `8d2354c`, prior code `b20341a`).
+- Completed gates: UIR-00/01/02. **UIR-03 remains in_progress**; UIR-03a/b/c/d/e are implemented.
+- UIR-03e fixes the operator-reported Progress/Summary outer-scrollbar overlap by moving the
+  existing page inset inside the shared ScrollViewer, preserving the empty-state inset. The
+  regression fails before the fix (12-DIP overlap) and passes for both tabs, top/bottom, both sizes
+  and minimum size with toolbar allowance. See [UIR-03e evidence](evidence/uir-03e-scan-scrollbar-clearance.md).
 - UIR-03d: scrolling Files/History pages with bounded native grids, full-width comparison context,
   wrapping commands and minimum widths for complete decision/path/warning actions. The 900x600
   minimum and shared readable resources remain. Interim stacked Files replaces its split adjustment;
@@ -15,32 +19,29 @@ Updated 2026-09-11. [Execution plan](execution-plan.md) owns gate status.
   focus handlers, warning focus/return, selected group and nonzero page/grid scroll retention.
   Existing progress-scroll, one-query same-run reuse, stale-focus and delayed-pane checks remain.
   Disclosure layout settles before exact offset comparisons; failed evidence is retained.
-- Verification: paired Rust worker builds and Windows Debug/Release builds/tests pass: 170 Core,
+- Latest verification (UIR-03e): paired Rust worker builds and Windows Debug/Release builds/tests pass: 170 Core,
   75 Infrastructure with five operator-only skips, four WPF methods each. No Rust/shared contract
   changed; UIR-03c's 226-passed/10-ignored Rust tests remain the retained baseline, not a new run.
-  Standalone launcher build-only and hidden `--verify` pass. See
-  [UIR-03d evidence](evidence/uir-03d-viewport-access.md) for commands, captures, failures and tradeoffs.
+  Corrected standalone fixture build passes; isolated output/logs/captures are `artifacts/uir03e`.
 - **Operator evidence:** after a requested fixture reset and orientation, the operator reported
   "All 3 checks pass": reviewed/active context and harmless History highlighting, delayed-folder
   responsiveness/error isolation, and file selection/scroll retention plus scoped layout at both
   fixture sizes. The second batch also passed: explicit Open scan round trips, active warning
-  Close/return focus and Progress scroll retention. Six scoped passes; see [scope and limits](evidence/uir-03-desktop-walkthrough.md#2026-09-11-navigation-follow-up-passed).
-- **Exact next slice:** completed-run warning Open duplicate results focus, full expanded controls
-  and shared styles/recovery, keyboard-only journey and physical accessibility observations in
-  [the walkthrough](evidence/uir-03-desktop-walkthrough.md). No full keyboard-only or environment/
-  reader/theme/DPI evidence is supplied yet. Do not repeat the six passed checks without a reason.
+  Close/return focus and Progress scroll retention. The third batch passed completed-run warning
+  result focus and the keyboard-only journey (eight scoped passes), but reported the Progress/
+  Summary scrollbar overlap. Expanded-controls/shared-style acceptance remains open.
+- **Exact next slice:** operator recheck of the corrected Progress/Summary scrollbar at both sizes,
+  top/bottom, then finish expanded-controls/shared styles and remaining physical accessibility
+  observations in [the walkthrough](evidence/uir-03-desktop-walkthrough.md). Environment/theme/
+  reader/text-scale/DPI evidence is not yet supplied. Do not repeat eight passed checks without a reason.
   Record actual observations, fix evidenced defects and assess UIR-03 before advancing to UIR-04.
-- Unverified: full keyboard-only journey. Unrun: Narrator/NVDA, light/dark/high contrast, Windows text enlargement and
+- Unrun: Narrator/NVDA, light/dark/high contrast, Windows text enlargement and
   physical 100/150/200% monitor/DPI checks. Renders are 96-DPI system-brush fixtures, not physical
   acceptance. Representative folder/review/performance coverage remains in later gates. UIR-03
   cannot close on automation alone. UIR-04 monitoring/Scan again follows; A08/A16/A17 remain required.
-- This session: documentation/evidence only; no product/test changes or build/test reruns.
-  Verification: documentation link validation, final diff review and `git diff --check`.
-- Runtime: process checks found no matching app/worker/fixture before launches. Existing fixture
-  output was launched as 70232, then reopened fresh as 58144/session 1 for the requested reset
-  after another check found no matching process. No process was stopped or production state used.
-  Output remains `artifacts/uir03-desktop-fixture`; prior logs/temp: `artifacts/uir03-operator`.
-  Re-audit before reuse/launch; use the documented launcher if a new build is needed.
+- Runtime: after integration passed, old fictional fixture 58144 was path-verified and closed
+  normally. Corrected fixture PID 71248/session 1 is open from `artifacts/uir03e/fixture`; the
+  operator recheck is requested/pending. Re-audit before reuse/launch. Production state untouched.
 - Boundaries: production deletion disabled; ownership/engine/worker/cache/protocol/query ceilings
   and survivor/revision/overlap protections unchanged. SOP10 consumed/complete; Windows post-MVP
   release validation parked. The remaining UIR-03 prerequisite is operator desktop evidence.
