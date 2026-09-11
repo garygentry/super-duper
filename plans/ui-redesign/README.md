@@ -44,7 +44,7 @@ are authoritative if its intentionally small fictional dataset or simplified int
 | UIR-00 Preserve and isolate | complete | `deefa40` on `wpf-poc`; dedicated branch created |
 | UIR-01 Evaluation and specification | complete | This package, local prototype checks, and discovery record |
 | UIR-02 Direction feedback | complete | User accepted the high-level direction; long-scan/rescan requirements captured |
-| UIR-03 Shell and context | in_progress | UIR-03a/b/c/d/e implemented; [scrollbar fix operator-verified](evidence/uir-03e-scan-scrollbar-clearance.md); next remaining A09 styling/accessibility evidence |
+| UIR-03 Shell and context | in_progress | UIR-03a/b/c/d/e implemented; [scrollbar fix and standard-theme styling operator-verified](evidence/uir-03e-scan-scrollbar-clearance.md); next remaining physical accessibility evidence |
 | UIR-04 through UIR-09 | planned | See execution plan; no product implementation or acceptance claimed |
 
 On 2026-09-11 the operator [passed three initial checks](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks):
@@ -55,7 +55,8 @@ active warning Close/return focus and Progress scroll retention. The third batch
 warning result focus and the keyboard-only journey, bringing the scoped total to eight, but reported
 Progress/Summary scrollbar overlap. [UIR-03e](evidence/uir-03e-scan-scrollbar-clearance.md) fixes the
 shared view and passes before/after geometry and Debug/Release integration. The operator confirms
-the overlap is corrected. Next: finish expanded-controls/shared-style and accessibility observations. Corrected fixture
+the overlap is corrected and the remaining styling looks good: nine scoped passes plus the fix.
+Next: Narrator, NVDA and remaining theme/contrast/text enlargement/monitor-DPI observations. Corrected fixture
 PID 71248/session 1 is open from `artifacts/uir03e/fixture`; re-audit before reuse. UIR-03 remains in progress.
 Small visual preferences can evolve during implementation.
 Execution enablement and physical/provider campaigns retain their separate authority requirements.

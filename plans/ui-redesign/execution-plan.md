@@ -1,6 +1,6 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-03 in progress; UIR-03a/b/c/d/e implemented; scrollbar correction operator-verified, remaining styling/accessibility acceptance open. Stay on `codex/ui-redesign`.
+Status: UIR-03 in progress; UIR-03a/b/c/d/e implemented; scrollbar correction and standard-theme styling operator-verified, remaining physical accessibility acceptance open. Stay on `codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -11,7 +11,7 @@ all safety/evidence gates. Its open execution criteria are not absorbed or marke
 | UIR-00 | complete | Preserve current work and create dedicated branch | `wpf-poc` at `deefa40`; `codex/ui-redesign` created from it |
 | UIR-01 | complete | Findings, direction, specifications, concept, capability mapping, validation and procedure | Package internally checked; prototype limitations recorded; no WPF implementation |
 | UIR-02 | complete | High-level direction accepted; operator feedback incorporated | D13-D15; no native or full prototype walkthrough acceptance inferred |
-| UIR-03 | in_progress | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c/d/e implemented; eight scoped operator checks passed; [scrollbar fix verified by regression, Debug/Release integration and operator](evidence/uir-03e-scan-scrollbar-clearance.md); remaining styling/accessibility acceptance open |
+| UIR-03 | in_progress | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c/d/e implemented; nine scoped operator checks passed; [scrollbar fix verified by regression, Debug/Release integration and operator](evidence/uir-03e-scan-scrollbar-clearance.md); remaining physical accessibility acceptance open |
 | UIR-04 | planned | Setup, Scan again, persistent reuse explanation, live monitoring/details and terminal summaries | UIR-03; A05/A06/A08/A14/A15/A16/A17 with controlled clock, lifecycle and rescan fixtures |
 | UIR-05 | planned | File/folder results, compact filters, list/detail comparison, decisions and path actions | UIR-03; A03/A04/A05/A06/A11/A13/A15 and existing query/focus/page contracts |
 | UIR-06 | planned | Dedicated Review, existing rule workflow, whole-plan validation and evidence access | UIR-05; A04/A10/A15 including revision, survivor, overlap, reversal and restart |
@@ -64,20 +64,22 @@ The new geometry regression fails before the fix with a 12-DIP overlap, then pas
 top/bottom, both sizes and the toolbar allowance. Paired worker and Windows Debug/Release integration
 pass (170 Core, 75 Infrastructure/five skips, four WPF methods each). See [evidence](evidence/uir-03e-scan-scrollbar-clearance.md).
 
-**Exact next slice: finish expanded-controls/shared-style inspection, then remaining physical accessibility evidence.**
+**Exact next slice: Narrator and NVDA, then remaining theme/contrast/text enlargement/physical DPI evidence.**
 On 2026-09-11 the operator passed reviewed/active context and harmless History highlighting,
 delayed-folder responsiveness/error isolation, and file selection/scroll retention plus scoped
 layout at both fixture sizes. See [the report and its limits](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks).
 The [second batch](evidence/uir-03-desktop-walkthrough.md#2026-09-11-navigation-follow-up-passed) passed explicit Open scan round trips,
 active warning Close/return focus and Progress scroll retention. The third batch passed completed-run
 warning result focus and the explicit keyboard-only journey (eight total), then reported the A09
-Progress/Summary scrollbar overlap. The third shared-style/expanded-controls check remains open.
+Progress/Summary scrollbar overlap. The third shared-style/expanded-controls check was interrupted.
 The operator then confirmed "Scroll overlap looks good now", closing the reported scrollbar defect.
-Finish the interrupted styling check and collect remaining reader/theme/high-contrast/text enlargement/
-multi-monitor DPI evidence. Do not repeat eight passes or the accepted correction
+The subsequent "other styling looks good" report passes the interrupted check (nine scoped passes).
+Collect remaining reader/theme/high-contrast/text enlargement/multi-monitor DPI evidence, starting
+with Narrator on Files rows, active Progress and warning Close/return, and establish NVDA availability.
+Do not repeat nine passes or the accepted correction
 without a reopen reason. Corrected fixture PID 71248/session 1 was launched from separate
 `artifacts/uir03e/fixture` output after the old fictional window was path-verified and closed normally.
-Re-audit before reuse; scrollbar recheck passed, remaining styling/accessibility is pending. The default launcher still builds a fresh
+Re-audit before reuse; scrollbar and styling passed, remaining physical accessibility is pending. The default launcher still builds a fresh
 current-code fixture when needed. Record observations and assess acceptance; a local fix is not
 physical acceptance. Reader/theme/high-contrast/text enlargement/multi-monitor DPI remain unrun.
 Do not substitute automated evidence for these checks or mark UIR-03 complete before its required

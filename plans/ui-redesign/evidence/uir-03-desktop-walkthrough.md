@@ -1,6 +1,6 @@
 # Prepared A01/A02/A09 desktop walkthrough
 
-Status: **eight scoped checks passed; Progress/Summary scrollbar fix operator-verified; styling/accessibility pending**. UIR-03d's local viewport prerequisite
+Status: **nine scoped checks passed; scrollbar fix and remaining standard-theme styling operator-verified; accessibility pending**. UIR-03d's local viewport prerequisite
 is verified in [the viewport evidence](uir-03d-viewport-access.md). This is a fictional shell walkthrough, not a
 real scan, deletion campaign, release-smoke substitute or physical acceptance result.
 
@@ -41,6 +41,19 @@ For each step record observations and unexpected scope changes, not merely click
 Automation currently establishes programmatic focus only. The fake data do not establish worker
 performance, screen-reader cadence over a real long scan, representative result scale or A17 rescan
 acceptance. Those requirements retain their later gates and separately isolated procedures.
+
+## 2026-09-11 remaining styling passed
+
+After the scrollbar correction, the operator reported **"other styling looks good"** in response
+to the interrupted shared-style/expanded-controls check at both fixture sizes. Record that scoped
+check as passed, bringing the total to nine, plus the separately verified scrollbar correction.
+The known environment is the standard Windows theme at 100% display scaling; no additional
+theme/contrast/text enlargement or physical monitor-DPI combinations are inferred.
+Next: Narrator, then NVDA, followed by remaining light/dark/high-contrast, text enlargement and
+physical monitor-DPI observations. The operator has been asked to try Narrator on Files rows,
+active Progress and warning Close/return, and to state NVDA availability. Results are pending.
+UIR-03 remains in_progress; UIR-04 stays dependent. This update records operator evidence only;
+no product/test changes, build/test reruns or fixture actions. Prior results remain retained.
 
 ## 2026-09-11 scrollbar correction verified
 

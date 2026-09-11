@@ -30,11 +30,13 @@ Updated 2026-09-11. [Execution plan](execution-plan.md) owns gate status.
   fixture sizes. The second batch also passed: explicit Open scan round trips, active warning
   Close/return focus and Progress scroll retention. The third batch passed completed-run warning
   result focus and the keyboard-only journey (eight scoped passes), but reported the Progress/
-  Summary scrollbar overlap. Expanded-controls/shared-style acceptance remains open.
-- **Exact next slice:** finish expanded-controls/shared styles and remaining physical accessibility
+  Summary scrollbar overlap. After its correction, "other styling looks good" passes the interrupted
+  expanded-controls/shared-style check (nine scoped passes plus the scrollbar correction).
+- **Exact next slice:** Narrator on Files rows, active Progress and warning Close/return; establish
+  NVDA availability, then complete remaining physical accessibility
   observations in [the walkthrough](evidence/uir-03-desktop-walkthrough.md). Original-defect environment:
   both sizes, standard Windows theme, 100% display scaling. Scrollbar correction is operator-verified;
-  separate text size and remaining reader/theme/DPI checks are pending. Retain eight earlier passes.
+  separate text size and remaining reader/theme/DPI checks are pending. Retain nine scoped passes.
   Record actual observations, fix evidenced defects and assess UIR-03 before advancing to UIR-04.
 - Unrun: Narrator/NVDA, light/dark/high contrast, Windows text enlargement and
   physical 100/150/200% monitor/DPI checks. Renders are 96-DPI system-brush fixtures, not physical
@@ -42,7 +44,7 @@ Updated 2026-09-11. [Execution plan](execution-plan.md) owns gate status.
   cannot close on automation alone. UIR-04 monitoring/Scan again follows; A08/A16/A17 remain required.
 - Runtime: after integration passed, old fictional fixture 58144 was path-verified and closed
   normally. Corrected fixture PID 71248/session 1 is open from `artifacts/uir03e/fixture`; the
-  scrollbar recheck passed, with the styling check still pending. Re-audit before reuse/launch.
+  scrollbar recheck and remaining styling passed. Re-audit before reuse/launch.
   Production state untouched; this confirmation update changes documentation only.
 - Boundaries: production deletion disabled; ownership/engine/worker/cache/protocol/query ceilings
   and survivor/revision/overlap protections unchanged. SOP10 consumed/complete; Windows post-MVP

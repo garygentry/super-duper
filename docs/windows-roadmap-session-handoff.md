@@ -38,8 +38,12 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   Original-defect environment confirmed: both fixture sizes, standard Windows theme, 100% display
   scaling. The operator subsequently confirmed "Scroll overlap looks good now" on the corrected
   build; the reported scrollbar defect is closed. Separate Windows text size is unspecified.
-- Next slice: finish expanded-controls/shared-style inspection, then remaining physical accessibility
-  observations. Do not repeat eight passes or the accepted correction without a reopen reason.
+- Subsequent operator report "other styling looks good" passes the interrupted expanded-controls/
+  shared-style check: nine scoped passes plus the scrollbar correction, in the known standard
+  Windows theme/100%-display-scale environment.
+- Next slice: Narrator on Files rows, active Progress and warning Close/return; establish NVDA
+  availability, then remaining reader/theme/contrast/text enlargement/physical DPI observations.
+  Do not repeat nine passes or the accepted correction without a reopen reason.
   UIR-04 remains dependent on UIR-03 acceptance.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`. Latest implementation is
   `ae8d7d1` (UIR-03e; baseline `8d2354c`, prior implementation `b20341a`).
@@ -516,7 +520,8 @@ active warning Close/return focus and Progress scroll retention. The third batch
 warning result focus and explicit keyboard-only navigation (eight total), but reported a Progress/
 Summary scrollbar overlap. UIR-03e fixes it with failing-before/passing-after geometry and full
 Windows Debug/Release integration. The operator confirmed the scrollbar correction on the updated
-fixture. Finish expanded-controls/shared-style inspection and remaining physical accessibility.
+fixture, then passed the remaining shared-style/expanded-controls check (nine scoped passes).
+Next collect Narrator, NVDA and remaining theme/contrast/text enlargement/physical DPI observations.
 Visibility and scoped keyboard evidence are established. The original defect occurred at both sizes
 under the standard Windows theme at 100% display scaling; the corrected-build scrollbar recheck passed.
 The reports do not cover
@@ -621,6 +626,10 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+2026-09-11 follow-up from `64c114f`: operator reports "other styling looks good", passing the
+interrupted shared-style/expanded-controls check. Nine scoped passes plus the scrollbar correction;
+remaining physical accessibility stays open. Documentation/diff checks only, prior integration retained.
 
 2026-09-11 follow-up from `7871523`: operator confirms "Scroll overlap looks good now" for the
 corrected `ae8d7d1` fixture. Reported scrollbar defect closed; broader styling/accessibility evidence
@@ -1325,6 +1334,13 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+### 2026-09-11 - UIR-03 standard-theme styling passed
+
+Operator reports "other styling looks good" after verifying the scrollbar correction. Record the
+interrupted expanded-controls/shared-style check as passed in the known standard-theme/100%-scale
+environment. Next are Narrator, NVDA availability and remaining physical accessibility observations.
+UIR-03 remains in_progress; no code/runtime/build/test action in this evidence-only update.
 
 ### 2026-09-11 - UIR-03e scrollbar correction operator-verified
 
