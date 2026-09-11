@@ -55,8 +55,10 @@ outer-most scroll bar overlaps right side of body content area"**. Record an A09
 do not mark the expanded-control/shared-style check passed. The fix, before/after geometry
 regression, integration results and runtime are in [UIR-03e evidence](uir-03e-scan-scrollbar-clearance.md).
 Next is operator verification of that fix and completion of the interrupted third check, then
-remaining physical accessibility observations. Exact operator size/theme/scaling is requested but
-not yet supplied. UIR-03 remains in progress; UIR-04 remains dependent. Earlier entries below
+remaining physical accessibility observations. The operator clarified that the original overlap
+occurred at both fixture sizes, with the standard Windows theme and 100% display scaling. Separate
+Windows text-size and monitor details remain unspecified. This is original-defect context, not
+confirmation of the corrected build. UIR-03 remains in progress; UIR-04 remains dependent. Earlier entries below
 preserve the evidence available at each batch.
 
 ## 2026-09-11 navigation follow-up passed

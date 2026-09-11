@@ -3,7 +3,7 @@
 Updated 2026-09-11. [Execution plan](execution-plan.md) owns gate status.
 
 - Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; no switch/worktree/merge/push.
-- Latest implementation: UIR-03e in this checkpoint's commit (baseline `8d2354c`, prior code `b20341a`).
+- Latest implementation: `ae8d7d1` (UIR-03e; baseline `8d2354c`, prior code `b20341a`).
 - Completed gates: UIR-00/01/02. **UIR-03 remains in_progress**; UIR-03a/b/c/d/e are implemented.
 - UIR-03e fixes the operator-reported Progress/Summary outer-scrollbar overlap by moving the
   existing page inset inside the shared ScrollViewer, preserving the empty-state inset. The
@@ -32,8 +32,9 @@ Updated 2026-09-11. [Execution plan](execution-plan.md) owns gate status.
   Summary scrollbar overlap. Expanded-controls/shared-style acceptance remains open.
 - **Exact next slice:** operator recheck of the corrected Progress/Summary scrollbar at both sizes,
   top/bottom, then finish expanded-controls/shared styles and remaining physical accessibility
-  observations in [the walkthrough](evidence/uir-03-desktop-walkthrough.md). Environment/theme/
-  reader/text-scale/DPI evidence is not yet supplied. Do not repeat eight passed checks without a reason.
+  observations in [the walkthrough](evidence/uir-03-desktop-walkthrough.md). Original-defect environment:
+  both sizes, standard Windows theme, 100% display scaling. Corrected-build recheck, separate text
+  size and remaining reader/theme/DPI checks are pending. Do not repeat eight passes without a reason.
   Record actual observations, fix evidenced defects and assess UIR-03 before advancing to UIR-04.
 - Unrun: Narrator/NVDA, light/dark/high contrast, Windows text enlargement and
   physical 100/150/200% monitor/DPI checks. Renders are 96-DPI system-brush fixtures, not physical

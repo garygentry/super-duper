@@ -35,12 +35,14 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Second operator batch passed explicit Open scan, active warning Close/return focus and Progress
   scroll retention. Third batch passed completed-run warning result focus and keyboard-only navigation
   (eight total), but reported scrollbar overlap during expanded-controls/shared-style inspection.
+  Original-defect environment confirmed: both fixture sizes, standard Windows theme, 100% display
+  scaling. This does not establish a corrected-build pass; separate Windows text size is unspecified.
 - Next slice: operator recheck of corrected Progress/Summary at both sizes/top/bottom, finish the
   expanded-controls/shared-style check, then remaining physical accessibility observations.
   Do not repeat the eight passes without a reason. UIR-03e's operator recheck is pending.
   UIR-04 remains dependent on UIR-03 acceptance.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`. Latest implementation is
-  UIR-03e in this checkpoint's commit (baseline `8d2354c`, prior implementation `b20341a`).
+  `ae8d7d1` (UIR-03e; baseline `8d2354c`, prior implementation `b20341a`).
 - Session handoffs require a printed copyable continuation prompt tailored to the committed
   checkpoint and exact next slice; follow the redesign session guide.
 - Current artifacts: findings, product direction, screen/state/copy specification, visual guidance,
@@ -515,7 +517,9 @@ warning result focus and explicit keyboard-only navigation (eight total), but re
 Summary scrollbar overlap. UIR-03e fixes it with failing-before/passing-after geometry and full
 Windows Debug/Release integration. The corrected fixture is open for operator recheck at both
 sizes/top/bottom. Finish expanded-controls/shared-style inspection and remaining physical accessibility.
-Visibility and scoped keyboard evidence are established; environment remains unspecified. The reports do not cover
+Visibility and scoped keyboard evidence are established. The original defect occurred at both sizes
+under the standard Windows theme at 100% display scaling; the corrected-build recheck remains pending.
+The reports do not cover
 the whole prepared walkthrough. Record remaining evidence and fix any reported defect; do not
 repeat the passed subset without a reason or infer full acceptance from it.
 All work stays on `codex/ui-redesign`.

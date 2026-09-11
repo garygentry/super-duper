@@ -1,6 +1,6 @@
 # UIR-03e — Progress/Summary scrollbar clearance
 
-2026-09-11. Baseline `8d2354c`; implementation is this record's commit on
+2026-09-11. Baseline `8d2354c`; implementation is `ae8d7d1` on
 `codex/ui-redesign`. Scope: `local_code`, operator-reported A09 layout defect in the UIR-03
 desktop walkthrough. UIR-03 remains `in_progress`; operator verification of the fix is pending.
 
@@ -10,7 +10,10 @@ The operator passed completed-run warning **Open duplicate results** navigation/
 requested keyboard-only filters/paging/warning journey, bringing the scoped pass count to eight.
 The third check reported: "On Scan/Progress, Scan/Summary tabs, main body outer-most scroll bar
 overlaps right side of body content area". Shared styling/expanded controls are not accepted by
-that report. Exact operator size/theme/text scale/DPI remain unspecified unless subsequently recorded.
+that report. The operator subsequently confirmed the original overlap was visible at both fixture
+sizes (1180x760 and 900x600), with the standard Windows theme and 100% display scaling. Separate
+Windows text-size, OS build and monitor details were not supplied. This clarifies the original
+defect environment; it is not a result for the corrected build, whose recheck remains pending.
 
 Progress and Summary use the same `ScanProgressView`. Its 24-DIP page margin surrounded the
 ScrollViewer, leaving the body flush with the viewer's right edge. The native Fluent scrollbar
