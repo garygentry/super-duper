@@ -36,10 +36,10 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   scroll retention. Third batch passed completed-run warning result focus and keyboard-only navigation
   (eight total), but reported scrollbar overlap during expanded-controls/shared-style inspection.
   Original-defect environment confirmed: both fixture sizes, standard Windows theme, 100% display
-  scaling. This does not establish a corrected-build pass; separate Windows text size is unspecified.
-- Next slice: operator recheck of corrected Progress/Summary at both sizes/top/bottom, finish the
-  expanded-controls/shared-style check, then remaining physical accessibility observations.
-  Do not repeat the eight passes without a reason. UIR-03e's operator recheck is pending.
+  scaling. The operator subsequently confirmed "Scroll overlap looks good now" on the corrected
+  build; the reported scrollbar defect is closed. Separate Windows text size is unspecified.
+- Next slice: finish expanded-controls/shared-style inspection, then remaining physical accessibility
+  observations. Do not repeat eight passes or the accepted correction without a reopen reason.
   UIR-04 remains dependent on UIR-03 acceptance.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`. Latest implementation is
   `ae8d7d1` (UIR-03e; baseline `8d2354c`, prior implementation `b20341a`).
@@ -54,7 +54,7 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   Scrollbar geometry, reachability, focus and retention pass; S03/A03 and full physical acceptance
   stay open. See `plans/ui-redesign/evidence/uir-03e-scan-scrollbar-clearance.md`; output is `artifacts/uir03e`.
 - Latest fixture launch: corrected build PID 71248/session 1 at `artifacts/uir03e/fixture`, left open
-  for operator recheck. After verification the old fictional fixture 58144 was path-verified and
+  for continued inspection; scrollbar recheck passed. After verification the old fictional fixture 58144 was path-verified and
   closed normally. Production runtime/state untouched. Re-audit before reuse or launch.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
   do not rerun SOP10 or SOP9 identities.
@@ -515,10 +515,10 @@ retention plus scoped layout at both fixture sizes. The second batch passed expl
 active warning Close/return focus and Progress scroll retention. The third batch passed completed-run
 warning result focus and explicit keyboard-only navigation (eight total), but reported a Progress/
 Summary scrollbar overlap. UIR-03e fixes it with failing-before/passing-after geometry and full
-Windows Debug/Release integration. The corrected fixture is open for operator recheck at both
-sizes/top/bottom. Finish expanded-controls/shared-style inspection and remaining physical accessibility.
+Windows Debug/Release integration. The operator confirmed the scrollbar correction on the updated
+fixture. Finish expanded-controls/shared-style inspection and remaining physical accessibility.
 Visibility and scoped keyboard evidence are established. The original defect occurred at both sizes
-under the standard Windows theme at 100% display scaling; the corrected-build recheck remains pending.
+under the standard Windows theme at 100% display scaling; the corrected-build scrollbar recheck passed.
 The reports do not cover
 the whole prepared walkthrough. Record remaining evidence and fix any reported defect; do not
 repeat the passed subset without a reason or infer full acceptance from it.
@@ -621,6 +621,10 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+2026-09-11 follow-up from `7871523`: operator confirms "Scroll overlap looks good now" for the
+corrected `ae8d7d1` fixture. Reported scrollbar defect closed; broader styling/accessibility evidence
+remains open. This confirmation changes documentation only; prior integration results retained.
 
 UIR-03e (2026-09-11, baseline `8d2354c`): operator passed completed-run warning result focus and
 keyboard-only navigation, then reported Progress/Summary scrollbar overlap. New WPF geometry check
@@ -1321,6 +1325,13 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+### 2026-09-11 - UIR-03e scrollbar correction operator-verified
+
+Operator confirms "Scroll overlap looks good now" in the corrected fixture. Close that reported
+defect; retain eight prior scoped passes. Next is completion of the interrupted expanded-controls/
+shared-style check and remaining physical accessibility. UIR-03 remains in_progress; no code,
+build/test or runtime action in this confirmation update. Documentation/diff verification only.
 
 ### 2026-09-11 - UIR-03e operator-reported scrollbar overlap fixed locally
 

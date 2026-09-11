@@ -8,7 +8,8 @@ Updated 2026-09-11. [Execution plan](execution-plan.md) owns gate status.
 - UIR-03e fixes the operator-reported Progress/Summary outer-scrollbar overlap by moving the
   existing page inset inside the shared ScrollViewer, preserving the empty-state inset. The
   regression fails before the fix (12-DIP overlap) and passes for both tabs, top/bottom, both sizes
-  and minimum size with toolbar allowance. See [UIR-03e evidence](evidence/uir-03e-scan-scrollbar-clearance.md).
+  and minimum size with toolbar allowance. Operator confirms "Scroll overlap looks good now";
+  this defect is closed. See [UIR-03e evidence](evidence/uir-03e-scan-scrollbar-clearance.md).
 - UIR-03d: scrolling Files/History pages with bounded native grids, full-width comparison context,
   wrapping commands and minimum widths for complete decision/path/warning actions. The 900x600
   minimum and shared readable resources remain. Interim stacked Files replaces its split adjustment;
@@ -30,11 +31,10 @@ Updated 2026-09-11. [Execution plan](execution-plan.md) owns gate status.
   Close/return focus and Progress scroll retention. The third batch passed completed-run warning
   result focus and the keyboard-only journey (eight scoped passes), but reported the Progress/
   Summary scrollbar overlap. Expanded-controls/shared-style acceptance remains open.
-- **Exact next slice:** operator recheck of the corrected Progress/Summary scrollbar at both sizes,
-  top/bottom, then finish expanded-controls/shared styles and remaining physical accessibility
+- **Exact next slice:** finish expanded-controls/shared styles and remaining physical accessibility
   observations in [the walkthrough](evidence/uir-03-desktop-walkthrough.md). Original-defect environment:
-  both sizes, standard Windows theme, 100% display scaling. Corrected-build recheck, separate text
-  size and remaining reader/theme/DPI checks are pending. Do not repeat eight passes without a reason.
+  both sizes, standard Windows theme, 100% display scaling. Scrollbar correction is operator-verified;
+  separate text size and remaining reader/theme/DPI checks are pending. Retain eight earlier passes.
   Record actual observations, fix evidenced defects and assess UIR-03 before advancing to UIR-04.
 - Unrun: Narrator/NVDA, light/dark/high contrast, Windows text enlargement and
   physical 100/150/200% monitor/DPI checks. Renders are 96-DPI system-brush fixtures, not physical
@@ -42,7 +42,8 @@ Updated 2026-09-11. [Execution plan](execution-plan.md) owns gate status.
   cannot close on automation alone. UIR-04 monitoring/Scan again follows; A08/A16/A17 remain required.
 - Runtime: after integration passed, old fictional fixture 58144 was path-verified and closed
   normally. Corrected fixture PID 71248/session 1 is open from `artifacts/uir03e/fixture`; the
-  operator recheck is requested/pending. Re-audit before reuse/launch. Production state untouched.
+  scrollbar recheck passed, with the styling check still pending. Re-audit before reuse/launch.
+  Production state untouched; this confirmation update changes documentation only.
 - Boundaries: production deletion disabled; ownership/engine/worker/cache/protocol/query ceilings
   and survivor/revision/overlap protections unchanged. SOP10 consumed/complete; Windows post-MVP
   release validation parked. The remaining UIR-03 prerequisite is operator desktop evidence.

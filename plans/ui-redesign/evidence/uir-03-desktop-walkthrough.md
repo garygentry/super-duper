@@ -1,6 +1,6 @@
 # Prepared A01/A02/A09 desktop walkthrough
 
-Status: **eight scoped operator checks passed; Progress/Summary scrollbar defect reported**. UIR-03d's local viewport prerequisite
+Status: **eight scoped checks passed; Progress/Summary scrollbar fix operator-verified; styling/accessibility pending**. UIR-03d's local viewport prerequisite
 is verified in [the viewport evidence](uir-03d-viewport-access.md). This is a fictional shell walkthrough, not a
 real scan, deletion campaign, release-smoke substitute or physical acceptance result.
 
@@ -41,6 +41,16 @@ For each step record observations and unexpected scope changes, not merely click
 Automation currently establishes programmatic focus only. The fake data do not establish worker
 performance, screen-reader cadence over a real long scan, representative result scale or A17 rescan
 acceptance. Those requirements retain their later gates and separately isolated procedures.
+
+## 2026-09-11 scrollbar correction verified
+
+On the corrected `ae8d7d1` fixture, the operator reported **"Scroll overlap looks good now"**.
+Close the reported Progress/Summary scrollbar defect as operator-verified. The earlier report
+established both fixture sizes, standard Windows theme and 100% display scaling as the original
+defect environment. This correction report does not complete the broader expanded-controls/shared-
+style check or reader/theme/contrast/text enlargement/multi-monitor DPI checks. Those remain next;
+the eight earlier scoped passes stand. No code, build/test or runtime actions in this confirmation
+update; documentation/diff checks only. UIR-03 remains in progress and UIR-04 dependent.
 
 ## 2026-09-11 keyboard/result passes and scrollbar defect
 

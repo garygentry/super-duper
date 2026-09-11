@@ -2,7 +2,8 @@
 
 2026-09-11. Baseline `8d2354c`; implementation is `ae8d7d1` on
 `codex/ui-redesign`. Scope: `local_code`, operator-reported A09 layout defect in the UIR-03
-desktop walkthrough. UIR-03 remains `in_progress`; operator verification of the fix is pending.
+desktop walkthrough. **Operator verified the fix on 2026-09-11.** UIR-03 remains `in_progress`
+pending the remaining shared-style and physical accessibility evidence.
 
 ## Operator evidence and defect
 
@@ -13,7 +14,9 @@ overlaps right side of body content area". Shared styling/expanded controls are 
 that report. The operator subsequently confirmed the original overlap was visible at both fixture
 sizes (1180x760 and 900x600), with the standard Windows theme and 100% display scaling. Separate
 Windows text-size, OS build and monitor details were not supplied. This clarifies the original
-defect environment; it is not a result for the corrected build, whose recheck remains pending.
+defect environment. In the subsequent corrected-build recheck, the operator reported
+**"Scroll overlap looks good now"**. The reported scrollbar defect is closed by operator verification
+of `ae8d7d1`; this does not accept the rest of the interrupted styling/accessibility walkthrough.
 
 Progress and Summary use the same `ScanProgressView`. Its 24-DIP page margin surrounded the
 ScrollViewer, leaving the body flush with the viewer's right edge. The native Fluent scrollbar
@@ -70,13 +73,13 @@ builds and left untouched during verification. After all checks passed, its exac
 was rechecked and the fictional window closed normally. The corrected fixture was launched as
 PID 71248/session 1 from separate `artifacts/uir03e/fixture` output and left open for review.
 The operator was asked to recheck Progress/Summary at both sizes, top and bottom, and finish the
-interrupted styling check; response is pending. Re-audit before reuse or another launch.
+interrupted styling check. The operator confirmed the overlap is corrected; the rest of the styling
+check remains pending. Re-audit before reuse or another launch.
 No production app, database, scan or deletion action is involved.
 
 ## Next step
 
-Have the operator recheck Progress and Summary right-edge clearance and finish the interrupted
-expanded-controls/shared-style check in the corrected fixture. Record the exact size/environment
-and result. The eight passed checks remain evidence for the unchanged workflows; the local
-regression does not substitute for operator verification of this defect. Physical reader/theme/
+Finish the interrupted expanded-controls/shared-style check in the corrected fixture, then collect
+remaining physical accessibility observations. The eight passed checks and the separately verified
+scrollbar correction are retained; no repeat is needed without a reopen reason. Physical reader/theme/
 contrast/text enlargement/multi-monitor DPI evidence remains open. UIR-04 depends on UIR-03 acceptance.
