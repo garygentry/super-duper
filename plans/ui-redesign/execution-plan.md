@@ -11,7 +11,7 @@ all safety/evidence gates. Its open execution criteria are not absorbed or marke
 | UIR-00 | complete | Preserve current work and create dedicated branch | `wpf-poc` at `deefa40`; `codex/ui-redesign` created from it |
 | UIR-01 | complete | Findings, direction, specifications, concept, capability mapping, validation and procedure | Package internally checked; prototype limitations recorded; no WPF implementation |
 | UIR-02 | complete | High-level direction accepted; operator feedback incorporated | D13-D15; no native or full prototype walkthrough acceptance inferred |
-| UIR-03 | in_progress | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c/d implemented; [viewport evidence](evidence/uir-03d-viewport-access.md). Local viewport access and Windows Debug/Release integration pass; [fixture launched, operator observations requested/pending](evidence/uir-03-desktop-walkthrough.md#2026-09-08-operator-session-preparation); desktop acceptance remains open |
+| UIR-03 | in_progress | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c/d implemented; [viewport evidence](evidence/uir-03d-viewport-access.md). Local viewport access and Windows Debug/Release integration pass; [three initial operator checks passed](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks); remaining desktop acceptance open |
 | UIR-04 | planned | Setup, Scan again, persistent reuse explanation, live monitoring/details and terminal summaries | UIR-03; A05/A06/A08/A14/A15/A16/A17 with controlled clock, lifecycle and rescan fixtures |
 | UIR-05 | planned | File/folder results, compact filters, list/detail comparison, decisions and path actions | UIR-03; A03/A04/A05/A06/A11/A13/A15 and existing query/focus/page contracts |
 | UIR-06 | planned | Dedicated Review, existing rule workflow, whole-plan validation and evidence access | UIR-05; A04/A10/A15 including revision, survivor, overlap, reversal and restart |
@@ -58,19 +58,17 @@ with five operator-only skips, four WPF methods each). See [evidence](evidence/u
 The interim stacked Files layout replaces its vertical split adjustment; the full adjustable S03
 layout, compact search/totals and A03 no-horizontal-scroll/60% requirements remain in UIR-05.
 
-**Exact next slice: UIR-03 desktop acceptance — operator A01/A02/A09 walkthrough.** The local
-viewport prerequisite is verified. Request the specific [fictional walkthrough](evidence/uir-03-desktop-walkthrough.md)
-using `scripts/Invoke-UiRedesignFixture.ps1 -Show`, record observations/defects and assess acceptance.
-On 2026-09-08 the unchanged `b20341a` fixture built and launched as PID 17052; observations were
-requested in the task and remain pending. Re-audit before reuse; do not launch a duplicate or
-repeat local verification merely because operator evidence is missing. No new product defect or
-desktop acceptance is established by launch. See the walkthrough's session record for logs/limits.
-The continuations from `86127a5` and `2239369` confirmed the existing fixture and operator app/worker processes;
-[visibility and observations remain pending](evidence/uir-03-desktop-walkthrough.md#2026-09-08-continuation-audit).
-No duplicate launch, repeated prerequisite verification or new implementation was performed.
-The same operator-evidence prerequisite blocks consecutive continuations. Resume substantive work
-with the operator's observations or a reported visibility problem requiring fixture assistance;
-additional preparation-only audit commits do not advance desktop acceptance.
+**Exact next slice: remaining UIR-03 desktop acceptance — operator A01/A02/A09 walkthrough.**
+On 2026-09-11 the operator passed reviewed/active context and harmless History highlighting,
+delayed-folder responsiveness/error isolation, and file selection/scroll retention plus scoped
+layout at both fixture sizes. See [the report and its limits](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks).
+Next collect explicit Open scan round trips, warning-return/result focus and Progress scroll
+retention, followed by the full expanded-action/shared-style, keyboard and accessibility checks.
+Do not repeat the passed subset merely because other evidence is missing.
+The existing `b20341a` fixture was reopened fresh at the operator's request as PID 58144/session 1,
+without build/test reruns. Re-audit before reuse; use `scripts/Invoke-UiRedesignFixture.ps1 -Show`
+when a new build/launch is needed. No new product defect was reported. Record actual observations,
+fix evidenced defects and assess acceptance; preparation-only audits cannot close the gate.
 Physical keyboard/Narrator/NVDA/theme/high-contrast/text enlargement/multi-monitor DPI remain unrun.
 Do not substitute automated evidence for these checks or mark UIR-03 complete before its required
 desktop evidence is available. UIR-04 remains dependent on UIR-03.

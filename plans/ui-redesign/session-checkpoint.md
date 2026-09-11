@@ -1,9 +1,9 @@
 # Current redesign session checkpoint
 
-Updated 2026-09-08. [Execution plan](execution-plan.md) owns gate status.
+Updated 2026-09-11. [Execution plan](execution-plan.md) owns gate status.
 
 - Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; no switch/worktree/merge/push.
-- Latest implementation: `b20341a` (UIR-03d). This update records the 20:44 EDT recheck from `2239369`.
+- Latest implementation: `b20341a` (UIR-03d). This update records operator evidence from `deeedb4`.
 - Completed gates: UIR-00/01/02. **UIR-03 remains in_progress**; UIR-03a/b/c/d are implemented.
 - UIR-03d: scrolling Files/History pages with bounded native grids, full-width comparison context,
   wrapping commands and minimum widths for complete decision/path/warning actions. The 900x600
@@ -20,27 +20,26 @@ Updated 2026-09-08. [Execution plan](execution-plan.md) owns gate status.
   changed; UIR-03c's 226-passed/10-ignored Rust tests remain the retained baseline, not a new run.
   Standalone launcher build-only and hidden `--verify` pass. See
   [UIR-03d evidence](evidence/uir-03d-viewport-access.md) for commands, captures, failures and tradeoffs.
-- **Exact next slice: UIR-03 desktop acceptance — operator A01/A02/A09 walkthrough.** The local
-  viewport prerequisite is verified. Use [the prepared walkthrough](evidence/uir-03-desktop-walkthrough.md)
-  and `scripts/Invoke-UiRedesignFixture.ps1 -Show`; the launcher builds only without `-Show`.
-  Fixture built/launched on 2026-09-08; the task requested context, delayed-pane, focus, retention
-  and layout observations. **Operator response/visibility confirmation remains pending.** Record
-  actual findings in the walkthrough's session record; pending is not acceptance or a defect.
-  Assess UIR-03 acceptance from evidence; do not advance to UIR-04 prematurely.
-  Consecutive continuations lack the same report. Resume with observations or a reported visibility
-  problem requiring fixture assistance; another preparation-only continuation cannot close this gate.
+- **Operator evidence:** after a requested fixture reset and orientation, the operator reported
+  "All 3 checks pass": reviewed/active context and harmless History highlighting, delayed-folder
+  responsiveness/error isolation, and file selection/scroll retention plus scoped layout at both
+  fixture sizes. Visibility is established. See [scope and limits](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks).
+- **Exact next slice:** explicit Open scan round trips, warning-return/result focus and Progress
+  scroll retention; then full expanded-action/shared-style, physical keyboard and accessibility
+  observations in [the walkthrough](evidence/uir-03-desktop-walkthrough.md). The first three checks
+  do not accept the whole walkthrough. Do not repeat the passed subset without a reason.
+  Record actual observations, fix evidenced defects and assess UIR-03 before advancing to UIR-04.
 - Unrun: physical keyboard, Narrator/NVDA, light/dark/high contrast, Windows text enlargement and
   physical 100/150/200% monitor/DPI checks. Renders are 96-DPI system-brush fixtures, not physical
   acceptance. Representative folder/review/performance coverage remains in later gates. UIR-03
   cannot close on automation alone. UIR-04 monitoring/Scan again follows; A08/A16/A17 remain required.
-- This continuation: clean Git and read-only process audit; fixture 17052/session 1 and operator
-  36316/17612 remain present at their expected paths. Sandbox window metadata does not establish
-  visibility. Operator report requested; still pending. No build/test/launch was repeated.
-  Documentation/diff checks only; prior fixture build and test totals above are retained.
-- Runtime: operator WPF 36316 and worker 17612 at `artifacts/windows-x64` remained untouched.
-  Interactive fictional fixture PID 17052/session 1 was launched and left available for review.
-  Logs/temp are ignored under `artifacts/uir03-operator`; output is `artifacts/uir03-desktop-fixture`.
-  Re-audit before reuse/launch; do not duplicate the fixture or reuse old PIDs as authority.
+- This session: documentation/evidence only; no product/test changes or build/test reruns.
+  Verification: documentation link validation, final diff review and `git diff --check`.
+- Runtime: process checks found no matching app/worker/fixture before launches. Existing fixture
+  output was launched as 70232, then reopened fresh as 58144/session 1 for the requested reset
+  after another check found no matching process. No process was stopped or production state used.
+  Output remains `artifacts/uir03-desktop-fixture`; prior logs/temp: `artifacts/uir03-operator`.
+  Re-audit before reuse/launch; use the documented launcher if a new build is needed.
 - Boundaries: production deletion disabled; ownership/engine/worker/cache/protocol/query ceilings
   and survivor/revision/overlap protections unchanged. SOP10 consumed/complete; Windows post-MVP
   release validation parked. The remaining UIR-03 prerequisite is operator desktop evidence.

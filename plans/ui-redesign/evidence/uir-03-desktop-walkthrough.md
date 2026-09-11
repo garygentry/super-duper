@@ -1,6 +1,6 @@
 # Prepared A01/A02/A09 desktop walkthrough
 
-Status: **fixture launched; operator observations requested and pending**. UIR-03d's local viewport prerequisite
+Status: **three initial operator checks passed on 2026-09-11; remaining walkthrough pending**. UIR-03d's local viewport prerequisite
 is verified in [the viewport evidence](uir-03d-viewport-access.md). This is a fictional shell walkthrough, not a
 real scan, deletion campaign, release-smoke substitute or physical acceptance result.
 
@@ -41,6 +41,39 @@ For each step record observations and unexpected scope changes, not merely click
 Automation currently establishes programmatic focus only. The fake data do not establish worker
 performance, screen-reader cadence over a real long scan, representative result scale or A17 rescan
 acceptance. Those requirements retain their later gates and separately isolated procedures.
+
+## 2026-09-11 initial operator checks
+
+Implementation under review remains `b20341a`; the session started clean at `deeedb4` on
+`codex/ui-redesign`. Read-only process checks found no matching app/worker/fixture. The existing
+fictional executable was opened as PID 70232/session 1 without rebuilding. The operator requested
+a reset after taking time to get oriented; another process check found no matching process, and
+the existing executable was reopened fresh as PID 58144/session 1. No running process was stopped.
+The fixture uses the isolated `artifacts/uir03-desktop-fixture` output and in-memory services.
+
+After that reset, the operator reported **"All 3 checks pass"**, referring to the three numbered
+checks presented in this task:
+
+| Check presented | Operator result | Scope of evidence |
+|---|---|---|
+| Scan context: distinguish completed run 1 in Files from active run 2; highlight run 2 in History and return without Open scan | Pass | Reviewed versus active context and harmless History highlighting |
+| Responsiveness: Delay folders, navigate to Files, Fail pending folders | Pass | Files remains usable and the failure belongs to Folders |
+| Retention/layout: select and scroll a file group, visit Review and return; use both size buttons and report clipping/unreachable controls | Pass | File selection/scroll retained; no clipping or unreachable controls reported in this scoped check at 1180x760 and 900x600 |
+
+The report establishes fixture visibility and these specific observations. Orientation assistance
+included the initial instructions and a requested reset; no orientation-related defect was reported.
+No timings, exact scroll offsets, screenshot matrix, OS/theme/text-scale or monitor-DPI measurements
+were supplied. This report does not cover the full table above: explicit Open scan round trips,
+warning-return/result focus, Progress scroll retention, the full expanded-disclosure/action matrix,
+shared styles/recovery, physical keyboard and accessibility observations remain pending/unrun.
+The next requested batch is explicit Open scan, active warning Close/return focus and Progress scroll
+retention, using physical keys where possible and reporting actual focus.
+
+UIR-03 remains `in_progress`; UIR-04 still depends on its acceptance. No product defect was reported
+by these three checks, and no product/test code changed. Prior build/test results are retained,
+not rerun. This evidence update is checked by documentation link validation and `git diff --check`.
+Re-audit fixture processes before reuse or launch; old PIDs are historical observations only.
+The sections below preserve the earlier pending state as dated history.
 
 ## 2026-09-08 operator session preparation
 

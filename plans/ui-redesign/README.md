@@ -1,6 +1,6 @@
 # Windows UI redesign
 
-Status: high-level direction accepted with long-scan/rescan feedback, updated 2026-09-08. Product
+Status: high-level direction accepted with long-scan/rescan feedback, updated 2026-09-11. Product
 implementation includes UIR-03a/b/c/d shell/context, shared resources and populated viewport verification. The package records the accepted direction and its limits; it is not a claim of
 operator usability acceptance or Windows release acceptance.
 
@@ -46,13 +46,13 @@ are authoritative if its intentionally small fictional dataset or simplified int
 | UIR-03 Shell and context | in_progress | UIR-03a/b/c/d implemented; [viewport evidence](evidence/uir-03d-viewport-access.md); next operator A01/A02/A09 desktop acceptance |
 | UIR-04 through UIR-09 | planned | See execution plan; no product implementation or acceptance claimed |
 
-The A01/A02/A09 fictional fixture has been built and launched; [operator observations are pending](evidence/uir-03-desktop-walkthrough.md#2026-09-08-operator-session-preparation).
-The [continuation audit](evidence/uir-03-desktop-walkthrough.md#2026-09-08-continuation-audit) confirms
-the existing fixture process; visibility still requires the operator's report.
-The 20:44 EDT recheck from `2239369` found the same processes. Further progress requires operator
-observations or a reported visibility problem requiring fixture assistance.
-The next step is to collect those observations and assess shell desktop acceptance; UIR-03d's local viewport prerequisite is verified. User feedback accepts the high-level direction;
-it does not establish a completed prototype walkthrough or native usability acceptance.
+On 2026-09-11 the operator [passed three initial checks](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks):
+reviewed/active scan context and harmless History highlighting, delayed-folder responsiveness/error
+isolation, and file selection/scroll retention plus scoped layout at both fixture sizes.
+Next are explicit Open scan, warning-return focus and Progress scroll retention, followed by the
+remaining shared-style, keyboard and accessibility walkthrough. UIR-03 remains in progress;
+these passes do not establish complete desktop acceptance. Latest fixture launch: PID 58144/session 1;
+re-audit before reuse. UIR-03d's automated viewport prerequisite remains verified.
 Small visual preferences can evolve during implementation.
 Execution enablement and physical/provider campaigns retain their separate authority requirements.
 

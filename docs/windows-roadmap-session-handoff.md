@@ -26,14 +26,16 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Latest completed slice: UIR-03d populated viewport access: scrolling Files/History pages, bounded
   grids, complete reachable actions, corrected long-path fixture and same-run page/grid retention.
   UIR-03 remains in_progress; UIR-00/01/02 remain complete.
-- Next slice: operator A01/A02/A09 desktop walkthrough. Local viewport access is verified at
-  1180x760/900x600 and with a toolbar allowance; physical acceptance remains unrun.
-- Latest preparation: 20:44 EDT continuation from `2239369` confirmed the existing fictional fixture and
-  operator app/worker processes; visibility and observations were requested and remain pending.
-  No build/test/launch was repeated. See the continuation audit in
-  `plans/ui-redesign/evidence/uir-03-desktop-walkthrough.md`; no desktop acceptance inferred.
+- Latest operator evidence (2026-09-11): three initial checks passed after a requested fixture reset:
+  reviewed/active context and harmless History highlighting, delayed-folder responsiveness/error
+  isolation, and file selection/scroll retention plus scoped layout at 1180x760/900x600.
+  Visibility is established; full desktop acceptance remains open. See the scoped report in
+  `plans/ui-redesign/evidence/uir-03-desktop-walkthrough.md`.
+- Next slice: explicit Open scan, warning-return/result focus and Progress scroll retention,
+  then full expanded-action/shared-style, keyboard and accessibility observations. Do not repeat
+  the passed subset without a reason. UIR-04 remains dependent on UIR-03 acceptance.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`. Latest implementation is
-  `b20341a` (UIR-03d); the current update records the read-only continuation audit only.
+  `b20341a` (UIR-03d); this update records the operator report from clean `deeedb4`.
 - Session handoffs require a printed copyable continuation prompt tailored to the committed
   checkpoint and exact next slice; follow the redesign session guide.
 - Current artifacts: findings, product direction, screen/state/copy specification, visual guidance,
@@ -44,9 +46,10 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   the retained 226-passed/10-ignored baseline; no Rust/shared contract changed in this slice.
   Reachability, actual focus handlers and retention pass; S03/A03 and physical acceptance stay open.
   See `plans/ui-redesign/evidence/uir-03d-viewport-access.md`; operator PIDs 36316/17612 untouched.
-- Current operator fixture: PID 17052/session 1 launched through the authorized `-Show` script,
-  left available for review. Logs/temp: ignored `artifacts/uir03-operator`; output:
-  `artifacts/uir03-desktop-fixture`. Re-audit before reuse or launch; no duplicate needed.
+- Latest fixture launch: existing executable reopened fresh as PID 58144/session 1 for the
+  operator's reset request (earlier launch 70232). Process checks found no matching app/worker/
+  fixture before launches; no process was stopped. Output: `artifacts/uir03-desktop-fixture`;
+  prior logs/temp: ignored `artifacts/uir03-operator`. Re-audit before reuse or launch.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
   do not rerun SOP10 or SOP9 identities.
 - Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first
@@ -55,8 +58,8 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   2026-09-04 17:41:03Z with 3,547,188 discovered, 3,512,178 hashed, 43,934 warnings, and no run error;
   the operator confirmed that they deliberately cancelled the run and closed the app; the timer fix
   did not request cancellation or mutate runtime state
-- Physical acceptance state: WPF PID 36316 and worker PID 17612 remained healthy and intentionally
-  open after both authorized runs completed; re-audit before any later action
+- Historical physical acceptance runtime: WPF 36316 and worker 17612 were left open after both
+  authorized runs; the 2026-09-11 process checks found no matching app/worker. No runtime mutation.
 - Parked stream: Windows post-MVP release validation; resume at `WPM8-high-contrast` only after the
   SOP10 boundary and its separate physical authority are satisfied
 - Retained SOP9 boundary: `SOP9c-single-drive-reference-repeat=blocked_invalid_campaign`; V1/V2
@@ -500,14 +503,15 @@ the full adjustable S03/A03 layout remains UIR-05. Programmatic focus/scroll and
 Debug/Release integration pass. Physical keyboard, Narrator/NVDA, theme/high contrast, text
 enlargement and physical DPI remain unrun. Request the specific operator walkthrough, record its
 observations and assess UIR-03 before advancing to UIR-04 monitoring and Scan again.
-The fixture has now been launched and these observations requested; the operator response and
-visibility confirmation are pending. Resume by recording that response and fixing any evidenced
-defects, not repeating the locally verified prerequisite or treating process launch as acceptance.
-Consecutive continuations lack the same operator evidence. Resume substantive work with observations
-or a reported visibility problem requiring fixture assistance; another preparation-only audit does
-not advance acceptance.
+On 2026-09-11 the operator passed the three initial checks: reviewed/active context and harmless
+History highlighting, delayed-folder responsiveness/error isolation, and file selection/scroll
+retention plus scoped layout at both fixture sizes. Visibility is established. Next collect explicit
+Open scan round trips, warning-return/result focus and Progress scroll retention, followed by full
+expanded-action/shared-style, keyboard and accessibility observations. The report does not cover
+the whole prepared walkthrough. Record remaining evidence and fix any reported defect; do not
+repeat the passed subset without a reason or infer full acceptance from it.
 All work stays on `codex/ui-redesign`.
-Re-audit the still-open app/worker before builds or runtime actions; use isolated fixture
+Re-audit app/worker/fixture processes before builds or runtime actions; use isolated fixture
 state/output and do not interrupt the operator's application for design verification.
 
 SOP10 is finished. Do not select another scan package. The operator explicitly accepted the
@@ -605,6 +609,12 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+2026-09-11 operator report from clean `deeedb4`: three initial fictional desktop checks passed;
+see the walkthrough's dated report for exact scope and pending observations. Existing fixture
+reopened without rebuilding; no product/test code changed. Documentation link validation, final
+diff review and `git diff --check` verify this evidence-only update. Prior build/test totals below
+are retained, not rerun.
 
 Continuation from `2239369` (2026-09-08, 20:44 EDT): Git clean, preserved branch confirmed, read-only
 `Get-Process` confirmed fixture 17052 and operator 36316/17612 at expected paths. CIM access was
@@ -1287,6 +1297,16 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+### 2026-09-11 - UIR-03 initial operator checks passed
+
+The operator requested a fresh fixture after taking time to get oriented, then reported all three
+presented checks pass: reviewed/active context and harmless highlighting, delayed-folder isolation,
+and file selection/scroll retention plus scoped layout at both sizes. Record the limited scope;
+UIR-03 remains in_progress. Next are explicit Open scan, warning focus and Progress retention,
+then the remaining shared-style/keyboard/accessibility observations. Existing executable reopened
+as PID 58144/session 1 after no matching process was found; no rebuild, tests or production actions.
+No product defect was reported. Evidence/checkpoint updates only; prior pending entries are history.
 
 ### 2026-09-08 - UIR-03 repeated evidence prerequisite
 
