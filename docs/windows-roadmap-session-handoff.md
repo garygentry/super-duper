@@ -43,9 +43,12 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   Windows theme/100%-display-scale environment.
 - Narrator scoped walkthrough passed: Files rows, active Progress and warning Close/return, including
   labels/selection/status, focus return and no excessive repeated speech. Installed executable
-  version `10.0.22621.5262` read from file metadata. NVDA availability remains unanswered.
-- Next slice: NVDA availability and the same reader journey, then remaining theme/contrast/text
-  enlargement/physical DPI observations. This does not accept parked-release or real long-scan speech cadence.
+  version `10.0.22621.5262` read from file metadata. NVDA is not installed; its check is
+  unrun/unavailable, not a pass or waiver. No installation requested/performed.
+- Next slice: independent Light/Dark, one named contrast theme and 150% Windows text size at 100%
+  display scaling, checking Files rows/actions, Progress/Summary and warnings at both fixture sizes.
+  Record actual settings/results and restore original settings, then collect physical monitor-DPI
+  evidence. This does not accept parked-release or real long-scan speech cadence.
   Do not repeat nine passes or the accepted correction without a reopen reason.
   UIR-04 remains dependent on UIR-03 acceptance.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`. Latest implementation is
@@ -524,8 +527,10 @@ warning result focus and explicit keyboard-only navigation (eight total), but re
 Summary scrollbar overlap. UIR-03e fixes it with failing-before/passing-after geometry and full
 Windows Debug/Release integration. The operator confirmed the scrollbar correction on the updated
 fixture, then passed the remaining shared-style/expanded-controls check (nine scoped passes).
-The scoped Narrator journey also passed. Next establish NVDA availability/test results and collect
-remaining theme/contrast/text enlargement/physical DPI observations.
+The scoped Narrator journey also passed. NVDA is not installed and its check remains unrun/unavailable.
+Next collect independent Light/Dark, named contrast-theme and 150% Windows text-size observations
+at 100% display scale and both fixture sizes; restore original settings afterward. Physical monitor-
+DPI evidence remains separate. Do not infer a NVDA pass or waiver.
 Visibility and scoped keyboard evidence are established. The original defect occurred at both sizes
 under the standard Windows theme at 100% display scaling; the corrected-build scrollbar recheck passed.
 The reports do not cover
@@ -630,6 +635,10 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+2026-09-11 follow-up from `95fc85a`: NVDA not installed by operator report; mark its check
+unrun/unavailable. Continue independent visual accessibility checks; no install or runtime action.
+Documentation/diff checks only; accepted Narrator and prior integration results retained.
 
 2026-09-11 follow-up from `d1c440a`: Narrator Files rows, active Progress and warning Close/return
 checks passed by operator report. Installed Narrator file/product version `10.0.22621.5262` read
@@ -1342,6 +1351,13 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+### 2026-09-11 - NVDA unavailable; independent visual checks next
+
+Operator confirms NVDA is not installed. Its required evidence stays unrun/unavailable; no pass or
+waiver and no installation inferred. Next requested batch is Light/Dark, one named contrast theme,
+then 150% Windows text size at 100% display scale, both fixture sizes. Record actual results and
+restore original settings, then physical monitor-DPI checks. UIR-03 remains open. Documentation only.
 
 ### 2026-09-11 - UIR-03 Narrator walkthrough passed
 

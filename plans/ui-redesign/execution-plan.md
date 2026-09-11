@@ -64,7 +64,7 @@ The new geometry regression fails before the fix with a 12-DIP overlap, then pas
 top/bottom, both sizes and the toolbar allowance. Paired worker and Windows Debug/Release integration
 pass (170 Core, 75 Infrastructure/five skips, four WPF methods each). See [evidence](evidence/uir-03e-scan-scrollbar-clearance.md).
 
-**Exact next slice: NVDA availability and reader journey, then remaining theme/contrast/text enlargement/physical DPI evidence.**
+**Exact next slice: Light/Dark, contrast theme and text enlargement, then physical monitor-DPI evidence. NVDA is unavailable/unrun.**
 On 2026-09-11 the operator passed reviewed/active context and harmless History highlighting,
 delayed-folder responsiveness/error isolation, and file selection/scroll retention plus scoped
 layout at both fixture sizes. See [the report and its limits](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks).
@@ -75,9 +75,11 @@ Progress/Summary scrollbar overlap. The third shared-style/expanded-controls che
 The operator then confirmed "Scroll overlap looks good now", closing the reported scrollbar defect.
 The subsequent "other styling looks good" report passes the interrupted check (nine scoped passes).
 The Narrator Files rows, active Progress and warning Close/return checks then passed (labels,
-selection/status, focus return, no excessive repeated speech). Establish NVDA availability and
-repeat that reader journey, then collect remaining theme/high-contrast/text enlargement/physical
-multi-monitor DPI evidence. This scoped fixture result does not accept real long-scan speech cadence.
+selection/status, focus return, no excessive repeated speech). The operator confirmed NVDA is not
+installed; record `unrun_unavailable`, not a pass or waiver. Continue independent Light/Dark, named
+contrast-theme and 150% Windows text-size checks at 100% display scaling, both fixture sizes,
+restoring original settings after observations. Then collect physical multi-monitor DPI evidence.
+No installation was requested/performed. This scoped fixture result does not accept real long-scan speech cadence.
 Do not repeat nine passes or the accepted correction
 without a reopen reason. Corrected fixture PID 71248/session 1 was launched from separate
 `artifacts/uir03e/fixture` output after the old fictional window was path-verified and closed normally.

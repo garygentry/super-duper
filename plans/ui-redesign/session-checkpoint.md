@@ -34,13 +34,16 @@ Updated 2026-09-11. [Execution plan](execution-plan.md) owns gate status.
   expanded-controls/shared-style check (nine scoped passes plus the scrollbar correction).
 - Narrator: operator reports the Files rows, active Progress and warning Close/return checks pass,
   including labels/selection/status, focus return and no excessive repeated speech. Installed
-  Narrator executable version: `10.0.22621.5262` (read-only metadata). NVDA availability unanswered.
-- **Exact next slice:** establish NVDA availability and repeat the same reader journey, then complete remaining physical accessibility
+  Narrator executable version: `10.0.22621.5262` (read-only metadata). NVDA is not installed;
+  its check is unrun/unavailable, not passed or waived. No installation requested/performed.
+- **Exact next slice:** Light/Dark, one named contrast theme, then 150% Windows text size at 100%
+  display scale, checking Files rows/actions, Progress/Summary and warnings at both sizes; record
+  actual settings/results and restore original settings. Then complete physical monitor-DPI
   observations in [the walkthrough](evidence/uir-03-desktop-walkthrough.md). Original-defect environment:
   both sizes, standard Windows theme, 100% display scaling. Scrollbar correction is operator-verified;
   separate text size and remaining reader/theme/DPI checks are pending. Retain nine scoped passes.
   Record actual observations, fix evidenced defects and assess UIR-03 before advancing to UIR-04.
-- Unrun: NVDA, light/dark/high contrast, Windows text enlargement and
+- Unrun/unavailable: NVDA. Pending: light/dark/high contrast, Windows text enlargement and
   physical 100/150/200% monitor/DPI checks. Renders are 96-DPI system-brush fixtures, not physical
   acceptance. Representative folder/review/performance coverage remains in later gates. UIR-03
   cannot close on automation alone. UIR-04 monitoring/Scan again follows; A08/A16/A17 remain required.

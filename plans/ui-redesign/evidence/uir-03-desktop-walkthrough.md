@@ -42,6 +42,21 @@ Automation currently establishes programmatic focus only. The fake data do not e
 performance, screen-reader cadence over a real long scan, representative result scale or A17 rescan
 acceptance. Those requirements retain their later gates and separately isolated procedures.
 
+## 2026-09-11 NVDA unavailable; visual accessibility next
+
+The operator confirmed NVDA is **"not installed"**. Record its check as `unrun_unavailable`, not
+passed or waived. No installation was requested or performed. This does not invalidate the
+accepted Narrator fixture walkthrough or prevent independent visual accessibility checks.
+
+Next requested batch: Light and Dark Windows color modes; one named Windows contrast theme;
+then 150% Windows Accessibility Text size with display Scale kept at 100%, restoring original
+settings afterward. In each state inspect Files rows/actions, Progress/Summary and warnings at
+both fixture sizes for readable text/selection/focus and complete, unclipped actions. Record actual
+theme names, percentages and failures, including if fixture text does not enlarge. Results remain
+pending. These are fictional redesign checks, not the parked release high-contrast gate. Physical
+multi-monitor 100/150/200% display-DPI evidence is still a separate remaining check.
+UIR-03 remains in_progress; NVDA evidence remains outstanding. This update is documentation only.
+
 ## 2026-09-11 Narrator walkthrough passed
 
 From `d1c440a`, the operator reported **"Checks pass"** for the requested Narrator keyboard
