@@ -30,7 +30,7 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   typography; Folders scrolls with bounded native grids and separate empty states. File actions
   wrap when enlarged. Evidence: `plans/ui-redesign/evidence/uir-03f-theme-text-and-empty-state.md`.
 - UIR-00/01/02 remain complete; UIR-03 remains in_progress. UIR-03a/b/c/d/e/f implemented.
-  Latest implementation is UIR-03f (this checkpoint; prior `ae8d7d1`). Paired worker and Windows Debug/Release
+  Latest implementation is `5f83705` (UIR-03f; prior `ae8d7d1`). Paired worker and Windows Debug/Release
   integration pass: 170 Core, 75 Infrastructure/five skips, three WPF methods each (all original
   shell assertions retained in the shared STA). Fixture build/--verify pass; output `artifacts/uir03f`.
 - Retained operator evidence: nine scoped walkthrough passes, accepted Progress/Summary scrollbar

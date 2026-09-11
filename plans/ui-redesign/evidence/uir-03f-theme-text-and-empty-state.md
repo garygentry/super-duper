@@ -1,6 +1,6 @@
 # UIR-03f — native themes, accessibility text size and empty folders
 
-2026-09-11. Scope: reproduced A09/A11 presentation defects and the reported A05 empty-state
+2026-09-11. Implementation commit: `5f83705`. Scope: reproduced A09/A11 presentation defects and the reported A05 empty-state
 overlap. UIR-03 remains in progress. This does not accept later screen redesign or physical DPI.
 
 ## Operator report and causes

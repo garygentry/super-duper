@@ -3,7 +3,7 @@
 Updated 2026-09-11. [Execution plan](execution-plan.md) owns gate status.
 
 - Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; no switch/worktree/merge/push.
-- Latest implementation: UIR-03f (this checkpoint; prior code `ae8d7d1`). UIR-00/01/02 complete;
+- Latest implementation: `5f83705` (UIR-03f; prior code `ae8d7d1`). UIR-00/01/02 complete;
   **UIR-03 remains in_progress**, UIR-03a/b/c/d/e/f implemented, UIR-04 dependent on acceptance.
 - UIR-03f responds to operator screenshots showing unreadable Dark, Desert's empty-folder/header
   overlap, and title-only Windows text enlargement. Shared styles now inherit native Fluent
