@@ -4,12 +4,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
              xmlns:accessibility="clr-namespace:SuperDuper.Windows.Accessibility">
+    <ScrollViewer automation:AutomationProperties.AutomationId="FolderWorkspaceScrollViewer"
+                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <Grid Margin="{StaticResource PageContentInset}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="3*" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="2*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <StackPanel Margin="0,0,0,14">
@@ -44,12 +46,25 @@
         <Grid Grid.Row="1">
             <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <DataGrid x:Name="GroupsGrid" AutoGenerateColumns="False" CanUserSortColumns="True"
+                      MinHeight="180" MaxHeight="300"
                       automation:AutomationProperties.AutomationId="FolderGroupsGrid"
                       automation:AutomationProperties.Name="Exact duplicate folder groups"
                       EnableColumnVirtualization="True" EnableRowVirtualization="True" IsReadOnly="True"
                       ItemsSource="{Binding Groups}" SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
                       SelectionMode="Single" Sorting="OnGroupsSorting"
                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                <DataGrid.Style>
+                    <Style TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsUnavailable}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.Style>
                 <DataGrid.Columns>
                     <DataGridTextColumn Width="*" MinWidth="300" Header="Representative folder" SortMemberPath="RepresentativePath" Binding="{Binding RepresentativePath}" />
                     <DataGridTextColumn Width="125" Header="Copies" SortMemberPath="CopyCount" Binding="{Binding CopyCount}" />
@@ -74,14 +89,14 @@
                     <Button Margin="8,0,0,0" Command="{Binding ClearFiltersCommand}" Content="Clear filters" />
                 </StackPanel>
             </Grid>
-            <Border Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" Opacity="0.94"
+            <Border Background="{DynamicResource ApplicationBackgroundBrush}" Opacity="0.94"
                     Visibility="{Binding IsLoadingOverlayVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <ProgressBar Width="150" Height="4" IsIndeterminate="True" />
                     <TextBlock Margin="0,9,0,0" Text="Loading duplicate folder groups…" />
                 </StackPanel>
             </Border>
-            <Border Padding="16" HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" BorderThickness="1" CornerRadius="7"
+            <Border Padding="16" HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="7"
                     automation:AutomationProperties.AutomationId="FolderGroupError"
                     automation:AutomationProperties.LiveSetting="Assertive"
                     automation:AutomationProperties.Name="{Binding GroupErrorAnnouncement}"
@@ -92,24 +107,22 @@
                     Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <TextBlock MaxWidth="620" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
             </Border>
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+            <StackPanel Margin="12" HorizontalAlignment="Center" VerticalAlignment="Center"
                         Visibility="{Binding IsUnavailable, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <TextBlock HorizontalAlignment="Center" Style="{StaticResource PageTitle}" Text="Results unavailable" />
                 <TextBlock Margin="0,6,0,0" MaxWidth="560" Text="{Binding StateMessage}" TextAlignment="Center" TextWrapping="Wrap" />
             </StackPanel>
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+            <StackPanel Margin="12" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        automation:AutomationProperties.AutomationId="FolderEmptyState"
                         Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <TextBlock HorizontalAlignment="Center" Style="{StaticResource PageTitle}" Text="No exact duplicate folders" />
-                <TextBlock Margin="0,6,0,0" Text="{Binding StateMessage}" />
+                <TextBlock HorizontalAlignment="Center" Style="{StaticResource PageTitle}" TextAlignment="Center" Text="No exact duplicate folders" />
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" TextAlignment="Center" Text="{Binding StateMessage}" />
             </StackPanel>
         </Grid>
 
-        <GridSplitter Grid.Row="2" Height="8" HorizontalAlignment="Stretch" ResizeDirection="Rows" />
-
         <Grid Grid.Row="3" Margin="0,10,0,0">
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-            <Grid Margin="0,0,0,8">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <StackPanel Margin="0,0,0,8">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionTitle}" Text="Folder-copy locations" />
                     <TextBlock Margin="0,3,0,0"
@@ -123,7 +136,7 @@
                                Text="{Binding SelectedReviewSummaryText}"
                                TextWrapping="Wrap" />
                 </StackPanel>
-                <TextBlock Grid.Column="1"
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap"
                            automation:AutomationProperties.AutomationId="FolderMemberCount"
                            automation:AutomationProperties.LiveSetting="Polite"
                            automation:AutomationProperties.Name="{Binding MemberStatusAnnouncement}"
@@ -132,8 +145,9 @@
                            accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
                            accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFolderMemberQuery"
                            Text="{Binding MemberPageStatusText}" />
-            </Grid>
+            </StackPanel>
             <ListBox x:Name="LocationCards" Grid.Row="1"
+                     MaxHeight="420"
                      automation:AutomationProperties.AutomationId="FolderLocationCards"
                      automation:AutomationProperties.Name="Side-by-side folder-copy location cards"
                      automation:AutomationProperties.HelpText="Use Left and Right Arrow, Home, and End to compare the bounded current page. Highlighted path segments differ among these visible copies."
@@ -143,7 +157,7 @@
                      MouseDoubleClick="OnLocationCardsMouseDoubleClick"
                      PreviewKeyDown="OnLocationCardsPreviewKeyDown"
                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                     ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
                      VirtualizingPanel.IsVirtualizing="True"
                      VirtualizingPanel.VirtualizationMode="Recycling">
                 <ListBox.ItemsPanel>
@@ -152,7 +166,7 @@
                     </ItemsPanelTemplate>
                 </ListBox.ItemsPanel>
                 <ListBox.ItemContainerStyle>
-                    <Style TargetType="ListBoxItem">
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource DefaultListBoxItemStyle}">
                         <Setter Property="Margin" Value="0,0,10,0" />
                         <Setter Property="Padding" Value="0" />
                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -167,8 +181,8 @@
                         <Border x:Name="LocationCardBorder"
                                 Width="360"
                                 Padding="14"
-                                Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
-                                BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8">
                             <StackPanel>
@@ -247,7 +261,7 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock VerticalAlignment="Center"
-                           Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                            Text="{Binding DetailErrorMessage}"
                            TextTrimming="CharacterEllipsis"
                            automation:AutomationProperties.AutomationId="FolderDetailError"
@@ -258,7 +272,7 @@
                            accessibility:AutomationNotificationBehavior.NotificationProcessing="ImportantMostRecent"
                            accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFolderMemberQuery"
                            Visibility="{Binding HasDetailError, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                    <TextBlock Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
+                    <TextBlock Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                Text="{Binding ExplorerStatusMessage}"
                                TextTrimming="CharacterEllipsis"
                                automation:AutomationProperties.AutomationId="FolderExplorerStatus"
@@ -269,7 +283,7 @@
                                accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
                                accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFolderExplorerCommand"
                                Visibility="{Binding HasExplorerStatus, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                    <TextBlock Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
+                    <TextBlock Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                Text="{Binding ExplorerErrorMessage}"
                                TextTrimming="CharacterEllipsis"
                                automation:AutomationProperties.AutomationId="FolderExplorerError"
@@ -304,7 +318,7 @@
                             Content="Next folders" />
                 </StackPanel>
             </Grid>
-            <Border Grid.Row="1" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" Opacity="0.94"
+            <Border Grid.Row="1" Background="{DynamicResource ApplicationBackgroundBrush}" Opacity="0.94"
                     Visibility="{Binding IsDetailLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <ProgressBar Width="130" Height="4" IsIndeterminate="True" />
@@ -317,4 +331,5 @@
             </StackPanel>
         </Grid>
     </Grid>
+    </ScrollViewer>
 </UserControl>

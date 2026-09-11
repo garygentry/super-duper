@@ -1,8 +1,8 @@
 # Windows UI redesign
 
 Status: high-level direction accepted with long-scan/rescan feedback, updated 2026-09-11. Product
-implementation includes UIR-03a/b/c/d/e shell/context, shared resources, viewport verification and
-the operator-reported Progress/Summary scrollbar fix. The package records the accepted direction and its limits; it is not a claim of
+implementation includes UIR-03a/b/c/d/e/f shell/context, shared resources, viewport verification and
+the operator-reported scrollbar, theme, text-size and empty-folder fixes. The package records the accepted direction and its limits; it is not a claim of
 operator usability acceptance or Windows release acceptance.
 
 ## Start here
@@ -44,7 +44,7 @@ are authoritative if its intentionally small fictional dataset or simplified int
 | UIR-00 Preserve and isolate | complete | `deefa40` on `wpf-poc`; dedicated branch created |
 | UIR-01 Evaluation and specification | complete | This package, local prototype checks, and discovery record |
 | UIR-02 Direction feedback | complete | User accepted the high-level direction; long-scan/rescan requirements captured |
-| UIR-03 Shell and context | in_progress | UIR-03a/b/c/d/e implemented; [scrollbar fix and standard-theme styling operator-verified](evidence/uir-03e-scan-scrollbar-clearance.md); next remaining physical accessibility evidence |
+| UIR-03 Shell and context | in_progress | UIR-03a/b/c/d/e/f implemented; [scrollbar fix and standard-theme styling operator-verified](evidence/uir-03e-scan-scrollbar-clearance.md); next remaining physical accessibility evidence |
 | UIR-04 through UIR-09 | planned | See execution plan; no product implementation or acceptance claimed |
 
 On 2026-09-11 the operator [passed three initial checks](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks):
@@ -57,8 +57,12 @@ Progress/Summary scrollbar overlap. [UIR-03e](evidence/uir-03e-scan-scrollbar-cl
 shared view and passes before/after geometry and Debug/Release integration. The operator confirms
 the overlap is corrected and the remaining styling looks good: nine scoped passes plus the fix.
 The scoped Narrator journey also passed. NVDA is not installed; its check remains unrun/unavailable.
-Next: independent theme/contrast/text enlargement checks, then physical monitor-DPI observations. Corrected fixture
-PID 71248/session 1 is open from `artifacts/uir03e/fixture`; re-audit before reuse. UIR-03 remains in progress.
+The next screenshots exposed unreadable Dark, title-only text enlargement and Desert's overlapping
+empty-folder message. [UIR-03f](evidence/uir-03f-theme-text-and-empty-state.md) corrects these with
+native Fluent styles, Windows text-size events and accessible empty-state layout. Next: recheck
+Dark, Desert and live 100%/150% Windows text size on the corrected fictional fixture at both sizes,
+then physical monitor-DPI observations. Runtime is in the evidence; re-audit before reuse.
+UIR-03 remains in progress, and Desert/text enlargement are not yet operator-accepted.
 Small visual preferences can evolve during implementation.
 Execution enablement and physical/provider campaigns retain their separate authority requirements.
 

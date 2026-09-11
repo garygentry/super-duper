@@ -7,7 +7,8 @@
         xmlns:vm="clr-namespace:SuperDuper.Windows.Core.ViewModels;assembly=SuperDuper.Windows.Core"
         mc:Ignorable="d"
         Title="Super Duper"
-        FontSize="14"
+        FontSize="{DynamicResource ShellBodyFontSize}"
+        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
         Icon="Assets/AppIcon/SuperDuper.ico"
         Width="1180"
         Height="760"
@@ -26,7 +27,7 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Border BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+            <Border BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                     BorderThickness="0,0,1,0">
                 <views:SessionListView DataContext="{Binding Sessions}" />
             </Border>
@@ -38,7 +39,7 @@
                 </Grid.RowDefinitions>
 
                 <Border Padding="{StaticResource ShellContentInset}"
-                        BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                         BorderThickness="0,0,0,1">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -50,7 +51,8 @@
                                        TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
                                        ToolTip="{Binding WorkspaceSessionName}" />
                             <TextBlock AutomationProperties.AutomationId="SelectedScanContext"
-                                       Margin="0,4,12,0" Style="{StaticResource ShellBody}" Text="{Binding SelectedScanContext}" />
+                                       Margin="0,4,12,0" Style="{StaticResource ShellBody}" Text="{Binding SelectedScanContext}"
+                                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedScanContext}" />
                             <TextBlock Style="{StaticResource ShellBody}" Text="Loading saved scan…"
                                        Visibility="{Binding IsLoadingSession, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         </StackPanel>
@@ -87,7 +89,8 @@
                                            TextTrimming="CharacterEllipsis" ToolTip="{Binding ActiveScanName}">
                                     <Run Text="Active scan: " /><Run Text="{Binding ActiveScanName, Mode=OneWay}" />
                                 </TextBlock>
-                                <TextBlock Style="{StaticResource ShellBody}">
+                                <TextBlock Style="{StaticResource ShellBody}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}">
                                     <Run Text="{Binding Progress.Phase, Mode=OneWay}" />
                                     <Run Text=" · " /><Run Text="{Binding Progress.Elapsed, Mode=OneWay}" />
                                     <Run Text=" · Warnings: " /><Run Text="{Binding Progress.WarningCount, Mode=OneWay}" />

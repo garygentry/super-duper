@@ -4,7 +4,7 @@
     <Border Margin="20"
             Padding="16"
             VerticalAlignment="Top"
-            BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
             BorderThickness="1"
             CornerRadius="8">
         <Grid>

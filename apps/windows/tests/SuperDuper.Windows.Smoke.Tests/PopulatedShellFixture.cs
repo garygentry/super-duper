@@ -7,6 +7,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using SuperDuper.Windows.Core.ViewModels;
 using SuperDuper.Windows.Core.Workers;
+using SuperDuper.Windows.Core.Services;
 
 namespace SuperDuper.Windows.Smoke.Tests;
 
@@ -20,14 +21,15 @@ internal static class PopulatedShellFixture
         var model = data.Model;
         var old = data.OldRun;
         var active = data.ActiveRun;
-        var window = new MainWindow(model, client, ownsWorkerLifetime: false)
+        var textScale = new FixtureTextScale();
+        var window = new MainWindow(model, client, ownsWorkerLifetime: false, textScale)
         {
             ShowActivated = false, ShowInTaskbar = false,
             WindowStartupLocation = WindowStartupLocation.Manual, Left = -10000, Top = -10000,
         };
         // RenderTargetBitmap does not include the native window background. Use an explicit
-        // system brush in this offscreen host; do not override the shipping Fluent background.
-        window.SetResourceReference(Window.BackgroundProperty, SystemColors.WindowBrushKey);
+        // native Fluent brush in this offscreen host, including live theme changes.
+        window.SetResourceReference(Window.BackgroundProperty, "ApplicationBackgroundBrush");
         try
         {
             window.Show();
@@ -148,8 +150,125 @@ internal static class PopulatedShellFixture
             Drain();
             VerifyScanScrollClearance(window, model, new Size(900, 600), "-toolbar");
             VerifyViewportAccess(window, model, new Size(900, 600), "-toolbar");
+            client.FolderGroupPageHandler = (_, _) => Task.FromResult(new WorkerDuplicateFolderGroupPage([], 0, null, null));
+            VerifyThemeAndTextScale(window, model, textScale);
         }
         finally { window.Close(); }
+        Assert.IsTrue(textScale.Disposed, "Closing the window releases the native settings subscription.");
+    }
+
+    private sealed class FixtureTextScale : ITextScaleSource
+    {
+        public double ScaleFactor { get; private set; } = 1;
+        public event EventHandler? Changed;
+        public bool Disposed { get; private set; }
+        internal void Set(double factor)
+        {
+            ScaleFactor = factor;
+            // Windows delivers setting events outside the WPF dispatcher.
+            Task.Run(() => Changed?.Invoke(this, EventArgs.Empty)).GetAwaiter().GetResult();
+        }
+        public void Dispose() => Disposed = true;
+    }
+
+    private static void VerifyThemeAndTextScale(MainWindow window, ShellViewModel model, FixtureTextScale scale)
+    {
+        var originalTheme = Application.Current.ThemeMode;
+        try
+        {
+            foreach (var theme in new[] { ThemeMode.Light, ThemeMode.Dark })
+            {
+                Application.Current.ThemeMode = theme;
+                Drain();
+                model.SelectedDestination = WorkspaceDestination.ScanSetup;
+                Drain();
+                var context = Find<TextBlock>(window, "SelectedScanContext");
+                var action = Find<Button>(window, "ViewActiveProgress");
+                AssertContrast(context.Foreground, window.Background, $"{theme}: shell text");
+                Assert.AreEqual(window.FindResource("ButtonForeground"), action.Foreground);
+                Assert.AreEqual(window.FindResource("ButtonBackground"), action.Background);
+                Assert.IsTrue(action.Style.BasedOn!.Setters.OfType<Setter>()
+                    .Any(setter => setter.Property == Control.TemplateProperty), "Keep the native Fluent button template.");
+                model.SelectedDestination = WorkspaceDestination.FileResults;
+                Drain();
+                var groups = Find<DataGrid>(window, "FileGroupsGrid");
+                var search = (TextBox)((SuperDuper.Windows.Views.DuplicateFilesView)
+                    window.FindName("DuplicateFilesWorkspace")).FindName("FileSearch");
+                Assert.IsTrue(groups.Style.BasedOn!.Setters.OfType<Setter>()
+                    .Any(setter => setter.Property == Control.TemplateProperty));
+                Assert.IsTrue(search.Style.BasedOn!.Setters.OfType<Setter>()
+                    .Any(setter => setter.Property == Control.TemplateProperty));
+                groups.ScrollIntoView(groups.Items[0]);
+                groups.SelectedIndex = 0;
+                groups.Focus();
+                Drain();
+                var selected = model.DuplicateFiles.SelectedGroup;
+                foreach (var factor in new[] { 1.5, 1d })
+                {
+                    scale.Set(factor);
+                    Drain();
+                    Assert.AreEqual(14 * factor, context.FontSize);
+                    Assert.AreEqual(14 * factor, action.FontSize);
+                    Assert.AreEqual(14 * factor, search.FontSize);
+                    Assert.AreEqual(14 * factor, groups.FontSize);
+                    Assert.AreSame(selected, model.DuplicateFiles.SelectedGroup);
+                    Assert.IsTrue(groups.IsKeyboardFocusWithin, "Text enlargement must preserve keyboard focus.");
+                    foreach (var size in new[] { new Size(1180, 760), new Size(900, 600) })
+                    {
+                        window.Width = size.Width;
+                        window.Height = size.Height;
+                        model.SelectedDestination = WorkspaceDestination.ScanSetup;
+                        Drain();
+                        Capture(window, $"theme-{theme}-text-{factor}-Setup-{size.Width}x{size.Height}");
+                        VerifyScanScrollClearance(window, model, size, $"-{theme}-text-{factor}");
+                        model.SelectedDestination = WorkspaceDestination.FolderResults;
+                        model.DuplicateFolders.ClearFiltersCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+                        Drain();
+                        Assert.IsTrue(model.DuplicateFolders.IsEmpty, "The folder regression must exercise the empty state.");
+                        {
+                            var empty = Find<StackPanel>(window, "FolderEmptyState");
+                            Assert.IsFalse(Find<DataGrid>(window, "FolderGroupsGrid").IsVisible,
+                                "Empty-folder text must not overlay visible column headers.");
+                            Reach(empty, window);
+                            foreach (var text in Descendants<TextBlock>(empty)) AssertVisible(text, window);
+                            Capture(window, $"theme-{theme}-text-{factor}-Folders-{size.Width}x{size.Height}");
+                        }
+                        model.SelectedDestination = WorkspaceDestination.FileResults;
+                        Drain();
+                        var members = Find<DataGrid>(window, "FileMembersGrid");
+                        foreach (var header in new[] { "Review decision", "Actions" })
+                        {
+                            var column = members.Columns.Single(column => Equals(column.Header, header));
+                            members.ScrollIntoView(members.Items[0], column);
+                            Drain();
+                            foreach (var button in Descendants<Button>(column.GetCellContent(members.Items[0])))
+                            {
+                                Reach(button, window);
+                                Assert.IsTrue(button.DesiredSize.Width <= button.ActualWidth + button.Margin.Left + button.Margin.Right + 1,
+                                    $"Enlarged {button.Content} must fit its cell: desired={button.DesiredSize}, actual={button.RenderSize}.");
+                            }
+                            Capture(window, $"theme-{theme}-text-{factor}-Files-{header.Replace(' ', '-')}-{size.Width}x{size.Height}");
+                        }
+                        groups.Focus();
+                    }
+                }
+            }
+        }
+        finally { scale.Set(1); Application.Current.ThemeMode = originalTheme; Drain(); }
+    }
+
+    private static void AssertContrast(Brush foreground, Brush background, string description)
+    {
+        static double Luminance(Color color)
+        {
+            static double Linear(byte value) => value / 255d <= 0.04045
+                ? value / 255d / 12.92 : Math.Pow((value / 255d + 0.055) / 1.055, 2.4);
+            return 0.2126 * Linear(color.R) + 0.7152 * Linear(color.G) + 0.0722 * Linear(color.B);
+        }
+        var front = Luminance(((SolidColorBrush)foreground).Color);
+        var back = Luminance(((SolidColorBrush)background).Color);
+        Assert.IsTrue((Math.Max(front, back) + 0.05) / (Math.Min(front, back) + 0.05) >= 4.5,
+            $"{description}: normal text must retain at least 4.5:1 contrast.");
     }
 
     private static T Find<T>(DependencyObject root, string id) where T : FrameworkElement
@@ -336,7 +455,7 @@ internal static class PopulatedShellFixture
         for (DependencyObject? parent = VisualTreeHelper.GetParent(element); parent is not null && parent != window;
              parent = VisualTreeHelper.GetParent(parent))
         {
-            if (parent is UIElement { ClipToBounds: true } clip)
+            if (parent is UIElement clip && (clip.ClipToBounds || clip is ScrollContentPresenter))
                 visible.Intersect(clip.TransformToAncestor(window).TransformBounds(new Rect(clip.RenderSize)));
         }
         // Rows may extend across technical columns; individual actions must fit completely.

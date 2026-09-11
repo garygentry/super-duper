@@ -1,8 +1,11 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Threading;
+using SuperDuper.Windows.Accessibility;
+using SuperDuper.Windows.Core.Services;
 using SuperDuper.Windows.Core.ViewModels;
 using SuperDuper.Windows.Core.Workers;
+using SuperDuper.Windows.Infrastructure;
 
 namespace SuperDuper.Windows;
 
@@ -21,9 +24,12 @@ public partial class MainWindow : Window
         : this(viewModel, workerClient, ownsWorkerLifetime: true) { }
 
     // The isolated presentation fixture supplies fake services and manages their lifetime.
-    internal MainWindow(ShellViewModel viewModel, IWorkerClient workerClient, bool ownsWorkerLifetime)
+    internal MainWindow(ShellViewModel viewModel, IWorkerClient workerClient, bool ownsWorkerLifetime,
+        ITextScaleSource? textScaleSource = null)
     {
         InitializeComponent();
+        var textScale = new WindowTextScale(this, textScaleSource ?? new WindowsTextScaleSource());
+        Closed += (_, _) => textScale.Dispose();
         ViewModel = viewModel;
         _workerClient = workerClient;
         DataContext = viewModel;

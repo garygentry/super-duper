@@ -311,16 +311,16 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual("Cancel bounded dirty-root reconciliation", AutomationProperties.GetName(
                 FindByAutomationId<Button>(files, "FileCancelDirtyRootReconciliation")));
             Assert.AreEqual(
-                SystemColors.ControlTextBrush,
+                Application.Current.FindResource("TextFillColorPrimaryBrush"),
                 FindByAutomationId<Border>(files, "FileGroupError").BorderBrush);
             Assert.AreEqual(
-                SystemColors.ControlTextBrush,
+                Application.Current.FindResource("TextFillColorPrimaryBrush"),
                 rootFacetError.Foreground);
             Assert.AreEqual(
-                SystemColors.ControlTextBrush,
+                Application.Current.FindResource("TextFillColorPrimaryBrush"),
                 driveFacetError.Foreground);
             Assert.AreEqual(
-                SystemColors.ControlTextBrush,
+                Application.Current.FindResource("TextFillColorPrimaryBrush"),
                 FindByAutomationId<TextBlock>(files, "FileDetailError").Foreground);
             StringAssert.Contains(
                 FindByAutomationId<TextBlock>(files, "FileSelectedSetExplanation").Text,
@@ -387,7 +387,7 @@ public sealed class WpfSurfaceSmokeTests
                 fileMemberHeaders);
             var reviewColumn = (DataGridTemplateColumn)FindByAutomationId<DataGrid>(files, "FileMembersGrid")
                 .Columns.Single(column => Equals(column.Header, "Review decision"));
-            var reviewControls = (StackPanel)reviewColumn.CellTemplate.LoadContent();
+            var reviewControls = (WrapPanel)reviewColumn.CellTemplate.LoadContent();
             reviewControls.DataContext = new { Path = @"C:\Data\item.bin" };
             DrainDispatcher();
             var reviewButtons = reviewControls.Children.OfType<Button>().ToArray();
@@ -579,7 +579,7 @@ public sealed class WpfSurfaceSmokeTests
                 AutomationProperties.GetLiveSetting(folderDetailError));
             Assert.AreEqual("DuplicateFolderMemberQuery",
                 AutomationNotificationBehavior.GetActivityId(folderDetailError));
-            Assert.AreEqual(SystemColors.ControlTextBrush, folderDetailError.Foreground);
+            Assert.AreEqual(Application.Current.FindResource("TextFillColorPrimaryBrush"), folderDetailError.Foreground);
             var folderExplorerStatus = FindByAutomationId<TextBlock>(folders, "FolderExplorerStatus");
             Assert.AreEqual(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(folderExplorerStatus));
             Assert.AreEqual(
@@ -644,7 +644,7 @@ public sealed class WpfSurfaceSmokeTests
                 "Close run warning details and return to run history",
                 AutomationProperties.GetName(FindByAutomationId<Button>(history, "CloseRunWarnings")));
             var warningDiagnostic = FindByAutomationId<Border>(history, "RunWarningDiagnosticLog");
-            Assert.AreEqual(SystemColors.ActiveBorderBrush, warningDiagnostic.BorderBrush);
+            Assert.AreEqual(Application.Current.FindResource("CardStrokeColorDefaultBrush"), warningDiagnostic.BorderBrush);
             StringAssert.Contains(
                 AutomationProperties.GetHelpText(warningDiagnostic),
                 "not the source of persisted warning counts");
@@ -1086,6 +1086,7 @@ public sealed class WpfSurfaceSmokeTests
             Assert.IsTrue(locationCards.IsKeyboardFocusWithin);
 
             focusHost.Close();
+            RedesignShellSurfaceTests.Verify();
             PopulatedShellFixture.Verify();
             app.Shutdown();
         });
@@ -1135,7 +1136,7 @@ public sealed class WpfSurfaceSmokeTests
         var firstStage = FindVisualByAutomationId<Border>(progress, "ScanStageDiscovered");
         var lastStage = FindVisualByAutomationId<Border>(progress, "ScanStageFinalizedDuplicates");
         StringAssert.Contains(AutomationProperties.GetName(firstStage), "logical bytes");
-        Assert.AreEqual(SystemColors.ActiveBorderBrush, firstStage.BorderBrush);
+        Assert.AreEqual(Application.Current.FindResource("CardStrokeColorDefaultBrush"), firstStage.BorderBrush);
         Assert.IsTrue(
             lastStage.TranslatePoint(new Point(0, 0), progress).Y
                 > firstStage.TranslatePoint(new Point(0, 0), progress).Y,
@@ -1154,7 +1155,7 @@ public sealed class WpfSurfaceSmokeTests
         Assert.AreEqual(data.FolderAnalysisProgress, folderProgress.Text);
         StringAssert.Contains(AutomationProperties.GetName(folderProgress), "Folder analysis");
         Assert.AreEqual(
-            SystemColors.ControlTextBrush,
+            Application.Current.FindResource("TextFillColorPrimaryBrush"),
             FindByAutomationId<Border>(progress, "ScanProgressError").BorderBrush);
 
         var cancel = FindByAutomationId<Button>(progress, "CancelScanButton");
@@ -1251,7 +1252,7 @@ public sealed class WpfSurfaceSmokeTests
 
         Assert.AreEqual("Alt+R", AutomationProperties.GetAccessKey(refresh));
         Assert.AreEqual("Alt+C", AutomationProperties.GetAccessKey(compare));
-        Assert.AreEqual(SystemColors.ActiveBorderBrush, healthCard.BorderBrush);
+        Assert.AreEqual(Application.Current.FindResource("CardStrokeColorDefaultBrush"), healthCard.BorderBrush);
         Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(phaseGrid));
         Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(deviceGrid));
         Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(historyGrid));
@@ -1689,7 +1690,8 @@ public sealed class WpfSurfaceSmokeTests
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(15)), "The WPF smoke thread timed out.");
+        // Includes live Light/Dark, two text sizes and both supported viewports with captures.
+        Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(60)), "The WPF smoke thread timed out.");
         if (failure is not null)
         {
             ExceptionDispatchInfo.Capture(failure).Throw();

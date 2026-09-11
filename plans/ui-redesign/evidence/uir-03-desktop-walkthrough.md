@@ -1,6 +1,6 @@
 # Prepared A01/A02/A09 desktop walkthrough
 
-Status: **nine scoped checks, scrollbar correction and Narrator walkthrough passed; remaining accessibility pending**. UIR-03d's local viewport prerequisite
+Status: **nine scoped checks, scrollbar correction and Narrator walkthrough passed; theme/text defects corrected locally; physical recheck pending**. UIR-03d's local viewport prerequisite
 is verified in [the viewport evidence](uir-03d-viewport-access.md). This is a fictional shell walkthrough, not a
 real scan, deletion campaign, release-smoke substitute or physical acceptance result.
 
@@ -41,6 +41,22 @@ For each step record observations and unexpected scope changes, not merely click
 Automation currently establishes programmatic focus only. The fake data do not establish worker
 performance, screen-reader cadence over a real long scan, representative result scale or A17 rescan
 acceptance. Those requirements retain their later gates and separately isolated procedures.
+
+## 2026-09-11 theme, text enlargement and empty-folder defects
+
+The operator supplied screenshots and reported: **"Dark mode completely off"**; the second
+screenshot uses **Desert**; and **"I don't observe any changes with text size except for Window
+title"**. The same report identifies **"No exact duplicate folders"** overlapping the table header.
+Record failures for Dark and text enlargement, and an A05 empty-state overlap. Desert is observed,
+not a general contrast-theme pass. The requested text setting was 150%, but its numeric value was
+not independently restated. Earlier display-scale context was 100%.
+
+[UIR-03f evidence](uir-03f-theme-text-and-empty-state.md) records the native Fluent/text-size and
+layout fixes, isolated tests and corrected fixture runtime. Recheck Dark, Desert and live Windows
+Accessibility text changes at both fixture sizes, including Files actions, Progress/Summary,
+warnings and empty Folders; restore original settings. UIR-03 stays in progress. Nine unrelated
+scoped passes, the accepted scrollbar correction and Narrator evidence remain retained. NVDA is
+unrun/unavailable. Physical theme/text/contrast and monitor-DPI acceptance remain open.
 
 ## 2026-09-11 NVDA unavailable; visual accessibility next
 

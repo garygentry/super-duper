@@ -63,7 +63,7 @@
             </StackPanel>
             <Border Padding="14"
                     VerticalAlignment="Top"
-                    BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1"
                     CornerRadius="6"
                     Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -74,7 +74,7 @@
         <Border Grid.Row="2"
                 Margin="0,14,0,0"
                 Padding="12"
-                BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                 BorderThickness="1"
                 CornerRadius="6"
                 Visibility="{Binding IsWarningDrilldownOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -95,14 +95,14 @@
                         AutomationProperties.AutomationId="RunWarningDiagnosticLog"
                         AutomationProperties.HelpText="This application log is supplemental diagnostic context and is not the source of persisted warning counts."
                         AutomationProperties.Name="{Binding WarningDiagnosticLogAutomationName}"
-                        Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
-                        BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1"
                         CornerRadius="4">
                     <StackPanel>
                         <TextBlock FontWeight="SemiBold" Text="Diagnostic application log" />
                         <TextBlock Margin="0,3,0,5"
-                                   Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    Text="Supplemental developer and recovery detail only; this log is not durable warning truth."
                                    TextWrapping="Wrap" />
                         <TextBlock AutomationProperties.AutomationId="RunWarningDiagnosticLogStatus"
@@ -134,7 +134,7 @@
                         <DataGridTextColumn Width="120" MinWidth="120" Header="Phase" SortMemberPath="Phase" Binding="{Binding Phase}" />
                         <DataGridTextColumn Width="90" MinWidth="90" Header="Count" SortMemberPath="OccurrenceCount" SortDirection="Descending" Binding="{Binding OccurrenceCount}" />
                         <DataGridTextColumn Width="2*" MinWidth="180" Header="Warning" SortMemberPath="Message" Binding="{Binding Message}" />
-                        <DataGridTemplateColumn Width="210" MinWidth="210" Header="Action" CanUserSort="False">
+                        <DataGridTemplateColumn Width="Auto" MinWidth="210" Header="Action" CanUserSort="False">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Button AutomationProperties.AutomationId="{Binding Id, StringFormat=RunWarningHashResults-{0}}"
@@ -188,7 +188,7 @@
                            accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
                            accessibility:AutomationNotificationBehavior.ActivityId="RunWarningNavigation"
                            Margin="0,8,0,0"
-                           Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                            Text="{Binding WarningErrorMessage}"
                            TextWrapping="Wrap"
                            Visibility="{Binding HasWarningError, Converter={StaticResource BooleanToVisibilityConverter}}" />

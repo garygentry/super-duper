@@ -1,6 +1,6 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-03 in progress; UIR-03a/b/c/d/e implemented; scrollbar correction and standard-theme styling operator-verified, remaining physical accessibility acceptance open. Stay on `codex/ui-redesign`.
+Status: UIR-03 in progress; UIR-03a/b/c/d/e/f implemented; scrollbar correction and standard-theme styling operator-verified, remaining physical accessibility acceptance open. Stay on `codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -11,7 +11,7 @@ all safety/evidence gates. Its open execution criteria are not absorbed or marke
 | UIR-00 | complete | Preserve current work and create dedicated branch | `wpf-poc` at `deefa40`; `codex/ui-redesign` created from it |
 | UIR-01 | complete | Findings, direction, specifications, concept, capability mapping, validation and procedure | Package internally checked; prototype limitations recorded; no WPF implementation |
 | UIR-02 | complete | High-level direction accepted; operator feedback incorporated | D13-D15; no native or full prototype walkthrough acceptance inferred |
-| UIR-03 | in_progress | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c/d/e implemented; nine scoped operator checks passed; [scrollbar fix verified by regression, Debug/Release integration and operator](evidence/uir-03e-scan-scrollbar-clearance.md); remaining physical accessibility acceptance open |
+| UIR-03 | in_progress | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c/d/e/f implemented; nine scoped operator checks passed; [scrollbar fix verified by regression, Debug/Release integration and operator](evidence/uir-03e-scan-scrollbar-clearance.md); remaining physical accessibility acceptance open |
 | UIR-04 | planned | Setup, Scan again, persistent reuse explanation, live monitoring/details and terminal summaries | UIR-03; A05/A06/A08/A14/A15/A16/A17 with controlled clock, lifecycle and rescan fixtures |
 | UIR-05 | planned | File/folder results, compact filters, list/detail comparison, decisions and path actions | UIR-03; A03/A04/A05/A06/A11/A13/A15 and existing query/focus/page contracts |
 | UIR-06 | planned | Dedicated Review, existing rule workflow, whole-plan validation and evidence access | UIR-05; A04/A10/A15 including revision, survivor, overlap, reversal and restart |
@@ -64,30 +64,24 @@ The new geometry regression fails before the fix with a 12-DIP overlap, then pas
 top/bottom, both sizes and the toolbar allowance. Paired worker and Windows Debug/Release integration
 pass (170 Core, 75 Infrastructure/five skips, four WPF methods each). See [evidence](evidence/uir-03e-scan-scrollbar-clearance.md).
 
-**Exact next slice: Light/Dark, contrast theme and text enlargement, then physical monitor-DPI evidence. NVDA is unavailable/unrun.**
-On 2026-09-11 the operator passed reviewed/active context and harmless History highlighting,
-delayed-folder responsiveness/error isolation, and file selection/scroll retention plus scoped
-layout at both fixture sizes. See [the report and its limits](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks).
-The [second batch](evidence/uir-03-desktop-walkthrough.md#2026-09-11-navigation-follow-up-passed) passed explicit Open scan round trips,
-active warning Close/return focus and Progress scroll retention. The third batch passed completed-run
-warning result focus and the explicit keyboard-only journey (eight total), then reported the A09
-Progress/Summary scrollbar overlap. The third shared-style/expanded-controls check was interrupted.
-The operator then confirmed "Scroll overlap looks good now", closing the reported scrollbar defect.
-The subsequent "other styling looks good" report passes the interrupted check (nine scoped passes).
-The Narrator Files rows, active Progress and warning Close/return checks then passed (labels,
-selection/status, focus return, no excessive repeated speech). The operator confirmed NVDA is not
-installed; record `unrun_unavailable`, not a pass or waiver. Continue independent Light/Dark, named
-contrast-theme and 150% Windows text-size checks at 100% display scaling, both fixture sizes,
-restoring original settings after observations. Then collect physical multi-monitor DPI evidence.
-No installation was requested/performed. This scoped fixture result does not accept real long-scan speech cadence.
-Do not repeat nine passes or the accepted correction
-without a reopen reason. Corrected fixture PID 71248/session 1 was launched from separate
-`artifacts/uir03e/fixture` output after the old fictional window was path-verified and closed normally.
-Re-audit before reuse; scrollbar and styling passed, remaining physical accessibility is pending. The default launcher still builds a fresh
-current-code fixture when needed. Record observations and assess acceptance; a local fix is not
-physical acceptance. Reader/theme/high-contrast/text enlargement/multi-monitor DPI remain unrun.
-Do not substitute automated evidence for these checks or mark UIR-03 complete before its required
-desktop evidence is available. UIR-04 remains dependent on UIR-03.
+UIR-03f (2026-09-11) corrects operator-reported Dark styling, title-only text enlargement and
+Desert's folder-empty/header overlap. Shared native Fluent bases and semantic dynamic brushes,
+Windows text-scale events, bounded scrolling Folders and wrapping enlarged actions address the
+reproduced A09/A11/A05 defects. See [evidence](evidence/uir-03f-theme-text-and-empty-state.md).
+Final adjustable Files/Folders comparison remains UIR-05; the interim folder splitter is replaced.
+
+**Exact next slice: recheck Dark, Desert and live Windows text enlargement on UIR-03f, then physical DPI.**
+Retain nine scoped operator passes, the accepted scrollbar correction and the Narrator walkthrough
+in [the desktop record](evidence/uir-03-desktop-walkthrough.md). NVDA is not installed and remains
+unrun/unavailable, not passed or waived. No installation was requested or performed.
+The new screenshots establish real Dark/text/empty-layout defects; Desert is observed, not passed.
+Recheck Files rows/actions, Progress/Summary, warning actions and the empty-folder message at both
+fixture sizes, Dark/Desert and 100% -> 150% -> 100% Accessibility text size at 100% display scaling.
+Record actual settings and results; restore original settings. Re-audit the fictional process path
+before reuse/launch; runtime and isolated verification are in the UIR-03f evidence. Do not repeat
+unrelated accepted checks without a reopen reason. No production state or parked campaign is involved.
+Automated theme/text events and 96-DPI renders do not replace physical setting propagation or
+contrast/monitor-DPI observations. UIR-03 stays in progress; UIR-04 remains dependent on acceptance.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read

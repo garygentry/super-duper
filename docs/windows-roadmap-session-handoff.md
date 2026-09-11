@@ -23,49 +23,35 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest completed local slice: UIR-03e Progress/Summary scrollbar clearance. The operator reported
-  overlap; the shared page inset now sits inside the scroll viewer. Geometry regression reproduces
-  the 12-DIP overlap before the fix and passes afterward at both sizes/top/bottom/toolbar allowance.
-  UIR-03 remains in_progress; UIR-00/01/02 remain complete.
-- Latest operator evidence (2026-09-11): three initial checks passed after a requested fixture reset:
-  reviewed/active context and harmless History highlighting, delayed-folder responsiveness/error
-  isolation, and file selection/scroll retention plus scoped layout at 1180x760/900x600.
-  Visibility is established; full desktop acceptance remains open. See the scoped report in
-  `plans/ui-redesign/evidence/uir-03-desktop-walkthrough.md`.
-- Second operator batch passed explicit Open scan, active warning Close/return focus and Progress
-  scroll retention. Third batch passed completed-run warning result focus and keyboard-only navigation
-  (eight total), but reported scrollbar overlap during expanded-controls/shared-style inspection.
-  Original-defect environment confirmed: both fixture sizes, standard Windows theme, 100% display
-  scaling. The operator subsequently confirmed "Scroll overlap looks good now" on the corrected
-  build; the reported scrollbar defect is closed. Separate Windows text size is unspecified.
-- Subsequent operator report "other styling looks good" passes the interrupted expanded-controls/
-  shared-style check: nine scoped passes plus the scrollbar correction, in the known standard
-  Windows theme/100%-display-scale environment.
-- Narrator scoped walkthrough passed: Files rows, active Progress and warning Close/return, including
-  labels/selection/status, focus return and no excessive repeated speech. Installed executable
-  version `10.0.22621.5262` read from file metadata. NVDA is not installed; its check is
-  unrun/unavailable, not a pass or waiver. No installation requested/performed.
-- Next slice: independent Light/Dark, one named contrast theme and 150% Windows text size at 100%
-  display scaling, checking Files rows/actions, Progress/Summary and warnings at both fixture sizes.
-  Record actual settings/results and restore original settings, then collect physical monitor-DPI
-  evidence. This does not accept parked-release or real long-scan speech cadence.
-  Do not repeat nine passes or the accepted correction without a reopen reason.
-  UIR-04 remains dependent on UIR-03 acceptance.
-- Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`. Latest implementation is
-  `ae8d7d1` (UIR-03e; baseline `8d2354c`, prior implementation `b20341a`).
-- Session handoffs require a printed copyable continuation prompt tailored to the committed
-  checkpoint and exact next slice; follow the redesign session guide.
-- Current artifacts: findings, product direction, screen/state/copy specification, visual guidance,
-  capability map, interactive fictional concept, validation matrix and finite execution ledger,
-  plus `scan-and-rescan-experience.md` (A08/A16/A17). User direction acceptance is not native acceptance.
-- Validation: UIR-03e paired worker builds and Windows Debug/Release build/test pass (170 Core,
-  75 Infrastructure/five operator-only skips, four WPF methods each). UIR-03c Rust tests remain
-  the retained 226-passed/10-ignored baseline; no Rust/shared contract changed in this slice.
-  Scrollbar geometry, reachability, focus and retention pass; S03/A03 and full physical acceptance
-  stay open. See `plans/ui-redesign/evidence/uir-03e-scan-scrollbar-clearance.md`; output is `artifacts/uir03e`.
-- Latest fixture launch: corrected build PID 71248/session 1 at `artifacts/uir03e/fixture`, left open
-  for continued inspection; scrollbar recheck passed. After verification the old fictional fixture 58144 was path-verified and
-  closed normally. Production runtime/state untouched. Re-audit before reuse or launch.
+- Latest local slice: UIR-03f native themes, Windows accessibility text size and empty-folder layout.
+  Operator screenshots reopened A09/A11 and identified A05 header/message overlap: Dark was
+  unreadable, Desert exposed the overlap, and text enlargement changed only the native title.
+  Shared styles now inherit Fluent templates/semantic brushes; Windows UISettings drives live
+  typography; Folders scrolls with bounded native grids and separate empty states. File actions
+  wrap when enlarged. Evidence: `plans/ui-redesign/evidence/uir-03f-theme-text-and-empty-state.md`.
+- UIR-00/01/02 remain complete; UIR-03 remains in_progress. UIR-03a/b/c/d/e/f implemented.
+  Latest implementation is UIR-03f (this checkpoint; prior `ae8d7d1`). Paired worker and Windows Debug/Release
+  integration pass: 170 Core, 75 Infrastructure/five skips, three WPF methods each (all original
+  shell assertions retained in the shared STA). Fixture build/--verify pass; output `artifacts/uir03f`.
+- Retained operator evidence: nine scoped walkthrough passes, accepted Progress/Summary scrollbar
+  correction, and Narrator Files rows/active Progress/warning Close-return (labels, selection/status,
+  focus and no excessive repeat speech). Narrator executable version `10.0.22621.5262`.
+  NVDA is not installed: unrun/unavailable, not passed or waived; no installation requested.
+- Exact next slice: recheck Dark, Desert and actual Windows text size 100% -> 150% -> 100% with the
+  corrected fictional fixture open, keeping display scaling at 100%. Check Files rows/actions,
+  Progress/Summary, warnings and the empty-folder message at both sizes. Record actual settings
+  and outcomes; restore original settings. Desert is observed, not accepted; the text screenshot
+  did not independently confirm the numeric text setting. Then collect physical monitor-DPI evidence.
+  Keep unrelated passes; do not repeat them without a reopen reason. UIR-04 depends on acceptance.
+- Automated theme switching, text events, clipped bounds, actions and empty/header separation are
+  not physical contrast/text/DPI acceptance. The retained UIR-03c Rust tests are 226 passed/10 ignored;
+  no Rust or worker protocol change. Production deletion and consumed-campaign boundaries unchanged.
+- Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; it owns the compact continuation
+  route. Session handoffs require the printed copyable prompt from the redesign session guide.
+- Corrected fictional fixture PID 67748/session 1 is open from `artifacts/uir03f/fixture` after
+  old PID 71248 was path-verified and closed normally. Re-audit before reuse/launch; see UIR-03f evidence.
+  Production app/state untouched. Interim scrolling Files/Folders replace their split adjustments;
+  full adjustable S03 comparison and A03 remain UIR-05. A08/A16/A17 remain required later slices.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
   do not rerun SOP10 or SOP9 identities.
 - Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first

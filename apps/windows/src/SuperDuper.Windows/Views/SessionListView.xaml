@@ -31,7 +31,7 @@
                      ItemsSource="{Binding Items}"
                      SelectedItem="{Binding SelectedSession, Mode=TwoWay}">
                 <ListBox.ItemContainerStyle>
-                    <Style TargetType="ListBoxItem">
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource DefaultListBoxItemStyle}">
                         <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
                     </Style>
                 </ListBox.ItemContainerStyle>
@@ -56,7 +56,7 @@
 
         <StackPanel Grid.Row="2" Margin="12,12,12,16">
             <TextBlock Margin="4,0,4,8"
-                       Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                        Text="{Binding ErrorMessage}"
                        TextWrapping="Wrap"
                        Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}" />

@@ -242,12 +242,12 @@
                              automation:AutomationProperties.AutomationId="ScanCurrentPath"
                              automation:AutomationProperties.Name="Current scan path" />
                     <Border Margin="0,14,0,0" Padding="12" BorderThickness="1" CornerRadius="6"
-                            BorderBrush="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
+                            BorderBrush="{DynamicResource TextFillColorPrimaryBrush}"
                             Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}"
                             automation:AutomationProperties.AutomationId="ScanProgressError"
                             automation:AutomationProperties.LiveSetting="Assertive"
                             automation:AutomationProperties.Name="{Binding DisplayErrorMessage, StringFormat='Scan error: {0}'}">
-                        <TextBlock Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
+                        <TextBlock Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                    Text="{Binding DisplayErrorMessage}" TextWrapping="Wrap" />
                     </Border>
                     <TextBlock Height="1" Opacity="0" IsHitTestVisible="False"
@@ -277,7 +277,7 @@
             </StackPanel.Style>
             <TextBlock HorizontalAlignment="Center" Style="{StaticResource PageTitle}" Text="No scan selected" />
             <TextBlock Margin="0,7,0,0"
-                       Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                        Text="Start a scan or select one from Run history." />
         </StackPanel>
     </Grid>

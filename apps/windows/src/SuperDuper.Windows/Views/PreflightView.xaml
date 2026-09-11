@@ -14,14 +14,14 @@
                        TextWrapping="Wrap" />
 
             <Border Margin="0,18,0,0" Padding="16"
-                    BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1" CornerRadius="6">
                 <StackPanel>
                     <TextBlock FontWeight="SemiBold" Text="Reviewed plan snapshot" />
                     <TextBlock Margin="0,5,0,0" AutomationProperties.AutomationId="PreflightPlanSummary"
                                Text="{Binding PlanSummary}" TextWrapping="Wrap" />
                     <TextBlock Margin="0,7,0,0"
-                               Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
+                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                Text="{Binding RevisionStatus}" TextWrapping="Wrap" />
                     <Button x:Name="StartPreflightButton" Margin="0,14,0,0"
                             HorizontalAlignment="Left"
@@ -32,7 +32,7 @@
             </Border>
 
             <Border Margin="0,18,0,0" Padding="16"
-                    BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1" CornerRadius="6"
                     Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel>
@@ -102,7 +102,7 @@
             </StackPanel>
 
             <Border Margin="0,20,0,0" Padding="16"
-                    BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1" CornerRadius="6">
                 <StackPanel DataContext="{Binding Operation}">
                     <TextBlock Style="{StaticResource SectionTitle}" Focusable="True"
@@ -126,7 +126,7 @@
                                    AutomationProperties.Name="{Binding CancellationDisclosure}"
                                    Text="{Binding CancellationDisclosure}" TextWrapping="Wrap" />
                         <Border Margin="0,8,0,0" Padding="10"
-                                BorderBrush="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
+                                BorderBrush="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                 BorderThickness="1"
                                 AutomationProperties.AutomationId="RecycleOperationRecoveryGuidance"
                                 AutomationProperties.Name="{Binding RecoveryGuidance}"
@@ -146,7 +146,7 @@
                                      TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
                         </StackPanel>
                         <TextBlock Margin="0,4,0,0"
-                                   Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
+                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                    Text="{Binding RevisionStatus}" TextWrapping="Wrap" />
                         <ListView x:Name="RecycleOperationItemsList" Margin="0,12,0,0" MinHeight="100" MaxHeight="280"
                                   AutomationProperties.AutomationId="RecycleOperationItemsList"
@@ -194,7 +194,7 @@
                                        Text="{Binding PageStatus}" />
                         </Grid>
                         <Border Margin="0,16,0,0" Padding="14"
-                                BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1" CornerRadius="6"
                                 DataContext="{Binding RecoveryReview}"
                                 AutomationProperties.AutomationId="RecoveryReviewWorkspace"
@@ -277,7 +277,7 @@
                                          IsEnabled="{Binding CanEdit}"
                                          Text="{Binding Note, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 <Border Margin="0,8,0,0" Padding="10"
-                                        BorderBrush="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
+                                        BorderBrush="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                         BorderThickness="1"
                                         Visibility="{Binding IsCorrection, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <StackPanel>
@@ -304,7 +304,7 @@
                                         Command="{Binding RecordObservationCommand}"
                                         Content="Record observation" />
                                 <Border Margin="0,9,0,0" Padding="10"
-                                        BorderBrush="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
+                                        BorderBrush="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                         BorderThickness="1"
                                         AutomationProperties.AutomationId="RecoveryReviewLastRecordedObservation"
                                         AutomationProperties.Name="{Binding LastRecordedSummary}"
@@ -362,7 +362,7 @@
                                            Text="{Binding HistoryPageStatus}" TextWrapping="Wrap" />
 
                                 <TextBlock Margin="0,8,0,0"
-                                           Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
+                                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                            AutomationProperties.AutomationId="RecoveryReviewReadError"
                                            AutomationProperties.Name="{Binding ErrorAnnouncement}"
                                            AutomationProperties.LiveSetting="Assertive"
@@ -375,7 +375,7 @@
                                         Content="Retry review read"
                                         Visibility="{Binding CanRetryRead, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                 <TextBlock Margin="0,8,0,0"
-                                           Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
+                                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                            AutomationProperties.AutomationId="RecoveryReviewMutationError"
                                            AutomationProperties.Name="{Binding ErrorAnnouncement}"
                                            AutomationProperties.LiveSetting="Assertive"
@@ -405,7 +405,7 @@
                         </Border>
                     </StackPanel>
                     <TextBlock Margin="0,8,0,0"
-                               Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
+                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                AutomationProperties.AutomationId="RecycleOperationError"
                                AutomationProperties.Name="{Binding ErrorAnnouncement}"
                                AutomationProperties.LiveSetting="Assertive"
@@ -432,7 +432,7 @@
             </Border>
 
             <TextBlock Margin="0,16,0,0"
-                       Foreground="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"
+                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                        AutomationProperties.AutomationId="PreflightError"
                        AutomationProperties.Name="{Binding ErrorAnnouncement}"
                        accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding ErrorAnnouncementVersion}"
