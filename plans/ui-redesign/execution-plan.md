@@ -76,7 +76,7 @@ layout and live Windows text size 100% -> 150% -> 100%, both fixture sizes, disp
 Close those three UIR-03f defects; see [scoped evidence](evidence/uir-03f-theme-text-and-empty-state.md#2026-09-12-operator-recheck-passed).
 Retain nine earlier scoped passes, the accepted scrollbar correction and Narrator walkthrough.
 NVDA is not installed: unrun/unavailable, not passed or waived. No installation was requested.
-Establish monitor count/current display scales, then collect 100%/150%/200% display-DPI and available
+The operator confirmed three monitors, all currently at 100%. Collect 100%/150%/200% display-DPI and
 cross-monitor observations. Record settings, readable/reachable controls and focus, then restore
 original settings. Re-audit the fictional process path before reuse/launch. Do not repeat accepted
 checks without a reopen reason. UIR-03 stays in progress; UIR-04 remains dependent on acceptance.

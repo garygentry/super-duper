@@ -26,7 +26,7 @@ Updated 2026-09-12. [Execution plan](execution-plan.md) owns gate status.
   sizes, display scale held at 100%. Close the three UIR-03f reported defects. Original OS-setting
   restoration was requested but not separately confirmed. Do not repeat these or earlier passes
   without a reopen reason. See the UIR-03f evidence for scope.
-- **Exact next slice:** establish monitor count/current display scales, then collect physical
+- **Exact next slice:** use the confirmed three monitors (all currently 100%) to collect physical
   100%/150%/200% display-DPI observations and available cross-monitor moves on the fictional fixture.
   Record actual settings, clipping/readability/focus and monitor availability; restore settings.
   NVDA remains unrun/unavailable. UIR-03 stays in progress; assess acceptance before UIR-04.

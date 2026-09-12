@@ -91,7 +91,7 @@ requested but not separately reported. Retain nine earlier scoped passes, Narrat
 scrollbar correction. No wider screen/contrast combination, physical display-DPI or later gate is
 accepted by this report. NVDA remains unrun/unavailable because it is not installed.
 
-Next: establish the operator's monitor count/current display scales, then collect the required
+The operator then confirmed three monitors, all currently at 100%. Next: collect the required
 100%/150%/200% display-DPI and available cross-monitor observations. UIR-03 remains in progress;
 UIR-04 remains dependent on acceptance. This update changes documentation only: no code, build/test
 rerun, fixture launch/reset, OS-setting change or production runtime action. Existing automated

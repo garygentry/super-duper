@@ -42,6 +42,23 @@ Automation currently establishes programmatic focus only. The fake data do not e
 performance, screen-reader cadence over a real long scan, representative result scale or A17 rescan
 acceptance. Those requirements retain their later gates and separately isolated procedures.
 
+## 2026-09-12 monitor setup confirmed; display-DPI check prepared
+
+The operator reports **"3 monitors, 100% scaling now"**. Monitor resolutions and the physical
+DPI transition results are not yet reported. Read-only process verification finds fictional
+PID 67748/session 1 responsive at its exact UIR-03f executable path; it was left untouched.
+
+Requested next walkthrough, with ordinary theme and Windows Accessibility text size at 100%:
+leave one monitor at 100% display scaling, set another to 150% and the third to 200% where offered.
+Move the open fictional fixture across 100% -> 150% -> 200% -> 100%. On each monitor inspect Files
+rows/actions, Progress/Summary and warnings for readable text, clipping and reachable controls;
+exercise keyboard navigation and verify selected group/focus survive the move. Return all displays
+to their original 100% setting. If the window cannot fit, record monitor resolution and scale;
+do not infer application acceptance from a desktop too small for its minimum window size.
+
+This is preparation, not a pass. Record observations before assessing UIR-03. NVDA stays
+unrun/unavailable. No build/test, app reset/launch, OS-setting mutation or production action ran.
+
 ## 2026-09-12 all three corrected visual checks passed
 
 The operator reports **"all 3 pass"** for the requested UIR-03f checks at both fixture sizes:

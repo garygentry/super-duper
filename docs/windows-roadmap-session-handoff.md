@@ -40,7 +40,7 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Operator recheck 2026-09-12: "all 3 pass" confirms Dark readability, Desert empty-folder/header
   separation and live Windows text size 100% -> 150% -> 100% with reachable controls at both fixture
   sizes, display scale held at 100%. Close the three UIR-03f reported defects; see its scoped evidence.
-- Exact next slice: establish monitor count/current display scales, then collect physical
+- Exact next slice: use the confirmed three monitors (all currently 100%) to collect physical
   100%/150%/200% display-DPI and available cross-monitor observations. Record actual environment,
   readable/reachable controls and focus; restore settings. NVDA remains unavailable/unrun.
   Keep accepted checks without repetition unless reopened. UIR-03 remains in progress; UIR-04 dependent.
