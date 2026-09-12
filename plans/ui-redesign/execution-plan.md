@@ -1,6 +1,6 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-03 in progress; UIR-03a/b/c/d/e/f implemented; scrollbar correction and standard-theme styling operator-verified, remaining physical accessibility acceptance open. Stay on `codex/ui-redesign`.
+Status: UIR-03 in progress; UIR-03a/b/c/d/e/f implemented; scrollbar, Dark, Desert/empty-folder and live text-size checks operator-verified; display-DPI pending and NVDA unavailable. Stay on `codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -70,18 +70,17 @@ Windows text-scale events, bounded scrolling Folders and wrapping enlarged actio
 reproduced A09/A11/A05 defects. See [evidence](evidence/uir-03f-theme-text-and-empty-state.md).
 Final adjustable Files/Folders comparison remains UIR-05; the interim folder splitter is replaced.
 
-**Exact next slice: recheck Dark, Desert and live Windows text enlargement on UIR-03f, then physical DPI.**
-Retain nine scoped operator passes, the accepted scrollbar correction and the Narrator walkthrough
-in [the desktop record](evidence/uir-03-desktop-walkthrough.md). NVDA is not installed and remains
-unrun/unavailable, not passed or waived. No installation was requested or performed.
-The new screenshots establish real Dark/text/empty-layout defects; Desert is observed, not passed.
-Recheck Files rows/actions, Progress/Summary, warning actions and the empty-folder message at both
-fixture sizes, Dark/Desert and 100% -> 150% -> 100% Accessibility text size at 100% display scaling.
-Record actual settings and results; restore original settings. Re-audit the fictional process path
-before reuse/launch; runtime and isolated verification are in the UIR-03f evidence. Do not repeat
-unrelated accepted checks without a reopen reason. No production state or parked campaign is involved.
-Automated theme/text events and 96-DPI renders do not replace physical setting propagation or
-contrast/monitor-DPI observations. UIR-03 stays in progress; UIR-04 remains dependent on acceptance.
+**Exact next slice: monitor setup and physical display-DPI observations.**
+On 2026-09-12 the operator reported "all 3 pass" for corrected Dark readability, Desert empty-folder
+layout and live Windows text size 100% -> 150% -> 100%, both fixture sizes, display scale at 100%.
+Close those three UIR-03f defects; see [scoped evidence](evidence/uir-03f-theme-text-and-empty-state.md#2026-09-12-operator-recheck-passed).
+Retain nine earlier scoped passes, the accepted scrollbar correction and Narrator walkthrough.
+NVDA is not installed: unrun/unavailable, not passed or waived. No installation was requested.
+Establish monitor count/current display scales, then collect 100%/150%/200% display-DPI and available
+cross-monitor observations. Record settings, readable/reachable controls and focus, then restore
+original settings. Re-audit the fictional process path before reuse/launch. Do not repeat accepted
+checks without a reopen reason. UIR-03 stays in progress; UIR-04 remains dependent on acceptance.
+This confirmation changes documentation only; prior tests/runtime records remain retained evidence.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read

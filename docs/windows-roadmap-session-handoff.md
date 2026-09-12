@@ -37,15 +37,16 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   correction, and Narrator Files rows/active Progress/warning Close-return (labels, selection/status,
   focus and no excessive repeat speech). Narrator executable version `10.0.22621.5262`.
   NVDA is not installed: unrun/unavailable, not passed or waived; no installation requested.
-- Exact next slice: recheck Dark, Desert and actual Windows text size 100% -> 150% -> 100% with the
-  corrected fictional fixture open, keeping display scaling at 100%. Check Files rows/actions,
-  Progress/Summary, warnings and the empty-folder message at both sizes. Record actual settings
-  and outcomes; restore original settings. Desert is observed, not accepted; the text screenshot
-  did not independently confirm the numeric text setting. Then collect physical monitor-DPI evidence.
-  Keep unrelated passes; do not repeat them without a reopen reason. UIR-04 depends on acceptance.
-- Automated theme switching, text events, clipped bounds, actions and empty/header separation are
-  not physical contrast/text/DPI acceptance. The retained UIR-03c Rust tests are 226 passed/10 ignored;
-  no Rust or worker protocol change. Production deletion and consumed-campaign boundaries unchanged.
+- Operator recheck 2026-09-12: "all 3 pass" confirms Dark readability, Desert empty-folder/header
+  separation and live Windows text size 100% -> 150% -> 100% with reachable controls at both fixture
+  sizes, display scale held at 100%. Close the three UIR-03f reported defects; see its scoped evidence.
+- Exact next slice: establish monitor count/current display scales, then collect physical
+  100%/150%/200% display-DPI and available cross-monitor observations. Record actual environment,
+  readable/reachable controls and focus; restore settings. NVDA remains unavailable/unrun.
+  Keep accepted checks without repetition unless reopened. UIR-03 remains in progress; UIR-04 dependent.
+- This update is documentation only; no new code/build/test/runtime action. Prior integration and
+  UIR-03c Rust tests (226 passed/10 ignored) remain retained. No physical display-DPI or later-gate
+  acceptance is inferred. Production deletion and consumed-campaign boundaries unchanged.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; it owns the compact continuation
   route. Session handoffs require the printed copyable prompt from the redesign session guide.
 - Corrected fictional fixture PID 67748/session 1 is open from `artifacts/uir03f/fixture` after

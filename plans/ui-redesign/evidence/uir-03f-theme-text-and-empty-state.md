@@ -76,11 +76,26 @@ and closed normally. Corrected fixture **PID 67748/session 1** is open from
 The new host uses actual Windows UISettings; `--verify` also exercises native construction/shutdown.
 Re-audit before reuse or launch. Production runtime/state was untouched.
 
-These offscreen 96-DPI renders and simulated text-source events do not establish physical Windows
-setting propagation, Desert acceptance, screen-reader cadence or multi-monitor DPI acceptance.
-Recheck Dark, Desert and live Windows text-size changes in the corrected desktop fixture. Retain
-the nine scoped walkthrough passes, Narrator report and accepted scrollbar correction; NVDA stays
-unrun/unavailable because it is not installed.
+## 2026-09-12 operator recheck passed
+
+On corrected implementation `5f83705`, the operator reported **"all 3 pass"** in response to:
+
+1. Dark: readable text and controls at both fixture sizes.
+2. Desert, Results/Folders: empty message no longer overlaps table headers.
+3. Windows text size 100% -> 150% -> 100% with the window open: app text changes and buttons
+   remain reachable, at both fixture sizes and with display scaling held at 100%.
+
+Record these three scoped physical rechecks as passed and close the reported Dark, title-only
+text enlargement and empty-folder overlap defects. Restoration of all original OS settings was
+requested but not separately reported. Retain nine earlier scoped passes, Narrator and the accepted
+scrollbar correction. No wider screen/contrast combination, physical display-DPI or later gate is
+accepted by this report. NVDA remains unrun/unavailable because it is not installed.
+
+Next: establish the operator's monitor count/current display scales, then collect the required
+100%/150%/200% display-DPI and available cross-monitor observations. UIR-03 remains in progress;
+UIR-04 remains dependent on acceptance. This update changes documentation only: no code, build/test
+rerun, fixture launch/reset, OS-setting change or production runtime action. Existing automated
+verification above is retained. Runtime above is the last launch record; re-audit before reuse.
 
 ## References
 

@@ -1,6 +1,6 @@
 # Windows UI redesign
 
-Status: high-level direction accepted with long-scan/rescan feedback, updated 2026-09-11. Product
+Status: high-level direction accepted with long-scan/rescan feedback, updated 2026-09-12. Product
 implementation includes UIR-03a/b/c/d/e/f shell/context, shared resources, viewport verification and
 the operator-reported scrollbar, theme, text-size and empty-folder fixes. The package records the accepted direction and its limits; it is not a claim of
 operator usability acceptance or Windows release acceptance.
@@ -59,10 +59,11 @@ the overlap is corrected and the remaining styling looks good: nine scoped passe
 The scoped Narrator journey also passed. NVDA is not installed; its check remains unrun/unavailable.
 The next screenshots exposed unreadable Dark, title-only text enlargement and Desert's overlapping
 empty-folder message. [UIR-03f](evidence/uir-03f-theme-text-and-empty-state.md) corrects these with
-native Fluent styles, Windows text-size events and accessible empty-state layout. Next: recheck
-Dark, Desert and live 100%/150% Windows text size on the corrected fictional fixture at both sizes,
-then physical monitor-DPI observations. Runtime is in the evidence; re-audit before reuse.
-UIR-03 remains in progress, and Desert/text enlargement are not yet operator-accepted.
+native Fluent styles, Windows text-size events and accessible empty-state layout. On 2026-09-12,
+the operator reported "all 3 pass": Dark, Desert's empty layout and live text-size changes at both
+fixture sizes. Those reported defects are closed. Next: establish monitor setup and collect physical
+display-DPI observations; NVDA remains unavailable. UIR-03 stays in progress. Runtime is the last
+record in the evidence; re-audit before reuse. No new code/build/test/runtime action in this update.
 Small visual preferences can evolve during implementation.
 Execution enablement and physical/provider campaigns retain their separate authority requirements.
 

@@ -1,6 +1,6 @@
 # Prepared A01/A02/A09 desktop walkthrough
 
-Status: **nine scoped checks, scrollbar correction and Narrator walkthrough passed; theme/text defects corrected locally; physical recheck pending**. UIR-03d's local viewport prerequisite
+Status: **nine scoped checks, scrollbar correction and Narrator walkthrough passed; Dark, Desert/empty-folder and live text-size rechecks passed; display-DPI pending**. UIR-03d's local viewport prerequisite
 is verified in [the viewport evidence](uir-03d-viewport-access.md). This is a fictional shell walkthrough, not a
 real scan, deletion campaign, release-smoke substitute or physical acceptance result.
 
@@ -41,6 +41,17 @@ For each step record observations and unexpected scope changes, not merely click
 Automation currently establishes programmatic focus only. The fake data do not establish worker
 performance, screen-reader cadence over a real long scan, representative result scale or A17 rescan
 acceptance. Those requirements retain their later gates and separately isolated procedures.
+
+## 2026-09-12 all three corrected visual checks passed
+
+The operator reports **"all 3 pass"** for the requested UIR-03f checks at both fixture sizes:
+Dark readability; Desert Results/Folders without empty/header overlap; and live Windows text
+size 100% -> 150% -> 100% with app text changing and buttons reachable, display scale held at 100%.
+Close those three reported defects. See [the scoped acceptance record](uir-03f-theme-text-and-empty-state.md#2026-09-12-operator-recheck-passed).
+Keep the nine earlier passes, Narrator and accepted scrollbar correction. NVDA stays unavailable/
+unrun. Next is monitor count/current display-scale information and the physical 100%/150%/200%
+display-DPI/cross-monitor check. UIR-03 stays in progress; no later gate or release acceptance.
+This confirmation changes documentation only; earlier automated tests and fixture launch are retained.
 
 ## 2026-09-11 theme, text enlargement and empty-folder defects
 

@@ -1,6 +1,6 @@
 # Current redesign session checkpoint
 
-Updated 2026-09-11. [Execution plan](execution-plan.md) owns gate status.
+Updated 2026-09-12. [Execution plan](execution-plan.md) owns gate status.
 
 - Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; no switch/worktree/merge/push.
 - Latest implementation: `5f83705` (UIR-03f; prior code `ae8d7d1`). UIR-00/01/02 complete;
@@ -21,15 +21,16 @@ Updated 2026-09-11. [Execution plan](execution-plan.md) owns gate status.
   correction, and Narrator Files rows/active Progress/warning Close/return (labels, selection/status,
   focus return, no excessive repeat speech). Narrator executable version `10.0.22621.5262`.
   NVDA is not installed: `unrun_unavailable`, not passed or waived. No installation requested.
-- **Exact next slice:** on the corrected UIR-03f fictional fixture, repeat Dark, Desert, then actual
-  Windows Accessibility text size 100% -> 150% -> 100% while the app stays open, keeping display
-  scale at 100%. Check Files rows/actions, Progress/Summary, warnings and Folders' empty message
-  at both sizes. Record actual settings/results and restore original settings. The third supplied
-  screenshot did not independently confirm the numeric text percentage. Desert is observed,
-  not accepted. Retain unrelated passes; do not replay them without a reopen reason.
-- Pending: corrected physical theme/text/contrast acceptance and physical 100/150/200% monitor-DPI
-  observations. Offscreen 96-DPI renders and injected text events are not physical acceptance.
-  UIR-03 cannot close on automation alone. Fix evidenced defects and assess it before UIR-04.
+- **Operator recheck 2026-09-12:** "all 3 pass" confirms Dark readability, Desert empty-folder/header
+  separation, and live Windows text size 100% -> 150% -> 100% with reachable buttons at both fixture
+  sizes, display scale held at 100%. Close the three UIR-03f reported defects. Original OS-setting
+  restoration was requested but not separately confirmed. Do not repeat these or earlier passes
+  without a reopen reason. See the UIR-03f evidence for scope.
+- **Exact next slice:** establish monitor count/current display scales, then collect physical
+  100%/150%/200% display-DPI observations and available cross-monitor moves on the fictional fixture.
+  Record actual settings, clipping/readability/focus and monitor availability; restore settings.
+  NVDA remains unrun/unavailable. UIR-03 stays in progress; assess acceptance before UIR-04.
+  This update is documentation only; no new code/build/test/runtime action.
 - Interim Files/Folders stacked scrolling layouts replace their split adjustments; final adjustable
   S03 comparison, compact search/totals and A03 no-horizontal-scroll/60% requirements stay UIR-05.
   Later folder/review/performance coverage and A08/A16/A17 monitoring/rescan work remain scheduled.
