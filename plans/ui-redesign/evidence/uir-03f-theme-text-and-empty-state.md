@@ -1,7 +1,7 @@
 # UIR-03f — native themes, accessibility text size and empty folders
 
 2026-09-11. Implementation commit: `5f83705`. Scope: reproduced A09/A11 presentation defects and the reported A05 empty-state
-overlap. UIR-03 remains in progress. This does not accept later screen redesign or physical DPI.
+overlap. UIR-03 is now [complete within its shell scope](uir-03-shell-acceptance.md). This does not accept the full later screen/native matrix.
 
 ## Operator report and causes
 
@@ -97,10 +97,12 @@ did not offer 200%; record `unrun_unavailable`, not passed or waived. Only one m
 changes; the operator excludes Windows troubleshooting. Do not force custom scaling. See
 [the scale confirmation](uir-03-desktop-walkthrough.md#2026-09-12-display-scales-confirmed-150-and-175).
 The operator subsequently confirms "focus remained": record keyboard-focus retention as passed.
-Confirm file-selection retention across moves, then assess UIR-03 with 200% and NVDA
-accurately unavailable. UIR-04 remains dependent. These updates change documentation only; no
-code/build/test rerun, fixture reset/launch, OS-setting or production action. Retain prior verification
-and re-audit the last recorded runtime before reuse.
+The operator then confirms the same file group stayed selected. Record selection retention as
+passed. [The scoped shell assessment](uir-03-shell-acceptance.md) closes UIR-03; UIR-04a setup/Scan
+again is ready, not started. NVDA and 200% remain unavailable/unrun requirements for UIR-08/A11,
+not passes or waivers. These updates change documentation only; no code/build/test rerun, fixture
+reset/launch, OS-setting or production action. Retain prior verification and re-audit the last
+recorded runtime before reuse. No full native accessibility/DPI or release acceptance is claimed.
 
 ## References
 

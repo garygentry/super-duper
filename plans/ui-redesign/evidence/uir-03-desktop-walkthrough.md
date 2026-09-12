@@ -1,8 +1,8 @@
 # Prepared A01/A02/A09 desktop walkthrough
 
-Status: **nine scoped checks, scrollbar correction and Narrator walkthrough passed; Dark, Desert/empty-folder and live text-size rechecks passed; display-DPI pending**. UIR-03d's local viewport prerequisite
+Status: **nine scoped checks, scrollbar correction and Narrator walkthrough passed; Dark, Desert/empty-folder and live text-size rechecks passed; available monitor-move checks passed; NVDA/200% unavailable**. UIR-03d's local viewport prerequisite
 is verified in [the viewport evidence](uir-03d-viewport-access.md). This is a fictional shell walkthrough, not a
-real scan, deletion campaign, release-smoke substitute or physical acceptance result.
+real scan, deletion campaign, release-smoke substitute or complete native acceptance result.
 
 From the repository on `codex/ui-redesign`:
 
@@ -41,6 +41,16 @@ For each step record observations and unexpected scope changes, not merely click
 Automation currently establishes programmatic focus only. The fake data do not establish worker
 performance, screen-reader cadence over a real long scan, representative result scale or A17 rescan
 acceptance. Those requirements retain their later gates and separately isolated procedures.
+
+## 2026-09-12 selection retained; scoped shell gate complete
+
+The operator replies **"yes"** to the explicit file-group selection-retention question. Record
+selection as passed alongside retained focus and the 150%/175% transition/layout observations.
+All available scoped shell checks are now passed. [The gate assessment](uir-03-shell-acceptance.md)
+closes UIR-03 and makes UIR-04 ready. NVDA and 200% remain unavailable/unrun requirements owned by
+UIR-08/A11, not passes or waivers. Full redesigned-screen/native/user acceptance remains later.
+No code/build/test/runtime action in this acceptance update. Do not replay passed checks or
+troubleshoot Windows scaling. Next is UIR-04a setup/Scan again; see the assessment and checkpoint.
 
 ## 2026-09-12 monitor-move keyboard focus retained
 

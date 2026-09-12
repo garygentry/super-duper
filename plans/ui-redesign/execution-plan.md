@@ -1,6 +1,6 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-03 in progress; UIR-03a/b/c/d/e/f implemented; scrollbar, Dark, Desert/empty-folder and live text-size checks operator-verified; display-DPI pending and NVDA unavailable. Stay on `codex/ui-redesign`.
+Status: UIR-03 complete with scoped operator acceptance; UIR-04 ready. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -11,7 +11,7 @@ all safety/evidence gates. Its open execution criteria are not absorbed or marke
 | UIR-00 | complete | Preserve current work and create dedicated branch | `wpf-poc` at `deefa40`; `codex/ui-redesign` created from it |
 | UIR-01 | complete | Findings, direction, specifications, concept, capability mapping, validation and procedure | Package internally checked; prototype limitations recorded; no WPF implementation |
 | UIR-02 | complete | High-level direction accepted; operator feedback incorporated | D13-D15; no native or full prototype walkthrough acceptance inferred |
-| UIR-03 | in_progress | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c/d/e/f implemented; nine scoped operator checks passed; [scrollbar fix verified by regression, Debug/Release integration and operator](evidence/uir-03e-scan-scrollbar-clearance.md); remaining physical accessibility acceptance open |
+| UIR-03 | complete | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c/d/e/f implemented; [scoped shell acceptance](evidence/uir-03-shell-acceptance.md); available operator checks passed; NVDA/200% remain unavailable for UIR-08/A11 |
 | UIR-04 | planned | Setup, Scan again, persistent reuse explanation, live monitoring/details and terminal summaries | UIR-03; A05/A06/A08/A14/A15/A16/A17 with controlled clock, lifecycle and rescan fixtures |
 | UIR-05 | planned | File/folder results, compact filters, list/detail comparison, decisions and path actions | UIR-03; A03/A04/A05/A06/A11/A13/A15 and existing query/focus/page contracts |
 | UIR-06 | planned | Dedicated Review, existing rule workflow, whole-plan validation and evidence access | UIR-05; A04/A10/A15 including revision, survivor, overlap, reversal and restart |
@@ -70,21 +70,23 @@ Windows text-scale events, bounded scrolling Folders and wrapping enlarged actio
 reproduced A09/A11/A05 defects. See [evidence](evidence/uir-03f-theme-text-and-empty-state.md).
 Final adjustable Files/Folders comparison remains UIR-05; the interim folder splitter is replaced.
 
-**Exact next slice: confirm selection retention; keyboard focus passed. Assess remaining unavailable evidence.**
-On 2026-09-12 the operator reported "all 3 pass" for corrected Dark readability, Desert empty-folder
-layout and live Windows text size 100% -> 150% -> 100%, both fixture sizes, display scale at 100%.
-Close those three UIR-03f defects; see [scoped evidence](evidence/uir-03f-theme-text-and-empty-state.md#2026-09-12-operator-recheck-passed).
-Retain nine earlier scoped passes, the accepted scrollbar correction and Narrator walkthrough.
-NVDA is not installed: unrun/unavailable, not passed or waived. No installation was requested.
-Three monitors were initially at 100%; only one accepts scaling changes. The operator confirms
-150% and 175%: the fixture adjusts fine across scaled/unscaled monitors with no noticeable clipping.
-Record scoped transition/layout passes at those settings. Windows did not offer 200%, so that case
-is unavailable/unrun, not passed or waived; 175% does not replace it. Do not troubleshoot Windows or
-force custom scaling. The operator confirms "focus remained"; keyboard-focus retention passes.
-Confirm file selection survives moves, then assess UIR-03
-with 200% and NVDA accurately unavailable. Restore original settings. Re-audit before fixture reuse/
-launch. Retain accepted checks. UIR-03 stays in progress; UIR-04 remains dependent on acceptance.
-This confirmation changes documentation only; prior tests/runtime records remain retained evidence.
+**UIR-03 complete; exact next slice: UIR-04a saved-scan setup and Scan again (A06/A14/A17).**
+The operator confirmed file-group selection survived monitor moves, completing the available shell
+walkthrough. See [the gate assessment](evidence/uir-03-shell-acceptance.md) for the evidence mapping
+and precise scope. Dark/Desert/text-size defects are closed, and keyboard/Narrator/150%/175%
+transition, focus and selection checks passed. Retain earlier scoped passes without repetition.
+NVDA (not installed) and 200% (not offered by Windows) remain unavailable/unrun, not passed or
+waived. Full A11 native accessibility/DPI is owned by UIR-08 in the acceptance matrix; record the
+missing cases there until actual evidence or explicit later disposition. Do not force custom
+scaling, troubleshoot Windows or install software under this assessment. This closes the scoped
+shell implementation gate, not final native/user or release acceptance.
+
+UIR-04a opens the current saved setup through Scan again, explains qualified persisted hash reuse
+and re-reading candidate content, saves valid edits on Start and creates a new dated run without
+mutating earlier results. Preserve dirty-edit/single-active-run/worker/cache contracts. Use the
+repeat-scan specification and directly linked code/tests; verify with isolated fixtures. Subsequent
+UIR-04 slices cover long-scan monitoring/terminal A08/A16 behavior. UIR-04 is ready, not started by
+this documentation-only assessment; prior tests/runtime records remain retained evidence.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read

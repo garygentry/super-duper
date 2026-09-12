@@ -26,6 +26,15 @@ performance, native accessibility, or deletion safety.
 | A16 | Current activity, measured phase bars and expandable exact diagnostics remain usable over multi-day runs; freshness, no-progress and worker failure stay distinct | D14 | Controlled clock/progress sequences, stale frames, restore/minimize, UIA cadence/focus and unavailable states; UIR-04/07/08 |
 | A17 | Scan again performs fresh discovery with persistent qualified cache reuse; added/deleted/changed files affect only the new run; repeat policy and prior run context remain clear | D15 | Small isolated real-worker rescan/restart fixture, existing hash-signature regressions and Shell/history tests; UIR-04/07/08 |
 
+## Carried native checks from scoped shell acceptance
+
+UIR-03's [scoped assessment](evidence/uir-03-shell-acceptance.md) does not complete A11. At UIR-08,
+retain NVDA (`unrun_unavailable`, not installed) and physical 200% display scaling
+(`unrun_unavailable`, not offered by the operator's Windows setup) as explicit requirements.
+The 150% and 175% transition/focus/selection passes do not replace 200%. Obtain actual evidence
+or record an explicit later disposition before claiming full corresponding native acceptance.
+Do not force custom scaling or troubleshoot Windows against the operator's stated constraint.
+
 ## Scripted design/user walkthrough
 
 Use fictional local folders and a small disposable fixture. Start with the prototype to evaluate

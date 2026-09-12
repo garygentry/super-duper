@@ -57,9 +57,10 @@ of that capability. [Official AGENTS.md guidance](https://learn.chatgpt.com/docs
 
 ## Recommended sequence
 
-- **Next: UIR-03** — shell, semantic navigation, shared resources and independent selected/active run
-  context. Validate the shell with delayed-response fixtures before moving all views.
-- **UIR-04** — setup, Scan again, long-scan monitoring and terminal states. Make this the first full
+- **Complete: UIR-03** — scoped shell acceptance recorded in `evidence/uir-03-shell-acceptance.md`;
+  native NVDA/200% requirements remain UIR-08. Shell, semantic navigation and selected/active run
+  context are verified with delayed-response fixtures and scoped operator evidence.
+- **Next: UIR-04a** — saved-scan setup and Scan again (A06/A14/A17), then UIR-04 long-scan monitoring and terminal states. Make this the first full
   workflow after the shell because scan duration and reuse are primary product concerns.
 - **UIR-05/06** — results comparison, review decisions and non-deleting validation.
 - **UIR-07** — history and contextual diagnostics, preserving the monitoring and rescan contract.

@@ -22,6 +22,17 @@ promoted to operator acceptance. User instructions outrank these planning defaul
 | D15 | Repeat scans discover current files and retain qualifying persisted hash work across runs | Explicit user requirement; A17. Existing engine reuse is retained; new/deleted/changed files affect new results, not historical snapshots |
 | D16 | Use bounded local slices, committed handoffs and one checkout/branch across Codex sessions | Recommended execution procedure in `codex-session-guide.md`; no additional task or automation created |
 
+## Scoped shell gate assessment (2026-09-12)
+
+UIR-03 closes after all available shell observations passed, including the final file-group
+selection confirmation. [The assessment](evidence/uir-03-shell-acceptance.md) maps the evidence.
+This uses the existing gate split: A01/A02 in UIR-03, A09 across UIR-03/08, and full A11 native
+accessibility/DPI in UIR-08. It is not an operator waiver of the unrun NVDA or 200% cases. Those
+remain explicit UIR-08 requirements until evidence or a later disposition is recorded. UIR-04a
+setup/Scan again is ready; full native/user acceptance remains UIR-08/09. Do not force custom
+scaling or troubleshoot the Windows limitation the operator excluded. No UIR-04 code starts in
+this documentation-only assessment.
+
 ## Direction feedback (UIR-02 complete)
 
 The operator accepted the high-level direction and requested stronger support for hours/days-long

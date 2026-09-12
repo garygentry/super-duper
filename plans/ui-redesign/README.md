@@ -44,8 +44,8 @@ are authoritative if its intentionally small fictional dataset or simplified int
 | UIR-00 Preserve and isolate | complete | `deefa40` on `wpf-poc`; dedicated branch created |
 | UIR-01 Evaluation and specification | complete | This package, local prototype checks, and discovery record |
 | UIR-02 Direction feedback | complete | User accepted the high-level direction; long-scan/rescan requirements captured |
-| UIR-03 Shell and context | in_progress | UIR-03a/b/c/d/e/f implemented; [scrollbar fix and standard-theme styling operator-verified](evidence/uir-03e-scan-scrollbar-clearance.md); next remaining physical accessibility evidence |
-| UIR-04 through UIR-09 | planned | See execution plan; no product implementation or acceptance claimed |
+| UIR-03 Shell and context | complete | [Scoped shell acceptance](evidence/uir-03-shell-acceptance.md); available checks passed; NVDA/200% retained for UIR-08/A11 |
+| UIR-04 through UIR-09 | planned | UIR-04a setup/Scan again ready; later implementation and final native/user acceptance remain |
 
 On 2026-09-11 the operator [passed three initial checks](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks):
 reviewed/active scan context and harmless History highlighting, delayed-folder responsiveness/error
@@ -63,10 +63,12 @@ native Fluent styles, Windows text-size events and accessible empty-state layout
 the operator reported "all 3 pass": Dark, Desert's empty layout and live text-size changes at both
 fixture sizes. Those reported defects are closed. Cross-monitor transitions at 150% and 175% adjust without
 noticeable clipping. Windows did not offer 200%; that case and NVDA remain unavailable/unrun.
-Keyboard focus also remained intact, as confirmed by the operator. Next: confirm file-selection
-retention, then assess UIR-03 with these evidence limitations recorded.
-Do not troubleshoot Windows scaling. UIR-03 stays in progress. Re-audit the last recorded runtime
-before reuse. No new code/build/test/runtime action in this update.
+The operator also confirmed keyboard focus and file-group selection survive monitor moves.
+[UIR-03 is complete for its scoped shell requirements](evidence/uir-03-shell-acceptance.md).
+NVDA and 200% stay unavailable/unrun requirements for UIR-08/A11; no complete native matrix or
+release acceptance is claimed. Next: UIR-04a saved-scan setup and Scan again, followed by long-scan
+monitoring. No UIR-04 implementation starts in this documentation-only gate assessment. Re-audit
+runtime before reuse; do not troubleshoot the operator's Windows scaling limitation.
 Small visual preferences can evolve during implementation.
 Execution enablement and physical/provider campaigns retain their separate authority requirements.
 

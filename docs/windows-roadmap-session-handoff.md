@@ -29,7 +29,8 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   Shared styles now inherit Fluent templates/semantic brushes; Windows UISettings drives live
   typography; Folders scrolls with bounded native grids and separate empty states. File actions
   wrap when enlarged. Evidence: `plans/ui-redesign/evidence/uir-03f-theme-text-and-empty-state.md`.
-- UIR-00/01/02 remain complete; UIR-03 remains in_progress. UIR-03a/b/c/d/e/f implemented.
+- UIR-00/01/02/03 complete; UIR-04 ready, not started. UIR-03a/b/c/d/e/f implemented.
+  Scoped gate assessment: `plans/ui-redesign/evidence/uir-03-shell-acceptance.md`.
   Latest implementation is `5f83705` (UIR-03f; prior `ae8d7d1`). Paired worker and Windows Debug/Release
   integration pass: 170 Core, 75 Infrastructure/five skips, three WPF methods each (all original
   shell assertions retained in the shared STA). Fixture build/--verify pass; output `artifacts/uir03f`.
@@ -44,12 +45,20 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   adjusts fine across scaled/unscaled monitors with no noticeable clipping. Record scoped physical
   transition/layout passes. Windows did not offer 200%: unavailable/unrun, not passed or waived.
   The operator excludes Windows troubleshooting; do not force custom scaling or investigate the OS.
-- Exact next slice: keyboard focus is confirmed retained ("focus remained"). Confirm file-selection retention, then assess UIR-03
-  with 200% and NVDA accurately recorded as unavailable/unrun. Do not substitute 175% for 200% or
-  claim full matrix acceptance. Restore original settings. Keep accepted checks; UIR-04 dependent.
-- This update is documentation only; no new code/build/test/runtime action. Prior integration and
-  UIR-03c Rust tests (226 passed/10 ignored) remain retained. No full physical display-DPI matrix or later-gate
-  acceptance is inferred. Production deletion and consumed-campaign boundaries unchanged.
+- Final monitor-move confirmation: keyboard focus remained and the operator confirms the same file
+  group stayed selected. All available scoped shell checks pass. UIR-03 is complete; full native/
+  user acceptance remains UIR-08/09 under the existing acceptance matrix and decision record.
+- NVDA and 200% are carried to UIR-08/A11 as unavailable/unrun requirements, not passed or waived.
+  They require actual evidence or explicit later disposition before full corresponding acceptance.
+  Do not troubleshoot Windows, force custom scaling or install software under this assessment.
+- Exact next slice: UIR-04a saved-scan setup and Scan again (A06/A14/A17). Open current saved setup,
+  explain qualified persisted hash reuse versus re-reading candidate content, save valid edits on
+  Start and create a new dated run without mutating earlier results. Preserve dirty-edit, single-
+  active-run and worker/cache contracts. Read selected specifications/code/tests; use isolated
+  focused verification. Later UIR-04 slices cover long-scan monitoring/terminal A08/A16 behavior.
+- This assessment is documentation only; no new code/build/test/runtime action or UIR-04 start.
+  Prior integration and UIR-03c Rust tests (226 passed/10 ignored) remain retained. No full native
+  matrix or release acceptance. Production deletion and consumed-campaign boundaries unchanged.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; it owns the compact continuation
   route. Session handoffs require the printed copyable prompt from the redesign session guide.
 - Corrected fictional fixture PID 67748/session 1 is open from `artifacts/uir03f/fixture` after
