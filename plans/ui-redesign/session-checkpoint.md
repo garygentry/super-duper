@@ -3,35 +3,35 @@
 Updated 2026-09-12. [Execution plan](execution-plan.md) owns gate status.
 
 - Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; no switch/worktree/merge/push.
-- Latest implementation: **UIR-04c, the commit containing this checkpoint**, based on `163afce`
-  (UIR-04b). UIR-00/01/02/03 complete; **UIR-04 in_progress**, with local UIR-04a/b/c implemented.
-- [UIR-04c evidence](evidence/uir-04c-compact-monitoring.md): compact phase/elapsed/warning/ETA summary,
-  sampled filename/parent, measured logical hash-candidate and named folder-substage bars, explicit
-  unknown/zero totals, and collapsed Work / Hash reuse / Diagnostics disclosures. Candidate totals
-  are known only when the worker supplies remainingKnownWork; zero counters alone are not an empty phase.
-  Exact funnel/read bytes, separate partial/full cache outcomes, rate windows and selectable path remain.
-- Verification: full Core **200 passed**; **three loaded-STA WPF methods passed**.
-  Isolated outputs/captures/results: `artifacts/uir04c`; fictional fixture built, not launched.
-  Retained freshness/terminal tests exercise multi-day clocks, late/rejected updates, four outcomes,
-  minimized/restored state and coalesced UIA. New phase/layout fixtures cover both supported sizes,
-  exact long-path selection/scroll, disclosure updates and same-run navigation retention.
-- Retain [UIR-04a](evidence/uir-04a-saved-scan-setup.md)'s real-worker four-run repeat/restart/history
-  result and [UIR-04b](evidence/uir-04b-long-scan-monitoring.md)'s receipt/terminal contracts.
-- Retain UIR-03 scoped operator passes: nine walkthrough checks, scrollbar correction, Narrator,
-  corrected Dark/Desert/live text size, 150%/175% transitions with focus/selection. Prior paired
-  Debug/Release integration and Rust 226 passed/10 ignored remain retained, not rerun.
-- **Exact next local slice: UIR-05a compact file-results query controls and filtered totals (A03/A06/A13).**
-  Read S03 and directly linked code/tests. Keep visible path search/three filtered totals and implement
-  coherent draft/apply/Enter/chips/clear filter controls with exact units. Preserve all query semantics,
-  paging bounds, selected-run context, durable decisions and focus. Adjustable comparison remains UIR-05b.
-- UIR-04 local implementation is ready for later integration/operator validation, not gate acceptance.
-  Full A17 changed/preserved-mtime membership, missing-root/fallback/interrupted reuse remains UIR-07/08.
-- NVDA and physical 200% remain `unrun_unavailable` for UIR-08/A11, not passed or waived. Do not
-  troubleshoot Windows, force scaling or install software. Full native/user acceptance remains later.
-- Runtime: PID 67748/session 1 was responsive at the exact UIR-03f fixture path and left untouched.
-  It is the older build. UIR-04b and UIR-04c fixtures are built, not launched. Re-audit before reuse;
-  never overwrite running outputs. No production app/worker or state was touched.
-- Boundaries: production deletion disabled; engine/cache/protocol/query ceilings and survivor/revision/
-  overlap protections unchanged. SOP10 complete and Windows release stream parked; no campaign authority.
+- Latest implementation: **UIR-05a, the commit containing this checkpoint**, based on `9c528fb`
+  (UIR-04c). UIR-00/01/02/03 complete; **UIR-04 and UIR-05 in_progress**.
+- [UIR-05a evidence](evidence/uir-05a-file-query-controls.md): exposed compact path/Apply/Filters/
+  Clear and three filtered totals; removable applied chips; exact B/KiB/MiB/GiB/TiB size conversion.
+  All existing filters remain. Paging, facet sorting and rule scope use the accepted query snapshot;
+  drafts enter only through Apply/Enter. Delayed/failing replacement retains rows/totals/chips;
+  Clear restores default sorting. Late queries, focus and durable decisions remain protected.
+- Verification: full Core **207 passed**; **three loaded-STA WPF methods passed**. Isolated results,
+  captures and retained failures are in `artifacts/uir05a` and its evidence. Native long-path/delay/
+  Enter/chip/Escape/sort fixtures and retained theme/text-size/toolbar/monitoring/UIA checks run.
+  The header uses ordinary page scrolling to preserve enlarged-text comparison access; controls
+  and totals are outside disclosures. Full A03 comparison/layout measurement is not passed.
+- **Exact next local slice: UIR-05b adjustable file-results list/detail comparison and full A03.**
+  Read S03 and directly linked view/comparison/focus tests. Measure >=60% usable list/detail height
+  at 1180x760; at 900x600 retain essential paths/decisions without horizontal scroll, with narrow
+  list/detail and Back to sets where needed. Preserve UIR-05a query snapshots, units/chips, selected
+  run, decisions, bounded pages/cache and focus. UIR-05 folder/decision/path work remains open.
+- Retain UIR-04a's isolated real-worker four-run rescan/restart/history result, UIR-04b freshness/
+  terminal contracts and UIR-04c compact monitoring. UIR-04c's 200 Core/three WPF methods remain
+  retained; current suites include their behavior. Full A17/integration/operator validation is later.
+- Retain UIR-03 scoped acceptance, Narrator, Dark/Desert/live text-size, 150%/175% transition/focus/
+  selection and prior paired Debug/Release plus Rust 226 passed/10 ignored. No campaign was rerun.
+- NVDA and physical 200% remain `unrun_unavailable` for UIR-08/A11; do not troubleshoot Windows,
+  force scaling or install software. Full native/user acceptance remains later.
+- Runtime: PID 67748/session 1 re-audited responsive at the exact UIR-03f fixture executable and
+  left untouched. UIR-04b/04c/05a fixtures are built, not running. UIR-05a fixture build has zero
+  warnings/errors. Re-audit before reuse and never
+  overwrite running outputs. No production app/worker or state was touched; test windows close.
+- Boundaries: production deletion disabled; engine/cache/protocol/query ceilings and survivor/
+  revision/overlap protections unchanged. SOP10 complete; release validation parked; no campaign authority.
 - Update evidence, plan/checkpoint/handoff, review/test and commit each coherent slice. At handoff,
   print a complete copyable continuation prompt tailored to the actual commit and next slice.

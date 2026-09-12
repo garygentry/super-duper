@@ -4,6 +4,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -82,13 +83,13 @@ public sealed class WpfSurfaceSmokeTests
             var fileGroups = FindByAutomationId<DataGrid>(files, "FileGroupsGrid");
             Assert.IsFalse(fileGroups.Columns.Single(column => Equals(column.Header, "Type")).CanUserSort);
             Assert.IsFalse(fileGroups.Columns.Single(column => Equals(column.Header, "Location span")).CanUserSort);
-            Assert.AreEqual("Duplicate file review summary", AutomationProperties.GetName(
+            Assert.AreEqual("Filtered duplicate file results", AutomationProperties.GetName(
                 FindByAutomationId<FrameworkElement>(files, "FileReviewSummary")));
             Assert.AreEqual("Duplicate file location coverage", AutomationProperties.GetName(
                 FindByAutomationId<FrameworkElement>(files, "FileLocationSummary")));
             _ = FindByAutomationId<TextBlock>(files, "FileLocationSummaryText");
             Assert.AreEqual(
-                "Show only duplicate sets whose one-copy size is at least 1 GB, 1,073,741,824 bytes",
+                "Show only duplicate sets whose one-copy size is at least 1 GiB, 1,073,741,824 bytes",
                 AutomationProperties.GetName(FindByAutomationId<CheckBox>(files, "FileOneGigabyteOrLarger")));
             Assert.AreEqual(
                 "Show only duplicate sets with three or more copies",
@@ -129,12 +130,8 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 "Selected root facet; choose All selected roots to remove this filter",
                 AutomationProperties.GetName(FindByAutomationId<ComboBox>(files, "FileSelectedRootFacet")));
-            Assert.AreEqual(
-                "Sort selected roots by most matching sets",
-                AutomationProperties.GetName(FindByAutomationId<Button>(files, "FileRootFacetMostSets")));
-            Assert.AreEqual(
-                "Sort selected roots by name",
-                AutomationProperties.GetName(FindByAutomationId<Button>(files, "FileRootFacetNameSort")));
+            Assert.AreEqual("Root facet sort order", AutomationProperties.GetName(
+                FindByAutomationId<ComboBox>(files, "FileRootFacetSort")));
             Assert.AreEqual(
                 "Previous selected-root facet page",
                 AutomationProperties.GetName(FindByAutomationId<Button>(files, "FilePreviousRootFacets")));
@@ -145,12 +142,8 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual(
                 "Drive facet; choose All drives to remove this filter",
                 AutomationProperties.GetName(FindByAutomationId<ComboBox>(files, "FileDriveFacet")));
-            Assert.AreEqual(
-                "Sort drives by most matching sets",
-                AutomationProperties.GetName(FindByAutomationId<Button>(files, "FileDriveFacetMostSets")));
-            Assert.AreEqual(
-                "Sort drives by name",
-                AutomationProperties.GetName(FindByAutomationId<Button>(files, "FileDriveFacetNameSort")));
+            Assert.AreEqual("Drive facet sort order", AutomationProperties.GetName(
+                FindByAutomationId<ComboBox>(files, "FileDriveFacetSort")));
             Assert.AreEqual(
                 "Previous drive facet page",
                 AutomationProperties.GetName(FindByAutomationId<Button>(files, "FilePreviousDriveFacets")));
@@ -346,29 +339,28 @@ public sealed class WpfSurfaceSmokeTests
             var keyboardOrder = new FrameworkElement[]
             {
                 FindByAutomationId<TextBox>(files, "FileSearch"),
+                FindByAutomationId<Button>(files, "FileApplyFilters"),
+                FindByAutomationId<ToggleButton>(files, "FileFiltersToggle"),
+                FindByAutomationId<Button>(files, "FileClearFilters"),
                 FindByAutomationId<CheckBox>(files, "FileExactPathMatch"),
                 FindByAutomationId<TextBox>(files, "FileMinimumSize"),
                 FindByAutomationId<CheckBox>(files, "FileOneGigabyteOrLarger"),
                 FindByAutomationId<CheckBox>(files, "FileThreeOrMoreCopies"),
                 FindByAutomationId<CheckBox>(files, "FileAcrossDrives"),
-                FindByAutomationId<Button>(files, "FileApplyFilters"),
                 FindByAutomationId<TextBox>(files, "FileExtension"),
                 FindByAutomationId<CheckBox>(files, "FileWithoutExtension"),
                 FindByAutomationId<CheckBox>(files, "FileAllExtensionsMatch"),
                 FindByAutomationId<ComboBox>(files, "FileSelectedRootFacet"),
-                FindByAutomationId<Button>(files, "FileRootFacetMostSets"),
-                FindByAutomationId<Button>(files, "FileRootFacetNameSort"),
+                FindByAutomationId<ComboBox>(files, "FileRootFacetSort"),
                 FindByAutomationId<Button>(files, "FilePreviousRootFacets"),
                 FindByAutomationId<Button>(files, "FileNextRootFacets"),
                 FindByAutomationId<ComboBox>(files, "FileDriveFacet"),
-                FindByAutomationId<Button>(files, "FileDriveFacetMostSets"),
-                FindByAutomationId<Button>(files, "FileDriveFacetNameSort"),
+                FindByAutomationId<ComboBox>(files, "FileDriveFacetSort"),
                 FindByAutomationId<Button>(files, "FilePreviousDriveFacets"),
                 FindByAutomationId<Button>(files, "FileNextDriveFacets"),
                 FindByAutomationId<DataGrid>(files, "FileGroupsGrid"),
                 FindByAutomationId<Button>(files, "FilePreviousGroupPage"),
                 FindByAutomationId<Button>(files, "FileNextGroupPage"),
-                FindByAutomationId<Button>(files, "FileClearFilters"),
                 previousSet,
                 nextSet,
                 FindByAutomationId<DataGrid>(files, "FileMembersGrid"),
@@ -378,7 +370,7 @@ public sealed class WpfSurfaceSmokeTests
                 FindByAutomationId<Button>(files, "FileNextMemberPage"),
             };
             CollectionAssert.AreEqual(
-                Enumerable.Range(0, keyboardOrder.Length + 1).Where(index => index != 24).ToArray(),
+                keyboardOrder.Select(KeyboardNavigation.GetTabIndex).Order().ToArray(),
                 keyboardOrder.Select(KeyboardNavigation.GetTabIndex).ToArray());
             AssertPrimaryFileFiltersReflow(files);
             var fileMemberHeaders = FindByAutomationId<DataGrid>(files, "FileMembersGrid")
@@ -1091,6 +1083,7 @@ public sealed class WpfSurfaceSmokeTests
             PopulatedShellFixture.Verify();
             SetupWorkflowFixture.Verify();
             LongScanMonitoringFixture.Verify();
+            FileQueryLayoutFixture.Verify();
             app.Shutdown();
         });
     }
@@ -1110,7 +1103,7 @@ public sealed class WpfSurfaceSmokeTests
         Assert.IsFalse(string.IsNullOrWhiteSpace(AutomationProperties.GetName(search)));
         Assert.IsFalse(string.IsNullOrWhiteSpace(AutomationProperties.GetName(groups)));
         Assert.IsFalse(string.IsNullOrWhiteSpace(AutomationProperties.GetName(members)));
-        Assert.AreEqual("Apply filters", apply.Content);
+        Assert.AreEqual(view is DuplicateFilesView ? "_Apply" : "Apply filters", apply.Content);
         Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(groups));
         Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(groups));
         Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(members));
@@ -1337,8 +1330,8 @@ public sealed class WpfSurfaceSmokeTests
             files).X;
 
         Assert.IsTrue(
-            lastTop > firstTop,
-            "The primary filter controls should wrap to another row in a narrow workspace.");
+            lastTop >= firstTop - 1,
+            "Path search and Apply must remain aligned or wrap without clipping in a narrow workspace.");
         Assert.IsTrue(
             lastRight <= files.ActualWidth,
             "A wrapped primary filter control extends beyond the duplicate-file workspace.");

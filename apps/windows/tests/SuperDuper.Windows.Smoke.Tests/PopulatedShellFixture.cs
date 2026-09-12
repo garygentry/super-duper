@@ -240,6 +240,10 @@ internal static class PopulatedShellFixture
                         }
                         model.SelectedDestination = WorkspaceDestination.FileResults;
                         Drain();
+                        foreach (var id in new[] { "FileSearch", "FileApplyFilters", "FileFiltersToggle", "FileClearFilters",
+                            "FileSummaryMatchingSets", "FileSummaryMatchingCopies", "FileSummaryRecoverable" })
+                            Reach(Find<FrameworkElement>(window, id), window);
+                        Assert.IsTrue(search.ActualWidth >= 100, "Enlarged path search must keep a useful input width.");
                         var members = Find<DataGrid>(window, "FileMembersGrid");
                         foreach (var header in new[] { "Review decision", "Actions" })
                         {
@@ -330,7 +334,7 @@ internal static class PopulatedShellFixture
         foreach (var expanded in new[] { false, true })
         {
             Find<Expander>(window, "FileFiltersExpander").IsExpanded = expanded;
-            Find<Expander>(window, "FileTotalsExpander").IsExpanded = expanded;
+            ((Expander)((SuperDuper.Windows.Views.DuplicateFilesView)window.FindName("DuplicateFilesWorkspace")).FindName("FileTotalsExpander")).IsExpanded = expanded;
             Drain();
             foreach (var grid in new[] { groups, members })
             {
@@ -348,7 +352,7 @@ internal static class PopulatedShellFixture
                 "FilePreviousMemberPage", "FileNextMemberPage" }) Reach(Find<Button>(window, id), window);
         }
         Find<Expander>(window, "FileFiltersExpander").IsExpanded = false;
-        Find<Expander>(window, "FileTotalsExpander").IsExpanded = false;
+        ((Expander)((SuperDuper.Windows.Views.DuplicateFilesView)window.FindName("DuplicateFilesWorkspace")).FindName("FileTotalsExpander")).IsExpanded = false;
         SettleLayout(window);
 
         // Existing technical columns still scroll horizontally until UIR-05. Each complete

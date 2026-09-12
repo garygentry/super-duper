@@ -15,6 +15,7 @@ public partial class DuplicateFilesView : UserControl
     internal const int SetNavigationFocusAttemptLimit = 8;
 
     private PreferenceRulesViewModel? _preferenceRules;
+    private DuplicateFilesViewModel? _model;
     private bool _applicationConfirmationWasVisible;
     private bool _reversalConfirmationWasVisible;
 
@@ -22,10 +23,60 @@ public partial class DuplicateFilesView : UserControl
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        PreviewKeyDown += OnWorkspaceKeyDown;
+    }
+
+    private void OnWorkspaceKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            FileSearch.Focus();
+            FileSearch.SelectAll();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && FileFiltersExpander.IsExpanded
+            && FileFiltersExpander.IsKeyboardFocusWithin)
+        {
+            FileFiltersExpander.IsExpanded = false;
+            FileFiltersToggle.Focus();
+            e.Handled = true;
+        }
+    }
+
+    private async void OnFilterEditorKeyDown(object sender, KeyEventArgs e)
+    {
+        // Enter in rule controls retains the rule's own meaning.
+        if (e.Key != Key.Enter || Keyboard.Modifiers != ModifierKeys.None
+            || e.OriginalSource is not TextBox field
+            || (field != FileSearch && field != FileMinimumSize && field != FileExtension)
+            || DataContext is not DuplicateFilesViewModel model
+            || !model.ApplyFiltersCommand.CanExecute(null)) return;
+        e.Handled = true;
+        await model.ApplyFiltersCommand.ExecuteAsync(null);
+    }
+
+    private void OnFiltersCollapsed(object sender, RoutedEventArgs e)
+    {
+        if (ReferenceEquals(e.OriginalSource, FileFiltersExpander) && FileFiltersExpander.IsKeyboardFocusWithin)
+            FileFiltersToggle.Focus();
+    }
+
+    private async void OnRemoveFilterClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: FileFilterChip chip } button
+            || DataContext is not DuplicateFilesViewModel model
+            || !model.RemoveFilterCommand.CanExecute(chip)) return;
+        // Move before removing the focused chip, never on asynchronous query completion.
+        if (button.IsKeyboardFocusWithin) FileSearch.Focus();
+        await model.RemoveFilterCommand.ExecuteAsync(chip);
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
+        if (_model is not null) _model.PropertyChanged -= OnQueryPropertyChanged;
+        _model = e.NewValue as DuplicateFilesViewModel;
+        if (_model is not null) _model.PropertyChanged += OnQueryPropertyChanged;
+        UpdateSortIndicators();
         if (_preferenceRules is not null)
         {
             _preferenceRules.PropertyChanged -= OnPreferenceRulesPropertyChanged;
@@ -35,6 +86,31 @@ public partial class DuplicateFilesView : UserControl
         {
             _preferenceRules.PropertyChanged += OnPreferenceRulesPropertyChanged;
         }
+    }
+
+    private void OnQueryPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(DuplicateFilesViewModel.SortField) or nameof(DuplicateFilesViewModel.SortDirection))
+            UpdateSortIndicators();
+        else if (e.PropertyName == nameof(DuplicateFilesViewModel.Groups))
+            // DataGrid clears sort indicators when ItemsSource changes. Restore the current
+            // server sort after that binding has run, without touching keyboard focus.
+            _ = Dispatcher.BeginInvoke(new Action(UpdateSortIndicators), DispatcherPriority.Loaded);
+    }
+
+    private void UpdateSortIndicators()
+    {
+        if (_model is null) return;
+        var path = _model.SortField switch
+        {
+            DuplicateFileGroupSortField.GroupSize => "GroupSize",
+            DuplicateFileGroupSortField.CopyCount => "CopyCount",
+            DuplicateFileGroupSortField.RepresentativeName => "RepresentativeName",
+            _ => "RecoverableBytes",
+        };
+        foreach (var column in GroupsGrid.Columns)
+            column.SortDirection = column.SortMemberPath == path
+                ? ServerSortInteraction.ToListDirection(_model.SortDirection) : null;
     }
 
     private void OnPreferenceRulesPropertyChanged(object? sender, PropertyChangedEventArgs e)

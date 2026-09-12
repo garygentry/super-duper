@@ -8,7 +8,77 @@
          Bound each native grid so its rows remain virtualized. UIR-05 owns the final split. -->
     <ScrollViewer automation:AutomationProperties.AutomationId="FileWorkspaceScrollViewer"
                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-    <Grid Margin="{StaticResource PageContentInset}">
+    <StackPanel>
+    <StackPanel Margin="24,8,24,4" KeyboardNavigation.TabNavigation="Continue">
+        <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <DockPanel MinWidth="180" VerticalAlignment="Bottom">
+                <Label DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,8,0" Padding="0,0,0,3" Target="{Binding ElementName=FileSearch}" Content="Path _search"/>
+                                    <TextBox x:Name="FileSearch"
+                             VerticalContentAlignment="Center"
+                             KeyboardNavigation.TabIndex="10"
+                             automation:AutomationProperties.Name="Path search"
+                             automation:AutomationProperties.HelpText="Enter a complete immutable member path when Exact path is checked; otherwise performs a case-insensitive literal substring search with a 512-character maximum"
+                             automation:AutomationProperties.AutomationId="FileSearch"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             PreviewKeyDown="OnFilterEditorKeyDown" HorizontalScrollBarVisibility="Auto" ToolTip="Search duplicate file paths" />
+
+            </DockPanel>
+            <WrapPanel Grid.Column="1" VerticalAlignment="Bottom" Margin="8,0,0,0">
+                                <Button x:Name="FileApplyFilters"
+                        automation:AutomationProperties.AutomationId="FileApplyFilters"
+                        Margin="8,0,0,0"
+                        KeyboardNavigation.TabIndex="20"
+                        automation:AutomationProperties.Name="Apply duplicate file filters"
+                        Command="{Binding ApplyFiltersCommand}"
+                        Content="_Apply" />
+                <ToggleButton x:Name="FileFiltersToggle" KeyboardNavigation.TabIndex="25" Content="_Filters" Margin="8,0,0,0"
+                    automation:AutomationProperties.AutomationId="FileFiltersToggle"
+                    automation:AutomationProperties.Name="Show or hide draft file filters"
+                    IsChecked="{Binding IsExpanded, ElementName=FileFiltersExpander, Mode=TwoWay}"/>
+                                    <Button Margin="8,0,0,0"
+                            KeyboardNavigation.TabIndex="30"
+                            automation:AutomationProperties.AutomationId="FileClearFilters"
+                            automation:AutomationProperties.Name="Clear all duplicate file filters"
+                            Command="{Binding ClearFiltersCommand}"
+                            Content="Clear filters" />
+            </WrapPanel>
+        </Grid>
+        <TextBlock Margin="0,4,0,4" TextWrapping="Wrap" Text="{Binding QueryEditorStatus}"
+            automation:AutomationProperties.AutomationId="FileQueryEditorStatus"/>
+        <UniformGrid Columns="3" automation:AutomationProperties.AutomationId="FileReviewSummary"
+            automation:AutomationProperties.Name="Filtered duplicate file results">
+            <WrapPanel Margin="0,0,8,0">
+                <TextBlock Text="Sets: " VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding FilteredSetsText}" FontWeight="SemiBold" VerticalAlignment="Center"
+                    automation:AutomationProperties.AutomationId="FileSummaryMatchingSets" automation:AutomationProperties.LiveSetting="Polite"
+                    automation:AutomationProperties.Name="{Binding FilteredSetsText, StringFormat='Filtered sets: {0}'}"/></WrapPanel>
+            <WrapPanel Margin="0,0,8,0">
+                <TextBlock Text="Copies: " VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding FilteredCopiesText}" FontWeight="SemiBold" VerticalAlignment="Center"
+                    automation:AutomationProperties.AutomationId="FileSummaryMatchingCopies" automation:AutomationProperties.LiveSetting="Polite"
+                    automation:AutomationProperties.Name="{Binding FilteredCopiesText, StringFormat='Filtered copies: {0}'}"/></WrapPanel>
+            <WrapPanel Margin="0,0,8,0">
+                <TextBlock Text="Potential savings: " VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding FilteredSavingsText}" FontWeight="SemiBold" VerticalAlignment="Center"
+                    automation:AutomationProperties.AutomationId="FileSummaryRecoverable" automation:AutomationProperties.LiveSetting="Polite"
+                    automation:AutomationProperties.Name="{Binding FilteredSavingsText, StringFormat='Filtered potential savings: {0}'}" ToolTip="{Binding FilteredSavingsExactText}"/></WrapPanel>
+        </UniformGrid>
+        <ScrollViewer MaxHeight="40" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding AppliedFilters}" automation:AutomationProperties.Name="Applied file filters">
+                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate><DataTemplate>
+                    <Button KeyboardNavigation.TabIndex="35" Margin="0,4,6,0" MaxWidth="280" ToolTip="{Binding Text}"
+                        automation:AutomationProperties.Name="{Binding AutomationName}"
+                        Click="OnRemoveFilterClick" Tag="{Binding}">
+                        <DockPanel><TextBlock DockPanel.Dock="Right" Text=" ×"/>
+                            <TextBlock Text="{Binding Text}" TextTrimming="CharacterEllipsis"/></DockPanel>
+                    </Button>
+                </DataTemplate></ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </StackPanel>
+    <Grid Margin="24,8,24,24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -17,42 +87,25 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Margin="0,0,0,14">
-            <StackPanel>
-                <TextBlock Style="{StaticResource PageTitle}" Text="Duplicate files" />
-                <TextBlock Margin="0,4,0,0"
-                           Text="Results belong to the selected historical run and stay server-paged." />
-            </StackPanel>
-            <Expander x:Name="FileFiltersExpander" Margin="0,8,0,0"
+        <StackPanel>
+            <Expander x:Name="FileFiltersExpander" Margin="0,0,0,0"
                       automation:AutomationProperties.AutomationId="FileFiltersExpander"
-                      Header="Filters and preferred-root rules" IsExpanded="False">
+                      Header="Filters" IsExpanded="False" PreviewKeyDown="OnFilterEditorKeyDown" Collapsed="OnFiltersCollapsed"
+                      Visibility="{Binding IsExpanded, RelativeSource={RelativeSource Self}, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel>
             <WrapPanel Margin="0,10,0,0"
                        VerticalAlignment="Center"
                        automation:AutomationProperties.Name="Primary duplicate file filter controls">
-                <StackPanel Width="170" Margin="0,0,8,0">
-                    <Label Padding="0,0,0,3"
-                           Target="{Binding ElementName=FileSearch}"
-                           Content="Path _search" />
-                    <TextBox x:Name="FileSearch"
-                             VerticalContentAlignment="Center"
-                             KeyboardNavigation.TabIndex="0"
-                             automation:AutomationProperties.Name="Path search"
-                             automation:AutomationProperties.HelpText="Enter a complete immutable member path when Exact path is checked; otherwise performs a case-insensitive literal substring search with a 512-character maximum"
-                             automation:AutomationProperties.AutomationId="FileSearch"
-                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Search duplicate file paths" />
                     <CheckBox x:Name="FileExactPathMatch"
                               Margin="0,5,0,0"
-                              KeyboardNavigation.TabIndex="1"
+                              KeyboardNavigation.TabIndex="40"
                               automation:AutomationProperties.AutomationId="FileExactPathMatch"
                               automation:AutomationProperties.Name="Match the complete canonical member path"
                               automation:AutomationProperties.HelpText="Uses locale-independent Unicode case normalization and the immutable canonical path; clear this option to restore literal substring search"
                               Content="Exact path"
                               IsChecked="{Binding ExactPathMatch}"
                               ToolTip="Match one complete canonical member path" />
-                </StackPanel>
                 <StackPanel Width="145" Margin="0,0,8,0">
                     <Label Padding="0,0,0,3"
                            Target="{Binding ElementName=FileMinimumSize}"
@@ -60,26 +113,30 @@
                     <TextBox x:Name="FileMinimumSize"
                              Width="145"
                              VerticalContentAlignment="Center"
-                             KeyboardNavigation.TabIndex="2"
-                             automation:AutomationProperties.Name="Minimum file size in bytes"
-                             automation:AutomationProperties.HelpText="Non-negative whole number of bytes applied to one-copy file size"
+                             KeyboardNavigation.TabIndex="50"
+                             automation:AutomationProperties.Name="Minimum one-copy file size"
+                             automation:AutomationProperties.HelpText="Converts exactly to a non-negative whole number of bytes applied to one-copy file size; GiB (1,073,741,824 bytes). Use a decimal point for fractions"
                              automation:AutomationProperties.AutomationId="FileMinimumSize"
                              Text="{Binding MinimumSizeText, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Minimum file size in bytes" />
+                             ToolTip="Minimum one-copy file size" />
+                    <Label Content="Size _unit" Target="{Binding ElementName=FileSizeUnit}" Padding="0,4,0,3"/>
+                    <ComboBox x:Name="FileSizeUnit" KeyboardNavigation.TabIndex="55" ItemsSource="{Binding SizeUnits}" SelectedItem="{Binding MinimumSizeUnit}"
+                        automation:AutomationProperties.AutomationId="FileSizeUnit" automation:AutomationProperties.Name="Minimum size unit"
+                        automation:AutomationProperties.HelpText="Binary units: KiB = 1,024 bytes; MiB = 1,048,576 bytes; GiB = 1,073,741,824 bytes; TiB = 1,099,511,627,776 bytes"/>
                 </StackPanel>
                 <CheckBox x:Name="FileOneGigabyteOrLarger"
                           Margin="10,0,2,0"
                           VerticalAlignment="Center"
-                          KeyboardNavigation.TabIndex="3"
+                          KeyboardNavigation.TabIndex="60"
                           automation:AutomationProperties.AutomationId="FileOneGigabyteOrLarger"
-                          automation:AutomationProperties.Name="Show only duplicate sets whose one-copy size is at least 1 GB, 1,073,741,824 bytes"
-                          Content="1 GB or larger"
+                          automation:AutomationProperties.Name="Show only duplicate sets whose one-copy size is at least 1 GiB, 1,073,741,824 bytes"
+                          Content="1 GiB or larger"
                           IsChecked="{Binding OneGigabyteOrLarger}"
-                          ToolTip="One-copy size of at least 1 GB (1,073,741,824 bytes)" />
+                          ToolTip="One-copy size of at least 1 GiB (1,073,741,824 bytes)" />
                 <CheckBox x:Name="FileThreeOrMoreCopies"
                           Margin="10,0,2,0"
                           VerticalAlignment="Center"
-                          KeyboardNavigation.TabIndex="4"
+                          KeyboardNavigation.TabIndex="70"
                           automation:AutomationProperties.AutomationId="FileThreeOrMoreCopies"
                           automation:AutomationProperties.Name="Show only duplicate sets with three or more copies"
                           Content="Three or more copies"
@@ -87,18 +144,12 @@
                 <CheckBox x:Name="FileAcrossDrives"
                           Margin="10,0,2,0"
                           VerticalAlignment="Center"
-                          KeyboardNavigation.TabIndex="5"
+                          KeyboardNavigation.TabIndex="80"
                           automation:AutomationProperties.AutomationId="FileAcrossDrives"
                           automation:AutomationProperties.Name="Show only duplicate sets across multiple drives"
                           Content="Across drives"
                           IsChecked="{Binding AcrossDrives}" />
-                <Button x:Name="FileApplyFilters"
-                        automation:AutomationProperties.AutomationId="FileApplyFilters"
-                        Margin="8,0,0,0"
-                        KeyboardNavigation.TabIndex="6"
-                        automation:AutomationProperties.Name="Apply duplicate file filters"
-                        Command="{Binding ApplyFiltersCommand}"
-                        Content="Apply filters" />
+
             </WrapPanel>
             <WrapPanel Margin="0,10,0,0"
                        VerticalAlignment="Center"
@@ -112,7 +163,7 @@
                 <TextBox x:Name="FileExtension"
                          Width="145"
                          VerticalContentAlignment="Center"
-                         KeyboardNavigation.TabIndex="7"
+                         KeyboardNavigation.TabIndex="90"
                          automation:AutomationProperties.AutomationId="FileExtension"
                          automation:AutomationProperties.Name="Filename extension without the dot"
                          automation:AutomationProperties.HelpText="Matches any immutable member's final filename extension by default; use All copies must match to require every immutable member. This is not the representative label or a file-type classification"
@@ -121,7 +172,7 @@
                 <CheckBox x:Name="FileWithoutExtension"
                           Margin="10,0,0,0"
                           VerticalAlignment="Center"
-                          KeyboardNavigation.TabIndex="8"
+                          KeyboardNavigation.TabIndex="100"
                           automation:AutomationProperties.AutomationId="FileWithoutExtension"
                           automation:AutomationProperties.Name="Use no filename extension as the extension filter value"
                           automation:AutomationProperties.HelpText="Overrides the extension box; filenames with no dot, a terminal dot, or only a leading dot are treated as having no extension. Any member matches by default; All copies must match changes this to every member"
@@ -131,7 +182,7 @@
                 <CheckBox x:Name="FileAllExtensionsMatch"
                           Margin="10,0,0,0"
                           VerticalAlignment="Center"
-                          KeyboardNavigation.TabIndex="9"
+                          KeyboardNavigation.TabIndex="110"
                           automation:AutomationProperties.AutomationId="FileAllExtensionsMatch"
                           automation:AutomationProperties.Name="Require every copy in a duplicate set to match the filename extension filter"
                           automation:AutomationProperties.HelpText="Every immutable member must have the requested filename extension, or no extension when No extension is selected; filename extension remains distinct from file type"
@@ -152,7 +203,7 @@
                           Width="360"
                           MaxDropDownHeight="280"
                           VerticalContentAlignment="Center"
-                          KeyboardNavigation.TabIndex="10"
+                          KeyboardNavigation.TabIndex="120"
                           automation:AutomationProperties.AutomationId="FileSelectedRootFacet"
                           automation:AutomationProperties.Name="Selected root facet; choose All selected roots to remove this filter"
                           DisplayMemberPath="DisplayText"
@@ -164,26 +215,21 @@
                         </Style>
                     </ComboBox.ItemContainerStyle>
                 </ComboBox>
+                <StackPanel Margin="8,0,0,0">
+                    <Label Content="Root order" Target="{Binding ElementName=FileRootFacetSort}" Padding="0,0,0,3"/>
+                    <ComboBox x:Name="FileRootFacetSort" KeyboardNavigation.TabIndex="129" Width="150" SelectedIndex="{Binding RootFacetSortIndex}"
+                        automation:AutomationProperties.AutomationId="FileRootFacetSort" automation:AutomationProperties.Name="Root facet sort order">
+                        <ComboBoxItem Content="Most sets first"/><ComboBoxItem Content="Name A–Z"/>
+                    </ComboBox>
+                </StackPanel>
                 <Button Margin="8,0,0,0"
-                        KeyboardNavigation.TabIndex="11"
-                        automation:AutomationProperties.AutomationId="FileRootFacetMostSets"
-                        automation:AutomationProperties.Name="Sort selected roots by most matching sets"
-                        Command="{Binding SortRootFacetsByCountCommand}"
-                        Content="Most sets" />
-                <Button Margin="6,0,0,0"
-                        KeyboardNavigation.TabIndex="12"
-                        automation:AutomationProperties.AutomationId="FileRootFacetNameSort"
-                        automation:AutomationProperties.Name="Sort selected roots by name"
-                        Command="{Binding SortRootFacetsByNameCommand}"
-                        Content="Root A–Z" />
-                <Button Margin="8,0,0,0"
-                        KeyboardNavigation.TabIndex="13"
+                        KeyboardNavigation.TabIndex="130"
                         automation:AutomationProperties.AutomationId="FilePreviousRootFacets"
                         automation:AutomationProperties.Name="Previous selected-root facet page"
                         Command="{Binding PreviousRootFacetPageCommand}"
                         Content="Previous roots" />
                 <Button Margin="6,0,0,0"
-                        KeyboardNavigation.TabIndex="14"
+                        KeyboardNavigation.TabIndex="140"
                         automation:AutomationProperties.AutomationId="FileNextRootFacets"
                         automation:AutomationProperties.Name="Next selected-root facet page"
                         Command="{Binding NextRootFacetPageCommand}"
@@ -238,7 +284,7 @@
                           Width="220"
                           MaxDropDownHeight="280"
                           VerticalContentAlignment="Center"
-                          KeyboardNavigation.TabIndex="15"
+                          KeyboardNavigation.TabIndex="150"
                           automation:AutomationProperties.AutomationId="FileDriveFacet"
                           automation:AutomationProperties.Name="Drive facet; choose All drives to remove this filter"
                           DisplayMemberPath="DisplayText"
@@ -250,26 +296,21 @@
                         </Style>
                     </ComboBox.ItemContainerStyle>
                 </ComboBox>
+                <StackPanel Margin="8,0,0,0">
+                    <Label Content="Drive order" Target="{Binding ElementName=FileDriveFacetSort}" Padding="0,0,0,3"/>
+                    <ComboBox x:Name="FileDriveFacetSort" KeyboardNavigation.TabIndex="159" Width="150" SelectedIndex="{Binding DriveFacetSortIndex}"
+                        automation:AutomationProperties.AutomationId="FileDriveFacetSort" automation:AutomationProperties.Name="Drive facet sort order">
+                        <ComboBoxItem Content="Most sets first"/><ComboBoxItem Content="Name A–Z"/>
+                    </ComboBox>
+                </StackPanel>
                 <Button Margin="8,0,0,0"
-                        KeyboardNavigation.TabIndex="16"
-                        automation:AutomationProperties.AutomationId="FileDriveFacetMostSets"
-                        automation:AutomationProperties.Name="Sort drives by most matching sets"
-                        Command="{Binding SortDriveFacetsByCountCommand}"
-                        Content="Most sets" />
-                <Button Margin="6,0,0,0"
-                        KeyboardNavigation.TabIndex="17"
-                        automation:AutomationProperties.AutomationId="FileDriveFacetNameSort"
-                        automation:AutomationProperties.Name="Sort drives by name"
-                        Command="{Binding SortDriveFacetsByNameCommand}"
-                        Content="Drive A–Z" />
-                <Button Margin="8,0,0,0"
-                        KeyboardNavigation.TabIndex="18"
+                        KeyboardNavigation.TabIndex="160"
                         automation:AutomationProperties.AutomationId="FilePreviousDriveFacets"
                         automation:AutomationProperties.Name="Previous drive facet page"
                         Command="{Binding PreviousDriveFacetPageCommand}"
                         Content="Previous drives" />
                 <Button Margin="6,0,0,0"
-                        KeyboardNavigation.TabIndex="19"
+                        KeyboardNavigation.TabIndex="170"
                         automation:AutomationProperties.AutomationId="FileNextDriveFacets"
                         automation:AutomationProperties.Name="Next drive facet page"
                         Command="{Binding NextDriveFacetPageCommand}"
@@ -311,6 +352,43 @@
                            Text="{Binding SelectedDriveFilterText}"
                            TextTrimming="CharacterEllipsis" />
             </WrapPanel>
+            <Expander x:Name="FileTotalsExpander" Header="Location coverage and largest opportunity" IsExpanded="False"
+                      automation:AutomationProperties.AutomationId="FileTotalsExpander">
+                <StackPanel>
+                <Border Margin="6,0,0,0" Padding="12,9" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
+                    <StackPanel>
+                        <TextBlock Text="Largest opportunity" />
+                        <TextBlock automation:AutomationProperties.AutomationId="FileSummaryLargestOpportunity"
+                                   automation:AutomationProperties.LiveSetting="Polite"
+                                   automation:AutomationProperties.Name="{Binding LargestOpportunityText, StringFormat='Largest recoverable opportunity: {0}'}"
+                                   Style="{StaticResource SectionTitle}"
+                                   Text="{Binding LargestOpportunityText}" />
+                    </StackPanel>
+                </Border>
+
+            <Border Margin="0,8,0,0"
+                    Padding="12,8"
+                    automation:AutomationProperties.AutomationId="FileLocationSummary"
+                    automation:AutomationProperties.Name="Duplicate file location coverage"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Margin="0,0,8,0" FontWeight="SemiBold" Text="Location coverage" />
+                    <TextBlock Grid.Column="1"
+                               automation:AutomationProperties.AutomationId="FileLocationSummaryText"
+                               automation:AutomationProperties.LiveSetting="Polite"
+                               automation:AutomationProperties.Name="{Binding LocationCoverageText, StringFormat='Location coverage: {0}'}"
+                               Text="{Binding LocationCoverageText}"
+                               TextWrapping="Wrap" />
+                </Grid>
+            </Border>
+                </StackPanel>
+            </Expander>
             <Expander Margin="0,12,0,0"
                       automation:AutomationProperties.AutomationId="PreferredRootPreviewExpander"
                       automation:AutomationProperties.Name="Ordered preferred scan-root review rule"
@@ -331,7 +409,7 @@
                                        Content="Saved _rule" />
                                 <ComboBox x:Name="PreferenceRuleList"
                                           Width="230"
-                                          KeyboardNavigation.TabIndex="20"
+                                          KeyboardNavigation.TabIndex="180"
                                           automation:AutomationProperties.AutomationId="PreferenceRuleList"
                                           automation:AutomationProperties.Name="Saved preferred-root rules"
                                           DisplayMemberPath="Name"
@@ -339,7 +417,7 @@
                                           SelectedItem="{Binding PreferenceRules.SelectedRule, Mode=TwoWay}" />
                                 <Button x:Name="PreferenceApplyRuleButton"
                                         Margin="6,0,0,0"
-                                        KeyboardNavigation.TabIndex="21"
+                                        KeyboardNavigation.TabIndex="190"
                                         automation:AutomationProperties.AutomationId="PreferenceNewRule"
                                         automation:AutomationProperties.Name="Create a new ordered preferred-root rule"
                                         Command="{Binding PreferenceRules.NewRuleCommand}"
@@ -350,7 +428,7 @@
                                    Target="{Binding ElementName=PreferenceRuleName}"
                                    Content="Rule _name" />
                             <TextBox x:Name="PreferenceRuleName"
-                                     KeyboardNavigation.TabIndex="22"
+                                     KeyboardNavigation.TabIndex="200"
                                      automation:AutomationProperties.AutomationId="PreferenceRuleName"
                                      automation:AutomationProperties.Name="Preferred-root rule name"
                                      automation:AutomationProperties.HelpText="Enter 1 to 128 characters without surrounding whitespace"
@@ -359,7 +437,7 @@
                                        FontWeight="SemiBold"
                                        Text="Roots, highest rank first" />
                             <ListBox Height="96"
-                                     KeyboardNavigation.TabIndex="23"
+                                     KeyboardNavigation.TabIndex="210"
                                      automation:AutomationProperties.AutomationId="PreferenceOrderedRoots"
                                      automation:AutomationProperties.Name="Ordered preferred scan roots; highest rank first"
                                      ItemsSource="{Binding PreferenceRules.OrderedRoots}"
@@ -373,19 +451,19 @@
                             </ListBox>
                             <WrapPanel Margin="0,6,0,0">
                                 <Button
-                                        KeyboardNavigation.TabIndex="24"
+                                        KeyboardNavigation.TabIndex="220"
                                         automation:AutomationProperties.AutomationId="PreferenceMoveRootUp"
                                         automation:AutomationProperties.Name="Move selected root one rank higher"
                                         Command="{Binding PreferenceRules.MoveRootUpCommand}"
                                         Content="Move up" />
                                 <Button Margin="6,0,0,0"
-                                        KeyboardNavigation.TabIndex="25"
+                                        KeyboardNavigation.TabIndex="230"
                                         automation:AutomationProperties.AutomationId="PreferenceMoveRootDown"
                                         automation:AutomationProperties.Name="Move selected root one rank lower"
                                         Command="{Binding PreferenceRules.MoveRootDownCommand}"
                                         Content="Move down" />
                                 <Button Margin="6,0,0,0"
-                                        KeyboardNavigation.TabIndex="26"
+                                        KeyboardNavigation.TabIndex="240"
                                         automation:AutomationProperties.AutomationId="PreferenceRemoveRoot"
                                         automation:AutomationProperties.Name="Remove selected root from this rule"
                                         Command="{Binding PreferenceRules.RemoveRootCommand}"
@@ -393,12 +471,12 @@
                             </WrapPanel>
                             <WrapPanel Margin="0,6,0,0">
                                 <TextBox Width="255"
-                                         KeyboardNavigation.TabIndex="27"
+                                         KeyboardNavigation.TabIndex="250"
                                          automation:AutomationProperties.AutomationId="PreferenceNewRoot"
                                          automation:AutomationProperties.Name="Absolute scan root to add to the ordered rule"
                                          Text="{Binding PreferenceRules.NewRoot, UpdateSourceTrigger=PropertyChanged}" />
                                 <Button Margin="6,0,0,0"
-                                        KeyboardNavigation.TabIndex="28"
+                                        KeyboardNavigation.TabIndex="260"
                                         automation:AutomationProperties.AutomationId="PreferenceAddRoot"
                                         automation:AutomationProperties.Name="Add root at the lowest preference rank"
                                         Command="{Binding PreferenceRules.AddRootCommand}"
@@ -406,7 +484,7 @@
                             </WrapPanel>
                             <WrapPanel Margin="0,8,0,0">
                                 <Button
-                                        KeyboardNavigation.TabIndex="29"
+                                        KeyboardNavigation.TabIndex="270"
                                         automation:AutomationProperties.AutomationId="PreferenceSaveRule"
                                         automation:AutomationProperties.Name="Save named ordered preferred-root rule configuration"
                                         automation:AutomationProperties.HelpText="Saves configuration only; does not change any review decision"
@@ -422,27 +500,27 @@
                                        Content="Preview _scope" />
                                 <ComboBox x:Name="PreferencePreviewScope"
                                           Width="220"
-                                          KeyboardNavigation.TabIndex="30"
+                                          KeyboardNavigation.TabIndex="280"
                                           automation:AutomationProperties.AutomationId="PreferencePreviewScope"
                                           automation:AutomationProperties.Name="Explicit preferred-root preview scope"
                                           DisplayMemberPath="DisplayName"
                                           ItemsSource="{Binding PreferenceRules.ScopeOptions}"
                                           SelectedItem="{Binding PreferenceRules.SelectedScope, Mode=TwoWay}" />
                                 <Button Margin="8,0,0,0"
-                                        KeyboardNavigation.TabIndex="31"
+                                        KeyboardNavigation.TabIndex="290"
                                         automation:AutomationProperties.AutomationId="PreferenceRunPreview"
                                         automation:AutomationProperties.Name="Run read-only preferred-root preview"
                                         automation:AutomationProperties.HelpText="Computes virtual Keep and Remove outcomes without applying decisions or deleting files"
                                         Command="{Binding PreferenceRules.PreviewCommand}"
                                         Content="Preview" />
                                 <Button Margin="6,0,0,0"
-                                        KeyboardNavigation.TabIndex="32"
+                                        KeyboardNavigation.TabIndex="300"
                                         automation:AutomationProperties.AutomationId="PreferenceNextPreviewPage"
                                         automation:AutomationProperties.Name="Next preferred-root preview page"
                                         Command="{Binding PreferenceRules.NextPageCommand}"
                                         Content="Next page" />
                                 <Button Margin="6,0,0,0"
-                                        KeyboardNavigation.TabIndex="33"
+                                        KeyboardNavigation.TabIndex="310"
                                         automation:AutomationProperties.AutomationId="PreferenceApplyRule"
                                         automation:AutomationProperties.Name="Review and confirm this exact preferred-root preview"
                                         automation:AutomationProperties.HelpText="Opens a confirmation; applying changes reversible review decisions only and does not validate or delete files"
@@ -457,7 +535,7 @@
                                 <StackPanel>
                                     <TextBlock x:Name="PreferenceApplicationConfirmationHeading"
                                                Focusable="True"
-                                               KeyboardNavigation.TabIndex="34"
+                                               KeyboardNavigation.TabIndex="320"
                                                FontWeight="SemiBold"
                                                Text="Confirm reversible review-rule application"
                                                automation:AutomationProperties.AutomationId="PreferenceApplicationConfirmationHeading"
@@ -469,14 +547,14 @@
                                                automation:AutomationProperties.Name="{Binding PreferenceRules.ApplicationConfirmationText}" />
                                     <WrapPanel Margin="0,8,0,0">
                                         <Button
-                                                KeyboardNavigation.TabIndex="35"
+                                                KeyboardNavigation.TabIndex="330"
                                                 automation:AutomationProperties.AutomationId="PreferenceConfirmApplication"
                                                 automation:AutomationProperties.Name="Confirm rule application to review decisions only"
                                                 automation:AutomationProperties.HelpText="Records reversible review intent; does not validate or delete files"
                                                 Command="{Binding PreferenceRules.ConfirmApplicationCommand}"
                                                 Content="Confirm application" />
                                         <Button Margin="6,0,0,0"
-                                                KeyboardNavigation.TabIndex="36"
+                                                KeyboardNavigation.TabIndex="340"
                                                 automation:AutomationProperties.AutomationId="PreferenceCancelApplication"
                                                 automation:AutomationProperties.Name="Cancel rule application confirmation"
                                                 Command="{Binding PreferenceRules.CancelApplicationCommand}"
@@ -492,7 +570,7 @@
                             <Button x:Name="PreferenceReverseApplicationButton"
                                     Margin="0,6,0,0"
                                     HorizontalAlignment="Left"
-                                    KeyboardNavigation.TabIndex="37"
+                                    KeyboardNavigation.TabIndex="350"
                                     automation:AutomationProperties.AutomationId="PreferenceReverseApplication"
                                     automation:AutomationProperties.Name="Review and confirm reversal of this rule application"
                                     automation:AutomationProperties.HelpText="Clears only this application's rule-produced decisions and preserves manual choices"
@@ -506,7 +584,7 @@
                                 <StackPanel>
                                     <TextBlock x:Name="PreferenceReversalConfirmationHeading"
                                                Focusable="True"
-                                               KeyboardNavigation.TabIndex="38"
+                                               KeyboardNavigation.TabIndex="360"
                                                FontWeight="SemiBold"
                                                Text="Confirm isolated rule-application reversal"
                                                automation:AutomationProperties.AutomationId="PreferenceReversalConfirmationHeading"
@@ -518,13 +596,13 @@
                                                automation:AutomationProperties.Name="{Binding PreferenceRules.ReversalConfirmationText}" />
                                     <WrapPanel Margin="0,8,0,0">
                                         <Button
-                                                KeyboardNavigation.TabIndex="39"
+                                                KeyboardNavigation.TabIndex="370"
                                                 automation:AutomationProperties.AutomationId="PreferenceConfirmReversal"
                                                 automation:AutomationProperties.Name="Confirm reversal while preserving manual review choices"
                                                 Command="{Binding PreferenceRules.ConfirmReversalCommand}"
                                                 Content="Confirm reversal" />
                                         <Button Margin="6,0,0,0"
-                                                KeyboardNavigation.TabIndex="40"
+                                                KeyboardNavigation.TabIndex="380"
                                                 automation:AutomationProperties.AutomationId="PreferenceCancelReversal"
                                                 automation:AutomationProperties.Name="Cancel rule-application reversal"
                                                 Command="{Binding PreferenceRules.CancelReversalCommand}"
@@ -568,7 +646,7 @@
                                       CanUserResizeRows="False"
                                       EnableRowVirtualization="True"
                                       IsReadOnly="True"
-                                      KeyboardNavigation.TabIndex="41"
+                                      KeyboardNavigation.TabIndex="390"
                                       automation:AutomationProperties.AutomationId="PreferencePreviewGroups"
                                       automation:AutomationProperties.Name="Read-only preferred-root preview results"
                                       ItemsSource="{Binding PreferenceRules.PreviewGroups}"
@@ -599,7 +677,7 @@
             </Expander>
         </StackPanel>
 
-        <StackPanel Grid.Row="1" Margin="0,0,0,14">
+        <StackPanel Grid.Row="1">
             <Border Margin="0,0,0,10"
                     Padding="12,9"
                     BorderBrush="{DynamicResource TextFillColorPrimaryBrush}"
@@ -609,7 +687,7 @@
                 <DockPanel LastChildFill="True">
                     <StackPanel DockPanel.Dock="Right" Margin="12,0,0,0" Orientation="Horizontal">
                         <Button x:Name="ReconcileDirtyRootButton"
-                                KeyboardNavigation.TabIndex="28"
+                                KeyboardNavigation.TabIndex="400"
                                 automation:AutomationProperties.AccessKey="Alt+X"
                                 automation:AutomationProperties.AutomationId="FileReconcileDirtyRoot"
                                 automation:AutomationProperties.Name="Reconcile next bounded dirty-root batch; access key Alt+X; focus returns to the copy grid"
@@ -618,7 +696,7 @@
                                 Content="Reconcile ne_xt batch"
                                 IsEnabled="{Binding CanReconcileDirtyRoot}" />
                         <Button Margin="8,0,0,0"
-                                KeyboardNavigation.TabIndex="29"
+                                KeyboardNavigation.TabIndex="410"
                                 automation:AutomationProperties.AutomationId="FileCancelDirtyRootReconciliation"
                                 automation:AutomationProperties.Name="Cancel bounded dirty-root reconciliation"
                                 Command="{Binding CancelDirtyRootReconciliationCommand}"
@@ -667,76 +745,7 @@
                        Text="{Binding LiveHintStatusMessage}"
                        TextWrapping="Wrap"
                        Visibility="{Binding HasLiveHintStatus, Converter={StaticResource BooleanToVisibilityConverter}}" />
-            <Expander Header="Result totals and location coverage" IsExpanded="False"
-                      automation:AutomationProperties.AutomationId="FileTotalsExpander">
-                <StackPanel>
-            <UniformGrid automation:AutomationProperties.AutomationId="FileReviewSummary"
-                         automation:AutomationProperties.Name="Duplicate file review summary"
-                         Columns="4">
-                <Border Margin="0,0,6,0" Padding="12,9" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
-                    <StackPanel>
-                        <TextBlock Text="Matching sets" />
-                        <TextBlock automation:AutomationProperties.AutomationId="FileSummaryMatchingSets"
-                                   automation:AutomationProperties.LiveSetting="Polite"
-                                   automation:AutomationProperties.Name="{Binding MatchingSetCountText, StringFormat='Matching sets: {0}'}"
-                                   Style="{StaticResource SectionTitle}"
-                                   Text="{Binding MatchingSetCountText}" />
-                    </StackPanel>
-                </Border>
-                <Border Margin="2,0,4,0" Padding="12,9" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
-                    <StackPanel>
-                        <TextBlock Text="Copies in those sets" />
-                        <TextBlock automation:AutomationProperties.AutomationId="FileSummaryMatchingCopies"
-                                   automation:AutomationProperties.LiveSetting="Polite"
-                                   automation:AutomationProperties.Name="{Binding MatchingCopyCountText, StringFormat='Copies in matching sets: {0}'}"
-                                   Style="{StaticResource SectionTitle}"
-                                   Text="{Binding MatchingCopyCountText}" />
-                    </StackPanel>
-                </Border>
-                <Border Margin="4,0,2,0" Padding="12,9" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
-                    <StackPanel>
-                        <TextBlock Text="Potential recoverable" />
-                        <TextBlock automation:AutomationProperties.AutomationId="FileSummaryRecoverable"
-                                   automation:AutomationProperties.LiveSetting="Polite"
-                                   automation:AutomationProperties.Name="{Binding PotentialRecoverableText, StringFormat='Potential recoverable space: {0}'}"
-                                   Style="{StaticResource SectionTitle}"
-                                   Text="{Binding PotentialRecoverableText}" />
-                    </StackPanel>
-                </Border>
-                <Border Margin="6,0,0,0" Padding="12,9" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
-                    <StackPanel>
-                        <TextBlock Text="Largest opportunity" />
-                        <TextBlock automation:AutomationProperties.AutomationId="FileSummaryLargestOpportunity"
-                                   automation:AutomationProperties.LiveSetting="Polite"
-                                   automation:AutomationProperties.Name="{Binding LargestOpportunityText, StringFormat='Largest recoverable opportunity: {0}'}"
-                                   Style="{StaticResource SectionTitle}"
-                                   Text="{Binding LargestOpportunityText}" />
-                    </StackPanel>
-                </Border>
-            </UniformGrid>
-            <Border Margin="0,8,0,0"
-                    Padding="12,8"
-                    automation:AutomationProperties.AutomationId="FileLocationSummary"
-                    automation:AutomationProperties.Name="Duplicate file location coverage"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="6">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Margin="0,0,8,0" FontWeight="SemiBold" Text="Location coverage" />
-                    <TextBlock Grid.Column="1"
-                               automation:AutomationProperties.AutomationId="FileLocationSummaryText"
-                               automation:AutomationProperties.LiveSetting="Polite"
-                               automation:AutomationProperties.Name="{Binding LocationCoverageText, StringFormat='Location coverage: {0}'}"
-                               Text="{Binding LocationCoverageText}"
-                               TextWrapping="Wrap" />
-                </Grid>
-            </Border>
-                </StackPanel>
-            </Expander>
+
         </StackPanel>
 
         <Grid Grid.Row="2">
@@ -753,7 +762,7 @@
                       EnableColumnVirtualization="True"
                       EnableRowVirtualization="True"
                       IsReadOnly="True"
-                      KeyboardNavigation.TabIndex="20"
+                      KeyboardNavigation.TabIndex="420"
                       ItemsSource="{Binding Groups}"
                       SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
                       SelectionMode="Single"
@@ -807,23 +816,18 @@
                            Text="{Binding GroupCountText}" TextWrapping="Wrap" />
                 <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate file group paging" Orientation="Horizontal">
                     <Button
-                            KeyboardNavigation.TabIndex="21"
+                            KeyboardNavigation.TabIndex="430"
                             automation:AutomationProperties.AutomationId="FilePreviousGroupPage"
                             automation:AutomationProperties.Name="Previous duplicate group page"
                             Command="{Binding PreviousPageCommand}"
                             Content="Previous" />
                     <Button Margin="8,0,0,0"
-                            KeyboardNavigation.TabIndex="22"
+                            KeyboardNavigation.TabIndex="440"
                             automation:AutomationProperties.AutomationId="FileNextGroupPage"
                             automation:AutomationProperties.Name="Next duplicate group page"
                             Command="{Binding NextPageCommand}"
                             Content="Next" />
-                    <Button Margin="8,0,0,0"
-                            KeyboardNavigation.TabIndex="23"
-                            automation:AutomationProperties.AutomationId="FileClearFilters"
-                            automation:AutomationProperties.Name="Clear all duplicate file filters"
-                            Command="{Binding ClearFiltersCommand}"
-                            Content="Clear filters" />
+
                 </StackPanel>
             </Grid>
 
@@ -925,7 +929,7 @@
                                 automation:AutomationProperties.Name="Duplicate set navigation"
                                 Orientation="Horizontal">
                         <Button x:Name="PreviousSetButton"
-                                 KeyboardNavigation.TabIndex="25"
+                                 KeyboardNavigation.TabIndex="450"
                                 automation:AutomationProperties.AutomationId="FilePreviousSet"
                                 automation:AutomationProperties.Name="Previous duplicate set; access key Alt+P; focus returns to the selected group"
                                 Click="OnSetNavigationClick"
@@ -934,7 +938,7 @@
                                 ToolTip="Previous duplicate set (Alt+P); returns focus to the selected group" />
                         <Button x:Name="NextSetButton"
                                  Margin="8,0,0,0"
-                                 KeyboardNavigation.TabIndex="26"
+                                 KeyboardNavigation.TabIndex="460"
                                 automation:AutomationProperties.AutomationId="FileNextSet"
                                 automation:AutomationProperties.Name="Next duplicate set; access key Alt+N; focus returns to the selected group"
                                 Click="OnSetNavigationClick"
@@ -953,7 +957,7 @@
                       EnableColumnVirtualization="True"
                       EnableRowVirtualization="True"
                       IsReadOnly="True"
-                      KeyboardNavigation.TabIndex="27"
+                      KeyboardNavigation.TabIndex="470"
                       ItemsSource="{Binding Members}"
                       SelectionMode="Single"
                       VirtualizingPanel.IsVirtualizing="True"
@@ -1077,7 +1081,7 @@
                 <WrapPanel automation:AutomationProperties.Name="Duplicate file member paging">
                     <Button x:Name="ValidateFilePageButton"
                             Margin="0,0,8,0"
-                            KeyboardNavigation.TabIndex="28"
+                            KeyboardNavigation.TabIndex="480"
                             automation:AutomationProperties.AccessKey="Alt+V"
                             automation:AutomationProperties.AutomationId="FileValidateVisiblePage"
                             automation:AutomationProperties.Name="Validate selected duplicate set or visible copy page; access key Alt+V; focus returns to the copy grid"
@@ -1086,19 +1090,19 @@
                             Content="_Validate page"
                             IsEnabled="{Binding CanValidateVisiblePage}" />
                     <Button Margin="0,0,8,0"
-                            KeyboardNavigation.TabIndex="29"
+                            KeyboardNavigation.TabIndex="490"
                             automation:AutomationProperties.AutomationId="FileCancelValidation"
                             automation:AutomationProperties.Name="Cancel visible-page validation"
                             Command="{Binding CancelLiveValidationCommand}"
                             Content="Cancel validation" />
                     <Button
-                            KeyboardNavigation.TabIndex="30"
+                            KeyboardNavigation.TabIndex="500"
                             automation:AutomationProperties.AutomationId="FilePreviousMemberPage"
                             automation:AutomationProperties.Name="Previous selected-set member page"
                             Command="{Binding PreviousMemberPageCommand}"
                             Content="Previous copies" />
                     <Button Margin="8,0,0,0"
-                            KeyboardNavigation.TabIndex="31"
+                            KeyboardNavigation.TabIndex="510"
                             automation:AutomationProperties.AutomationId="FileNextMemberPage"
                             automation:AutomationProperties.Name="Next selected-set member page"
                             Command="{Binding NextMemberPageCommand}"
@@ -1126,5 +1130,6 @@
             </StackPanel>
         </Grid>
     </Grid>
+    </StackPanel>
     </ScrollViewer>
 </UserControl>

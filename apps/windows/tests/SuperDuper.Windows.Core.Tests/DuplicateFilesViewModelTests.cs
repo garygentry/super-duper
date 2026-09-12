@@ -127,13 +127,13 @@ public sealed class DuplicateFilesViewModelTests
         await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
         Assert.AreEqual(@"C:\Photos", lastGroupQuery.Filter.SelectedRoot);
         Assert.AreEqual(@"C:\Photos", lastDriveFacetQuery.Filter.SelectedRoot);
-        Assert.AreEqual("Filtering sets represented under C:\\Photos", viewModel.SelectedRootFilterText);
+        Assert.AreEqual("Draft root: C:\\Photos", viewModel.SelectedRootFilterText);
 
         viewModel.SelectedDriveFacet = viewModel.DriveFacetOptions[1];
         await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
         Assert.AreEqual("C:", lastGroupQuery.Filter.SelectedDrive);
         Assert.AreEqual("C:", lastRootFacetQuery.Filter.SelectedDrive);
-        Assert.AreEqual("Filtering sets represented on C:", viewModel.SelectedDriveFilterText);
+        Assert.AreEqual("Draft drive: C:", viewModel.SelectedDriveFilterText);
 
         await viewModel.SortRootFacetsByNameCommand.ExecuteAsync(null);
         Assert.AreEqual(DuplicateFileSelectedRootFacetSortField.Value, lastRootFacetQuery.SortField);

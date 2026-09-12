@@ -1,6 +1,6 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-03 complete with scoped operator acceptance; UIR-04 in progress; UIR-04a/b/c locally implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
+Status: UIR-03 complete with scoped operator acceptance; UIR-04 and UIR-05 in progress; UIR-04a/b/c and UIR-05a locally implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -13,7 +13,7 @@ all safety/evidence gates. Its open execution criteria are not absorbed or marke
 | UIR-02 | complete | High-level direction accepted; operator feedback incorporated | D13-D15; no native or full prototype walkthrough acceptance inferred |
 | UIR-03 | complete | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c/d/e/f implemented; [scoped shell acceptance](evidence/uir-03-shell-acceptance.md); available operator checks passed; NVDA/200% remain unavailable for UIR-08/A11 |
 | UIR-04 | in_progress | Setup, Scan again, persistent reuse explanation, live monitoring/details and terminal summaries | UIR-03; A05/A06/A08/A14/A15/A16/A17 with controlled clock, lifecycle and rescan fixtures |
-| UIR-05 | planned | File/folder results, compact filters, list/detail comparison, decisions and path actions | UIR-03; A03/A04/A05/A06/A11/A13/A15 and existing query/focus/page contracts |
+| UIR-05 | in_progress | File/folder results, compact filters, list/detail comparison, decisions and path actions | UIR-03; A03/A04/A05/A06/A11/A13/A15 and existing query/focus/page contracts |
 | UIR-06 | planned | Dedicated Review, existing rule workflow, whole-plan validation and evidence access | UIR-05; A04/A10/A15 including revision, survivor, overlap, reversal and restart |
 | UIR-07 | planned | History/open-run, contextual warnings and performance detail | UIR-03/04; A07/A12/A13/A15/A16/A17 and current/terminal warning boundaries |
 | UIR-08 | planned | Full integration, layout/theme/keyboard/accessibility/scale and long-scan/rescan regression, physical evidence | UIR-04 through UIR-07; all A01-A17 verified with honest physical/skipped states |
@@ -103,13 +103,22 @@ freshness, terminal and coalesced announcements remain. Core 200 and three loade
 settled captures and review are recorded in the evidence. No engine, worker, cache or production wiring changed.
 UIR-04 remains in progress for later integrated A17/native/operator validation; local a/b/c are implemented.
 
-The exact next local slice is **UIR-05a: compact file-results query controls and filtered totals (A03/A06/A13)**.
-Read S03, the design/validation guidance and directly linked DuplicateFiles query/view/test code.
-Keep path search and the three filtered totals visible; preserve draft versus applied query state,
-explicit Apply/Enter, removable applied-filter chips, Clear filters, exact size units and all current
-filter semantics. Preserve selected-run identity, paging/query ceilings, decisions and focus. Use
-isolated delayed-query/long-path layout fixtures. Adjustable list/detail comparison remains UIR-05b;
-do not claim the full A03 layout criterion from the compact header/filter slice.
+**UIR-05a implemented (2026-09-12).** [Evidence](evidence/uir-05a-file-query-controls.md) covers
+compact exposed path/query controls and three filtered totals, exact binary size units, removable
+applied chips and complete retained filter semantics. Accepted-query snapshots isolate drafts from
+paging, facet sorting and rule scope; delayed/failing replacements retain previous results. Clear
+restores default sorting, late generations are rejected, and native focus/scroll/decisions remain.
+Core 207 passed; three loaded-STA WPF methods passed with delayed long-path fixtures and retained
+monitoring/theme/text-size checks. UIR-05a implements local A03/A06/A13 header/query work, not full A03.
+No engine, protocol, query ceiling or production wiring changed. UIR-05 is in progress.
+
+The exact next local slice is **UIR-05b: adjustable file-results list/detail comparison and full A03 verification**.
+Read S03, design/validation guidance and directly linked comparison/view/focus tests. At 1180x760,
+measure at least 60% usable content height for list/detail. At 900x600 retain essential paths and
+decisions without horizontal scrolling, with narrow list/detail navigation and Back to sets as needed.
+Preserve UIR-05a's draft/applied query snapshots, explicit Apply/Enter/chips/Clear, exact units,
+selected-run identity, durable decisions, bounded paging/cache and focus. Remaining UIR-05 folder/
+decision/path work stays open until its own evidence is recorded; do not claim the whole gate from Files.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read

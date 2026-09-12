@@ -50,6 +50,15 @@ totals use the worker's explicit known-work signal; zero totals are not percenta
 per-file progress is inferred. Disclosure, path focus/selection/scroll and same-run navigation are
 covered. UIR-04 integrated/full A17/native/operator validation remains later.
 
+## UIR-05a local implementation evidence
+
+[UIR-05a](evidence/uir-05a-file-query-controls.md) implements compact exposed file query controls and
+filtered totals for the header/query portion of A03/A06/A13. Core 207 and three WPF methods passed.
+Delayed/out-of-order snapshots, exact binary conversion, chips/Clear, applied rule scope, bounded
+paging/facets and focus are covered. Native fixtures retain long-path, minimum/toolbar and enlarged
+text reachability. Full A03 adjustable comparison remains UIR-05b; final A13 scale/integration and
+physical/operator acceptance remain UIR-08/09. No whole-gate acceptance is inferred.
+
 ## Carried native checks from scoped shell acceptance
 
 UIR-03's [scoped assessment](evidence/uir-03-shell-acceptance.md) does not complete A11. At UIR-08,
