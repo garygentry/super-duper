@@ -42,6 +42,15 @@ Automation currently establishes programmatic focus only. The fake data do not e
 performance, screen-reader cadence over a real long scan, representative result scale or A17 rescan
 acceptance. Those requirements retain their later gates and separately isolated procedures.
 
+## 2026-09-12 monitor-move keyboard focus retained
+
+The operator confirms **"focus remained"** in response to the cross-monitor retention question.
+Record keyboard-focus retention as passed for the preceding 150%/175% transition observations.
+File-group selection was not explicitly confirmed; retain its pending status without inferring a
+failure. Next: confirm that remaining observation, then assess UIR-03 with 200% and NVDA accurately
+unavailable/unrun. Do not repeat accepted focus/layout/theme checks or troubleshoot Windows scaling.
+This update changes documentation only; no code/build/test/runtime action.
+
 ## 2026-09-12 display scales confirmed: 150% and 175%
 
 The operator clarifies **"150 and 175. Windows didn't offer 200"**. Associate the preceding

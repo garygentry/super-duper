@@ -96,7 +96,8 @@ The operator confirmed three monitors initially at 100%, then specified transiti
 did not offer 200%; record `unrun_unavailable`, not passed or waived. Only one monitor accepts scale
 changes; the operator excludes Windows troubleshooting. Do not force custom scaling. See
 [the scale confirmation](uir-03-desktop-walkthrough.md#2026-09-12-display-scales-confirmed-150-and-175).
-Confirm file-selection/keyboard-focus retention across moves, then assess UIR-03 with 200% and NVDA
+The operator subsequently confirms "focus remained": record keyboard-focus retention as passed.
+Confirm file-selection retention across moves, then assess UIR-03 with 200% and NVDA
 accurately unavailable. UIR-04 remains dependent. These updates change documentation only; no
 code/build/test rerun, fixture reset/launch, OS-setting or production action. Retain prior verification
 and re-audit the last recorded runtime before reuse.

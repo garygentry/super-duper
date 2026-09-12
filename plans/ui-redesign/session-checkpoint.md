@@ -31,7 +31,8 @@ Updated 2026-09-12. [Execution plan](execution-plan.md) owns gate status.
   monitors with no noticeable clipping. These scoped transition/layout checks pass; 175% is extra
   coverage. Windows did not offer 200%: `unrun_unavailable`, not passed or waived. The operator
   excludes Windows troubleshooting; do not force custom scaling or investigate the OS limitation.
-- **Exact next slice:** confirm file-selection/keyboard-focus retention across monitor moves,
+- **Exact next slice:** keyboard focus is confirmed retained (operator: "focus remained"). Confirm file-selection
+  retention across monitor moves,
   then assess UIR-03 with 200% and NVDA accurately recorded as unavailable/unrun. Do not infer
   complete physical-matrix acceptance or replace 200% with 175%. Restore original settings.
   UIR-03 stays in progress; UIR-04 remains dependent on its acceptance.

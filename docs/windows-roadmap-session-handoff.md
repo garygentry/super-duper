@@ -44,7 +44,7 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   adjusts fine across scaled/unscaled monitors with no noticeable clipping. Record scoped physical
   transition/layout passes. Windows did not offer 200%: unavailable/unrun, not passed or waived.
   The operator excludes Windows troubleshooting; do not force custom scaling or investigate the OS.
-- Exact next slice: confirm file-selection/keyboard-focus retention across moves, then assess UIR-03
+- Exact next slice: keyboard focus is confirmed retained ("focus remained"). Confirm file-selection retention, then assess UIR-03
   with 200% and NVDA accurately recorded as unavailable/unrun. Do not substitute 175% for 200% or
   claim full matrix acceptance. Restore original settings. Keep accepted checks; UIR-04 dependent.
 - This update is documentation only; no new code/build/test/runtime action. Prior integration and

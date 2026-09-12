@@ -63,7 +63,8 @@ native Fluent styles, Windows text-size events and accessible empty-state layout
 the operator reported "all 3 pass": Dark, Desert's empty layout and live text-size changes at both
 fixture sizes. Those reported defects are closed. Cross-monitor transitions at 150% and 175% adjust without
 noticeable clipping. Windows did not offer 200%; that case and NVDA remain unavailable/unrun.
-Next: confirm focus/selection retention, then assess UIR-03 with these evidence limitations recorded.
+Keyboard focus also remained intact, as confirmed by the operator. Next: confirm file-selection
+retention, then assess UIR-03 with these evidence limitations recorded.
 Do not troubleshoot Windows scaling. UIR-03 stays in progress. Re-audit the last recorded runtime
 before reuse. No new code/build/test/runtime action in this update.
 Small visual preferences can evolve during implementation.
