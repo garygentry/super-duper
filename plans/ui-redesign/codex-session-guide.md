@@ -69,8 +69,12 @@ of that capability. [Official AGENTS.md guidance](https://learn.chatgpt.com/docs
 - **Implemented: UIR-05a** — compact file query controls/filtered totals, accepted query snapshots,
   draft/apply/Enter/chips/Clear, exact binary units and retained filter/page/focus semantics;
   [evidence](evidence/uir-05a-file-query-controls.md). Core 207 and three WPF methods passed.
-- **Next: UIR-05b** — adjustable file list/detail comparison and full A03 verification, preserving
-  UIR-05a query behavior. UIR-05 retains folder/decision/path work; UIR-06 owns dedicated review and
+- **Implemented: UIR-05b** — adjustable file list/detail comparison and full local A03 verification;
+  [evidence](evidence/uir-05b-file-comparison.md). The 1180x760 comparison uses 69.7% of usable
+  Files height; 900x600 uses explicit set/copy/selected-copy navigation without horizontal scroll.
+  Core 207 and three WPF methods passed.
+- **Next: UIR-05c** — adjustable folder list/detail comparison and remaining folder decision/path
+  A04/A05/A06/A11/A15 verification, preserving UIR-05a/b. UIR-06 owns dedicated Review and
   non-deleting validation.
 - **UIR-07** — history and contextual diagnostics, preserving the monitoring and rescan contract.
 - **UIR-08/09** — integrated Rust/.NET Debug/Release checks, native layout/keyboard/accessibility

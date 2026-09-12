@@ -3,23 +3,23 @@
 Updated 2026-09-12. [Execution plan](execution-plan.md) owns gate status.
 
 - Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; no switch/worktree/merge/push.
-- Latest implementation: **UIR-05a, the commit containing this checkpoint**, based on `9c528fb`
-  (UIR-04c). UIR-00/01/02/03 complete; **UIR-04 and UIR-05 in_progress**.
-- [UIR-05a evidence](evidence/uir-05a-file-query-controls.md): exposed compact path/Apply/Filters/
-  Clear and three filtered totals; removable applied chips; exact B/KiB/MiB/GiB/TiB size conversion.
-  All existing filters remain. Paging, facet sorting and rule scope use the accepted query snapshot;
-  drafts enter only through Apply/Enter. Delayed/failing replacement retains rows/totals/chips;
-  Clear restores default sorting. Late queries, focus and durable decisions remain protected.
-- Verification: full Core **207 passed**; **three loaded-STA WPF methods passed**. Isolated results,
-  captures and retained failures are in `artifacts/uir05a` and its evidence. Native long-path/delay/
-  Enter/chip/Escape/sort fixtures and retained theme/text-size/toolbar/monitoring/UIA checks run.
-  The header uses ordinary page scrolling to preserve enlarged-text comparison access; controls
-  and totals are outside disclosures. Full A03 comparison/layout measurement is not passed.
-- **Exact next local slice: UIR-05b adjustable file-results list/detail comparison and full A03.**
-  Read S03 and directly linked view/comparison/focus tests. Measure >=60% usable list/detail height
-  at 1180x760; at 900x600 retain essential paths/decisions without horizontal scroll, with narrow
-  list/detail and Back to sets where needed. Preserve UIR-05a query snapshots, units/chips, selected
-  run, decisions, bounded pages/cache and focus. UIR-05 folder/decision/path work remains open.
+- Latest implementation: **UIR-05b, the commit containing this checkpoint**, based on `f06dc03`
+  (UIR-05a). UIR-00/01/02/03 complete; **UIR-04 and UIR-05 in_progress**.
+- [UIR-05b evidence](evidence/uir-05b-file-comparison.md): adjustable 36/64 virtualized file
+  list/detail comparison, single wrapping columns, server-owned sort and narrow set -> copies ->
+  selected-copy navigation with Back to copies/sets. Exact path and Keep/Mark/Reset/Copy/Explorer
+  actions use vertical-only scrolling. Decision refresh preserves selected-copy identity by ID;
+  loading remains selection-neutral. UIR-05a Apply/Enter/chips/Clear, exact units, filters and
+  accepted-query snapshot remain protected.
+- Verification: full Core **207 passed**; **three loaded-STA WPF methods passed**. At 1180x760 the
+  comparison measures **279.0/400.3 DIPs (69.7%)**; at 900x600 essential paths/decisions and Back/
+  focus flows pass with zero horizontal scrolling. Fixture build: zero warnings/errors. Isolated
+  results, captures and retained failures/corrections are under `artifacts/uir05b` and its evidence.
+- **Exact next local slice: UIR-05c adjustable folder-results list/detail comparison and remaining
+  folder decision/path verification.** Read S03 and directly linked relationship/decision/reveal/
+  focus tests. Complete remaining local A04/A05/A06/A11/A15 without pulling UIR-06 forward.
+  Preserve UIR-05a query semantics and UIR-05b file layout/navigation, selected run, decisions,
+  bounded pages/cache and focus. UIR-05 remains open until folder evidence is recorded.
 - Retain UIR-04a's isolated real-worker four-run rescan/restart/history result, UIR-04b freshness/
   terminal contracts and UIR-04c compact monitoring. UIR-04c's 200 Core/three WPF methods remain
   retained; current suites include their behavior. Full A17/integration/operator validation is later.
@@ -28,8 +28,8 @@ Updated 2026-09-12. [Execution plan](execution-plan.md) owns gate status.
 - NVDA and physical 200% remain `unrun_unavailable` for UIR-08/A11; do not troubleshoot Windows,
   force scaling or install software. Full native/user acceptance remains later.
 - Runtime: PID 67748/session 1 re-audited responsive at the exact UIR-03f fixture executable and
-  left untouched. UIR-04b/04c/05a fixtures are built, not running. UIR-05a fixture build has zero
-  warnings/errors. Re-audit before reuse and never
+  left untouched. UIR-04b/04c/05a and UIR-05b fixtures are built, not running. UIR-05b fixture build
+  has zero warnings/errors. Re-audit before reuse and never
   overwrite running outputs. No production app/worker or state was touched; test windows close.
 - Boundaries: production deletion disabled; engine/cache/protocol/query ceilings and survivor/
   revision/overlap protections unchanged. SOP10 complete; release validation parked; no campaign authority.

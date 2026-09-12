@@ -13,11 +13,17 @@ public partial class DuplicateFilesView : UserControl
 {
     internal const DispatcherPriority SetNavigationFocusPriority = DispatcherPriority.Background;
     internal const int SetNavigationFocusAttemptLimit = 8;
+    internal const double NarrowWorkspaceWidth = 760;
 
     private PreferenceRulesViewModel? _preferenceRules;
     private DuplicateFilesViewModel? _model;
     private bool _applicationConfirmationWasVisible;
     private bool _reversalConfirmationWasVisible;
+    private bool _isNarrow;
+    private bool _showNarrowDetail;
+    private bool _syncingSort;
+    private GridLength _wideSetWidth = new(36, GridUnitType.Star);
+    private GridLength _wideDetailWidth = new(64, GridUnitType.Star);
 
     public DuplicateFilesView()
     {
@@ -76,6 +82,8 @@ public partial class DuplicateFilesView : UserControl
         if (_model is not null) _model.PropertyChanged -= OnQueryPropertyChanged;
         _model = e.NewValue as DuplicateFilesViewModel;
         if (_model is not null) _model.PropertyChanged += OnQueryPropertyChanged;
+        _showNarrowDetail = false;
+        UpdateResponsiveLayout(ActualWidth);
         UpdateSortIndicators();
         if (_preferenceRules is not null)
         {
@@ -111,6 +119,116 @@ public partial class DuplicateFilesView : UserControl
         foreach (var column in GroupsGrid.Columns)
             column.SortDirection = column.SortMemberPath == path
                 ? ServerSortInteraction.ToListDirection(_model.SortDirection) : null;
+        var tag = $"{path}:{_model.SortDirection}";
+        var selected = FileSetSort.Items.OfType<ComboBoxItem>()
+            .FirstOrDefault(item => string.Equals(item.Tag?.ToString(), tag, StringComparison.Ordinal));
+        if (selected is null || ReferenceEquals(FileSetSort.SelectedItem, selected)) return;
+        _syncingSort = true;
+        FileSetSort.SelectedItem = selected;
+        _syncingSort = false;
+    }
+
+    private void OnWorkspaceSizeChanged(object sender, SizeChangedEventArgs e) =>
+        UpdateResponsiveLayout(e.NewSize.Width);
+
+    private void UpdateResponsiveLayout(double width)
+    {
+        if (SetPaneColumn is null || width <= 0) return;
+        var narrow = width < NarrowWorkspaceWidth;
+        if (narrow && !_isNarrow)
+        {
+            _wideSetWidth = SetPaneColumn.Width;
+            _wideDetailWidth = DetailPaneColumn.Width;
+        }
+        _isNarrow = narrow;
+        if (!narrow)
+        {
+            SetPaneHeading.Visibility = Visibility.Visible;
+            DetailContextSummary.Visibility = Visibility.Visible;
+            SetPane.Visibility = Visibility.Visible;
+            DetailPane.Visibility = Visibility.Visible;
+            ComparisonSplitter.Visibility = Visibility.Visible;
+            CompareSelectedSetButton.Visibility = Visibility.Collapsed;
+            BackToSetsButton.Visibility = Visibility.Collapsed;
+            SetPaneColumn.MinWidth = 280;
+            DetailPaneColumn.MinWidth = 360;
+            SetPaneColumn.Width = _wideSetWidth;
+            ComparisonSplitterColumn.Width = new GridLength(12);
+            DetailPaneColumn.Width = _wideDetailWidth;
+            UpdateMemberPresentation();
+            return;
+        }
+
+        SetPaneHeading.Visibility = Visibility.Collapsed;
+        DetailContextSummary.Visibility = Visibility.Collapsed;
+        SetPaneColumn.MinWidth = 0;
+        DetailPaneColumn.MinWidth = 0;
+        ComparisonSplitter.Visibility = Visibility.Collapsed;
+        ComparisonSplitterColumn.Width = new GridLength(0);
+        CompareSelectedSetButton.Visibility = _showNarrowDetail ? Visibility.Collapsed : Visibility.Visible;
+        BackToSetsButton.Visibility = _showNarrowDetail ? Visibility.Visible : Visibility.Collapsed;
+        SetPane.Visibility = _showNarrowDetail ? Visibility.Collapsed : Visibility.Visible;
+        DetailPane.Visibility = _showNarrowDetail ? Visibility.Visible : Visibility.Collapsed;
+        SetPaneColumn.Width = _showNarrowDetail ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        DetailPaneColumn.Width = _showNarrowDetail ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        UpdateMemberPresentation();
+    }
+
+    private void UpdateMemberPresentation()
+    {
+        if (MembersGrid is null || SelectedCopyPanel is null || BackToCopiesButton is null) return;
+        var selectedCopyDetail = _isNarrow && _showNarrowDetail && _model?.SelectedMember is not null;
+        MembersGrid.Visibility = selectedCopyDetail ? Visibility.Collapsed : Visibility.Visible;
+        BackToCopiesButton.Visibility = selectedCopyDetail ? Visibility.Visible : Visibility.Collapsed;
+        DetailCommandRegion.Visibility = selectedCopyDetail ? Visibility.Collapsed : Visibility.Visible;
+        Grid.SetRow(SelectedCopyPanel, selectedCopyDetail ? 1 : 2);
+        SelectedCopyPanel.Margin = selectedCopyDetail ? new Thickness(0) : new Thickness(0, 6, 0, 0);
+        SelectedCopyPanel.Padding = selectedCopyDetail ? new Thickness(2) : new Thickness(10);
+        SelectedCopyPanel.MaxHeight = selectedCopyDetail ? double.PositiveInfinity : 100;
+    }
+
+    private async void OnCompareSelectedSetClick(object sender, RoutedEventArgs e)
+    {
+        if (!_isNarrow || _model?.SelectedGroup is null) return;
+        _model.SelectedMember = null;
+        _showNarrowDetail = true;
+        UpdateResponsiveLayout(ActualWidth);
+        await FocusWhenVisibleAsync(SelectedSetHeading);
+    }
+
+    private void OnMemberSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateMemberPresentation();
+        if (_isNarrow && _showNarrowDetail && _model?.SelectedMember is not null)
+            _ = Dispatcher.BeginInvoke(
+                new Action(SelectedCopyScrollViewer.ScrollToTop),
+                DispatcherPriority.ContextIdle);
+    }
+
+    private async void OnBackToCopiesClick(object sender, RoutedEventArgs e)
+    {
+        if (!_isNarrow || _model is null) return;
+        _model.SelectedMember = null;
+        UpdateMemberPresentation();
+        await RestoreMemberGridFocusAsync();
+    }
+
+    private async void OnBackToSetsClick(object sender, RoutedEventArgs e)
+    {
+        if (!_isNarrow) return;
+        _showNarrowDetail = false;
+        UpdateResponsiveLayout(ActualWidth);
+        await RestoreGroupGridFocusAsync();
+    }
+
+    private async void OnSetSortChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingSort || _model is null || FileSetSort.SelectedItem is not ComboBoxItem item
+            || item.Tag?.ToString()?.Split(':') is not [var fieldText, var directionText]
+            || !Enum.TryParse(fieldText, out DuplicateFileGroupSortField field)
+            || !Enum.TryParse(directionText, out WorkerSortDirection direction)
+            || (_model.SortField == field && _model.SortDirection == direction)) return;
+        await _model.ApplySortAsync(field, direction);
     }
 
     private void OnPreferenceRulesPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -155,13 +273,13 @@ public partial class DuplicateFilesView : UserControl
     {
         for (var attempt = 0; attempt < SetNavigationFocusAttemptLimit; attempt++)
         {
-            await Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
-            if (!heading.IsVisible || !heading.IsLoaded)
+            var focused = await Dispatcher.InvokeAsync(() =>
             {
-                continue;
-            }
-            heading.BringIntoView();
-            return Keyboard.Focus(heading) is not null;
+                if (!heading.IsVisible || !heading.IsLoaded) return false;
+                heading.BringIntoView();
+                return Keyboard.Focus(heading) is not null;
+            }, DispatcherPriority.ContextIdle);
+            if (focused) return true;
         }
         return false;
     }
@@ -176,7 +294,10 @@ public partial class DuplicateFilesView : UserControl
             ? viewModel.PreviousSetCommand
             : viewModel.NextSetCommand;
         await command.ExecuteAsync(null);
-        await RestoreGroupGridFocusAsync();
+        if (_isNarrow && _showNarrowDetail)
+            await FocusWhenVisibleAsync(SelectedSetHeading);
+        else
+            await RestoreGroupGridFocusAsync();
     }
 
     private async void OnValidateFilePageClick(object sender, RoutedEventArgs e)
@@ -218,8 +339,14 @@ public partial class DuplicateFilesView : UserControl
     {
         for (var attempt = 0; attempt < SetNavigationFocusAttemptLimit; attempt++)
         {
-            if (await Dispatcher.InvokeAsync(() => MembersGrid.Focus(), SetNavigationFocusPriority)
-                && MembersGrid.IsKeyboardFocusWithin)
+            if (await Dispatcher.InvokeAsync(
+                    () =>
+                    {
+                        if (_isNarrow && _showNarrowDetail && _model?.SelectedMember is not null)
+                            return BackToCopiesButton.Focus() && BackToCopiesButton.IsKeyboardFocused;
+                        return MembersGrid.Focus() && MembersGrid.IsKeyboardFocusWithin;
+                    },
+                    SetNavigationFocusPriority))
             {
                 return true;
             }
@@ -234,8 +361,10 @@ public partial class DuplicateFilesView : UserControl
         {
             if (isCurrent?.Invoke() == false) return false;
             if (await Dispatcher.InvokeAsync(
-                    () => isCurrent?.Invoke() != false && RestoreGroupGridFocus(), SetNavigationFocusPriority)
-                && GroupsGrid.IsKeyboardFocusWithin)
+                    () => isCurrent?.Invoke() != false
+                        && RestoreGroupGridFocus()
+                        && GroupsGrid.IsKeyboardFocusWithin,
+                    SetNavigationFocusPriority))
             {
                 return true;
             }

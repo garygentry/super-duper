@@ -81,8 +81,13 @@ public sealed class WpfSurfaceSmokeTests
                 "FileGroupsGrid",
                 "FileMembersGrid");
             var fileGroups = FindByAutomationId<DataGrid>(files, "FileGroupsGrid");
-            Assert.IsFalse(fileGroups.Columns.Single(column => Equals(column.Header, "Type")).CanUserSort);
-            Assert.IsFalse(fileGroups.Columns.Single(column => Equals(column.Header, "Location span")).CanUserSort);
+            Assert.AreEqual(1, fileGroups.Columns.Count);
+            Assert.AreEqual("Duplicate sets", fileGroups.Columns[0].Header);
+            Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(fileGroups));
+            Assert.AreEqual("Sort duplicate sets", AutomationProperties.GetName(
+                FindByAutomationId<ComboBox>(files, "FileSetSort")));
+            Assert.AreEqual("Resize duplicate set list and copy comparison", AutomationProperties.GetName(
+                FindByAutomationId<GridSplitter>(files, "FileComparisonSplitter")));
             Assert.AreEqual("Filtered duplicate file results", AutomationProperties.GetName(
                 FindByAutomationId<FrameworkElement>(files, "FileReviewSummary")));
             Assert.AreEqual("Duplicate file location coverage", AutomationProperties.GetName(
@@ -358,6 +363,8 @@ public sealed class WpfSurfaceSmokeTests
                 FindByAutomationId<ComboBox>(files, "FileDriveFacetSort"),
                 FindByAutomationId<Button>(files, "FilePreviousDriveFacets"),
                 FindByAutomationId<Button>(files, "FileNextDriveFacets"),
+                FindByAutomationId<ComboBox>(files, "FileSetSort"),
+                FindByAutomationId<Button>(files, "FileCompareSelectedSet"),
                 FindByAutomationId<DataGrid>(files, "FileGroupsGrid"),
                 FindByAutomationId<Button>(files, "FilePreviousGroupPage"),
                 FindByAutomationId<Button>(files, "FileNextGroupPage"),
@@ -373,22 +380,35 @@ public sealed class WpfSurfaceSmokeTests
                 keyboardOrder.Select(KeyboardNavigation.GetTabIndex).Order().ToArray(),
                 keyboardOrder.Select(KeyboardNavigation.GetTabIndex).ToArray());
             AssertPrimaryFileFiltersReflow(files);
-            var fileMemberHeaders = FindByAutomationId<DataGrid>(files, "FileMembersGrid")
-                .Columns.Select(column => column.Header?.ToString()).ToArray();
-            CollectionAssert.IsSubsetOf(
-                new[] { "Selected root", "Relative path", "Drive", "Decision", "Working state", "Review decision" },
-                fileMemberHeaders);
-            var reviewColumn = (DataGridTemplateColumn)FindByAutomationId<DataGrid>(files, "FileMembersGrid")
-                .Columns.Single(column => Equals(column.Header, "Review decision"));
-            var reviewControls = (WrapPanel)reviewColumn.CellTemplate.LoadContent();
-            reviewControls.DataContext = new { Path = @"C:\Data\item.bin" };
+            var fileMembersSurface = FindByAutomationId<DataGrid>(files, "FileMembersGrid");
+            Assert.AreEqual(1, fileMembersSurface.Columns.Count);
+            Assert.AreEqual("Copies in selected set", fileMembersSurface.Columns[0].Header);
+            Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(fileMembersSurface));
+            var selectedCopyPanel = FindByAutomationId<Border>(files, "FileSelectedCopyPanel");
+            Assert.AreEqual(Visibility.Collapsed, selectedCopyPanel.Visibility);
+            Assert.AreEqual("Back to copies in the selected duplicate set", AutomationProperties.GetName(
+                FindByAutomationId<Button>(files, "FileBackToCopies")));
+            var selectedCopyPath = FindByAutomationId<TextBox>(files, "FileSelectedCopyPath");
+            Assert.IsTrue(selectedCopyPath.IsReadOnly && selectedCopyPath.IsReadOnlyCaretVisible);
+            Assert.AreEqual(TextWrapping.Wrap, selectedCopyPath.TextWrapping);
+            Assert.AreEqual(ScrollBarVisibility.Disabled, selectedCopyPath.HorizontalScrollBarVisibility);
+            Assert.AreEqual("Path", BindingOperations.GetBinding(selectedCopyPath, TextBox.TextProperty)?.Path.Path);
+            selectedCopyPanel.DataContext = new
+            {
+                Path = @"C:\Data\item.bin",
+                CanRecordCurrentDecision = true,
+                CanClearDecision = true,
+            };
             DrainDispatcher();
-            var reviewButtons = reviewControls.Children.OfType<Button>().ToArray();
+            var selectedCopyActions = FindLogicalDescendants<Button>(selectedCopyPanel)
+                .Where(button => button.Content?.ToString() is
+                    "Keep" or "Mark for removal" or "Reset decision" or "Copy path" or "Show in Explorer")
+                .ToArray();
             CollectionAssert.AreEqual(
-                new[] { "Keep", "Remove", "Undecided" },
-                reviewButtons.Select(button => button.Content?.ToString()).ToArray());
-            Assert.IsTrue(reviewButtons.All(button => button.Focusable && KeyboardNavigation.GetIsTabStop(button)));
-            Assert.IsTrue(reviewButtons.All(button =>
+                new[] { "Keep", "Mark for removal", "Reset decision", "Copy path", "Show in Explorer" },
+                selectedCopyActions.Select(button => button.Content?.ToString()).ToArray());
+            Assert.IsTrue(selectedCopyActions.All(button => button.Focusable && KeyboardNavigation.GetIsTabStop(button)));
+            Assert.IsTrue(selectedCopyActions.All(button =>
                 AutomationProperties.GetName(button).Contains(@"C:\Data\item.bin", StringComparison.Ordinal)));
             AssertFolderSurface(folders);
             _ = FindByAutomationId<TextBlock>(folders, "FolderCombinedReviewSummary");

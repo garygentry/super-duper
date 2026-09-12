@@ -56,8 +56,18 @@ covered. UIR-04 integrated/full A17/native/operator validation remains later.
 filtered totals for the header/query portion of A03/A06/A13. Core 207 and three WPF methods passed.
 Delayed/out-of-order snapshots, exact binary conversion, chips/Clear, applied rule scope, bounded
 paging/facets and focus are covered. Native fixtures retain long-path, minimum/toolbar and enlarged
-text reachability. Full A03 adjustable comparison remains UIR-05b; final A13 scale/integration and
-physical/operator acceptance remain UIR-08/09. No whole-gate acceptance is inferred.
+text reachability. UIR-05b subsequently completes the adjustable A03 file comparison; final A13
+scale/integration and physical/operator acceptance remain UIR-08/09. No whole-gate acceptance is inferred.
+
+## UIR-05b local implementation evidence
+
+[UIR-05b](evidence/uir-05b-file-comparison.md) completes the local automated A03 file-comparison
+criterion. The 1180x760 fixture measures 69.7% usable comparison height with an adjustable 36/64
+split. At 900x600, explicit set, copy-list and selected-copy pages retain complete paths, decisions,
+path actions and deterministic Back/focus behavior with zero horizontal scrolling. Core 207 and
+three loaded-STA WPF methods pass. A03's defined automated viewport criterion is complete. Folder
+comparison and the remaining UIR-05 criteria continue in UIR-05c; UIR-08/09 integrated native,
+scale/accessibility and operator acceptance are not inferred.
 
 ## Carried native checks from scoped shell acceptance
 

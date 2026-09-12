@@ -926,11 +926,15 @@ public sealed class DuplicateFilesViewModelTests
             publishedRevision = (runId, appliedRevision);
         await viewModel.ShowRunAsync(
             TestWorkerClient.CreateRun(12, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        Assert.IsNull(viewModel.SelectedMember, "Loading a set must not imply a review choice.");
+        viewModel.SelectedMember = viewModel.Members[0];
 
         await viewModel.RemoveMemberCommand.ExecuteAsync(viewModel.Members[0]);
 
         Assert.AreEqual(0, observedExpectedRevision);
         Assert.AreEqual("Remove", viewModel.Members[0].Decision);
+        Assert.AreEqual(viewModel.Members[0].Id, viewModel.SelectedMember?.Id,
+            "A confirmed decision refresh must preserve selected-copy identity by immutable member ID.");
         Assert.AreEqual(1, viewModel.ReviewPlan.Plan.Revision);
         Assert.AreEqual("Review: 0 keep, 1 remove, 1 undecided · 1 KB planned", viewModel.ReviewPlanSummaryText);
         Assert.AreEqual(

@@ -39,6 +39,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
         [new()];
     private IReadOnlyList<DuplicateFileDriveFacetListItemViewModel> _driveFacetOptions = [new()];
     private DuplicateFileGroupListItemViewModel? _selectedGroup;
+    private DuplicateFileMemberListItemViewModel? _selectedMember;
     private DuplicateFileSelectedRootFacetListItemViewModel? _selectedRootFacet;
     private DuplicateFileDriveFacetListItemViewModel? _selectedDriveFacet;
     private WorkerDuplicateFileGroupPage? _currentGroupPage;
@@ -207,7 +208,20 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
     public IReadOnlyList<DuplicateFileMemberListItemViewModel> Members
     {
         get => _members;
-        private set => SetProperty(ref _members, value);
+        private set
+        {
+            var selectedId = SelectedMember?.Id;
+            if (SetProperty(ref _members, value))
+                SelectedMember = selectedId is null
+                    ? null
+                    : value.FirstOrDefault(member => member.Id == selectedId);
+        }
+    }
+
+    public DuplicateFileMemberListItemViewModel? SelectedMember
+    {
+        get => _selectedMember;
+        set => SetProperty(ref _selectedMember, value);
     }
 
     public IReadOnlyList<DuplicateFileSelectedRootFacetListItemViewModel> SelectedRootFacetOptions
@@ -1950,7 +1964,9 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
         }
     }
 
-    private async Task LoadSelectedGroupAsync(DuplicateFileGroupListItemViewModel? group)
+    private async Task LoadSelectedGroupAsync(
+        DuplicateFileGroupListItemViewModel? group,
+        long? preferredMemberId = null)
     {
         CancelLiveValidation(clearFeedback: true);
         CancelMemberQuery();
@@ -1968,6 +1984,8 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
         _memberCancellation = new CancellationTokenSource();
         var generation = ++_memberGeneration;
         await LoadMemberPageAsync(null, run.Id, group.Id, generation, _memberCancellation.Token, display: true);
+        if (preferredMemberId is { } memberId && generation == _memberGeneration)
+            SelectedMember = Members.FirstOrDefault(member => member.Id == memberId) ?? SelectedMember;
     }
 
     private async Task LoadMemberPageAsync(
@@ -2221,7 +2239,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
             {
                 return;
             }
-            await LoadSelectedGroupAsync(SelectedGroup);
+            await LoadSelectedGroupAsync(SelectedGroup, member.Id);
             if (reviewRefreshError is not null)
             {
                 DetailErrorMessage = reviewRefreshError;

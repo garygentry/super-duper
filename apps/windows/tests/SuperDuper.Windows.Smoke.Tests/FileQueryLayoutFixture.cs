@@ -73,9 +73,8 @@ internal static class FileQueryLayoutFixture
                 Assert.AreEqual("25", Find<TextBlock>(view, "FileSummaryMatchingSets").Text);
                 Assert.AreEqual("50", Find<TextBlock>(view, "FileSummaryMatchingCopies").Text);
                 Assert.IsTrue(model.AppliedFilters.Single().Text.EndsWith(longPath, StringComparison.Ordinal));
-                scroll.ScrollToBottom(); Drain();
-                Assert.IsTrue(scroll.VerticalOffset > 0);
-                scroll.ScrollToTop(); Drain();
+                Assert.AreEqual(0, scroll.ScrollableWidth, 0.5,
+                    "The bounded advanced-controls region must never introduce page-level horizontal scrolling.");
                 AssertHeaderFits(window, view);
                 Capture(window, $"query-applied-header-{size.Width}");
                 filters.IsExpanded = true;
@@ -89,6 +88,9 @@ internal static class FileQueryLayoutFixture
                 Assert.AreEqual("GiB", model.MinimumSizeUnit);
                 Assert.AreEqual("1.5", model.MinimumSizeText);
                 Assert.AreEqual(1, model.AppliedFilters.Count, "Advanced edits remain drafts.");
+                scroll.ScrollToBottom(); Drain();
+                Assert.IsTrue(scroll.VerticalOffset > 0,
+                    "Expanded advanced controls remain reachable through their bounded vertical scroller.");
                 Capture(window, $"query-draft-units-{size.Width}");
                 unit.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(unit), 0, Key.Escape)
                 { RoutedEvent = Keyboard.PreviewKeyDownEvent });
@@ -103,10 +105,14 @@ internal static class FileQueryLayoutFixture
                 Assert.IsTrue(search.IsKeyboardFocused, "Removing a focused chip returns focus before the async update.");
                 Assert.AreEqual("1.5", model.MinimumSizeText, "Removing path must not erase the unrelated size draft.");
                 Assert.AreEqual(0, model.AppliedFilters.Count);
-                model.ApplySortAsync(DuplicateFileGroupSortField.CopyCount, WorkerSortDirection.Ascending).GetAwaiter().GetResult();
+                var sort = (ComboBox)view.FindName("FileSetSort");
+                sort.SelectedIndex = 5;
+                WaitUntil(() => model.SortField == DuplicateFileGroupSortField.CopyCount
+                    && model.SortDirection == WorkerSortDirection.Ascending && !model.IsLoading);
                 model.ClearFiltersCommand.ExecuteAsync(null).GetAwaiter().GetResult(); Drain();
                 Assert.AreEqual(System.ComponentModel.ListSortDirection.Descending,
                     Find<DataGrid>(view, "FileGroupsGrid").Columns.Single(c => c.SortMemberPath == "RecoverableBytes").SortDirection);
+                Assert.AreEqual("Potential savings, largest first", ((ComboBoxItem)sort.SelectedItem).Content);
                 Settle(window);
                 AssertHeaderFits(window, view);
                 Capture(window, $"query-default-{size.Width}");
@@ -161,7 +167,7 @@ internal static class FileQueryLayoutFixture
     }
     private static void Capture(Window window, string name)
     {
-        var directory = Environment.GetEnvironmentVariable("SUPER_DUPER_UIR05A_CAPTURES");
+        var directory = Environment.GetEnvironmentVariable("SUPER_DUPER_UIR05B_CAPTURES");
         if (string.IsNullOrEmpty(directory)) return;
         Directory.CreateDirectory(directory);
         var bitmap = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);

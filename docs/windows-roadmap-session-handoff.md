@@ -23,16 +23,17 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest local slice: UIR-05a compact file query controls/filtered totals, in this checkpoint's commit.
-  Baseline `9c528fb` (UIR-04c). Evidence: `plans/ui-redesign/evidence/uir-05a-file-query-controls.md`.
-- UIR-00/01/02/03 complete; UIR-04 and UIR-05 in_progress. UIR-04a/b/c and UIR-05a are locally
+- Latest local slice: UIR-05b adjustable file-results comparison/full local A03, in this checkpoint's
+  commit. Baseline `f06dc03` (UIR-05a). Evidence: `plans/ui-redesign/evidence/uir-05b-file-comparison.md`.
+- UIR-00/01/02/03 complete; UIR-04 and UIR-05 in_progress. UIR-04a/b/c and UIR-05a/b are locally
   implemented. Later integrated/full A17/native/operator validation remains open.
-- UIR-05a exposes path/Apply/Filters/Clear, three filtered totals, exact binary size units and
-  removable applied chips. Accepted snapshots isolate drafts from paging, facets and rule scope;
-  delayed/failing queries preserve displayed results and durable decisions. Clear restores default
-  sort. Existing page scrolling preserves enlarged-text access; full adjustable A03 is UIR-05b.
-- Verification: 207 Core and three loaded-STA WPF methods passed. Isolated results/captures and
-  retained failures/corrections: `artifacts/uir05a` and its evidence. UIR-04c's 200 Core/three WPF
+- UIR-05b replaces stacked fixed-height file tables with an adjustable 36/64 comparison and single
+  wrapping virtualized columns. Narrow Files uses set, copy-list and selected-copy pages with Back
+  to copies/sets; exact path and five decision/path actions remain accessible by vertical-only scroll.
+  UIR-05a query snapshots, units/chips/Clear and server sorting remain.
+- Verification: 207 Core and three loaded-STA WPF methods passed. At 1180x760 comparison height is
+  279.0/400.3 DIPs (69.7%); 900x600 path/decision/Back/focus and zero-horizontal-scroll checks pass.
+  Isolated results/captures and retained failures/corrections: `artifacts/uir05b` and its evidence. UIR-04c's 200 Core/three WPF
   baseline, UIR-04a four-run worker reuse/restart/history and UIR-04b freshness/terminal/UIA remain.
 - Retain UIR-03 scoped shell acceptance: nine earlier walkthrough passes, scrollbar correction,
   Narrator, corrected Dark/Desert/live text size, and physical 150%/175% transitions with focus and
@@ -41,17 +42,16 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   UIR-08/A11, not passed or waived. Do not troubleshoot Windows, force scaling or install software.
 - Prior paired Debug/Release integration and UIR-03c Rust 226 passed/10 ignored are retained, not rerun.
   UIR-04a/b/c are local implementation; full A17/native/user acceptance and UIR-08 integration remain later.
-- Exact next local slice: UIR-05b adjustable file-results list/detail comparison and full A03.
-  Read S03/design/validation and directly linked comparison/view/focus tests. Measure >=60% usable
-  list/detail height at 1180x760; at 900x600 preserve essential paths/decisions without horizontal
-  scrolling, with narrow list/detail and Back to sets where needed. Preserve query snapshots,
-  exact units/chips/Clear, selected-run identity, durable decisions, bounded pages/cache and focus.
-  Remaining UIR-05 folder/decision/path work stays open until its own scoped evidence is recorded.
+- Exact next local slice: UIR-05c adjustable folder-results list/detail comparison and remaining
+  folder decision/path verification. Read S03/design/validation and directly linked relationship,
+  decision, reveal and focus tests. Complete local A04/A05/A06/A11/A15 without pulling UIR-06
+  forward. Preserve UIR-05a/b query/layout/navigation, selected-run identity, durable decisions,
+  bounded pages/cache and focus. UIR-05 stays open until folder evidence is recorded.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; print the required copyable next-session
   prompt at handoff. UIR-04 retains later integrated/operator validation; no physical campaign authority.
 - Runtime audit: fictional PID 67748/session 1 responsive at the exact UIR-03f executable, left untouched.
-  UIR-04b/04c and new `artifacts/uir05a/fixture` outputs are built, not launched. UIR-05a fixture
-  build has zero warnings/errors. Re-audit before reuse.
+  UIR-04b/04c/05a and `artifacts/uir05b/fixture-final` outputs are built, not launched. UIR-05b
+  fixture build has zero warnings/errors. Re-audit before reuse.
   Test windows closed; no production app/worker observed. Production state and disabled deletion untouched.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
   do not rerun SOP10 or SOP9 identities.
@@ -497,14 +497,13 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-UIR-04a/b/c and UIR-05a are locally implemented; UIR-04/05 remain in progress.
-Next local work is UIR-05b: adjustable file-results list/detail comparison and full A03 verification.
-Read S03, design/validation and directly linked comparison/view/focus tests. Measure >=60% usable
-content for list/detail at 1180x760. At 900x600 essential paths/decisions remain accessible without
-horizontal scrolling; use narrow list/detail navigation and Back to sets where needed. Preserve
-UIR-05a's accepted query snapshot, draft/Apply/Enter/chips/Clear, exact units, run identity, durable
-decisions, bounded pages/cache and focus. UIR-05 folder/decision/path work remains open.
-Retain UIR-04c's 200 Core/three WPF baseline and UIR-05a's 207 Core/three WPF results. Full A17 and
+UIR-04a/b/c and UIR-05a/b are locally implemented; UIR-04/05 remain in progress.
+Next local work is UIR-05c: adjustable folder-results list/detail comparison and remaining folder
+decision/path verification. Read S03, design/validation and directly linked relationship, decision,
+reveal and focus tests. Complete local A04/A05/A06/A11/A15 without pulling UIR-06 forward. Preserve
+UIR-05a's accepted query snapshot, draft/Apply/Enter/chips/Clear and exact units plus UIR-05b's
+adjustable file comparison/narrow navigation, run identity, durable decisions, bounded pages/cache
+and focus. Retain UIR-04c's 200 Core/three WPF baseline and UIR-05b's 207 Core/three WPF results. Full A17 and
 integrated/native/operator validation remain later. Use the compact checkpoint/session guide.
 All work stays on codex/ui-redesign; preserve wpf-poc at deefa40, no switch/worktree/merge/push.
 Re-audit PID 67748 and all fixture/app/worker paths before reuse; never overwrite running outputs.
@@ -606,6 +605,12 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+2026-09-12 UIR-05b: Core 207 passed and three loaded-STA WPF methods passed. The 1180x760 file
+comparison measures 279.0/400.3 DIPs (69.7%) with an adjustable 36/64 split; 900x600 set/copy/
+selected-copy navigation, exact path, five actions, Back/focus and zero-horizontal-scroll checks
+pass. Isolated fixture build passed with zero warnings/errors. See
+`plans/ui-redesign/evidence/uir-05b-file-comparison.md`; outputs under `artifacts/uir05b`.
 
 2026-09-12 UIR-05a: Core 207 passed and three loaded-STA WPF methods passed; isolated query/header,
 long-path, delay, draft/unit/chip/clear/focus and retained monitoring/UIA/theme/text checks.
@@ -1340,6 +1345,12 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+- 2026-09-12: UIR-05b locally implements the adjustable 36/64 file comparison and full local A03.
+  Narrow width uses explicit set, copy-list and selected-copy pages with Back to copies/sets;
+  complete paths and five review/path actions are vertically reachable without horizontal scroll.
+  Core 207 and three WPF methods pass; fixture build is clean. UIR-05c owns folder comparison and
+  remaining folder decision/path criteria. Runtime, production deletion and SOP boundaries unchanged.
 
 - 2026-09-12: UIR-05a locally implements compact exposed file query controls/filtered totals,
   exact binary sizes and accepted-query snapshots with removable chips. Core 207 and three WPF

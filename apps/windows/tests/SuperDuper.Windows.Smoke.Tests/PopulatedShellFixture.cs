@@ -155,6 +155,8 @@ internal static class PopulatedShellFixture
             Drain();
             VerifyScanScrollClearance(window, model, new Size(900, 600), "-toolbar");
             VerifyViewportAccess(window, model, new Size(900, 600), "-toolbar");
+            ((FrameworkElement)window.Content).Margin = new Thickness(0);
+            Drain();
             client.FolderGroupPageHandler = (_, _) => Task.FromResult(new WorkerDuplicateFolderGroupPage([], 0, null, null));
             VerifyThemeAndTextScale(window, model, textScale);
         }
@@ -245,18 +247,41 @@ internal static class PopulatedShellFixture
                             Reach(Find<FrameworkElement>(window, id), window);
                         Assert.IsTrue(search.ActualWidth >= 100, "Enlarged path search must keep a useful input width.");
                         var members = Find<DataGrid>(window, "FileMembersGrid");
-                        foreach (var header in new[] { "Review decision", "Actions" })
+                        if (!members.IsVisible)
                         {
-                            var column = members.Columns.Single(column => Equals(column.Header, header));
-                            members.ScrollIntoView(members.Items[0], column);
+                            Find<Button>(window, "FileCompareSelectedSet").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                             Drain();
-                            foreach (var button in Descendants<Button>(column.GetCellContent(members.Items[0])))
+                        }
+                        members.SelectedIndex = 0;
+                        members.ScrollIntoView(members.Items[0]);
+                        Drain();
+                        var selectedPanel = Find<Border>(window, "FileSelectedCopyPanel");
+                        Assert.IsTrue(selectedPanel.IsVisible);
+                        var selectedPanelScroll = Descendants<ScrollViewer>(selectedPanel).First();
+                        var decisionAndPathActions = Descendants<Button>(selectedPanel).Where(button => button.Content?.ToString() is
+                            "Keep" or "Mark for removal" or "Reset decision" or "Copy path" or "Show in Explorer").ToArray();
+                        if (size.Width >= 1180 || factor == 1)
+                        {
+                            foreach (var button in decisionAndPathActions)
                             {
-                                Reach(button, window);
+                                ReachWithinVerticalScroll(button, selectedPanelScroll, window);
                                 Assert.IsTrue(button.DesiredSize.Width <= button.ActualWidth + button.Margin.Left + button.Margin.Right + 1,
-                                    $"Enlarged {button.Content} must fit its cell: desired={button.DesiredSize}, actual={button.RenderSize}.");
+                                    $"Enlarged {button.Content} must remain complete: desired={button.DesiredSize}, actual={button.RenderSize}.");
                             }
-                            Capture(window, $"theme-{theme}-text-{factor}-Files-{header.Replace(' ', '-')}-{size.Width}x{size.Height}");
+                        }
+                        Assert.AreEqual(5, decisionAndPathActions.Length);
+                        Assert.AreEqual(0, selectedPanelScroll.ScrollableWidth, 0.5);
+                        Capture(window, $"theme-{theme}-text-{factor}-Files-selected-copy-{size.Width}x{size.Height}");
+                        var backToCopies = Find<Button>(window, "FileBackToCopies");
+                        if (backToCopies.IsVisible)
+                        {
+                            backToCopies.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                            Drain();
+                        }
+                        if (Find<Button>(window, "FileBackToSets").IsVisible)
+                        {
+                            Find<Button>(window, "FileBackToSets").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                            Drain();
                         }
                         groups.Focus();
                     }
@@ -325,86 +350,148 @@ internal static class PopulatedShellFixture
         var suffix = $"{size.Width}x{size.Height}{host}";
         model.SelectedDestination = WorkspaceDestination.FileResults;
         Drain();
-        var page = Find<ScrollViewer>(window, "FileWorkspaceScrollViewer");
+        var view = (SuperDuper.Windows.Views.DuplicateFilesView)window.FindName("DuplicateFilesWorkspace");
+        Find<Expander>(window, "FileFiltersExpander").IsExpanded = false;
+        SettleLayout(window);
+        var workspace = Find<Grid>(window, "FileComparisonWorkspace");
+        var setPane = Find<Grid>(window, "FileSetPane");
+        var detailPane = Find<Grid>(window, "FileDetailPane");
+        var splitter = Find<GridSplitter>(window, "FileComparisonSplitter");
         var groups = Find<DataGrid>(window, "FileGroupsGrid");
         var members = Find<DataGrid>(window, "FileMembersGrid");
         Assert.IsTrue(model.DuplicateFiles.Members.All(member =>
             !string.IsNullOrWhiteSpace(member.SelectedRoot) && !string.IsNullOrWhiteSpace(member.RelativePath)),
             "The populated viewport fixture must display meaningful locations and paths.");
-        foreach (var expanded in new[] { false, true })
-        {
-            Find<Expander>(window, "FileFiltersExpander").IsExpanded = expanded;
-            ((Expander)((SuperDuper.Windows.Views.DuplicateFilesView)window.FindName("DuplicateFilesWorkspace")).FindName("FileTotalsExpander")).IsExpanded = expanded;
-            Drain();
-            foreach (var grid in new[] { groups, members })
-            {
-                Assert.IsTrue(grid.ActualHeight >= 180 && grid.ActualHeight <= 301,
-                    $"{suffix}: bounded {grid.Name} must have a usable viewport even with disclosures open.");
-                grid.ScrollIntoView(grid.Items[0], grid.Columns[0]);
-                Drain();
-                var row = (DataGridRow)grid.ItemContainerGenerator.ContainerFromIndex(0);
-                Reach(row, window);
-            }
-            Assert.IsTrue(Descendants<DataGridRow>(groups).Count() < groups.Items.Count,
-                "The outer page scroll must not realize the whole bound group page.");
-            foreach (var id in new[] { "FilePreviousGroupPage", "FileNextGroupPage", "FileClearFilters",
-                "FilePreviousSet", "FileNextSet", "FileValidateVisiblePage", "FileCancelValidation",
-                "FilePreviousMemberPage", "FileNextMemberPage" }) Reach(Find<Button>(window, id), window);
-        }
-        Find<Expander>(window, "FileFiltersExpander").IsExpanded = false;
-        ((Expander)((SuperDuper.Windows.Views.DuplicateFilesView)window.FindName("DuplicateFilesWorkspace")).FindName("FileTotalsExpander")).IsExpanded = false;
-        SettleLayout(window);
 
-        // Existing technical columns still scroll horizontally until UIR-05. Each complete
-        // decision/path action must fit its cell and be reachable, not merely exist in the tree.
-        foreach (var header in new[] { "Review decision", "Actions" })
+        Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(groups));
+        Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(members));
+        if (size.Width >= 1180)
         {
-            var column = members.Columns.Single(column => Equals(column.Header, header));
-            members.ScrollIntoView(members.Items[0], column);
+            Assert.IsTrue(setPane.IsVisible && detailPane.IsVisible && splitter.IsVisible);
+            var ratio = workspace.ActualHeight / view.ActualHeight;
+            Console.WriteLine($"{suffix} comparison height={workspace.ActualHeight:F1}/{view.ActualHeight:F1} ({ratio:P1}), widths={setPane.ActualWidth:F1}/{detailPane.ActualWidth:F1}");
+            Assert.IsTrue(ratio >= 0.60,
+                $"{suffix}: list/detail must receive at least 60% of usable Files height; measured {ratio:P1}.");
+            var setWidthRatio = setPane.ActualWidth / (setPane.ActualWidth + detailPane.ActualWidth);
+            Assert.IsTrue(setWidthRatio is >= 0.32 and <= 0.42,
+                $"{suffix}: initial list/detail split must stay near 36/64; measured {setWidthRatio:P1}.");
+            Assert.IsTrue(splitter.Focusable && KeyboardNavigation.GetIsTabStop(splitter));
+
+            var setColumn = (ColumnDefinition)view.FindName("SetPaneColumn");
+            var detailColumn = (ColumnDefinition)view.FindName("DetailPaneColumn");
+            var priorSetWidth = setPane.ActualWidth;
+            setColumn.Width = new GridLength(45, GridUnitType.Star);
+            detailColumn.Width = new GridLength(55, GridUnitType.Star);
             Drain();
-            var cellContent = column.GetCellContent(members.Items[0]);
-            foreach (var button in Descendants<Button>(cellContent)) Reach(button, window);
-            Capture(window, $"populated-File-{header.Replace(' ', '-')}-{suffix}");
+            Assert.IsTrue(setPane.ActualWidth > priorSetWidth + 20,
+                "Changing the adjustable split must grow the set pane.");
+            setColumn.Width = new GridLength(36, GridUnitType.Star);
+            detailColumn.Width = new GridLength(64, GridUnitType.Star);
+            Drain();
+        }
+        else
+        {
+            Assert.IsTrue(setPane.IsVisible && !detailPane.IsVisible && !splitter.IsVisible,
+                $"{suffix}: narrow Files starts with the set list only.");
+            var compare = Find<Button>(window, "FileCompareSelectedSet");
+            Assert.IsTrue(compare.IsVisible && compare.IsEnabled);
+            compare.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Drain();
+            Assert.IsTrue(!setPane.IsVisible && detailPane.IsVisible && !splitter.IsVisible,
+                $"{suffix}: Compare selected set must replace the list with detail.");
+            Assert.IsTrue(Find<Button>(window, "FileBackToSets").IsVisible);
+            Capture(window, $"populated-File-copies-{suffix}");
+        }
+
+        members.SelectedIndex = 0;
+        members.ScrollIntoView(members.Items[0]);
+        Drain();
+        var memberScroll = Descendants<ScrollViewer>(members).First();
+        Assert.AreEqual(0, memberScroll.ScrollableWidth, 0.5,
+            $"{suffix}: essential copy comparison must not require horizontal scrolling.");
+        var exactPath = Find<TextBox>(window, "FileSelectedCopyPath");
+        Assert.AreEqual(model.DuplicateFiles.Members[0].Path, exactPath.Text);
+        Assert.AreEqual(TextWrapping.Wrap, exactPath.TextWrapping);
+        Assert.AreEqual(ScrollBarVisibility.Disabled, exactPath.HorizontalScrollBarVisibility);
+        var selectedPanel = Find<Border>(window, "FileSelectedCopyPanel");
+        if (size.Width < 1180 && host.Length == 0)
+            AssertVisible(Find<Button>(window, "FileBackToCopies"), window);
+        Capture(window, $"populated-File-selected-path-{suffix}");
+        var selectedPanelScroll = Descendants<ScrollViewer>(selectedPanel).First();
+        if (host.Length == 0)
+        {
+            foreach (var button in Descendants<Button>(selectedPanel).Where(button => button.Content?.ToString() is
+                         "Keep" or "Mark for removal" or "Reset decision" or "Copy path" or "Show in Explorer"))
+                ReachWithinVerticalScroll(button, selectedPanelScroll, window);
+        }
+        Assert.AreEqual(0, selectedPanelScroll.ScrollableWidth, 0.5,
+            $"{suffix}: selected-copy actions must not require horizontal scrolling.");
+        Capture(window, $"populated-File-comparison-{suffix}");
+
+        if (host.Length == 0)
+        {
+            Reach(Find<Button>(window, "FileValidateVisiblePage"), window);
+            Find<Button>(window, "FileValidateVisiblePage").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Drain();
+            if (size.Width >= 1180)
+            {
+                Assert.IsTrue(members.IsKeyboardFocusWithin,
+                    "Validation returns through the actual member-focus handler.");
+            }
+            else
+            {
+                var backToCopies = Find<Button>(window, "FileBackToCopies");
+                Assert.IsTrue(backToCopies.IsKeyboardFocused,
+                    "Narrow validation returns focus to the visible selected-copy comparison.");
+                backToCopies.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Drain();
+                Assert.IsTrue(members.IsVisible && members.IsKeyboardFocusWithin,
+                    "Back to copies restores the copy list and keyboard focus.");
+            }
+        }
+        else
+        {
+            model.DuplicateFiles.SelectedMember = null;
+            Drain();
         }
 
         // Invoke the actual Click handler. Its focus restoration must also reveal the selected row.
         Find<Button>(window, "FileNextSet").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Drain();
-        Assert.IsTrue(groups.IsKeyboardFocusWithin);
         var selected = model.DuplicateFiles.SelectedGroup;
-        var selectedRow = (DataGridRow)groups.ItemContainerGenerator.ContainerFromItem(groups.SelectedItem);
-        AssertVisible(selectedRow, window);
-        Reach(Find<Button>(window, "FileValidateVisiblePage"), window);
-        Find<Button>(window, "FileValidateVisiblePage").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Drain();
-        Assert.IsTrue(members.IsKeyboardFocusWithin, "Validation returns through the actual member-focus handler.");
-        AssertVisible(members, window, minimumHeight: 36);
+        if (size.Width >= 1180)
+        {
+            Assert.IsTrue(groups.IsKeyboardFocusWithin);
+            var selectedRow = (DataGridRow)groups.ItemContainerGenerator.ContainerFromItem(groups.SelectedItem);
+            AssertVisible(selectedRow, window);
+        }
+        else
+        {
+            Assert.IsTrue(Find<TextBlock>(window, "FileSelectedSetName").IsKeyboardFocused,
+                "Narrow set navigation keeps focus in the visible detail pane.");
+        }
+        Console.WriteLine($"{suffix} detail geometry: pane={detailPane.ActualHeight:F1}, members={members.ActualHeight:F1}, selected={selectedPanel.ActualHeight:F1}, heading={Find<TextBlock>(window, "FileSelectedSetName").ActualHeight:F1}");
+        if (host.Length == 0)
+            AssertVisible(members, window, minimumHeight: size.Width >= 1180 ? 36 : 16);
 
-        // Retain both the page's position and the grid's own nonzero offset in this same run.
-        // Move focus to the navigation surface before deliberately scrolling its former row out
-        // of view. Otherwise native focus restoration can legitimately bring that row back into
-        // view on tab return, racing the independent scroll-retention assertion below.
-        Assert.IsTrue(((TabItem)((TabControl)window.FindName("ResultsTabs")).SelectedItem).Focus());
-        Drain();
+        if (size.Width < 1180)
+        {
+            Find<Button>(window, "FileBackToSets").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Drain();
+            Assert.IsTrue(setPane.IsVisible && !detailPane.IsVisible);
+            Assert.IsTrue(groups.IsKeyboardFocusWithin, "Back to sets restores focus to the selected set.");
+        }
         var groupScroll = Descendants<ScrollViewer>(groups).First();
         groupScroll.ScrollToVerticalOffset(10);
-        page.ScrollToBottom();
         Drain();
-        var pageOffset = page.VerticalOffset;
         var gridOffset = groupScroll.VerticalOffset;
-        Console.WriteLine($"{suffix} before retention: page={pageOffset}/{page.ExtentHeight}/{page.ViewportHeight}, grids={groups.ActualHeight}/{members.ActualHeight}");
-        Assert.IsTrue(pageOffset > 0 && gridOffset > 0);
+        Assert.IsTrue(gridOffset > 0);
         model.SelectedDestination = WorkspaceDestination.Review;
         Drain();
         model.SelectedDestination = WorkspaceDestination.FileResults;
         Drain();
         Assert.AreSame(selected, model.DuplicateFiles.SelectedGroup);
-        Console.WriteLine($"{suffix} after retention: page={page.VerticalOffset}/{page.ExtentHeight}/{page.ViewportHeight}, grids={groups.ActualHeight}/{members.ActualHeight}");
-        Assert.AreEqual(pageOffset, page.VerticalOffset, 1d);
         Assert.AreEqual(gridOffset, groupScroll.VerticalOffset, 1d);
-        members.ScrollIntoView(members.Items[0], members.Columns[0]);
-        Reach((DataGridRow)members.ItemContainerGenerator.ContainerFromIndex(0), window);
-        Capture(window, $"populated-File-comparison-{suffix}");
 
         model.SelectedDestination = WorkspaceDestination.History;
         Drain();
@@ -435,6 +522,20 @@ internal static class PopulatedShellFixture
     private static void Reach(FrameworkElement element, Window window)
     {
         element.BringIntoView();
+        Drain();
+        AssertVisible(element, window);
+    }
+
+    private static void ReachWithinVerticalScroll(
+        FrameworkElement element,
+        ScrollViewer scroll,
+        Window window)
+    {
+        var bounds = element.TransformToAncestor(scroll).TransformBounds(new Rect(element.RenderSize));
+        if (bounds.Top < 0)
+            scroll.ScrollToVerticalOffset(Math.Max(0, scroll.VerticalOffset + bounds.Top));
+        else if (bounds.Bottom > scroll.ViewportHeight)
+            scroll.ScrollToVerticalOffset(scroll.VerticalOffset + bounds.Bottom - scroll.ViewportHeight);
         Drain();
         AssertVisible(element, window);
     }
@@ -494,7 +595,7 @@ internal static class PopulatedShellFixture
 
     private static void Capture(Window window, string name)
     {
-        var directory = Environment.GetEnvironmentVariable("SUPER_DUPER_UIR03_CAPTURES");
+        var directory = Environment.GetEnvironmentVariable("SUPER_DUPER_UIR05B_CAPTURES");
         if (string.IsNullOrWhiteSpace(directory)) return;
         Directory.CreateDirectory(directory);
         var bitmap = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);

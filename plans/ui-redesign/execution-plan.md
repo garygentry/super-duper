@@ -1,6 +1,6 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-03 complete with scoped operator acceptance; UIR-04 and UIR-05 in progress; UIR-04a/b/c and UIR-05a locally implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
+Status: UIR-03 complete with scoped operator acceptance; UIR-04 and UIR-05 in progress; UIR-04a/b/c and UIR-05a/b locally implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -112,13 +112,21 @@ Core 207 passed; three loaded-STA WPF methods passed with delayed long-path fixt
 monitoring/theme/text-size checks. UIR-05a implements local A03/A06/A13 header/query work, not full A03.
 No engine, protocol, query ceiling or production wiring changed. UIR-05 is in progress.
 
-The exact next local slice is **UIR-05b: adjustable file-results list/detail comparison and full A03 verification**.
-Read S03, design/validation guidance and directly linked comparison/view/focus tests. At 1180x760,
-measure at least 60% usable content height for list/detail. At 900x600 retain essential paths and
-decisions without horizontal scrolling, with narrow list/detail navigation and Back to sets as needed.
-Preserve UIR-05a's draft/applied query snapshots, explicit Apply/Enter/chips/Clear, exact units,
-selected-run identity, durable decisions, bounded paging/cache and focus. Remaining UIR-05 folder/
-decision/path work stays open until its own evidence is recorded; do not claim the whole gate from Files.
+**UIR-05b implemented (2026-09-12).** [Evidence](evidence/uir-05b-file-comparison.md) covers the
+adjustable 36/64 Files list/detail surface and full local automated A03 verification. The populated
+1180x760 fixture measures 279.0/400.3 DIPs, or 69.7% usable comparison height. At 900x600 explicit
+set, copy-list and selected-copy pages retain complete paths, Keep/Mark/Reset and path actions through
+vertical-only scrolling, with Back to copies/sets and actual focus restoration. Single wrapping
+virtualized columns eliminate grid horizontal scrolling; sorting remains server-owned. Core 207 and
+three loaded-STA WPF methods pass. No engine, protocol, paging/cache ceiling, decision truth or
+production wiring changed. UIR-05 remains in progress.
+
+The exact next local slice is **UIR-05c: adjustable folder-results list/detail comparison and the
+remaining folder decision/path verification**. Read S03 and its directly linked folder comparison,
+relationship, decision, reveal and focus tests. Complete the remaining local A04/A05/A06/A11/A15
+coverage without pulling UIR-06 review work forward. Preserve UIR-05a query snapshots/units/chips,
+UIR-05b file comparison/navigation, selected-run identity, durable decisions, bounded paging/cache
+and focus. Do not claim the whole gate until folder evidence is recorded.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read
