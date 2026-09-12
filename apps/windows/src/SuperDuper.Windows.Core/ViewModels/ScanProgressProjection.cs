@@ -11,13 +11,62 @@ public sealed record ScanProgressStage(
 {
     public string FilesText => Files.ToString("N0", CultureInfo.CurrentCulture);
 
-    public string BytesText => DisplayFormatting.Bytes(LogicalBytes);
+    public string BytesText => $"{LogicalBytes} B";
 
     public string AutomationName => $"{Name}: {FilesText} files; {BytesText} logical bytes";
 }
 
+public sealed record ScanPhaseWork(string Label, string Detail, double? Percent = null, bool Unknown = true)
+{
+    public double BarValue => Percent ?? 0;
+    public string AutomationName => $"{Label}. {Detail}";
+}
+
 internal static class ScanProgressProjection
 {
+    internal static ScanPhaseWork PhaseWork(string? phase, WorkerScanProgressSnapshot? snapshot,
+        WorkerFolderAnalysisProgress? folder)
+    {
+        // A lifecycle phase can arrive before its detailed snapshot. Never reuse the previous
+        // phase's denominator under the new heading.
+        if (phase == "discovering")
+            return new("Discovering files", snapshot?.Phase == "discovering"
+                ? $"{snapshot.Funnel.Discovered.Files:N0} files · {DisplayFormatting.Bytes(snapshot.Funnel.Discovered.LogicalBytes)} discovered · total unknown"
+                : "Total work unknown — waiting for discovery counts");
+        if (phase == "hashing" && snapshot?.Phase == "candidate_screening")
+        {
+            const string label = "Hash candidate work resolved";
+            // remainingKnownWork is present only after the worker establishes candidate totals.
+            // Zero-initialized funnel counters alone do not establish an empty phase.
+            if (snapshot.RemainingKnownWork is not { Stage: "hash_pipeline" })
+                return new(label, "Candidate total unknown — waiting for the total to be reported");
+            var total = ulong.Parse(snapshot.Funnel.HashPipelineCandidates.LogicalBytes, CultureInfo.InvariantCulture);
+            var resolved = ulong.Parse(snapshot.Logical.HashPipelineResolvedBytes, CultureInfo.InvariantCulture);
+            if (resolved > total) return new(label, "Unavailable — resolved work exceeds the reported candidate denominator");
+            if (total == 0) return new(label, "No logical candidate bytes in this phase · percentage not applicable", Unknown: false);
+            var percent = (double)((decimal)resolved * 100 / total);
+            return new(label, $"{percent:0.#}% · {DisplayFormatting.Bytes(snapshot.Logical.HashPipelineResolvedBytes)} of {DisplayFormatting.Bytes(snapshot.Funnel.HashPipelineCandidates.LogicalBytes)} logical candidate work · not disk bytes read", percent, false);
+        }
+        if (phase == "analyzing_folders" && snapshot?.Phase == "analyzing_folders" && folder is not null)
+        {
+            var label = FolderLabel(folder.Substage);
+            if (folder.Total == 0) return new(label, "0 of 0 · no work in this substage · percentage not applicable", Unknown: false);
+            var percent = (double)((decimal)folder.Completed * 100 / folder.Total);
+            return new(label, $"{folder.Completed:N0} of {folder.Total:N0} · {percent:0.#}% of this substage", percent, false);
+        }
+        return new(phase == "hashing" ? "Hash candidate work resolved" : DisplayFormatting.Phase(phase),
+            "Total work unknown — waiting for measurable phase work");
+    }
+
+    internal static string FolderLabel(string substage) => substage switch
+    {
+        "hierarchy" => "Building hierarchy",
+        "structural_candidates" => "Finding structural candidates",
+        "verification" => "Verifying exact content",
+        "persistence" => "Saving folder results",
+        _ => "Unavailable folder substage",
+    };
+
     internal static IReadOnlyList<ScanProgressStage> Stages(WorkerCandidateFunnelProgress? funnel) =>
         funnel is null
             ? []
@@ -47,7 +96,7 @@ internal static class ScanProgressProjection
         { Substage: "hierarchy" } => FolderStage("Building hierarchy", progress),
         { Substage: "structural_candidates" } => FolderStage("Finding structural candidates", progress),
         { Substage: "verification" } => FolderStage("Verifying exact content", progress),
-        { Substage: "persistence" } => FolderStage("Persisting exact folders", progress),
+        { Substage: "persistence" } => FolderStage("Saving folder results", progress),
         _ => "Unavailable — unsupported folder-analysis substage",
     };
 

@@ -1,6 +1,6 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-03 complete with scoped operator acceptance; UIR-04 in progress; UIR-04a/b implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
+Status: UIR-03 complete with scoped operator acceptance; UIR-04 in progress; UIR-04a/b/c locally implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -95,18 +95,26 @@ announcements. Full Core 193 passed; three loaded-STA WPF methods passed with co
 delayed progress, minimized/restored state and four terminal outcomes. Fixture built in isolated
 outputs; no production runtime mutation or new physical acceptance.
 
-The exact next local slice is **UIR-04c: compact S02 summary and expandable details (A08/A16)**.
-Bring sampled filename/parent and qualified phase work into the summary. Use existing resolved
-logical hash-candidate work and folder-substage denominators for measured bars, with explicit
-unknown/zero states. Disclose exact Work / Hash reuse / Diagnostics values and preserve disclosure,
-focus and scroll during updates/navigation. Retain UIR-04b freshness, terminal and announcement
-contracts. Use controlled phase/layout fixtures; no physical campaign or repeated shell walkthrough.
-UIR-04 remains in progress; full A17 and operator workflow acceptance remain later.
+**UIR-04c implemented (2026-09-12).** [Evidence](evidence/uir-04c-compact-monitoring.md) covers the
+compact S02 summary, sampled filename/parent, measured candidate/substage work and expandable exact
+Work / Hash reuse / Diagnostics. The worker's known-total signal distinguishes unknown from zero;
+100% phase work never completes a run. Exact diagnostics, disclosure/focus/scroll and UIR-04b
+freshness, terminal and coalesced announcements remain. Core 200 and three loaded-STA WPF methods passed;
+settled captures and review are recorded in the evidence. No engine, worker, cache or production wiring changed.
+UIR-04 remains in progress for later integrated A17/native/operator validation; local a/b/c are implemented.
+
+The exact next local slice is **UIR-05a: compact file-results query controls and filtered totals (A03/A06/A13)**.
+Read S03, the design/validation guidance and directly linked DuplicateFiles query/view/test code.
+Keep path search and the three filtered totals visible; preserve draft versus applied query state,
+explicit Apply/Enter, removable applied-filter chips, Clear filters, exact size units and all current
+filter semantics. Preserve selected-run identity, paging/query ceilings, decisions and focus. Use
+isolated delayed-query/long-path layout fixtures. Adjustable list/detail comparison remains UIR-05b;
+do not claim the full A03 layout criterion from the compact header/filter slice.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read
 [the long-scan/rescan contract](scan-and-rescan-experience.md). One gate may span several commits;
-record partial progress without calling the gate complete. Run UIR-04 next after UIR-03.
+record partial progress without calling the gate complete. UIR-05 can proceed independently after UIR-03.
 
 1. At cold start audit Git, read this checkpoint and the shared handoff, and confirm the branch is
    `codex/ui-redesign`. If it differs, establish why before editing; do not silently switch or discard

@@ -87,6 +87,9 @@ internal static class PopulatedShellFixture
             model.ViewProgressCommand.Execute(null);
             Drain();
             Assert.IsTrue(((TabItem)((TabControl)window.FindName("ScanTabs")).SelectedItem).IsKeyboardFocused);
+            Find<Expander>(window, "ScanWorkExpander").IsExpanded = true;
+            Find<Expander>(window, "ScanDiagnosticsExpander").IsExpanded = true;
+            Drain();
             var scroll = Find<ScrollViewer>(window, "ScanProgressScrollViewer");
             scroll.ScrollToVerticalOffset(180);
             Drain();
@@ -97,6 +100,8 @@ internal static class PopulatedShellFixture
             model.SelectedDestination = WorkspaceDestination.ScanProgress;
             Drain();
             Assert.AreEqual(offset, scroll.VerticalOffset, 1d, "Same-run pane reopening retains scroll.");
+            Assert.IsTrue(Find<Expander>(window, "ScanWorkExpander").IsExpanded);
+            Assert.IsTrue(Find<Expander>(window, "ScanDiagnosticsExpander").IsExpanded);
 
             model.Progress.OpenWarningsCommand.ExecuteAsync(null).GetAwaiter().GetResult();
             Drain();
@@ -288,6 +293,9 @@ internal static class PopulatedShellFixture
         {
             model.SelectedDestination = destination;
             Drain();
+            Find<Expander>(window, "ScanWorkExpander").IsExpanded = true;
+            Find<Expander>(window, "ScanDiagnosticsExpander").IsExpanded = true;
+            Drain();
             var scroll = Find<ScrollViewer>(window, "ScanProgressScrollViewer");
             var content = (FrameworkElement)scroll.Content;
             var bar = Descendants<System.Windows.Controls.Primitives.ScrollBar>(scroll)
@@ -369,6 +377,11 @@ internal static class PopulatedShellFixture
         AssertVisible(members, window, minimumHeight: 36);
 
         // Retain both the page's position and the grid's own nonzero offset in this same run.
+        // Move focus to the navigation surface before deliberately scrolling its former row out
+        // of view. Otherwise native focus restoration can legitimately bring that row back into
+        // view on tab return, racing the independent scroll-retention assertion below.
+        Assert.IsTrue(((TabItem)((TabControl)window.FindName("ResultsTabs")).SelectedItem).Focus());
+        Drain();
         var groupScroll = Descendants<ScrollViewer>(groups).First();
         groupScroll.ScrollToVerticalOffset(10);
         page.ScrollToBottom();

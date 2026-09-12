@@ -38,8 +38,17 @@ later gates; the evidence record states the exact retained checks and remaining 
 [UIR-04b](evidence/uir-04b-long-scan-monitoring.md) implements the multi-day elapsed, accepted-update
 freshness and terminal activity portion of A08/A16. Full Core 193 passed; three WPF methods passed,
 including controlled clocks, delayed/rejected progress, minimized/restored state, all terminal states,
-focus/selection/scroll retention and MostRecent announcements. UIR-04c still owns the compact summary,
-measured phase bars and expandable details; full A16/native/operator acceptance is not claimed.
+focus/selection/scroll retention and MostRecent announcements. These contracts remain protected by
+UIR-04c; full A16/native/operator acceptance is not claimed.
+
+## UIR-04c local implementation evidence
+
+[UIR-04c](evidence/uir-04c-compact-monitoring.md) implements compact sampled activity, measured phase
+bars and expandable exact Work / Hash reuse / Diagnostics for A08/A16. Core 200 passed; loaded-STA
+phase/layout and retained clock/terminal/UIA checks are recorded in the evidence. Unknown candidate
+totals use the worker's explicit known-work signal; zero totals are not percentages. No global or
+per-file progress is inferred. Disclosure, path focus/selection/scroll and same-run navigation are
+covered. UIR-04 integrated/full A17/native/operator validation remains later.
 
 ## Carried native checks from scoped shell acceptance
 

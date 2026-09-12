@@ -1133,6 +1133,9 @@ public sealed class WpfSurfaceSmokeTests
         host.UpdateLayout();
         DrainDispatcher();
 
+        FindByAutomationId<Expander>(progress, "ScanWorkExpander").IsExpanded = true;
+        FindByAutomationId<Expander>(progress, "ScanDiagnosticsExpander").IsExpanded = true;
+        DrainDispatcher();
         var funnel = FindByAutomationId<ItemsControl>(progress, "ScanProgressFunnel");
         Assert.AreEqual(6, funnel.Items.Count);
         Assert.AreEqual("Six-stage scan progress funnel", AutomationProperties.GetName(funnel));
@@ -1150,7 +1153,7 @@ public sealed class WpfSurfaceSmokeTests
         var currentPath = FindByAutomationId<TextBox>(progress, "ScanCurrentPath");
         Assert.IsTrue(currentPath.IsReadOnly);
         Assert.AreEqual("Current scan path", AutomationProperties.GetName(currentPath));
-        Assert.AreEqual(data.EstimatedTimeRemaining,
+        Assert.AreEqual("ETA: " + data.EstimatedTimeRemaining,
             FindByAutomationId<TextBlock>(progress, "ScanEstimatedTimeRemaining").Text);
         Assert.AreEqual(data.HashPipelineCandidateContext,
             FindByAutomationId<TextBlock>(progress, "ScanCandidateContext").Text);
@@ -1587,6 +1590,17 @@ public sealed class WpfSurfaceSmokeTests
         public ProgressSurfaceCommand CancelCommand { get; } = new();
 
         public bool IsIndeterminate => true;
+        public bool IsActive => true;
+        public ScanPhaseWork PhaseWork => new("Verifying exact content", "5 of 8", 62.5, false);
+        public string ActivityFileName => "candidate.bin";
+        public string ActivityParent => @"C:\Data";
+        public string ExactHashWork => "4000 of 8000 logical bytes resolved";
+        public string PartialReadBytes => "400 B actually read";
+        public string FullReadBytes => "1000 B actually read";
+        public string PartialCacheOutcomes => "Hits 0 · misses 4 · errors 0 · stores 4";
+        public string FullCacheOutcomes => "Hits 1 · misses 1 · errors 0 · stores 1";
+        public string ReadOutcomes => "Partial attempts 4";
+        public string TelemetryDiagnostics => "Revision 1";
 
         public string ActivityPathAutomationName => "Current scan path";
         public string ActivityHeading => "Current activity";

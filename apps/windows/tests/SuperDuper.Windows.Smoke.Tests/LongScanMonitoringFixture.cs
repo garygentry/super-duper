@@ -8,6 +8,7 @@ using System.Windows.Threading;
 using SuperDuper.Windows.Accessibility;
 using SuperDuper.Windows.Core.Tests;
 using SuperDuper.Windows.Core.ViewModels;
+using SuperDuper.Windows.Core.Workers;
 using SuperDuper.Windows.Views;
 
 namespace SuperDuper.Windows.Smoke.Tests;
@@ -39,6 +40,7 @@ internal static class LongScanMonitoringFixture
                 Find<ProgressBar>(view, "ScanProgressBar").ReadLocalValue(FrameworkElement.StyleProperty),
                 "Terminal visibility must retain the native Fluent progress template.");
             AutomationNotificationBehavior.NotificationRaised += Notification;
+            VerifyCompactSummary(window, view, model, clock);
             foreach (var size in new[] { new Size(900, 600), new Size(1180, 760) })
             {
                 window.Width = size.Width; window.Height = size.Height;
@@ -72,6 +74,9 @@ internal static class LongScanMonitoringFixture
                     Assert.AreEqual(3UL, model.ProgressSnapshot!.Revision);
                     Assert.AreEqual(6, Find<ItemsControl>(view, "ScanProgressFunnel").Items.Count);
                     StringAssert.Contains(Find<TextBlock>(view, "ScanEstimatedTimeRemaining").Text, "Hash pipeline");
+                    Find<Expander>(view, "ScanWorkExpander").IsExpanded = true;
+                    Find<Expander>(view, "ScanDiagnosticsExpander").IsExpanded = true;
+                    SettleLayout(window);
                     var path = Find<TextBox>(view, "ScanCurrentPath");
                     path.BringIntoView(); Drain();
                     Assert.IsTrue(path.Focus());
@@ -118,6 +123,125 @@ internal static class LongScanMonitoringFixture
             AutomationNotificationBehavior.NotificationRaised -= Notification;
             window.Close();
         }
+    }
+
+    private static void VerifyCompactSummary(Window window, ScanProgressView view,
+        ScanProgressViewModel model, ManualProgressClock clock)
+    {
+        var pathText = @"\\?\UNC\server\share\" + string.Concat(Enumerable.Repeat("long parent location ", 20))
+            + @"\" + new string('f', 180) + ".bin";
+        foreach (var size in new[] { new Size(900, 600), new Size(1180, 760) })
+        {
+            window.Width = size.Width; window.Height = size.Height;
+            var work = Find<Expander>(view, "ScanWorkExpander");
+            var reuse = Find<Expander>(view, "ScanHashReuseExpander");
+            var diagnostics = Find<Expander>(view, "ScanDiagnosticsExpander");
+            work.IsExpanded = reuse.IsExpanded = diagnostics.IsExpanded = false;
+            SettleLayout(window);
+            foreach (var phase in new[] { "discovering", "hashing", "zero-hash", "unknown-hash", "unknown-folder",
+                "hierarchy", "structural_candidates", "verification", "persistence", "zero-folder", "finalizing" })
+            {
+                model.ShowRun(TestWorkerClient.CreateRun(1, 1, "running", "discovering", clock.GetUtcNow()));
+                WorkerRunProgressEventArgs progress = phase switch
+                {
+                    "discovering" => ProgressTestData.Discovery(discoveredFiles: 3_547_188),
+                    "hashing" => ProgressTestData.Hashing(currentPath: pathText),
+                    "zero-hash" => ProgressTestData.Hashing(measuredCounters: new(), measuredLogical: new()),
+                    "unknown-hash" => ProgressTestData.Hashing(measuredCounters: new(), measuredLogical: new(), candidateTotalsKnown: false),
+                    "unknown-folder" => ProgressTestData.Hashing(legacyPhase: "analyzing_folders", typedPhase: "analyzing_folders", etaUnavailableReason: "not_applicable"),
+                    "finalizing" => ProgressTestData.Hashing(legacyPhase: "finalizing", typedPhase: "finalizing", etaUnavailableReason: "not_applicable"),
+                    _ => ProgressTestData.Hashing(legacyPhase: "analyzing_folders", typedPhase: "analyzing_folders",
+                        etaUnavailableReason: "not_applicable", folderAnalysis: new()
+                        {
+                            Substage = phase == "zero-folder" ? "persistence" : phase,
+                            Completed = phase == "zero-folder" ? 0UL : 1_000_000UL,
+                            Total = phase == "zero-folder" ? 0UL : 4_000_000UL,
+                        }),
+                };
+                Assert.IsTrue(model.ApplyProgress(progress));
+                Drain();
+                var scroll = Find<ScrollViewer>(view, "ScanProgressScrollViewer");
+                scroll.ScrollToTop(); Drain();
+                var bar = Find<ProgressBar>(view, "ScanProgressBar");
+                Assert.AreEqual(model.PhaseWork.BarValue, bar.Value);
+                Assert.AreEqual(model.IsIndeterminate, bar.IsIndeterminate);
+                Assert.AreEqual(model.PhaseWork.AutomationName, AutomationProperties.GetName(bar));
+                Assert.IsTrue(bar.IsVisible);
+                Assert.IsFalse(work.IsExpanded || reuse.IsExpanded || diagnostics.IsExpanded);
+                foreach (var id in new[] { "ScanActivityFileName", "ScanActivityParent", "ScanPhaseWorkDetail", "ScanMetricsContext" })
+                {
+                    var element = Find<TextBlock>(view, id);
+                    var bounds = element.TransformToAncestor(window).TransformBounds(new Rect(element.RenderSize));
+                    Assert.IsTrue(bounds.Left >= 0 && bounds.Right <= window.ActualWidth && bounds.Bottom <= window.ActualHeight,
+                        $"Compact summary {id} must fit at {size} during {phase}: {bounds}");
+                }
+                Capture(window, $"compact-{phase}-{size.Width}");
+            }
+            model.ApplyLifecycle(model.Run! with { Status = "completed", CompletedAt = clock.GetUtcNow() });
+            Drain();
+            Assert.IsFalse(Find<ProgressBar>(view, "ScanProgressBar").IsVisible);
+            StringAssert.Contains(Find<TextBlock>(view, "ScanPhaseWorkDetail").Text, "Historical phase work");
+            Capture(window, $"compact-terminal-unknown-{size.Width}");
+
+            model.ShowRun(TestWorkerClient.CreateRun(1, 1, "running", "hashing", clock.GetUtcNow()));
+            Assert.IsTrue(model.ApplyProgress(ProgressTestData.Hashing(currentPath: pathText)));
+            work.IsExpanded = reuse.IsExpanded = diagnostics.IsExpanded = true;
+            SettleLayout(window);
+            Assert.AreEqual(6, Find<ItemsControl>(view, "ScanProgressFunnel").Items.Count);
+            StringAssert.Contains(Find<TextBlock>(view, "ScanExactHashWork").Text, "4000 of 8000");
+            StringAssert.Contains(Find<TextBlock>(view, "ScanPartialReadBytes").Text, "400 B actually read");
+            StringAssert.Contains(Find<TextBlock>(view, "ScanFullCacheOutcomes").Text, "Hits 1");
+            var path = Find<TextBox>(view, "ScanCurrentPath");
+            path.BringIntoView(); Drain();
+            Assert.IsTrue(path.Focus());
+            path.Select(10, 30);
+            path.ScrollToHorizontalOffset(100);
+            Drain();
+            var offset = Find<ScrollViewer>(view, "ScanProgressScrollViewer").VerticalOffset;
+            var horizontalOffset = path.HorizontalOffset;
+            Assert.IsTrue(horizontalOffset > 0, "Exercise the exact long path's horizontal scroll.");
+            Assert.IsTrue(model.ApplyProgress(ProgressTestData.Hashing(sequence: 2, revision: 2, currentPath: pathText)));
+            clock.Advance(TimeSpan.FromSeconds(3)); Drain();
+            Assert.IsTrue(work.IsExpanded && reuse.IsExpanded && diagnostics.IsExpanded);
+            Assert.IsTrue(path.IsKeyboardFocused);
+            Assert.AreEqual(10, path.SelectionStart);
+            Assert.AreEqual(30, path.SelectionLength);
+            Assert.AreEqual(offset, Find<ScrollViewer>(view, "ScanProgressScrollViewer").VerticalOffset);
+            Assert.AreEqual(horizontalOffset, path.HorizontalOffset);
+            Assert.AreEqual(pathText, path.Text);
+            AssertReachable(window, path);
+            Capture(window, $"compact-exact-details-{size.Width}");
+            foreach (var id in new[] { "ScanPartialRecentRate", "ScanFullCumulativeRate", "ScanFullCacheOutcomes" })
+            {
+                AssertReachable(window, Find<TextBlock>(view, id));
+                Capture(window, $"compact-details-{id}-{size.Width}");
+            }
+        }
+    }
+
+    private static void SettleLayout(Window window)
+    {
+        // Fluent disclosure animation continues after a dispatcher drain. Capture and compare
+        // offsets only after its geometry settles; never treat an intermediate frame as layout.
+        var frame = new DispatcherFrame();
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        var stableSince = TimeSpan.Zero;
+        string? previous = null;
+        var timer = new DispatcherTimer(DispatcherPriority.ContextIdle) { Interval = TimeSpan.FromMilliseconds(50) };
+        timer.Tick += (_, _) =>
+        {
+            window.UpdateLayout();
+            var geometry = string.Join(";", Descendants<ScrollViewer>(window)
+                .Select(scroll => $"{scroll.ExtentHeight:F2}/{scroll.ViewportHeight:F2}"));
+            if (geometry != previous) { previous = geometry; stableSince = elapsed.Elapsed; }
+            if (elapsed.Elapsed - stableSince < TimeSpan.FromMilliseconds(250)
+                && elapsed.Elapsed < TimeSpan.FromSeconds(3)) return;
+            timer.Stop();
+            frame.Continue = false;
+        };
+        timer.Start();
+        Dispatcher.PushFrame(frame);
+        Assert.IsTrue(elapsed.Elapsed < TimeSpan.FromSeconds(3), "Scan disclosure layout did not settle.");
     }
 
     private static void AssertReachable(Window window, FrameworkElement control)

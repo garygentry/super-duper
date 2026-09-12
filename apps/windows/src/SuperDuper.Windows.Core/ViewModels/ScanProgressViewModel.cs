@@ -70,7 +70,12 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
     public string? CurrentPath
     {
         get => _currentPath;
-        private set => SetProperty(ref _currentPath, value);
+        private set
+        {
+            if (!SetProperty(ref _currentPath, value)) return;
+            OnPropertyChanged(nameof(ActivityFileName));
+            OnPropertyChanged(nameof(ActivityParent));
+        }
     }
 
     public string? Message
@@ -106,7 +111,71 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         ? "Scan cancellation requested"
         : "Cancel scan; access key Alt+C";
 
-    public bool IsIndeterminate => IsActive;
+    public ScanPhaseWork PhaseWork
+    {
+        get
+        {
+            var work = ScanProgressProjection.PhaseWork(Run?.Phase, ProgressSnapshot, _folderAnalysis);
+            return Run is not null && !IsActive && work.Unknown
+                ? work with { Detail = "Historical phase work — no measured total was reported for this phase", Unknown = false }
+                : work;
+        }
+    }
+
+    public bool IsIndeterminate => IsActive && PhaseWork.Unknown;
+
+    // Display-only splitting handles Windows paths even in platform-neutral Core fixtures.
+    // The exact worker value remains untouched and selectable in Diagnostics.
+    private string DisplayActivityPath => CurrentPath is { } path
+        ? path.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase) ? @"\\" + path[8..]
+            : path.StartsWith(@"\\?\", StringComparison.Ordinal) ? path[4..] : path
+        : string.Empty;
+
+    public string ActivityFileName
+    {
+        get
+        {
+            var path = DisplayActivityPath;
+            if (path.Length == 0) return "No path reported for this phase";
+            var name = path[(path.LastIndexOfAny(['\\', '/']) + 1)..];
+            return name.Length == 0 ? path : name;
+        }
+    }
+
+    public string ActivityParent
+    {
+        get
+        {
+            var path = DisplayActivityPath;
+            var separator = path.LastIndexOfAny(['\\', '/']);
+            return separator >= 0 ? path[..(separator + 1)] : string.Empty;
+        }
+    }
+
+    public string ExactHashWork => ProgressSnapshot is { RemainingKnownWork.Stage: "hash_pipeline" } snapshot
+        ? $"{snapshot.Logical.HashPipelineResolvedFiles:N0} of {snapshot.Funnel.HashPipelineCandidates.Files:N0} candidate files resolved; "
+            + $"{snapshot.Logical.HashPipelineResolvedBytes} of {snapshot.Funnel.HashPipelineCandidates.LogicalBytes} logical bytes resolved. Screening and reuse can resolve work without a full content read."
+        : "Unavailable — candidate work is not yet known";
+
+    public string PartialReadBytes => ProgressSnapshot is { } snapshot ? $"{snapshot.Counters.PartialHashBytesRead} B actually read" : "Unavailable — no progress sample";
+    public string FullReadBytes => ProgressSnapshot is { } snapshot ? $"{snapshot.Counters.FullHashBytesRead} B actually read" : "Unavailable — no progress sample";
+
+    public string PartialCacheOutcomes => ProgressSnapshot is { Counters: var c }
+        ? $"Hits {c.PartialHashCacheHits:N0} · misses {c.PartialHashCacheMisses:N0} · errors {c.PartialHashCacheErrors:N0} · stores {c.PartialHashCacheStores:N0}"
+        : "Unavailable — no progress sample";
+    public string FullCacheOutcomes => ProgressSnapshot is { Counters: var c }
+        ? $"Hits {c.FullHashCacheHits:N0} · misses {c.FullHashCacheMisses:N0} · errors {c.FullHashCacheErrors:N0} · stores {c.FullHashCacheStores:N0}"
+        : "Unavailable — no progress sample";
+
+    public string ReadOutcomes => ProgressSnapshot is { Counters: var c }
+        ? $"Partial attempts {c.PartialHashesAttempted:N0} · succeeded {c.PartialHashesSucceeded:N0} · failed {c.PartialHashesFailed:N0}. "
+            + $"Full requests {c.FullHashRequests:N0} · reads started {c.FullHashContentReadsStarted:N0} · completed {c.FullHashContentReadsCompleted:N0} · failed {c.FullHashContentReadsFailed:N0}."
+        : "Unavailable — no progress sample";
+
+    public string TelemetryDiagnostics => ProgressSnapshot is { } snapshot
+        ? $"Revision {snapshot.Revision} · monotonic {snapshot.MonotonicNanos} ns · phase {snapshot.PhaseElapsedNanos} ns. "
+            + $"Telemetry samples lost {snapshot.Counters.TelemetrySamplesLost:N0} · flush errors {snapshot.Counters.TelemetryFlushErrors:N0} · unavailable counters {snapshot.Counters.UnavailableCounters:N0}."
+        : "Unavailable — no progress sample";
 
     public string ActivityHeading => IsActive ? "Current activity" : "Last reported activity";
 
@@ -227,8 +296,8 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         _ => ScanProgressProjection.Remaining(ProgressSnapshot?.RemainingKnownWork),
     };
 
-    public string HashPipelineCandidateContext =>
-        ScanProgressProjection.CandidateContext(ProgressSnapshot?.Funnel);
+    public string HashPipelineCandidateContext => ScanProgressProjection.CandidateContext(
+        ProgressSnapshot?.RemainingKnownWork is { Stage: "hash_pipeline" } ? ProgressSnapshot.Funnel : null);
 
     public string EstimatedTimeRemaining => Run?.Status switch
     {
@@ -539,6 +608,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CancelButtonText));
         OnPropertyChanged(nameof(CancelAutomationName));
         OnPropertyChanged(nameof(IsIndeterminate));
+        OnPropertyChanged(nameof(PhaseWork));
         OnPropertyChanged(nameof(ActivityHeading));
         OnPropertyChanged(nameof(ActivityPathAutomationName));
         OnPropertyChanged(nameof(MetricsContext));
@@ -569,6 +639,15 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
 
     private void RaiseProgressProperties()
     {
+        OnPropertyChanged(nameof(PhaseWork));
+        OnPropertyChanged(nameof(IsIndeterminate));
+        OnPropertyChanged(nameof(ExactHashWork));
+        OnPropertyChanged(nameof(PartialReadBytes));
+        OnPropertyChanged(nameof(FullReadBytes));
+        OnPropertyChanged(nameof(PartialCacheOutcomes));
+        OnPropertyChanged(nameof(FullCacheOutcomes));
+        OnPropertyChanged(nameof(ReadOutcomes));
+        OnPropertyChanged(nameof(TelemetryDiagnostics));
         OnPropertyChanged(nameof(Stages));
         OnPropertyChanged(nameof(HasDetailedProgress));
         OnPropertyChanged(nameof(DetailedProgressUnavailableMessage));

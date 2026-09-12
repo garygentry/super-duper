@@ -23,35 +23,37 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest local slice: UIR-04b long-scan elapsed/freshness/terminal presentation, in the commit
-  containing this checkpoint. Baseline `2642db9` (UIR-04a). Evidence:
-  `plans/ui-redesign/evidence/uir-04b-long-scan-monitoring.md`.
-- UIR-00/01/02/03 complete; UIR-04 in_progress. Scan again opens current saved setup without rewriting
-  the opened historical run. Qualified persistent reuse and candidate-only revalidation are explained;
-  Start saves valid edits and creates a new dated run. Save/Discard/Stay protects dirty navigation.
-- UIR-04b adds readable multi-day elapsed, monotonic accepted-update receipt freshness before
-  dispatcher coalescing, historical terminal activity/metrics and frozen terminal elapsed. Clock
-  refreshes coalesce and stay silent; lifecycle/phase and five-second ordinary announcements remain.
-- Verification: 193 Core passed; three loaded-STA WPF methods passed, including controlled long-scan
-  clock/progress/lifecycle, minimized/restored latest state, terminal focus/selection/scroll and UIA.
-  Isolated outputs/captures/results: `artifacts/uir04b`; fictional fixture built, not launched.
-  Retain UIR-04a's small real-worker four-run reuse/restart/history result without rerunning it.
+- Latest local slice: UIR-04c compact S02 monitoring/details, in the commit containing this checkpoint.
+  Baseline `163afce` (UIR-04b). Evidence: `plans/ui-redesign/evidence/uir-04c-compact-monitoring.md`.
+- UIR-00/01/02/03 complete; UIR-04 in_progress with local UIR-04a/b/c implemented. Saved setup,
+  Scan again, multi-day freshness/terminal presentation and compact monitoring/details are present;
+  integrated full A17/native/operator validation remains later.
+- UIR-04c brings sampled filename/parent forward, measures resolved logical hash-candidate work only
+  after the worker establishes totals, and uses each named folder substage's completed/total values.
+  Unknown and zero totals remain explicit. Work / Hash reuse / Diagnostics disclose exact funnel/read
+  bytes, separate partial/full cache outcomes, rates/windows, phase duration and selectable path.
+- Verification: 200 Core passed; three loaded-STA WPF methods passed with controlled phase/clock/layout
+  fixtures, disclosed exact path focus/selection/scroll, same-run navigation, terminal and UIA behavior.
+  Final results/captures and retained failures/corrections are in `artifacts/uir04c` and its evidence.
+  Fictional fixture built, not launched. Retain UIR-04a's small real-worker four-run reuse/restart/history
+  result and UIR-04b's receipt, timer, terminal and five-second ordinary announcement contracts.
 - Retain UIR-03 scoped shell acceptance: nine earlier walkthrough passes, scrollbar correction,
   Narrator, corrected Dark/Desert/live text size, and physical 150%/175% transitions with focus and
   file-group selection retained. Do not replay accepted checks without a reopen reason.
 - NVDA (not installed) and physical 200% (not offered by Windows) remain `unrun_unavailable` for
   UIR-08/A11, not passed or waived. Do not troubleshoot Windows, force scaling or install software.
 - Prior paired Debug/Release integration and UIR-03c Rust 226 passed/10 ignored are retained, not rerun.
-  UIR-04a/b are local implementation; full A17/native/user acceptance and UIR-08 integration remain later.
-- Exact next slice: UIR-04c compact S02 summary, measured phase bars and expandable exact details
-  (A08/A16). Bring sampled filename/parent and qualified phase work up front; retain existing logical
-  hash-candidate and folder-substage denominators, explicit unknown/zero states and exact diagnostics.
-  Preserve UIR-04b freshness/terminal/UIA behavior with controlled phase/layout fixtures. No campaign authority.
+  UIR-04a/b/c are local implementation; full A17/native/user acceptance and UIR-08 integration remain later.
+- Exact next local slice: UIR-05a compact file-results query controls and filtered totals (A03/A06/A13).
+  Read S03 and directly linked DuplicateFiles query/view/tests. Keep path search and three filtered
+  totals visible; preserve coherent draft/apply/Enter/chips/clear behavior, exact size units, all filter
+  semantics, selected-run context, decisions and paging/query ceilings. Use isolated delayed-query
+  and long-path layouts. Adjustable list/detail comparison remains UIR-05b, not accepted by UIR-05a.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; print the required copyable next-session
-  prompt at handoff. Interim results layouts and final S03/A03 work remain UIR-05.
-- Runtime audit: fictional PID 67748/session 1 responsive at the exact UIR-03f executable; left untouched.
-  New fixture output `artifacts/uir04b/fixture` is built, not left running. Re-audit before reuse/launch.
-  No production app/worker was observed. Production state and disabled deletion remain untouched.
+  prompt at handoff. UIR-04 retains later integrated/operator validation; no physical campaign authority.
+- Runtime audit: fictional PID 67748/session 1 responsive at the exact UIR-03f executable, left untouched.
+  UIR-04b and new `artifacts/uir04c/fixture` outputs are built, not launched. Re-audit before reuse.
+  Test windows closed; no production app/worker observed. Production state and disabled deletion untouched.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
   do not rerun SOP10 or SOP9 identities.
 - Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first
@@ -496,14 +498,15 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-UIR-04a/b are implemented with local evidence; UIR-04 remains in progress.
-Next is UIR-04c: compact S02 summary, measured phase bars and expandable exact details (A08/A16).
-Read S02/scan-and-rescan-experience.md and directly linked progress code/tests. Bring sampled
-filename/parent and qualified phase work up front; use resolved logical hash-candidate work and
-folder-substage denominators with explicit unknown/zero states. Disclose exact Work / Hash reuse /
-Diagnostics values while retaining disclosure/focus/scroll. Preserve UIR-04b receipt, terminal and
-announcement behavior; use controlled phase/layout fixtures. Do not infer physical campaign or full
-A17/native/user acceptance. Keep UIR-03 scoped passes retained.
+UIR-04a/b/c are locally implemented; UIR-04 remains in progress for integrated/native/operator validation.
+Next local work is UIR-05a: compact file-results query controls and filtered totals (A03/A06/A13).
+Read S03, design/validation guidance and directly linked DuplicateFiles query/view/test code. Keep
+path search and the three filtered totals visible; preserve draft versus applied queries, explicit
+Apply/Enter, removable applied-filter chips, Clear filters, exact size units and all supported filter
+semantics. Preserve selected-run identity, paging/query ceilings, decisions and focus. Use isolated
+delayed-query/long-path layout fixtures. Adjustable list/detail comparison remains UIR-05b; do not
+claim full A03 from the header/filter slice. UIR-05 depends on accepted UIR-03 and may proceed while
+UIR-04's later full A17/native/operator validation remains pending. Retain all prior passed checks.
 Use `plans/ui-redesign/session-checkpoint.md` and the session guide. All work stays on
 `codex/ui-redesign`; preserve `wpf-poc` at `deefa40`, with no switch/worktree/merge/push.
 NVDA and physical 200% remain unavailable for UIR-08/A11. Do not troubleshoot Windows.
@@ -987,7 +990,7 @@ cancellation, and removed fixtures. Descending order improves SSD wall 3.4622%/t
 and rotational wall 8.4299%/throughput 9.1264%. One pre-evidence cleanup failure wrote no result;
 bounded cleanup and exact generated-fixture removal pass before the retained run. The focused order
 and six harness tests, evolved SOP6 verifier, and strict Core Clippy pass. Full Debug and Release
-Rust each pass 199 tests with 7 intentional profiles ignored and no failures.
+Rust each pass 200 tests with 7 intentional profiles ignored and no failures.
 
 Accepted `SOP7b-path-locality` retains
 `scan-read-path-locality-{ssd,hdd}-20260826.json` plus its policy record. All eight 1 GiB arms have
@@ -1333,6 +1336,20 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+### 2026-09-12 - UIR-04c locally implemented; compact file query controls next
+
+- S02 now prioritizes phase, elapsed, warnings, ETA and sampled filename/parent. Known hash work uses
+  resolved logical candidate bytes, gated by remainingKnownWork; named folder bars use their own
+  substage denominator. Unknown and zero remain distinct; phase 100% never completes a run.
+- Work / Hash reuse / Diagnostics are collapsed native disclosures. Exact byte/count/rate/cache/path
+  diagnostics remain accessible without recreating the view or changing update cadence. UIR-04b
+  freshness, historical terminal metrics and coalesced accessibility announcements remain protected.
+- Core 200 and three WPF methods passed; isolated fixture built, not launched. Evidence retains the
+  read-only bar binding correction and fixture focus/layout stabilization; no Files product change.
+- UIR-04 local a/b/c are implemented, with integrated/full A17/native/operator validation pending.
+  Next local slice is UIR-05a compact file query controls/filtered totals; full comparison is UIR-05b.
+  Production deletion and SOP boundaries are unchanged. Old fictional PID 67748 remains untouched.
 
 ### 2026-09-12 - UIR-04b implemented; compact monitoring details next
 

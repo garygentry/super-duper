@@ -1,285 +1,309 @@
-<UserControl x:Class="SuperDuper.Windows.Views.ScanProgressView"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
-             xmlns:accessibility="clr-namespace:SuperDuper.Windows.Accessibility"
-             automation:AutomationProperties.Name="Scan progress">
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+    xmlns:accessibility="clr-namespace:SuperDuper.Windows.Accessibility"
+    x:Class="SuperDuper.Windows.Views.ScanProgressView"
+    automation:AutomationProperties.Name="Scan progress">
     <UserControl.Resources>
         <Style x:Key="ProgressCard" TargetType="Border" BasedOn="{StaticResource SharedCard}" />
         <Style x:Key="SecondaryProgressText" TargetType="TextBlock" BasedOn="{StaticResource ShellBody}" />
     </UserControl.Resources>
-
     <Grid KeyboardNavigation.TabNavigation="Continue">
         <ScrollViewer VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      Focusable="False"
-                      automation:AutomationProperties.AutomationId="ScanProgressScrollViewer">
-            <!-- Fluent scrollbars overlay the viewport. Keep the page inset inside the viewer
-                 so the shared Progress/Summary body ends before the scrollbar's hit area. -->
-            <Grid Margin="{StaticResource PageContentInset}"
-                  Visibility="{Binding HasRun, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
+            HorizontalScrollBarVisibility="Disabled"
+            Focusable="False"
+            automation:AutomationProperties.AutomationId="ScanProgressScrollViewer">
+            <!-- Preserve the inset inside Fluent's overlay scrollbar. -->
+            <StackPanel Margin="{StaticResource PageContentInset}"
+                Visibility="{Binding HasRun, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel>
+                    <StackPanel Margin="0,0,12,0">
                         <TextBlock x:Name="ScanProgressStatusHeading"
-                                   Style="{StaticResource PageTitle}"
-                                   Focusable="True"
-                                   KeyboardNavigation.IsTabStop="False"
-                                   automation:AutomationProperties.AutomationId="ScanProgressStatus"
-                                   automation:AutomationProperties.Name="{Binding Status, StringFormat='Scan status: {0}'}"
-                                   Text="{Binding Status}" />
-                        <TextBlock Margin="0,5,0,0"
-                                   Style="{StaticResource SecondaryProgressText}"
-                                   automation:AutomationProperties.AutomationId="ScanProgressPhase"
-                                   automation:AutomationProperties.Name="{Binding Phase, StringFormat='Scan phase: {0}'}"
-                                   Text="{Binding Phase}" />
-                        <TextBlock Margin="0,5,0,0" Style="{StaticResource SecondaryProgressText}"
-                                   automation:AutomationProperties.AutomationId="ScanUpdateFreshness"
-                                   Text="{Binding UpdateFreshness}" />
+                            Style="{StaticResource SectionTitle}"
+                            Focusable="True"
+                            KeyboardNavigation.IsTabStop="False"
+                            automation:AutomationProperties.AutomationId="ScanProgressStatus"
+                            Text="{Binding Status}"
+                            automation:AutomationProperties.Name="{Binding Status, StringFormat='Scan status: {0}'}" />
+                        <TextBlock Style="{StaticResource PageTitle}"
+                            Text="{Binding Phase}"
+                            automation:AutomationProperties.AutomationId="ScanProgressPhase" />
                     </StackPanel>
                     <Button Grid.Column="1"
-                            Command="{Binding CancelCommand}"
-                            Content="{Binding CancelButtonText}"
-                            IsEnabledChanged="OnCancelButtonIsEnabledChanged"
-                            automation:AutomationProperties.AccessKey="Alt+C"
-                            automation:AutomationProperties.AutomationId="CancelScanButton"
-                            automation:AutomationProperties.Name="{Binding CancelAutomationName}" />
+                        VerticalAlignment="Top"
+                        Command="{Binding CancelCommand}"
+                        Content="{Binding CancelButtonText}"
+                        IsEnabledChanged="OnCancelButtonIsEnabledChanged"
+                        automation:AutomationProperties.AccessKey="Alt+C"
+                        automation:AutomationProperties.AutomationId="CancelScanButton"
+                        automation:AutomationProperties.Name="{Binding CancelAutomationName}" />
                 </Grid>
-
-                <Border Grid.Row="1" Margin="0,18,0,18" Height="6">
+                <WrapPanel Margin="0,8,0,6">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0">
+                        <TextBlock Text="{Binding ElapsedLabel}" Margin="0,0,8,0" />
+                        <TextBlock Text="{Binding Elapsed}"
+                            FontWeight="SemiBold"
+                            automation:AutomationProperties.AutomationId="ScanRunElapsed" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding WarningCount, StringFormat='Warnings: {0}'}"
+                        VerticalAlignment="Center"
+                        Margin="0,0,8,0"
+                        automation:AutomationProperties.AutomationId="ScanWarningCount" />
+                    <Button Command="{Binding OpenWarningsCommand}"
+                        Content="_Review warnings"
+                        automation:AutomationProperties.AccessKey="Alt+W"
+                        automation:AutomationProperties.AutomationId="ProgressWarningEntry"
+                        automation:AutomationProperties.Name="{Binding WarningAutomationName}"
+                        automation:AutomationProperties.HelpText="Opens the bounded persisted-warning drilldown for this run in Run history." />
+                </WrapPanel>
+                <TextBlock Style="{StaticResource SecondaryProgressText}"
+                    Text="{Binding UpdateFreshness}"
+                    automation:AutomationProperties.AutomationId="ScanUpdateFreshness" />
+                <TextBlock Style="{StaticResource SecondaryProgressText}"
+                    Text="{Binding PhaseWork.Label}"
+                    automation:AutomationProperties.AutomationId="ScanPhaseWorkLabel"
+                    Margin="0,8,0,0"
+                    FontWeight="SemiBold" />
+                <Border Margin="0,6,0,6" Height="6">
                     <Border.Style>
                         <Style TargetType="Border">
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsIndeterminate}" Value="False">
+                                <DataTrigger Binding="{Binding IsActive}" Value="False">
                                     <Setter Property="Visibility" Value="Hidden" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
                     <ProgressBar IsIndeterminate="{Binding IsIndeterminate}"
-                                 automation:AutomationProperties.AutomationId="ScanProgressBar"
-                                 automation:AutomationProperties.Name="Scan activity; detailed counts and rates follow" />
+                        Value="{Binding PhaseWork.BarValue, Mode=OneWay}"
+                        Maximum="100"
+                        automation:AutomationProperties.AutomationId="ScanProgressBar"
+                        automation:AutomationProperties.Name="{Binding PhaseWork.AutomationName}" />
                 </Border>
-
-                <UniformGrid Grid.Row="2" Columns="4">
-                    <Border Style="{StaticResource ProgressCard}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource SecondaryProgressText}" Text="{Binding ElapsedLabel}" />
-                            <TextBlock Margin="0,4,0,0" Style="{StaticResource PageTitle}"
-                                       automation:AutomationProperties.AutomationId="ScanRunElapsed"
-                                       Text="{Binding Elapsed}" />
-                        </StackPanel>
-                    </Border>
-                    <Border Style="{StaticResource ProgressCard}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Phase elapsed" />
-                            <TextBlock Margin="0,4,0,0" Style="{StaticResource PageTitle}"
-                                       automation:AutomationProperties.AutomationId="ScanPhaseElapsed"
-                                       Text="{Binding ProgressPhaseElapsed}" />
-                        </StackPanel>
-                    </Border>
-                    <Border Style="{StaticResource ProgressCard}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Warnings" />
-                            <TextBlock Margin="0,4,0,0" Style="{StaticResource PageTitle}"
-                                       automation:AutomationProperties.AutomationId="ScanWarningCount"
-                                       Text="{Binding WarningCount}" />
-                            <Button Margin="0,8,0,0"
-                                    HorizontalAlignment="Left"
-                                    Command="{Binding OpenWarningsCommand}"
-                                    Content="_Review warnings"
-                                    automation:AutomationProperties.AccessKey="Alt+W"
-                                    automation:AutomationProperties.AutomationId="ProgressWarningEntry"
-                                    automation:AutomationProperties.HelpText="Opens the bounded persisted-warning drilldown for this run in Run history."
-                                    automation:AutomationProperties.Name="{Binding WarningAutomationName}" />
-                        </StackPanel>
-                    </Border>
-                    <Border Style="{StaticResource ProgressCard}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Excluded locations" />
-                            <TextBlock Margin="0,4,0,0" Style="{StaticResource PageTitle}"
-                                       automation:AutomationProperties.AutomationId="ScanExcludedLocationCount"
-                                       Text="{Binding ExcludedSubtreeCount}" />
-                        </StackPanel>
-                    </Border>
-                </UniformGrid>
-
-                <StackPanel Grid.Row="3" Margin="0,14,0,0">
-                    <TextBlock Margin="0,0,0,10" Style="{StaticResource SecondaryProgressText}"
-                               automation:AutomationProperties.AutomationId="ScanMetricsContext"
-                               Text="{Binding MetricsContext}" />
-                    <TextBlock Style="{StaticResource SectionTitle}" Text="File and logical-byte funnel" />
-                    <TextBlock Margin="0,3,0,10" Style="{StaticResource SecondaryProgressText}"
-                               Text="Six successive cumulative outcomes; byte totals are logical file sizes." />
-                    <TextBlock Margin="0,0,0,10"
-                               automation:AutomationProperties.AutomationId="ScanDetailedProgressUnavailable"
-                               automation:AutomationProperties.Name="{Binding DetailedProgressUnavailableMessage}"
-                               Text="{Binding DetailedProgressUnavailableMessage}">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock" BasedOn="{StaticResource SecondaryProgressText}">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasDetailedProgress}" Value="True">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <ItemsControl ItemsSource="{Binding Stages}"
-                                  automation:AutomationProperties.AutomationId="ScanProgressFunnel"
-                                  automation:AutomationProperties.Name="Six-stage scan progress funnel">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border MinWidth="220"
+                <TextBlock Style="{StaticResource SecondaryProgressText}"
+                    Text="{Binding PhaseWork.Detail}"
+                    automation:AutomationProperties.AutomationId="ScanPhaseWorkDetail" />
+                <TextBlock Style="{StaticResource SecondaryProgressText}"
+                    Text="{Binding EstimatedTimeRemaining, StringFormat='ETA: {0}'}"
+                    automation:AutomationProperties.AutomationId="ScanEstimatedTimeRemaining"
+                    Margin="0,4,0,0" />
+                <TextBlock Style="{StaticResource SecondaryProgressText}"
+                    Text="{Binding ActivityHeading}"
+                    automation:AutomationProperties.AutomationId="ScanActivityHeading"
+                    Margin="0,10,0,0"
+                    FontWeight="SemiBold" />
+                <!-- Stable single lines for sampled activity; exact path remains selectable in Diagnostics. -->
+                <TextBlock Text="{Binding ActivityFileName}"
+                    FontWeight="SemiBold"
+                    TextTrimming="CharacterEllipsis"
+                    automation:AutomationProperties.AutomationId="ScanActivityFileName" />
+                <TextBlock Text="{Binding ActivityParent}"
+                    TextTrimming="CharacterEllipsis"
+                    automation:AutomationProperties.AutomationId="ScanActivityParent" />
+                <TextBlock Style="{StaticResource SecondaryProgressText}"
+                    Text="{Binding MetricsContext}"
+                    automation:AutomationProperties.AutomationId="ScanMetricsContext"
+                    Margin="0,6,0,6" />
+                <Border Margin="0,14,0,0"
+                    Padding="12"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    BorderBrush="{DynamicResource TextFillColorPrimaryBrush}"
+                    Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}"
+                    automation:AutomationProperties.AutomationId="ScanProgressError"
+                    automation:AutomationProperties.LiveSetting="Assertive"
+                    automation:AutomationProperties.Name="{Binding DisplayErrorMessage, StringFormat='Scan error: {0}'}">
+                    <TextBlock Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                        Text="{Binding DisplayErrorMessage}"
+                        TextWrapping="Wrap" />
+                </Border>
+                <TextBlock Height="1"
+                    Opacity="0"
+                    IsHitTestVisible="False"
+                    automation:AutomationProperties.AutomationId="ScanProgressAnnouncement"
+                    automation:AutomationProperties.LiveSetting="Polite"
+                    automation:AutomationProperties.Name="{Binding ProgressAnnouncement}"
+                    accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding ProgressAnnouncementVersion}"
+                    accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
+                    accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
+                    accessibility:AutomationNotificationBehavior.ActivityId="ScanProgress" />
+                <Expander Header="Work"
+                    Margin="0,6,0,0"
+                    automation:AutomationProperties.AutomationId="ScanWorkExpander"
+                    automation:AutomationProperties.Name="Work details">
+                    <StackPanel Margin="0,8,0,12">
+                        <TextBlock Margin="0,0,0,10"
+                            automation:AutomationProperties.AutomationId="ScanDetailedProgressUnavailable"
+                            automation:AutomationProperties.Name="{Binding DetailedProgressUnavailableMessage}"
+                            Text="{Binding DetailedProgressUnavailableMessage}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource SecondaryProgressText}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasDetailedProgress}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Margin="0,8,0,4" FontWeight="SemiBold" Text="File and logical-byte funnel" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="Six cumulative outcomes; exact bytes are logical file sizes." />
+                        <ItemsControl ItemsSource="{Binding Stages}"
+                            automation:AutomationProperties.AutomationId="ScanProgressFunnel"
+                            automation:AutomationProperties.Name="Six-stage scan progress funnel">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border MinWidth="220"
                                         Style="{StaticResource ProgressCard}"
                                         automation:AutomationProperties.AutomationId="{Binding AutomationId}"
                                         automation:AutomationProperties.Name="{Binding AutomationName}">
-                                    <StackPanel>
-                                        <TextBlock Style="{StaticResource SecondaryProgressText}" Text="{Binding Name}" />
-                                        <TextBlock Margin="0,4,0,0" Style="{StaticResource SectionTitle}"
-                                                   Text="{Binding FilesText, StringFormat='{}{0} files'}" />
-                                        <TextBlock Margin="0,2,0,0" Style="{StaticResource SecondaryProgressText}"
-                                                   Text="{Binding BytesText, StringFormat='{}{0} logical'}" />
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-
-                <StackPanel Grid.Row="4" Margin="0,14,0,0">
-                    <TextBlock Style="{StaticResource SectionTitle}" Text="Physical read throughput" />
-                    <TextBlock Margin="0,3,0,10" Style="{StaticResource SecondaryProgressText}"
-                               Text="Recent and cumulative rates include their measured windows and physical-I/O units." />
-                    <UniformGrid Columns="2">
-                        <Border Style="{StaticResource ProgressCard}">
-                            <StackPanel>
-                                <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Partial reads — recent" />
-                                <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"
-                                           automation:AutomationProperties.AutomationId="ScanPartialRecentRate"
-                                           Text="{Binding PartialRecentRate}" />
-                                <TextBlock Margin="0,8,0,0" Style="{StaticResource SecondaryProgressText}" Text="Partial reads — cumulative" />
-                                <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"
-                                           automation:AutomationProperties.AutomationId="ScanPartialCumulativeRate"
-                                           Text="{Binding PartialCumulativeRate}" />
-                            </StackPanel>
-                        </Border>
-                        <Border Style="{StaticResource ProgressCard}">
-                            <StackPanel>
-                                <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Full reads — recent" />
-                                <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"
-                                           automation:AutomationProperties.AutomationId="ScanFullRecentRate"
-                                           Text="{Binding FullRecentRate}" />
-                                <TextBlock Margin="0,8,0,0" Style="{StaticResource SecondaryProgressText}" Text="Full reads — cumulative" />
-                                <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"
-                                           automation:AutomationProperties.AutomationId="ScanFullCumulativeRate"
-                                           Text="{Binding FullCumulativeRate}" />
-                            </StackPanel>
-                        </Border>
-                    </UniformGrid>
-                </StackPanel>
-
-                <StackPanel Grid.Row="5" Margin="0,14,0,0">
-                    <TextBlock Style="{StaticResource SectionTitle}" Text="Work, cache, and estimate" />
-                    <UniformGrid Margin="0,10,0,0" Columns="2">
-                        <Border Style="{StaticResource ProgressCard}">
-                            <StackPanel>
-                                <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Cache effectiveness" />
-                                <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"
-                                           automation:AutomationProperties.AutomationId="ScanCacheEffectiveness"
-                                           Text="{Binding CacheEffectiveness}" />
-                            </StackPanel>
-                        </Border>
-                        <Border Style="{StaticResource ProgressCard}">
-                            <StackPanel>
-                                <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Active devices" />
-                                <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"
-                                           automation:AutomationProperties.AutomationId="ScanActiveDevices"
-                                           Text="{Binding ActiveDevices}" />
-                            </StackPanel>
-                        </Border>
-                        <Border Style="{StaticResource ProgressCard}">
-                            <StackPanel>
-                                <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Known hash work" />
-                                <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"
-                                           automation:AutomationProperties.AutomationId="ScanCandidateContext"
-                                           automation:AutomationProperties.Name="{Binding HashPipelineCandidateContext, StringFormat='Hash-pipeline candidate denominator: {0}'}"
-                                           Text="{Binding HashPipelineCandidateContext}" />
-                                <TextBlock Margin="0,3,0,0" TextWrapping="Wrap"
-                                           automation:AutomationProperties.AutomationId="ScanRemainingWork"
-                                           Text="{Binding RemainingWork}" />
-                            </StackPanel>
-                        </Border>
-                        <Border Style="{StaticResource ProgressCard}">
-                            <StackPanel>
-                                <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Hash pipeline estimate" />
-                                <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"
-                                           automation:AutomationProperties.AutomationId="ScanEstimatedTimeRemaining"
-                                           Text="{Binding EstimatedTimeRemaining}" />
-                            </StackPanel>
-                        </Border>
-                    </UniformGrid>
-                </StackPanel>
-
-                <StackPanel Grid.Row="6" Margin="0,16,0,0">
-                    <TextBlock FontWeight="SemiBold" Text="{Binding ActivityHeading}"
-                               automation:AutomationProperties.AutomationId="ScanActivityHeading" />
-                    <TextBlock Margin="0,7,0,0" TextWrapping="Wrap"
-                               automation:AutomationProperties.AutomationId="ScanFolderAnalysisProgress"
-                               automation:AutomationProperties.Name="{Binding FolderAnalysisProgress, StringFormat='Folder analysis: {0}'}"
-                               Text="{Binding FolderAnalysisProgress}"
-                               Visibility="{Binding IsFolderAnalysis, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                    <TextBlock Margin="0,7,0,0" TextWrapping="Wrap"
-                               automation:AutomationProperties.AutomationId="ScanCurrentActivity"
-                               automation:AutomationProperties.Name="{Binding Message}"
-                               Text="{Binding Message}" />
-                    <TextBox Margin="0,8,0,0" IsReadOnly="True" TextWrapping="Wrap"
-                             Text="{Binding CurrentPath, Mode=OneWay}"
-                             automation:AutomationProperties.AutomationId="ScanCurrentPath"
-                             automation:AutomationProperties.Name="{Binding ActivityPathAutomationName}" />
-                    <Border Margin="0,14,0,0" Padding="12" BorderThickness="1" CornerRadius="6"
-                            BorderBrush="{DynamicResource TextFillColorPrimaryBrush}"
-                            Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}"
-                            automation:AutomationProperties.AutomationId="ScanProgressError"
-                            automation:AutomationProperties.LiveSetting="Assertive"
-                            automation:AutomationProperties.Name="{Binding DisplayErrorMessage, StringFormat='Scan error: {0}'}">
-                        <TextBlock Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                   Text="{Binding DisplayErrorMessage}" TextWrapping="Wrap" />
-                    </Border>
-                    <TextBlock Height="1" Opacity="0" IsHitTestVisible="False"
-                               automation:AutomationProperties.AutomationId="ScanProgressAnnouncement"
-                               automation:AutomationProperties.LiveSetting="Polite"
-                               automation:AutomationProperties.Name="{Binding ProgressAnnouncement}"
-                               accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding ProgressAnnouncementVersion}"
-                               accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
-                               accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
-                               accessibility:AutomationNotificationBehavior.ActivityId="ScanProgress" />
-                </StackPanel>
-            </Grid>
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource SecondaryProgressText}" Text="{Binding Name}" />
+                                            <TextBlock Margin="0,4,0,0"
+                                                Style="{StaticResource SectionTitle}"
+                                                Text="{Binding FilesText, StringFormat='{}{0} files'}" />
+                                            <TextBlock Margin="0,2,0,0"
+                                                Style="{StaticResource SecondaryProgressText}"
+                                                Text="{Binding BytesText, StringFormat='{}{0} logical'}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding HashPipelineCandidateContext}"
+                            automation:AutomationProperties.AutomationId="ScanCandidateContext" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding ExactHashWork}"
+                            automation:AutomationProperties.AutomationId="ScanExactHashWork" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding RemainingWork}"
+                            automation:AutomationProperties.AutomationId="ScanRemainingWork" />
+                        <TextBlock Margin="0,8,0,4" FontWeight="SemiBold" Text="Folder substage" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding FolderAnalysisProgress}"
+                            automation:AutomationProperties.AutomationId="ScanFolderAnalysisProgress"
+                            automation:AutomationProperties.Name="{Binding FolderAnalysisProgress, StringFormat='Folder analysis: {0}'}" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="Building hierarchy → Finding structural candidates → Verifying exact content → Saving folder results. Each count belongs to its named substage." />
+                        <TextBlock Margin="0,8,0,4" FontWeight="SemiBold" Text="Physical read throughput" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="Recent and cumulative rates include their measured windows and physical-I/O units." />
+                        <UniformGrid Columns="2">
+                            <Border Style="{StaticResource ProgressCard}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Partial reads — recent" />
+                                    <TextBlock Margin="0,4,0,0"
+                                        TextWrapping="Wrap"
+                                        automation:AutomationProperties.AutomationId="ScanPartialRecentRate"
+                                        Text="{Binding PartialRecentRate}" />
+                                    <TextBlock Margin="0,8,0,0"
+                                        Style="{StaticResource SecondaryProgressText}"
+                                        Text="Partial reads — cumulative" />
+                                    <TextBlock Margin="0,4,0,0"
+                                        TextWrapping="Wrap"
+                                        automation:AutomationProperties.AutomationId="ScanPartialCumulativeRate"
+                                        Text="{Binding PartialCumulativeRate}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource ProgressCard}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Full reads — recent" />
+                                    <TextBlock Margin="0,4,0,0"
+                                        TextWrapping="Wrap"
+                                        automation:AutomationProperties.AutomationId="ScanFullRecentRate"
+                                        Text="{Binding FullRecentRate}" />
+                                    <TextBlock Margin="0,8,0,0"
+                                        Style="{StaticResource SecondaryProgressText}"
+                                        Text="Full reads — cumulative" />
+                                    <TextBlock Margin="0,4,0,0"
+                                        TextWrapping="Wrap"
+                                        automation:AutomationProperties.AutomationId="ScanFullCumulativeRate"
+                                        Text="{Binding FullCumulativeRate}" />
+                                </StackPanel>
+                            </Border>
+                        </UniformGrid>
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding PartialReadBytes, StringFormat='Partial content: {0}'}"
+                            automation:AutomationProperties.AutomationId="ScanPartialReadBytes" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding FullReadBytes, StringFormat='Full content: {0}'}"
+                            automation:AutomationProperties.AutomationId="ScanFullReadBytes" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding ReadOutcomes}"
+                            automation:AutomationProperties.AutomationId="ScanReadOutcomes" />
+                    </StackPanel>
+                </Expander>
+                <Expander Header="Hash reuse"
+                    Margin="0,6,0,0"
+                    automation:AutomationProperties.AutomationId="ScanHashReuseExpander"
+                    automation:AutomationProperties.Name="Hash reuse details">
+                    <StackPanel Margin="0,8,0,12">
+                        <TextBlock Margin="0,8,0,4" FontWeight="SemiBold" Text="Partial hash lookups" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding PartialCacheOutcomes}"
+                            automation:AutomationProperties.AutomationId="ScanPartialCacheOutcomes" />
+                        <TextBlock Margin="0,8,0,4" FontWeight="SemiBold" Text="Full hash lookups" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding FullCacheOutcomes}"
+                            automation:AutomationProperties.AutomationId="ScanFullCacheOutcomes" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding CacheEffectiveness}"
+                            automation:AutomationProperties.AutomationId="ScanCacheEffectiveness" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="Zero hits before qualifying lookups is expected. Partial and full hits are separate lookups, not unique files or time saved. New, changed or uncertain candidates are read as needed." />
+                    </StackPanel>
+                </Expander>
+                <Expander Header="Diagnostics"
+                    Margin="0,6,0,0"
+                    automation:AutomationProperties.AutomationId="ScanDiagnosticsExpander"
+                    automation:AutomationProperties.Name="Diagnostics details">
+                    <StackPanel Margin="0,8,0,12">
+                        <TextBlock Margin="0,8,0,4" FontWeight="SemiBold" Text="Exact sampled path (selectable)" />
+                        <TextBox Margin="0,4,0,8"
+                            IsReadOnly="True"
+                            TextWrapping="NoWrap"
+                            HorizontalScrollBarVisibility="Auto"
+                            Text="{Binding CurrentPath, Mode=OneWay}"
+                            automation:AutomationProperties.AutomationId="ScanCurrentPath"
+                            automation:AutomationProperties.Name="{Binding ActivityPathAutomationName}" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding Message}"
+                            automation:AutomationProperties.AutomationId="ScanCurrentActivity" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding ProgressPhaseElapsed, StringFormat='Phase elapsed: {0}'}"
+                            automation:AutomationProperties.AutomationId="ScanPhaseElapsed" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding TelemetryDiagnostics}"
+                            automation:AutomationProperties.AutomationId="ScanTelemetryDiagnostics" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding ActiveDevices, StringFormat='Active devices: {0}'}"
+                            automation:AutomationProperties.AutomationId="ScanActiveDevices" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding ExcludedSubtreeCount, StringFormat='Excluded locations: {0}'}"
+                            automation:AutomationProperties.AutomationId="ScanExcludedLocationCount" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="CPU, memory and device snapshots are available in Performance." />
+                    </StackPanel>
+                </Expander>
+            </StackPanel>
         </ScrollViewer>
-
-        <StackPanel Margin="{StaticResource PageContentInset}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                    automation:AutomationProperties.AutomationId="ScanProgressEmptyState"
-                    automation:AutomationProperties.Name="No scan selected">
+        <StackPanel Margin="{StaticResource PageContentInset}"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            automation:AutomationProperties.AutomationId="ScanProgressEmptyState"
+            automation:AutomationProperties.Name="No scan selected">
             <StackPanel.Style>
                 <Style TargetType="StackPanel">
                     <Setter Property="Visibility" Value="Visible" />
@@ -292,8 +316,8 @@
             </StackPanel.Style>
             <TextBlock HorizontalAlignment="Center" Style="{StaticResource PageTitle}" Text="No scan selected" />
             <TextBlock Margin="0,7,0,0"
-                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                       Text="Start a scan or select one from Run history." />
+                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                Text="Start a scan or select one from Run history." />
         </StackPanel>
     </Grid>
 </UserControl>

@@ -63,9 +63,12 @@ of that capability. [Official AGENTS.md guidance](https://learn.chatgpt.com/docs
 - **Implemented: UIR-04a** — saved setup, Scan again and qualified persistent reuse; see its evidence.
 - **Implemented: UIR-04b** — multi-day elapsed, accepted-update receipt freshness and terminal activity;
   [controlled Core/WPF evidence](evidence/uir-04b-long-scan-monitoring.md).
-- **Next: UIR-04c** — compact S02 summary, measured phase bars and expandable exact details (A08/A16),
-  with controlled phase/layout fixtures. Full A17 and operator workflow acceptance remain later.
-- **UIR-05/06** — results comparison, review decisions and non-deleting validation.
+- **Implemented: UIR-04c** — compact S02 summary, measured phase bars and expandable exact details
+  (A08/A16); [controlled phase/layout evidence](evidence/uir-04c-compact-monitoring.md).
+  UIR-04 retains integrated A17/native/operator validation; local a/b/c are implemented.
+- **Next: UIR-05a** — compact file-results query controls and filtered totals (A03/A06/A13), with
+  coherent draft/apply/Enter/chips/clear behavior and retained query semantics. UIR-05b owns the
+  adjustable comparison layout; UIR-06 owns dedicated review/non-deleting validation.
 - **UIR-07** — history and contextual diagnostics, preserving the monitoring and rescan contract.
 - **UIR-08/09** — integrated Rust/.NET Debug/Release checks, native layout/keyboard/accessibility
   and scale evidence, then operator workflow acceptance. Remain on the branch after completion;

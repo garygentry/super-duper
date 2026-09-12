@@ -122,7 +122,7 @@ public sealed class ScanProgressViewModelTests
         Assert.AreEqual("Discovered", viewModel.Stages[0].Name);
         Assert.AreEqual("ScanStageDiscovered", viewModel.Stages[0].AutomationId);
         Assert.AreEqual(
-            "Discovered: 10 files; 9.77 KB logical bytes",
+            "Discovered: 10 files; 10000 B logical bytes",
             viewModel.Stages[0].AutomationName);
         Assert.AreEqual(10UL, viewModel.Stages[0].Files);
         Assert.AreEqual("Finalized duplicates", viewModel.Stages[^1].Name);

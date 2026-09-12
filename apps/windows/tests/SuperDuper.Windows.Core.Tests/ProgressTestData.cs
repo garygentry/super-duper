@@ -72,9 +72,13 @@ internal static class ProgressTestData
         string legacyPhase = "hashing",
         string typedPhase = "candidate_screening",
         WorkerFolderAnalysisProgress? folderAnalysis = null,
-        string? etaUnavailableReason = null)
+        string? etaUnavailableReason = null,
+        WorkerScanProgressCounters? measuredCounters = null,
+        WorkerProgressLogicalCounters? measuredLogical = null,
+        string? currentPath = @"C:\Data\candidate.bin",
+        bool candidateTotalsKnown = true)
     {
-        var counters = EmptyCounters() with
+        var counters = measuredCounters ?? EmptyCounters() with
         {
             DiscoveredFiles = 10,
             DiscoveredBytes = "10000",
@@ -106,7 +110,7 @@ internal static class ProgressTestData
             ConfirmedPhysicalItems = 2,
             RecoverableBytes = "1000",
         };
-        var logical = EmptyLogical() with
+        var logical = measuredLogical ?? EmptyLogical() with
         {
             PartialScreenedFiles = 4,
             PartialScreenedBytes = "4000",
@@ -117,17 +121,21 @@ internal static class ProgressTestData
             HashPipelineResolvedBytes = "4000",
             ConfirmedLogicalBytes = "2000",
         };
+        var remainingBytes = (ulong.Parse(counters.CandidateBytes) - ulong.Parse(logical.HashPipelineResolvedBytes)).ToString();
+        var remainingFiles = counters.CandidateFiles - logical.HashPipelineResolvedFiles;
+        if (!candidateTotalsKnown) etaUnavailableReason = "work_not_yet_known";
+        else if (remainingBytes == "0" && remainingFiles == 0) etaUnavailableReason ??= "not_applicable";
         return new WorkerRunProgressEventArgs
         {
             RunId = runId,
             Sequence = sequence,
             Status = status,
             Phase = legacyPhase,
-            FilesDiscovered = 10,
-            BytesDiscovered = "10000",
-            FilesHashed = 4,
-            WarningCount = 0,
-            CurrentPath = @"C:\Data\candidate.bin",
+            FilesDiscovered = checked((long)(counters.DiscoveredFiles - counters.ZeroByteFiles)),
+            BytesDiscovered = counters.DiscoveredBytes,
+            FilesHashed = checked((long)counters.PartialHashesSucceeded),
+            WarningCount = checked((long)counters.Warnings),
+            CurrentPath = currentPath,
             FolderAnalysis = folderAnalysis,
             Progress = new WorkerScanProgressSnapshot
             {
@@ -143,17 +151,17 @@ internal static class ProgressTestData
                 PartialReadRates = AvailableRates(4_000, "400", 10_000_000_000),
                 FullReadRates = AvailableRates(2_000, "100", 10_000_000_000),
                 CacheHitRateBasisPoints = 5_000,
-                WarningCount = 0,
+                WarningCount = counters.Warnings,
                 ActiveDevices = new WorkerActiveDeviceProgress
                 {
                     State = "unavailable",
                     Reason = "mapping_unavailable",
                 },
-                RemainingKnownWork = new WorkerRemainingKnownWork
+                RemainingKnownWork = !candidateTotalsKnown ? null : new WorkerRemainingKnownWork
                 {
                     Stage = "hash_pipeline",
-                    Files = 4,
-                    LogicalBytes = "4000",
+                    Files = remainingFiles,
+                    LogicalBytes = remainingBytes,
                 },
                 Eta = etaUnavailableReason is not null ? new WorkerProgressEta
                 {
