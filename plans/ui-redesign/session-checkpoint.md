@@ -26,9 +26,14 @@ Updated 2026-09-12. [Execution plan](execution-plan.md) owns gate status.
   sizes, display scale held at 100%. Close the three UIR-03f reported defects. Original OS-setting
   restoration was requested but not separately confirmed. Do not repeat these or earlier passes
   without a reopen reason. See the UIR-03f evidence for scope.
-- **Exact next slice:** use the confirmed three monitors (all currently 100%) to collect physical
-  100%/150%/200% display-DPI observations and available cross-monitor moves on the fictional fixture.
-  Record actual settings, clipping/readability/focus and monitor availability; restore settings.
+- **Display observation:** with three monitors initially at 100%, Windows allows changing only one.
+  The operator says the fixture adjusts fine between scaled/unscaled monitors with no noticeable
+  clipping. Actual percentage(s) and keyboard-focus/selection retention are not explicitly reported;
+  this is a scoped positive observation, not full 150%/200% matrix acceptance. The operator does not
+  want Windows scaling troubleshooting; do not investigate that limitation.
+- **Exact next slice:** confirm which percentage(s) were tested, then cover only missing display-DPI/
+  focus observations. Use the same scalable monitor sequentially if a second percentage remains;
+  simultaneous different scales on all three monitors are unnecessary. Restore original settings.
   NVDA remains unrun/unavailable. UIR-03 stays in progress; assess acceptance before UIR-04.
   This update is documentation only; no new code/build/test/runtime action.
 - Interim Files/Folders stacked scrolling layouts replace their split adjustments; final adjustable

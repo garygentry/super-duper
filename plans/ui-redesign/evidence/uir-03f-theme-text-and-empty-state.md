@@ -91,11 +91,14 @@ requested but not separately reported. Retain nine earlier scoped passes, Narrat
 scrollbar correction. No wider screen/contrast combination, physical display-DPI or later gate is
 accepted by this report. NVDA remains unrun/unavailable because it is not installed.
 
-The operator then confirmed three monitors, all currently at 100%. Next: collect the required
-100%/150%/200% display-DPI and available cross-monitor observations. UIR-03 remains in progress;
-UIR-04 remains dependent on acceptance. This update changes documentation only: no code, build/test
-rerun, fixture launch/reset, OS-setting change or production runtime action. Existing automated
-verification above is retained. Runtime above is the last launch record; re-audit before reuse.
+The operator confirmed three monitors initially at 100%, then reported the fixture adjusts fine
+between scaled/unscaled monitors with no noticeable clipping. Only one monitor accepts Windows
+scaling changes; the operator excludes OS troubleshooting. Actual percentage(s) and focus/selection
+retention are not explicit. See [the qualified display report](uir-03-desktop-walkthrough.md#2026-09-12-cross-monitor-adjustment-observed-scale-unspecified).
+Confirm tested scales and cover only missing observations, using that monitor sequentially if needed.
+UIR-03 stays in progress; UIR-04 remains dependent. These updates change documentation only; no
+code/build/test rerun, fixture reset/launch, OS-setting or production action. Retain prior verification
+and re-audit the last recorded runtime before reuse.
 
 ## References
 

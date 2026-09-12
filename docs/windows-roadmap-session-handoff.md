@@ -40,10 +40,13 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Operator recheck 2026-09-12: "all 3 pass" confirms Dark readability, Desert empty-folder/header
   separation and live Windows text size 100% -> 150% -> 100% with reachable controls at both fixture
   sizes, display scale held at 100%. Close the three UIR-03f reported defects; see its scoped evidence.
-- Exact next slice: use the confirmed three monitors (all currently 100%) to collect physical
-  100%/150%/200% display-DPI and available cross-monitor observations. Record actual environment,
-  readable/reachable controls and focus; restore settings. NVDA remains unavailable/unrun.
-  Keep accepted checks without repetition unless reopened. UIR-03 remains in progress; UIR-04 dependent.
+- Latest display report: Windows scales only one monitor; the fixture adjusts fine across scaled/
+  unscaled monitors with no noticeable clipping. Actual percentage(s) and focus/selection retention
+  are unspecified. Record a scoped positive observation, not the full display-DPI matrix pass.
+  The operator excludes Windows scaling troubleshooting for now; leave that OS limitation alone.
+- Exact next slice: confirm tested scale(s), then cover only missing display-DPI/focus observations,
+  using the same scalable monitor sequentially if needed. Restore original settings. NVDA remains
+  unavailable/unrun. Keep accepted checks. UIR-03 remains in progress; UIR-04 dependent.
 - This update is documentation only; no new code/build/test/runtime action. Prior integration and
   UIR-03c Rust tests (226 passed/10 ignored) remain retained. No physical display-DPI or later-gate
   acceptance is inferred. Production deletion and consumed-campaign boundaries unchanged.

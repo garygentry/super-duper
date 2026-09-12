@@ -42,6 +42,21 @@ Automation currently establishes programmatic focus only. The fake data do not e
 performance, screen-reader cadence over a real long scan, representative result scale or A17 rescan
 acceptance. Those requirements retain their later gates and separately isolated procedures.
 
+## 2026-09-12 cross-monitor adjustment observed; scale unspecified
+
+The operator reports that Windows allows scaling only one of the three monitors and explicitly
+excludes troubleshooting that Windows behavior for now. Moving the fictional fixture between the
+scaled and unscaled monitors **"seems to adjust fine"**, with **"Not noticable clipping"**.
+Record this as a positive physical transition/layout observation for the tested configuration.
+The actual scaled percentage, whether both 150% and 200% were exercised, and keyboard-focus/
+selection retention are not explicitly reported. Do not mark the full display-DPI matrix passed.
+
+Next: confirm the tested percentage(s). If one requested scale remains, it can be tested separately
+on the same monitor that accepts scaling; configuring all three monitors differently is unnecessary.
+Do not troubleshoot Windows or infer a fixture defect from the OS limitation. Retain earlier
+accepted Dark/Desert/text-size and other scoped checks. UIR-03 stays in progress, NVDA unavailable/
+unrun. This evidence update performs no code/build/test/runtime or OS-setting actions.
+
 ## 2026-09-12 monitor setup confirmed; display-DPI check prepared
 
 The operator reports **"3 monitors, 100% scaling now"**. Monitor resolutions and the physical
