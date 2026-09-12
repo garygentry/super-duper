@@ -40,15 +40,15 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Operator recheck 2026-09-12: "all 3 pass" confirms Dark readability, Desert empty-folder/header
   separation and live Windows text size 100% -> 150% -> 100% with reachable controls at both fixture
   sizes, display scale held at 100%. Close the three UIR-03f reported defects; see its scoped evidence.
-- Latest display report: Windows scales only one monitor; the fixture adjusts fine across scaled/
-  unscaled monitors with no noticeable clipping. Actual percentage(s) and focus/selection retention
-  are unspecified. Record a scoped positive observation, not the full display-DPI matrix pass.
-  The operator excludes Windows scaling troubleshooting for now; leave that OS limitation alone.
-- Exact next slice: confirm tested scale(s), then cover only missing display-DPI/focus observations,
-  using the same scalable monitor sequentially if needed. Restore original settings. NVDA remains
-  unavailable/unrun. Keep accepted checks. UIR-03 remains in progress; UIR-04 dependent.
+- Latest display report: the operator tested 150% and 175% on the one scalable monitor; the fixture
+  adjusts fine across scaled/unscaled monitors with no noticeable clipping. Record scoped physical
+  transition/layout passes. Windows did not offer 200%: unavailable/unrun, not passed or waived.
+  The operator excludes Windows troubleshooting; do not force custom scaling or investigate the OS.
+- Exact next slice: confirm file-selection/keyboard-focus retention across moves, then assess UIR-03
+  with 200% and NVDA accurately recorded as unavailable/unrun. Do not substitute 175% for 200% or
+  claim full matrix acceptance. Restore original settings. Keep accepted checks; UIR-04 dependent.
 - This update is documentation only; no new code/build/test/runtime action. Prior integration and
-  UIR-03c Rust tests (226 passed/10 ignored) remain retained. No physical display-DPI or later-gate
+  UIR-03c Rust tests (226 passed/10 ignored) remain retained. No full physical display-DPI matrix or later-gate
   acceptance is inferred. Production deletion and consumed-campaign boundaries unchanged.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; it owns the compact continuation
   route. Session handoffs require the printed copyable prompt from the redesign session guide.

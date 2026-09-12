@@ -42,6 +42,21 @@ Automation currently establishes programmatic focus only. The fake data do not e
 performance, screen-reader cadence over a real long scan, representative result scale or A17 rescan
 acceptance. Those requirements retain their later gates and separately isolated procedures.
 
+## 2026-09-12 display scales confirmed: 150% and 175%
+
+The operator clarifies **"150 and 175. Windows didn't offer 200"**. Associate the preceding
+successful scaled/unscaled movement and no-noticeable-clipping report with both 150% and 175%.
+Record those scoped physical transition/layout observations as passed; 175% is additional coverage.
+The requested 200% case is `unrun_unavailable`, not passed or waived. Only one monitor accepts
+scaling changes, and the operator excludes Windows troubleshooting. Do not force custom scaling,
+change drivers/settings or request another monitor merely to fill this row.
+
+The remaining available observation is whether file selection and keyboard focus survived monitor
+moves; that was requested but not explicitly reported. Confirm it, then assess UIR-03 with 200%
+and NVDA accurately retained as unavailable/unrun. Do not silently equate 175% with 200% or claim
+the full physical matrix passed. No new app defect is reported. This update is documentation only;
+no code/build/test/runtime or OS-setting action. Retain all earlier scoped acceptance.
+
 ## 2026-09-12 cross-monitor adjustment observed; scale unspecified
 
 The operator reports that Windows allows scaling only one of the three monitors and explicitly

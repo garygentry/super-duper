@@ -61,9 +61,11 @@ The next screenshots exposed unreadable Dark, title-only text enlargement and De
 empty-folder message. [UIR-03f](evidence/uir-03f-theme-text-and-empty-state.md) corrects these with
 native Fluent styles, Windows text-size events and accessible empty-state layout. On 2026-09-12,
 the operator reported "all 3 pass": Dark, Desert's empty layout and live text-size changes at both
-fixture sizes. Those reported defects are closed. Cross-monitor movement now adjusts without noticeable clipping; confirm the tested scale(s) and
-remaining focus/display-DPI coverage; NVDA remains unavailable. UIR-03 stays in progress. Runtime is the last
-record in the evidence; re-audit before reuse. No new code/build/test/runtime action in this update.
+fixture sizes. Those reported defects are closed. Cross-monitor transitions at 150% and 175% adjust without
+noticeable clipping. Windows did not offer 200%; that case and NVDA remain unavailable/unrun.
+Next: confirm focus/selection retention, then assess UIR-03 with these evidence limitations recorded.
+Do not troubleshoot Windows scaling. UIR-03 stays in progress. Re-audit the last recorded runtime
+before reuse. No new code/build/test/runtime action in this update.
 Small visual preferences can evolve during implementation.
 Execution enablement and physical/provider campaigns retain their separate authority requirements.
 

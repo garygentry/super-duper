@@ -26,15 +26,15 @@ Updated 2026-09-12. [Execution plan](execution-plan.md) owns gate status.
   sizes, display scale held at 100%. Close the three UIR-03f reported defects. Original OS-setting
   restoration was requested but not separately confirmed. Do not repeat these or earlier passes
   without a reopen reason. See the UIR-03f evidence for scope.
-- **Display observation:** with three monitors initially at 100%, Windows allows changing only one.
-  The operator says the fixture adjusts fine between scaled/unscaled monitors with no noticeable
-  clipping. Actual percentage(s) and keyboard-focus/selection retention are not explicitly reported;
-  this is a scoped positive observation, not full 150%/200% matrix acceptance. The operator does not
-  want Windows scaling troubleshooting; do not investigate that limitation.
-- **Exact next slice:** confirm which percentage(s) were tested, then cover only missing display-DPI/
-  focus observations. Use the same scalable monitor sequentially if a second percentage remains;
-  simultaneous different scales on all three monitors are unnecessary. Restore original settings.
-  NVDA remains unrun/unavailable. UIR-03 stays in progress; assess acceptance before UIR-04.
+- **Display observation:** three monitors initially at 100%; only one accepts scaling changes.
+  The operator confirms 150% and 175% were tested: the fixture adjusts fine across scaled/unscaled
+  monitors with no noticeable clipping. These scoped transition/layout checks pass; 175% is extra
+  coverage. Windows did not offer 200%: `unrun_unavailable`, not passed or waived. The operator
+  excludes Windows troubleshooting; do not force custom scaling or investigate the OS limitation.
+- **Exact next slice:** confirm file-selection/keyboard-focus retention across monitor moves,
+  then assess UIR-03 with 200% and NVDA accurately recorded as unavailable/unrun. Do not infer
+  complete physical-matrix acceptance or replace 200% with 175%. Restore original settings.
+  UIR-03 stays in progress; UIR-04 remains dependent on its acceptance.
   This update is documentation only; no new code/build/test/runtime action.
 - Interim Files/Folders stacked scrolling layouts replace their split adjustments; final adjustable
   S03 comparison, compact search/totals and A03 no-horizontal-scroll/60% requirements stay UIR-05.

@@ -70,19 +70,19 @@ Windows text-scale events, bounded scrolling Folders and wrapping enlarged actio
 reproduced A09/A11/A05 defects. See [evidence](evidence/uir-03f-theme-text-and-empty-state.md).
 Final adjustable Files/Folders comparison remains UIR-05; the interim folder splitter is replaced.
 
-**Exact next slice: identify tested scale(s) and complete only missing display-DPI observations.**
+**Exact next slice: confirm focus/selection retention and assess remaining unavailable evidence.**
 On 2026-09-12 the operator reported "all 3 pass" for corrected Dark readability, Desert empty-folder
 layout and live Windows text size 100% -> 150% -> 100%, both fixture sizes, display scale at 100%.
 Close those three UIR-03f defects; see [scoped evidence](evidence/uir-03f-theme-text-and-empty-state.md#2026-09-12-operator-recheck-passed).
 Retain nine earlier scoped passes, the accepted scrollbar correction and Narrator walkthrough.
 NVDA is not installed: unrun/unavailable, not passed or waived. No installation was requested.
-Three monitors were initially at 100%. The operator now reports scaling works on only one monitor;
-the fixture adjusts fine when moved between scaled/unscaled monitors, with no noticeable clipping.
-This positive observation does not identify the tested percentage(s) or explicitly confirm focus/
-selection retention. Confirm those before marking the full matrix passed. Test a missing percentage
-sequentially on the same scalable monitor if needed, then restore settings. The operator excludes
-Windows scaling troubleshooting for now; do not investigate that OS limitation. Re-audit before any
-fixture reuse/launch. Retain accepted checks. UIR-03 stays in progress; UIR-04 remains dependent.
+Three monitors were initially at 100%; only one accepts scaling changes. The operator confirms
+150% and 175%: the fixture adjusts fine across scaled/unscaled monitors with no noticeable clipping.
+Record scoped transition/layout passes at those settings. Windows did not offer 200%, so that case
+is unavailable/unrun, not passed or waived; 175% does not replace it. Do not troubleshoot Windows or
+force custom scaling. Confirm file selection and keyboard focus survive moves, then assess UIR-03
+with 200% and NVDA accurately unavailable. Restore original settings. Re-audit before fixture reuse/
+launch. Retain accepted checks. UIR-03 stays in progress; UIR-04 remains dependent on acceptance.
 This confirmation changes documentation only; prior tests/runtime records remain retained evidence.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
