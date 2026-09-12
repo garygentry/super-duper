@@ -4,6 +4,16 @@ namespace SuperDuper.Windows.Core.ViewModels;
 
 internal static class DisplayFormatting
 {
+    public static string Duration(TimeSpan elapsed)
+    {
+        if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
+        return elapsed.Days > 0
+            ? $"{elapsed.Days}d {elapsed.Hours}h {elapsed.Minutes}m"
+            : elapsed.Hours > 0
+                ? $"{elapsed.Hours}h {elapsed.Minutes}m {elapsed.Seconds}s"
+                : elapsed.Minutes > 0 ? $"{elapsed.Minutes}m {elapsed.Seconds}s" : $"{elapsed.Seconds}s";
+    }
+
     public static string Bytes(string value)
     {
         if (!decimal.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var bytes))

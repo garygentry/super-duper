@@ -1,6 +1,6 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-03 complete with scoped operator acceptance; UIR-04 in progress; UIR-04a implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
+Status: UIR-03 complete with scoped operator acceptance; UIR-04 in progress; UIR-04a/b implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -81,17 +81,27 @@ missing cases there until actual evidence or explicit later disposition. Do not 
 scaling, troubleshoot Windows or install software under this assessment. This closes the scoped
 shell implementation gate, not final native/user or release acceptance.
 
-**UIR-04a implemented (2026-09-12); next: UIR-04b multi-day monitoring (A08/A16).**
+**UIR-04a implemented (2026-09-12).**
 [UIR-04a evidence](evidence/uir-04a-saved-scan-setup.md) covers current saved setup through Scan again,
 qualified persistent reuse versus candidate re-reading, valid save-before-start, new dated runs and
 retained historical results/decisions. Save / Discard / Stay protects draft navigation, and pending
 Start locks edits. Focused Core and loaded-STA WPF checks plus a small real-worker cache-reopen fixture
 pass in isolated outputs. UIR-04 remains in progress; full A17 and native/user acceptance remain later.
 
-The exact next local slice is UIR-04b: readable multi-day elapsed time, accepted-update receipt
-freshness and terminal activity presentation. Use controlled clock/progress/lifecycle tests and
-preserve detailed counters, phase-qualified denominators/ETA and coalesced accessibility updates.
-Do not start a physical campaign or replay the accepted shell walkthrough to begin that work.
+**UIR-04b implemented (2026-09-12).** [Evidence](evidence/uir-04b-long-scan-monitoring.md) covers
+readable multi-day elapsed time, monotonic accepted-update receipt freshness before dispatcher
+coalescing, historical terminal activity/metrics, frozen terminal elapsed and prompt lifecycle
+announcements. Full Core 193 passed; three loaded-STA WPF methods passed with controlled clock,
+delayed progress, minimized/restored state and four terminal outcomes. Fixture built in isolated
+outputs; no production runtime mutation or new physical acceptance.
+
+The exact next local slice is **UIR-04c: compact S02 summary and expandable details (A08/A16)**.
+Bring sampled filename/parent and qualified phase work into the summary. Use existing resolved
+logical hash-candidate work and folder-substage denominators for measured bars, with explicit
+unknown/zero states. Disclose exact Work / Hash reuse / Diagnostics values and preserve disclosure,
+focus and scroll during updates/navigation. Retain UIR-04b freshness, terminal and announcement
+contracts. Use controlled phase/layout fixtures; no physical campaign or repeated shell walkthrough.
+UIR-04 remains in progress; full A17 and operator workflow acceptance remain later.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read

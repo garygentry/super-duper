@@ -1090,6 +1090,7 @@ public sealed class WpfSurfaceSmokeTests
             RedesignShellSurfaceTests.Verify();
             PopulatedShellFixture.Verify();
             SetupWorkflowFixture.Verify();
+            LongScanMonitoringFixture.Verify();
             app.Shutdown();
         });
     }
@@ -1586,6 +1587,12 @@ public sealed class WpfSurfaceSmokeTests
         public ProgressSurfaceCommand CancelCommand { get; } = new();
 
         public bool IsIndeterminate => true;
+
+        public string ActivityPathAutomationName => "Current scan path";
+        public string ActivityHeading => "Current activity";
+        public string ElapsedLabel => "Run elapsed";
+        public string UpdateFreshness => "Last update 38s ago";
+        public string MetricsContext => "Measured values from the last accepted worker update.";
 
         public string Elapsed => "0:42";
 

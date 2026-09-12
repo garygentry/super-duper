@@ -71,7 +71,8 @@ internal static class ProgressTestData
         string status = "running",
         string legacyPhase = "hashing",
         string typedPhase = "candidate_screening",
-        WorkerFolderAnalysisProgress? folderAnalysis = null)
+        WorkerFolderAnalysisProgress? folderAnalysis = null,
+        string? etaUnavailableReason = null)
     {
         var counters = EmptyCounters() with
         {
@@ -154,7 +155,11 @@ internal static class ProgressTestData
                     Files = 4,
                     LogicalBytes = "4000",
                 },
-                Eta = new WorkerProgressEta
+                Eta = etaUnavailableReason is not null ? new WorkerProgressEta
+                {
+                    State = "unavailable",
+                    Reason = etaUnavailableReason,
+                } : new WorkerProgressEta
                 {
                     State = "available",
                     Stage = "hash_pipeline",

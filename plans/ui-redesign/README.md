@@ -1,7 +1,7 @@
 # Windows UI redesign
 
 Status: high-level direction accepted with long-scan/rescan feedback, updated 2026-09-12. Product
-implementation includes UIR-04a saved setup/Scan again and UIR-03a/b/c/d/e/f shell/context, shared resources, viewport verification and
+implementation includes UIR-04a saved setup/Scan again, UIR-04b long-scan freshness/terminal presentation and UIR-03a/b/c/d/e/f shell/context, shared resources, viewport verification and
 the operator-reported scrollbar, theme, text-size and empty-folder fixes. The package records the accepted direction and its limits; it is not a claim of
 operator usability acceptance or Windows release acceptance.
 
@@ -45,7 +45,7 @@ are authoritative if its intentionally small fictional dataset or simplified int
 | UIR-01 Evaluation and specification | complete | This package, local prototype checks, and discovery record |
 | UIR-02 Direction feedback | complete | User accepted the high-level direction; long-scan/rescan requirements captured |
 | UIR-03 Shell and context | complete | [Scoped shell acceptance](evidence/uir-03-shell-acceptance.md); available checks passed; NVDA/200% retained for UIR-08/A11 |
-| UIR-04 | in_progress | [UIR-04a setup/Scan again implemented](evidence/uir-04a-saved-scan-setup.md); next UIR-04b multi-day monitoring/freshness |
+| UIR-04 | in_progress | [UIR-04a setup/Scan again](evidence/uir-04a-saved-scan-setup.md) and [UIR-04b elapsed/freshness/terminal](evidence/uir-04b-long-scan-monitoring.md) implemented; next UIR-04c compact summary/expandable details |
 | UIR-05 through UIR-09 | planned | Later implementation and final native/user acceptance remain |
 
 On 2026-09-11 the operator [passed three initial checks](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks):
@@ -69,8 +69,9 @@ The operator also confirmed keyboard focus and file-group selection survive moni
 NVDA and 200% stay unavailable/unrun requirements for UIR-08/A11; no complete native matrix or
 release acceptance is claimed. UIR-04a now implements current saved setup, qualified persistent reuse
 copy, Save/Discard/Stay and new dated runs with retained history. See its evidence for focused Core,
-WPF and isolated real-worker checks. Next: UIR-04b multi-day elapsed/update freshness and terminal
-activity (A08/A16). Re-audit runtime before reuse; do not troubleshoot Windows scaling.
+WPF and isolated real-worker checks. UIR-04b now adds multi-day elapsed/update freshness and terminal
+activity (A08/A16), with 193 Core and three WPF methods passed. Next: UIR-04c compact summary,
+measured phase bars and expandable exact details. Re-audit runtime before reuse; do not troubleshoot Windows scaling.
 Small visual preferences can evolve during implementation.
 Execution enablement and physical/provider campaigns retain their separate authority requirements.
 

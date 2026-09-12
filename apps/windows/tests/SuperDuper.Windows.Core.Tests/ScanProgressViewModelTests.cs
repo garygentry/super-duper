@@ -55,7 +55,7 @@ public sealed class ScanProgressViewModelTests
     }
 
     [TestMethod]
-    public void Elapsed_UsesCumulativeHoursBeyondOneDay()
+    public void Elapsed_UsesReadableDaysBeyondOneDay()
     {
         var startedAt = new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
         var run = TestWorkerClient.CreateRun(
@@ -71,7 +71,7 @@ public sealed class ScanProgressViewModelTests
 
         viewModel.ShowRun(run);
 
-        Assert.AreEqual("49:02:03", viewModel.Elapsed);
+        Assert.AreEqual("2d 1h 2m", viewModel.Elapsed);
     }
 
     [TestMethod]
@@ -140,7 +140,7 @@ public sealed class ScanProgressViewModelTests
             "8 files · 7.81 KB candidate denominator",
             viewModel.HashPipelineCandidateContext);
         Assert.AreEqual(
-            "About 4 s remaining · 3.91 KB at 1000 B/s logical · 10 s window",
+            "Hash pipeline: about 4 s remaining · 3.91 KB at 1000 B/s logical · 10 s window",
             viewModel.EstimatedTimeRemaining);
     }
 
@@ -293,7 +293,7 @@ public sealed class ScanProgressViewModelTests
         Assert.IsFalse(viewModel.HasDetailedProgress);
         Assert.AreEqual(0, viewModel.Stages.Count);
         StringAssert.Contains(viewModel.DetailedProgressUnavailableMessage, "completed scan");
-        Assert.AreEqual(string.Empty, viewModel.ProgressAnnouncement);
+        StringAssert.Contains(viewModel.ProgressAnnouncement, "Completed");
         Assert.AreEqual(1L, viewModel.ProgressAnnouncementVersion);
 
         var third = client.AddRun(3, "running", "discovering");

@@ -33,6 +33,14 @@ portion of A17. Core, loaded-STA WPF and a small real-worker restart/repeat fixt
 membership/change/fallback coverage, final native integration and operator workflow acceptance remain
 later gates; the evidence record states the exact retained checks and remaining cases.
 
+## UIR-04b local implementation evidence
+
+[UIR-04b](evidence/uir-04b-long-scan-monitoring.md) implements the multi-day elapsed, accepted-update
+freshness and terminal activity portion of A08/A16. Full Core 193 passed; three WPF methods passed,
+including controlled clocks, delayed/rejected progress, minimized/restored state, all terminal states,
+focus/selection/scroll retention and MostRecent announcements. UIR-04c still owns the compact summary,
+measured phase bars and expandable details; full A16/native/operator acceptance is not claimed.
+
 ## Carried native checks from scoped shell acceptance
 
 UIR-03's [scoped assessment](evidence/uir-03-shell-acceptance.md) does not complete A11. At UIR-08,

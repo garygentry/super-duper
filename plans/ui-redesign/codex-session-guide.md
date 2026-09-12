@@ -61,8 +61,10 @@ of that capability. [Official AGENTS.md guidance](https://learn.chatgpt.com/docs
   native NVDA/200% requirements remain UIR-08. Shell, semantic navigation and selected/active run
   context are verified with delayed-response fixtures and scoped operator evidence.
 - **Implemented: UIR-04a** — saved setup, Scan again and qualified persistent reuse; see its evidence.
-- **Next: UIR-04b** — multi-day elapsed time, update receipt freshness and terminal activity (A08/A16),
-  with controlled clock/progress/lifecycle tests. Full A17 and operator workflow acceptance remain later.
+- **Implemented: UIR-04b** — multi-day elapsed, accepted-update receipt freshness and terminal activity;
+  [controlled Core/WPF evidence](evidence/uir-04b-long-scan-monitoring.md).
+- **Next: UIR-04c** — compact S02 summary, measured phase bars and expandable exact details (A08/A16),
+  with controlled phase/layout fixtures. Full A17 and operator workflow acceptance remain later.
 - **UIR-05/06** — results comparison, review decisions and non-deleting validation.
 - **UIR-07** — history and contextual diagnostics, preserving the monitoring and rescan contract.
 - **UIR-08/09** — integrated Rust/.NET Debug/Release checks, native layout/keyboard/accessibility

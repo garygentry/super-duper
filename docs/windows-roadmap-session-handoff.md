@@ -23,30 +23,34 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest local slice: UIR-04a saved setup and Scan again, in the commit containing this checkpoint.
-  Baseline shell acceptance `84a4f55`, prior implementation `5f83705`. Evidence:
-  `plans/ui-redesign/evidence/uir-04a-saved-scan-setup.md`.
+- Latest local slice: UIR-04b long-scan elapsed/freshness/terminal presentation, in the commit
+  containing this checkpoint. Baseline `2642db9` (UIR-04a). Evidence:
+  `plans/ui-redesign/evidence/uir-04b-long-scan-monitoring.md`.
 - UIR-00/01/02/03 complete; UIR-04 in_progress. Scan again opens current saved setup without rewriting
   the opened historical run. Qualified persistent reuse and candidate-only revalidation are explained;
   Start saves valid edits and creates a new dated run. Save/Discard/Stay protects dirty navigation.
-- Verification: 177 Core passed, including 43 setup/Shell cases; three loaded-STA WPF methods
-  passed. One small real-worker test completed four runs with retained cache/history across restart,
-  both hash-stage hits, changed exclusions/membership, retained old group/member IDs and keep decision.
-  Isolated outputs/captures/results: `artifacts/uir04a`; fictional fixture build passed there.
+- UIR-04b adds readable multi-day elapsed, monotonic accepted-update receipt freshness before
+  dispatcher coalescing, historical terminal activity/metrics and frozen terminal elapsed. Clock
+  refreshes coalesce and stay silent; lifecycle/phase and five-second ordinary announcements remain.
+- Verification: 193 Core passed; three loaded-STA WPF methods passed, including controlled long-scan
+  clock/progress/lifecycle, minimized/restored latest state, terminal focus/selection/scroll and UIA.
+  Isolated outputs/captures/results: `artifacts/uir04b`; fictional fixture built, not launched.
+  Retain UIR-04a's small real-worker four-run reuse/restart/history result without rerunning it.
 - Retain UIR-03 scoped shell acceptance: nine earlier walkthrough passes, scrollbar correction,
   Narrator, corrected Dark/Desert/live text size, and physical 150%/175% transitions with focus and
   file-group selection retained. Do not replay accepted checks without a reopen reason.
 - NVDA (not installed) and physical 200% (not offered by Windows) remain `unrun_unavailable` for
   UIR-08/A11, not passed or waived. Do not troubleshoot Windows, force scaling or install software.
 - Prior paired Debug/Release integration and UIR-03c Rust 226 passed/10 ignored are retained, not rerun.
-  UIR-04a is local implementation; full A17/native/user acceptance and UIR-08 integration remain later.
-- Exact next slice: UIR-04b multi-day elapsed time, accepted-update receipt freshness and terminal
-  activity (A08/A16), using controlled clock/progress/lifecycle fixtures. Preserve detailed counters,
-  phase-qualified denominators/ETA and coalesced accessibility updates. No physical campaign authority.
+  UIR-04a/b are local implementation; full A17/native/user acceptance and UIR-08 integration remain later.
+- Exact next slice: UIR-04c compact S02 summary, measured phase bars and expandable exact details
+  (A08/A16). Bring sampled filename/parent and qualified phase work up front; retain existing logical
+  hash-candidate and folder-substage denominators, explicit unknown/zero states and exact diagnostics.
+  Preserve UIR-04b freshness/terminal/UIA behavior with controlled phase/layout fixtures. No campaign authority.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; print the required copyable next-session
   prompt at handoff. Interim results layouts and final S03/A03 work remain UIR-05.
 - Runtime audit: fictional PID 67748/session 1 responsive at the exact UIR-03f executable; left untouched.
-  New fixture output `artifacts/uir04a/fixture` is built, not left running. Re-audit before reuse/launch.
+  New fixture output `artifacts/uir04b/fixture` is built, not left running. Re-audit before reuse/launch.
   No production app/worker was observed. Production state and disabled deletion remain untouched.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
   do not rerun SOP10 or SOP9 identities.
@@ -492,12 +496,14 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-UIR-04a is implemented with focused Core/WPF and isolated real-worker repeat/restart evidence.
-Next is UIR-04b: multi-day elapsed time, update receipt freshness and terminal activity presentation
-(A08/A16). Read the selected S02/scan-and-rescan specification and directly linked progress code/tests;
-use controlled clocks and lifecycle fixtures. Preserve detailed counters, honest phase denominators,
-ETA qualifiers and accessibility cadence. The user requested this setup slice; do not infer physical
-campaign authority or full A17/native/user acceptance. Keep UIR-03 scoped passes retained.
+UIR-04a/b are implemented with local evidence; UIR-04 remains in progress.
+Next is UIR-04c: compact S02 summary, measured phase bars and expandable exact details (A08/A16).
+Read S02/scan-and-rescan-experience.md and directly linked progress code/tests. Bring sampled
+filename/parent and qualified phase work up front; use resolved logical hash-candidate work and
+folder-substage denominators with explicit unknown/zero states. Disclose exact Work / Hash reuse /
+Diagnostics values while retaining disclosure/focus/scroll. Preserve UIR-04b receipt, terminal and
+announcement behavior; use controlled phase/layout fixtures. Do not infer physical campaign or full
+A17/native/user acceptance. Keep UIR-03 scoped passes retained.
 Use `plans/ui-redesign/session-checkpoint.md` and the session guide. All work stays on
 `codex/ui-redesign`; preserve `wpf-poc` at `deefa40`, with no switch/worktree/merge/push.
 NVDA and physical 200% remain unavailable for UIR-08/A11. Do not troubleshoot Windows.
@@ -599,6 +605,12 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+2026-09-12 UIR-04b: full Core 193 passed; three loaded-STA WPF methods passed with controlled
+multi-day clocks, delayed/rejected progress, minimized/restored state and terminal focus/UIA.
+Fictional fixture build passed with zero warnings/errors; outputs under `artifacts/uir04b`.
+See `plans/ui-redesign/evidence/uir-04b-long-scan-monitoring.md`. Prior real-worker and paired
+Debug/Release/Rust evidence remains retained; no new engine or physical campaign ran.
 
 2026-09-12 UIR-04a: full Core 177 passed, including 43 setup/Shell cases; three loaded-STA WPF
 methods passed; one isolated real-worker repeat/restart test passed with four completed runs.
@@ -1321,6 +1333,16 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+### 2026-09-12 - UIR-04b implemented; compact monitoring details next
+
+- Local accepted-update receipt freshness uses a monotonic timestamp captured before dispatcher
+  coalescing; 30-second silence is an observation, not a failure inference. Terminal animation
+  stops and retained metrics/activity are historical; ordinary UIA cadence remains five seconds.
+- Core 193 passed, three WPF methods passed and the isolated fictional fixture built successfully.
+  UIR-04c will compose the compact summary, measured phase bars and expandable exact diagnostics.
+- PID 67748 was re-audited as the responsive UIR-03f fixture and left untouched. UIR-04b was not
+  left running. Full A17/operator acceptance and unavailable NVDA/200% remain later gates.
 
 ### 2026-09-12 - UIR-04a implemented; long-scan presentation next
 

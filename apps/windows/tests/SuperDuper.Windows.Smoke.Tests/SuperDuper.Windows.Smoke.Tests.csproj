@@ -25,6 +25,8 @@
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
     <Using Include="System.IO" />
     <Compile Include="..\SuperDuper.Windows.Core.Tests\TestDoubles.cs" Link="ShellTestDoubles.cs" />
+    <Compile Include="..\SuperDuper.Windows.Core.Tests\ManualProgressClock.cs" Link="ManualProgressClock.cs" />
+    <Compile Include="..\SuperDuper.Windows.Core.Tests\ProgressTestData.cs" Link="ProgressTestData.cs" />
     <Compile Include="..\..\tools\SuperDuper.Windows.RedesignFixture\ShellFixtureData.cs" Link="ShellFixtureData.cs" />
     <EmbeddedResource Include="..\..\src\SuperDuper.Windows\MainWindow.xaml" LogicalName="ShellMarkup.xaml" />
   </ItemGroup>

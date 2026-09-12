@@ -111,7 +111,7 @@ internal static class ScanProgressProjection
             EstimatedSeconds: { } seconds,
             WindowNanos: { } window,
         } =>
-            $"About {DurationFromSeconds(seconds)} remaining · {DisplayFormatting.Bytes(remaining)} "
+            $"Hash pipeline: about {DurationFromSeconds(seconds)} remaining · {DisplayFormatting.Bytes(remaining)} "
             + $"at {ScaledDecimalBytes(rate)}/s logical · {DurationFromNanos(window)} window",
         _ => "Unavailable — unsupported ETA state",
     };
@@ -143,6 +143,10 @@ internal static class ScanProgressProjection
 
     private static string DurationFromSeconds(decimal seconds)
     {
+        if (seconds >= 86_400)
+        {
+            return $"{decimal.Floor(seconds / 86_400)}d {decimal.Floor(seconds % 86_400 / 3_600)}h {decimal.Floor(seconds % 3_600 / 60)}m";
+        }
         if (seconds >= 3_600)
         {
             return $"{seconds / 3_600m:0.##} h";

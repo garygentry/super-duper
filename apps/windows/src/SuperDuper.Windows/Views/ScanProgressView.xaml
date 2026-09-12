@@ -46,6 +46,9 @@
                                    automation:AutomationProperties.AutomationId="ScanProgressPhase"
                                    automation:AutomationProperties.Name="{Binding Phase, StringFormat='Scan phase: {0}'}"
                                    Text="{Binding Phase}" />
+                        <TextBlock Margin="0,5,0,0" Style="{StaticResource SecondaryProgressText}"
+                                   automation:AutomationProperties.AutomationId="ScanUpdateFreshness"
+                                   Text="{Binding UpdateFreshness}" />
                     </StackPanel>
                     <Button Grid.Column="1"
                             Command="{Binding CancelCommand}"
@@ -56,17 +59,25 @@
                             automation:AutomationProperties.Name="{Binding CancelAutomationName}" />
                 </Grid>
 
-                <ProgressBar Grid.Row="1"
-                             Margin="0,18,0,18"
-                             Height="6"
-                             IsIndeterminate="{Binding IsIndeterminate}"
-                             automation:AutomationProperties.AutomationId="ScanProgressBar"
-                             automation:AutomationProperties.Name="Scan activity; detailed counts and rates follow" />
+                <Border Grid.Row="1" Margin="0,18,0,18" Height="6">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsIndeterminate}" Value="False">
+                                    <Setter Property="Visibility" Value="Hidden" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <ProgressBar IsIndeterminate="{Binding IsIndeterminate}"
+                                 automation:AutomationProperties.AutomationId="ScanProgressBar"
+                                 automation:AutomationProperties.Name="Scan activity; detailed counts and rates follow" />
+                </Border>
 
                 <UniformGrid Grid.Row="2" Columns="4">
                     <Border Style="{StaticResource ProgressCard}">
                         <StackPanel>
-                            <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Run elapsed" />
+                            <TextBlock Style="{StaticResource SecondaryProgressText}" Text="{Binding ElapsedLabel}" />
                             <TextBlock Margin="0,4,0,0" Style="{StaticResource PageTitle}"
                                        automation:AutomationProperties.AutomationId="ScanRunElapsed"
                                        Text="{Binding Elapsed}" />
@@ -107,6 +118,9 @@
                 </UniformGrid>
 
                 <StackPanel Grid.Row="3" Margin="0,14,0,0">
+                    <TextBlock Margin="0,0,0,10" Style="{StaticResource SecondaryProgressText}"
+                               automation:AutomationProperties.AutomationId="ScanMetricsContext"
+                               Text="{Binding MetricsContext}" />
                     <TextBlock Style="{StaticResource SectionTitle}" Text="File and logical-byte funnel" />
                     <TextBlock Margin="0,3,0,10" Style="{StaticResource SecondaryProgressText}"
                                Text="Six successive cumulative outcomes; byte totals are logical file sizes." />
@@ -217,7 +231,7 @@
                         </Border>
                         <Border Style="{StaticResource ProgressCard}">
                             <StackPanel>
-                                <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Estimated time remaining" />
+                                <TextBlock Style="{StaticResource SecondaryProgressText}" Text="Hash pipeline estimate" />
                                 <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"
                                            automation:AutomationProperties.AutomationId="ScanEstimatedTimeRemaining"
                                            Text="{Binding EstimatedTimeRemaining}" />
@@ -227,7 +241,8 @@
                 </StackPanel>
 
                 <StackPanel Grid.Row="6" Margin="0,16,0,0">
-                    <TextBlock FontWeight="SemiBold" Text="Current activity" />
+                    <TextBlock FontWeight="SemiBold" Text="{Binding ActivityHeading}"
+                               automation:AutomationProperties.AutomationId="ScanActivityHeading" />
                     <TextBlock Margin="0,7,0,0" TextWrapping="Wrap"
                                automation:AutomationProperties.AutomationId="ScanFolderAnalysisProgress"
                                automation:AutomationProperties.Name="{Binding FolderAnalysisProgress, StringFormat='Folder analysis: {0}'}"
@@ -235,12 +250,12 @@
                                Visibility="{Binding IsFolderAnalysis, Converter={StaticResource BooleanToVisibilityConverter}}" />
                     <TextBlock Margin="0,7,0,0" TextWrapping="Wrap"
                                automation:AutomationProperties.AutomationId="ScanCurrentActivity"
-                               automation:AutomationProperties.Name="{Binding Message, StringFormat='Current scan activity: {0}'}"
+                               automation:AutomationProperties.Name="{Binding Message}"
                                Text="{Binding Message}" />
                     <TextBox Margin="0,8,0,0" IsReadOnly="True" TextWrapping="Wrap"
                              Text="{Binding CurrentPath, Mode=OneWay}"
                              automation:AutomationProperties.AutomationId="ScanCurrentPath"
-                             automation:AutomationProperties.Name="Current scan path" />
+                             automation:AutomationProperties.Name="{Binding ActivityPathAutomationName}" />
                     <Border Margin="0,14,0,0" Padding="12" BorderThickness="1" CornerRadius="6"
                             BorderBrush="{DynamicResource TextFillColorPrimaryBrush}"
                             Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}"

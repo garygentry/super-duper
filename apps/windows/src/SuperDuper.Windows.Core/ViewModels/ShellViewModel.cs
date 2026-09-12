@@ -13,7 +13,9 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     private readonly IReviewLiveStateWorkerClient? _reviewLiveStateWorkerClient;
     private readonly IUiDispatcher _dispatcher;
     private readonly IUserConfirmationService _confirmation;
-    private readonly LatestProgressApplicationGate<WorkerRunProgressEventArgs> _progressGate;
+    private sealed record ReceivedProgress(WorkerRunProgressEventArgs Progress, long Timestamp);
+    private readonly LatestProgressApplicationGate<ReceivedProgress> _progressGate;
+    private readonly TimeProvider _clock;
     private CancellationTokenSource? _selectionCancellation;
     private CancellationTokenSource? _startCancellation;
     private long _startGeneration;
@@ -53,15 +55,17 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         IExplorerService explorer,
         ICloudLocationService? cloudLocations = null,
         IRecycleOperationCapabilityExecutor? recycleOperationExecutor = null,
-        IRecycleBinService? recycleBin = null)
+        IRecycleBinService? recycleBin = null,
+        TimeProvider? clock = null)
     {
         _workerClient = workerClient;
         _restartableWorkerClient = workerClient as IRestartableWorkerClient;
         _reviewLiveStateWorkerClient = workerClient as IReviewLiveStateWorkerClient;
         _confirmation = confirmation;
         _dispatcher = dispatcher;
+        _clock = clock ?? TimeProvider.System;
 
-        _progressGate = new LatestProgressApplicationGate<WorkerRunProgressEventArgs>(
+        _progressGate = new LatestProgressApplicationGate<ReceivedProgress>(
             HandleProgress,
             ScheduleProgressApplicationAsync);
 
@@ -76,8 +80,9 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             workerClient,
             dispatcher,
             runId => _progressGate.MarkCancelling(runId),
-            OpenProgressWarningsAsync);
-        Summary = new ScanProgressViewModel(workerClient, dispatcher, openWarnings: OpenProgressWarningsAsync);
+            OpenProgressWarningsAsync,
+            _clock);
+        Summary = new ScanProgressViewModel(workerClient, dispatcher, openWarnings: OpenProgressWarningsAsync, clock: _clock);
         Progress.PropertyChanged += OnProgressPropertyChanged;
         History = new RunHistoryViewModel(workerClient, NavigateToWarningDuplicateSetAsync);
         Performance = new PerformanceViewModel(workerClient);
@@ -1029,6 +1034,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
     private void OnRunProgress(object? sender, WorkerRunProgressEventArgs progress)
     {
+        var receivedTimestamp = _clock.GetTimestamp();
         if (_disposed
             || !WorkerProgressContract.TryValidate(progress, out _)
             || !WorkerProgressContract.TryGetCumulativeValues(
@@ -1038,19 +1044,20 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         {
             return;
         }
-        _progressGate.Offer(new ProgressApplicationEnvelope<WorkerRunProgressEventArgs>(
+        _progressGate.Offer(new ProgressApplicationEnvelope<ReceivedProgress>(
             progress.RunId,
             progress.Sequence,
             progress.Progress.Revision,
             progress.Status,
             counters,
-            progress));
+            new ReceivedProgress(progress, receivedTimestamp)));
     }
 
     private void OnRunLifecycleChanged(object? sender, WorkerRunLifecycleEventArgs lifecycle)
     {
+        var receivedTimestamp = _clock.GetTimestamp();
         ObserveProgressLifecycle(lifecycle.Run);
-        _dispatcher.Post(() => HandleLifecycle(lifecycle.Run, progressLifecycleObserved: true));
+        _dispatcher.Post(() => HandleLifecycle(lifecycle.Run, progressLifecycleObserved: true, receivedTimestamp));
     }
 
     private void OnResultStateChanged(object? sender, WorkerResultStateChangedEventArgs stateChanged) =>
@@ -1079,13 +1086,13 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             var unavailable = run with
             {
                 Status = "interrupted",
-                CompletedAt = DateTimeOffset.UtcNow,
+                CompletedAt = _clock.GetUtcNow(),
                 ErrorMessage = "The worker exited before this run finished. Restart the worker to reconcile durable state.",
             };
             History.Upsert(unavailable, select: false);
             if (SelectedRun?.Id == unavailable.Id) SetWorkspaceRun(unavailable);
             OnPropertyChanged(nameof(SelectedScanContext));
-            Progress.ApplyLifecycle(unavailable);
+            Progress.ApplyLifecycle(unavailable, workerUpdate: false);
 
             var session = Sessions.Find(unavailable.SessionId);
             if (session is not null)
@@ -1100,13 +1107,14 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         _activeSessionId = null;
     }
 
-    private void HandleProgress(WorkerRunProgressEventArgs progress)
+    private void HandleProgress(ReceivedProgress received)
     {
+        var progress = received.Progress;
         if (_disposed)
         {
             return;
         }
-        if (!Progress.ApplyProgress(progress))
+        if (!Progress.ApplyProgress(progress, received.Timestamp))
         {
             return;
         }
@@ -1118,7 +1126,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void HandleLifecycle(WorkerRun run, bool progressLifecycleObserved = false)
+    private void HandleLifecycle(WorkerRun run, bool progressLifecycleObserved = false, long? receivedTimestamp = null)
     {
         if (_disposed)
         {
@@ -1132,7 +1140,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         if (SelectedRun?.Id == run.Id) SetWorkspaceRun(run);
         OnPropertyChanged(nameof(SelectedScanContext));
         Performance.ObserveLifecycle(run);
-        Progress.ApplyLifecycle(run);
+        Progress.ApplyLifecycle(run, receivedTimestamp);
 
         var session = Sessions.Find(run.SessionId);
         if (session is not null)

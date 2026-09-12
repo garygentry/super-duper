@@ -12,7 +12,13 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
     private readonly IUiDispatcher _dispatcher;
     private readonly Action<long>? _onCancelling;
     private readonly Func<WorkerRun, CancellationToken, Task>? _openWarnings;
-    private readonly Timer _elapsedTimer;
+    private readonly TimeProvider _clock;
+    private readonly ITimer _elapsedTimer;
+    private long? _lastUpdateTimestamp;
+    private DateTimeOffset? _stoppedAt;
+    private int _clockRefreshPending;
+    private bool _disposed;
+    private bool _timerActive;
     private WorkerRun? _run;
     private ulong _lastSequence;
     private ulong _lastProgressRevision;
@@ -32,14 +38,16 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         IWorkerClient workerClient,
         IUiDispatcher dispatcher,
         Action<long>? onCancelling = null,
-        Func<WorkerRun, CancellationToken, Task>? openWarnings = null)
+        Func<WorkerRun, CancellationToken, Task>? openWarnings = null,
+        TimeProvider? clock = null)
     {
         _workerClient = workerClient;
         _dispatcher = dispatcher;
         _onCancelling = onCancelling;
         _openWarnings = openWarnings;
-        _elapsedTimer = new Timer(
-            _ => _dispatcher.Post(() => OnPropertyChanged(nameof(Elapsed))),
+        _clock = clock ?? TimeProvider.System;
+        _elapsedTimer = _clock.CreateTimer(
+            _ => QueueClockRefresh(),
             null,
             Timeout.InfiniteTimeSpan,
             Timeout.InfiniteTimeSpan);
@@ -79,6 +87,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _errorMessage, value))
             {
                 OnPropertyChanged(nameof(HasError));
+                OnPropertyChanged(nameof(DisplayErrorMessage));
             }
         }
     }
@@ -98,6 +107,33 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         : "Cancel scan; access key Alt+C";
 
     public bool IsIndeterminate => IsActive;
+
+    public string ActivityHeading => IsActive ? "Current activity" : "Last reported activity";
+
+    public string ActivityPathAutomationName => IsActive ? "Current scan path" : "Last reported scan path";
+
+    public string MetricsContext => IsActive
+        ? "Measured values from the last accepted worker update. The path is sampled activity; an unchanged path can be a large file still being read."
+        : "Historical metrics from the last accepted update; they may precede the final run totals. This scan has stopped.";
+
+    public string ElapsedLabel => !IsActive && Run is { CompletedAt: null }
+        ? "Elapsed at last observation" : "Run elapsed";
+
+    public string UpdateFreshness
+    {
+        get
+        {
+            if (Run is null) return "No scan selected";
+            if (!IsActive) return "No live updates — scan has stopped";
+            if (_lastUpdateTimestamp is not { } received) return "Waiting for the first accepted worker update";
+            var age = _clock.GetElapsedTime(received);
+            if (age < TimeSpan.Zero) age = TimeSpan.Zero;
+            var text = $"Last update {DisplayFormatting.Duration(age)} ago";
+            return age >= TimeSpan.FromSeconds(30)
+                ? text + ". No recent worker update; this alone does not indicate failure."
+                : text;
+        }
+    }
 
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage) || !string.IsNullOrWhiteSpace(Run?.ErrorMessage);
 
@@ -203,8 +239,11 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         _ => ScanProgressProjection.Eta(ProgressSnapshot?.Eta),
     };
 
-    public string ProgressAnnouncement => ProgressSnapshot is not { } snapshot
-        ? string.Empty
+    public string ProgressAnnouncement => !IsActive && Run is not null
+        ? $"Scan {Status}. {Phase}. {WarningCount} warnings. {DisplayErrorMessage}"
+        : ProgressSnapshot is not { } snapshot
+        ? (IsCancelling ? "Scan cancellation requested. Waiting for the worker to stop."
+            : Run is null ? string.Empty : $"Scan {Status}. {Phase}.")
         : $"Scan progress. {Status}. {Phase}. "
             + (IsFolderAnalysis ? $"{FolderAnalysisProgress}. " : string.Empty)
             + $"{snapshot.Funnel.Discovered.Files:N0} discovered; "
@@ -225,12 +264,9 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
                 return "—";
             }
             var started = Run.StartedAt ?? Run.CreatedAt;
-            var end = Run.CompletedAt ?? DateTimeOffset.UtcNow;
+            var end = Run.CompletedAt ?? _stoppedAt ?? _clock.GetUtcNow();
             var elapsed = end > started ? end - started : TimeSpan.Zero;
-            var totalHours = elapsed.Ticks / TimeSpan.TicksPerHour;
-            return totalHours >= 1
-                ? FormattableString.Invariant($"{totalHours}:{elapsed.Minutes:00}:{elapsed.Seconds:00}")
-                : elapsed.ToString(@"m\:ss");
+            return DisplayFormatting.Duration(elapsed);
         }
     }
 
@@ -247,16 +283,20 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         _lastAnnouncementStatus = null;
         _lastAnnouncementPhase = null;
         _folderAnalysis = null;
+        _lastUpdateTimestamp = null;
+        _stoppedAt = run is { Status: not ("pending" or "running" or "cancelling") }
+            ? run.CompletedAt ?? _clock.GetUtcNow() : null;
         ProgressSnapshot = null;
         CurrentPath = null;
         Message = null;
         ErrorMessage = null;
         _cancelRequestPending = false;
         Run = run;
+        RaiseClockProperties();
         UpdateTimer();
     }
 
-    public bool ApplyProgress(WorkerRunProgressEventArgs progress)
+    public bool ApplyProgress(WorkerRunProgressEventArgs progress, long? receivedTimestamp = null)
     {
         if (Run?.Id != progress.RunId
             || Run.Status is not ("pending" or "running" or "cancelling")
@@ -279,6 +319,12 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         _lastProgressRevision = progress.Progress.Revision;
         _lastCumulativeValues = cumulativeValues.ToArray();
         _folderAnalysis = progress.FolderAnalysis;
+        _lastUpdateTimestamp = receivedTimestamp ?? _clock.GetTimestamp();
+        var phaseChanged = Run.Phase != progress.Phase
+            || (ProgressSnapshot is { } previous && previous.Phase != progress.Progress.Phase);
+        // The worker may retain a sampled path at a phase transition. Do not imply that the
+        // next phase is still processing that file; a later sample can establish activity again.
+        var path = phaseChanged && progress.CurrentPath == CurrentPath ? null : progress.CurrentPath;
         Run = Run with
         {
             Status = progress.Status,
@@ -288,29 +334,71 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
             FilesHashed = progress.FilesHashed,
             WarningCount = progress.WarningCount,
         };
-        CurrentPath = progress.CurrentPath;
+        CurrentPath = path;
         Message = progress.Message;
         ProgressSnapshot = progress.Progress;
         OnPropertyChanged(nameof(FolderAnalysisProgress));
         OnPropertyChanged(nameof(IsFolderAnalysis));
         UpdateProgressAnnouncement(progress);
+        RaiseClockProperties();
         UpdateTimer();
         return true;
     }
 
-    public void ApplyLifecycle(WorkerRun run)
+    public void ApplyLifecycle(WorkerRun run, long? receivedTimestamp = null, bool workerUpdate = true)
     {
-        if (Run?.Id != run.Id)
+        if (Run?.Id != run.Id
+            || (!IsActive && run.Status is "pending" or "running" or "cancelling")
+            || (Run.Status == "cancelling" && run.Status is "pending" or "running"))
         {
             return;
         }
+        var changed = Run.Status != run.Status || Run.Phase != run.Phase;
+        if (workerUpdate) _lastUpdateTimestamp = receivedTimestamp ?? _clock.GetTimestamp();
+        if (Run.Phase != run.Phase)
+        {
+            CurrentPath = null;
+            Message = null;
+        }
+        if (run.Status is not ("pending" or "running" or "cancelling"))
+            _stoppedAt = run.CompletedAt ?? _stoppedAt ?? _clock.GetUtcNow();
         _cancelRequestPending = false;
         Run = run;
         ErrorMessage = run.ErrorMessage;
+        RaiseClockProperties();
+        if (changed) AnnounceLifecycle();
         UpdateTimer();
     }
 
-    public void Dispose() => _elapsedTimer.Dispose();
+    public void Dispose()
+    {
+        _disposed = true;
+        _elapsedTimer.Dispose();
+    }
+
+    private void QueueClockRefresh()
+    {
+        if (_disposed || Interlocked.Exchange(ref _clockRefreshPending, 1) != 0) return;
+        _dispatcher.Post(() =>
+        {
+            Interlocked.Exchange(ref _clockRefreshPending, 0);
+            if (!_disposed && IsActive) RaiseClockProperties();
+        });
+    }
+
+    private void RaiseClockProperties()
+    {
+        OnPropertyChanged(nameof(Elapsed));
+        OnPropertyChanged(nameof(UpdateFreshness));
+    }
+
+    private void AnnounceLifecycle()
+    {
+        _lastAnnouncementStatus = Run?.Status;
+        _lastAnnouncementPhase = ProgressSnapshot?.Phase;
+        OnPropertyChanged(nameof(ProgressAnnouncement));
+        AdvanceAnnouncementVersion();
+    }
 
     private static bool HasRegression(
         IReadOnlyList<ulong>? previous,
@@ -374,15 +462,20 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         _cancelRequestPending = true;
         Run = run with { Status = "cancelling" };
         ErrorMessage = null;
+        AnnounceLifecycle();
         try
         {
             ApplyLifecycle(await _workerClient.CancelRunAsync(run.Id));
         }
         catch (Exception exception)
         {
-            _cancelRequestPending = false;
-            Run = run;
-            ErrorMessage = exception.Message;
+            if (Run?.Id == run.Id && IsActive)
+            {
+                _cancelRequestPending = false;
+                Run = run;
+                ErrorMessage = exception.Message;
+                AnnounceLifecycle();
+            }
         }
         finally
         {
@@ -395,9 +488,14 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
             ? _openWarnings(run, cancellationToken)
             : Task.CompletedTask;
 
-    private void UpdateTimer() => _elapsedTimer.Change(
-        IsActive ? TimeSpan.Zero : Timeout.InfiniteTimeSpan,
-        IsActive ? TimeSpan.FromSeconds(1) : Timeout.InfiniteTimeSpan);
+    private void UpdateTimer()
+    {
+        if (_timerActive == IsActive) return;
+        _timerActive = IsActive;
+        _elapsedTimer.Change(
+            IsActive ? TimeSpan.FromSeconds(1) : Timeout.InfiniteTimeSpan,
+            IsActive ? TimeSpan.FromSeconds(1) : Timeout.InfiniteTimeSpan);
+    }
 
     private void UpdateProgressAnnouncement(WorkerRunProgressEventArgs progress)
     {
@@ -421,6 +519,11 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         _lastAnnouncementMonotonicNanos = currentNanos;
         _lastAnnouncementStatus = progress.Status;
         _lastAnnouncementPhase = progress.Progress.Phase;
+        AdvanceAnnouncementVersion();
+    }
+
+    private void AdvanceAnnouncementVersion()
+    {
         _progressAnnouncementVersion = _progressAnnouncementVersion == long.MaxValue
             ? 1
             : _progressAnnouncementVersion + 1;
@@ -436,6 +539,11 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CancelButtonText));
         OnPropertyChanged(nameof(CancelAutomationName));
         OnPropertyChanged(nameof(IsIndeterminate));
+        OnPropertyChanged(nameof(ActivityHeading));
+        OnPropertyChanged(nameof(ActivityPathAutomationName));
+        OnPropertyChanged(nameof(MetricsContext));
+        OnPropertyChanged(nameof(ElapsedLabel));
+        OnPropertyChanged(nameof(UpdateFreshness));
         OnPropertyChanged(nameof(HasError));
         OnPropertyChanged(nameof(DisplayErrorMessage));
         OnPropertyChanged(nameof(Status));
