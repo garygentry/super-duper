@@ -31,6 +31,7 @@ public sealed class SessionSetupViewModel : ObservableObject
     private bool _canMutate = true;
     private bool _isDirty;
     private bool _suppressChanges;
+    private WorkerSessionDefinition? _savedDefinition;
     private string? _operationError;
     private string _repeatCachePolicy = RepeatCachePolicyNames.ReuseVerified;
     private SessionValidationResult _validation = new([], [], [], ["Enter a session name."], false);
@@ -68,12 +69,12 @@ public sealed class SessionSetupViewModel : ObservableObject
     [
         new(
             RepeatCachePolicyNames.ReuseVerified,
-            "Reuse verified hashes (recommended)",
-            "Reuses hashes only when stable file identity and qualified change metadata still match. Any uncertainty falls back to reading the file."),
+            "Reuse verified hashes",
+            "Checks these locations again. Reuses stored hashes when file identity and change metadata qualify; new, changed or uncertain candidates are read as needed."),
         new(
             RepeatCachePolicyNames.RevalidateContent,
-            "Always read file content",
-            "Bypasses cache hits and reads file content again while still refreshing verified cache entries."),
+            "Re-read candidate content",
+            "Bypasses hash reuse but keeps normal candidate filtering; it does not force a full hash of every discovered file. Completed hashes can populate the persistent cache for later runs."),
     ];
 
     public long? SessionId
@@ -113,6 +114,7 @@ public sealed class SessionSetupViewModel : ObservableObject
             if (SetProperty(ref _repeatCachePolicy, value))
             {
                 OnPropertyChanged(nameof(RepeatCachePolicyDescription));
+                OnPropertyChanged(nameof(RepeatCachePolicyDisplayName));
             }
         }
     }
@@ -120,6 +122,16 @@ public sealed class SessionSetupViewModel : ObservableObject
     public string RepeatCachePolicyDescription => RepeatCachePolicies
         .Single(option => option.Value == RepeatCachePolicy)
         .Description;
+
+    public string RepeatCachePolicyDisplayName => RepeatCachePolicies.Single(option => option.Value == RepeatCachePolicy).DisplayName;
+
+    public string ExclusionsSummary => $"{_validation.Roots.Count:N0} locations · {_validation.IgnorePatterns.Count:N0} ignore patterns · {SplitIgnorePatterns(ManualLocationExclusionsText).Count(line => !string.IsNullOrWhiteSpace(line)):N0} manual exclusions. Registered cloud locations are excluded.";
+
+    public void DiscardChanges()
+    {
+        if (_savedDefinition is { } saved) Load(saved);
+        else BeginNew();
+    }
 
     public string IgnorePatternsText
     {
@@ -306,12 +318,16 @@ public sealed class SessionSetupViewModel : ObservableObject
 
     public void BeginNew()
     {
+        _savedDefinition = null;
         _suppressChanges = true;
         try
         {
             SessionId = null;
             RepeatCachePolicy = RepeatCachePolicyNames.ReuseVerified;
-            Name = "New session";
+            var names = _otherSessionNames(null);
+            Name = "New saved scan";
+            for (var number = 2; names.Contains(Name, StringComparer.OrdinalIgnoreCase); number++)
+                Name = $"New saved scan {number}";
             ReplaceRoots([""]);
             IgnorePatternsText = string.Join(Environment.NewLine, SessionDefinitionValidator.SafeWindowsIgnorePatterns);
             ManualLocationExclusionsText = "";
@@ -330,12 +346,14 @@ public sealed class SessionSetupViewModel : ObservableObject
         _ = RefreshCloudLocationsAsync();
     }
 
-    public void Load(WorkerSessionDefinition session)
+    public void Load(WorkerSessionDefinition session, bool preserveRepeatPolicy = false)
     {
+        _savedDefinition = session;
         _suppressChanges = true;
         try
         {
             SessionId = session.Id;
+            if (!preserveRepeatPolicy) RepeatCachePolicy = RepeatCachePolicyNames.ReuseVerified;
             Name = session.Name;
             ReplaceRoots(session.Roots);
             IgnorePatternsText = string.Join(Environment.NewLine, session.IgnorePatterns);
@@ -360,7 +378,7 @@ public sealed class SessionSetupViewModel : ObservableObject
         CancellationToken cancellationToken = default)
     {
         Validate();
-        if (!_validation.IsValid)
+        if (HasValidationErrors)
         {
             OperationError = ValidationMessage;
             return null;
@@ -417,7 +435,7 @@ public sealed class SessionSetupViewModel : ObservableObject
                     _registeredCloudLocations,
                     CloudDetectionStatus,
                     cancellationToken);
-            Load(session);
+            Load(session, preserveRepeatPolicy: true);
             SessionSaved?.Invoke(this, session);
             return session;
         }
@@ -550,7 +568,10 @@ public sealed class SessionSetupViewModel : ObservableObject
         RefreshCommands();
     }
 
-    private void OnRootPropertyChanged(object? sender, PropertyChangedEventArgs e) => MarkChanged();
+    private void OnRootPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SessionRootViewModel.Path)) MarkChanged();
+    }
 
     private void MarkChanged()
     {
@@ -570,6 +591,15 @@ public sealed class SessionSetupViewModel : ObservableObject
             Roots.Select(root => root.Path),
             SplitIgnorePatterns(IgnorePatternsText),
             _otherSessionNames(SessionId));
+        foreach (var root in Roots)
+        {
+            var path = root.Path.Trim();
+            var messages = _validation.Errors.Concat(_validation.Warnings)
+                .Where(message => path.Length > 0 && message.Contains(path, StringComparison.OrdinalIgnoreCase)).ToArray();
+            root.Status = path.Length == 0 ? "Enter an absolute folder or drive path."
+                : messages.Length > 0 ? string.Join(" ", messages)
+                : "Location configured; availability is checked again on Start.";
+        }
         try
         {
             _ = NormalizeManualLocationExclusions();
@@ -580,6 +610,7 @@ public sealed class SessionSetupViewModel : ObservableObject
             _manualExclusionValidationError = exception.Message;
         }
         OnPropertyChanged(nameof(ValidationMessage));
+        OnPropertyChanged(nameof(ExclusionsSummary));
         OnPropertyChanged(nameof(HasValidationErrors));
         OnPropertyChanged(nameof(WarningMessage));
         OnPropertyChanged(nameof(HasWarnings));

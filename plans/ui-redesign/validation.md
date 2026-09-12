@@ -26,6 +26,13 @@ performance, native accessibility, or deletion safety.
 | A16 | Current activity, measured phase bars and expandable exact diagnostics remain usable over multi-day runs; freshness, no-progress and worker failure stay distinct | D14 | Controlled clock/progress sequences, stale frames, restore/minimize, UIA cadence/focus and unavailable states; UIR-04/07/08 |
 | A17 | Scan again performs fresh discovery with persistent qualified cache reuse; added/deleted/changed files affect only the new run; repeat policy and prior run context remain clear | D15 | Small isolated real-worker rescan/restart fixture, existing hash-signature regressions and Shell/history tests; UIR-04/07/08 |
 
+## UIR-04a local implementation evidence
+
+[UIR-04a](evidence/uir-04a-saved-scan-setup.md) implements setup/Scan again for A06/A14 and the setup
+portion of A17. Core, loaded-STA WPF and a small real-worker restart/repeat fixture pass. Full A17
+membership/change/fallback coverage, final native integration and operator workflow acceptance remain
+later gates; the evidence record states the exact retained checks and remaining cases.
+
 ## Carried native checks from scoped shell acceptance
 
 UIR-03's [scoped assessment](evidence/uir-03-shell-acceptance.md) does not complete A11. At UIR-08,

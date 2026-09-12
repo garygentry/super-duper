@@ -41,6 +41,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     private Task _savedHistoryLoad = Task.CompletedTask;
     private string _focusTarget = string.Empty;
     private long _focusRequestVersion;
+    private Func<Task>? _setupDeparture;
+    private bool _resolvingSetupDeparture;
 
     public ShellViewModel(
         IWorkerClient workerClient,
@@ -110,6 +112,20 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         }
 
         StartRunCommand = new AsyncRelayCommand(StartRunAsync, () => CanStartRun);
+        ScanAgainCommand = new RelayCommand(() =>
+        {
+            if (!CanOpenScanSetup) return;
+            SelectedDestination = WorkspaceDestination.ScanSetup;
+            FocusTarget = "scan-navigation";
+            FocusRequestVersion++;
+        }, () => CanOpenScanSetup);
+        SaveSetupAndContinueCommand = new AsyncRelayCommand(() => ResolveSetupDepartureAsync(save: true));
+        DiscardSetupAndContinueCommand = new AsyncRelayCommand(() => ResolveSetupDepartureAsync(save: false));
+        StayInSetupCommand = new RelayCommand(() =>
+        {
+            _setupDeparture = null;
+            OnPropertyChanged(nameof(HasSetupDeparture));
+        });
         RestartWorkerCommand = new AsyncRelayCommand(RestartWorkerAsync, () => CanRestartWorker);
         ClearContentErrorCommand = new RelayCommand(() => ContentErrorMessage = null);
         OpenScanCommand = new RelayCommand(OpenHighlightedScan, () => IsConnected && History.SelectedRun is not null && !History.IsLoading && !IsLoadingSession);
@@ -155,6 +171,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(CanStartRun));
                 OnPropertyChanged(nameof(CanRestartWorker));
                 StartRunCommand.NotifyCanExecuteChanged();
+                ScanAgainCommand.NotifyCanExecuteChanged();
                 RestartWorkerCommand.NotifyCanExecuteChanged();
             }
         }
@@ -205,6 +222,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             {
                 OnPropertyChanged(nameof(CanStartRun));
                 StartRunCommand.NotifyCanExecuteChanged();
+                ScanAgainCommand.NotifyCanExecuteChanged();
                 OnPropertyChanged(nameof(IsSetupAvailable));
                 OpenScanCommand.NotifyCanExecuteChanged();
             }
@@ -220,6 +238,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(WorkspaceSessionName));
             OnPropertyChanged(nameof(HistoryContext));
             OnPropertyChanged(nameof(StartRunLabel));
+            OnPropertyChanged(nameof(ScanAgainLabel));
         }
     }
 
@@ -240,6 +259,13 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         get => _selectedDestination;
         set
         {
+            if (value != WorkspaceDestination.ScanSetup && SelectedDestination == WorkspaceDestination.ScanSetup
+                && DeferSetupDeparture(() => { SelectedDestination = value; return Task.CompletedTask; }))
+            {
+                OnPropertyChanged(nameof(SelectedArea));
+                OnPropertyChanged(nameof(ScanDestination));
+                return;
+            }
             if (!SetProperty(ref _selectedDestination, value)) return;
             _navigationGeneration++;
             switch (value)
@@ -277,7 +303,11 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     public WorkspaceDestination ScanDestination
     {
         get => _scanDestination;
-        set { _scanDestination = value; if (SelectedArea == WorkspaceArea.Scan) SelectedDestination = value; }
+        set
+        {
+            if (SelectedArea == WorkspaceArea.Scan) SelectedDestination = value;
+            else _scanDestination = value;
+        }
     }
     public WorkspaceDestination ResultsDestination
     {
@@ -294,6 +324,9 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     public string WorkspaceSessionName => SelectedRun is { } run
         ? Sessions.Find(run.SessionId)?.Name ?? "Saved scan" : DisplaySessionName;
     public string StartRunLabel => $"Start scan: {DisplaySessionName}";
+    public string ScanAgainLabel => $"Scan again: {DisplaySessionName}";
+    public bool CanOpenScanSetup => IsConnected && IsWorkspaceVisible && IsSetupAvailable && !Setup.IsNew;
+    public bool HasSetupDeparture => _setupDeparture is not null;
     public string HistoryContext => $"History: {DisplaySessionName} \u00b7 Highlight a row, then Open scan to change the workspace.";
 
     public string SelectedScanContext => SelectedRun is { } run
@@ -348,6 +381,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(HasActiveRun));
                 OnPropertyChanged(nameof(CanStartRun));
                 StartRunCommand.NotifyCanExecuteChanged();
+                ScanAgainCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -364,6 +398,10 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     public string DiagnosticLogPath => _workerClient.DiagnosticLogPath;
 
     public IAsyncRelayCommand StartRunCommand { get; }
+    public IRelayCommand ScanAgainCommand { get; }
+    public IAsyncRelayCommand SaveSetupAndContinueCommand { get; }
+    public IAsyncRelayCommand DiscardSetupAndContinueCommand { get; }
+    public IRelayCommand StayInSetupCommand { get; }
 
     public IAsyncRelayCommand RestartWorkerCommand { get; }
 
@@ -529,6 +567,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
     private Task BeginNewSessionAsync()
     {
+        if (DeferSetupDeparture(BeginNewSessionAsync)) return Task.CompletedTask;
         CancelPendingStart();
         _selectionCancellation?.Cancel();
         _suppressSelection = true;
@@ -538,7 +577,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         History.Clear();
         SetWorkspaceRun(null);
         if (!HasActiveRun) Progress.ShowRun(null);
-        DisplaySessionName = "New session";
+        DisplaySessionName = Setup.Name;
         SelectedDestination = WorkspaceDestination.ScanSetup;
         IsLoadingSession = false;
         ContentErrorMessage = null;
@@ -552,6 +591,33 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         FocusTarget = "start-scan";
         FocusRequestVersion++;
         return Task.CompletedTask;
+    }
+
+    private bool DeferSetupDeparture(Func<Task> continuation)
+    {
+        if (_resolvingSetupDeparture || !Setup.IsDirty || !IsWorkspaceVisible) return false;
+        // Keep the first requested destination until the user resolves this configuration choice.
+        _setupDeparture ??= continuation;
+        OnPropertyChanged(nameof(HasSetupDeparture));
+        return true;
+    }
+
+    private async Task ResolveSetupDepartureAsync(bool save)
+    {
+        if (_setupDeparture is not { } continuation || _resolvingSetupDeparture || Setup.IsBusy) return;
+        _resolvingSetupDeparture = true;
+        try
+        {
+            if (save)
+            {
+                if (await Setup.EnsureSavedAsync(requireReachableRoot: false) is null) return;
+            }
+            else Setup.DiscardChanges();
+            _setupDeparture = null;
+            OnPropertyChanged(nameof(HasSetupDeparture));
+            await continuation();
+        }
+        finally { _resolvingSetupDeparture = false; }
     }
 
     private async Task NavigateToWarningDuplicateSetAsync(
@@ -665,11 +731,13 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
     private async Task StartRunAsync()
     {
+        if (!CanStartRun) return;
         CancelPendingStart();
         var generation = ++_startGeneration;
         _startCancellation = new CancellationTokenSource();
         var token = _startCancellation.Token;
         var repeatCachePolicy = Setup.RepeatCachePolicy;
+        Setup.CanMutate = false;
         ContentErrorMessage = null;
         try
         {
@@ -719,6 +787,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         {
             if (generation == _startGeneration)
             {
+                Setup.CanMutate = IsConnected && !HasActiveRun;
                 _startCancellation?.Dispose();
                 _startCancellation = null;
             }
@@ -734,6 +803,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         _startCancellation?.Cancel();
         _startCancellation?.Dispose();
         _startCancellation = null;
+        Setup.CanMutate = IsConnected && !HasActiveRun;
     }
 
     private async Task RestartWorkerAsync()
@@ -796,6 +866,21 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         {
             return;
         }
+        if (Setup.IsDirty && !_resolvingSetupDeparture && IsWorkspaceVisible)
+        {
+            _suppressSelection = true;
+            Sessions.SelectedSession = Setup.SessionId is long id ? Sessions.Find(id) : null;
+            _suppressSelection = false;
+            DeferSetupDeparture(() =>
+            {
+                _suppressSelection = true;
+                Sessions.SelectedSession = selected;
+                _suppressSelection = false;
+                if (selected is null) { ShowEmptyState(); return Task.CompletedTask; }
+                return SelectSessionAsync(selected);
+            });
+            return;
+        }
         if (selected is null)
         {
             ShowEmptyState();
@@ -817,15 +902,21 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         }
         OnPropertyChanged(nameof(CanStartRun));
         StartRunCommand.NotifyCanExecuteChanged();
+        ScanAgainCommand.NotifyCanExecuteChanged();
     }
 
     private void OnSessionDeleted(object? sender, long sessionId)
     {
+        // Deletion already had its explicit confirmation and succeeded durably. Do not offer
+        // to save a draft back into the deleted definition while selecting the next one.
+        _suppressSelection = true;
         Sessions.Remove(sessionId);
+        _suppressSelection = false;
         if (Sessions.SelectedSession is null)
         {
             ShowEmptyState();
         }
+        else _ = SelectSessionAsync(Sessions.SelectedSession);
     }
 
     private void OnHistorySelectionChanged(object? sender, WorkerRun? run) =>
@@ -834,6 +925,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     private void OpenHighlightedScan()
     {
         if (History.SelectedRun?.Run is not { } run) return;
+        if (DeferSetupDeparture(() => { OpenHighlightedScan(); return Task.CompletedTask; })) return;
         SetWorkspaceRun(run, loadPane: false);
         SelectedDestination = run.Status == "completed"
             ? WorkspaceDestination.FileResults
@@ -893,6 +985,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(SelectedScanContext));
             OnPropertyChanged(nameof(CanStartRun));
             StartRunCommand.NotifyCanExecuteChanged();
+            ScanAgainCommand.NotifyCanExecuteChanged();
             OpenScanCommand.NotifyCanExecuteChanged();
         }
     }
@@ -907,6 +1000,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
     private void OnSetupPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        ScanAgainCommand.NotifyCanExecuteChanged();
         if (e.PropertyName is nameof(SessionSetupViewModel.SessionId))
         {
             OnPropertyChanged(nameof(IsSetupAvailable));
@@ -917,10 +1011,11 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         {
             if (Setup.IsNew)
             {
-                DisplaySessionName = string.IsNullOrWhiteSpace(Setup.Name) ? "New session" : Setup.Name.Trim();
+                DisplaySessionName = string.IsNullOrWhiteSpace(Setup.Name) ? "New saved scan" : Setup.Name.Trim();
             }
             OnPropertyChanged(nameof(CanStartRun));
             StartRunCommand.NotifyCanExecuteChanged();
+            ScanAgainCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -1059,6 +1154,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
                 ?? $"{run.FilesDiscovered:N0} files · {run.DuplicateFileGroups:N0} duplicate groups";
             OnPropertyChanged(nameof(CanStartRun));
             StartRunCommand.NotifyCanExecuteChanged();
+            ScanAgainCommand.NotifyCanExecuteChanged();
         }
     }
 

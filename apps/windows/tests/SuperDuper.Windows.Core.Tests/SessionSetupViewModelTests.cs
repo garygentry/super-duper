@@ -17,7 +17,7 @@ public sealed class SessionSetupViewModelTests
 
         Assert.AreEqual(RepeatCachePolicyNames.ReuseVerified, viewModel.RepeatCachePolicy);
         Assert.AreEqual(2, viewModel.RepeatCachePolicies.Count);
-        StringAssert.Contains(viewModel.RepeatCachePolicyDescription, "falls back");
+        StringAssert.Contains(viewModel.RepeatCachePolicyDescription, "file identity and change metadata qualify");
         Assert.ThrowsException<ArgumentOutOfRangeException>(
             () => viewModel.RepeatCachePolicy = "trust_path");
     }
@@ -29,7 +29,8 @@ public sealed class SessionSetupViewModelTests
 
         viewModel.RepeatCachePolicy = RepeatCachePolicyNames.RevalidateContent;
 
-        StringAssert.Contains(viewModel.RepeatCachePolicyDescription, "reads file content again");
+        StringAssert.Contains(viewModel.RepeatCachePolicyDescription, "normal candidate filtering");
+        StringAssert.Contains(viewModel.RepeatCachePolicyDescription, "does not force a full hash");
     }
 
     [TestMethod]

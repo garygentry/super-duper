@@ -250,7 +250,8 @@ public sealed class ShellSessionWorkflowTests
         completion.SetException(new InvalidOperationException("stale start failed"));
         await staleStart;
 
-        Assert.AreEqual("New session", shell.DisplaySessionName);
+        Assert.AreEqual("New saved scan", shell.DisplaySessionName);
+        Assert.IsTrue(shell.Setup.CanEdit);
         Assert.IsFalse(shell.HasActiveRun);
         Assert.IsNull(shell.ContentErrorMessage);
         Assert.AreEqual(session.Id, client.Sessions.Single().Id);
@@ -466,6 +467,120 @@ public sealed class ShellSessionWorkflowTests
         Assert.AreEqual(WorkspaceDestination.ScanSummary, shell.SelectedDestination);
         Assert.IsNull(shell.DuplicateFiles.Run);
         Assert.IsFalse(shell.Preflight.HasRun);
+    }
+
+    [TestMethod]
+    public async Task ScanAgainUsesCurrentSetupAndStartPreservesHistoricalRun()
+    {
+        var client = new TestWorkerClient();
+        var session = client.AddSession("Archive", Path.GetTempPath());
+        var old = client.AddRun(session.Id, "completed");
+        using var shell = CreateShell(client);
+        await shell.InitializeAsync();
+        shell.SelectedDestination = WorkspaceDestination.FileResults;
+        shell.ScanAgainCommand.Execute(null);
+        Assert.AreEqual(WorkspaceDestination.ScanSetup, shell.SelectedDestination);
+        Assert.AreEqual(old, shell.SelectedRun);
+        Assert.AreEqual(session.Roots[0], shell.Setup.Roots[0].Path);
+        shell.Setup.Name = "Updated archive";
+        shell.Setup.IgnorePatternsText = "**/*.tmp";
+        shell.Setup.RepeatCachePolicy = RepeatCachePolicyNames.RevalidateContent;
+        shell.ScanAgainCommand.Execute(null);
+        Assert.AreEqual("Updated archive", shell.Setup.Name, "Reopening setup must retain drafts.");
+        await shell.StartRunCommand.ExecuteAsync(null);
+        var current = shell.SelectedRun!;
+        Assert.AreNotEqual(old.Id, current.Id);
+        Assert.IsNotNull(current.StartedAt);
+        Assert.AreEqual("Updated archive", client.Sessions.Single().Name);
+        CollectionAssert.AreEqual(new[] { "**/*.tmp" }, current.Parameters.IgnorePatterns.ToArray());
+        Assert.AreEqual(RepeatCachePolicyNames.RevalidateContent, current.Parameters.RepeatCachePolicy);
+        Assert.AreEqual(old, client.Runs.Single(run => run.Id == old.Id));
+        Assert.AreEqual(2, shell.History.Runs.Count);
+        Assert.IsFalse(shell.StartRunCommand.CanExecute(null));
+        shell.History.SelectedRun = shell.History.Runs.Single(run => run.Id == old.Id);
+        shell.OpenScanCommand.Execute(null);
+        Assert.AreEqual(old, shell.SelectedRun);
+        Assert.AreEqual(current.Id, shell.Progress.Run?.Id);
+    }
+
+    [DataTestMethod]
+    [DataRow("stay")]
+    [DataRow("save")]
+    [DataRow("discard")]
+    public async Task LeavingDirtySetupRequiresAnExplicitChoice(string choice)
+    {
+        var client = new TestWorkerClient();
+        var first = client.AddSession("First", Path.GetTempPath());
+        var second = client.AddSession("Second", Path.GetTempPath());
+        using var shell = CreateShell(client);
+        await shell.InitializeAsync();
+        shell.Setup.Name = "Draft";
+        shell.Sessions.SelectedSession = shell.Sessions.Find(second.Id);
+        Assert.IsTrue(shell.HasSetupDeparture);
+        Assert.AreEqual(first.Id, shell.Sessions.SelectedSession?.Id);
+        if (choice == "stay") shell.StayInSetupCommand.Execute(null);
+        else if (choice == "save") await shell.SaveSetupAndContinueCommand.ExecuteAsync(null);
+        else await shell.DiscardSetupAndContinueCommand.ExecuteAsync(null);
+        Assert.IsFalse(shell.HasSetupDeparture);
+        Assert.AreEqual(choice == "stay" ? first.Id : second.Id, shell.Setup.SessionId);
+        Assert.AreEqual(choice == "save" ? "Draft" : "First", client.Sessions.Single(s => s.Id == first.Id).Name);
+        if (choice == "stay") Assert.AreEqual("Draft", shell.Setup.Name);
+    }
+
+    [TestMethod]
+    public async Task InvalidDraftCannotStartOrSaveAndDepartureStaysPending()
+    {
+        var client = new TestWorkerClient();
+        client.AddSession("First", Path.GetTempPath());
+        using var shell = CreateShell(client);
+        await shell.InitializeAsync();
+        shell.Setup.ManualLocationExclusionsText = "relative-path";
+        shell.SelectedDestination = WorkspaceDestination.History;
+        Assert.AreEqual(WorkspaceDestination.ScanSetup, shell.SelectedDestination);
+        await shell.SaveSetupAndContinueCommand.ExecuteAsync(null);
+        Assert.IsTrue(shell.HasSetupDeparture);
+        Assert.IsTrue(shell.Setup.HasOperationError);
+        await shell.StartRunCommand.ExecuteAsync(null);
+        Assert.AreEqual(0, client.Runs.Count);
+        await shell.DiscardSetupAndContinueCommand.ExecuteAsync(null);
+        Assert.AreEqual(WorkspaceDestination.History, shell.SelectedDestination);
+    }
+
+    [TestMethod]
+    public async Task PendingStartLocksEditsUntilFailureAndRetainsSavedSetup()
+    {
+        var client = new TestWorkerClient();
+        client.AddSession("First", Path.GetTempPath());
+        var pending = new TaskCompletionSource<WorkerRun>();
+        client.StartRunHandler = (_, _, _) => pending.Task;
+        using var shell = CreateShell(client);
+        await shell.InitializeAsync();
+        shell.Setup.IgnorePatternsText = "**/*.tmp";
+        var starting = shell.StartRunCommand.ExecuteAsync(null);
+        Assert.IsFalse(shell.Setup.CanEdit);
+        Assert.IsFalse(shell.StartRunCommand.CanExecute(null));
+        pending.SetException(new InvalidOperationException("Start rejected"));
+        await starting;
+        Assert.IsTrue(shell.Setup.CanEdit);
+        Assert.IsFalse(shell.Setup.IsDirty);
+        Assert.AreEqual("**/*.tmp", shell.Setup.IgnorePatternsText);
+        Assert.AreEqual("Start rejected", shell.ContentErrorMessage);
+    }
+
+    [TestMethod]
+    public async Task ConfirmedDefinitionDeletionDoesNotOfferToSaveTheDeletedDraft()
+    {
+        var client = new TestWorkerClient();
+        var first = client.AddSession("First", Path.GetTempPath());
+        var second = client.AddSession("Second", Path.GetTempPath());
+        using var shell = CreateShell(client);
+        await shell.InitializeAsync();
+        shell.Setup.Name = "Draft";
+        await shell.Setup.DeleteCommand.ExecuteAsync(null);
+        Assert.IsFalse(shell.HasSetupDeparture);
+        Assert.IsFalse(client.Sessions.Any(s => s.Id == first.Id));
+        Assert.AreEqual(second.Id, shell.Setup.SessionId);
+        Assert.IsFalse(shell.Preflight.Operation.CanSubmit);
     }
 
     private static ShellViewModel CreateShell(TestWorkerClient client) =>

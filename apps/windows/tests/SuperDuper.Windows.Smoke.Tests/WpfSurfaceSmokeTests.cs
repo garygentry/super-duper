@@ -62,6 +62,7 @@ public sealed class WpfSurfaceSmokeTests
             var folders = new DuplicateFoldersView();
             var sessions = new SessionListView();
             var setup = new SessionSetupView();
+            ((Expander)setup.FindName("SetupAdvanced")).IsExpanded = true;
             var history = new RunHistoryView();
             var preflight = new PreflightView();
             AssertScanProgressSurface();
@@ -600,8 +601,8 @@ public sealed class WpfSurfaceSmokeTests
 
             Assert.AreEqual("Scan sessions", AutomationProperties.GetName(
                 FindByAutomationId<ListBox>(sessions, "SessionsList")));
-            Assert.AreEqual("Session setup", AutomationProperties.GetName(setup));
-            Assert.AreEqual("Session name", AutomationProperties.GetName(
+            Assert.AreEqual("Saved scan setup", AutomationProperties.GetName(setup));
+            Assert.AreEqual("Saved scan name", AutomationProperties.GetName(
                 FindByAutomationId<TextBox>(setup, "SessionName")));
             Assert.AreEqual("Cloud scan policy", AutomationProperties.GetName(
                 FindByAutomationId<TextBlock>(setup, "CloudPolicyName")));
@@ -1088,6 +1089,7 @@ public sealed class WpfSurfaceSmokeTests
             focusHost.Close();
             RedesignShellSurfaceTests.Verify();
             PopulatedShellFixture.Verify();
+            SetupWorkflowFixture.Verify();
             app.Shutdown();
         });
     }

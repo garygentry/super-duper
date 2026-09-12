@@ -1,6 +1,6 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-03 complete with scoped operator acceptance; UIR-04 ready. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
+Status: UIR-03 complete with scoped operator acceptance; UIR-04 in progress; UIR-04a implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -12,7 +12,7 @@ all safety/evidence gates. Its open execution criteria are not absorbed or marke
 | UIR-01 | complete | Findings, direction, specifications, concept, capability mapping, validation and procedure | Package internally checked; prototype limitations recorded; no WPF implementation |
 | UIR-02 | complete | High-level direction accepted; operator feedback incorporated | D13-D15; no native or full prototype walkthrough acceptance inferred |
 | UIR-03 | complete | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c/d/e/f implemented; [scoped shell acceptance](evidence/uir-03-shell-acceptance.md); available operator checks passed; NVDA/200% remain unavailable for UIR-08/A11 |
-| UIR-04 | planned | Setup, Scan again, persistent reuse explanation, live monitoring/details and terminal summaries | UIR-03; A05/A06/A08/A14/A15/A16/A17 with controlled clock, lifecycle and rescan fixtures |
+| UIR-04 | in_progress | Setup, Scan again, persistent reuse explanation, live monitoring/details and terminal summaries | UIR-03; A05/A06/A08/A14/A15/A16/A17 with controlled clock, lifecycle and rescan fixtures |
 | UIR-05 | planned | File/folder results, compact filters, list/detail comparison, decisions and path actions | UIR-03; A03/A04/A05/A06/A11/A13/A15 and existing query/focus/page contracts |
 | UIR-06 | planned | Dedicated Review, existing rule workflow, whole-plan validation and evidence access | UIR-05; A04/A10/A15 including revision, survivor, overlap, reversal and restart |
 | UIR-07 | planned | History/open-run, contextual warnings and performance detail | UIR-03/04; A07/A12/A13/A15/A16/A17 and current/terminal warning boundaries |
@@ -70,7 +70,7 @@ Windows text-scale events, bounded scrolling Folders and wrapping enlarged actio
 reproduced A09/A11/A05 defects. See [evidence](evidence/uir-03f-theme-text-and-empty-state.md).
 Final adjustable Files/Folders comparison remains UIR-05; the interim folder splitter is replaced.
 
-**UIR-03 complete; exact next slice: UIR-04a saved-scan setup and Scan again (A06/A14/A17).**
+**UIR-03 scoped shell acceptance remains complete.**
 The operator confirmed file-group selection survived monitor moves, completing the available shell
 walkthrough. See [the gate assessment](evidence/uir-03-shell-acceptance.md) for the evidence mapping
 and precise scope. Dark/Desert/text-size defects are closed, and keyboard/Narrator/150%/175%
@@ -81,12 +81,17 @@ missing cases there until actual evidence or explicit later disposition. Do not 
 scaling, troubleshoot Windows or install software under this assessment. This closes the scoped
 shell implementation gate, not final native/user or release acceptance.
 
-UIR-04a opens the current saved setup through Scan again, explains qualified persisted hash reuse
-and re-reading candidate content, saves valid edits on Start and creates a new dated run without
-mutating earlier results. Preserve dirty-edit/single-active-run/worker/cache contracts. Use the
-repeat-scan specification and directly linked code/tests; verify with isolated fixtures. Subsequent
-UIR-04 slices cover long-scan monitoring/terminal A08/A16 behavior. UIR-04 is ready, not started by
-this documentation-only assessment; prior tests/runtime records remain retained evidence.
+**UIR-04a implemented (2026-09-12); next: UIR-04b multi-day monitoring (A08/A16).**
+[UIR-04a evidence](evidence/uir-04a-saved-scan-setup.md) covers current saved setup through Scan again,
+qualified persistent reuse versus candidate re-reading, valid save-before-start, new dated runs and
+retained historical results/decisions. Save / Discard / Stay protects draft navigation, and pending
+Start locks edits. Focused Core and loaded-STA WPF checks plus a small real-worker cache-reopen fixture
+pass in isolated outputs. UIR-04 remains in progress; full A17 and native/user acceptance remain later.
+
+The exact next local slice is UIR-04b: readable multi-day elapsed time, accepted-update receipt
+freshness and terminal activity presentation. Use controlled clock/progress/lifecycle tests and
+preserve detailed counters, phase-qualified denominators/ETA and coalesced accessibility updates.
+Do not start a physical campaign or replay the accepted shell walkthrough to begin that work.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read

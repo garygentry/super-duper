@@ -23,48 +23,31 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest local slice: UIR-03f native themes, Windows accessibility text size and empty-folder layout.
-  Operator screenshots reopened A09/A11 and identified A05 header/message overlap: Dark was
-  unreadable, Desert exposed the overlap, and text enlargement changed only the native title.
-  Shared styles now inherit Fluent templates/semantic brushes; Windows UISettings drives live
-  typography; Folders scrolls with bounded native grids and separate empty states. File actions
-  wrap when enlarged. Evidence: `plans/ui-redesign/evidence/uir-03f-theme-text-and-empty-state.md`.
-- UIR-00/01/02/03 complete; UIR-04 ready, not started. UIR-03a/b/c/d/e/f implemented.
-  Scoped gate assessment: `plans/ui-redesign/evidence/uir-03-shell-acceptance.md`.
-  Latest implementation is `5f83705` (UIR-03f; prior `ae8d7d1`). Paired worker and Windows Debug/Release
-  integration pass: 170 Core, 75 Infrastructure/five skips, three WPF methods each (all original
-  shell assertions retained in the shared STA). Fixture build/--verify pass; output `artifacts/uir03f`.
-- Retained operator evidence: nine scoped walkthrough passes, accepted Progress/Summary scrollbar
-  correction, and Narrator Files rows/active Progress/warning Close-return (labels, selection/status,
-  focus and no excessive repeat speech). Narrator executable version `10.0.22621.5262`.
-  NVDA is not installed: unrun/unavailable, not passed or waived; no installation requested.
-- Operator recheck 2026-09-12: "all 3 pass" confirms Dark readability, Desert empty-folder/header
-  separation and live Windows text size 100% -> 150% -> 100% with reachable controls at both fixture
-  sizes, display scale held at 100%. Close the three UIR-03f reported defects; see its scoped evidence.
-- Latest display report: the operator tested 150% and 175% on the one scalable monitor; the fixture
-  adjusts fine across scaled/unscaled monitors with no noticeable clipping. Record scoped physical
-  transition/layout passes. Windows did not offer 200%: unavailable/unrun, not passed or waived.
-  The operator excludes Windows troubleshooting; do not force custom scaling or investigate the OS.
-- Final monitor-move confirmation: keyboard focus remained and the operator confirms the same file
-  group stayed selected. All available scoped shell checks pass. UIR-03 is complete; full native/
-  user acceptance remains UIR-08/09 under the existing acceptance matrix and decision record.
-- NVDA and 200% are carried to UIR-08/A11 as unavailable/unrun requirements, not passed or waived.
-  They require actual evidence or explicit later disposition before full corresponding acceptance.
-  Do not troubleshoot Windows, force custom scaling or install software under this assessment.
-- Exact next slice: UIR-04a saved-scan setup and Scan again (A06/A14/A17). Open current saved setup,
-  explain qualified persisted hash reuse versus re-reading candidate content, save valid edits on
-  Start and create a new dated run without mutating earlier results. Preserve dirty-edit, single-
-  active-run and worker/cache contracts. Read selected specifications/code/tests; use isolated
-  focused verification. Later UIR-04 slices cover long-scan monitoring/terminal A08/A16 behavior.
-- This assessment is documentation only; no new code/build/test/runtime action or UIR-04 start.
-  Prior integration and UIR-03c Rust tests (226 passed/10 ignored) remain retained. No full native
-  matrix or release acceptance. Production deletion and consumed-campaign boundaries unchanged.
-- Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; it owns the compact continuation
-  route. Session handoffs require the printed copyable prompt from the redesign session guide.
-- Corrected fictional fixture PID 67748/session 1 is open from `artifacts/uir03f/fixture` after
-  old PID 71248 was path-verified and closed normally. Re-audit before reuse/launch; see UIR-03f evidence.
-  Production app/state untouched. Interim scrolling Files/Folders replace their split adjustments;
-  full adjustable S03 comparison and A03 remain UIR-05. A08/A16/A17 remain required later slices.
+- Latest local slice: UIR-04a saved setup and Scan again, in the commit containing this checkpoint.
+  Baseline shell acceptance `84a4f55`, prior implementation `5f83705`. Evidence:
+  `plans/ui-redesign/evidence/uir-04a-saved-scan-setup.md`.
+- UIR-00/01/02/03 complete; UIR-04 in_progress. Scan again opens current saved setup without rewriting
+  the opened historical run. Qualified persistent reuse and candidate-only revalidation are explained;
+  Start saves valid edits and creates a new dated run. Save/Discard/Stay protects dirty navigation.
+- Verification: 177 Core passed, including 43 setup/Shell cases; three loaded-STA WPF methods
+  passed. One small real-worker test completed four runs with retained cache/history across restart,
+  both hash-stage hits, changed exclusions/membership, retained old group/member IDs and keep decision.
+  Isolated outputs/captures/results: `artifacts/uir04a`; fictional fixture build passed there.
+- Retain UIR-03 scoped shell acceptance: nine earlier walkthrough passes, scrollbar correction,
+  Narrator, corrected Dark/Desert/live text size, and physical 150%/175% transitions with focus and
+  file-group selection retained. Do not replay accepted checks without a reopen reason.
+- NVDA (not installed) and physical 200% (not offered by Windows) remain `unrun_unavailable` for
+  UIR-08/A11, not passed or waived. Do not troubleshoot Windows, force scaling or install software.
+- Prior paired Debug/Release integration and UIR-03c Rust 226 passed/10 ignored are retained, not rerun.
+  UIR-04a is local implementation; full A17/native/user acceptance and UIR-08 integration remain later.
+- Exact next slice: UIR-04b multi-day elapsed time, accepted-update receipt freshness and terminal
+  activity (A08/A16), using controlled clock/progress/lifecycle fixtures. Preserve detailed counters,
+  phase-qualified denominators/ETA and coalesced accessibility updates. No physical campaign authority.
+- Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; print the required copyable next-session
+  prompt at handoff. Interim results layouts and final S03/A03 work remain UIR-05.
+- Runtime audit: fictional PID 67748/session 1 responsive at the exact UIR-03f executable; left untouched.
+  New fixture output `artifacts/uir04a/fixture` is built, not left running. Re-audit before reuse/launch.
+  No production app/worker was observed. Production state and disabled deletion remain untouched.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
   do not rerun SOP10 or SOP9 identities.
 - Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first
@@ -509,35 +492,17 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-The operator accepted the high-level UI direction with explicit long-scan and repeat-scan feedback.
-UIR-03a/b/c/d/e are implemented; UIR-03 remains in_progress. Next is the operator A01/A02/A09
-desktop walkthrough using `plans/ui-redesign/evidence/uir-03-desktop-walkthrough.md` and
-`scripts/Invoke-UiRedesignFixture.ps1 -Show` (build only without `-Show`). UIR-03d resolves local
-viewport access at 900x600/1180x760 with bounded scrolling sections and complete reachable actions;
-the full adjustable S03/A03 layout remains UIR-05. Programmatic focus/scroll and isolated Windows
-Debug/Release integration pass. The scoped keyboard-only and Narrator journeys passed; NVDA, theme/high contrast, text
-enlargement and physical DPI remain unrun. Request the specific operator walkthrough, record its
-observations and assess UIR-03 before advancing to UIR-04 monitoring and Scan again.
-On 2026-09-11 the operator passed the three initial checks: reviewed/active context and harmless
-History highlighting, delayed-folder responsiveness/error isolation, and file selection/scroll
-retention plus scoped layout at both fixture sizes. The second batch passed explicit Open scan,
-active warning Close/return focus and Progress scroll retention. The third batch passed completed-run
-warning result focus and explicit keyboard-only navigation (eight total), but reported a Progress/
-Summary scrollbar overlap. UIR-03e fixes it with failing-before/passing-after geometry and full
-Windows Debug/Release integration. The operator confirmed the scrollbar correction on the updated
-fixture, then passed the remaining shared-style/expanded-controls check (nine scoped passes).
-The scoped Narrator journey also passed. NVDA is not installed and its check remains unrun/unavailable.
-Next collect independent Light/Dark, named contrast-theme and 150% Windows text-size observations
-at 100% display scale and both fixture sizes; restore original settings afterward. Physical monitor-
-DPI evidence remains separate. Do not infer a NVDA pass or waiver.
-Visibility and scoped keyboard evidence are established. The original defect occurred at both sizes
-under the standard Windows theme at 100% display scaling; the corrected-build scrollbar recheck passed.
-The reports do not cover
-the whole prepared walkthrough. Record remaining evidence and fix any reported defect; do not
-repeat the passed subset without a reason or infer full acceptance from it.
-All work stays on `codex/ui-redesign`.
-Re-audit app/worker/fixture processes before builds or runtime actions; use isolated fixture
-state/output and do not interrupt the operator's application for design verification.
+UIR-04a is implemented with focused Core/WPF and isolated real-worker repeat/restart evidence.
+Next is UIR-04b: multi-day elapsed time, update receipt freshness and terminal activity presentation
+(A08/A16). Read the selected S02/scan-and-rescan specification and directly linked progress code/tests;
+use controlled clocks and lifecycle fixtures. Preserve detailed counters, honest phase denominators,
+ETA qualifiers and accessibility cadence. The user requested this setup slice; do not infer physical
+campaign authority or full A17/native/user acceptance. Keep UIR-03 scoped passes retained.
+Use `plans/ui-redesign/session-checkpoint.md` and the session guide. All work stays on
+`codex/ui-redesign`; preserve `wpf-poc` at `deefa40`, with no switch/worktree/merge/push.
+NVDA and physical 200% remain unavailable for UIR-08/A11. Do not troubleshoot Windows.
+Re-audit fixture/app/worker paths before runtime reuse and keep builds, fixtures and cache/history
+separate from production state. Print the updated copyable continuation prompt at handoff.
 
 SOP10 is finished. Do not select another scan package. The operator explicitly accepted the
 consumed `sop10-physical-v1` campaign as `accepted_with_observation_limit`: both runs completed with
@@ -634,6 +599,12 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+2026-09-12 UIR-04a: full Core 177 passed, including 43 setup/Shell cases; three loaded-STA WPF
+methods passed; one isolated real-worker repeat/restart test passed with four completed runs.
+Fixture build passed. See `plans/ui-redesign/evidence/uir-04a-saved-scan-setup.md` for commands,
+initial old-label failures, captures, limits and retained prior Debug/Release/Rust evidence.
+
 
 2026-09-11 follow-up from `95fc85a`: NVDA not installed by operator report; mark its check
 unrun/unavailable. Continue independent visual accessibility checks; no install or runtime action.
@@ -1350,6 +1321,16 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+### 2026-09-12 - UIR-04a implemented; long-scan presentation next
+
+- A06/A14/setup-A17 now has current saved setup, qualified persistent reuse copy, valid Start and
+  retained dated history. Explicit draft choices close the uncovered silent-discard navigation gap.
+- Core/WPF and a small isolated real-worker cache-reopen workflow pass; full A17 and operator
+  workflow acceptance remain later. Next UIR-04b addresses multi-day elapsed/freshness/terminal A08/A16.
+- Retain all scoped shell passes and unavailable NVDA/200%; no Windows troubleshooting or production/
+  consumed-campaign action. PID 67748 remains the older UIR-03f fixture, untouched.
+
 
 ### 2026-09-11 - NVDA unavailable; independent visual checks next
 

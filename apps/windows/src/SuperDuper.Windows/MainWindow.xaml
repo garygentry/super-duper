@@ -22,6 +22,15 @@
         </Grid.RowDefinitions>
 
         <Grid Visibility="{Binding IsConnected, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasSetupDeparture}" Value="True">
+                            <Setter Property="IsEnabled" Value="False" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="250" />
                 <ColumnDefinition Width="*" />
@@ -56,19 +65,24 @@
                             <TextBlock Style="{StaticResource ShellBody}" Text="Loading saved scan…"
                                        Visibility="{Binding IsLoadingSession, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         </StackPanel>
-                        <Button Grid.Column="1"
-                                x:Name="StartScanButton"
-                                AutomationProperties.AutomationId="StartScanButton"
-                                MinWidth="112"
-                                Style="{StaticResource ShellPrimaryAction}"
-                                Command="{Binding StartRunCommand}"
-                                ToolTip="{Binding StartRunLabel}"
-                                ToolTipService.ShowOnDisabled="True"
-                                AutomationProperties.Name="{Binding StartRunLabel}"
-                                VerticalAlignment="Center"
-                                MaxWidth="200">
-                            <TextBlock Text="{Binding StartRunLabel}" TextTrimming="CharacterEllipsis" />
-                        </Button>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <Button
+                                    x:Name="StartScanButton"
+                                    AutomationProperties.AutomationId="StartScanButton"
+                                    MinWidth="112"
+                                    Style="{StaticResource ShellPrimaryAction}"
+                                    Command="{Binding StartRunCommand}"
+                                    ToolTip="{Binding StartRunLabel}"
+                                    ToolTipService.ShowOnDisabled="True"
+                                    AutomationProperties.Name="{Binding StartRunLabel}"
+                                    VerticalAlignment="Center"
+                                    MaxWidth="200">
+                                <TextBlock Text="{Binding StartRunLabel}" TextTrimming="CharacterEllipsis" />
+                            </Button>
+                            <Button Margin="0,6,0,0" Content="Scan again" Command="{Binding ScanAgainCommand}"
+                                    AutomationProperties.AutomationId="ScanAgain" AutomationProperties.Name="{Binding ScanAgainLabel}"
+                                    ToolTip="{Binding ScanAgainLabel}" />
+                        </StackPanel>
                     </Grid>
                 </Border>
 
@@ -239,5 +253,21 @@
                 <TextBlock MaxWidth="760" Text="{Binding StatusDetail}" TextTrimming="CharacterEllipsis" />
             </StatusBarItem>
         </StatusBar>
+        <Border Grid.RowSpan="2" Panel.ZIndex="10" MaxWidth="520" Padding="24" HorizontalAlignment="Center"
+                KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.ControlTabNavigation="Cycle"
+                VerticalAlignment="Center" Background="{DynamicResource ApplicationBackgroundBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="2"
+                Visibility="{Binding HasSetupDeparture, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock FontWeight="SemiBold" Text="Save setup changes before leaving?" TextWrapping="Wrap" />
+                <TextBlock Margin="0,8" Text="Save keeps your edits. Discard restores the saved setup. Stay returns to editing. Earlier scan results are unchanged." TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Setup.OperationError}" TextWrapping="Wrap" />
+                <WrapPanel>
+                    <Button Margin="0,0,8,8" Content="Save" Command="{Binding SaveSetupAndContinueCommand}" />
+                    <Button Margin="0,0,8,8" Content="Discard" Command="{Binding DiscardSetupAndContinueCommand}" />
+                    <Button x:Name="StayInSetupButton" AutomationProperties.AutomationId="StayInSetup" Margin="0,0,8,8" Content="Stay" Command="{Binding StayInSetupCommand}" />
+                </WrapPanel>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>

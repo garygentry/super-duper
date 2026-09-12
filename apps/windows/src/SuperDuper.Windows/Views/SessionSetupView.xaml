@@ -1,40 +1,36 @@
 <UserControl x:Class="SuperDuper.Windows.Views.SessionSetupView"
              x:Name="Root"
-             AutomationProperties.Name="Session setup"
+             AutomationProperties.Name="Saved scan setup"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <ScrollViewer HorizontalContentAlignment="Stretch"
                   HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="{StaticResource PageContentInset}" MaxWidth="880" HorizontalAlignment="Stretch">
-            <TextBlock Style="{StaticResource PageTitle}" Text="Session setup" />
+            <TextBlock Style="{StaticResource PageTitle}" Text="Saved scan setup" />
             <TextBlock Margin="0,5,0,22"
-                       Text="Choose what this reusable session scans and what it ignores."
+                       Text="Start saves valid setup edits and creates a new dated run. Earlier results and review decisions stay with their original runs."
                        TextWrapping="Wrap" />
 
             <TextBlock FontWeight="SemiBold" Text="Name" />
             <TextBox Margin="0,7,0,20"
                      AutomationProperties.AutomationId="SessionName"
-                     AutomationProperties.Name="Session name"
-                     MinWidth="420"
+                     AutomationProperties.Name="Saved scan name"
+                     MinWidth="180"
                      IsEnabled="{Binding CanEdit}"
                      Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
 
-            <Grid Margin="0,0,0,7">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="Scan roots" />
-                <Button Grid.Column="1" Margin="8,0,0,0" Command="{Binding AddRootCommand}" Content="Add path" />
-                <Button Grid.Column="2" Margin="8,0,0,0" Command="{Binding BrowseRootCommand}" Content="Browse…" />
-            </Grid>
+            <TextBlock FontWeight="SemiBold" Text="Folders and drives" />
+            <WrapPanel Margin="0,7,0,7">
+                <Button Margin="0,0,8,8" Command="{Binding BrowseRootCommand}" Content="Add folder or drive" />
+                <Button Margin="0,0,8,8" Command="{Binding AddRootCommand}" Content="Enter path" />
+            </WrapPanel>
 
             <ItemsControl AutomationProperties.Name="Scan root editors" ItemsSource="{Binding Roots}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Grid Margin="0,0,0,8">
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
@@ -46,36 +42,16 @@
                                     Margin="8,0,0,0"
                                     Command="{Binding DataContext.RemoveRootCommand, ElementName=Root}"
                                     CommandParameter="{Binding}"
-                                    Content="Remove" />
+                                    Content="Remove location"
+                                    AutomationProperties.Name="{Binding Path, StringFormat=Remove location: {0}}" />
+                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,4,0,0" Text="{Binding Status}" TextWrapping="Wrap" />
                         </Grid>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <Button Margin="0,2,0,20"
-                    HorizontalAlignment="Left"
-                    Command="{Binding NormalizeRootsCommand}"
-                    Content="Normalize roots" />
-
-            <Label Padding="0"
-                   FontWeight="SemiBold"
-                   Target="{Binding ElementName=RepeatCachePolicySelector}">_Repeat scans</Label>
-            <ComboBox x:Name="RepeatCachePolicySelector"
-                      Margin="0,7,0,0"
-                      AutomationProperties.AutomationId="RepeatCachePolicy"
-                      AutomationProperties.Name="Repeat scan hash policy"
-                      AutomationProperties.HelpText="Choose whether unchanged files may reuse verified hashes. Any uncertain verification falls back to reading file content."
-                      DisplayMemberPath="DisplayName"
-                      IsEnabled="{Binding CanEdit}"
-                      ItemsSource="{Binding RepeatCachePolicies}"
-                      SelectedValue="{Binding RepeatCachePolicy, Mode=TwoWay}"
-                      SelectedValuePath="Value" />
-            <TextBlock Margin="0,5,0,20"
-                       AutomationProperties.AutomationId="RepeatCachePolicyDescription"
-                       AutomationProperties.Name="{Binding RepeatCachePolicyDescription}"
-                       Style="{StaticResource CaptionText}"
-                       Text="{Binding RepeatCachePolicyDescription}"
-                       TextWrapping="Wrap" />
-
+            <TextBlock Margin="0,4,0,12" Text="Overlapping locations are combined automatically when saved." TextWrapping="Wrap" />
+            <TextBlock FontWeight="SemiBold" Text="Exclusions" />
+            <TextBlock Margin="0,5,0,12" Text="{Binding ExclusionsSummary}" TextWrapping="Wrap" />
             <Grid Margin="0,0,0,7">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -99,8 +75,8 @@
                                Text="{Binding CloudPolicyDisplayName}" />
                     <TextBlock Margin="0,4,0,0"
                                AutomationProperties.AutomationId="CloudPolicyDescription"
-                               AutomationProperties.Name="Registered Cloud Files subtrees are pruned before file metadata, canonicalization, identity, or content access."
-                               Text="Registered Cloud Files subtrees are pruned before file metadata, canonicalization, identity, or content access."
+                               AutomationProperties.Name="Registered cloud folders are skipped before their files are inspected or read. Detection must succeed before Start."
+                               Text="Registered cloud folders are skipped before their files are inspected or read. Detection must succeed before Start."
                                TextWrapping="Wrap" />
                     <TextBlock Margin="0,8,0,0"
                                AutomationProperties.AutomationId="CloudDetectionStatus"
@@ -138,34 +114,61 @@
                 </StackPanel>
             </Border>
 
-            <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Manual cloud location exclusions" />
-            <TextBlock Margin="0,4,0,7"
-                       Style="{StaticResource CaptionText}"
-                       Text="Enter one absolute path per line for providers that do not register with Windows Cloud Files." />
-            <TextBox MinHeight="72"
-                     AutomationProperties.AutomationId="ManualCloudLocationExclusions"
-                     AutomationProperties.Name="Manual cloud location exclusions"
-                     AcceptsReturn="True"
-                     HorizontalScrollBarVisibility="Auto"
-                     IsEnabled="{Binding CanEdit}"
-                     Text="{Binding ManualLocationExclusionsText, UpdateSourceTrigger=PropertyChanged}"
-                     TextWrapping="NoWrap"
-                     VerticalScrollBarVisibility="Auto" />
+            <TextBlock Margin="0,16,0,4" FontWeight="SemiBold" Text="{Binding RepeatCachePolicyDisplayName}" />
+            <TextBlock Text="{Binding RepeatCachePolicyDescription}" TextWrapping="Wrap" />
+            <TextBlock Margin="0,5,0,12" Text="The persistent cache can survive app restarts. Each run discovers current files again; cache availability and qualifying metadata determine reuse." TextWrapping="Wrap" />
+            <Expander x:Name="SetupAdvanced" AutomationProperties.AutomationId="SetupAdvanced" Header="Advanced: content reads and exclusions" Margin="0,8,0,8">
+                <StackPanel Margin="0,10,0,0">
+                    <Label Padding="0"
+                           FontWeight="SemiBold"
+                           Target="{Binding ElementName=RepeatCachePolicySelector}">_Repeat scans</Label>
+                    <ComboBox x:Name="RepeatCachePolicySelector"
+                              Margin="0,7,0,0"
+                              AutomationProperties.AutomationId="RepeatCachePolicy"
+                              AutomationProperties.Name="Repeat scan hash policy"
+                              AutomationProperties.HelpText="Choose whether unchanged files may reuse verified hashes. Any uncertain verification falls back to reading file content."
+                              DisplayMemberPath="DisplayName"
+                              IsEnabled="{Binding CanEdit}"
+                              ItemsSource="{Binding RepeatCachePolicies}"
+                              SelectedValue="{Binding RepeatCachePolicy, Mode=TwoWay}"
+                              SelectedValuePath="Value" />
+                    <TextBlock Margin="0,5,0,20"
+                               AutomationProperties.AutomationId="RepeatCachePolicyDescription"
+                               AutomationProperties.Name="{Binding RepeatCachePolicyDescription}"
+                               Style="{StaticResource CaptionText}"
+                               Text="{Binding RepeatCachePolicyDescription}"
+                               TextWrapping="Wrap" />
 
-            <TextBlock Margin="0,20,0,0" FontWeight="SemiBold" Text="Ignore patterns" />
-            <TextBlock Margin="0,4,0,7"
-                       Style="{StaticResource CaptionText}"
-                       Text="Enter one glob pattern per line. New sessions start with Windows-safe defaults." />
-            <TextBox MinHeight="130"
-                     AutomationProperties.AutomationId="IgnorePatterns"
-                     AutomationProperties.Name="Ignore patterns"
-                     AcceptsReturn="True"
-                     HorizontalScrollBarVisibility="Auto"
-                     IsEnabled="{Binding CanEdit}"
-                     Text="{Binding IgnorePatternsText, UpdateSourceTrigger=PropertyChanged}"
-                     TextWrapping="NoWrap"
-                     VerticalScrollBarVisibility="Auto" />
+                    <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Manual cloud location exclusions" />
+                    <TextBlock Margin="0,4,0,7"
+                               Style="{StaticResource CaptionText}"
+                               TextWrapping="Wrap" Text="Enter one absolute path per line for providers that do not register with Windows Cloud Files." />
+                    <TextBox MinHeight="72"
+                             AutomationProperties.AutomationId="ManualCloudLocationExclusions"
+                             AutomationProperties.Name="Manual cloud location exclusions"
+                             AcceptsReturn="True"
+                             HorizontalScrollBarVisibility="Auto"
+                             IsEnabled="{Binding CanEdit}"
+                             Text="{Binding ManualLocationExclusionsText, UpdateSourceTrigger=PropertyChanged}"
+                             TextWrapping="NoWrap"
+                             VerticalScrollBarVisibility="Auto" />
 
+                    <TextBlock Margin="0,20,0,0" FontWeight="SemiBold" Text="Ignore patterns" />
+                    <TextBlock Margin="0,4,0,7"
+                               Style="{StaticResource CaptionText}"
+                               TextWrapping="Wrap" Text="Enter one glob pattern per line. For example **/*.tmp. New saved scans start with Windows-safe defaults." />
+                    <TextBox MinHeight="130"
+                             AutomationProperties.AutomationId="IgnorePatterns"
+                             AutomationProperties.Name="Ignore patterns"
+                             AcceptsReturn="True"
+                             HorizontalScrollBarVisibility="Auto"
+                             IsEnabled="{Binding CanEdit}"
+                             Text="{Binding IgnorePatternsText, UpdateSourceTrigger=PropertyChanged}"
+                             TextWrapping="NoWrap"
+                             VerticalScrollBarVisibility="Auto" />
+
+                </StackPanel>
+            </Expander>
             <Border Margin="0,18,0,0"
                     Padding="12"
                     BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
@@ -191,19 +194,22 @@
                 <TextBlock Text="{Binding OperationError}" TextWrapping="Wrap" />
             </Border>
 
-            <StackPanel Margin="0,22,0,0" Orientation="Horizontal">
+            <TextBlock Margin="0,16,0,0" Text="Start saves these settings before scanning. Another active scan or incomplete validation blocks Start." TextWrapping="Wrap" />
+            <WrapPanel Margin="0,12,0,0">
+                <Button Margin="0,0,10,8" Content="Start scan" AutomationProperties.AutomationId="SetupStartScan"
+                        Command="{Binding DataContext.StartRunCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                 <Button MinWidth="96" Command="{Binding SaveCommand}" Content="Save" />
                 <Button Margin="10,0,0,0"
                         MinWidth="96"
                         Command="{Binding DeleteCommand}"
-                        Content="Delete" />
+                        Content="Delete saved scan and history" />
                 <ProgressBar Margin="14,0,0,0"
                              Width="90"
                              Height="4"
                              VerticalAlignment="Center"
                              IsIndeterminate="True"
                              Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
-            </StackPanel>
+            </WrapPanel>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

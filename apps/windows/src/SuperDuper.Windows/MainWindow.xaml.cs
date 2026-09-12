@@ -50,6 +50,14 @@ public partial class MainWindow : Window
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(ShellViewModel.HasSetupDeparture))
+        {
+            _ = Dispatcher.BeginInvoke(() =>
+            {
+                if (ViewModel.HasSetupDeparture) StayInSetupButton.Focus();
+                else (ScanTabs.SelectedItem as System.Windows.Controls.TabItem)?.Focus();
+            }, DispatcherPriority.Background);
+        }
         if (e.PropertyName == nameof(ShellViewModel.SelectedDestination)) _focusNavigationGeneration++;
         if (e.PropertyName != nameof(ShellViewModel.FocusRequestVersion))
         {
