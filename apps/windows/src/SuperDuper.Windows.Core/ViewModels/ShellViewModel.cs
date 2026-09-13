@@ -94,7 +94,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             recycleOperationExecutor,
             clipboard,
             recycleBin,
-            NavigateToFreshScanAsync);
+            NavigateToFreshScanAsync,
+            NavigateToReviewResultAsync);
         DuplicateFiles.ReviewRevisionChanged += OnFileReviewRevisionChanged;
         DuplicateFolders.ReviewRevisionChanged += OnFolderReviewRevisionChanged;
 
@@ -596,6 +597,46 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         FocusTarget = "start-scan";
         FocusRequestVersion++;
         return Task.CompletedTask;
+    }
+
+    private async Task NavigateToReviewResultAsync(ReviewResultTarget target)
+    {
+        if (SelectedRun is not { Status: "completed" } run)
+        {
+            throw new InvalidOperationException("A completed selected scan is required to open this review set.");
+        }
+        var reviewRunId = Preflight.SelectedRunId;
+        if (reviewRunId != run.Id)
+        {
+            throw new InvalidOperationException("The Review pane no longer matches the selected scan.");
+        }
+
+        var destination = target.Kind == ReviewResultKind.File
+            ? WorkspaceDestination.FileResults
+            : WorkspaceDestination.FolderResults;
+        var navigation = _navigationGeneration + 1;
+        SelectedDestination = destination;
+        await EnsurePaneAsync();
+        if (navigation != _navigationGeneration || SelectedRun?.Id != run.Id)
+        {
+            return;
+        }
+
+        var opened = target.Kind == ReviewResultKind.File
+            ? await DuplicateFiles.OpenReviewTargetAsync(target.GroupId, target.MemberId, _workspaceCancellation.Token)
+            : await DuplicateFolders.OpenReviewTargetAsync(target.GroupId, target.MemberId, _workspaceCancellation.Token);
+        if (!opened)
+        {
+            SelectedDestination = WorkspaceDestination.Review;
+            throw new InvalidOperationException(
+                $"{(target.Kind == ReviewResultKind.File ? "File" : "Folder")} set {target.GroupId:N0} "
+                + "is outside the current bounded Results page. Return to its Results page, then open the link again.");
+        }
+
+        FocusTarget = target.Kind == ReviewResultKind.File
+            ? "duplicate-file-groups"
+            : "duplicate-folder-groups";
+        FocusRequestVersion++;
     }
 
     private bool DeferSetupDeparture(Func<Task> continuation)

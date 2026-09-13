@@ -87,7 +87,7 @@ public sealed class PreflightViewModelTests
         Assert.IsTrue(viewModel.CanStart);
         await viewModel.StartCommand.ExecuteAsync(null);
 
-        Assert.AreEqual("Run preflight validation?", confirmation.Title);
+        Assert.AreEqual("Check marked copies?", confirmation.Title);
         StringAssert.Contains(confirmation.Message, "complete file content");
         StringAssert.Contains(confirmation.Message, "No files will be deleted");
         Assert.AreEqual("completed", viewModel.Preflight?.Status);
@@ -148,6 +148,129 @@ public sealed class PreflightViewModelTests
         Assert.AreEqual(3, viewModel.Preflight?.ReviewRevision);
         StringAssert.Contains(viewModel.RevisionStatus, "current review revision is 4");
         StringAssert.Contains(viewModel.Announcement, "Run preflight again");
+    }
+
+    [TestMethod]
+    public async Task ReviewOverviewUsesCombinedWorkerTotalsAndSeparateBoundedCaches()
+    {
+        var worker = new TestWorkerClient();
+        var run = TestWorkerClient.CreateRun(31, 1, "completed", "finalizing", DateTimeOffset.UtcNow);
+        worker.ReviewPlanHandler = (_, _) => Task.FromResult(new WorkerReviewPlanView(
+            new WorkerReviewPlan(8, run.Id, "active", 12, "created", "updated"),
+            new WorkerReviewPlanSummary(2, 1, 2, 3, "8192", 4)
+            {
+                FolderKeepCount = 1,
+                FolderRemoveCount = 1,
+                FolderUndecidedCount = 2,
+                EffectiveRemovalFileCount = 5,
+                PlannedRemovalPhysicalItemCount = 4,
+            }));
+        worker.ReviewGroupPageHandler = (_, pageSize, cursor, _) =>
+        {
+            Assert.AreEqual(PreflightViewModel.ReviewPageSize, pageSize);
+            var page = cursor is null ? 0 : int.Parse(cursor, System.Globalization.CultureInfo.InvariantCulture);
+            return Task.FromResult(new WorkerReviewGroupPage(
+                [new WorkerReviewGroupSummary(page + 1, 1, 1, 1, 2)],
+                7,
+                8,
+                12,
+                page < 6 ? (page + 1).ToString(System.Globalization.CultureInfo.InvariantCulture) : null));
+        };
+        worker.ReviewFolderGroupPageHandler = (_, pageSize, cursor, _) =>
+        {
+            Assert.AreEqual(PreflightViewModel.ReviewPageSize, pageSize);
+            Assert.IsNull(cursor);
+            return Task.FromResult(new WorkerReviewFolderGroupPage(
+                [new WorkerReviewFolderGroupSummary(41, 1, 1, 2, 1)], 1, 8, 12, null));
+        };
+        using var viewModel = new PreflightViewModel(worker, new RecordingConfirmation(false));
+
+        await viewModel.ShowRunAsync(run);
+        while (viewModel.CanMoveFileReviewNext)
+        {
+            await viewModel.NextFileReviewPageCommand.ExecuteAsync(null);
+        }
+
+        StringAssert.Contains(viewModel.PlanSummary, "2 file copies marked");
+        StringAssert.Contains(viewModel.PlanSummary, "1 folder copy marked");
+        StringAssert.Contains(viewModel.CombinedRemovalSummary, "5 distinct affected files");
+        StringAssert.Contains(viewModel.CombinedRemovalSummary, "4 physical items");
+        Assert.AreEqual(1, viewModel.FileReviewGroups.Count);
+        Assert.AreEqual(7, viewModel.FileReviewGroups[0].GroupId);
+        Assert.AreEqual(1, viewModel.FolderReviewGroups.Count);
+        Assert.IsTrue(viewModel.CachedFileReviewPageCount <= PreflightViewModel.ReviewCacheCapacity);
+        Assert.IsTrue(viewModel.CachedFolderReviewPageCount <= PreflightViewModel.ReviewCacheCapacity);
+    }
+
+    [TestMethod]
+    public async Task FailedReviewPageReplacementRetainsAcceptedBoundedPage()
+    {
+        var worker = new TestWorkerClient();
+        var run = TestWorkerClient.CreateRun(33, 1, "completed", "finalizing", DateTimeOffset.UtcNow);
+        worker.ReviewPlanHandler = (_, _) => Task.FromResult(Review(run.Id, 5, 1));
+        worker.ReviewGroupPageHandler = (_, _, cursor, _) => cursor switch
+        {
+            null => Task.FromResult(new WorkerReviewGroupPage(
+                [new WorkerReviewGroupSummary(1, 1, 0, 1, 1)], 3, 1, 5, "page-2")),
+            "page-2" => Task.FromResult(new WorkerReviewGroupPage(
+                [new WorkerReviewGroupSummary(2, 1, 0, 1, 1)], 3, 1, 5, "page-3")),
+            _ => throw new InvalidOperationException("Files review page unavailable."),
+        };
+        using var viewModel = new PreflightViewModel(worker, new RecordingConfirmation(false));
+
+        await viewModel.ShowRunAsync(run);
+        await viewModel.NextFileReviewPageCommand.ExecuteAsync(null);
+        Assert.AreEqual(2, viewModel.FileReviewGroups[0].GroupId);
+        StringAssert.Contains(viewModel.FileReviewPageStatus, "page 2");
+
+        await viewModel.NextFileReviewPageCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(2, viewModel.FileReviewGroups[0].GroupId);
+        StringAssert.Contains(viewModel.FileReviewPageStatus, "page 2");
+        Assert.AreEqual("Files review page unavailable.", viewModel.FileReviewErrorMessage);
+    }
+
+    [TestMethod]
+    public async Task ValidationPresentationSeparatesCurrentReadyBlockedNeedsReviewAndStale()
+    {
+        var worker = new TestWorkerClient();
+        var run = TestWorkerClient.CreateRun(32, 1, "completed", "finalizing", DateTimeOffset.UtcNow);
+        worker.ReviewPlanHandler = (_, _) => Task.FromResult(Review(run.Id, 4, 1));
+        var current = TestWorkerClient.CreatePreflight(80, run.Id, "completed", 4, 2, 2, 2);
+        worker.LatestPreflightHandler = (_, _) => Task.FromResult<WorkerPreflight?>(current);
+        worker.PreflightItemPageHandler = (_, _) => Task.FromResult(new WorkerPreflightItemPage([], 0, null));
+        using var viewModel = new PreflightViewModel(worker, new RecordingConfirmation(false));
+
+        await viewModel.ShowRunAsync(run);
+        Assert.AreEqual("Current for plan revision 4", viewModel.ValidationFreshnessTitle);
+        Assert.AreEqual("Ready", viewModel.ValidationOutcomeTitle);
+
+        worker.PreflightHandler = (_, _) => Task.FromResult(current with
+        {
+            ConflictCount = 1,
+            ReadyCount = 1,
+        });
+        await viewModel.RefreshReviewRevisionAsync(run.Id, 4);
+        Assert.AreEqual("Blocked", viewModel.ValidationOutcomeTitle);
+
+        worker.PreflightHandler = (_, _) => Task.FromResult(current with
+        {
+            ChangedCount = 1,
+            ReadyCount = 1,
+        });
+        await viewModel.RefreshReviewRevisionAsync(run.Id, 4);
+        Assert.AreEqual("Needs review", viewModel.ValidationOutcomeTitle);
+
+        worker.ReviewPlanHandler = (_, _) => Task.FromResult(Review(run.Id, 5, 1));
+        worker.PreflightHandler = (_, _) => Task.FromResult(current with
+        {
+            CurrentReviewRevision = 5,
+            IsCurrent = false,
+        });
+        await viewModel.RefreshReviewRevisionAsync(run.Id, 5);
+        Assert.AreEqual("Plan changed — check again", viewModel.ValidationFreshnessTitle);
+        Assert.AreEqual("Needs review", viewModel.ValidationOutcomeTitle);
+        StringAssert.Contains(viewModel.ValidationOutcomeExplanation, "older plan revision");
     }
 
     private static WorkerReviewPlanView Review(long runId, long revision, long removals) =>

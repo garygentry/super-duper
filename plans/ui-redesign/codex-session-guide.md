@@ -77,9 +77,12 @@ of that capability. [Official AGENTS.md guidance](https://learn.chatgpt.com/docs
   A04/A05/A06/A11/A15 verification; [evidence](evidence/uir-05c-folder-comparison.md). Neutral
   selection, truthful applied queries/states, complete path/relationship scope, five actions,
   bounded reveal and focus restoration pass. Core 210 and three WPF methods passed.
-- **Next: UIR-06a** — compose the dedicated Review overview from worker-owned combined totals and
-  separate bounded Files/Folders review queries, with revision-aware non-deleting validation status
-  and exact-set return links. Rule authoring/reversal remains a later UIR-06 slice.
+- **Implemented: UIR-06a** — dedicated Review overview with worker-owned combined totals, separate
+  bounded Files/Folders pages, exact bounded return links and revision-aware whole-plan validation;
+  [evidence](evidence/uir-06a-review-overview.md). Core 214 and three WPF methods passed.
+- **Next: UIR-06b** — present the existing Location preferences workflow in a focused Review panel.
+  Preserve ordered roots, virtual preview scope/revision/signature, confirmation, provenance,
+  reversal and later manual overrides; do not add arbitrary undo or change Reset semantics.
 - **UIR-07** — history and contextual diagnostics, preserving the monitoring and rescan contract.
 - **UIR-08/09** — integrated Rust/.NET Debug/Release checks, native layout/keyboard/accessibility
   and scale evidence, then operator workflow acceptance. Remain on the branch after completion;

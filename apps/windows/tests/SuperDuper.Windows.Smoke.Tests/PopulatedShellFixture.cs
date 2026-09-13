@@ -146,11 +146,18 @@ internal static class PopulatedShellFixture
                     Assert.AreEqual(model.SelectedScanContext, context.Text);
                     Assert.IsTrue(context.ActualWidth > 100);
                     Assert.IsTrue(Find<Button>(window, "ViewActiveProgress").IsVisible);
+                    if (destination == WorkspaceDestination.Review)
+                    {
+                        Find<ScrollViewer>(window, "ReviewWorkspaceScrollViewer").ScrollToTop();
+                        Drain();
+                        AssertVisible(Find<TextBlock>(window, "ReviewHeading"), window);
+                    }
                     Capture(window, $"populated-{destination}-{size.Width}x{size.Height}");
                 }
                 VerifyScanScrollClearance(window, model, size);
                 VerifyViewportAccess(window, model, size);
                 VerifyFolderViewportAccess(window, model, size);
+                VerifyReviewViewportAccess(window, model, size);
             }
             // The standalone fixture adds a wrapping toolbar above the shipping content.
             // Reserve 80 DIPs at minimum size to cover that host's extra vertical overhead.
@@ -159,6 +166,7 @@ internal static class PopulatedShellFixture
             VerifyScanScrollClearance(window, model, new Size(900, 600), "-toolbar");
             VerifyViewportAccess(window, model, new Size(900, 600), "-toolbar");
             VerifyFolderViewportAccess(window, model, new Size(900, 600), "-toolbar");
+            VerifyReviewViewportAccess(window, model, new Size(900, 600), "-toolbar");
             ((FrameworkElement)window.Content).Margin = new Thickness(0);
             Drain();
             client.FolderGroupPageHandler = (_, _) => Task.FromResult(new WorkerDuplicateFolderGroupPage([], 0, null, null));
@@ -166,6 +174,39 @@ internal static class PopulatedShellFixture
         }
         finally { window.Close(); }
         Assert.IsTrue(textScale.Disposed, "Closing the window releases the native settings subscription.");
+    }
+
+    private static void VerifyReviewViewportAccess(
+        MainWindow window,
+        ShellViewModel model,
+        Size size,
+        string suffix = "")
+    {
+        model.SelectedDestination = WorkspaceDestination.Review;
+        Drain();
+        var scroll = Find<ScrollViewer>(window, "ReviewWorkspaceScrollViewer");
+        Assert.AreEqual(ScrollBarVisibility.Disabled, scroll.HorizontalScrollBarVisibility);
+        var fileGroups = Find<ListView>(window, "ReviewFileGroupsList");
+        var folderGroups = Find<ListView>(window, "ReviewFolderGroupsList");
+        Assert.AreEqual(25, fileGroups.Items.Count);
+        Assert.AreEqual(25, folderGroups.Items.Count);
+        Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(fileGroups));
+        Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(folderGroups));
+        Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(fileGroups));
+        Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(folderGroups));
+        fileGroups.BringIntoView();
+        Drain();
+        AssertVisible(Descendants<Button>(fileGroups).First(button => Equals(button.Content, "Open set")), window);
+        AssertVisible(Descendants<Button>(folderGroups).First(button => Equals(button.Content, "Open set")), window);
+        var check = Find<Button>(window, "StartPreflightButton");
+        check.BringIntoView();
+        Drain();
+        AssertVisible(check, window);
+        var boundary = Find<Border>(window, "ReviewBuildBoundaryNotice");
+        boundary.BringIntoView();
+        Drain();
+        AssertVisible(boundary, window);
+        Console.WriteLine($"{size.Width}x{size.Height}{suffix} review: files={fileGroups.ActualWidth:F1}, folders={folderGroups.ActualWidth:F1}, extent={scroll.ExtentHeight:F1}");
     }
 
     private static void ConfigurePopulatedFolderResults(TestWorkerClient client, ShellViewModel model, WorkerRun run)

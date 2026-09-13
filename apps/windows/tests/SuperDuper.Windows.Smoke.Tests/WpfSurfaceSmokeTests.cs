@@ -443,11 +443,34 @@ public sealed class WpfSurfaceSmokeTests
             StringAssert.Contains(AutomationProperties.GetHelpText(folderReveal), "Alt+E");
             Assert.IsTrue(DuplicateFoldersView.IsRevealShortcut(Key.System, Key.E, ModifierKeys.Alt));
             var startPreflight = FindByAutomationId<Button>(preflight, "StartPreflightButton");
+            Assert.AreEqual("Review removal plan workspace", AutomationProperties.GetName(
+                FindByAutomationId<FrameworkElement>(preflight, "ReviewWorkspace")));
+            _ = FindByAutomationId<TextBlock>(preflight, "ReviewHeading");
+            _ = FindByAutomationId<TextBlock>(preflight, "ReviewSelectedRunContext");
+            _ = FindByAutomationId<TextBlock>(preflight, "ReviewCombinedTotals");
+            _ = FindByAutomationId<TextBlock>(preflight, "ReviewCombinedTotalsExplanation");
+            var reviewFileGroups = FindByAutomationId<ListView>(preflight, "ReviewFileGroupsList");
+            var reviewFolderGroups = FindByAutomationId<ListView>(preflight, "ReviewFolderGroupsList");
+            Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(reviewFileGroups));
+            Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(reviewFolderGroups));
+            Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(reviewFileGroups));
+            Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(reviewFolderGroups));
+            Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(reviewFileGroups));
+            Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(reviewFolderGroups));
+            _ = FindByAutomationId<TextBlock>(preflight, "ReviewValidationFreshness");
+            _ = FindByAutomationId<TextBlock>(preflight, "ReviewValidationOutcome");
+            var reviewBoundary = FindByAutomationId<Border>(preflight, "ReviewBuildBoundaryNotice");
+            Assert.AreEqual(
+                "BuildBoundaryNotice",
+                BindingOperations.GetBinding(reviewBoundary, AutomationProperties.NameProperty)?.Path.Path);
             var preflightSummaryHeading = FindByAutomationId<TextBlock>(preflight, "PreflightSummaryHeading");
             PreflightView.RestorePreflightFocus(preflightSummaryHeading);
             Assert.AreSame(
                 preflightSummaryHeading,
                 FocusManager.GetFocusedElement(FocusManager.GetFocusScope(preflightSummaryHeading)));
+            StringAssert.Contains(
+                AutomationProperties.GetName(startPreflight),
+                "whole plan");
             StringAssert.Contains(
                 AutomationProperties.GetName(startPreflight),
                 "no files will be deleted");

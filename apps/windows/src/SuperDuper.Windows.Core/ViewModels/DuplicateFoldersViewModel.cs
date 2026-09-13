@@ -131,19 +131,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     public DuplicateFolderGroupListItemViewModel? SelectedGroup
     {
         get => _selectedGroup;
-        set
-        {
-            if (SetProperty(ref _selectedGroup, value))
-            {
-                OnPropertyChanged(nameof(SelectedReviewSummaryText));
-                OnPropertyChanged(nameof(SelectedRelationshipSummaryText));
-                OnPropertyChanged(nameof(HasSelectedGroup));
-                KeepFolderCommand.NotifyCanExecuteChanged();
-                RemoveFolderCommand.NotifyCanExecuteChanged();
-                UndecideFolderCommand.NotifyCanExecuteChanged();
-                _ = LoadSelectedGroupAsync(value);
-            }
-        }
+        set => SetSelectedGroup(value, loadMembers: true);
     }
     public DuplicateFolderMemberListItemViewModel? SelectedMember
     {
@@ -451,6 +439,23 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
             LoadReviewPlanAsync(run.Id, reviewGeneration, _reviewCancellation.Token));
     }
 
+    public async Task<bool> OpenReviewTargetAsync(
+        long groupId,
+        long? memberId = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var group = Groups.FirstOrDefault(item => item.Id == groupId);
+        if (group is null || Run?.Status != "completed")
+        {
+            return false;
+        }
+        SetSelectedGroup(group, loadMembers: false);
+        await LoadSelectedGroupAsync(group, memberId);
+        cancellationToken.ThrowIfCancellationRequested();
+        return SelectedGroup?.Id == groupId && !HasDetailError;
+    }
+
     public async Task RefreshReviewRevisionAsync(long runId, long revision)
     {
         if (Run?.Id != runId || revision <= ReviewPlan.Plan.Revision)
@@ -662,6 +667,24 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         if (preferredMemberId is { } memberId && generation == _memberGeneration)
         {
             SelectedMember = Members.FirstOrDefault(member => member.Id == memberId) ?? SelectedMember;
+        }
+    }
+
+    private void SetSelectedGroup(DuplicateFolderGroupListItemViewModel? value, bool loadMembers)
+    {
+        if (!SetProperty(ref _selectedGroup, value, nameof(SelectedGroup)))
+        {
+            return;
+        }
+        OnPropertyChanged(nameof(SelectedReviewSummaryText));
+        OnPropertyChanged(nameof(SelectedRelationshipSummaryText));
+        OnPropertyChanged(nameof(HasSelectedGroup));
+        KeepFolderCommand.NotifyCanExecuteChanged();
+        RemoveFolderCommand.NotifyCanExecuteChanged();
+        UndecideFolderCommand.NotifyCanExecuteChanged();
+        if (loadMembers)
+        {
+            _ = LoadSelectedGroupAsync(value);
         }
     }
 

@@ -163,7 +163,7 @@
                                     <views:DuplicateFilesView x:Name="DuplicateFilesWorkspace" DataContext="{Binding DuplicateFiles}" />
                                 </TabItem>
                                 <TabItem AutomationProperties.AutomationId="DuplicateFoldersTab" Header="F_olders" Tag="{x:Static vm:WorkspaceDestination.FolderResults}">
-                                    <views:DuplicateFoldersView DataContext="{Binding DuplicateFolders}" />
+                                    <views:DuplicateFoldersView x:Name="DuplicateFoldersWorkspace" DataContext="{Binding DuplicateFolders}" />
                                 </TabItem>
                             </TabControl>
                         </TabItem>

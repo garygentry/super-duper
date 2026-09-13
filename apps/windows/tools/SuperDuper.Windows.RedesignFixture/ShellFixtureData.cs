@@ -40,8 +40,53 @@ internal sealed class ShellFixtureData : IDisposable
                 "4096", "1704067200000000000")
             {
                 RootPath = session.Roots[id - 1], RelativePath = $@"travel\{name}.jpg", DriveLetter = "C:",
+                Decision = id == 1 ? "remove" : "keep",
             }).ToArray(), 2, null, null)
-        { ReviewSummary = new WorkerReviewGroupSummary(query.GroupId, 0, 0, 2, 2) });
+        {
+            ReviewPlanId = 7,
+            ReviewRevision = 2,
+            ReviewSummary = new WorkerReviewGroupSummary(query.GroupId, 1, 1, 0, 1),
+        });
+        client.ReviewPlanHandler = (runId, _) => Task.FromResult(runId == old.Id
+            ? new WorkerReviewPlanView(
+                new WorkerReviewPlan(7, runId, "active", 2, "2026-09-08T09:45:00Z", "2026-09-08T09:46:00Z"),
+                new WorkerReviewPlanSummary(1, 1, 1, 48, "4096", 49)
+                {
+                    FolderUndecidedCount = 50,
+                    EffectiveRemovalFileCount = 1,
+                    PlannedRemovalPhysicalItemCount = 1,
+                    IntactFolderCopyCount = 50,
+                })
+            : new WorkerReviewPlanView(
+                new WorkerReviewPlan(null, runId, "notCreated", 0, null, null),
+                new WorkerReviewPlanSummary(0, 0, 0, 0, "0", 0)));
+        client.ReviewGroupPageHandler = (runId, pageSize, cursor, _) => Task.FromResult(
+            new WorkerReviewGroupPage(
+                Enumerable.Range(1, Math.Min(pageSize, 25)).Select(id =>
+                    id == 1
+                        ? new WorkerReviewGroupSummary(id, 1, 1, 0, 1)
+                        : new WorkerReviewGroupSummary(id, 0, 0, 2, 2)).ToArray(),
+                25,
+                runId == old.Id ? 7 : null,
+                runId == old.Id ? 2 : 0,
+                null));
+        client.ReviewFolderGroupPageHandler = (runId, pageSize, cursor, _) => Task.FromResult(
+            new WorkerReviewFolderGroupPage(
+                Enumerable.Range(1, Math.Min(pageSize, 25))
+                    .Select(id => new WorkerReviewFolderGroupSummary(id, 0, 0, 2, 2)).ToArray(),
+                25,
+                runId == old.Id ? 7 : null,
+                runId == old.Id ? 2 : 0,
+                null));
+        client.LatestPreflightHandler = (runId, _) => Task.FromResult<WorkerPreflight?>(
+            runId == old.Id ? TestWorkerClient.CreatePreflight(17, runId, "completed", 2) : null);
+        client.PreflightItemPageHandler = (query, _) => Task.FromResult(new WorkerPreflightItemPage(
+            [new WorkerPreflightItem(
+                1, query.PreflightId, 0, "file", "remove", 1, null, null, 1, null,
+                $@"{session.Roots[0]}\travel\{name}.jpg", "ready", "matched_snapshot", "4096", 1,
+                null, "2026-09-08T09:47:00Z", 1)],
+            1,
+            null));
         client.RunWarningsHandler = (query, _) => Task.FromResult(new WorkerRunWarningPage(
             [new WorkerRunWarningAggregate(1, query.RunId, "hashing", "scan", RunHistoryViewModel.HashWarningCode,
                 "warning", "Fictional unavailable copy; inspect immutable duplicate results.", 1,

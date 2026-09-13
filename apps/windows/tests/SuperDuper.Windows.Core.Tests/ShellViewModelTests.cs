@@ -343,6 +343,80 @@ public sealed class ShellViewModelTests
         Assert.AreEqual(0, dispatcher.PendingCount);
     }
 
+    [TestMethod]
+    public async Task ReviewLinksReturnToExactBoundedFileAndFolderSets()
+    {
+        var client = new TestWorkerClient();
+        var session = client.AddSession("Review links", @"C:\Review", @"D:\Review");
+        var run = client.AddRun(session.Id, "completed");
+        client.ReviewPlanHandler = (_, _) => Task.FromResult(new WorkerReviewPlanView(
+            new WorkerReviewPlan(7, run.Id, "active", 3, "created", "updated"),
+            new WorkerReviewPlanSummary(2, 1, 1, 1, "4096", 2)
+            {
+                FolderRemoveCount = 1,
+                EffectiveRemovalFileCount = 2,
+                PlannedRemovalPhysicalItemCount = 2,
+            }));
+        client.ReviewGroupPageHandler = (_, pageSize, _, _) => Task.FromResult(
+            new WorkerReviewGroupPage(
+                [new WorkerReviewGroupSummary(11, 1, 1, 0, 1)], 1, 7, 3, null));
+        client.ReviewFolderGroupPageHandler = (_, pageSize, _, _) => Task.FromResult(
+            new WorkerReviewFolderGroupPage(
+                [new WorkerReviewFolderGroupSummary(44, 1, 1, 0, 1)], 1, 7, 3, null));
+        client.GroupPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFileGroupPage(
+            [new WorkerDuplicateFileGroup(11, query.RunId, "4096", 2, "4096", "review.bin", "bin")
+            {
+                DistinctSelectedRootCount = 2,
+                DistinctDriveCount = 2,
+            }], 1, null, null));
+        client.MemberPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFileMemberPage(
+            [new WorkerDuplicateFileMember(91, query.GroupId, @"C:\Review\review.bin", "review.bin", @"C:\Review", "4096", "1")
+            {
+                RootPath = @"C:\Review",
+                RelativePath = "review.bin",
+                DriveLetter = "C:",
+            }], 1, null, null)
+        {
+            ReviewPlanId = 7,
+            ReviewRevision = 3,
+            ReviewSummary = new WorkerReviewGroupSummary(query.GroupId, 1, 1, 0, 1),
+        });
+        client.FolderGroupPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFolderGroupPage(
+            [new WorkerDuplicateFolderGroup(44, query.RunId, "4096", 1, 2, @"C:\Review\Folder")],
+            1, null, null));
+        client.FolderMemberPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFolderMemberPage(
+            [
+                new WorkerDuplicateFolderMember(441, query.GroupId, @"C:\Review\Folder"),
+                new WorkerDuplicateFolderMember(442, query.GroupId, @"D:\Review\Folder"),
+            ], 2, null, null)
+        {
+            ReviewPlanId = 7,
+            ReviewRevision = 3,
+            ReviewSummary = new WorkerReviewFolderGroupSummary(query.GroupId, 1, 1, 0, 1),
+        });
+        using var viewModel = CreateViewModel(client);
+        await viewModel.InitializeAsync();
+        await viewModel.Preflight.ShowRunAsync(run);
+        viewModel.SelectedDestination = WorkspaceDestination.Review;
+
+        await viewModel.Preflight.OpenReviewResultCommand.ExecuteAsync(
+            new ReviewResultTarget(ReviewResultKind.File, 11, 91));
+
+        Assert.AreEqual(WorkspaceDestination.FileResults, viewModel.SelectedDestination);
+        Assert.AreEqual(11, viewModel.DuplicateFiles.SelectedGroup?.Id);
+        Assert.AreEqual(91, viewModel.DuplicateFiles.SelectedMember?.Id);
+        Assert.AreEqual("duplicate-file-groups", viewModel.FocusTarget);
+
+        viewModel.SelectedDestination = WorkspaceDestination.Review;
+        await viewModel.Preflight.OpenReviewResultCommand.ExecuteAsync(
+            new ReviewResultTarget(ReviewResultKind.Folder, 44, 442));
+
+        Assert.AreEqual(WorkspaceDestination.FolderResults, viewModel.SelectedDestination);
+        Assert.AreEqual(44, viewModel.DuplicateFolders.SelectedGroup?.Id);
+        Assert.AreEqual(442, viewModel.DuplicateFolders.SelectedMember?.Id);
+        Assert.AreEqual("duplicate-folder-groups", viewModel.FocusTarget);
+    }
+
     private static ShellViewModel CreateViewModel(IWorkerClient client) =>
         CreateViewModel(client, new ImmediateDispatcher());
 

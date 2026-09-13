@@ -346,7 +346,7 @@ public partial class DuplicateFoldersView : UserControl
         return LocationCards.Focus();
     }
 
-    private async Task<bool> RestoreGroupGridFocusAsync()
+    internal async Task<bool> RestoreGroupGridFocusAsync()
     {
         for (var attempt = 0; attempt < LocationCardFocusAttemptLimit; attempt++)
         {

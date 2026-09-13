@@ -80,6 +80,17 @@ bounded reveal and deterministic focus restoration are covered. Core 210 and thr
 methods pass. UIR-05a/b/c are locally implemented; integrated native/scale/screen-reader/operator
 acceptance remains UIR-08/09 and no whole-redesign acceptance is inferred.
 
+## UIR-06a local implementation evidence
+
+[UIR-06a](evidence/uir-06a-review-overview.md) implements the local Review overview and
+revision-aware whole-plan validation presentation for A01/A04/A10/A11/A15. Worker-owned combined
+totals remain distinct from separate bounded Files/Folders pages; overlap and hard-link aliases are
+not recomputed in the UI. Exact resolvable set/member links return to bounded Results state. Current,
+plan-changed, ready, blocked and needs-review states derive from stored revision/outcome contracts,
+and **Check marked copies** remains distinct from visible-page **Check these copies**. Core 214 and
+three loaded-STA WPF methods pass. Location-preference reversal remains UIR-06b; integrated native,
+scale/screen-reader/operator acceptance remains UIR-08/09.
+
 ## Carried native checks from scoped shell acceptance
 
 UIR-03's [scoped assessment](evidence/uir-03-shell-acceptance.md) does not complete A11. At UIR-08,

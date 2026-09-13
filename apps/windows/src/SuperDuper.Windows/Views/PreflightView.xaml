@@ -3,32 +3,190 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:accessibility="clr-namespace:SuperDuper.Windows.Accessibility"
              xmlns:viewModels="clr-namespace:SuperDuper.Windows.Core.ViewModels;assembly=SuperDuper.Windows.Core"
-             AutomationProperties.AutomationId="PreflightWorkspace"
-             AutomationProperties.Name="Preflight validation workspace"
+             x:Name="ReviewRoot"
+             AutomationProperties.AutomationId="ReviewWorkspace"
+             AutomationProperties.Name="Review removal plan workspace"
              PreviewKeyDown="OnPreviewKeyDown">
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <ScrollViewer x:Name="ReviewWorkspaceScrollViewer"
+                  AutomationProperties.AutomationId="ReviewWorkspaceScrollViewer"
+                  HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="{StaticResource PageContentInset}" MaxWidth="1040">
-            <TextBlock Style="{StaticResource PageTitle}" Text="Preflight validation" />
+            <TextBlock Style="{StaticResource PageTitle}"
+                       AutomationProperties.AutomationId="ReviewHeading"
+                       Text="Review marked copies" />
             <TextBlock Margin="0,6,0,0"
-                       Text="Validate reviewed removals against immutable scan snapshots. Preflight never deletes, schedules, or sends files to the Recycle Bin."
+                       AutomationProperties.AutomationId="ReviewSelectedRunContext"
+                       Text="{Binding SelectedRunContext}"
                        TextWrapping="Wrap" />
+            <TextBlock Margin="0,4,0,0" FontWeight="SemiBold"
+                       Text="Marking copies does not delete files." TextWrapping="Wrap" />
 
             <Border Margin="0,18,0,0" Padding="16"
                     BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1" CornerRadius="6">
                 <StackPanel>
-                    <TextBlock FontWeight="SemiBold" Text="Reviewed plan snapshot" />
+                    <TextBlock Style="{StaticResource SectionTitle}" Text="Whole-plan overview" />
                     <TextBlock Margin="0,5,0,0" AutomationProperties.AutomationId="PreflightPlanSummary"
                                Text="{Binding PlanSummary}" TextWrapping="Wrap" />
-                    <TextBlock Margin="0,7,0,0"
-                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                    <TextBlock Margin="0,5,0,0" FontSize="18" FontWeight="SemiBold"
+                               AutomationProperties.AutomationId="ReviewCombinedTotals"
+                               AutomationProperties.Name="{Binding CombinedRemovalSummary}"
+                               Text="{Binding CombinedRemovalSummary}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,5,0,0"
+                               AutomationProperties.AutomationId="ReviewCombinedTotalsExplanation"
+                               Text="{Binding CombinedRemovalExplanation}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <Grid Margin="0,18,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Padding="14" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="6">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionTitle}" Text="Files" />
+                        <TextBlock Margin="0,4,0,0"
+                                   Text="File-copy decisions by exact set. This is a separate bounded worker query."
+                                   TextWrapping="Wrap" />
+                        <TextBlock Margin="0,7,0,0"
+                                   AutomationProperties.AutomationId="ReviewFilesLoading"
+                                   AutomationProperties.LiveSetting="Polite"
+                                   Text="Loading Files review page…"
+                                   Visibility="{Binding IsFileReviewLoading, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <ListView Margin="0,10,0,0" MinHeight="100" MaxHeight="260"
+                                  AutomationProperties.AutomationId="ReviewFileGroupsList"
+                                  AutomationProperties.Name="File review sets on this bounded page"
+                                  ItemsSource="{Binding FileReviewGroups}"
+                                  HorizontalContentAlignment="Stretch"
+                                  ScrollViewer.CanContentScroll="True"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  VirtualizingPanel.IsVirtualizing="True"
+                                  VirtualizingPanel.VirtualizationMode="Recycling">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="2,5" AutomationProperties.Name="{Binding AutomationName}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+                                            <TextBlock Text="{Binding DecisionSummary}" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding SurvivorSummary}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center"
+                                                AutomationProperties.Name="{Binding Title, StringFormat='Open exact {0} in Files results'}"
+                                                Command="{Binding DataContext.OpenReviewResultCommand, ElementName=ReviewRoot}"
+                                                CommandParameter="{Binding Target}" Content="Open set" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                        <TextBlock Margin="0,7,0,0" Text="{Binding FileReviewPageStatus}" TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,8,0,0">
+                            <Button Margin="0,0,8,8" AutomationProperties.AutomationId="ReviewFilesPreviousPage"
+                                    Command="{Binding PreviousFileReviewPageCommand}" Content="Previous Files page" />
+                            <Button Margin="0,0,8,8" AutomationProperties.AutomationId="ReviewFilesNextPage"
+                                    Command="{Binding NextFileReviewPageCommand}" Content="Next Files page" />
+                        </WrapPanel>
+                        <TextBlock AutomationProperties.AutomationId="ReviewFilesError"
+                                   AutomationProperties.LiveSetting="Assertive"
+                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                   Text="{Binding FileReviewErrorMessage}" TextWrapping="Wrap"
+                                   Visibility="{Binding HasFileReviewError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Padding="14" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="6">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionTitle}" Text="Folders" />
+                        <TextBlock Margin="0,4,0,0"
+                                   Text="Folder-copy decisions by exact set. Folder scope includes descendants and may overlap Files."
+                                   TextWrapping="Wrap" />
+                        <TextBlock Margin="0,7,0,0"
+                                   AutomationProperties.AutomationId="ReviewFoldersLoading"
+                                   AutomationProperties.LiveSetting="Polite"
+                                   Text="Loading Folders review page…"
+                                   Visibility="{Binding IsFolderReviewLoading, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <ListView Margin="0,10,0,0" MinHeight="100" MaxHeight="260"
+                                  AutomationProperties.AutomationId="ReviewFolderGroupsList"
+                                  AutomationProperties.Name="Folder review sets on this bounded page"
+                                  ItemsSource="{Binding FolderReviewGroups}"
+                                  HorizontalContentAlignment="Stretch"
+                                  ScrollViewer.CanContentScroll="True"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  VirtualizingPanel.IsVirtualizing="True"
+                                  VirtualizingPanel.VirtualizationMode="Recycling">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="2,5" AutomationProperties.Name="{Binding AutomationName}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+                                            <TextBlock Text="{Binding DecisionSummary}" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding SurvivorSummary}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center"
+                                                AutomationProperties.Name="{Binding Title, StringFormat='Open exact {0} in Folders results'}"
+                                                Command="{Binding DataContext.OpenReviewResultCommand, ElementName=ReviewRoot}"
+                                                CommandParameter="{Binding Target}" Content="Open set" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                        <TextBlock Margin="0,7,0,0" Text="{Binding FolderReviewPageStatus}" TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,8,0,0">
+                            <Button Margin="0,0,8,8" AutomationProperties.AutomationId="ReviewFoldersPreviousPage"
+                                    Command="{Binding PreviousFolderReviewPageCommand}" Content="Previous Folders page" />
+                            <Button Margin="0,0,8,8" AutomationProperties.AutomationId="ReviewFoldersNextPage"
+                                    Command="{Binding NextFolderReviewPageCommand}" Content="Next Folders page" />
+                        </WrapPanel>
+                        <TextBlock AutomationProperties.AutomationId="ReviewFoldersError"
+                                   AutomationProperties.LiveSetting="Assertive"
+                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                   Text="{Binding FolderReviewErrorMessage}" TextWrapping="Wrap"
+                                   Visibility="{Binding HasFolderReviewError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Margin="0,18,0,0" Padding="16"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="6">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitle}" Text="Check the whole plan" />
+                    <TextBlock Margin="0,5,0,0" FontWeight="SemiBold"
+                               AutomationProperties.AutomationId="ReviewValidationFreshness"
+                               Text="{Binding ValidationFreshnessTitle}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,5,0,0" FontSize="18" FontWeight="SemiBold"
+                               AutomationProperties.AutomationId="ReviewValidationOutcome"
+                               Text="{Binding ValidationOutcomeTitle}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,5,0,0" Text="{Binding ValidationOutcomeExplanation}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,7,0,0" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                Text="{Binding RevisionStatus}" TextWrapping="Wrap" />
                     <Button x:Name="StartPreflightButton" Margin="0,14,0,0"
-                            HorizontalAlignment="Left"
+                            HorizontalAlignment="Left" Style="{StaticResource ShellPrimaryAction}"
                             AutomationProperties.AutomationId="StartPreflightButton"
-                            AutomationProperties.Name="Run preflight validation; no files will be deleted"
-                            Command="{Binding StartCommand}" Content="Run preflight" />
+                            AutomationProperties.Name="Check every marked copy and required survivor in the whole plan; no files will be deleted"
+                            Command="{Binding StartCommand}" Content="{Binding CheckMarkedCopiesLabel}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Text="This whole-plan check is different from ‘Check these copies’ on the visible Files page."
+                               TextWrapping="Wrap" />
                 </StackPanel>
+            </Border>
+
+            <Border Margin="0,18,0,0" Padding="14"
+                    BorderBrush="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                    BorderThickness="1" CornerRadius="6"
+                    AutomationProperties.AutomationId="ReviewBuildBoundaryNotice"
+                    AutomationProperties.Name="{Binding BuildBoundaryNotice}">
+                <TextBlock FontWeight="SemiBold" Text="{Binding BuildBoundaryNotice}" TextWrapping="Wrap" />
             </Border>
 
             <Border Margin="0,18,0,0" Padding="16"
@@ -36,7 +194,7 @@
                     BorderThickness="1" CornerRadius="6"
                     Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel>
-                    <TextBlock FontWeight="SemiBold" Text="Validation in progress" />
+                    <TextBlock FontWeight="SemiBold" Text="Whole-plan check in progress" />
                     <ProgressBar x:Name="PreflightProgressBar" Margin="0,10,0,0" Height="8"
                                  Focusable="True"
                                  AutomationProperties.AutomationId="PreflightProgressBar"
@@ -47,14 +205,14 @@
                     <Button Margin="0,12,0,0" HorizontalAlignment="Left"
                             AutomationProperties.AutomationId="CancelPreflightButton"
                             AutomationProperties.Name="Cancel preflight validation"
-                            Command="{Binding CancelCommand}" Content="Cancel preflight" />
+                            Command="{Binding CancelCommand}" Content="Cancel check" />
                 </StackPanel>
             </Border>
 
             <StackPanel Margin="0,20,0,0"
                         Visibility="{Binding HasPreflight, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <TextBlock x:Name="PreflightSummaryHeading" Focusable="True" Style="{StaticResource SectionTitle}" AutomationProperties.AutomationId="PreflightSummaryHeading"
-                           AutomationProperties.Name="{Binding StatusSummary}" Text="Preflight summary" />
+                            AutomationProperties.Name="{Binding StatusSummary}" Text="Whole-plan check details" />
                 <TextBlock Margin="0,6,0,0" AutomationProperties.AutomationId="PreflightStatusSummary"
                            Text="{Binding StatusSummary}" TextWrapping="Wrap" />
                 <TextBlock Margin="0,4,0,0"
@@ -74,6 +232,7 @@
                                     <ColumnDefinition Width="120" />
                                     <ColumnDefinition Width="2*" />
                                     <ColumnDefinition Width="3*" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock FontWeight="SemiBold" Text="{Binding Outcome}" />
                                 <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Target}" />
@@ -81,6 +240,11 @@
                                            TextTrimming="CharacterEllipsis" />
                                 <TextBlock Grid.Column="3" Margin="8,0,0,0" Text="{Binding Explanation}"
                                            TextWrapping="Wrap" />
+                                <Button Grid.Column="4" Margin="8,0,0,0" VerticalAlignment="Center"
+                                        AutomationProperties.Name="Open the exact affected set and current copy page in Results"
+                                        Command="{Binding DataContext.OpenPreflightResultCommand, ElementName=ReviewRoot}"
+                                        CommandParameter="{Binding}" Content="Open set"
+                                        Visibility="{Binding CanOpenResult, Converter={StaticResource BooleanToVisibilityConverter}}" />
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>

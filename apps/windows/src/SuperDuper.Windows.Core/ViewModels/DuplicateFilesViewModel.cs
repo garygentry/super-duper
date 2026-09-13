@@ -263,16 +263,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
     public DuplicateFileGroupListItemViewModel? SelectedGroup
     {
         get => _selectedGroup;
-        set
-        {
-            if (SetProperty(ref _selectedGroup, value))
-            {
-                OnPropertyChanged(nameof(HasSelectedGroup));
-                OnPropertyChanged(nameof(SelectedReviewSummaryText));
-                RaiseSetNavigationProperties();
-                _ = LoadSelectedGroupAsync(value);
-            }
-        }
+        set => SetSelectedGroup(value, loadMembers: true);
     }
 
     public string SearchText
@@ -1032,6 +1023,23 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
             LoadDirtyRootsAsync(run.Id, dirtyRootGeneration, _dirtyRootCancellation.Token));
         if (Run?.Id != run.Id || reviewGeneration != _reviewGeneration || cancellationToken.IsCancellationRequested) return;
         await PreferenceRules.ShowRunAsync(run, cancellationToken);
+    }
+
+    public async Task<bool> OpenReviewTargetAsync(
+        long groupId,
+        long? memberId = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var group = Groups.FirstOrDefault(item => item.Id == groupId);
+        if (group is null || Run?.Status != "completed")
+        {
+            return false;
+        }
+        SetSelectedGroup(group, loadMembers: false);
+        await LoadSelectedGroupAsync(group, memberId);
+        cancellationToken.ThrowIfCancellationRequested();
+        return SelectedGroup?.Id == groupId && !HasDetailError;
     }
 
     public Task RefreshReviewRevisionAsync(long runId, long revision) =>
@@ -1986,6 +1994,21 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
         await LoadMemberPageAsync(null, run.Id, group.Id, generation, _memberCancellation.Token, display: true);
         if (preferredMemberId is { } memberId && generation == _memberGeneration)
             SelectedMember = Members.FirstOrDefault(member => member.Id == memberId) ?? SelectedMember;
+    }
+
+    private void SetSelectedGroup(DuplicateFileGroupListItemViewModel? value, bool loadMembers)
+    {
+        if (!SetProperty(ref _selectedGroup, value, nameof(SelectedGroup)))
+        {
+            return;
+        }
+        OnPropertyChanged(nameof(HasSelectedGroup));
+        OnPropertyChanged(nameof(SelectedReviewSummaryText));
+        RaiseSetNavigationProperties();
+        if (loadMembers)
+        {
+            _ = LoadSelectedGroupAsync(value);
+        }
     }
 
     private async Task LoadMemberPageAsync(

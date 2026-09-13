@@ -1,6 +1,6 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-03 complete with scoped operator acceptance; UIR-04 and UIR-05 in progress; UIR-04a/b/c and UIR-05a/b/c locally implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
+Status: UIR-03 complete with scoped operator acceptance; UIR-04, UIR-05 and UIR-06 in progress; UIR-04a/b/c, UIR-05a/b/c and UIR-06a locally implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -14,7 +14,7 @@ all safety/evidence gates. Its open execution criteria are not absorbed or marke
 | UIR-03 | complete | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c/d/e/f implemented; [scoped shell acceptance](evidence/uir-03-shell-acceptance.md); available operator checks passed; NVDA/200% remain unavailable for UIR-08/A11 |
 | UIR-04 | in_progress | Setup, Scan again, persistent reuse explanation, live monitoring/details and terminal summaries | UIR-03; A05/A06/A08/A14/A15/A16/A17 with controlled clock, lifecycle and rescan fixtures |
 | UIR-05 | in_progress | File/folder results, compact filters, list/detail comparison, decisions and path actions | UIR-03; A03/A04/A05/A06/A11/A13/A15 and existing query/focus/page contracts |
-| UIR-06 | planned | Dedicated Review, existing rule workflow, whole-plan validation and evidence access | UIR-05; A04/A10/A15 including revision, survivor, overlap, reversal and restart |
+| UIR-06 | in_progress | Dedicated Review, existing rule workflow, whole-plan validation and evidence access | UIR-05; A04/A10/A15 including revision, survivor, overlap, reversal and restart |
 | UIR-07 | planned | History/open-run, contextual warnings and performance detail | UIR-03/04; A07/A12/A13/A15/A16/A17 and current/terminal warning boundaries |
 | UIR-08 | planned | Full integration, layout/theme/keyboard/accessibility/scale and long-scan/rescan regression, physical evidence | UIR-04 through UIR-07; all A01-A17 verified with honest physical/skipped states |
 | UIR-09 | planned | User workflow acceptance, final package and durable handoff | UIR-08; scope accepted, no open critical defect, all work committed on same branch |
@@ -131,12 +131,21 @@ states remain distinct. Core 210 and three loaded-STA WPF methods pass; the fixt
 No engine, protocol, paging/cache ceiling, decision truth or production wiring changed. UIR-05a/b/c
 are locally implemented; UIR-05 remains in progress for later integrated/native acceptance.
 
-The exact next local slice is **UIR-06a: dedicated Review overview and revision-aware validation
-status**. Read S04, capability/validation guidance and directly linked review-plan, review-group,
-preflight revision/survivor/overlap and return-navigation tests. Compose worker-owned combined totals
-with separate bounded Files/Folders review queries and exact-set return links; make the non-deleting
-notice and stale/current validation state explicit. Preserve all UIR-05 query/comparison/decision
-semantics and do not pull rule authoring/reversal, execution, recovery resolution or UIR-07 forward.
+**UIR-06a implemented (2026-09-13).** [Evidence](evidence/uir-06a-review-overview.md) covers the
+dedicated selected-scan Review overview, worker-owned combined totals, separate 200-group Files and
+Folders pages with independent five-page caches, exact bounded return links and retained-page error
+behavior. Whole-plan **Check marked copies** is distinct from visible-page **Check these copies**;
+freshness and outcome separately expose current, plan-changed, ready, blocked and needs-review
+states from worker preflight revisions/reasons. Core 214 and three loaded-STA WPF methods pass; 105
+captures and the clean fixture build are retained. No worker/protocol/ceiling, rule, execution,
+recovery-resolution or production boundary changed. UIR-06 remains in progress.
+
+The exact next local slice is **UIR-06b: focused Location preferences in Review**. Recompose the
+existing rule workflow into the specified discoverable panel while preserving saved ordered roots,
+virtual preview scope, revision/signature, explicit scope/count confirmation, provenance, application
+reversal and later manual overrides. Keep preview changes distinct from saved decisions and call the
+operation **Reverse rule application**. Do not create arbitrary undo, change manual Reset semantics,
+enable execution, resolve recovery outcomes or pull UIR-07 forward.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read

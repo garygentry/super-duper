@@ -80,6 +80,8 @@ public partial class MainWindow : Window
             }
             else if (target == "duplicate-file-groups")
                 _ = DuplicateFilesWorkspace.RestoreGroupGridFocusAsync(IsCurrent);
+            else if (target == "duplicate-folder-groups")
+                _ = DuplicateFoldersWorkspace.RestoreGroupGridFocusAsync();
         }, DispatcherPriority.Background);
     }
 
