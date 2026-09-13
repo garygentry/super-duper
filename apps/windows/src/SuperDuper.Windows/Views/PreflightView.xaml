@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:accessibility="clr-namespace:SuperDuper.Windows.Accessibility"
              xmlns:viewModels="clr-namespace:SuperDuper.Windows.Core.ViewModels;assembly=SuperDuper.Windows.Core"
+             xmlns:views="clr-namespace:SuperDuper.Windows.Views"
              x:Name="ReviewRoot"
              AutomationProperties.AutomationId="ReviewWorkspace"
              AutomationProperties.Name="Review removal plan workspace"
@@ -37,6 +38,19 @@
                                Text="{Binding CombinedRemovalExplanation}" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
+
+            <Expander x:Name="LocationPreferencesExpander" Margin="0,18,0,0"
+                      AutomationProperties.AutomationId="LocationPreferencesExpander"
+                      AutomationProperties.Name="Location preferences"
+                      AutomationProperties.HelpText="Open the focused saved-rule, virtual-preview, application, and Reverse rule application workflow. Nothing is deleted or validated."
+                      Header="Location preferences"
+                      IsExpanded="False">
+                <Border Margin="0,8,0,0" Padding="16"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="6">
+                    <views:LocationPreferencesView DataContext="{Binding PreferenceRules}" />
+                </Border>
+            </Expander>
 
             <Grid Margin="0,18,0,0">
                 <Grid.ColumnDefinitions>

@@ -151,6 +151,44 @@ public sealed class PreflightViewModelTests
     }
 
     [TestMethod]
+    public async Task Review_owns_the_focused_location_preferences_lifecycle_without_opening_files_workspace()
+    {
+        var worker = new TestWorkerClient();
+        var run = TestWorkerClient.CreateRun(29, 1, "completed", "finalizing", DateTimeOffset.UtcNow);
+        worker.ReviewPlanHandler = (_, _) => Task.FromResult(Review(run.Id, 9, 0));
+        PreferencePreviewQuery? requestedPreview = null;
+        worker.PreferencePreviewHandler = (query, _) =>
+        {
+            requestedPreview = query;
+            return Task.FromResult(new WorkerPreferencePreviewPage(
+                [], 0, null, query.RuleId, query.RuleRevision, null, query.ReviewRevision,
+                new WorkerPreferencePreviewSummary(0, 0, 0, "0", 0, 0, 0, 0, 0, "0", 0, 0, 0, 0, 0, 0, 0, 0))
+            { PreviewSignature = "review-signature" });
+        };
+        using var preferences = new PreferenceRulesViewModel(
+            worker,
+            () => new DuplicateFileGroupFilter(string.Empty, "0"),
+            () => null,
+            () => 0);
+        using var viewModel = new PreflightViewModel(
+            worker,
+            new RecordingConfirmation(false),
+            preferenceRules: preferences);
+
+        await viewModel.ShowRunAsync(run);
+        Assert.AreSame(preferences, viewModel.PreferenceRules);
+        CollectionAssert.AreEqual(run.Parameters.Roots.ToArray(), preferences.OrderedRoots.ToArray());
+        preferences.RuleName = "Review locations";
+        preferences.NewRoot = @"C:\Fixture";
+        preferences.AddRootCommand.Execute(null);
+        await preferences.SaveCommand.ExecuteAsync(null);
+        await preferences.PreviewCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(9, requestedPreview?.ReviewRevision);
+        Assert.IsFalse(viewModel.Operation.CanSubmit);
+    }
+
+    [TestMethod]
     public async Task ReviewOverviewUsesCombinedWorkerTotalsAndSeparateBoundedCaches()
     {
         var worker = new TestWorkerClient();

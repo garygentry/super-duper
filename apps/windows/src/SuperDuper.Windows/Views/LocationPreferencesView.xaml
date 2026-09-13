@@ -1,0 +1,240 @@
+<UserControl x:Class="SuperDuper.Windows.Views.LocationPreferencesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:accessibility="clr-namespace:SuperDuper.Windows.Accessibility"
+             x:Name="LocationPreferencesRoot"
+             AutomationProperties.AutomationId="LocationPreferencesPanel"
+             AutomationProperties.Name="Focused location preferences panel">
+    <StackPanel>
+        <TextBlock Style="{StaticResource SectionTitle}" Text="Saved preference" />
+        <TextBlock Margin="0,4,0,0"
+                   Text="Order the scan roots you prefer to keep. Saving stores this reusable preference only; it does not change this review plan."
+                   TextWrapping="Wrap" />
+        <WrapPanel Margin="0,10,0,0">
+            <Label Padding="0,0,6,0" VerticalAlignment="Center"
+                   Target="{Binding ElementName=PreferenceRuleList}" Content="Saved _rule" />
+            <ComboBox x:Name="PreferenceRuleList" MinWidth="230"
+                      KeyboardNavigation.TabIndex="180"
+                      AutomationProperties.AutomationId="PreferenceRuleList"
+                      AutomationProperties.Name="Saved location preference rules"
+                      DisplayMemberPath="Name" ItemsSource="{Binding Rules}"
+                      SelectedItem="{Binding SelectedRule, Mode=TwoWay}" />
+            <Button Margin="6,0,0,0" KeyboardNavigation.TabIndex="190"
+                    AutomationProperties.AutomationId="PreferenceNewRule"
+                    AutomationProperties.Name="Create a new ordered location preference rule"
+                    Command="{Binding NewRuleCommand}" Content="New" />
+        </WrapPanel>
+
+        <Label Margin="0,8,0,0" Padding="0,0,0,3"
+               Target="{Binding ElementName=PreferenceRuleName}" Content="Rule _name" />
+        <TextBox x:Name="PreferenceRuleName" MaxWidth="600" HorizontalAlignment="Stretch"
+                 KeyboardNavigation.TabIndex="200"
+                 AutomationProperties.AutomationId="PreferenceRuleName"
+                 AutomationProperties.Name="Location preference rule name"
+                 AutomationProperties.HelpText="Enter 1 to 128 characters without surrounding whitespace"
+                 Text="{Binding RuleName, UpdateSourceTrigger=PropertyChanged}" />
+
+        <TextBlock Margin="0,10,0,4" FontWeight="SemiBold" Text="Roots, highest rank first" />
+        <ListBox MinHeight="80" MaxHeight="140" KeyboardNavigation.TabIndex="210"
+                 AutomationProperties.AutomationId="PreferenceOrderedRoots"
+                 AutomationProperties.Name="Ordered preferred scan roots; highest rank first"
+                 ItemsSource="{Binding OrderedRoots}" SelectedItem="{Binding SelectedRoot, Mode=TwoWay}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem" BasedOn="{StaticResource DefaultListBoxItemStyle}">
+                    <Setter Property="AutomationProperties.Name" Value="{Binding}" />
+                    <Setter Property="AutomationProperties.HelpText" Value="Use Move up and Move down to change this root's explicit rank" />
+                </Style>
+            </ListBox.ItemContainerStyle>
+        </ListBox>
+        <WrapPanel Margin="0,6,0,0">
+            <Button Margin="0,0,6,6" KeyboardNavigation.TabIndex="220"
+                    AutomationProperties.AutomationId="PreferenceMoveRootUp"
+                    AutomationProperties.Name="Move selected root one rank higher"
+                    Command="{Binding MoveRootUpCommand}" Content="Move up" />
+            <Button Margin="0,0,6,6" KeyboardNavigation.TabIndex="230"
+                    AutomationProperties.AutomationId="PreferenceMoveRootDown"
+                    AutomationProperties.Name="Move selected root one rank lower"
+                    Command="{Binding MoveRootDownCommand}" Content="Move down" />
+            <Button Margin="0,0,6,6" KeyboardNavigation.TabIndex="240"
+                    AutomationProperties.AutomationId="PreferenceRemoveRoot"
+                    AutomationProperties.Name="Remove selected root from this rule"
+                    Command="{Binding RemoveRootCommand}" Content="Remove" />
+        </WrapPanel>
+        <WrapPanel Margin="0,2,0,0">
+            <TextBox MinWidth="260" MaxWidth="520" HorizontalAlignment="Stretch"
+                     KeyboardNavigation.TabIndex="250"
+                     AutomationProperties.AutomationId="PreferenceNewRoot"
+                     AutomationProperties.Name="Absolute scan root to add to the ordered rule"
+                     Text="{Binding NewRoot, UpdateSourceTrigger=PropertyChanged}" />
+            <Button Margin="6,0,0,0" KeyboardNavigation.TabIndex="260"
+                    AutomationProperties.AutomationId="PreferenceAddRoot"
+                    AutomationProperties.Name="Add root at the lowest preference rank"
+                    Command="{Binding AddRootCommand}" Content="Add root" />
+        </WrapPanel>
+        <Button Margin="0,8,0,0" HorizontalAlignment="Left" KeyboardNavigation.TabIndex="270"
+                AutomationProperties.AutomationId="PreferenceSaveRule"
+                AutomationProperties.Name="Save named ordered location preference rule configuration"
+                AutomationProperties.HelpText="Saves preference configuration only; does not change any review decision"
+                Command="{Binding SaveCommand}" Content="Save preference" />
+
+        <Separator Margin="0,16,0,14" />
+        <TextBlock Style="{StaticResource SectionTitle}" Text="Virtual preview — not saved decisions"
+                   AutomationProperties.AutomationId="PreferencePreviewHeading" />
+        <TextBlock Margin="0,4,0,0" Text="{Binding PreviewBindingText}" TextWrapping="Wrap"
+                   AutomationProperties.AutomationId="PreferencePreviewBinding"
+                   AutomationProperties.Name="{Binding PreviewBindingText}" />
+        <WrapPanel Margin="0,10,0,0">
+            <Label Padding="0,0,6,0" VerticalAlignment="Center"
+                   Target="{Binding ElementName=PreferencePreviewScope}" Content="Preview _scope" />
+            <ComboBox x:Name="PreferencePreviewScope" MinWidth="220" KeyboardNavigation.TabIndex="280"
+                      AutomationProperties.AutomationId="PreferencePreviewScope"
+                      AutomationProperties.Name="Explicit location preference preview scope"
+                      DisplayMemberPath="DisplayName" ItemsSource="{Binding ScopeOptions}"
+                      SelectedItem="{Binding SelectedScope, Mode=TwoWay}" />
+            <Button Margin="8,0,0,0" KeyboardNavigation.TabIndex="290"
+                    AutomationProperties.AutomationId="PreferenceRunPreview"
+                    AutomationProperties.Name="Run read-only location preference preview"
+                    AutomationProperties.HelpText="Computes virtual Keep and Remove outcomes without applying decisions or deleting files"
+                    Command="{Binding PreviewCommand}" Content="Preview" />
+            <Button Margin="6,0,0,0" KeyboardNavigation.TabIndex="300"
+                    AutomationProperties.AutomationId="PreferenceNextPreviewPage"
+                    AutomationProperties.Name="Next location preference preview page"
+                    Command="{Binding NextPageCommand}" Content="Next page" />
+            <Button x:Name="PreferenceApplyRuleButton" Margin="6,0,0,0"
+                    KeyboardNavigation.TabIndex="310"
+                    AutomationProperties.AutomationId="PreferenceApplyRule"
+                    AutomationProperties.Name="Review and confirm this exact location preference preview"
+                    AutomationProperties.HelpText="Opens a confirmation; applying changes reversible review decisions only and does not validate or delete files"
+                    Command="{Binding ApplyCommand}" Content="Apply preview…" />
+        </WrapPanel>
+
+        <Border Margin="0,8,0,0" Padding="10"
+                BorderBrush="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"
+                BorderThickness="2"
+                Visibility="{Binding IsApplicationConfirmationVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock x:Name="PreferenceApplicationConfirmationHeading" Focusable="True"
+                           KeyboardNavigation.TabIndex="320" FontWeight="SemiBold"
+                           Text="Confirm saved rule decisions"
+                           AutomationProperties.AutomationId="PreferenceApplicationConfirmationHeading"
+                           AutomationProperties.Name="Confirm saved rule decisions from this exact virtual preview" />
+                <TextBlock Margin="0,5,0,0" TextWrapping="Wrap"
+                           Text="{Binding ApplicationConfirmationText}"
+                           AutomationProperties.AutomationId="PreferenceApplicationConfirmationSummary"
+                           AutomationProperties.Name="{Binding ApplicationConfirmationText}" />
+                <WrapPanel Margin="0,8,0,0">
+                    <Button Margin="0,0,6,0" KeyboardNavigation.TabIndex="330"
+                            AutomationProperties.AutomationId="PreferenceConfirmApplication"
+                            AutomationProperties.Name="Confirm rule application to review decisions only"
+                            AutomationProperties.HelpText="Records reversible review intent; does not validate or delete files"
+                            Command="{Binding ConfirmApplicationCommand}" Content="Confirm application" />
+                    <Button KeyboardNavigation.TabIndex="340"
+                            AutomationProperties.AutomationId="PreferenceCancelApplication"
+                            AutomationProperties.Name="Cancel rule application confirmation"
+                            Command="{Binding CancelApplicationCommand}" Content="Cancel" />
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Margin="0,8,0,0" TextWrapping="Wrap"
+                   AutomationProperties.AutomationId="PreferencePreviewSummary"
+                   AutomationProperties.Name="{Binding SummaryText, StringFormat='Location preference preview summary: {0}'}"
+                   Text="{Binding SummaryText}" />
+        <TextBlock Margin="0,5,0,0" TextWrapping="Wrap"
+                   AutomationProperties.AutomationId="PreferencePreviewStatus"
+                   AutomationProperties.LiveSetting="Polite"
+                   AutomationProperties.Name="{Binding StatusMessage}"
+                   accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding AnnouncementVersion}"
+                   accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
+                   accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
+                   accessibility:AutomationNotificationBehavior.ActivityId="LocationPreferencePreview"
+                   Text="{Binding StatusMessage}" />
+        <TextBlock Margin="0,5,0,0" TextWrapping="Wrap"
+                   AutomationProperties.AutomationId="PreferencePreviewError"
+                   AutomationProperties.LiveSetting="Assertive"
+                   AutomationProperties.Name="{Binding ErrorMessage, StringFormat='Location preference preview error: {0}'}"
+                   accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding AnnouncementVersion}"
+                   accessibility:AutomationNotificationBehavior.NotificationKind="ActionAborted"
+                   accessibility:AutomationNotificationBehavior.NotificationProcessing="ImportantMostRecent"
+                   accessibility:AutomationNotificationBehavior.ActivityId="LocationPreferencePreviewError"
+                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                   Text="{Binding ErrorMessage}"
+                   Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+        <ListView MinHeight="100" MaxHeight="230" Margin="0,8,0,0"
+                  KeyboardNavigation.TabIndex="390"
+                  AutomationProperties.AutomationId="PreferencePreviewGroups"
+                  AutomationProperties.Name="Read-only location preference preview results"
+                  ItemsSource="{Binding PreviewGroups}" HorizontalContentAlignment="Stretch"
+                  ScrollViewer.CanContentScroll="True"
+                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                  VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.VirtualizationMode="Recycling">
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Margin="2,5" AutomationProperties.Name="{Binding AutomationName}">
+                        <WrapPanel>
+                            <TextBlock Margin="0,0,10,0" FontWeight="SemiBold"
+                                       Text="{Binding GroupId, StringFormat='Set {0}'}" />
+                            <TextBlock FontWeight="SemiBold" Text="{Binding Status}" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding PreferredRoot, StringFormat='Preferred root: {0}'}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Explanation}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding ProposedKeepText, StringFormat='Virtual outcome: {0}'}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding ProposedRemoveText}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}" />
+                    <Setter Property="AutomationProperties.HelpText" Value="This is a virtual preview only; nothing is applied or deleted" />
+                </Style>
+            </ListView.ItemContainerStyle>
+        </ListView>
+
+        <Separator Margin="0,16,0,14" />
+        <TextBlock Style="{StaticResource SectionTitle}" Text="Saved decisions from rule applications"
+                   AutomationProperties.AutomationId="PreferenceSavedDecisionsHeading" />
+        <TextBlock Margin="0,4,0,0" Text="Only a confirmed application records review decisions. Later manual choices remain manual and are preserved by reversal."
+                   TextWrapping="Wrap" />
+        <TextBlock Margin="0,8,0,0" TextWrapping="Wrap"
+                   AutomationProperties.AutomationId="PreferenceApplicationHistory"
+                   AutomationProperties.Name="{Binding ApplicationHistoryText}"
+                   Text="{Binding ApplicationHistoryText}" />
+        <Button x:Name="PreferenceReverseApplicationButton" Margin="0,8,0,0"
+                HorizontalAlignment="Left" KeyboardNavigation.TabIndex="350"
+                AutomationProperties.AutomationId="PreferenceReverseApplication"
+                AutomationProperties.Name="Reverse rule application"
+                AutomationProperties.HelpText="Clears only this application's rule-produced decisions and preserves later manual choices"
+                Command="{Binding ReverseCommand}" Content="Reverse rule application" />
+
+        <Border Margin="0,8,0,0" Padding="10"
+                BorderBrush="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"
+                BorderThickness="2"
+                Visibility="{Binding IsReversalConfirmationVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock x:Name="PreferenceReversalConfirmationHeading" Focusable="True"
+                           KeyboardNavigation.TabIndex="360" FontWeight="SemiBold"
+                           Text="Confirm Reverse rule application"
+                           AutomationProperties.AutomationId="PreferenceReversalConfirmationHeading"
+                           AutomationProperties.Name="Confirm Reverse rule application" />
+                <TextBlock Margin="0,5,0,0" TextWrapping="Wrap"
+                           Text="{Binding ReversalConfirmationText}"
+                           AutomationProperties.AutomationId="PreferenceReversalConfirmationSummary"
+                           AutomationProperties.Name="{Binding ReversalConfirmationText}" />
+                <WrapPanel Margin="0,8,0,0">
+                    <Button Margin="0,0,6,0" KeyboardNavigation.TabIndex="370"
+                            AutomationProperties.AutomationId="PreferenceConfirmReversal"
+                            AutomationProperties.Name="Confirm Reverse rule application while preserving later manual review choices"
+                            Command="{Binding ConfirmReversalCommand}" Content="Confirm reversal" />
+                    <Button KeyboardNavigation.TabIndex="380"
+                            AutomationProperties.AutomationId="PreferenceCancelReversal"
+                            AutomationProperties.Name="Cancel Reverse rule application"
+                            Command="{Binding CancelReversalCommand}" Content="Cancel" />
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

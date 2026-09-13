@@ -179,6 +179,47 @@ public sealed class PreferenceRulesViewModelTests
         StringAssert.Contains(viewModel.StatusMessage, "filter changed");
     }
 
+    [TestMethod]
+    public async Task Same_run_composition_preserves_edits_and_worker_review_revision_owns_preview()
+    {
+        var worker = new TestWorkerClient();
+        var run = CompletedRun(19, [@"C:\Primary", @"D:\Archive"]);
+        PreferencePreviewQuery? requestedPreview = null;
+        worker.PreferencePreviewHandler = (query, _) =>
+        {
+            requestedPreview = query;
+            return Task.FromResult(new WorkerPreferencePreviewPage(
+                [new WorkerPreferencePreviewGroup(
+                    1, "applicable", 0, @"C:\Primary", 1, 1, 1, 1, "100",
+                    0, 0, "preferred_root_rank", null, null)],
+                1, null, query.RuleId, query.RuleRevision, null, query.ReviewRevision, Summary(1))
+            { PreviewSignature = "worker-owned-signature" });
+        };
+        using var viewModel = new PreferenceRulesViewModel(
+            worker,
+            () => new DuplicateFileGroupFilter(string.Empty, "0"),
+            () => 1,
+            () => 0);
+
+        await viewModel.ShowRunAsync(run);
+        viewModel.RuleName = "Primary libraries";
+        await viewModel.EnsureRunAsync(run);
+        Assert.AreEqual("Primary libraries", viewModel.RuleName, "opening another pane for the same run must not reset edits");
+        await viewModel.SaveCommand.ExecuteAsync(null);
+        viewModel.SynchronizeReviewRevision(7);
+        await viewModel.PreviewCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(7, requestedPreview?.ReviewRevision);
+        StringAssert.Contains(viewModel.PreviewBindingText, "Virtual preview only");
+        StringAssert.Contains(viewModel.PreviewBindingText, "not saved review decisions");
+        StringAssert.Contains(viewModel.ApplicationConfirmationText, "1 affected set and 2 affected copies");
+
+        viewModel.SynchronizeReviewRevision(8);
+        Assert.IsFalse(viewModel.ApplyCommand.CanExecute(null));
+        Assert.AreEqual(0, viewModel.PreviewGroups.Count);
+        StringAssert.Contains(viewModel.StatusMessage, "review plan changed");
+    }
+
     private static WorkerRun CompletedRun(long id, IReadOnlyList<string> roots) => new(
         id,
         1,

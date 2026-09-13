@@ -15,10 +15,7 @@ public partial class DuplicateFilesView : UserControl
     internal const int SetNavigationFocusAttemptLimit = 8;
     internal const double NarrowWorkspaceWidth = 760;
 
-    private PreferenceRulesViewModel? _preferenceRules;
     private DuplicateFilesViewModel? _model;
-    private bool _applicationConfirmationWasVisible;
-    private bool _reversalConfirmationWasVisible;
     private bool _isNarrow;
     private bool _showNarrowDetail;
     private bool _syncingSort;
@@ -85,15 +82,6 @@ public partial class DuplicateFilesView : UserControl
         _showNarrowDetail = false;
         UpdateResponsiveLayout(ActualWidth);
         UpdateSortIndicators();
-        if (_preferenceRules is not null)
-        {
-            _preferenceRules.PropertyChanged -= OnPreferenceRulesPropertyChanged;
-        }
-        _preferenceRules = (e.NewValue as DuplicateFilesViewModel)?.PreferenceRules;
-        if (_preferenceRules is not null)
-        {
-            _preferenceRules.PropertyChanged += OnPreferenceRulesPropertyChanged;
-        }
     }
 
     private void OnQueryPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -229,44 +217,6 @@ public partial class DuplicateFilesView : UserControl
             || !Enum.TryParse(directionText, out WorkerSortDirection direction)
             || (_model.SortField == field && _model.SortDirection == direction)) return;
         await _model.ApplySortAsync(field, direction);
-    }
-
-    private void OnPreferenceRulesPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (_preferenceRules is null)
-        {
-            return;
-        }
-        if (e.PropertyName == nameof(PreferenceRulesViewModel.IsApplicationConfirmationVisible))
-        {
-            var visible = _preferenceRules.IsApplicationConfirmationVisible;
-            if (visible)
-            {
-                _ = FocusWhenVisibleAsync(PreferenceApplicationConfirmationHeading);
-            }
-            else if (_applicationConfirmationWasVisible)
-            {
-                _ = Dispatcher.BeginInvoke(
-                    new Action(() => PreferenceApplyRuleButton.Focus()),
-                    DispatcherPriority.Input);
-            }
-            _applicationConfirmationWasVisible = visible;
-        }
-        else if (e.PropertyName == nameof(PreferenceRulesViewModel.IsReversalConfirmationVisible))
-        {
-            var visible = _preferenceRules.IsReversalConfirmationVisible;
-            if (visible)
-            {
-                _ = FocusWhenVisibleAsync(PreferenceReversalConfirmationHeading);
-            }
-            else if (_reversalConfirmationWasVisible)
-            {
-                _ = Dispatcher.BeginInvoke(
-                    new Action(() => PreferenceReverseApplicationButton.Focus()),
-                    DispatcherPriority.Input);
-            }
-            _reversalConfirmationWasVisible = visible;
-        }
     }
 
     private async Task<bool> FocusWhenVisibleAsync(FrameworkElement heading)

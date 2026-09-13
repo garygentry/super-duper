@@ -1,6 +1,6 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-03 complete with scoped operator acceptance; UIR-04, UIR-05 and UIR-06 in progress; UIR-04a/b/c, UIR-05a/b/c and UIR-06a locally implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
+Status: UIR-03 complete with scoped operator acceptance; UIR-04, UIR-05 and UIR-06 in progress; UIR-04a/b/c, UIR-05a/b/c and UIR-06a/b locally implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -140,12 +140,21 @@ states from worker preflight revisions/reasons. Core 214 and three loaded-STA WP
 captures and the clean fixture build are retained. No worker/protocol/ceiling, rule, execution,
 recovery-resolution or production boundary changed. UIR-06 remains in progress.
 
-The exact next local slice is **UIR-06b: focused Location preferences in Review**. Recompose the
-existing rule workflow into the specified discoverable panel while preserving saved ordered roots,
-virtual preview scope, revision/signature, explicit scope/count confirmation, provenance, application
-reversal and later manual overrides. Keep preview changes distinct from saved decisions and call the
-operation **Reverse rule application**. Do not create arbitrary undo, change manual Reset semantics,
-enable execution, resolve recovery outcomes or pull UIR-07 forward.
+**UIR-06b implemented (2026-09-13).** [Evidence](evidence/uir-06b-location-preferences.md) covers the
+focused **Location preferences** panel in Review. Saved ordered-root configuration, virtual preview
+scope/rule/review revision/signature, exact application confirmation, application provenance,
+**Reverse rule application** and later manual overrides retain the existing worker contracts. Review
+synchronizes current worker revision without opening the Files workspace; stale preview and same-run edit
+retention are covered. Core 216 and three loaded-STA WPF methods pass with 111 captures and a clean
+fixture build. UIR-06a/b are locally implemented; UIR-06 remains in progress for later integrated/
+native acceptance. No rule protocol, manual Reset, arbitrary undo, execution or recovery behavior changed.
+
+The exact next local slice is **UIR-07a: History/open-run and contextual warning composition**. Read
+S05, capability/validation guidance and directly linked history selection/open-run, warning paging,
+return-navigation and focus tests. Make selected-versus-active run context and exact bounded warning
+return paths explicit while preserving immutable historical results, the 500-run history limit,
+25-row/five-page warning bounds and current/terminal revision ownership. Do not pull Performance
+detail, recovery resolution, execution, full A17 or UIR-08 integration forward.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read

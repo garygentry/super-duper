@@ -88,8 +88,18 @@ totals remain distinct from separate bounded Files/Folders pages; overlap and ha
 not recomputed in the UI. Exact resolvable set/member links return to bounded Results state. Current,
 plan-changed, ready, blocked and needs-review states derive from stored revision/outcome contracts,
 and **Check marked copies** remains distinct from visible-page **Check these copies**. Core 214 and
-three loaded-STA WPF methods pass. Location-preference reversal remains UIR-06b; integrated native,
-scale/screen-reader/operator acceptance remains UIR-08/09.
+three loaded-STA WPF methods pass. Location-preference composition is completed by UIR-06b;
+integrated native, scale/screen-reader/operator acceptance remains UIR-08/09.
+
+## UIR-06b local implementation evidence
+
+[UIR-06b](evidence/uir-06b-location-preferences.md) implements the local Location preferences portion
+of A04/A10/A11/A15. The same worker-backed view model now composes into Review without opening the
+Files workspace. Saved rule configuration, virtual preview and applied review decisions have separate
+headings/copy; scope, rule/review revisions and preview signature remain worker-bound. Confirmation
+names affected sets/copies, and **Reverse rule application** preserves later manual overrides. Core
+216 and three loaded-STA WPF methods pass at 1180x760, 900x600 and toolbar stress. UIR-06a/b are
+locally implemented; integrated native/scale/screen-reader/operator acceptance remains UIR-08/09.
 
 ## Carried native checks from scoped shell acceptance
 

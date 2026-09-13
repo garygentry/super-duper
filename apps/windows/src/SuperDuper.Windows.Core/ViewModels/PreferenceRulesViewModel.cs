@@ -286,22 +286,30 @@ public sealed class PreferenceRulesViewModel : ObservableObject, IDisposable
     public string ApplicationConfirmationText =>
         _currentPage is null
             ? "Run Preview again before applying this rule."
-            : $"Apply {RuleName} revision {_ruleRevision:N0} to {SelectedScope.DisplayName.ToLowerInvariant()} at review revision {_currentPage.ReviewRevision:N0}: "
-              + $"{_summary.AffectedGroupCount:N0} applicable sets, {_summary.BlockedGroupCount:N0} blocked, "
-              + $"{_summary.ProposedKeepPathCount:N0} rule Keeps and {_summary.ProposedRemovePathCount:N0} rule Removes "
+            : $"Apply {RuleName} revision {_ruleRevision:N0} to the previewed {SelectedScope.DisplayName.ToLowerInvariant()} at review revision {_currentPage.ReviewRevision:N0}: "
+              + $"{FormatCount(_summary.AffectedGroupCount, "affected set")} and {FormatCount(_summary.ProposedKeepPathCount + _summary.ProposedRemovePathCount, "affected copy", "affected copies")} "
+              + $"({_summary.ProposedKeepPathCount:N0} rule Keeps and {_summary.ProposedRemovePathCount:N0} rule Removes), "
+              + $"with {_summary.BlockedGroupCount:N0} blocked sets "
               + $"({_summary.ProposedRemovePhysicalItemCount:N0} physical items, {DisplayFormatting.Bytes(_summary.ProposedRemoveBytes)}). "
               + "This changes review decisions only; it does not delete or validate files.";
 
     public string ReversalConfirmationText => LatestApplication is null
         ? "No active rule application is available to reverse."
-        : $"Reverse application {LatestApplication.Id:N0} from {LatestApplication.RuleName}: clear "
+        : $"Reverse rule application {LatestApplication.Id:N0} from {LatestApplication.RuleName}: clear "
           + $"{LatestApplication.Summary.RuleKeepPathCount:N0} rule Keeps and "
           + $"{LatestApplication.Summary.RuleRemovePathCount:N0} rule Removes. Manual file and folder choices will be preserved.";
 
     public string ApplicationHistoryText => LatestApplication is null
         ? "No rule application has been recorded for this rule and run."
-        : $"Application {LatestApplication.Id:N0}: {LatestApplication.State}; review revision {LatestApplication.AppliedRevision:N0}; "
+        : $"Recorded rule application {LatestApplication.Id:N0}: {LatestApplication.State}; review revision {LatestApplication.AppliedRevision:N0}; "
           + $"{LatestApplication.Summary.RuleKeepPathCount:N0} rule Keeps and {LatestApplication.Summary.RuleRemovePathCount:N0} rule Removes.";
+
+    public bool HasPreview => _currentPage is not null;
+
+    public string PreviewBindingText => _currentPage is null
+        ? "No current virtual preview. Saving a rule does not change review decisions."
+        : $"Virtual preview only · {SelectedScope.DisplayName} · rule revision {_currentPage.RuleRevision:N0} · review revision {_currentPage.ReviewRevision:N0}. "
+          + "These proposed changes are not saved review decisions.";
 
     public string SummaryText =>
         $"{_summary.AffectedGroupCount:N0} applicable sets; {_summary.BlockedGroupCount:N0} blocked; "
@@ -361,6 +369,8 @@ public sealed class PreferenceRulesViewModel : ObservableObject, IDisposable
         IsReversalConfirmationVisible = false;
         _summary = EmptySummary();
         OnPropertyChanged(nameof(SummaryText));
+        OnPropertyChanged(nameof(HasPreview));
+        OnPropertyChanged(nameof(PreviewBindingText));
         if (run?.Status != "completed")
         {
             StatusMessage = "Preference preview is available for completed runs only.";
@@ -408,6 +418,25 @@ public sealed class PreferenceRulesViewModel : ObservableObject, IDisposable
             {
                 IsBusy = false;
             }
+        }
+    }
+
+    public Task EnsureRunAsync(WorkerRun? run, CancellationToken cancellationToken = default) =>
+        _run?.Id == run?.Id && _run?.Status == run?.Status
+            ? Task.CompletedTask
+            : ShowRunAsync(run, cancellationToken);
+
+    public void SynchronizeReviewRevision(long revision)
+    {
+        if (_run?.Status != "completed" || revision < 0)
+        {
+            return;
+        }
+        _knownReviewRevision = Math.Max(_knownReviewRevision, revision);
+        if (_currentPage is not null && _currentPage.ReviewRevision != _knownReviewRevision)
+        {
+            Cancel(preserveRuleSelection: true);
+            InvalidatePreview("The review plan changed. Run Preview again to use the current review revision.");
         }
     }
 
@@ -576,7 +605,7 @@ public sealed class PreferenceRulesViewModel : ObservableObject, IDisposable
                         _run.Id,
                         _ruleId.Value,
                         _ruleRevision,
-                        _reviewRevision(),
+                        CurrentReviewRevision,
                         PreviewPageSize,
                         scope,
                         cursor),
@@ -590,7 +619,7 @@ public sealed class PreferenceRulesViewModel : ObservableObject, IDisposable
             if (generation != _generation
                 || page.RuleId != _ruleId
                 || page.RuleRevision != _ruleRevision
-                || page.ReviewRevision != _reviewRevision())
+                || page.ReviewRevision != CurrentReviewRevision)
             {
                 return;
             }
@@ -600,6 +629,8 @@ public sealed class PreferenceRulesViewModel : ObservableObject, IDisposable
             _summary = page.Summary;
             PreviewGroups = page.Groups.Select(group => new PreferencePreviewGroupListItemViewModel(group)).ToArray();
             OnPropertyChanged(nameof(SummaryText));
+            OnPropertyChanged(nameof(HasPreview));
+            OnPropertyChanged(nameof(PreviewBindingText));
             OnPropertyChanged(nameof(CanMoveNext));
             NextPageCommand.NotifyCanExecuteChanged();
             ApplyCommand.NotifyCanExecuteChanged();
@@ -706,6 +737,8 @@ public sealed class PreferenceRulesViewModel : ObservableObject, IDisposable
             PreviewGroups = [];
             _summary = EmptySummary();
             OnPropertyChanged(nameof(SummaryText));
+            OnPropertyChanged(nameof(HasPreview));
+            OnPropertyChanged(nameof(PreviewBindingText));
             StatusMessage = $"Applied {result.Application.RuleName}: {result.Application.Summary.RuleKeepPathCount:N0} rule Keeps and {result.Application.Summary.RuleRemovePathCount:N0} rule Removes at review revision {result.Application.AppliedRevision:N0}. Nothing was deleted.";
             AnnouncementVersion++;
             ReviewRevisionChanged?.Invoke(runId, result.Application.AppliedRevision);
@@ -737,14 +770,14 @@ public sealed class PreferenceRulesViewModel : ObservableObject, IDisposable
         }
         IsApplicationConfirmationVisible = false;
         IsReversalConfirmationVisible = true;
-        StatusMessage = "Confirm reversal of only this application's rule-produced decisions. Manual choices will remain.";
+        StatusMessage = "Confirm Reverse rule application for only this application's rule-produced decisions. Manual choices will remain.";
         AnnouncementVersion++;
     }
 
     private void CancelReversalConfirmation()
     {
         IsReversalConfirmationVisible = false;
-        StatusMessage = "Rule-application reversal cancelled. Review decisions were not changed.";
+        StatusMessage = "Reverse rule application cancelled. Review decisions were not changed.";
         AnnouncementVersion++;
     }
 
@@ -758,7 +791,7 @@ public sealed class PreferenceRulesViewModel : ObservableObject, IDisposable
         var operationId = _pendingReverseOperationId;
         var application = LatestApplication;
         var runId = _run.Id;
-        var expectedRevision = Math.Max(_knownReviewRevision, _reviewRevision());
+        var expectedRevision = CurrentReviewRevision;
         var generation = _generation;
         IsBusy = true;
         ErrorMessage = null;
@@ -782,7 +815,7 @@ public sealed class PreferenceRulesViewModel : ObservableObject, IDisposable
             };
             _knownReviewRevision = result.AppliedRevision;
             IsReversalConfirmationVisible = false;
-            StatusMessage = $"Reversed application {application.Id:N0}: cleared {result.RemovedRuleKeepCount:N0} rule Keeps and {result.RemovedRuleRemoveCount:N0} rule Removes. Manual choices were preserved; nothing was deleted.";
+            StatusMessage = $"Reversed rule application {application.Id:N0}: cleared {result.RemovedRuleKeepCount:N0} rule Keeps and {result.RemovedRuleRemoveCount:N0} rule Removes. Manual choices were preserved; nothing was deleted.";
             AnnouncementVersion++;
             ReviewRevisionChanged?.Invoke(runId, result.AppliedRevision);
         }
@@ -811,7 +844,7 @@ public sealed class PreferenceRulesViewModel : ObservableObject, IDisposable
         && _currentPage is not null
         && _previewScope is not null
         && !string.IsNullOrWhiteSpace(_currentPage.PreviewSignature)
-        && _currentPage.ReviewRevision == Math.Max(_knownReviewRevision, _reviewRevision())
+        && _currentPage.ReviewRevision == CurrentReviewRevision
         && _summary.AffectedGroupCount > 0;
 
     private bool CanConfirmApplication() => CanApply() && IsApplicationConfirmationVisible;
@@ -833,6 +866,8 @@ public sealed class PreferenceRulesViewModel : ObservableObject, IDisposable
 
     private bool CanPreview() =>
         !IsBusy && !_isRuleDirty && _run?.Status == "completed" && _ruleId is not null;
+
+    private long CurrentReviewRevision => Math.Max(_knownReviewRevision, _reviewRevision());
 
     private bool CanAddRoot() =>
         !IsBusy
@@ -942,6 +977,8 @@ public sealed class PreferenceRulesViewModel : ObservableObject, IDisposable
         _pendingReverseOperationId = null;
         _summary = EmptySummary();
         OnPropertyChanged(nameof(SummaryText));
+        OnPropertyChanged(nameof(HasPreview));
+        OnPropertyChanged(nameof(PreviewBindingText));
         OnPropertyChanged(nameof(CanMoveNext));
         NextPageCommand.NotifyCanExecuteChanged();
         StatusMessage = message;
@@ -1003,4 +1040,7 @@ public sealed class PreferenceRulesViewModel : ObservableObject, IDisposable
 
     private static WorkerPreferencePreviewSummary EmptySummary() =>
         new(0, 0, 0, "0", 0, 0, 0, 0, 0, "0", 0, 0, 0, 0, 0, 0, 0, 0);
+
+    private static string FormatCount(long count, string singular, string? plural = null) =>
+        $"{count:N0} {(count == 1 ? singular : plural ?? singular + "s")}";
 }

@@ -156,45 +156,6 @@ public sealed class WpfSurfaceSmokeTests
                 "Next drive facet page",
                 AutomationProperties.GetName(FindByAutomationId<Button>(files, "FileNextDriveFacets")));
             _ = FindByAutomationId<TextBlock>(files, "FileSelectedDriveFilterText");
-            var preferenceExpander = FindByAutomationId<Expander>(files, "PreferredRootPreviewExpander");
-            StringAssert.Contains(AutomationProperties.GetHelpText(preferenceExpander), "No files are validated or deleted");
-            preferenceExpander.IsExpanded = true;
-            files.UpdateLayout();
-            Assert.AreEqual(
-                "Move selected root one rank higher",
-                AutomationProperties.GetName(FindByAutomationId<Button>(files, "PreferenceMoveRootUp")));
-            Assert.AreEqual(
-                "Move selected root one rank lower",
-                AutomationProperties.GetName(FindByAutomationId<Button>(files, "PreferenceMoveRootDown")));
-            StringAssert.Contains(
-                AutomationProperties.GetHelpText(FindByAutomationId<Button>(files, "PreferenceSaveRule")),
-                "does not change any review decision");
-            StringAssert.Contains(
-                AutomationProperties.GetHelpText(FindByAutomationId<Button>(files, "PreferenceRunPreview")),
-                "without applying decisions or deleting files");
-            StringAssert.Contains(
-                AutomationProperties.GetHelpText(FindByAutomationId<Button>(files, "PreferenceApplyRule")),
-                "review decisions only");
-            StringAssert.Contains(
-                AutomationProperties.GetName(FindByAutomationId<Button>(files, "PreferenceConfirmApplication")),
-                "review decisions only");
-            StringAssert.Contains(
-                AutomationProperties.GetHelpText(FindByAutomationId<Button>(files, "PreferenceReverseApplication")),
-                "preserves manual choices");
-            StringAssert.Contains(
-                AutomationProperties.GetName(FindByAutomationId<Button>(files, "PreferenceConfirmReversal")),
-                "preserving manual review choices");
-            var preferenceGrid = FindByAutomationId<DataGrid>(files, "PreferencePreviewGroups");
-            Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(preferenceGrid));
-            Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(preferenceGrid));
-            var preferenceStatus = FindByAutomationId<TextBlock>(files, "PreferencePreviewStatus");
-            Assert.AreEqual(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(preferenceStatus));
-            Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
-                AutomationNotificationBehavior.GetNotificationKind(preferenceStatus));
-            var preferenceError = FindByAutomationId<TextBlock>(files, "PreferencePreviewError");
-            Assert.AreEqual(AutomationLiveSetting.Assertive, AutomationProperties.GetLiveSetting(preferenceError));
-            Assert.AreEqual(AutomationNotificationKind.ActionAborted,
-                AutomationNotificationBehavior.GetNotificationKind(preferenceError));
             Assert.AreEqual(
                 AutomationLiveSetting.Polite,
                 AutomationProperties.GetLiveSetting(FindByAutomationId<TextBlock>(files, "FileSummaryMatchingSets")));
@@ -380,6 +341,7 @@ public sealed class WpfSurfaceSmokeTests
                 keyboardOrder.Select(KeyboardNavigation.GetTabIndex).Order().ToArray(),
                 keyboardOrder.Select(KeyboardNavigation.GetTabIndex).ToArray());
             AssertPrimaryFileFiltersReflow(files);
+            AssertLocationPreferencesReflow(preflight);
             var fileMembersSurface = FindByAutomationId<DataGrid>(files, "FileMembersGrid");
             Assert.AreEqual(1, fileMembersSurface.Columns.Count);
             Assert.AreEqual("Copies in selected set", fileMembersSurface.Columns[0].Header);
@@ -449,6 +411,52 @@ public sealed class WpfSurfaceSmokeTests
             _ = FindByAutomationId<TextBlock>(preflight, "ReviewSelectedRunContext");
             _ = FindByAutomationId<TextBlock>(preflight, "ReviewCombinedTotals");
             _ = FindByAutomationId<TextBlock>(preflight, "ReviewCombinedTotalsExplanation");
+            var preferenceExpander = FindByAutomationId<Expander>(preflight, "LocationPreferencesExpander");
+            StringAssert.Contains(AutomationProperties.GetHelpText(preferenceExpander), "Nothing is deleted or validated");
+            preferenceExpander.IsExpanded = true;
+            preflight.UpdateLayout();
+            _ = FindByAutomationId<FrameworkElement>(preflight, "LocationPreferencesPanel");
+            _ = FindByAutomationId<TextBlock>(preflight, "PreferencePreviewHeading");
+            _ = FindByAutomationId<TextBlock>(preflight, "PreferenceSavedDecisionsHeading");
+            Assert.AreEqual(
+                "Move selected root one rank higher",
+                AutomationProperties.GetName(FindByAutomationId<Button>(preflight, "PreferenceMoveRootUp")));
+            Assert.AreEqual(
+                "Move selected root one rank lower",
+                AutomationProperties.GetName(FindByAutomationId<Button>(preflight, "PreferenceMoveRootDown")));
+            StringAssert.Contains(
+                AutomationProperties.GetHelpText(FindByAutomationId<Button>(preflight, "PreferenceSaveRule")),
+                "does not change any review decision");
+            StringAssert.Contains(
+                AutomationProperties.GetHelpText(FindByAutomationId<Button>(preflight, "PreferenceRunPreview")),
+                "without applying decisions or deleting files");
+            StringAssert.Contains(
+                AutomationProperties.GetHelpText(FindByAutomationId<Button>(preflight, "PreferenceApplyRule")),
+                "review decisions only");
+            StringAssert.Contains(
+                AutomationProperties.GetName(FindByAutomationId<Button>(preflight, "PreferenceConfirmApplication")),
+                "review decisions only");
+            Assert.AreEqual(
+                "Reverse rule application",
+                AutomationProperties.GetName(FindByAutomationId<Button>(preflight, "PreferenceReverseApplication")));
+            StringAssert.Contains(
+                AutomationProperties.GetHelpText(FindByAutomationId<Button>(preflight, "PreferenceReverseApplication")),
+                "later manual choices");
+            StringAssert.Contains(
+                AutomationProperties.GetName(FindByAutomationId<Button>(preflight, "PreferenceConfirmReversal")),
+                "preserving later manual review choices");
+            var preferenceList = FindByAutomationId<ListView>(preflight, "PreferencePreviewGroups");
+            Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(preferenceList));
+            Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(preferenceList));
+            Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(preferenceList));
+            var preferenceStatus = FindByAutomationId<TextBlock>(preflight, "PreferencePreviewStatus");
+            Assert.AreEqual(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(preferenceStatus));
+            Assert.AreEqual(AutomationNotificationKind.ActionCompleted,
+                AutomationNotificationBehavior.GetNotificationKind(preferenceStatus));
+            var preferenceError = FindByAutomationId<TextBlock>(preflight, "PreferencePreviewError");
+            Assert.AreEqual(AutomationLiveSetting.Assertive, AutomationProperties.GetLiveSetting(preferenceError));
+            Assert.AreEqual(AutomationNotificationKind.ActionAborted,
+                AutomationNotificationBehavior.GetNotificationKind(preferenceError));
             var reviewFileGroups = FindByAutomationId<ListView>(preflight, "ReviewFileGroupsList");
             var reviewFolderGroups = FindByAutomationId<ListView>(preflight, "ReviewFolderGroupsList");
             Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(reviewFileGroups));
@@ -1401,19 +1409,34 @@ public sealed class WpfSurfaceSmokeTests
         Assert.IsTrue(
             lastRight <= files.ActualWidth,
             "A wrapped primary filter control extends beyond the duplicate-file workspace.");
-        var preferenceRootEditor = FindByAutomationId<TextBox>(files, "PreferenceNewRoot");
-        var preferencePreview = FindByAutomationId<Button>(files, "PreferenceRunPreview");
-        var rootEditorTop = preferenceRootEditor.TranslatePoint(new Point(0, 0), files).Y;
-        var previewTop = preferencePreview.TranslatePoint(new Point(0, 0), files).Y;
-        var previewRight = preferencePreview.TranslatePoint(
-            new Point(preferencePreview.ActualWidth, 0),
-            files).X;
+        host.Content = null;
+        host.Close();
+    }
+
+    private static void AssertLocationPreferencesReflow(PreflightView review)
+    {
+        const double narrowWorkspaceWidth = 620;
+        var host = new Window
+        {
+            Width = narrowWorkspaceWidth,
+            Height = 900,
+            Content = review,
+            SizeToContent = SizeToContent.Manual,
+        };
+        host.Show();
+        FindByAutomationId<Expander>(review, "LocationPreferencesExpander").IsExpanded = true;
+        host.UpdateLayout();
+        DrainDispatcher();
+
+        var rootEditor = FindByAutomationId<TextBox>(review, "PreferenceNewRoot");
+        var preview = FindByAutomationId<Button>(review, "PreferenceRunPreview");
+        var previewRight = preview.TranslatePoint(new Point(preview.ActualWidth, 0), review).X;
+        var preferenceList = FindByAutomationId<ListView>(review, "PreferencePreviewGroups");
         Assert.IsTrue(
-            previewTop > rootEditorTop,
-            "The preferred-root preview controls should stack below the rule editor in a narrow workspace.");
-        Assert.IsTrue(
-            previewRight <= files.ActualWidth,
-            "A preferred-root preview control extends beyond the duplicate-file workspace.");
+            preview.TranslatePoint(new Point(0, 0), review).Y > rootEditor.TranslatePoint(new Point(0, 0), review).Y,
+            "The virtual preview controls should stack below the saved preference editor.");
+        Assert.IsTrue(previewRight <= review.ActualWidth, "A location-preference preview control extends beyond Review.");
+        Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(preferenceList));
         host.Content = null;
         host.Close();
     }

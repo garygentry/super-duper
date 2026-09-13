@@ -95,7 +95,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             clipboard,
             recycleBin,
             NavigateToFreshScanAsync,
-            NavigateToReviewResultAsync);
+            NavigateToReviewResultAsync,
+            DuplicateFiles.PreferenceRules);
         DuplicateFiles.ReviewRevisionChanged += OnFileReviewRevisionChanged;
         DuplicateFolders.ReviewRevisionChanged += OnFolderReviewRevisionChanged;
 

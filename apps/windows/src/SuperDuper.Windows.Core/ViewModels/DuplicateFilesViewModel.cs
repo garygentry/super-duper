@@ -1000,7 +1000,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
         if (run is null)
         {
             StateMessage = "Select a completed run to browse duplicate files.";
-            await PreferenceRules.ShowRunAsync(null, cancellationToken);
+            await PreferenceRules.EnsureRunAsync(null, cancellationToken);
             return;
         }
         if (run.Status != "completed")
@@ -1008,7 +1008,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
             StateMessage = run.Status is "running" or "pending" or "cancelling"
                 ? "Duplicate results become available after this scan completes."
                 : $"This run is {DisplayFormatting.Status(run.Status).ToLowerInvariant()}; partial results are not shown.";
-            await PreferenceRules.ShowRunAsync(run, cancellationToken);
+            await PreferenceRules.EnsureRunAsync(run, cancellationToken);
             return;
         }
 
@@ -1022,7 +1022,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
             LoadReviewPlanAsync(run.Id, reviewGeneration, _reviewCancellation.Token),
             LoadDirtyRootsAsync(run.Id, dirtyRootGeneration, _dirtyRootCancellation.Token));
         if (Run?.Id != run.Id || reviewGeneration != _reviewGeneration || cancellationToken.IsCancellationRequested) return;
-        await PreferenceRules.ShowRunAsync(run, cancellationToken);
+        await PreferenceRules.EnsureRunAsync(run, cancellationToken);
     }
 
     public async Task<bool> OpenReviewTargetAsync(

@@ -1,7 +1,7 @@
 # Windows UI redesign
 
 Status: high-level direction accepted with long-scan/rescan feedback, updated 2026-09-13. Product
-implementation includes UIR-04a saved setup/Scan again, UIR-04b long-scan freshness/terminal presentation, UIR-04c compact monitoring/details, UIR-05a compact file queries/totals, UIR-05b adjustable file comparison/full local A03, UIR-05c adjustable folder comparison/remaining local folder criteria, UIR-06a dedicated Review overview/revision-aware validation and UIR-03a/b/c/d/e/f shell/context, shared resources, viewport verification and
+implementation includes UIR-04a saved setup/Scan again, UIR-04b long-scan freshness/terminal presentation, UIR-04c compact monitoring/details, UIR-05a compact file queries/totals, UIR-05b adjustable file comparison/full local A03, UIR-05c adjustable folder comparison/remaining local folder criteria, UIR-06a dedicated Review overview/revision-aware validation, UIR-06b focused Location preferences and UIR-03a/b/c/d/e/f shell/context, shared resources, viewport verification and
 the operator-reported scrollbar, theme, text-size and empty-folder fixes. The package records the accepted direction and its limits; it is not a claim of
 operator usability acceptance or Windows release acceptance.
 
@@ -47,7 +47,7 @@ are authoritative if its intentionally small fictional dataset or simplified int
 | UIR-03 Shell and context | complete | [Scoped shell acceptance](evidence/uir-03-shell-acceptance.md); available checks passed; NVDA/200% retained for UIR-08/A11 |
 | UIR-04 | in_progress | [UIR-04a setup/Scan again](evidence/uir-04a-saved-scan-setup.md) and [UIR-04b elapsed/freshness/terminal](evidence/uir-04b-long-scan-monitoring.md) and [UIR-04c compact monitoring/details](evidence/uir-04c-compact-monitoring.md) locally implemented; later integrated/operator validation remains |
 | UIR-05 | in_progress | [UIR-05a file query controls/totals](evidence/uir-05a-file-query-controls.md), [UIR-05b adjustable file comparison/A03](evidence/uir-05b-file-comparison.md) and [UIR-05c adjustable folder comparison](evidence/uir-05c-folder-comparison.md) locally implemented; later integrated/native acceptance remains |
-| UIR-06 | in_progress | [UIR-06a Review overview/validation status](evidence/uir-06a-review-overview.md) locally implemented; next UIR-06b focused Location preferences workflow; later integrated/native acceptance remains |
+| UIR-06 | in_progress | [UIR-06a Review overview/validation status](evidence/uir-06a-review-overview.md) and [UIR-06b focused Location preferences](evidence/uir-06b-location-preferences.md) locally implemented; later integrated/native acceptance remains |
 | UIR-07 through UIR-09 | planned | Later implementation and final native/user acceptance remain |
 
 On 2026-09-11 the operator [passed three initial checks](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks):
@@ -83,8 +83,10 @@ Folders while completing local A04/A05/A06/A11/A15 coverage: neutral selection, 
 named decisions, truthful draft/applied filtering and states, complete paths/descendant scope,
 bounded reveal and focus restoration. UIR-06a adds separate bounded Files/Folders Review pages,
 worker-owned combined totals, exact-set return links and current/stale/ready/blocked/needs-review
-whole-plan status. Core 214 and three WPF methods pass. Next: UIR-06b focused Location preferences
-authoring/preview/application/reversal using the unchanged worker-owned workflow. Re-audit runtime before reuse;
+whole-plan status. UIR-06b moves the unchanged worker-owned preference workflow into Review, clearly
+separates saved configuration, virtual preview and applied decisions, and uses **Reverse rule
+application** while preserving later manual overrides. Core 216 and three WPF methods pass. Next:
+UIR-07a History/open-run and contextual warning composition. Re-audit runtime before reuse;
 do not troubleshoot Windows scaling.
 Small visual preferences can evolve during implementation.
 Execution enablement and physical/provider campaigns retain their separate authority requirements.

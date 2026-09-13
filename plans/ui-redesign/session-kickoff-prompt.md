@@ -13,11 +13,18 @@ docs/windows-roadmap-session-handoff.md, plans/ui-redesign/README.md, execution-
 session-checkpoint.md. Follow codex-session-guide.md. Then read only the selected gate's linked
 specifications, code and tests; do not load historical engine/campaign narratives without a need.
 
-The current dependency-ready local slice is UIR-06a: compose the dedicated Review overview from
-worker-owned combined totals and separate bounded Files/Folders review queries, with exact-set return
-links and revision-aware non-deleting validation status. Read S04 and its directly linked review-plan,
-review-group, preflight revision/survivor/overlap and navigation tests. Keep rule authoring/reversal,
-execution, recovery resolution and UIR-07 out of this slice.
+The current dependency-ready local slice is UIR-07a: compose History/open-run identity with
+contextual warning paging and deterministic return focus. Read S05, capability/validation guidance
+and its directly linked history selection/open-run, warning paging, return-navigation and focus
+tests. Make selected-versus-active run identity explicit; preserve immutable historical results,
+the 500-run history fetch, 25-row/five-page warning bounds, exact selected scan/date/state and
+current/terminal warning revision ownership. Keep Performance detail, recovery resolution,
+execution, full A17 and UIR-08 integration out of this slice.
+
+Preserve UIR-06a worker-owned combined totals, separate 200-row/five-page Files/Folders queries,
+exact links, validation states and **Check marked copies** distinction. Preserve UIR-06b saved
+ordered roots, virtual preview scope/revision/signature, confirmation/provenance, fresh-preview
+enforcement, **Reverse rule application**, later manual overrides and Reset semantics.
 
 Implement that bounded slice from the execution ledger. The accepted direction
 keeps WPF and the Rust worker, with Scan/Results/Review/History. Long scans need truthful live phase,

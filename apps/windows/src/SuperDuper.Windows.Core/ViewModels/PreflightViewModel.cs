@@ -65,11 +65,13 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
         IClipboardService? clipboard = null,
         IRecycleBinService? recycleBin = null,
         Func<Task>? navigateToFreshScan = null,
-        Func<ReviewResultTarget, Task>? navigateToResult = null)
+        Func<ReviewResultTarget, Task>? navigateToResult = null,
+        PreferenceRulesViewModel? preferenceRules = null)
     {
         _worker = worker;
         _confirmation = confirmation;
         _navigateToResult = navigateToResult;
+        PreferenceRules = preferenceRules;
         Operation = new RecycleOperationViewModel(
             worker,
             recycleOperationExecutor,
@@ -89,6 +91,8 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
     }
 
     public ObservableCollection<PreflightItemViewModel> Items { get; } = [];
+
+    public PreferenceRulesViewModel? PreferenceRules { get; }
 
     public RecycleOperationViewModel Operation { get; }
 
@@ -445,9 +449,10 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
         ErrorMessage = null;
         NotifyStateChanged();
         var operationTask = Operation.ShowRunAsync(run, token);
+        var preferenceTask = PreferenceRules?.EnsureRunAsync(run, token) ?? Task.CompletedTask;
         if (run?.Status != "completed")
         {
-            await operationTask;
+            await Task.WhenAll(operationTask, preferenceTask);
             return;
         }
         IsLoading = true;
@@ -460,6 +465,8 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
                 return;
             }
             _review = review;
+            await preferenceTask;
+            PreferenceRules?.SynchronizeReviewRevision(review.Plan.Revision);
             NotifyReviewOverviewChanged();
             var fileGroupsTask = LoadFileReviewPageAsync(null, generation, token);
             var folderGroupsTask = LoadFolderReviewPageAsync(null, generation, token);
@@ -513,6 +520,7 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
                 : await _worker.GetPreflightAsync(previousPreflight.Id, token);
             if (generation != _generation || token.IsCancellationRequested) return;
             _review = review;
+            PreferenceRules?.SynchronizeReviewRevision(review.Plan.Revision);
             Preflight = preflight;
             ResetReviewPages();
             await Task.WhenAll(

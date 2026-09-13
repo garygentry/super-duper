@@ -23,20 +23,22 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest local slice: UIR-06a dedicated Review overview and revision-aware validation status, in this
-  checkpoint's commit. Baseline `4480398` (UIR-05c). Evidence:
-  `plans/ui-redesign/evidence/uir-06a-review-overview.md`.
+- Latest local slice: UIR-06b focused Location preferences in Review, in this checkpoint's commit.
+  Baseline `143ee77` (UIR-06a). Evidence:
+  `plans/ui-redesign/evidence/uir-06b-location-preferences.md`.
 - UIR-00/01/02/03 complete; UIR-04, UIR-05 and UIR-06 in_progress. UIR-04a/b/c, UIR-05a/b/c and
-  UIR-06a are locally implemented. Later integrated/full A17/native/operator validation remains open.
-- UIR-06a adds the selected-scan Review overview, worker-owned combined totals, separate bounded Files/
-  Folders review pages and exact bounded return links. Whole-plan **Check marked copies** is distinct
-  from visible-page **Check these copies**; current, plan-changed, ready, blocked and needs-review
-  states remain revision/reason-owned by the worker. Failed page replacements retain accepted rows.
-- Verification: 214 Core and three loaded-STA WPF methods passed; isolated fixture build has zero
-  warnings/errors. Review reachability/virtualization/non-execution checks pass at 1180x760, 900x600
-  and toolbar stress while retaining prior comparison, Light/Dark and 150%-text checks. There are
-  105 captures under `artifacts/uir06a/captures-accepted-reviewed`; results and corrections are under
-  `artifacts/uir06a`. UIR-04 and UIR-05 baselines remain retained.
+  UIR-06a/b are locally implemented. Later integrated/full A17/native/operator validation remains open.
+- UIR-06b moves the shared worker-backed workflow from Files into a focused, discoverable **Location
+  preferences** Review panel. Saved ordered-root configuration, virtual preview and applied decision
+  provenance are explicitly distinct. Scope/count confirmation, rule/review revisions, worker preview
+  signature, fresh-preview enforcement, **Reverse rule application** and later manual overrides remain.
+- UIR-06a worker-owned combined totals, separate 200-row/five-page Files/Folders review pages, exact
+  bounded links, retained accepted pages and current/plan-changed/ready/blocked/needs-review states remain.
+- Verification: 216 Core and three loaded-STA WPF methods passed; isolated fixture build has zero
+  warnings/errors. The focused panel is virtualized, vertical-only and reachable at 1180x760, 900x600
+  and toolbar stress while retaining prior Review/Results/theme/text/focus checks. There are 111
+  reviewed captures under `artifacts/uir06b/captures-accepted-reviewed-final`; final results and
+  retained corrections are under `artifacts/uir06b`.
 - Retain UIR-03 scoped shell acceptance: nine earlier walkthrough passes, scrollbar correction,
   Narrator, corrected Dark/Desert/live text size, and physical 150%/175% transitions with focus and
   file-group selection retained. Do not replay accepted checks without a reopen reason.
@@ -44,16 +46,15 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   UIR-08/A11, not passed or waived. Do not troubleshoot Windows, force scaling or install software.
 - Prior paired Debug/Release integration and UIR-03c Rust 226 passed/10 ignored are retained, not rerun.
   UIR-04a/b/c are local implementation; full A17/native/user acceptance and UIR-08 integration remain later.
-- Exact next local slice: UIR-06b focused Location preferences in Review. Recompose the existing
-  discoverable workflow into a focused panel while preserving saved ordered roots, virtual preview
-  scope/revision/signature, explicit scope/count confirmation, provenance, application reversal and
-  later manual overrides. Keep preview changes separate from saved decisions and use **Reverse rule
-  application**. Do not add arbitrary undo, change Reset semantics, enable execution, resolve
-  recovery outcomes or pull UIR-07 forward.
+- Exact next local slice: UIR-07a History/open-run and contextual warning composition. Read S05,
+  capability/validation guidance and linked history selection/open-run, warning paging, return and
+  focus tests. Preserve selected-versus-active identity, immutable historical results, 500-run
+  history fetch, 25-row/five-page warning bounds and current/terminal revision ownership. Do not
+  pull Performance detail, recovery resolution, execution, full A17 or UIR-08 integration forward.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; print the required copyable next-session
   prompt at handoff. UIR-04 retains later integrated/operator validation; no physical campaign authority.
 - Runtime audit: fictional PID 67748/session 1 responsive at the exact UIR-03f executable, left untouched.
-  UIR-04b/04c/05a/05b/05c/06a outputs are built, not launched. UIR-06a fixture build has zero
+  UIR-04b/04c/05a/05b/05c/06a/06b outputs are built, not launched. UIR-06b fixture build has zero
   warnings/errors. Re-audit before reuse.
   Test windows closed; no production app/worker observed. Production state and disabled deletion untouched.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
@@ -500,18 +501,16 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-UIR-04a/b/c, UIR-05a/b/c and UIR-06a are locally implemented; UIR-04/05/06 remain in progress for
-later integrated/native acceptance. Next local work is UIR-06b: focused Location preferences in
-Review. Read S04, capability/validation guidance and directly linked preference-rule preview,
-application, reversal, provenance, revision/signature and manual-override tests. Recompose the
-existing discoverable workflow into a focused panel; preserve saved ordered roots, virtual preview
-scope, explicit scope/count confirmation, fresh-preview requirements, application provenance,
-reversal and later manual overrides. Label preview changes separately from saved decisions and use
-**Reverse rule application**. Preserve UIR-06a combined totals, separate bounded Review pages,
-exact-set links and revision-aware validation, plus all UIR-05 semantics. Do not add arbitrary undo,
-change Reset semantics, enable execution, resolve recovery outcomes or pull UIR-07 forward. Retain
-UIR-06a's 214 Core/three WPF results. Full A17 and integrated/native/operator validation remain later.
-Use the compact checkpoint/session guide.
+UIR-04a/b/c, UIR-05a/b/c and UIR-06a/b are locally implemented; UIR-04/05/06 remain in progress for
+later integrated/native acceptance. Next local work is UIR-07a: History/open-run and contextual
+warning composition. Read S05, capability/validation guidance and directly linked history selection,
+explicit open-run, warning paging, exact return-navigation and focus tests. Make selected-versus-active
+run context and bounded warning return paths explicit while preserving immutable historical results,
+the 500-run history fetch, 25-row/five-page warning bounds, selected scan identity and current/terminal
+revision ownership. Preserve every UIR-04/05/06 contract. Do not pull Performance detail, recovery
+resolution, execution, full A17 or UIR-08 integration forward. Retain UIR-06b's 216 Core/three WPF
+results and reviewed captures. Full A17 and integrated/native/operator validation remain later. Use
+the compact checkpoint/session guide.
 All work stays on codex/ui-redesign; preserve wpf-poc at deefa40, no switch/worktree/merge/push.
 Re-audit PID 67748 and all fixture/app/worker paths before reuse; never overwrite running outputs.
 Preserve production state/deletion locks and SOP boundaries. NVDA/physical 200% remain unavailable
@@ -612,6 +611,15 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+2026-09-13 UIR-06b: Core 216 passed and three loaded-STA WPF methods passed. The shared
+worker-backed Location preferences workflow is now a focused Review panel that distinguishes saved
+ordered-root configuration, virtual preview and saved decisions from rule applications. Scope/count
+confirmation, current Review/rule revision ownership, preview signature, fresh-preview enforcement,
+provenance, **Reverse rule application**, later manual overrides, virtualization and vertical-only
+narrow access pass at 1180x760, 900x600 and toolbar stress. Isolated fixture build passed with zero
+warnings/errors; 111 reviewed captures and retained corrections are under `artifacts/uir06b`. See
+`plans/ui-redesign/evidence/uir-06b-location-preferences.md`.
 
 2026-09-13 UIR-05c: Core 210 passed and three loaded-STA WPF methods passed. The adjustable 36/64
 folder comparison and narrow set/copy/selected-copy flow pass with complete local/fictional UNC
@@ -1359,6 +1367,16 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+- 2026-09-13: UIR-06b locally implements the focused Location preferences Review panel for
+  A04/A10/A11/A15 while preserving the existing worker-backed rule semantics. Saved ordered roots,
+  virtual preview and applied decision provenance are distinct; same-run edits survive Review/Files
+  navigation; preview/apply/reversal use the current Review revision and stale previews invalidate.
+  Scope/count confirmation, fresh-preview enforcement, later manual overrides, exact **Reverse rule
+  application**, virtualized vertical-only access and narrow reflow pass. Core 216 and three WPF
+  methods pass; 111 captures and a clean fixture build are retained. UIR-07a next composes History/
+  open-run identity with contextual warning paging and return focus. Runtime, production deletion,
+  worker/protocol/ceiling and SOP boundaries are unchanged.
 
 - 2026-09-13: UIR-06a locally implements the dedicated selected-scan Review overview and
   revision-aware whole-plan validation presentation for A01/A04/A10/A11/A15. Combined totals remain
