@@ -8,6 +8,7 @@ using System.Windows.Threading;
 using SuperDuper.Windows.Core.ViewModels;
 using SuperDuper.Windows.Core.Workers;
 using SuperDuper.Windows.Core.Services;
+using SuperDuper.Windows.Core.Tests;
 
 namespace SuperDuper.Windows.Smoke.Tests;
 
@@ -130,6 +131,7 @@ internal static class PopulatedShellFixture
             Drain();
             Assert.IsFalse(model.DuplicateFiles.HasError);
             Assert.AreEqual(old.Id, model.SelectedRun?.Id);
+            ConfigurePopulatedFolderResults(client, model, old);
 
             foreach (var size in new[] { new Size(1180, 760), new Size(900, 600) })
             {
@@ -148,6 +150,7 @@ internal static class PopulatedShellFixture
                 }
                 VerifyScanScrollClearance(window, model, size);
                 VerifyViewportAccess(window, model, size);
+                VerifyFolderViewportAccess(window, model, size);
             }
             // The standalone fixture adds a wrapping toolbar above the shipping content.
             // Reserve 80 DIPs at minimum size to cover that host's extra vertical overhead.
@@ -155,6 +158,7 @@ internal static class PopulatedShellFixture
             Drain();
             VerifyScanScrollClearance(window, model, new Size(900, 600), "-toolbar");
             VerifyViewportAccess(window, model, new Size(900, 600), "-toolbar");
+            VerifyFolderViewportAccess(window, model, new Size(900, 600), "-toolbar");
             ((FrameworkElement)window.Content).Margin = new Thickness(0);
             Drain();
             client.FolderGroupPageHandler = (_, _) => Task.FromResult(new WorkerDuplicateFolderGroupPage([], 0, null, null));
@@ -162,6 +166,40 @@ internal static class PopulatedShellFixture
         }
         finally { window.Close(); }
         Assert.IsTrue(textScale.Disposed, "Closing the window releases the native settings subscription.");
+    }
+
+    private static void ConfigurePopulatedFolderResults(TestWorkerClient client, ShellViewModel model, WorkerRun run)
+    {
+        client.FolderGroupPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFolderGroupPage(
+            Enumerable.Range(1, 25).Select(id => new WorkerDuplicateFolderGroup(
+                id,
+                query.RunId,
+                "8192",
+                14,
+                2,
+                $@"C:\fixture\source-{id:00}\family archive\photos\2026")).ToArray(),
+            25,
+            null,
+            null));
+        client.FolderMemberPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFolderMemberPage(
+            [
+                new WorkerDuplicateFolderMember(
+                    query.GroupId * 10 + 1,
+                    query.GroupId,
+                    $@"C:\fixture\source-{query.GroupId:00}\family archive\photos\2026"),
+                new WorkerDuplicateFolderMember(
+                    query.GroupId * 10 + 2,
+                    query.GroupId,
+                    $@"\\fictional-server\archive\retained generations\location-{query.GroupId:00}\family archive\photos\2026"),
+            ],
+            2,
+            null,
+            null)
+        {
+            ReviewSummary = new WorkerReviewFolderGroupSummary(query.GroupId, 0, 0, 2, 2),
+        });
+        model.DuplicateFolders.ShowRunAsync(run).GetAwaiter().GetResult();
+        Drain();
     }
 
     private sealed class FixtureTextScale : ITextScaleSource
@@ -519,6 +557,134 @@ internal static class PopulatedShellFixture
         AssertVisible(history, window, minimumHeight: 36);
     }
 
+    private static void VerifyFolderViewportAccess(MainWindow window, ShellViewModel model, Size size, string host = "")
+    {
+        var suffix = $"{size.Width}x{size.Height}{host}";
+        model.DuplicateFolders.SelectedMember = null;
+        model.SelectedDestination = WorkspaceDestination.FolderResults;
+        Drain();
+        var workspace = Find<Grid>(window, "FolderComparisonWorkspace");
+        var setPane = Find<Grid>(window, "FolderSetPane");
+        var detailPane = Find<Grid>(window, "FolderDetailPane");
+        var splitter = Find<GridSplitter>(window, "FolderComparisonSplitter");
+        var groups = Find<DataGrid>(window, "FolderGroupsGrid");
+        var members = Find<DataGrid>(window, "FolderLocationCards");
+
+        Assert.AreEqual(25, groups.Items.Count);
+        Assert.AreEqual(2, members.Items.Count);
+        Assert.IsNull(model.DuplicateFolders.SelectedMember,
+            "Opening a folder-copy page must not imply a review choice.");
+        Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(groups));
+        Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(members));
+        Assert.IsTrue(model.DuplicateFolders.SelectedRelationshipSummaryText.Contains("folder copies", StringComparison.Ordinal));
+        Assert.IsTrue(model.DuplicateFolders.Members.All(member =>
+            !string.IsNullOrWhiteSpace(member.ParentLocation)
+            && !string.IsNullOrWhiteSpace(member.DifferingPathSegments)));
+
+        if (size.Width >= 1180)
+        {
+            Assert.IsTrue(setPane.IsVisible && detailPane.IsVisible && splitter.IsVisible);
+            var setWidthRatio = setPane.ActualWidth / (setPane.ActualWidth + detailPane.ActualWidth);
+            Assert.IsTrue(setWidthRatio is >= 0.32 and <= 0.42,
+                $"{suffix}: initial folder list/detail split must stay near 36/64; measured {setWidthRatio:P1}.");
+            Assert.IsTrue(splitter.Focusable && KeyboardNavigation.GetIsTabStop(splitter));
+            var setColumn = workspace.ColumnDefinitions[0];
+            var detailColumn = workspace.ColumnDefinitions[2];
+            var priorSetWidth = setPane.ActualWidth;
+            setColumn.Width = new GridLength(45, GridUnitType.Star);
+            detailColumn.Width = new GridLength(55, GridUnitType.Star);
+            Drain();
+            Assert.IsTrue(setPane.ActualWidth > priorSetWidth + 20,
+                "Changing the adjustable folder split must grow the set pane.");
+            setColumn.Width = new GridLength(36, GridUnitType.Star);
+            detailColumn.Width = new GridLength(64, GridUnitType.Star);
+            Drain();
+        }
+        else
+        {
+            Assert.IsTrue(setPane.IsVisible && !detailPane.IsVisible && !splitter.IsVisible,
+                $"{suffix}: narrow Folders starts with the exact-folder set list only.");
+            var compare = Find<Button>(window, "FolderCompareSelectedSet");
+            Assert.IsTrue(compare.IsVisible && compare.IsEnabled);
+            compare.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Drain();
+            Assert.IsTrue(!setPane.IsVisible && detailPane.IsVisible && !splitter.IsVisible,
+                $"{suffix}: Compare selected set must replace the folder list with its copies.");
+            Assert.IsTrue(Find<Button>(window, "FolderBackToSets").IsVisible);
+            Assert.IsTrue(Find<TextBlock>(window, "FolderSelectedSetHeading").IsKeyboardFocused,
+                "Narrow folder comparison must focus its selected-set heading.");
+            Capture(window, $"populated-Folder-copies-{suffix}");
+        }
+
+        members.SelectedIndex = 0;
+        members.ScrollIntoView(members.Items[0]);
+        Drain();
+        var selectedPanel = Find<Border>(window, "FolderSelectedCopyPanel");
+        var selectedPath = Find<TextBox>(window, "FolderSelectedCopyPath");
+        Assert.AreEqual(model.DuplicateFolders.Members[0].Path, selectedPath.Text);
+        Assert.AreEqual(TextWrapping.Wrap, selectedPath.TextWrapping);
+        Assert.AreEqual(ScrollBarVisibility.Disabled, selectedPath.HorizontalScrollBarVisibility);
+        Assert.IsTrue(selectedPanel.IsVisible);
+        var selectedPanelScroll = Find<ScrollViewer>(window, "FolderSelectedCopyScrollViewer");
+        var actions = Descendants<Button>(selectedPanel).Where(button => button.Content?.ToString() is
+            "Keep" or "Mark for removal" or "Reset decision" or "Copy path" or "Show in Explorer").ToArray();
+        Assert.AreEqual(5, actions.Length);
+        if (host.Length == 0)
+        {
+            foreach (var action in actions)
+            {
+                ReachWithinVerticalScroll(action, selectedPanelScroll, window);
+                StringAssert.Contains(AutomationProperties.GetName(action), model.DuplicateFolders.Members[0].FolderName);
+            }
+        }
+        Assert.AreEqual(0, selectedPanelScroll.ScrollableWidth, 0.5,
+            $"{suffix}: selected-folder path and decisions must not require horizontal scrolling.");
+        StringAssert.Contains(
+            Descendants<TextBlock>(selectedPanel).Single(text => text.Text.StartsWith("A folder decision applies", StringComparison.Ordinal)).Text,
+            "all descendants");
+        Capture(window, $"populated-Folder-selected-copy-{suffix}");
+
+        if (host.Length == 0)
+        {
+            Find<Button>(window, "FolderSelectPageInExplorer").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Drain();
+            if (size.Width >= 1180)
+            {
+                Assert.IsTrue(members.IsKeyboardFocusWithin,
+                    "Bounded folder-page reveal returns focus to the visible comparison list.");
+            }
+            else
+            {
+                var backToCopies = Find<Button>(window, "FolderBackToCopies");
+                Assert.IsTrue(backToCopies.IsKeyboardFocused,
+                    "Bounded folder-page reveal returns focus to the visible selected-folder detail.");
+                backToCopies.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Drain();
+                Assert.IsTrue(members.IsVisible && members.IsKeyboardFocusWithin,
+                    "Back to folder copies restores the comparison list and keyboard focus.");
+            }
+        }
+        else
+        {
+            model.DuplicateFolders.SelectedMember = null;
+            Drain();
+        }
+
+        var selectedGroup = model.DuplicateFolders.SelectedGroup;
+        if (size.Width < 1180)
+        {
+            Find<Button>(window, "FolderBackToSets").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Drain();
+            Assert.IsTrue(setPane.IsVisible && !detailPane.IsVisible);
+            Assert.IsTrue(groups.IsKeyboardFocusWithin, "Back to folder sets restores set-list focus.");
+        }
+        model.SelectedDestination = WorkspaceDestination.Review;
+        Drain();
+        model.SelectedDestination = WorkspaceDestination.FolderResults;
+        Drain();
+        Assert.AreSame(selectedGroup, model.DuplicateFolders.SelectedGroup);
+    }
+
     private static void Reach(FrameworkElement element, Window window)
     {
         element.BringIntoView();
@@ -595,7 +761,7 @@ internal static class PopulatedShellFixture
 
     private static void Capture(Window window, string name)
     {
-        var directory = Environment.GetEnvironmentVariable("SUPER_DUPER_UIR05B_CAPTURES");
+        var directory = Environment.GetEnvironmentVariable("SUPER_DUPER_UIR05C_CAPTURES");
         if (string.IsNullOrWhiteSpace(directory)) return;
         Directory.CreateDirectory(directory);
         var bitmap = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);

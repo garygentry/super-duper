@@ -1,6 +1,6 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-03 complete with scoped operator acceptance; UIR-04 and UIR-05 in progress; UIR-04a/b/c and UIR-05a/b locally implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
+Status: UIR-03 complete with scoped operator acceptance; UIR-04 and UIR-05 in progress; UIR-04a/b/c and UIR-05a/b/c locally implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -121,12 +121,22 @@ virtualized columns eliminate grid horizontal scrolling; sorting remains server-
 three loaded-STA WPF methods pass. No engine, protocol, paging/cache ceiling, decision truth or
 production wiring changed. UIR-05 remains in progress.
 
-The exact next local slice is **UIR-05c: adjustable folder-results list/detail comparison and the
-remaining folder decision/path verification**. Read S03 and its directly linked folder comparison,
-relationship, decision, reveal and focus tests. Complete the remaining local A04/A05/A06/A11/A15
-coverage without pulling UIR-06 review work forward. Preserve UIR-05a query snapshots/units/chips,
-UIR-05b file comparison/navigation, selected-run identity, durable decisions, bounded paging/cache
-and focus. Do not claim the whole gate until folder evidence is recorded.
+**UIR-05c implemented (2026-09-13).** [Evidence](evidence/uir-05c-folder-comparison.md) covers the
+adjustable 36/64 Folders set/copy comparison and remaining local A04/A05/A06/A11/A15 behavior.
+Narrow width uses explicit set, copy-list and selected-copy pages; complete paths, relationship and
+descendant scope, five actions, bounded Explorer reveal and Back/focus behavior remain vertically
+reachable without horizontal scrolling. Folder query drafts cannot retarget paging, failed
+replacements retain accepted results, and default/filtered empty plus loading/error/unavailable
+states remain distinct. Core 210 and three loaded-STA WPF methods pass; the fixture build is clean.
+No engine, protocol, paging/cache ceiling, decision truth or production wiring changed. UIR-05a/b/c
+are locally implemented; UIR-05 remains in progress for later integrated/native acceptance.
+
+The exact next local slice is **UIR-06a: dedicated Review overview and revision-aware validation
+status**. Read S04, capability/validation guidance and directly linked review-plan, review-group,
+preflight revision/survivor/overlap and return-navigation tests. Compose worker-owned combined totals
+with separate bounded Files/Folders review queries and exact-set return links; make the non-deleting
+notice and stale/current validation state explicit. Preserve all UIR-05 query/comparison/decision
+semantics and do not pull rule authoring/reversal, execution, recovery resolution or UIR-07 forward.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read

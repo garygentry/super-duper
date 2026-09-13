@@ -73,9 +73,13 @@ of that capability. [Official AGENTS.md guidance](https://learn.chatgpt.com/docs
   [evidence](evidence/uir-05b-file-comparison.md). The 1180x760 comparison uses 69.7% of usable
   Files height; 900x600 uses explicit set/copy/selected-copy navigation without horizontal scroll.
   Core 207 and three WPF methods passed.
-- **Next: UIR-05c** — adjustable folder list/detail comparison and remaining folder decision/path
-  A04/A05/A06/A11/A15 verification, preserving UIR-05a/b. UIR-06 owns dedicated Review and
-  non-deleting validation.
+- **Implemented: UIR-05c** — adjustable folder list/detail comparison and remaining local
+  A04/A05/A06/A11/A15 verification; [evidence](evidence/uir-05c-folder-comparison.md). Neutral
+  selection, truthful applied queries/states, complete path/relationship scope, five actions,
+  bounded reveal and focus restoration pass. Core 210 and three WPF methods passed.
+- **Next: UIR-06a** — compose the dedicated Review overview from worker-owned combined totals and
+  separate bounded Files/Folders review queries, with revision-aware non-deleting validation status
+  and exact-set return links. Rule authoring/reversal remains a later UIR-06 slice.
 - **UIR-07** — history and contextual diagnostics, preserving the monitoring and rescan contract.
 - **UIR-08/09** — integrated Rust/.NET Debug/Release checks, native layout/keyboard/accessibility
   and scale evidence, then operator workflow acceptance. Remain on the branch after completion;

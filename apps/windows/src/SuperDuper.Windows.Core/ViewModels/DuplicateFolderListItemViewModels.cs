@@ -87,9 +87,10 @@ public sealed class DuplicateFolderMemberListItemViewModel
 
     public string KeepAutomationName => $"Keep folder copy {LocationLabel}";
 
-    public string RemoveAutomationName => $"Remove folder copy {LocationLabel}";
+    public string RemoveAutomationName =>
+        $"Mark folder copy {LocationLabel} and its descendants for removal; records intent only";
 
-    public string UndecideAutomationName => $"Clear folder decision for {LocationLabel}";
+    public string UndecideAutomationName => $"Reset decision for folder copy {LocationLabel} to Undecided";
 
     public string CopyPathAutomationName => $"Copy full path for folder copy {LocationLabel}";
 

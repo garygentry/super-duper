@@ -65,9 +65,20 @@ scale/integration and physical/operator acceptance remain UIR-08/09. No whole-ga
 criterion. The 1180x760 fixture measures 69.7% usable comparison height with an adjustable 36/64
 split. At 900x600, explicit set, copy-list and selected-copy pages retain complete paths, decisions,
 path actions and deterministic Back/focus behavior with zero horizontal scrolling. Core 207 and
-three loaded-STA WPF methods pass. A03's defined automated viewport criterion is complete. Folder
-comparison and the remaining UIR-05 criteria continue in UIR-05c; UIR-08/09 integrated native,
+three loaded-STA WPF methods pass. A03's defined automated viewport criterion is complete. UIR-05c
+subsequently completes the remaining local folder criteria; UIR-08/09 integrated native,
 scale/accessibility and operator acceptance are not inferred.
+
+## UIR-05c local implementation evidence
+
+[UIR-05c](evidence/uir-05c-folder-comparison.md) completes the remaining local automated folder
+comparison coverage for A04/A05/A06/A11/A15. The adjustable 36/64 and narrow three-level layouts
+keep complete folder paths, exact relationships, descendant/overlap consequences and five named
+actions reachable without horizontal scrolling. Draft/applied query separation, default/filtered
+empty states, loading/initial/retained errors, neutral selection, worker-confirmed Keep/Mark/Reset,
+bounded reveal and deterministic focus restoration are covered. Core 210 and three loaded-STA WPF
+methods pass. UIR-05a/b/c are locally implemented; integrated native/scale/screen-reader/operator
+acceptance remains UIR-08/09 and no whole-redesign acceptance is inferred.
 
 ## Carried native checks from scoped shell acceptance
 

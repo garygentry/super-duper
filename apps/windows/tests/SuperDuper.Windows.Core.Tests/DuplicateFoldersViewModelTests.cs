@@ -31,10 +31,12 @@ public sealed class DuplicateFoldersViewModelTests
         Assert.AreEqual(1, viewModel.GroupStatusAnnouncementVersion);
         Assert.AreEqual(
             "Selected exact duplicate folder group loaded. Showing 1 of 1 folder copies on this server-owned page. "
-            + "Use the side-by-side location cards; highlighted path segments differ among this page.",
+            + "Use the folder-copy comparison list; shared context and differing path segments describe this page.",
             viewModel.MemberStatusAnnouncement);
         Assert.AreEqual(1, viewModel.MemberStatusAnnouncementVersion);
         viewModel.CopyPathCommand.Execute(viewModel.Members[0]);
+        Assert.IsNull(viewModel.SelectedMember, "Loading a folder set must not imply a review choice.");
+        viewModel.SelectedMember = viewModel.Members[0];
         await viewModel.RevealInExplorerCommand.ExecuteAsync(viewModel.Members[0]);
         Assert.AreEqual(@"C:\One", clipboard.Text);
         Assert.AreEqual(@"C:\One", explorer.RevealedPath);
@@ -86,6 +88,55 @@ public sealed class DuplicateFoldersViewModelTests
     }
 
     [TestMethod]
+    public async Task FolderDraftsDoNotRetargetPagingAndAcceptedFiltersDriveTruthfulEmptyState()
+    {
+        var observedQueries = new List<DuplicateFolderGroupQuery>();
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) =>
+            {
+                observedQueries.Add(query);
+                return Task.FromResult(query.Filter.Search.Length == 0
+                    ? new WorkerDuplicateFolderGroupPage(
+                        [Group(query.Cursor is null ? 1 : 2, query.RunId, query.Cursor is null ? @"C:\default" : @"D:\default-copy")],
+                        2,
+                        query.Cursor is null ? "next" : null,
+                        query.Cursor is null ? null : "previous")
+                    : new WorkerDuplicateFolderGroupPage([], 0, null, null));
+            },
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(18, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        viewModel.SearchText = "draft path";
+        viewModel.MinimumSizeText = "4096";
+        await viewModel.NextPageCommand.ExecuteAsync(null);
+
+        Assert.IsTrue(observedQueries.Where(query => query.Cursor == "next").All(query =>
+            query.Filter.Search.Length == 0 && query.Filter.MinimumSize == "0"));
+        StringAssert.Contains(viewModel.AppliedFilterSummaryText, "none");
+
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+        Assert.IsTrue(viewModel.IsEmpty);
+        Assert.IsTrue(viewModel.HasAppliedFilters);
+        Assert.AreEqual("No folders match these filters", viewModel.EmptyStateTitle);
+        StringAssert.Contains(viewModel.StateMessage, "applied folder filters");
+        StringAssert.Contains(viewModel.AppliedFilterSummaryText, "draft path");
+        StringAssert.Contains(viewModel.AppliedFilterSummaryText, "4096 bytes per folder copy");
+
+        viewModel.SearchText = "unapplied replacement";
+        StringAssert.Contains(viewModel.AppliedFilterSummaryText, "draft path");
+        StringAssert.DoesNotMatch(viewModel.AppliedFilterSummaryText, new System.Text.RegularExpressions.Regex("unapplied"));
+
+        await viewModel.ClearFiltersCommand.ExecuteAsync(null);
+        Assert.AreEqual(string.Empty, viewModel.SearchText);
+        Assert.AreEqual(string.Empty, viewModel.MinimumSizeText);
+        Assert.IsFalse(viewModel.HasAppliedFilters);
+        StringAssert.Contains(viewModel.AppliedFilterSummaryText, "none");
+    }
+
+    [TestMethod]
     public async Task GroupQueryAnnouncementsRepeatAndReportValidationAndWorkerFailures()
     {
         var failWorkerQuery = false;
@@ -119,6 +170,32 @@ public sealed class DuplicateFoldersViewModelTests
         StringAssert.Contains(viewModel.GroupErrorAnnouncement, "results could not be loaded");
         StringAssert.Contains(viewModel.GroupErrorAnnouncement, "Worker query failed");
         Assert.AreEqual(2, viewModel.GroupErrorAnnouncementVersion);
+        Assert.IsTrue(viewModel.IsInitialError);
+        Assert.IsFalse(viewModel.HasRetainedGroupError);
+    }
+
+    [TestMethod]
+    public async Task FailedReplacementKeepsAcceptedFolderResultsAndAppliedQueryVisible()
+    {
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) => query.Filter.Search == "fail"
+                ? Task.FromException<WorkerDuplicateFolderGroupPage>(new IOException("replacement failed"))
+                : Task.FromResult(new WorkerDuplicateFolderGroupPage(
+                    [Group(1, query.RunId, @"C:\accepted")], 1, null, null)),
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(19, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        viewModel.SearchText = "fail";
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(@"C:\accepted", viewModel.Groups.Single().RepresentativePath);
+        Assert.IsTrue(viewModel.HasRetainedGroupError);
+        Assert.IsFalse(viewModel.IsInitialError);
+        StringAssert.Contains(viewModel.ErrorMessage, "replacement failed");
+        StringAssert.Contains(viewModel.AppliedFilterSummaryText, "none");
     }
 
     [TestMethod]
@@ -203,6 +280,7 @@ public sealed class DuplicateFoldersViewModelTests
 
         Assert.AreEqual(1, viewModel.MemberStatusAnnouncementVersion);
         var repeatedAnnouncement = viewModel.MemberStatusAnnouncement;
+        viewModel.SelectedMember = viewModel.Members[0];
         await viewModel.RevealInExplorerCommand.ExecuteAsync(viewModel.Members[0]);
         Assert.IsTrue(viewModel.HasExplorerError);
         StringAssert.Contains(viewModel.ExplorerErrorMessage, "Verify that the location is available");
@@ -251,6 +329,7 @@ public sealed class DuplicateFoldersViewModelTests
         await viewModel.ShowRunAsync(
             TestWorkerClient.CreateRun(32, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
 
+        viewModel.SelectedMember = viewModel.Members[0];
         var reveal = viewModel.RevealInExplorerCommand.ExecuteAsync(viewModel.SelectedMember);
         await nativeStarted.Task;
 
@@ -298,6 +377,7 @@ public sealed class DuplicateFoldersViewModelTests
         await viewModel.ShowRunAsync(
             TestWorkerClient.CreateRun(33, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
 
+        viewModel.SelectedMember = viewModel.Members[0];
         var reveal = viewModel.RevealInExplorerCommand.ExecuteAsync(viewModel.Members[0]);
         await staleStarted.Task;
         viewModel.SelectedMember = viewModel.Members[1];
@@ -485,7 +565,7 @@ public sealed class DuplicateFoldersViewModelTests
 
         viewModel.SelectedGroup = viewModel.Groups[1];
         Assert.AreEqual(1, viewModel.MemberStatusAnnouncementVersion);
-        StringAssert.Contains(viewModel.MemberStatusAnnouncement, "side-by-side location cards");
+        StringAssert.Contains(viewModel.MemberStatusAnnouncement, "folder-copy comparison list");
 
         staleResponse.SetResult(new WorkerDuplicateFolderMemberPage(
             [new(1, 1, @"C:\stale")],
@@ -551,7 +631,7 @@ public sealed class DuplicateFoldersViewModelTests
 
         Assert.AreEqual(DuplicateFoldersViewModel.PageSize, viewModel.Groups.Count);
         Assert.AreEqual(DuplicateFoldersViewModel.PageSize, viewModel.Members.Count);
-        Assert.AreEqual(viewModel.Members[0], viewModel.SelectedMember);
+        Assert.IsNull(viewModel.SelectedMember, "A bounded comparison page must remain selection-neutral until the user selects a row.");
         Assert.AreEqual(
             "Showing 200 of 205 folder copies on this server-owned page",
             viewModel.MemberPageStatusText);
@@ -570,12 +650,25 @@ public sealed class DuplicateFoldersViewModelTests
     public async Task NonCompletedAndEmptyRunsExposeExplicitStates()
     {
         using var viewModel = new DuplicateFoldersViewModel(new TestWorkerClient(), new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(null);
+        Assert.AreEqual("No scan selected", viewModel.UnavailableTitle);
         await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(1, 1, "running", "hashing", DateTimeOffset.UtcNow));
         Assert.IsTrue(viewModel.IsUnavailable);
+        Assert.AreEqual("Folder results not ready", viewModel.UnavailableTitle);
         StringAssert.Contains(viewModel.StateMessage, "after this scan completes");
 
-        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(2, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(2, 1, "cancelled", "hashing", DateTimeOffset.UtcNow));
+        Assert.AreEqual("Scan cancelled", viewModel.UnavailableTitle);
+        StringAssert.Contains(viewModel.StateMessage, "cancelled");
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(3, 1, "failed", "hashing", DateTimeOffset.UtcNow));
+        Assert.AreEqual("Scan failed", viewModel.UnavailableTitle);
+        StringAssert.Contains(viewModel.StateMessage, "failed");
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(4, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
         Assert.IsTrue(viewModel.IsEmpty);
+        Assert.AreEqual("No exact duplicate folders", viewModel.EmptyStateTitle);
+        StringAssert.Contains(viewModel.StateMessage, "contains no exact duplicate folder sets");
     }
 
     [TestMethod]
@@ -625,15 +718,70 @@ public sealed class DuplicateFoldersViewModelTests
             publishedRevision = (runId, appliedRevision);
         await viewModel.ShowRunAsync(
             TestWorkerClient.CreateRun(21, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        viewModel.SelectedMember = viewModel.Members.Single();
 
         await viewModel.RemoveFolderCommand.ExecuteAsync(viewModel.Members.Single());
 
         Assert.AreEqual("Remove", viewModel.Members.Single().Decision);
+        Assert.AreEqual(10, viewModel.SelectedMember?.Id,
+            "A confirmed folder decision refresh must preserve the selected immutable member ID.");
         Assert.AreEqual(1, viewModel.ReviewPlan.Plan.Revision);
-        StringAssert.Contains(viewModel.ReviewPlanSummaryText, "1 folders marked Remove");
+        StringAssert.Contains(viewModel.ReviewPlanSummaryText, "1 folders marked for removal");
         StringAssert.Contains(viewModel.SelectedReviewSummaryText, "1 intact copy remains");
-        StringAssert.Contains(viewModel.MemberStatusAnnouncement, @"Folder review decision saved: Remove for C:\One");
+        StringAssert.Contains(viewModel.MemberStatusAnnouncement, @"Folder review decision saved: Mark for removal for C:\One");
         Assert.AreEqual((21L, 1L), publishedRevision);
+    }
+
+    [TestMethod]
+    public async Task KeepAndResetRemainWorkerConfirmedAndPreserveNamedFolderSelection()
+    {
+        var revision = 0L;
+        var decision = "undecided";
+        var client = new TestWorkerClient
+        {
+            ReviewPlanHandler = (runId, _) => Task.FromResult(new WorkerReviewPlanView(
+                new WorkerReviewPlan(revision == 0 ? null : 8, runId, revision == 0 ? "notCreated" : "active", revision, null, null),
+                new WorkerReviewPlanSummary(0, 0, 0, 0, "0", 0))),
+            FolderGroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderGroupPage([Group(1, query.RunId, @"C:\named")], 1, null, null)),
+            FolderMemberPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFolderMemberPage(
+                [new WorkerDuplicateFolderMember(71, query.GroupId, @"C:\named") { Decision = decision }],
+                1,
+                null,
+                null)
+            {
+                ReviewPlanId = revision == 0 ? null : 8,
+                ReviewRevision = revision,
+                ReviewSummary = new WorkerReviewFolderGroupSummary(
+                    query.GroupId,
+                    decision == "keep" ? 1 : 0,
+                    0,
+                    decision == "undecided" ? 1 : 0,
+                    1),
+            }),
+            ReviewFolderDecisionHandler = (_, _, _, memberId, requested, expected, _) =>
+            {
+                Assert.AreEqual(71, memberId);
+                Assert.AreEqual(revision, expected);
+                revision++;
+                decision = requested;
+                return Task.FromResult(new WorkerReviewFolderDecisionMutation(8, revision, false, requested));
+            },
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(23, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        viewModel.SelectedMember = viewModel.Members.Single();
+
+        await viewModel.KeepFolderCommand.ExecuteAsync(viewModel.SelectedMember);
+        Assert.AreEqual("Keep", viewModel.Members.Single().Decision);
+        Assert.AreEqual(71, viewModel.SelectedMember?.Id);
+        StringAssert.Contains(viewModel.MemberStatusAnnouncement, "Keep for C:\\named");
+
+        await viewModel.UndecideFolderCommand.ExecuteAsync(viewModel.SelectedMember);
+        Assert.AreEqual("Undecided", viewModel.Members.Single().Decision);
+        Assert.AreEqual(71, viewModel.SelectedMember?.Id);
+        StringAssert.Contains(viewModel.MemberStatusAnnouncement, "Reset decision to Undecided for C:\\named");
     }
 
     [TestMethod]

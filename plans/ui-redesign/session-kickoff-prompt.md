@@ -13,7 +13,13 @@ docs/windows-roadmap-session-handoff.md, plans/ui-redesign/README.md, execution-
 session-checkpoint.md. Follow codex-session-guide.md. Then read only the selected gate's linked
 specifications, code and tests; do not load historical engine/campaign narratives without a need.
 
-Implement the next dependency-ready local slice from the execution ledger. The accepted direction
+The current dependency-ready local slice is UIR-06a: compose the dedicated Review overview from
+worker-owned combined totals and separate bounded Files/Folders review queries, with exact-set return
+links and revision-aware non-deleting validation status. Read S04 and its directly linked review-plan,
+review-group, preflight revision/survivor/overlap and navigation tests. Keep rule authoring/reversal,
+execution, recovery resolution and UIR-07 out of this slice.
+
+Implement that bounded slice from the execution ledger. The accepted direction
 keeps WPF and the Rust worker, with Scan/Results/Review/History. Long scans need truthful live phase,
 current activity and expandable diagnostics. Scan again performs fresh discovery while retaining
 qualified persistent hash reuse; follow scan-and-rescan-experience.md and A08/A16/A17.

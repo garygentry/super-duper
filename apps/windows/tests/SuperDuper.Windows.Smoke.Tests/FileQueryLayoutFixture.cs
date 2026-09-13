@@ -167,7 +167,7 @@ internal static class FileQueryLayoutFixture
     }
     private static void Capture(Window window, string name)
     {
-        var directory = Environment.GetEnvironmentVariable("SUPER_DUPER_UIR05B_CAPTURES");
+        var directory = Environment.GetEnvironmentVariable("SUPER_DUPER_UIR05C_CAPTURES");
         if (string.IsNullOrEmpty(directory)) return;
         Directory.CreateDirectory(directory);
         var bitmap = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);

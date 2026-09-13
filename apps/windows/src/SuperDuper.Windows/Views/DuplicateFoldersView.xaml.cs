@@ -1,8 +1,7 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Threading;
 using SuperDuper.Windows.Core.ViewModels;
 using SuperDuper.Windows.Core.Workers;
@@ -12,19 +11,226 @@ namespace SuperDuper.Windows.Views;
 public partial class DuplicateFoldersView : UserControl
 {
     internal const int LocationCardFocusAttemptLimit = 8;
+    internal const double NarrowWorkspaceWidth = 760;
+    internal const double NarrowSelectedDetailMinimumHeight = 80;
 
-    public DuplicateFoldersView() => InitializeComponent();
+    private DuplicateFoldersViewModel? _model;
+    private bool _isNarrow;
+    private bool _showNarrowDetail;
+    private bool _syncingSort;
+    private GridLength _wideSetWidth = new(36, GridUnitType.Star);
+    private GridLength _wideDetailWidth = new(64, GridUnitType.Star);
 
-    private async void OnFolderCardPageClick(object sender, RoutedEventArgs e)
+    public DuplicateFoldersView()
     {
-        if (DataContext is not DuplicateFoldersViewModel viewModel)
+        InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
+    }
+
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (_model is not null)
+        {
+            _model.PropertyChanged -= OnModelPropertyChanged;
+        }
+        _model = e.NewValue as DuplicateFoldersViewModel;
+        if (_model is not null)
+        {
+            _model.PropertyChanged += OnModelPropertyChanged;
+        }
+        _showNarrowDetail = false;
+        UpdateResponsiveLayout(ActualWidth);
+        UpdateSortIndicator();
+    }
+
+    private void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(DuplicateFoldersViewModel.SortField)
+            or nameof(DuplicateFoldersViewModel.SortDirection))
+        {
+            UpdateSortIndicator();
+        }
+    }
+
+    private void UpdateSortIndicator()
+    {
+        if (_model is null || FolderSetSort is null)
         {
             return;
         }
+        var tag = $"{_model.SortField}:{_model.SortDirection}";
+        var selected = FolderSetSort.Items.OfType<ComboBoxItem>()
+            .FirstOrDefault(item => string.Equals(item.Tag?.ToString(), tag, StringComparison.Ordinal));
+        if (selected is null || ReferenceEquals(selected, FolderSetSort.SelectedItem))
+        {
+            return;
+        }
+        _syncingSort = true;
+        FolderSetSort.SelectedItem = selected;
+        _syncingSort = false;
+    }
 
+    private void OnWorkspaceSizeChanged(object sender, SizeChangedEventArgs e) =>
+        UpdateResponsiveLayout(e.NewSize.Width);
+
+    private void UpdateResponsiveLayout(double width)
+    {
+        if (FolderSetPaneColumn is null || width <= 0)
+        {
+            return;
+        }
+        var narrow = width < NarrowWorkspaceWidth;
+        if (narrow && !_isNarrow)
+        {
+            _wideSetWidth = FolderSetPaneColumn.Width;
+            _wideDetailWidth = FolderDetailPaneColumn.Width;
+        }
+        _isNarrow = narrow;
+        if (!narrow)
+        {
+            FolderSetPaneHeading.Visibility = Visibility.Visible;
+            FolderDetailContextSummary.Visibility = Visibility.Visible;
+            FolderSetPane.Visibility = Visibility.Visible;
+            FolderDetailPane.Visibility = Visibility.Visible;
+            FolderComparisonSplitter.Visibility = Visibility.Visible;
+            CompareSelectedFolderSetButton.Visibility = Visibility.Collapsed;
+            BackToFolderSetsButton.Visibility = Visibility.Collapsed;
+            FolderSetPaneColumn.MinWidth = 280;
+            FolderDetailPaneColumn.MinWidth = 360;
+            FolderSetPaneColumn.Width = _wideSetWidth;
+            FolderComparisonSplitterColumn.Width = new GridLength(12);
+            FolderDetailPaneColumn.Width = _wideDetailWidth;
+            UpdateMemberPresentation();
+            return;
+        }
+
+        FolderSetPaneHeading.Visibility = Visibility.Collapsed;
+        FolderDetailContextSummary.Visibility = Visibility.Collapsed;
+        FolderSetPaneColumn.MinWidth = 0;
+        FolderDetailPaneColumn.MinWidth = 0;
+        FolderComparisonSplitter.Visibility = Visibility.Collapsed;
+        FolderComparisonSplitterColumn.Width = new GridLength(0);
+        CompareSelectedFolderSetButton.Visibility = _showNarrowDetail ? Visibility.Collapsed : Visibility.Visible;
+        BackToFolderSetsButton.Visibility = _showNarrowDetail ? Visibility.Visible : Visibility.Collapsed;
+        FolderSetPane.Visibility = _showNarrowDetail ? Visibility.Collapsed : Visibility.Visible;
+        FolderDetailPane.Visibility = _showNarrowDetail ? Visibility.Visible : Visibility.Collapsed;
+        FolderSetPaneColumn.Width = _showNarrowDetail ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        FolderDetailPaneColumn.Width = _showNarrowDetail ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        UpdateMemberPresentation();
+    }
+
+    private void UpdateMemberPresentation()
+    {
+        if (LocationCards is null || SelectedFolderCopyPanel is null || BackToFolderCopiesButton is null)
+        {
+            return;
+        }
+        var selectedCopyDetail = _isNarrow && _showNarrowDetail && _model?.SelectedMember is not null;
+        FolderDetailPane.MinHeight = selectedCopyDetail ? NarrowSelectedDetailMinimumHeight : 0;
+        FolderDetailHeader.Visibility = selectedCopyDetail ? Visibility.Collapsed : Visibility.Visible;
+        LocationCards.Visibility = selectedCopyDetail ? Visibility.Collapsed : Visibility.Visible;
+        BackToFolderCopiesButton.Visibility = selectedCopyDetail ? Visibility.Visible : Visibility.Collapsed;
+        FolderDetailCommandRegion.Visibility = selectedCopyDetail ? Visibility.Collapsed : Visibility.Visible;
+        FolderDetailHeaderRow.Height = selectedCopyDetail ? new GridLength(0) : GridLength.Auto;
+        FolderMemberListRow.Height = selectedCopyDetail ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        FolderSelectedCopyRow.Height = selectedCopyDetail ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
+        FolderDetailCommandRow.Height = selectedCopyDetail ? new GridLength(0) : GridLength.Auto;
+        SelectedFolderCopyPanel.Margin = selectedCopyDetail ? new Thickness(0) : new Thickness(0, 6, 0, 0);
+        SelectedFolderCopyPanel.Padding = selectedCopyDetail ? new Thickness(2) : new Thickness(10);
+        SelectedFolderCopyPanel.MaxHeight = selectedCopyDetail ? double.PositiveInfinity : 100;
+    }
+
+    private async void OnCompareSelectedSetClick(object sender, RoutedEventArgs e)
+    {
+        if (!_isNarrow || _model?.SelectedGroup is null)
+        {
+            return;
+        }
+        _model.SelectedMember = null;
+        _showNarrowDetail = true;
+        UpdateResponsiveLayout(ActualWidth);
+        FolderWorkspaceRoot.UpdateLayout();
+        await FocusWhenVisibleAsync(SelectedFolderSetHeading);
+    }
+
+    private void OnFolderSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateMemberPresentation();
+        if (_isNarrow && _showNarrowDetail && _model?.SelectedMember is not null)
+        {
+            _ = Dispatcher.BeginInvoke(
+                new Action(SelectedFolderCopyScrollViewer.ScrollToTop),
+                DispatcherPriority.ContextIdle);
+        }
+    }
+
+    private async void OnBackToCopiesClick(object sender, RoutedEventArgs e)
+    {
+        if (!_isNarrow || _model is null)
+        {
+            return;
+        }
+        _model.SelectedMember = null;
+        UpdateMemberPresentation();
+        await RestoreLocationCardFocusAsync();
+    }
+
+    private async void OnBackToSetsClick(object sender, RoutedEventArgs e)
+    {
+        if (!_isNarrow)
+        {
+            return;
+        }
+        _showNarrowDetail = false;
+        UpdateResponsiveLayout(ActualWidth);
+        await RestoreGroupGridFocusAsync();
+    }
+
+    private async void OnSetSortChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingSort || _model is null || FolderSetSort.SelectedItem is not ComboBoxItem item
+            || item.Tag?.ToString()?.Split(':') is not [var fieldText, var directionText]
+            || !Enum.TryParse(fieldText, out DuplicateFolderGroupSortField field)
+            || !Enum.TryParse(directionText, out WorkerSortDirection direction)
+            || (_model.SortField == field && _model.SortDirection == direction))
+        {
+            return;
+        }
+        await _model.ApplySortAsync(field, direction);
+    }
+
+    private async void OnFilterKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || _model is null)
+        {
+            return;
+        }
+        e.Handled = true;
+        await _model.ApplyFiltersCommand.ExecuteAsync(null);
+    }
+
+    private async void OnFolderGroupPageClick(object sender, RoutedEventArgs e)
+    {
+        if (_model is null)
+        {
+            return;
+        }
+        var command = ReferenceEquals(sender, PreviousFolderGroupPageButton)
+            ? _model.PreviousPageCommand
+            : _model.NextPageCommand;
+        await command.ExecuteAsync(null);
+        await RestoreGroupGridFocusAsync();
+    }
+
+    private async void OnFolderCardPageClick(object sender, RoutedEventArgs e)
+    {
+        if (_model is null)
+        {
+            return;
+        }
         var command = ReferenceEquals(sender, PreviousFolderCardsButton)
-            ? viewModel.PreviousMemberPageCommand
-            : viewModel.NextMemberPageCommand;
+            ? _model.PreviousMemberPageCommand
+            : _model.NextMemberPageCommand;
         await command.ExecuteAsync(null);
         await RestoreLocationCardFocusAsync();
     }
@@ -32,16 +238,10 @@ public partial class DuplicateFoldersView : UserControl
     private async void OnSelectFolderPageInExplorerClick(object sender, RoutedEventArgs e) =>
         await SelectCurrentPageInExplorerAsync();
 
-    internal Task SelectCurrentPageInExplorerAsync()
-    {
-        if (DataContext is not DuplicateFoldersViewModel viewModel)
-        {
-            return Task.CompletedTask;
-        }
-
-        return ExecuteExplorerCommandAsync(
-            () => viewModel.SelectPageInExplorerCommand.ExecuteAsync(null));
-    }
+    internal Task SelectCurrentPageInExplorerAsync() =>
+        _model is null
+            ? Task.CompletedTask
+            : ExecuteExplorerCommandAsync(() => _model.SelectPageInExplorerCommand.ExecuteAsync(null));
 
     private async void OnLocationCardsPreviewKeyDown(object sender, KeyEventArgs e)
     {
@@ -49,12 +249,6 @@ public partial class DuplicateFoldersView : UserControl
         {
             e.Handled = true;
             await RevealSelectedLocationAsync();
-            return;
-        }
-
-        if (MoveLocationCardSelection(e.Key))
-        {
-            e.Handled = true;
         }
     }
 
@@ -68,26 +262,6 @@ public partial class DuplicateFoldersView : UserControl
         {
             return;
         }
-
-        LocationCards.SelectedItem = member;
-        await RevealLocationAsync(member);
-    }
-
-    private async void OnLocationCardsMouseDoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        if (e.ChangedButton != MouseButton.Left
-            || IsInteractiveDescendant(e.OriginalSource as DependencyObject))
-        {
-            return;
-        }
-
-        if (ItemsControl.ContainerFromElement(LocationCards, e.OriginalSource as DependencyObject)
-            is not ListBoxItem { DataContext: DuplicateFolderMemberListItemViewModel member })
-        {
-            return;
-        }
-
-        e.Handled = true;
         LocationCards.SelectedItem = member;
         await RevealLocationAsync(member);
     }
@@ -97,16 +271,10 @@ public partial class DuplicateFoldersView : UserControl
             ? RevealLocationAsync(member)
             : Task.CompletedTask;
 
-    private Task RevealLocationAsync(DuplicateFolderMemberListItemViewModel member)
-    {
-        if (DataContext is not DuplicateFoldersViewModel viewModel)
-        {
-            return Task.CompletedTask;
-        }
-
-        return ExecuteExplorerCommandAsync(
-            () => viewModel.RevealInExplorerCommand.ExecuteAsync(member));
-    }
+    private Task RevealLocationAsync(DuplicateFolderMemberListItemViewModel member) =>
+        _model is null
+            ? Task.CompletedTask
+            : ExecuteExplorerCommandAsync(() => _model.RevealInExplorerCommand.ExecuteAsync(member));
 
     internal async Task ExecuteExplorerCommandAsync(Func<Task> operation)
     {
@@ -120,52 +288,21 @@ public partial class DuplicateFoldersView : UserControl
         }
     }
 
-    private bool IsInteractiveDescendant(DependencyObject? source)
-    {
-        for (var current = source; current is not null && !ReferenceEquals(current, LocationCards);)
-        {
-            if (current is ButtonBase or TextBox)
-            {
-                return true;
-            }
-            current = current is Visual
-                ? VisualTreeHelper.GetParent(current)
-                : (current as FrameworkContentElement)?.Parent;
-        }
-        return false;
-    }
-
-    internal bool MoveLocationCardSelection(Key key)
-    {
-        if (LocationCards.Items.Count == 0)
-        {
-            return false;
-        }
-
-        var current = Math.Max(0, LocationCards.SelectedIndex);
-        var next = key switch
-        {
-            Key.Left => Math.Max(0, current - 1),
-            Key.Right => Math.Min(LocationCards.Items.Count - 1, current + 1),
-            Key.Home => 0,
-            Key.End => LocationCards.Items.Count - 1,
-            _ => -1,
-        };
-        if (next < 0)
-        {
-            return false;
-        }
-
-        LocationCards.SelectedIndex = next;
-        return FocusSelectedLocationCard();
-    }
-
     internal async Task<bool> RestoreLocationCardFocusAsync()
     {
         for (var attempt = 0; attempt < LocationCardFocusAttemptLimit; attempt++)
         {
-            if (await Dispatcher.InvokeAsync(FocusSelectedLocationCard, DispatcherPriority.Background)
-                && LocationCards.IsKeyboardFocusWithin)
+            var focused = await Dispatcher.InvokeAsync(
+                () =>
+                {
+                    if (_isNarrow && _showNarrowDetail && _model?.SelectedMember is not null)
+                    {
+                        return BackToFolderCopiesButton.Focus() && BackToFolderCopiesButton.IsKeyboardFocused;
+                    }
+                    return FocusSelectedLocationCard();
+                },
+                DispatcherPriority.Background);
+            if (focused)
             {
                 return true;
             }
@@ -180,36 +317,74 @@ public partial class DuplicateFoldersView : UserControl
         {
             return LocationCards.Focus();
         }
-        if (LocationCards.SelectedIndex < 0)
-        {
-            LocationCards.SelectedIndex = 0;
-        }
-
-        var selected = LocationCards.SelectedItem;
-        LocationCards.ScrollIntoView(selected);
+        LocationCards.ScrollIntoView(LocationCards.SelectedItem ?? LocationCards.Items[0]);
         LocationCards.UpdateLayout();
-        return LocationCards.ItemContainerGenerator.ContainerFromItem(selected) is ListBoxItem item
-            ? item.Focus()
-            : LocationCards.Focus();
+        return LocationCards.Focus();
     }
 
-    private async void OnGroupsSorting(object sender, DataGridSortingEventArgs e)
+    internal bool MoveLocationCardSelection(Key key)
     {
-        if (DataContext is not DuplicateFoldersViewModel viewModel) return;
-        e.Handled = true;
-        var field = e.Column.SortMemberPath switch
+        if (LocationCards.Items.Count == 0)
         {
-            "CopyCount" => DuplicateFolderGroupSortField.CopyCount,
-            "FileCount" => DuplicateFolderGroupSortField.FileCount,
-            "RepresentativePath" => DuplicateFolderGroupSortField.RepresentativePath,
-            _ => DuplicateFolderGroupSortField.TotalBytes,
+            return false;
+        }
+        var current = Math.Max(0, LocationCards.SelectedIndex);
+        var next = key switch
+        {
+            Key.Left => Math.Max(0, current - 1),
+            Key.Right => Math.Min(LocationCards.Items.Count - 1, current + 1),
+            Key.Home => 0,
+            Key.End => LocationCards.Items.Count - 1,
+            _ => -1,
         };
-        var direction = ServerSortInteraction.NextDirection(
-            viewModel.SortField,
-            viewModel.SortDirection,
-            field);
-        foreach (var column in GroupsGrid.Columns) column.SortDirection = null;
-        e.Column.SortDirection = ServerSortInteraction.ToListDirection(direction);
-        await viewModel.ApplySortAsync(field, direction);
+        if (next < 0)
+        {
+            return false;
+        }
+        LocationCards.SelectedIndex = next;
+        LocationCards.ScrollIntoView(LocationCards.SelectedItem);
+        return LocationCards.Focus();
+    }
+
+    private async Task<bool> RestoreGroupGridFocusAsync()
+    {
+        for (var attempt = 0; attempt < LocationCardFocusAttemptLimit; attempt++)
+        {
+            var focused = await Dispatcher.InvokeAsync(
+                () =>
+                {
+                    GroupsGrid.ScrollIntoView(GroupsGrid.SelectedItem ?? GroupsGrid.Items.Cast<object>().FirstOrDefault());
+                    GroupsGrid.UpdateLayout();
+                    return GroupsGrid.Focus() && GroupsGrid.IsKeyboardFocusWithin;
+                },
+                DispatcherPriority.Background);
+            if (focused)
+            {
+                return true;
+            }
+            await Dispatcher.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
+        }
+        return false;
+    }
+
+    private async Task<bool> FocusWhenVisibleAsync(FrameworkElement target)
+    {
+        for (var attempt = 0; attempt < LocationCardFocusAttemptLimit; attempt++)
+        {
+            var focused = await Dispatcher.InvokeAsync(() =>
+            {
+                if (!target.IsVisible || !target.IsLoaded)
+                {
+                    return false;
+                }
+                target.BringIntoView();
+                return Keyboard.Focus(target) is not null;
+            }, DispatcherPriority.ContextIdle);
+            if (focused)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }
