@@ -7,6 +7,90 @@ namespace SuperDuper.Windows.Core.Tests;
 public sealed class RunHistoryViewModelTests
 {
     [TestMethod]
+    public async Task HistoryUsesOneBoundedFiveHundredRunPageAndRetainsAcceptedPageOnFailure()
+    {
+        var worker = new TestWorkerClient();
+        var session = worker.AddSession("Archive", @"C:\Data");
+        for (var index = 1; index <= RunHistoryViewModel.HistoryPageSize + 1; index++)
+        {
+            worker.Runs.Add(TestWorkerClient.CreateRun(
+                index,
+                session.Id,
+                "completed",
+                "finalizing",
+                DateTimeOffset.UtcNow.AddMinutes(-index)));
+        }
+        using var viewModel = new RunHistoryViewModel(worker);
+
+        await viewModel.LoadAsync(session.Id);
+
+        Assert.AreEqual(RunHistoryViewModel.HistoryPageSize, viewModel.Runs.Count);
+        Assert.AreEqual(RunHistoryViewModel.HistoryPageSize + 1, viewModel.HistoryTotal);
+        Assert.IsTrue(viewModel.CanLoadNextHistoryPage);
+        Assert.IsFalse(viewModel.CanLoadPreviousHistoryPage);
+        StringAssert.Contains(viewModel.HistoryPageStatus, "1–500 of 501");
+
+        await viewModel.NextHistoryPageCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, viewModel.Runs.Count);
+        Assert.AreEqual(1, viewModel.SelectedRun?.Id);
+        Assert.IsTrue(viewModel.CanLoadPreviousHistoryPage);
+        Assert.IsFalse(viewModel.CanLoadNextHistoryPage);
+        StringAssert.Contains(viewModel.HistoryPageStatus, "501–501 of 501");
+        Assert.AreEqual("history", viewModel.FocusTarget);
+
+        worker.RunsHandler = (_, _) => Task.FromException<WorkerRunPage>(
+            new InvalidOperationException("next history unavailable"));
+        await viewModel.PreviousHistoryPageCommand.ExecuteAsync(null);
+
+        Assert.IsTrue(viewModel.HasError);
+        StringAssert.Contains(viewModel.ErrorMessage, "Retained the accepted page");
+        Assert.AreEqual(1, viewModel.Runs.Count);
+        Assert.AreEqual(1, viewModel.SelectedRun?.Id);
+    }
+
+    [TestMethod]
+    public async Task ContextNamesHighlightedOpenedAndActiveRunsAndReturnsToExactOrigin()
+    {
+        var worker = new TestWorkerClient();
+        var session = worker.AddSession("Photo archive", @"C:\Photos");
+        var opened = worker.AddRun(session.Id, "completed");
+        var active = worker.AddRun(session.Id, "running", "hashing") with { WarningCount = 1 };
+        worker.Runs[1] = active;
+        worker.RunWarningsHandler = (_, _) => Task.FromResult(new WorkerRunWarningPage(
+            [new WorkerRunWarningAggregate(1, active.Id, "hashing", "scan", "read-warning", "warning",
+                "One candidate could not be read.", 1, [@"C:\Photos\one.bin"])],
+            1, 1, 1, 9, "active", "running", TestWorkerClient.DiagnosticLog, null, false));
+        var workspaceRun = opened;
+        var activeRun = active;
+        WarningReturnDestination? returnedTo = null;
+        using var viewModel = new RunHistoryViewModel(
+            worker,
+            workspaceRun: () => workspaceRun,
+            activeRun: () => activeRun,
+            sessionName: _ => session.Name,
+            returnFromWarnings: destination => returnedTo = destination);
+        await viewModel.LoadAsync(session.Id);
+
+        Assert.AreEqual(active.Id, viewModel.SelectedRun?.Id);
+        StringAssert.Contains(viewModel.SelectedRunIdentity, $"Scan {active.Id}");
+        StringAssert.Contains(viewModel.SelectedRunRelationship, $"workspace remains on Photo archive · Scan {opened.Id}");
+        StringAssert.Contains(viewModel.SelectedRunParameters, "immutable run");
+        CollectionAssert.AreEqual(active.Parameters.Roots.ToArray(), viewModel.SelectedRunRoots.ToArray());
+        StringAssert.Contains(viewModel.ActiveRunContext, $"Scan {active.Id}");
+
+        await viewModel.OpenWarningsForRunAsync(active, WarningReturnDestination.ScanProgress);
+
+        Assert.AreEqual("Warnings · active scan", viewModel.WarningContextHeading);
+        StringAssert.Contains(viewModel.WarningContextIdentity, $"Scan {active.Id}");
+        StringAssert.Contains(viewModel.WarningSnapshotBoundary, "Current warning revision 9");
+        Assert.AreEqual("_Return to progress", viewModel.WarningReturnLabel);
+        viewModel.CloseWarningsCommand.Execute(null);
+        Assert.AreEqual(WarningReturnDestination.ScanProgress, returnedTo);
+        Assert.AreNotEqual("history", viewModel.FocusTarget);
+    }
+
+    [TestMethod]
     public async Task WarningDrilldownPagesBoundsCacheAndRestoresFocus()
     {
         var worker = new TestWorkerClient();

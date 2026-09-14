@@ -84,7 +84,13 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             _clock);
         Summary = new ScanProgressViewModel(workerClient, dispatcher, openWarnings: OpenProgressWarningsAsync, clock: _clock);
         Progress.PropertyChanged += OnProgressPropertyChanged;
-        History = new RunHistoryViewModel(workerClient, NavigateToWarningDuplicateSetAsync);
+        History = new RunHistoryViewModel(
+            workerClient,
+            NavigateToWarningDuplicateSetAsync,
+            () => SelectedRun,
+            () => ActiveRunId is long activeRunId && Progress.Run?.Id == activeRunId ? Progress.Run : null,
+            sessionId => Sessions.Find(sessionId)?.Name,
+            ReturnFromWarnings);
         Performance = new PerformanceViewModel(workerClient);
         DuplicateFiles = new DuplicateFilesViewModel(workerClient, clipboard, explorer);
         DuplicateFolders = new DuplicateFoldersViewModel(workerClient, clipboard, explorer);
@@ -179,6 +185,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(CanRestartWorker));
                 StartRunCommand.NotifyCanExecuteChanged();
                 ScanAgainCommand.NotifyCanExecuteChanged();
+                History.NotifyExternalContextChanged();
                 RestartWorkerCommand.NotifyCanExecuteChanged();
             }
         }
@@ -389,6 +396,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(CanStartRun));
                 StartRunCommand.NotifyCanExecuteChanged();
                 ScanAgainCommand.NotifyCanExecuteChanged();
+                History.NotifyExternalContextChanged();
             }
         }
     }
@@ -718,7 +726,21 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         if (navigation != _navigationGeneration) return;
         SelectedDestination = WorkspaceDestination.History;
-        await History.OpenWarningsForRunAsync(run, cancellationToken);
+        var returnDestination = run.Status is "pending" or "running" or "cancelling"
+            ? WarningReturnDestination.ScanProgress
+            : WarningReturnDestination.ScanSummary;
+        await History.OpenWarningsForRunAsync(run, returnDestination, cancellationToken);
+    }
+
+    private void ReturnFromWarnings(WarningReturnDestination destination)
+    {
+        SelectedDestination = destination == WarningReturnDestination.ScanSummary
+            ? WorkspaceDestination.ScanSummary
+            : WorkspaceDestination.ScanProgress;
+        FocusTarget = destination == WarningReturnDestination.ScanSummary
+            ? "summary-warnings"
+            : "progress-warnings";
+        FocusRequestVersion++;
     }
 
     private async Task SelectSessionAsync(
@@ -991,6 +1013,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SelectedRun));
         OnPropertyChanged(nameof(SelectedScanContext));
         OnPropertyChanged(nameof(WorkspaceSessionName));
+        History.NotifyExternalContextChanged();
         if (!changed) return;
         _workspaceCancellation.Cancel();
         _workspaceCancellation.Dispose();
@@ -1042,6 +1065,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         if (e.PropertyName == nameof(ScanProgressViewModel.Run))
         {
             OnPropertyChanged(nameof(ProgressScanContext));
+            History.NotifyExternalContextChanged();
         }
     }
 
@@ -1226,6 +1250,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         {
             session.StatusText = DisplayFormatting.Status(run.Status);
         }
+        History.NotifyExternalContextChanged();
     }
 
     private void ObserveProgressLifecycle(WorkerRun run)

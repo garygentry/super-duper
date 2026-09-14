@@ -110,12 +110,15 @@ internal static class PopulatedShellFixture
             Assert.IsTrue(warnings.IsKeyboardFocusWithin);
             Assert.AreEqual(1, warnings.Items.Count);
             Assert.AreEqual(old.Id, model.SelectedRun?.Id);
+            Assert.AreEqual("_Return to progress", Find<Button>(window, "CloseRunWarnings").Content);
+            StringAssert.Contains(
+                AutomationProperties.GetName(Find<Button>(window, "CloseRunWarnings")),
+                "active scan warning entry");
             model.History.CloseWarningsCommand.Execute(null);
             Drain();
-            Assert.IsTrue(Find<DataGrid>(window, "RunHistoryGrid").IsKeyboardFocusWithin,
-                "Close warnings restores focus through RunHistoryView's real handler.");
-            model.ViewProgressCommand.Execute(null);
-            Drain();
+            Assert.AreEqual(WorkspaceDestination.ScanProgress, model.SelectedDestination);
+            Assert.IsTrue(Find<Button>(window, "ProgressWarningEntry").IsKeyboardFocused,
+                "Current-warning Close must return focus to the exact progress warning entry.");
             Assert.AreEqual(active.Id, model.Progress.Run?.Id);
 
             // A deliberately blocked optional query cannot hold the primary workspace hostage.
@@ -593,16 +596,30 @@ internal static class PopulatedShellFixture
 
         model.SelectedDestination = WorkspaceDestination.History;
         Drain();
+        model.History.SelectedRun = model.History.Runs.Single(run => run.Id == model.SelectedRun?.Id);
+        Drain();
         var history = Find<DataGrid>(window, "RunHistoryGrid");
+        StringAssert.Contains(Find<TextBlock>(window, "HighlightedRunIdentity").Text, $"Scan {model.History.SelectedRun?.Id}");
+        StringAssert.Contains(Find<TextBlock>(window, "HighlightedRunRelationship").Text, "open in the Results and Review workspace");
+        StringAssert.Contains(Find<TextBlock>(window, "HighlightedRunParameters").Text, "immutable run");
+        StringAssert.Contains(Find<TextBlock>(window, "ActiveRunHistoryContext").Text, "Active scan is separate");
+        Find<ScrollViewer>(window, "HistoryWorkspaceScrollViewer").ScrollToTop();
+        Drain();
+        Capture(window, $"populated-History-context-{suffix}");
         Reach(Find<Button>(window, "OpenScan"), window);
         Reach(Find<Button>(window, "OpenRunWarnings"), window);
+        Reach(Find<Button>(window, "PreviousRunHistoryPage"), window);
+        Reach(Find<Button>(window, "NextRunHistoryPage"), window);
         model.History.OpenWarningsCommand.ExecuteAsync(null).GetAwaiter().GetResult();
         Drain();
         var warnings = Find<DataGrid>(window, "RunWarningGrid");
         Assert.IsTrue(warnings.IsKeyboardFocusWithin);
+        StringAssert.Contains(Find<TextBlock>(window, "RunWarningContextIdentity").Text, $"Scan {model.History.SelectedRun?.Id}");
+        StringAssert.Contains(Find<TextBlock>(window, "RunWarningSnapshotBoundary").Text, "Terminal warning revision");
+        Assert.AreEqual("_Return to run history", Find<Button>(window, "CloseRunWarnings").Content);
         AssertVisible(warnings, window, minimumHeight: 36);
         Assert.IsTrue(history.ActualHeight >= 144 && warnings.ActualHeight >= 144);
-        var warningActionColumn = warnings.Columns.Single(column => Equals(column.Header, "Action"));
+        var warningActionColumn = warnings.Columns.Single(column => Equals(column.Header, "Warning aggregate"));
         warnings.ScrollIntoView(warnings.Items[0], warningActionColumn);
         Drain();
         Reach(Find<Button>(window, "RunWarningHashResults-1"), window);

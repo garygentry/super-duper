@@ -1,6 +1,6 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-03 complete with scoped operator acceptance; UIR-04, UIR-05 and UIR-06 in progress; UIR-04a/b/c, UIR-05a/b/c and UIR-06a/b locally implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
+Status: UIR-03 complete with scoped operator acceptance; UIR-04, UIR-05, UIR-06 and UIR-07 in progress; UIR-04a/b/c, UIR-05a/b/c, UIR-06a/b and UIR-07a locally implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -15,7 +15,7 @@ all safety/evidence gates. Its open execution criteria are not absorbed or marke
 | UIR-04 | in_progress | Setup, Scan again, persistent reuse explanation, live monitoring/details and terminal summaries | UIR-03; A05/A06/A08/A14/A15/A16/A17 with controlled clock, lifecycle and rescan fixtures |
 | UIR-05 | in_progress | File/folder results, compact filters, list/detail comparison, decisions and path actions | UIR-03; A03/A04/A05/A06/A11/A13/A15 and existing query/focus/page contracts |
 | UIR-06 | in_progress | Dedicated Review, existing rule workflow, whole-plan validation and evidence access | UIR-05; A04/A10/A15 including revision, survivor, overlap, reversal and restart |
-| UIR-07 | planned | History/open-run, contextual warnings and performance detail | UIR-03/04; A07/A12/A13/A15/A16/A17 and current/terminal warning boundaries |
+| UIR-07 | in_progress | History/open-run, contextual warnings and performance detail | UIR-03/04; UIR-07a History/warnings locally implemented; A07/A12/A13/A15/A16/A17 and current/terminal warning boundaries |
 | UIR-08 | planned | Full integration, layout/theme/keyboard/accessibility/scale and long-scan/rescan regression, physical evidence | UIR-04 through UIR-07; all A01-A17 verified with honest physical/skipped states |
 | UIR-09 | planned | User workflow acceptance, final package and durable handoff | UIR-08; scope accepted, no open critical defect, all work committed on same branch |
 
@@ -149,12 +149,20 @@ retention are covered. Core 216 and three loaded-STA WPF methods pass with 111 c
 fixture build. UIR-06a/b are locally implemented; UIR-06 remains in progress for later integrated/
 native acceptance. No rule protocol, manual Reset, arbitrary undo, execution or recovery behavior changed.
 
-The exact next local slice is **UIR-07a: History/open-run and contextual warning composition**. Read
-S05, capability/validation guidance and directly linked history selection/open-run, warning paging,
-return-navigation and focus tests. Make selected-versus-active run context and exact bounded warning
-return paths explicit while preserving immutable historical results, the 500-run history limit,
-25-row/five-page warning bounds and current/terminal revision ownership. Do not pull Performance
-detail, recovery resolution, execution, full A17 or UIR-08 integration forward.
+**UIR-07a implemented (2026-09-13).** [Evidence](evidence/uir-07a-history-warnings.md) covers one
+bounded 500-run History page with explicit Previous/Next navigation, immutable recorded settings,
+highlighted-versus-opened-versus-active identity, contextual current/terminal warning revisions,
+retained accepted pages and exact History/Progress/Summary return focus. Warning pages remain 25 rows
+with five cached pages and stable completed-run result navigation. Core 218 and three loaded-STA WPF
+methods pass with 114 reviewed captures and a clean fixture build. No worker/protocol/database,
+Performance, recovery, execution or production boundary changed.
+
+The exact next local slice is **UIR-07b: contextual Performance detail**. Read the Performance portion
+of S05, capability/validation guidance and directly linked `PerformanceViewModelTests`, Shell lazy-load,
+run-context, return-focus and WPF bounds tests. Compose the existing phase/cache/read/device summaries
+around the exact selected run while preserving unavailable values, comparison qualifiers, 25 history
+rows, six phase rows, 64 device rows and no raw sample/time-series claim. Preserve UIR-07a History/
+warning identity and bounds. Do not pull recovery resolution, execution, full A17 or UIR-08 integration forward.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read

@@ -667,31 +667,51 @@ public sealed class WpfSurfaceSmokeTests
             Assert.AreEqual("Ignore patterns", AutomationProperties.GetName(
                 FindByAutomationId<TextBox>(setup, "IgnorePatterns")));
             AssertSessionSetupFitsSupportedMinimumWorkspace(setup);
-            Assert.AreEqual("Run history", AutomationProperties.GetName(
-                FindByAutomationId<DataGrid>(history, "RunHistoryGrid")));
+            var runHistoryGrid = FindByAutomationId<DataGrid>(history, "RunHistoryGrid");
+            Assert.AreEqual("Run history, newest first, bounded to 500 scans per page",
+                AutomationProperties.GetName(runHistoryGrid));
+            Assert.AreEqual(1, runHistoryGrid.Columns.Count);
+            Assert.AreEqual(ScrollBarVisibility.Disabled,
+                ScrollViewer.GetHorizontalScrollBarVisibility(runHistoryGrid));
             Assert.AreEqual(
-                "Review persisted warnings for the selected run",
+                "Review persisted warnings for the highlighted exact run",
                 AutomationProperties.GetName(FindByAutomationId<Button>(history, "OpenRunWarnings")));
+            Assert.AreEqual(
+                "Load the previous bounded run-history page and return focus to the highlighted scan",
+                AutomationProperties.GetName(FindByAutomationId<Button>(history, "PreviousRunHistoryPage")));
+            Assert.AreEqual(
+                "Load the next bounded run-history page and return focus to the highlighted scan",
+                AutomationProperties.GetName(FindByAutomationId<Button>(history, "NextRunHistoryPage")));
+            _ = FindByAutomationId<TextBlock>(history, "HighlightedRunIdentity");
+            _ = FindByAutomationId<TextBlock>(history, "HighlightedRunRelationship");
+            _ = FindByAutomationId<TextBlock>(history, "HighlightedRunParameters");
+            _ = FindByAutomationId<TextBlock>(history, "RunWarningContextIdentity");
+            _ = FindByAutomationId<TextBlock>(history, "RunWarningSnapshotBoundary");
             var warningGrid = FindByAutomationId<DataGrid>(history, "RunWarningGrid");
             Assert.AreEqual(
-                "Persisted run warning aggregates",
+                "Persisted run warning aggregates, bounded to 25 rows per page",
                 AutomationProperties.GetName(warningGrid));
             Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(warningGrid));
             Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(warningGrid));
+            Assert.AreEqual(ScrollBarVisibility.Disabled,
+                ScrollViewer.GetHorizontalScrollBarVisibility(warningGrid));
+            Assert.AreEqual(1, warningGrid.Columns.Count);
             Assert.AreEqual(ListSortDirection.Descending,
-                warningGrid.Columns.Single(column => Equals(column.Header, "Count")).SortDirection);
-            Assert.IsFalse(warningGrid.Columns.Single(
-                column => Equals(column.Header, "Representative examples")).CanUserSort);
-            Assert.IsFalse(warningGrid.Columns.Single(column => Equals(column.Header, "Action")).CanUserSort);
+                warningGrid.Columns.Single(column => Equals(column.Header, "Warning aggregate")).SortDirection);
             Assert.AreEqual(
                 "Load the next bounded warning aggregate page",
                 AutomationProperties.GetName(FindByAutomationId<Button>(history, "NextRunWarningPage")));
             Assert.AreEqual(
+                "Refresh the current warning revision without combining revisions",
+                AutomationProperties.GetName(FindByAutomationId<Button>(history, "RefreshRunWarnings")));
+            Assert.AreEqual(
                 "Cancel loading run warnings",
                 AutomationProperties.GetName(FindByAutomationId<Button>(history, "CancelRunWarningLoad")));
             Assert.AreEqual(
-                "Close run warning details and return to run history",
-                AutomationProperties.GetName(FindByAutomationId<Button>(history, "CloseRunWarnings")));
+                "WarningReturnAutomationName",
+                BindingOperations.GetBinding(
+                    FindByAutomationId<Button>(history, "CloseRunWarnings"),
+                    AutomationProperties.NameProperty)?.Path.Path);
             var warningDiagnostic = FindByAutomationId<Border>(history, "RunWarningDiagnosticLog");
             Assert.AreEqual(Application.Current.FindResource("CardStrokeColorDefaultBrush"), warningDiagnostic.BorderBrush);
             StringAssert.Contains(

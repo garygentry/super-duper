@@ -223,6 +223,7 @@ public sealed class RunWarningDrilldownViewModel : ObservableObject, IDisposable
                 page.SnapshotRevision,
                 page.SnapshotState,
                 page.RunStatus);
+            var previousIdentity = _snapshotIdentity;
             AcceptIdentity(identity, cursor);
             if (!IsCurrent(generation, runId, token))
             {
@@ -246,7 +247,7 @@ public sealed class RunWarningDrilldownViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(DiagnosticLogAutomationName));
             OnPropertyChanged(nameof(CanLoadNextPage));
             IsOpen = true;
-            StatusMessage = BuildStatus(page);
+            StatusMessage = BuildStatus(page, previousIdentity);
             AnnouncementVersion++;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -254,7 +255,10 @@ public sealed class RunWarningDrilldownViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception) when (generation == _generation && RunId == runId)
         {
-            ErrorMessage = exception.Message;
+            ErrorMessage = _snapshotIdentity is { } retained && Warnings.Count > 0
+                ? $"Warnings could not be refreshed. Retained the accepted {retained.State} warning revision "
+                  + $"{retained.Revision:N0} and its current page. {exception.Message}"
+                : exception.Message;
             ErrorAnnouncementVersion++;
             if (opening)
             {
@@ -346,7 +350,7 @@ public sealed class RunWarningDrilldownViewModel : ObservableObject, IDisposable
         }
     }
 
-    private string BuildStatus(WorkerRunWarningPage page)
+    private string BuildStatus(WorkerRunWarningPage page, WarningSnapshotIdentity? previousIdentity)
     {
         var lifecycle = page.SnapshotState switch
         {
@@ -357,7 +361,13 @@ public sealed class RunWarningDrilldownViewModel : ObservableObject, IDisposable
         var rows = page.Total == 0
             ? "No persisted warning aggregates are available."
             : $"Showing {page.Warnings.Count:N0} of {page.Total:N0} bounded warning aggregates, {SortDescription()}.";
-        return $"{lifecycle} snapshot revision {page.SnapshotRevision:N0}: "
+        var revisionChange = previousIdentity is { State: "active" } previous
+            && page.SnapshotState == "active"
+            && page.SnapshotRevision > previous.Revision
+                ? $"Current warnings refreshed from revision {previous.Revision:N0} to {page.SnapshotRevision:N0}; "
+                  + "older cached pages were discarded. "
+                : string.Empty;
+        return revisionChange + $"{lifecycle} snapshot revision {page.SnapshotRevision:N0}: "
             + $"{page.AccountedWarningCount:N0} of {page.WarningCount:N0} warnings durably accounted. {rows}";
     }
 

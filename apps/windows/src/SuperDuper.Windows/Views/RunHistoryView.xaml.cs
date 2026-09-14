@@ -83,7 +83,7 @@ public partial class RunHistoryView : UserControl
             return false;
         }
         RunWarningGrid.ScrollIntoView(warning);
-        if (RunWarningGrid.Columns.FirstOrDefault(column => Equals(column.Header, "Action")) is { } actionColumn)
+        if (RunWarningGrid.Columns.FirstOrDefault(column => Equals(column.Header, "Warning aggregate")) is { } actionColumn)
         {
             RunWarningGrid.CurrentCell = new DataGridCellInfo(warning, actionColumn);
             RunWarningGrid.ScrollIntoView(warning, actionColumn);

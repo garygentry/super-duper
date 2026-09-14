@@ -101,6 +101,18 @@ names affected sets/copies, and **Reverse rule application** preserves later man
 216 and three loaded-STA WPF methods pass at 1180x760, 900x600 and toolbar stress. UIR-06a/b are
 locally implemented; integrated native/scale/screen-reader/operator acceptance remains UIR-08/09.
 
+## UIR-07a local implementation evidence
+
+[UIR-07a](evidence/uir-07a-history-warnings.md) implements local History/open-run and contextual
+warning composition for A07/A12/A15 and the run-context portions of A16/A17. History binds at most
+500 newest-first rows per explicit page; selection only inspects one exact run while **Open scan**
+changes the workspace. The selected card names immutable recorded settings, any different opened run
+and any separate active scan. Warning pages retain 25 rows/five cached pages, exact run/date/state,
+current/terminal revision ownership, retained accepted data on failure and stable completed-run result
+navigation. Close returns focus to the exact History, Progress or Summary origin. Core 218 and three
+loaded-STA WPF methods pass with 114 reviewed captures. Performance composition, full A17 and
+integrated native/scale/screen-reader/operator acceptance remain UIR-07b/UIR-08/09.
+
 ## Carried native checks from scoped shell acceptance
 
 UIR-03's [scoped assessment](evidence/uir-03-shell-acceptance.md) does not complete A11. At UIR-08,

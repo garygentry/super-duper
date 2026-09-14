@@ -13,13 +13,16 @@ docs/windows-roadmap-session-handoff.md, plans/ui-redesign/README.md, execution-
 session-checkpoint.md. Follow codex-session-guide.md. Then read only the selected gate's linked
 specifications, code and tests; do not load historical engine/campaign narratives without a need.
 
-The current dependency-ready local slice is UIR-07a: compose History/open-run identity with
-contextual warning paging and deterministic return focus. Read S05, capability/validation guidance
-and its directly linked history selection/open-run, warning paging, return-navigation and focus
-tests. Make selected-versus-active run identity explicit; preserve immutable historical results,
-the 500-run history fetch, 25-row/five-page warning bounds, exact selected scan/date/state and
-current/terminal warning revision ownership. Keep Performance detail, recovery resolution,
-execution, full A17 and UIR-08 integration out of this slice.
+The current dependency-ready local slice is UIR-07b: compose contextual Performance detail around
+the exact selected run and deterministic return focus. Read the Performance portion of S05,
+capability/validation guidance and its directly linked PerformanceViewModel, Shell lazy-load,
+run-context, return-focus and WPF bounds tests. Preserve explicit unavailable values, comparison
+qualifiers, 25 history rows, six phase rows, 64 device rows and the absence of raw sample/time-series
+claims. Keep recovery resolution, execution, full A17 and UIR-08 integration out of this slice.
+
+Preserve UIR-07a's explicit highlighted/opened/active scan identity, immutable recorded settings,
+bounded 500-run History pages, 25-row/five-page current/terminal warnings, retained accepted pages,
+stable result navigation and exact History/Progress/Summary return focus.
 
 Preserve UIR-06a worker-owned combined totals, separate 200-row/five-page Files/Folders queries,
 exact links, validation states and **Check marked copies** distinction. Preserve UIR-06b saved

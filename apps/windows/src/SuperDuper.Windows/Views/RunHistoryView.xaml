@@ -3,214 +3,253 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:accessibility="clr-namespace:SuperDuper.Windows.Accessibility">
     <ScrollViewer AutomationProperties.AutomationId="HistoryWorkspaceScrollViewer"
-                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-    <Grid Margin="{StaticResource PageContentInset}">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
-        <StackPanel Margin="0,0,0,16">
-            <StackPanel>
-                <TextBlock Style="{StaticResource PageTitle}" Text="Run history" />
-                <TextBlock Margin="0,5,12,0" TextWrapping="Wrap" Text="Completed, cancelled, failed, and interrupted scans remain available after restart." />
-            </StackPanel>
-            <WrapPanel Margin="0,8,0,0">
-                <Button AutomationProperties.AutomationId="OpenRunWarnings"
-                        AutomationProperties.Name="Review persisted warnings for the selected run"
-                        Command="{Binding OpenWarningsCommand}"
-                        Content="_Review warnings" />
-                <Button Margin="8,0,0,0" Command="{Binding RefreshCommand}" Content="Refresh" />
-            </WrapPanel>
-        </StackPanel>
-
-        <Grid Grid.Row="1">
-            <DataGrid x:Name="RunHistoryGrid" AutoGenerateColumns="False" MinHeight="144" MaxHeight="300"
-                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                      AutomationProperties.AutomationId="RunHistoryGrid"
-                      AutomationProperties.Name="Run history"
-                      EnableColumnVirtualization="True"
-                      EnableRowVirtualization="True"
-                      IsReadOnly="True"
-                      ItemsSource="{Binding Runs}"
-                      SelectedItem="{Binding SelectedRun, Mode=TwoWay}"
-                      SelectionMode="Single"
-                      VirtualizingPanel.IsVirtualizing="True"
-                      VirtualizingPanel.VirtualizationMode="Recycling">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Width="125" Header="Status" Binding="{Binding Status}" />
-                    <DataGridTextColumn Width="160" Header="Started" Binding="{Binding Started}" />
-                    <DataGridTextColumn Width="120" Header="Files" Binding="{Binding FilesDiscovered}" />
-                    <DataGridTextColumn Width="120" Header="Data" Binding="{Binding BytesDiscovered}" />
-                    <DataGridTextColumn Width="120" Header="Groups" Binding="{Binding DuplicateGroups}" />
-                    <DataGridTextColumn Width="120" Header="Recoverable" Binding="{Binding WastedBytes}" />
-                    <DataGridTextColumn Width="100" Header="Warnings" Binding="{Binding WarningCount}" />
-                    <DataGridTextColumn Width="105" Header="Excluded" Binding="{Binding ExcludedSubtreeCount}" />
-                </DataGrid.Columns>
-            </DataGrid>
-
-            <StackPanel HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <TextBlock HorizontalAlignment="Center" Style="{StaticResource PageTitle}" Text="No scans yet" />
-                <TextBlock Margin="0,6,0,0" Text="Start this session’s first scan from the header." />
-            </StackPanel>
-            <StackPanel HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <ProgressBar Width="140" Height="4" IsIndeterminate="True" />
-                <TextBlock Margin="0,9,0,0" Text="Loading history…" />
-            </StackPanel>
-            <Border Padding="14"
-                    VerticalAlignment="Top"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <Grid Margin="{StaticResource PageContentInset}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <DockPanel Margin="0,0,0,12">
+                <Button DockPanel.Dock="Right"
+                        AutomationProperties.AutomationId="RefreshRunHistory"
+                        AutomationProperties.Name="Refresh the current bounded run-history page"
+                        Command="{Binding RefreshCommand}"
+                        Content="_Refresh" />
+                <StackPanel>
+                    <TextBlock Style="{StaticResource PageTitle}" Text="Scan history" />
+                    <TextBlock Margin="0,5,12,0"
+                               Text="Highlighting a row only inspects it. Use Open scan to change the Results and Review workspace."
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </DockPanel>
+            <Border Grid.Row="1" Margin="0,0,0,12" Padding="12"
+                    AutomationProperties.AutomationId="HighlightedRunContext"
+                    AutomationProperties.Name="{Binding SelectedRunIdentity}"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
                     BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="6"
-                    Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
-            </Border>
-        </Grid>
-
-        <Border Grid.Row="2"
-                Margin="0,14,0,0"
-                Padding="12"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="6"
-                Visibility="{Binding IsWarningDrilldownOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
-            <StackPanel>
-                <DockPanel>
-                    <Button DockPanel.Dock="Right"
-                            AutomationProperties.AutomationId="CloseRunWarnings"
-                            AutomationProperties.Name="Close run warning details and return to run history"
-                            Command="{Binding CloseWarningsCommand}"
-                            Content="Close" />
-                    <TextBlock Style="{StaticResource SectionTitle}" Text="Persisted run warnings" />
-                </DockPanel>
-                <TextBlock Margin="0,6,0,8"
-                           Text="Counts are durable aggregates; each row retains at most three representative examples."
-                           TextWrapping="Wrap" />
-                <Border Margin="0,0,0,8"
-                        Padding="10"
-                        AutomationProperties.AutomationId="RunWarningDiagnosticLog"
-                        AutomationProperties.HelpText="This application log is supplemental diagnostic context and is not the source of persisted warning counts."
-                        AutomationProperties.Name="{Binding WarningDiagnosticLogAutomationName}"
-                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="4">
-                    <StackPanel>
-                        <TextBlock FontWeight="SemiBold" Text="Diagnostic application log" />
-                        <TextBlock Margin="0,3,0,5"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   Text="Supplemental developer and recovery detail only; this log is not durable warning truth."
-                                   TextWrapping="Wrap" />
-                        <TextBlock AutomationProperties.AutomationId="RunWarningDiagnosticLogStatus"
-                                   AutomationProperties.Name="{Binding WarningDiagnosticLogStatus}"
-                                   Text="{Binding WarningDiagnosticLogStatus}"
-                                   TextWrapping="Wrap" />
-                        <TextBox Margin="0,5,0,0"
-                                 AutomationProperties.AutomationId="RunWarningDiagnosticLogPath"
-                                 AutomationProperties.Name="Diagnostic application log path"
-                                 IsReadOnly="True"
-                                 Text="{Binding WarningDiagnosticLogPath, Mode=OneWay}"
-                                 TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-                <DataGrid x:Name="RunWarningGrid"
-                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                          MinHeight="144" MaxHeight="260"
-                          AutoGenerateColumns="False"
-                          AutomationProperties.AutomationId="RunWarningGrid"
-                          AutomationProperties.Name="Persisted run warning aggregates"
-                          EnableColumnVirtualization="True"
-                          EnableRowVirtualization="True"
-                          IsReadOnly="True"
-                          ItemsSource="{Binding Warnings}"
-                          Sorting="OnWarningsSorting"
-                          VirtualizingPanel.IsVirtualizing="True"
-                          VirtualizingPanel.VirtualizationMode="Recycling">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Width="120" MinWidth="120" Header="Phase" SortMemberPath="Phase" Binding="{Binding Phase}" />
-                        <DataGridTextColumn Width="90" MinWidth="90" Header="Count" SortMemberPath="OccurrenceCount" SortDirection="Descending" Binding="{Binding OccurrenceCount}" />
-                        <DataGridTextColumn Width="2*" MinWidth="180" Header="Warning" SortMemberPath="Message" Binding="{Binding Message}" />
-                        <DataGridTemplateColumn Width="Auto" MinWidth="210" Header="Action" CanUserSort="False">
-                            <DataGridTemplateColumn.CellTemplate>
+                    BorderThickness="1" CornerRadius="6"
+                    Visibility="{Binding HasSelectedRun, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel>
+                    <TextBlock FontWeight="SemiBold" Text="Highlighted scan — inspection only" />
+                    <TextBlock Margin="0,4,0,0" FontWeight="SemiBold"
+                               AutomationProperties.AutomationId="HighlightedRunIdentity"
+                               Text="{Binding SelectedRunIdentity}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,3,0,0"
+                               AutomationProperties.AutomationId="HighlightedRunRelationship"
+                               Text="{Binding SelectedRunRelationship}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,5,0,0"
+                               AutomationProperties.AutomationId="ActiveRunHistoryContext"
+                               Text="{Binding ActiveRunContext}" TextWrapping="Wrap"
+                               Visibility="{Binding HasActiveRunContext, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <TextBlock Margin="0,7,0,0"
+                               AutomationProperties.AutomationId="HighlightedRunParameters"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Text="{Binding SelectedRunParameters}" TextWrapping="Wrap" />
+                    <Expander Margin="0,7,0,0" Header="Recorded locations for this scan">
+                        <ItemsControl AutomationProperties.AutomationId="HighlightedRunRoots"
+                                      AutomationProperties.Name="Exact recorded locations for the highlighted immutable scan"
+                                      ItemsSource="{Binding SelectedRunRoots}">
+                            <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Button AutomationProperties.AutomationId="{Binding Id, StringFormat=RunWarningHashResults-{0}}"
-                                            AutomationProperties.Name="Open immutable duplicate-file results for this hash warning"
-                                            Command="{Binding DataContext.NavigateWarningCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="{Binding}"
-                                            Content="_Open duplicate results">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource ShellAction}">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                <Style.Triggers>
-                                                    <MultiDataTrigger>
-                                                        <MultiDataTrigger.Conditions>
-                                                            <Condition Binding="{Binding Category}" Value="scan" />
-                                                            <Condition Binding="{Binding Code}" Value="hash_recoverable_warning" />
-                                                        </MultiDataTrigger.Conditions>
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                    </MultiDataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
+                                    <TextBox Margin="0,3,0,0"
+                                             AutomationProperties.Name="Recorded scan location"
+                                             BorderThickness="0" IsReadOnly="True" IsReadOnlyCaretVisible="True"
+                                             Text="{Binding}" TextWrapping="Wrap" />
                                 </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                        <DataGridTemplateColumn Width="3*" MinWidth="240" Header="Representative examples" CanUserSort="False">
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Expander>
+                    <WrapPanel Margin="0,8,0,0">
+                        <Button AutomationProperties.AutomationId="OpenRunWarnings"
+                                AutomationProperties.Name="Review persisted warnings for the highlighted exact run"
+                                Command="{Binding OpenWarningsCommand}" Content="Review _warnings" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+            <Grid Grid.Row="2">
+                <DataGrid x:Name="RunHistoryGrid" MinHeight="144" MaxHeight="300"
+                          AutoGenerateColumns="False"
+                          AutomationProperties.AutomationId="RunHistoryGrid"
+                          AutomationProperties.HelpText="Highlighting a row changes inspection only. Open scan is a separate action."
+                          AutomationProperties.Name="Run history, newest first, bounded to 500 scans per page"
+                          EnableColumnVirtualization="True" EnableRowVirtualization="True" IsReadOnly="True"
+                          ItemsSource="{Binding Runs}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                          SelectedItem="{Binding SelectedRun, Mode=TwoWay}" SelectionMode="Single"
+                          VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Width="*" Header="Saved scan runs — highlight only">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <ItemsControl ItemsSource="{Binding Examples}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                    <StackPanel Margin="4,6">
+                                        <WrapPanel>
+                                            <TextBlock FontWeight="SemiBold" Text="{Binding Started}" />
+                                            <TextBlock Margin="10,0,0,0" Text="{Binding Status}" />
+                                            <TextBlock Margin="10,0,0,0" Text="{Binding Duration, StringFormat='Duration: {0}'}" />
+                                        </WrapPanel>
+                                        <TextBlock Margin="0,3,0,0" Text="{Binding OutcomeSummary}" TextWrapping="Wrap" />
+                                    </StackPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
                     </DataGrid.Columns>
                 </DataGrid>
-                <TextBlock AutomationProperties.AutomationId="RunWarningStatus"
-                           accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding WarningAnnouncementVersion}"
-                           accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
-                           accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
-                           accessibility:AutomationNotificationBehavior.ActivityId="RunWarningPage"
-                           Margin="0,8,0,0"
-                           Text="{Binding WarningStatusMessage}"
-                           TextWrapping="Wrap" />
-                <TextBlock AutomationProperties.AutomationId="RunWarningError"
-                           AutomationProperties.LiveSetting="Assertive"
-                           accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding WarningErrorAnnouncementVersion}"
-                           accessibility:AutomationNotificationBehavior.NotificationKind="ActionAborted"
-                           accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
-                           accessibility:AutomationNotificationBehavior.ActivityId="RunWarningNavigation"
-                           Margin="0,8,0,0"
-                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                           Text="{Binding WarningErrorMessage}"
-                           TextWrapping="Wrap"
-                           Visibility="{Binding HasWarningError, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                <WrapPanel Margin="0,8,0,0">
-                    <Button AutomationProperties.AutomationId="NextRunWarningPage"
-                            AutomationProperties.Name="Load the next bounded warning aggregate page"
-                            Command="{Binding NextWarningPageCommand}"
-                            Content="_Next warning page" />
-                    <Button Margin="8,0,0,0"
-                            AutomationProperties.AutomationId="CancelRunWarningLoad"
-                            AutomationProperties.Name="Cancel loading run warnings"
-                            Command="{Binding CancelWarningLoadCommand}"
-                            Content="Cancel load" />
-                    <Button Margin="8,0,0,0"
-                            AutomationProperties.AutomationId="CancelRunWarningNavigation"
-                            AutomationProperties.Name="Cancel opening immutable duplicate-file results"
-                            Command="{Binding CancelWarningNavigationCommand}"
-                            Content="_Cancel navigation"
-                            Visibility="{Binding IsWarningNavigationPending, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock HorizontalAlignment="Center" Style="{StaticResource PageTitle}" Text="No scans yet" />
+                    <TextBlock Margin="0,6,0,0" Text="Start this saved scan’s first run from Scan." />
+                </StackPanel>
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ProgressBar Width="140" Height="4" IsIndeterminate="True" />
+                    <TextBlock Margin="0,9,0,0" Text="Loading bounded history…" />
+                </StackPanel>
+                <Border Padding="14" VerticalAlignment="Top"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6"
+                        Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+                </Border>
+            </Grid>
+            <DockPanel Grid.Row="3" Margin="0,8,0,0">
+                <TextBlock VerticalAlignment="Center" AutomationProperties.AutomationId="RunHistoryPageStatus"
+                           Text="{Binding HistoryPageStatus}" TextWrapping="Wrap" />
+                <WrapPanel DockPanel.Dock="Right" Margin="12,0,0,0">
+                    <Button AutomationProperties.AutomationId="PreviousRunHistoryPage"
+                            AutomationProperties.Name="Load the previous bounded run-history page and return focus to the highlighted scan"
+                            Command="{Binding PreviousHistoryPageCommand}" Content="_Previous scans" />
+                    <Button Margin="8,0,0,0" AutomationProperties.AutomationId="NextRunHistoryPage"
+                            AutomationProperties.Name="Load the next bounded run-history page and return focus to the highlighted scan"
+                            Command="{Binding NextHistoryPageCommand}" Content="_Next scans" />
                 </WrapPanel>
-            </StackPanel>
-        </Border>
-    </Grid>
+            </DockPanel>
+            <Border Grid.Row="4" Margin="0,14,0,0" Padding="12"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6"
+                    Visibility="{Binding IsWarningDrilldownOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" AutomationProperties.AutomationId="CloseRunWarnings"
+                                AutomationProperties.Name="{Binding WarningReturnAutomationName}"
+                                Command="{Binding CloseWarningsCommand}" Content="{Binding WarningReturnLabel}" />
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="{Binding WarningContextHeading}" />
+                            <TextBlock Margin="0,3,12,0" FontWeight="SemiBold"
+                                       AutomationProperties.AutomationId="RunWarningContextIdentity"
+                                       Text="{Binding WarningContextIdentity}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </DockPanel>
+                    <TextBlock Margin="0,6,0,0" AutomationProperties.AutomationId="RunWarningSnapshotBoundary"
+                               Text="{Binding WarningSnapshotBoundary}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,4,0,8" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Text="Counts are durable aggregates grouped by phase, category, and code. Exclusions identify unexamined scope; warnings and failures identify incomplete work. Each row retains at most three representative examples."
+                               TextWrapping="Wrap" />
+                    <Border Margin="0,0,0,8" Padding="10"
+                            AutomationProperties.AutomationId="RunWarningDiagnosticLog"
+                            AutomationProperties.HelpText="This application log is supplemental diagnostic context and is not the source of persisted warning counts."
+                            AutomationProperties.Name="{Binding WarningDiagnosticLogAutomationName}"
+                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4">
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold" Text="Diagnostic application log" />
+                            <TextBlock Margin="0,3,0,5" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       Text="Supplemental developer and recovery detail only; this log is not durable warning truth."
+                                       TextWrapping="Wrap" />
+                            <TextBlock AutomationProperties.AutomationId="RunWarningDiagnosticLogStatus"
+                                       AutomationProperties.Name="{Binding WarningDiagnosticLogStatus}"
+                                       Text="{Binding WarningDiagnosticLogStatus}" TextWrapping="Wrap" />
+                            <TextBox Margin="0,5,0,0" AutomationProperties.AutomationId="RunWarningDiagnosticLogPath"
+                                     AutomationProperties.Name="Diagnostic application log path"
+                                     IsReadOnly="True" IsReadOnlyCaretVisible="True"
+                                     Text="{Binding WarningDiagnosticLogPath, Mode=OneWay}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <DataGrid x:Name="RunWarningGrid" MinHeight="144" MaxHeight="300"
+                              AutoGenerateColumns="False"
+                              AutomationProperties.AutomationId="RunWarningGrid"
+                              AutomationProperties.Name="Persisted run warning aggregates, bounded to 25 rows per page"
+                              EnableColumnVirtualization="True" EnableRowVirtualization="True" IsReadOnly="True"
+                              ItemsSource="{Binding Warnings}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              Sorting="OnWarningsSorting"
+                              VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Width="*" Header="Warning aggregate" SortMemberPath="OccurrenceCount" SortDirection="Descending">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="4,6">
+                                            <WrapPanel>
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding Phase}" />
+                                                <TextBlock Margin="10,0,0,0" Text="{Binding Category, StringFormat='Category: {0}'}" />
+                                                <TextBlock Margin="10,0,0,0" Text="{Binding Code, StringFormat='Code: {0}'}" />
+                                                <TextBlock Margin="10,0,0,0" Text="{Binding Severity, StringFormat='Severity: {0}'}" />
+                                                <TextBlock Margin="10,0,0,0" FontWeight="SemiBold" Text="{Binding OccurrenceCount, StringFormat='Count: {0:N0}'}" />
+                                            </WrapPanel>
+                                            <TextBlock Margin="0,4,0,0" Text="{Binding Message}" TextWrapping="Wrap" />
+                                            <ItemsControl Margin="0,3,0,0" ItemsSource="{Binding Examples}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate><TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                             Text="{Binding Path=., StringFormat='Example: {0}'}" TextWrapping="Wrap" /></DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <Button Margin="0,6,0,0" HorizontalAlignment="Left"
+                                                    AutomationProperties.AutomationId="{Binding Id, StringFormat=RunWarningHashResults-{0}}"
+                                                    AutomationProperties.Name="Open immutable duplicate-file results for this hash warning"
+                                                    Command="{Binding DataContext.NavigateWarningCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}" Content="_Open duplicate results">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource ShellAction}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding Category}" Value="scan" />
+                                                                    <Condition Binding="{Binding Code}" Value="hash_recoverable_warning" />
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </MultiDataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Margin="0,8,0,0" AutomationProperties.AutomationId="RunWarningStatus"
+                               accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding WarningAnnouncementVersion}"
+                               accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
+                               accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
+                               accessibility:AutomationNotificationBehavior.ActivityId="RunWarningPage"
+                               Text="{Binding WarningStatusMessage}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,8,0,0" AutomationProperties.AutomationId="RunWarningError"
+                               AutomationProperties.LiveSetting="Assertive"
+                               accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding WarningErrorAnnouncementVersion}"
+                               accessibility:AutomationNotificationBehavior.NotificationKind="ActionAborted"
+                               accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
+                               accessibility:AutomationNotificationBehavior.ActivityId="RunWarningNavigation"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               Text="{Binding WarningErrorMessage}" TextWrapping="Wrap"
+                               Visibility="{Binding HasWarningError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <WrapPanel Margin="0,8,0,0">
+                        <Button AutomationProperties.AutomationId="RefreshRunWarnings"
+                                AutomationProperties.Name="Refresh the current warning revision without combining revisions"
+                                Command="{Binding RefreshWarningsCommand}" Content="_Refresh current warnings" />
+                        <Button Margin="8,0,0,0" AutomationProperties.AutomationId="NextRunWarningPage"
+                                AutomationProperties.Name="Load the next bounded warning aggregate page"
+                                Command="{Binding NextWarningPageCommand}" Content="_Next warning page" />
+                        <Button Margin="8,0,0,0" AutomationProperties.AutomationId="CancelRunWarningLoad"
+                                AutomationProperties.Name="Cancel loading run warnings"
+                                Command="{Binding CancelWarningLoadCommand}" Content="Cancel load" />
+                        <Button Margin="8,0,0,0" AutomationProperties.AutomationId="CancelRunWarningNavigation"
+                                AutomationProperties.Name="Cancel opening immutable duplicate-file results"
+                                Command="{Binding CancelWarningNavigationCommand}" Content="_Cancel navigation"
+                                Visibility="{Binding IsWarningNavigationPending, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
     </ScrollViewer>
 </UserControl>

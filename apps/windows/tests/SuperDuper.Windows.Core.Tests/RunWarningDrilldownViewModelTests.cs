@@ -51,7 +51,16 @@ public sealed class RunWarningDrilldownViewModelTests
         Assert.AreEqual(100_000, viewModel.WarningCount);
         Assert.AreEqual(viewModel.WarningCount, viewModel.AccountedWarningCount);
         StringAssert.Contains(viewModel.StatusMessage, "100,000 of 100,000 warnings durably accounted");
+        StringAssert.Contains(viewModel.StatusMessage, "refreshed from revision 4 to 5");
         Assert.IsNull(queries[^1].Cursor, "An active refresh reused a cached first page.");
+
+        revision = 3;
+        await viewModel.RefreshAsync();
+
+        Assert.IsTrue(viewModel.HasError);
+        StringAssert.Contains(viewModel.ErrorMessage, "Retained the accepted active warning revision 5");
+        Assert.AreEqual(5L, viewModel.SnapshotRevision);
+        Assert.AreEqual(5_001, viewModel.Warnings[0].Id);
     }
 
     [TestMethod]

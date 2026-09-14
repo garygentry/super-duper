@@ -143,14 +143,14 @@
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Top" Margin="24,8" Style="{StaticResource ShellBody}"
                                                     AutomationProperties.AutomationId="ProgressScanContext" Text="{Binding ProgressScanContext}" />
-                                        <views:ScanProgressView DataContext="{Binding Progress}" />
+                                        <views:ScanProgressView x:Name="ProgressWorkspace" DataContext="{Binding Progress}" />
                                     </DockPanel>
                                 </TabItem>
                                 <TabItem Header="Su_mmary" Tag="{x:Static vm:WorkspaceDestination.ScanSummary}">
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Top" Margin="24,8" Style="{StaticResource ShellBody}"
                                                     Text="{Binding SelectedScanContext}" />
-                                        <views:ScanProgressView DataContext="{Binding Summary}" />
+                                        <views:ScanProgressView x:Name="SummaryWorkspace" DataContext="{Binding Summary}" />
                                     </DockPanel>
                                 </TabItem>
                             </TabControl>

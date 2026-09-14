@@ -82,6 +82,10 @@ public partial class MainWindow : Window
                 _ = DuplicateFilesWorkspace.RestoreGroupGridFocusAsync(IsCurrent);
             else if (target == "duplicate-folder-groups")
                 _ = DuplicateFoldersWorkspace.RestoreGroupGridFocusAsync();
+            else if (target == "progress-warnings")
+                _ = ProgressWorkspace.RestoreWarningEntryFocus();
+            else if (target == "summary-warnings")
+                _ = SummaryWorkspace.RestoreWarningEntryFocus();
         }, DispatcherPriority.Background);
     }
 

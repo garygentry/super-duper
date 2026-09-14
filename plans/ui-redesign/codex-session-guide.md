@@ -83,8 +83,11 @@ of that capability. [Official AGENTS.md guidance](https://learn.chatgpt.com/docs
 - **Implemented: UIR-06b** — focused Location preferences in Review with saved/virtual/applied
   meanings separated and the existing revision/signature/provenance/reversal contracts retained;
   [evidence](evidence/uir-06b-location-preferences.md). Core 216 and three WPF methods passed.
-- **Next: UIR-07a** — History/open-run and contextual warning composition, preserving exact run,
-  bounded warning paging/return focus and selected-versus-active context. Performance detail follows.
+- **Implemented: UIR-07a** — bounded 500-run History paging, immutable recorded settings,
+  highlighted/open/active identity and contextual 25-row/five-page current/terminal warnings with
+  exact return focus; [evidence](evidence/uir-07a-history-warnings.md). Core 218 and three WPF methods passed.
+- **Next: UIR-07b** — contextual Performance detail with exact run/return context, truthful unavailable
+  and comparison-qualified summaries, and retained 25-history/six-phase/64-device bounds.
 - **UIR-08/09** — integrated Rust/.NET Debug/Release checks, native layout/keyboard/accessibility
   and scale evidence, then operator workflow acceptance. Remain on the branch after completion;
   merge, publication and the parked deletion/release work need their own later instruction.

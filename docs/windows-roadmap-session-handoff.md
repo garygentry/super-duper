@@ -23,22 +23,22 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest local slice: UIR-06b focused Location preferences in Review, in this checkpoint's commit.
-  Baseline `143ee77` (UIR-06a). Evidence:
-  `plans/ui-redesign/evidence/uir-06b-location-preferences.md`.
-- UIR-00/01/02/03 complete; UIR-04, UIR-05 and UIR-06 in_progress. UIR-04a/b/c, UIR-05a/b/c and
-  UIR-06a/b are locally implemented. Later integrated/full A17/native/operator validation remains open.
-- UIR-06b moves the shared worker-backed workflow from Files into a focused, discoverable **Location
-  preferences** Review panel. Saved ordered-root configuration, virtual preview and applied decision
-  provenance are explicitly distinct. Scope/count confirmation, rule/review revisions, worker preview
-  signature, fresh-preview enforcement, **Reverse rule application** and later manual overrides remain.
-- UIR-06a worker-owned combined totals, separate 200-row/five-page Files/Folders review pages, exact
-  bounded links, retained accepted pages and current/plan-changed/ready/blocked/needs-review states remain.
-- Verification: 216 Core and three loaded-STA WPF methods passed; isolated fixture build has zero
-  warnings/errors. The focused panel is virtualized, vertical-only and reachable at 1180x760, 900x600
-  and toolbar stress while retaining prior Review/Results/theme/text/focus checks. There are 111
-  reviewed captures under `artifacts/uir06b/captures-accepted-reviewed-final`; final results and
-  retained corrections are under `artifacts/uir06b`.
+- Latest local slice: UIR-07a History/open-run and contextual warnings, in this checkpoint's commit.
+  Baseline `9b81c92` (UIR-06b). Evidence:
+  `plans/ui-redesign/evidence/uir-07a-history-warnings.md`.
+- UIR-00/01/02/03 complete; UIR-04, UIR-05, UIR-06 and UIR-07 in_progress. UIR-04a/b/c,
+  UIR-05a/b/c, UIR-06a/b and UIR-07a are locally implemented. Later integrated/full A17/native/
+  operator validation remains open.
+- UIR-07a binds one newest-first 500-run History page with explicit Previous/Next navigation and
+  retained accepted data on failure. Highlighted, opened workspace and active scan identities are
+  distinct; exact date/state and immutable recorded settings stay visible. **Open scan** remains explicit.
+- Contextual warnings retain exact run/date/state, 25-row pages, five cached pages, worker-owned
+  current/terminal revisions, retained accepted data and stable completed-run navigation. Close returns
+  focus to the exact History, Progress or Summary origin without retargeting the opened historical run.
+- Verification: 218 Core and three loaded-STA WPF methods passed; isolated fixture build has zero
+  warnings/errors. History and warnings are vertically reachable at 1180x760, 900x600 and toolbar stress
+  while retaining prior Review/Results/monitoring/theme/text/focus checks. There are 114 reviewed captures
+  under `artifacts/uir07a/captures-accepted-final`; final results are under `artifacts/uir07a/results*`.
 - Retain UIR-03 scoped shell acceptance: nine earlier walkthrough passes, scrollbar correction,
   Narrator, corrected Dark/Desert/live text size, and physical 150%/175% transitions with focus and
   file-group selection retained. Do not replay accepted checks without a reopen reason.
@@ -46,15 +46,15 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   UIR-08/A11, not passed or waived. Do not troubleshoot Windows, force scaling or install software.
 - Prior paired Debug/Release integration and UIR-03c Rust 226 passed/10 ignored are retained, not rerun.
   UIR-04a/b/c are local implementation; full A17/native/user acceptance and UIR-08 integration remain later.
-- Exact next local slice: UIR-07a History/open-run and contextual warning composition. Read S05,
-  capability/validation guidance and linked history selection/open-run, warning paging, return and
-  focus tests. Preserve selected-versus-active identity, immutable historical results, 500-run
-  history fetch, 25-row/five-page warning bounds and current/terminal revision ownership. Do not
-  pull Performance detail, recovery resolution, execution, full A17 or UIR-08 integration forward.
+- Exact next local slice: UIR-07b contextual Performance detail. Read the Performance portion of S05,
+  capability/validation guidance and linked Performance, lazy-load, run-context, return-focus and WPF
+  bounds tests. Preserve exact selected run, unavailable values, comparison qualifiers, 25 history rows,
+  six phase rows, 64 device rows and no raw sample/time-series claim. Preserve every UIR-07a History/
+  warning identity/bound/return contract. Do not pull recovery resolution, execution, full A17 or UIR-08 forward.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; print the required copyable next-session
   prompt at handoff. UIR-04 retains later integrated/operator validation; no physical campaign authority.
 - Runtime audit: fictional PID 67748/session 1 responsive at the exact UIR-03f executable, left untouched.
-  UIR-04b/04c/05a/05b/05c/06a/06b outputs are built, not launched. UIR-06b fixture build has zero
+  UIR-04b/04c/05a/05b/05c/06a/06b/07a outputs are built, not launched. UIR-07a fixture build has zero
   warnings/errors. Re-audit before reuse.
   Test windows closed; no production app/worker observed. Production state and disabled deletion untouched.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
@@ -501,16 +501,17 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-UIR-04a/b/c, UIR-05a/b/c and UIR-06a/b are locally implemented; UIR-04/05/06 remain in progress for
-later integrated/native acceptance. Next local work is UIR-07a: History/open-run and contextual
-warning composition. Read S05, capability/validation guidance and directly linked history selection,
-explicit open-run, warning paging, exact return-navigation and focus tests. Make selected-versus-active
-run context and bounded warning return paths explicit while preserving immutable historical results,
-the 500-run history fetch, 25-row/five-page warning bounds, selected scan identity and current/terminal
-revision ownership. Preserve every UIR-04/05/06 contract. Do not pull Performance detail, recovery
-resolution, execution, full A17 or UIR-08 integration forward. Retain UIR-06b's 216 Core/three WPF
-results and reviewed captures. Full A17 and integrated/native/operator validation remain later. Use
-the compact checkpoint/session guide.
+UIR-04a/b/c, UIR-05a/b/c, UIR-06a/b and UIR-07a are locally implemented; UIR-04/05/06/07 remain in
+progress for later integrated/native acceptance. Next local work is UIR-07b: contextual Performance
+detail. Read the Performance portion of S05, capability/validation guidance and directly linked
+PerformanceViewModel, Shell lazy-load, run-context, return-focus and WPF bounds tests. Compose existing
+phase/cache/read/device summaries around the exact selected run while preserving explicit unavailable
+values, comparison qualifiers, 25 history rows, six phase rows, 64 device rows and no raw sample/time-
+series claim. Preserve every UIR-07a History/warning identity, page/cache/revision, retained-data and
+return-focus contract plus every UIR-04/05/06 contract. Do not pull recovery resolution, execution,
+full A17 or UIR-08 integration forward. Retain UIR-07a's 218 Core/three WPF results, 114 reviewed captures
+and clean fixture build. Full A17 and integrated/native/operator validation remain later. Use the compact
+checkpoint/session guide.
 All work stays on codex/ui-redesign; preserve wpf-poc at deefa40, no switch/worktree/merge/push.
 Re-audit PID 67748 and all fixture/app/worker paths before reuse; never overwrite running outputs.
 Preserve production state/deletion locks and SOP boundaries. NVDA/physical 200% remain unavailable
@@ -611,6 +612,15 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+2026-09-13 UIR-07a: Core 218 passed and three loaded-STA WPF methods passed. History now binds one
+explicit newest-first 500-run page with Previous/Next navigation and retained accepted data on failure.
+Highlighted, opened workspace and active scans are separately named with exact scan/date/state and
+immutable recorded settings. Contextual warnings retain 25-row/five-page bounds, exact run identity,
+current/terminal worker revision ownership, retained accepted pages and stable completed-run navigation;
+Close restores the exact History/Progress/Summary origin focus. Isolated fixture build passed with zero
+warnings/errors; 114 reviewed captures and final TRX files are under `artifacts/uir07a`. See
+`plans/ui-redesign/evidence/uir-07a-history-warnings.md`.
 
 2026-09-13 UIR-06b: Core 216 passed and three loaded-STA WPF methods passed. The shared
 worker-backed Location preferences workflow is now a focused Review panel that distinguishes saved
@@ -1367,6 +1377,16 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+- 2026-09-13: UIR-07a locally implements History/open-run and contextual warnings for
+  A07/A12/A15 plus the run-context portions of A16/A17. History uses an explicit 500-run page rather
+  than one growing collection; highlighting remains harmless and distinct from **Open scan** while
+  immutable settings and highlighted/open/active identities are named. Warning pages retain the
+  25-row/five-page current/terminal worker revision contract, stable target navigation and accepted
+  data on replacement failure. Close restores exact History/Progress/Summary origin focus. Core 218
+  and three WPF methods pass; 114 captures and a clean fixture build are retained. UIR-07b next
+  composes contextual Performance detail. Runtime, production deletion, worker/protocol/query ceilings,
+  recovery and SOP boundaries are unchanged.
 
 - 2026-09-13: UIR-06b locally implements the focused Location preferences Review panel for
   A04/A10/A11/A15 while preserving the existing worker-backed rule semantics. Saved ordered roots,

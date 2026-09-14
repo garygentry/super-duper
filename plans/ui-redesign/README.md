@@ -1,7 +1,7 @@
 # Windows UI redesign
 
 Status: high-level direction accepted with long-scan/rescan feedback, updated 2026-09-13. Product
-implementation includes UIR-04a saved setup/Scan again, UIR-04b long-scan freshness/terminal presentation, UIR-04c compact monitoring/details, UIR-05a compact file queries/totals, UIR-05b adjustable file comparison/full local A03, UIR-05c adjustable folder comparison/remaining local folder criteria, UIR-06a dedicated Review overview/revision-aware validation, UIR-06b focused Location preferences and UIR-03a/b/c/d/e/f shell/context, shared resources, viewport verification and
+implementation includes UIR-04a saved setup/Scan again, UIR-04b long-scan freshness/terminal presentation, UIR-04c compact monitoring/details, UIR-05a compact file queries/totals, UIR-05b adjustable file comparison/full local A03, UIR-05c adjustable folder comparison/remaining local folder criteria, UIR-06a dedicated Review overview/revision-aware validation, UIR-06b focused Location preferences, UIR-07a History/contextual warnings and UIR-03a/b/c/d/e/f shell/context, shared resources, viewport verification and
 the operator-reported scrollbar, theme, text-size and empty-folder fixes. The package records the accepted direction and its limits; it is not a claim of
 operator usability acceptance or Windows release acceptance.
 
@@ -48,7 +48,8 @@ are authoritative if its intentionally small fictional dataset or simplified int
 | UIR-04 | in_progress | [UIR-04a setup/Scan again](evidence/uir-04a-saved-scan-setup.md) and [UIR-04b elapsed/freshness/terminal](evidence/uir-04b-long-scan-monitoring.md) and [UIR-04c compact monitoring/details](evidence/uir-04c-compact-monitoring.md) locally implemented; later integrated/operator validation remains |
 | UIR-05 | in_progress | [UIR-05a file query controls/totals](evidence/uir-05a-file-query-controls.md), [UIR-05b adjustable file comparison/A03](evidence/uir-05b-file-comparison.md) and [UIR-05c adjustable folder comparison](evidence/uir-05c-folder-comparison.md) locally implemented; later integrated/native acceptance remains |
 | UIR-06 | in_progress | [UIR-06a Review overview/validation status](evidence/uir-06a-review-overview.md) and [UIR-06b focused Location preferences](evidence/uir-06b-location-preferences.md) locally implemented; later integrated/native acceptance remains |
-| UIR-07 through UIR-09 | planned | Later implementation and final native/user acceptance remain |
+| UIR-07 | in_progress | [UIR-07a History/contextual warnings](evidence/uir-07a-history-warnings.md) locally implemented; contextual Performance detail and later integrated/native acceptance remain |
+| UIR-08 through UIR-09 | planned | Later integration and final native/user acceptance remain |
 
 On 2026-09-11 the operator [passed three initial checks](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks):
 reviewed/active scan context and harmless History highlighting, delayed-folder responsiveness/error
@@ -85,8 +86,10 @@ bounded reveal and focus restoration. UIR-06a adds separate bounded Files/Folder
 worker-owned combined totals, exact-set return links and current/stale/ready/blocked/needs-review
 whole-plan status. UIR-06b moves the unchanged worker-owned preference workflow into Review, clearly
 separates saved configuration, virtual preview and applied decisions, and uses **Reverse rule
-application** while preserving later manual overrides. Core 216 and three WPF methods pass. Next:
-UIR-07a History/open-run and contextual warning composition. Re-audit runtime before reuse;
+application** while preserving later manual overrides. UIR-07a adds bounded 500-run History pages,
+explicit highlighted/open/active identity, immutable recorded settings, contextual current/terminal
+warning revisions, retained accepted pages and exact History/Progress/Summary return focus. Core 218
+and three WPF methods pass. Next: UIR-07b contextual Performance detail. Re-audit runtime before reuse;
 do not troubleshoot Windows scaling.
 Small visual preferences can evolve during implementation.
 Execution enablement and physical/provider campaigns retain their separate authority requirements.

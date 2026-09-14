@@ -21,6 +21,10 @@ public sealed class RunListItemViewModel : ObservableObject
 
     public string Completed => _run.CompletedAt?.ToLocalTime().ToString("g") ?? "—";
 
+    public string Duration => _run.StartedAt is { } started && _run.CompletedAt is { } completed
+        ? DisplayFormatting.Duration(completed - started)
+        : _run.StartedAt is not null ? "In progress" : "Not started";
+
     public string FilesDiscovered => _run.FilesDiscovered.ToString("N0");
 
     public string BytesDiscovered => DisplayFormatting.Bytes(_run.BytesDiscovered);
@@ -32,6 +36,12 @@ public sealed class RunListItemViewModel : ObservableObject
     public string WarningCount => _run.WarningCount.ToString("N0");
 
     public string ExcludedSubtreeCount => _run.ExcludedSubtreeCount.ToString("N0");
+
+    public string OutcomeSummary => _run.Status == "completed"
+        ? $"{DuplicateGroups} exact file sets · {WastedBytes} potential savings · {WarningCount} warnings"
+        : _run.Status is "pending" or "running" or "cancelling"
+            ? $"{Phase} · {FilesDiscovered} files found · {WarningCount} warnings"
+            : $"Completed results unavailable · {WarningCount} warnings";
 
     public bool HasError => !string.IsNullOrWhiteSpace(_run.ErrorMessage);
 
