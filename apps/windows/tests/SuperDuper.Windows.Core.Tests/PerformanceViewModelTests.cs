@@ -27,16 +27,26 @@ public sealed class PerformanceViewModelTests
             Task.FromResult(statusRunId == 6 || productRunId == 106 ? prior : current);
         var productRun = TestWorkerClient.CreateRun(107, 3, "completed", "finalizing", DateTimeOffset.UtcNow.AddMinutes(-2));
 
-        using var viewModel = new PerformanceViewModel(worker);
-        await viewModel.ShowRunAsync(productRun);
+        PerformanceReturnDestination? returnedTo = null;
+        using var viewModel = new PerformanceViewModel(worker, _ => "Photo archive", destination => returnedTo = destination);
+        await viewModel.ShowRunAsync(productRun, returnDestination: PerformanceReturnDestination.ScanProgress);
 
         Assert.AreEqual(PerformanceViewModel.HistoryLimit, viewModel.History.Count);
         Assert.AreEqual(1, viewModel.Phases.Count);
         Assert.AreEqual(1, viewModel.Devices.Count);
         Assert.AreEqual("Unavailable", viewModel.CpuSummary);
         Assert.AreEqual("Unavailable", viewModel.Devices[0].CurrentIops);
+        Assert.AreSame(viewModel.Devices[0], viewModel.SelectedDevice);
+        StringAssert.Contains(viewModel.ContextIdentity, $"Photo archive · Scan {productRun.Id}");
+        StringAssert.Contains(viewModel.SnapshotBoundary, $"exact Scan {productRun.Id}");
+        StringAssert.Contains(viewModel.SnapshotBoundary, "raw samples and time-series data are not available");
+        Assert.AreEqual("_Return to progress", viewModel.ReturnLabel);
+        StringAssert.Contains(viewModel.ReadSummary, "actually read");
         StringAssert.Contains(viewModel.UnavailableSummary, "unavailable in latest host sample");
         Assert.IsFalse(viewModel.HasError);
+
+        viewModel.ReturnCommand.Execute(null);
+        Assert.AreEqual(PerformanceReturnDestination.ScanProgress, returnedTo);
 
         viewModel.SelectedComparisonRun = viewModel.History.Single(item => item.StatusRunId == 6);
         await viewModel.CompareCommand.ExecuteAsync(null);
@@ -51,6 +61,47 @@ public sealed class PerformanceViewModelTests
         await restarted.CompareCommand.ExecuteAsync(null);
         Assert.AreEqual(viewModel.RunDuration, restarted.RunDuration);
         Assert.AreEqual(viewModel.ComparisonMessage, restarted.ComparisonMessage);
+    }
+
+    [TestMethod]
+    public async Task ExactBoundaryCollectionsRemainBoundedAndMismatchedRunIsRejected()
+    {
+        var worker = new TestWorkerClient();
+        var exact = Snapshot(30, 300, "input", "engine", "device-1", "volume-1", unavailable: false) with
+        {
+            Phases = Enumerable.Range(1, PerformanceViewModel.PhaseLimit)
+                .Select(index => new WorkerPerformancePhase($"phase-{index}", "completed", 0, 1_000, 1_000))
+                .ToArray(),
+            Devices = Enumerable.Range(1, PerformanceViewModel.DeviceLimit)
+                .Select(index => Snapshot(30, 300, "input", "engine", $"device-{index}", $"volume-{index}", unavailable: index == 2).Devices[0])
+                .ToArray(),
+        };
+        worker.PerformanceRunsHandler = (_, pageSize, _) => Task.FromResult(new WorkerPerformanceRunPage(
+            Enumerable.Range(0, pageSize).Select(index => Run(30 - index, 300 - index, "input", "engine")).ToArray(),
+            null,
+            false));
+        worker.PerformanceSnapshotHandler = (_, _, _) => Task.FromResult(exact);
+        using var viewModel = new PerformanceViewModel(worker);
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(300, 1, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        Assert.AreEqual(PerformanceViewModel.HistoryLimit, viewModel.History.Count);
+        Assert.AreEqual(PerformanceViewModel.PhaseLimit, viewModel.Phases.Count);
+        Assert.AreEqual(PerformanceViewModel.DeviceLimit, viewModel.Devices.Count);
+        viewModel.SelectedDevice = viewModel.Devices[1];
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+        Assert.AreEqual("device-2\u001fvolume-2", viewModel.SelectedDevice?.IdentityKey);
+        Assert.AreEqual("Unavailable", viewModel.SelectedDevice?.CurrentRead);
+
+        worker.PerformanceSnapshotHandler = (_, _, _) => Task.FromResult(exact with { Run = exact.Run with { ProductRunId = 999 } });
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.IsTrue(viewModel.HasError);
+        StringAssert.Contains(viewModel.ErrorMessage, "different product run");
+        Assert.AreEqual(0, viewModel.History.Count);
+        Assert.AreEqual(0, viewModel.Phases.Count);
+        Assert.AreEqual(0, viewModel.Devices.Count);
+        Assert.IsNull(viewModel.SelectedDevice);
     }
 
     [TestMethod]
@@ -132,10 +183,14 @@ public sealed class PerformanceViewModelTests
             run,
             [
                 new("discovered_files", 100, 2), new("metadata_resolved_files", 20, 2),
-                new("candidate_files", 80, 2), new("partial_hashes_succeeded", 70, 2),
+                new("candidate_files", 80, 2), new("candidate_bytes", 100_000_000, 2),
+                new("partial_hashes_succeeded", 70, 2), new("partial_hash_bytes_read", 1_000_000, 2),
                 new("full_hash_requests", 50, 2), new("confirmed_physical_items", 10, 2),
+                new("partial_hash_cache_hits", 20, 2), new("partial_hash_cache_misses", 10, 2),
+                new("partial_hash_cache_errors", 0, 2), new("partial_hash_cache_stores", 10, 2),
                 new("full_hash_cache_hits", 30, 2), new("full_hash_cache_misses", 15, 2),
-                new("full_hash_cache_errors", 5, 2), new("full_hash_bytes_read", 50_000_000, 2),
+                new("full_hash_cache_errors", 5, 2), new("full_hash_cache_stores", 15, 2),
+                new("full_hash_bytes_read", 50_000_000, 2),
                 new("warnings", 3, 2), new("unavailable_counters", unavailable ? 9u : 0u, 2),
             ],
             [new("full_hashing", "completed", 0, 5_000_000_000, 5_000_000_000)],

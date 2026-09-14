@@ -18,6 +18,7 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
     private readonly Func<WorkerRun?> _activeRun;
     private readonly Func<long, string?> _sessionName;
     private readonly Action<WarningReturnDestination>? _returnFromWarnings;
+    private readonly Func<WorkerRun, CancellationToken, Task>? _openPerformance;
     private readonly HashSet<long> _knownRunIds = [];
     private long? _sessionId;
     private RunListItemViewModel? _selectedRun;
@@ -39,7 +40,8 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         Func<WorkerRun?>? workspaceRun = null,
         Func<WorkerRun?>? activeRun = null,
         Func<long, string?>? sessionName = null,
-        Action<WarningReturnDestination>? returnFromWarnings = null)
+        Action<WarningReturnDestination>? returnFromWarnings = null,
+        Func<WorkerRun, CancellationToken, Task>? openPerformance = null)
     {
         _workerClient = workerClient;
         _warningDrilldown = new RunWarningDrilldownViewModel(workerClient);
@@ -49,10 +51,12 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         _activeRun = activeRun ?? (() => null);
         _sessionName = sessionName ?? (_ => null);
         _returnFromWarnings = returnFromWarnings;
+        _openPerformance = openPerformance;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => SessionId is not null && !IsLoading);
         PreviousHistoryPageCommand = new AsyncRelayCommand(PreviousHistoryPageAsync, () => CanLoadPreviousHistoryPage);
         NextHistoryPageCommand = new AsyncRelayCommand(NextHistoryPageAsync, () => CanLoadNextHistoryPage);
         OpenWarningsCommand = new AsyncRelayCommand(OpenWarningsAsync, () => CanOpenWarnings);
+        OpenPerformanceCommand = new AsyncRelayCommand(OpenPerformanceAsync, () => CanOpenPerformance);
         RefreshWarningsCommand = new AsyncRelayCommand(RefreshWarningsAsync, () => CanRefreshWarnings);
         NextWarningPageCommand = new AsyncRelayCommand(NextWarningPageAsync, () => CanLoadNextWarningPage);
         CancelWarningLoadCommand = new RelayCommand(CancelWarningLoad, () => IsWarningLoading);
@@ -96,7 +100,9 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
                 SelectedRunChanged?.Invoke(this, value?.Run);
                 RaiseSelectedRunContext();
                 OnPropertyChanged(nameof(CanOpenWarnings));
+                OnPropertyChanged(nameof(CanOpenPerformance));
                 OpenWarningsCommand.NotifyCanExecuteChanged();
+                OpenPerformanceCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -110,6 +116,8 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
             {
                 OnPropertyChanged(nameof(IsEmpty));
                 RefreshCommand.NotifyCanExecuteChanged();
+                OnPropertyChanged(nameof(CanOpenPerformance));
+                OpenPerformanceCommand.NotifyCanExecuteChanged();
                 RaiseHistoryPagingState();
             }
         }
@@ -206,6 +214,8 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
 
     public bool CanOpenWarnings => SelectedRun?.Run.WarningCount > 0 && !IsWarningLoading && !IsWarningDrilldownOpen;
 
+    public bool CanOpenPerformance => SelectedRun is not null && !IsLoading && _openPerformance is not null;
+
     public bool CanRefreshWarnings => IsWarningDrilldownOpen && !IsWarningLoading && _warningDrilldown.IsActiveSnapshot;
 
     public string WarningContextHeading => _warningDrilldown.IsActiveSnapshot
@@ -263,6 +273,8 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
     public IAsyncRelayCommand NextHistoryPageCommand { get; }
 
     public IAsyncRelayCommand OpenWarningsCommand { get; }
+
+    public IAsyncRelayCommand OpenPerformanceCommand { get; }
 
     public IAsyncRelayCommand RefreshWarningsCommand { get; }
 
@@ -459,6 +471,11 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
         return LoadWarningPageAsync(opening: true);
     }
 
+    private Task OpenPerformanceAsync(CancellationToken cancellationToken) =>
+        SelectedRun?.Run is { } run && _openPerformance is not null
+            ? _openPerformance(run, cancellationToken)
+            : Task.CompletedTask;
+
     private async Task RefreshWarningsAsync()
     {
         await _warningDrilldown.RefreshAsync();
@@ -651,8 +668,10 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
             OnPropertyChanged(propertyName);
         }
         OnPropertyChanged(nameof(CanOpenWarnings));
+        OnPropertyChanged(nameof(CanOpenPerformance));
         RaiseWarningContext();
         OpenWarningsCommand.NotifyCanExecuteChanged();
+        OpenPerformanceCommand.NotifyCanExecuteChanged();
         RefreshWarningsCommand.NotifyCanExecuteChanged();
         NextWarningPageCommand.NotifyCanExecuteChanged();
         CancelWarningLoadCommand.NotifyCanExecuteChanged();

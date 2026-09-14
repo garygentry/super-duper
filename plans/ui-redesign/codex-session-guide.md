@@ -86,10 +86,14 @@ of that capability. [Official AGENTS.md guidance](https://learn.chatgpt.com/docs
 - **Implemented: UIR-07a** — bounded 500-run History paging, immutable recorded settings,
   highlighted/open/active identity and contextual 25-row/five-page current/terminal warnings with
   exact return focus; [evidence](evidence/uir-07a-history-warnings.md). Core 218 and three WPF methods passed.
-- **Next: UIR-07b** — contextual Performance detail with exact run/return context, truthful unavailable
-  and comparison-qualified summaries, and retained 25-history/six-phase/64-device bounds.
-- **UIR-08/09** — integrated Rust/.NET Debug/Release checks, native layout/keyboard/accessibility
-  and scale evidence, then operator workflow acceptance. Remain on the branch after completion;
+- **Implemented: UIR-07b** — exact-run contextual Performance with deterministic return focus,
+  truthful unavailable/summary-only telemetry, qualified comparison and retained 25-history/
+  six-phase/64-device bounds; [evidence](evidence/uir-07b-contextual-performance.md). Core 220 and
+  three WPF methods passed.
+- **Next: UIR-08** — locally available integrated Rust/.NET Debug/Release regression and honest
+  acceptance-matrix preparation, followed only by separately authorized native actions.
+- **UIR-09** — final operator workflow acceptance, package and durable handoff after UIR-08's
+  integrated/native evidence. Remain on the branch after completion;
   merge, publication and the parked deletion/release work need their own later instruction.
 
 There is no fixed session count: use the gate's scope and evidence to decide when to checkpoint.

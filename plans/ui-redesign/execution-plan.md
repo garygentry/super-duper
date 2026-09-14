@@ -1,6 +1,6 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-03 complete with scoped operator acceptance; UIR-04, UIR-05, UIR-06 and UIR-07 in progress; UIR-04a/b/c, UIR-05a/b/c, UIR-06a/b and UIR-07a locally implemented. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
+Status: UIR-03 complete with scoped operator acceptance; UIR-04, UIR-05, UIR-06 and UIR-07 in progress; UIR-04a/b/c, UIR-05a/b/c, UIR-06a/b and UIR-07a/b locally implemented. UIR-08 local integration regression and acceptance-matrix preparation is next. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -15,7 +15,7 @@ all safety/evidence gates. Its open execution criteria are not absorbed or marke
 | UIR-04 | in_progress | Setup, Scan again, persistent reuse explanation, live monitoring/details and terminal summaries | UIR-03; A05/A06/A08/A14/A15/A16/A17 with controlled clock, lifecycle and rescan fixtures |
 | UIR-05 | in_progress | File/folder results, compact filters, list/detail comparison, decisions and path actions | UIR-03; A03/A04/A05/A06/A11/A13/A15 and existing query/focus/page contracts |
 | UIR-06 | in_progress | Dedicated Review, existing rule workflow, whole-plan validation and evidence access | UIR-05; A04/A10/A15 including revision, survivor, overlap, reversal and restart |
-| UIR-07 | in_progress | History/open-run, contextual warnings and performance detail | UIR-03/04; UIR-07a History/warnings locally implemented; A07/A12/A13/A15/A16/A17 and current/terminal warning boundaries |
+| UIR-07 | in_progress | History/open-run, contextual warnings and performance detail | UIR-03/04; UIR-07a History/warnings and UIR-07b Performance locally implemented; A07/A12/A13/A15/A16/A17 and current/terminal warning boundaries |
 | UIR-08 | planned | Full integration, layout/theme/keyboard/accessibility/scale and long-scan/rescan regression, physical evidence | UIR-04 through UIR-07; all A01-A17 verified with honest physical/skipped states |
 | UIR-09 | planned | User workflow acceptance, final package and durable handoff | UIR-08; scope accepted, no open critical defect, all work committed on same branch |
 
@@ -157,12 +157,21 @@ with five cached pages and stable completed-run result navigation. Core 218 and 
 methods pass with 114 reviewed captures and a clean fixture build. No worker/protocol/database,
 Performance, recovery, execution or production boundary changed.
 
-The exact next local slice is **UIR-07b: contextual Performance detail**. Read the Performance portion
-of S05, capability/validation guidance and directly linked `PerformanceViewModelTests`, Shell lazy-load,
-run-context, return-focus and WPF bounds tests. Compose the existing phase/cache/read/device summaries
-around the exact selected run while preserving unavailable values, comparison qualifiers, 25 history
-rows, six phase rows, 64 device rows and no raw sample/time-series claim. Preserve UIR-07a History/
-warning identity and bounds. Do not pull recovery resolution, execution, full A17 or UIR-08 integration forward.
+**UIR-07b implemented (2026-09-14).** [Evidence](evidence/uir-07b-contextual-performance.md) covers
+one-action Performance detail from exact History/Progress/Summary runs with deterministic return focus.
+The detail verifies product-run identity, composes six phase rows, partial/full cache and actual-read
+summaries, selects one of 64 device rows for current/peak detail and retains 25 comparison rows with
+explicit context qualifiers. Unavailable fields remain unavailable and the UI makes no raw-sample or
+time-series claim. Core 220 and three loaded-STA WPF methods pass with 125 captures and a clean fixture
+build. No worker/protocol/database, recovery, execution or production boundary changed.
+
+The exact next local slice is **UIR-08 local integration regression and acceptance-matrix preparation**.
+Read the UIR-08 ledger row, A01-A17 matrix, current native evidence and directly linked integrated
+Debug/Release, layout/theme/keyboard/accessibility/scale and long-scan/rescan regression procedures.
+Run the locally available automated matrix, inventory remaining native/operator evidence honestly and
+prepare the smallest concrete procedure for any separately authorized action. Do not infer NVDA or
+physical 200% availability, troubleshoot Windows, start a physical/provider/performance campaign,
+resolve recovery outcomes or enable execution.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read

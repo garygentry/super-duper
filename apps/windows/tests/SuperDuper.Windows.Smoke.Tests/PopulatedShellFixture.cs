@@ -121,6 +121,26 @@ internal static class PopulatedShellFixture
                 "Current-warning Close must return focus to the exact progress warning entry.");
             Assert.AreEqual(active.Id, model.Progress.Run?.Id);
 
+            model.Progress.OpenPerformanceCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+            Drain();
+            Assert.AreEqual(active.Id, model.Performance.ProductRunId);
+            Assert.AreEqual(old.Id, model.SelectedRun?.Id,
+                "Active performance details must not retarget the opened historical workspace run.");
+            Assert.IsTrue(Find<TextBlock>(window, "PerformanceHeading").IsKeyboardFocused);
+            model.Performance.ReturnCommand.Execute(null);
+            Drain();
+            Assert.AreEqual(WorkspaceDestination.ScanProgress, model.SelectedDestination);
+            Assert.IsTrue(Find<Button>(window, "ProgressPerformanceEntry").IsKeyboardFocused);
+
+            model.Summary.OpenPerformanceCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+            Drain();
+            Assert.AreEqual(old.Id, model.Performance.ProductRunId);
+            model.Performance.ReturnCommand.Execute(null);
+            Drain();
+            Assert.AreEqual(WorkspaceDestination.ScanSummary, model.SelectedDestination);
+            Assert.IsTrue(Find<Button>((DependencyObject)window.FindName("SummaryWorkspace"), "ProgressPerformanceEntry").IsKeyboardFocused,
+                "Summary performance Close must return focus to its own performance entry.");
+
             // A deliberately blocked optional query cannot hold the primary workspace hostage.
             var folderPage = new TaskCompletionSource<WorkerDuplicateFolderGroupPage>();
             client.FolderGroupPageHandler = (_, _) => folderPage.Task;
@@ -141,7 +161,8 @@ internal static class PopulatedShellFixture
                 window.Width = size.Width;
                 window.Height = size.Height;
                 foreach (var destination in new[] { WorkspaceDestination.ScanSetup, WorkspaceDestination.ScanProgress,
-                    WorkspaceDestination.FileResults, WorkspaceDestination.Review, WorkspaceDestination.History })
+                    WorkspaceDestination.FileResults, WorkspaceDestination.Review, WorkspaceDestination.History,
+                    WorkspaceDestination.Performance })
                 {
                     model.SelectedDestination = destination;
                     Drain();
@@ -161,6 +182,7 @@ internal static class PopulatedShellFixture
                 VerifyViewportAccess(window, model, size);
                 VerifyFolderViewportAccess(window, model, size);
                 VerifyReviewViewportAccess(window, model, size);
+                VerifyPerformanceViewportAccess(window, model, size);
             }
             // The standalone fixture adds a wrapping toolbar above the shipping content.
             // Reserve 80 DIPs at minimum size to cover that host's extra vertical overhead.
@@ -170,6 +192,7 @@ internal static class PopulatedShellFixture
             VerifyViewportAccess(window, model, new Size(900, 600), "-toolbar");
             VerifyFolderViewportAccess(window, model, new Size(900, 600), "-toolbar");
             VerifyReviewViewportAccess(window, model, new Size(900, 600), "-toolbar");
+            VerifyPerformanceViewportAccess(window, model, new Size(900, 600), "-toolbar");
             ((FrameworkElement)window.Content).Margin = new Thickness(0);
             Drain();
             client.FolderGroupPageHandler = (_, _) => Task.FromResult(new WorkerDuplicateFolderGroupPage([], 0, null, null));
@@ -229,6 +252,68 @@ internal static class PopulatedShellFixture
         Drain();
         AssertVisible(boundary, window);
         Console.WriteLine($"{size.Width}x{size.Height}{suffix} review: files={fileGroups.ActualWidth:F1}, folders={folderGroups.ActualWidth:F1}, extent={scroll.ExtentHeight:F1}");
+    }
+
+    private static void VerifyPerformanceViewportAccess(
+        MainWindow window,
+        ShellViewModel model,
+        Size size,
+        string suffix = "")
+    {
+        model.SelectedDestination = WorkspaceDestination.History;
+        model.History.OpenPerformanceCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+        Drain();
+        Assert.AreEqual(WorkspaceDestination.Performance, model.SelectedDestination);
+        Assert.AreEqual(model.History.SelectedRun?.Id, model.Performance.ProductRunId);
+        StringAssert.Contains(Find<TextBlock>(window, "PerformanceRunIdentity").Text,
+            $"Scan {model.Performance.ProductRunId}");
+        StringAssert.Contains(Find<TextBlock>(window, "PerformanceSnapshotBoundary").Text,
+            "raw samples and time-series data are not available");
+
+        var scroll = Find<ScrollViewer>(window, "PerformanceScrollViewer");
+        var phases = Find<DataGrid>(window, "PerformancePhaseGrid");
+        var devices = Find<ListBox>(window, "PerformanceDeviceList");
+        var history = Find<DataGrid>(window, "PerformanceHistoryGrid");
+        Assert.AreEqual(6, phases.Items.Count);
+        Assert.AreEqual(64, devices.Items.Count);
+        Assert.AreEqual(25, history.Items.Count);
+        Assert.AreEqual(ScrollBarVisibility.Disabled, scroll.HorizontalScrollBarVisibility);
+        Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(phases));
+        Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(devices));
+        Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(history));
+        Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(devices));
+        Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(devices));
+        scroll.ScrollToTop();
+        Drain();
+        AssertVisible(Find<TextBlock>(window, "PerformanceHeading"), window);
+        AssertVisible(Find<Button>(window, "ReturnFromPerformance"), window);
+        Capture(window, $"populated-Performance-context-{size.Width}x{size.Height}{suffix}");
+
+        devices.SelectedIndex = 1;
+        devices.ScrollIntoView(devices.SelectedItem);
+        Drain();
+        var detail = Find<Border>(window, "SelectedPerformanceDeviceDetail");
+        StringAssert.Contains(AutomationProperties.GetName(detail), "Fictional archive drive 02");
+        detail.BringIntoView();
+        Drain();
+        AssertVisible(detail, window, minimumHeight: 80);
+        Capture(window, $"populated-Performance-device-{size.Width}x{size.Height}{suffix}");
+
+        model.Performance.CompareCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+        Drain();
+        StringAssert.Contains(model.Performance.ComparisonMessage, "Context differs");
+        StringAssert.Contains(model.Performance.ComparisonMessage, "scan inputs");
+        var comparison = Find<TextBlock>(window, "PerformanceComparisonContext");
+        comparison.BringIntoView();
+        Drain();
+        AssertVisible(comparison, window);
+        Capture(window, $"populated-Performance-comparison-{size.Width}x{size.Height}{suffix}");
+
+        model.Performance.ReturnCommand.Execute(null);
+        Drain();
+        Assert.AreEqual(WorkspaceDestination.History, model.SelectedDestination);
+        Assert.IsTrue(Find<Button>(window, "OpenHighlightedPerformance").IsKeyboardFocused,
+            "History performance Close must return focus to the exact highlighted-scan entry.");
     }
 
     private static void ConfigurePopulatedFolderResults(TestWorkerClient client, ShellViewModel model, WorkerRun run)

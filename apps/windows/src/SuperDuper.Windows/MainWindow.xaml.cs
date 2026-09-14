@@ -86,6 +86,16 @@ public partial class MainWindow : Window
                 _ = ProgressWorkspace.RestoreWarningEntryFocus();
             else if (target == "summary-warnings")
                 _ = SummaryWorkspace.RestoreWarningEntryFocus();
+            else if (target == "performance-heading")
+                _ = PerformanceWorkspace.RestoreHeadingFocus();
+            else if (target == "history-performance")
+                _ = HistoryWorkspace.RestorePerformanceEntryFocus();
+            else if (target == "history-grid")
+                _ = HistoryWorkspace.RestoreHistoryGridFocusAsync();
+            else if (target == "progress-performance")
+                _ = ProgressWorkspace.RestorePerformanceEntryFocus();
+            else if (target == "summary-performance")
+                _ = SummaryWorkspace.RestorePerformanceEntryFocus();
         }, DispatcherPriority.Background);
     }
 

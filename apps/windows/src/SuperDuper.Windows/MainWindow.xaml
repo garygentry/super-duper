@@ -182,7 +182,7 @@
                                                         AutomationProperties.AutomationId="OpenScan" AutomationProperties.Name="Open highlighted scan in the workspace"
                                                         Content="_Open scan" Command="{Binding OpenScanCommand}" />
                                         </StackPanel>
-                                        <views:RunHistoryView DataContext="{Binding History}" />
+                                        <views:RunHistoryView x:Name="HistoryWorkspace" DataContext="{Binding History}" />
                                     </DockPanel>
                                 </TabItem>
                                 <TabItem AutomationProperties.AutomationId="PerformanceTab" Header="_Performance" Tag="{x:Static vm:WorkspaceDestination.Performance}">

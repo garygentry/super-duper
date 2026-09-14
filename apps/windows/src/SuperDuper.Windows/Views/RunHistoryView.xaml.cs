@@ -142,6 +142,8 @@ public partial class RunHistoryView : UserControl
         return RunHistoryGrid.Focus();
     }
 
+    internal bool RestorePerformanceEntryFocus() => HighlightedPerformanceEntry.Focus();
+
     private static T? FindVisualParent<T>(DependencyObject child)
         where T : DependencyObject
     {

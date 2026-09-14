@@ -1,7 +1,7 @@
 # Windows UI redesign
 
-Status: high-level direction accepted with long-scan/rescan feedback, updated 2026-09-13. Product
-implementation includes UIR-04a saved setup/Scan again, UIR-04b long-scan freshness/terminal presentation, UIR-04c compact monitoring/details, UIR-05a compact file queries/totals, UIR-05b adjustable file comparison/full local A03, UIR-05c adjustable folder comparison/remaining local folder criteria, UIR-06a dedicated Review overview/revision-aware validation, UIR-06b focused Location preferences, UIR-07a History/contextual warnings and UIR-03a/b/c/d/e/f shell/context, shared resources, viewport verification and
+Status: high-level direction accepted with long-scan/rescan feedback, updated 2026-09-14. Product
+implementation includes UIR-04a saved setup/Scan again, UIR-04b long-scan freshness/terminal presentation, UIR-04c compact monitoring/details, UIR-05a compact file queries/totals, UIR-05b adjustable file comparison/full local A03, UIR-05c adjustable folder comparison/remaining local folder criteria, UIR-06a dedicated Review overview/revision-aware validation, UIR-06b focused Location preferences, UIR-07a History/contextual warnings, UIR-07b contextual Performance and UIR-03a/b/c/d/e/f shell/context, shared resources, viewport verification and
 the operator-reported scrollbar, theme, text-size and empty-folder fixes. The package records the accepted direction and its limits; it is not a claim of
 operator usability acceptance or Windows release acceptance.
 
@@ -48,7 +48,7 @@ are authoritative if its intentionally small fictional dataset or simplified int
 | UIR-04 | in_progress | [UIR-04a setup/Scan again](evidence/uir-04a-saved-scan-setup.md) and [UIR-04b elapsed/freshness/terminal](evidence/uir-04b-long-scan-monitoring.md) and [UIR-04c compact monitoring/details](evidence/uir-04c-compact-monitoring.md) locally implemented; later integrated/operator validation remains |
 | UIR-05 | in_progress | [UIR-05a file query controls/totals](evidence/uir-05a-file-query-controls.md), [UIR-05b adjustable file comparison/A03](evidence/uir-05b-file-comparison.md) and [UIR-05c adjustable folder comparison](evidence/uir-05c-folder-comparison.md) locally implemented; later integrated/native acceptance remains |
 | UIR-06 | in_progress | [UIR-06a Review overview/validation status](evidence/uir-06a-review-overview.md) and [UIR-06b focused Location preferences](evidence/uir-06b-location-preferences.md) locally implemented; later integrated/native acceptance remains |
-| UIR-07 | in_progress | [UIR-07a History/contextual warnings](evidence/uir-07a-history-warnings.md) locally implemented; contextual Performance detail and later integrated/native acceptance remain |
+| UIR-07 | in_progress | [UIR-07a History/contextual warnings](evidence/uir-07a-history-warnings.md) and [UIR-07b contextual Performance](evidence/uir-07b-contextual-performance.md) locally implemented; later integrated/native acceptance remains |
 | UIR-08 through UIR-09 | planned | Later integration and final native/user acceptance remain |
 
 On 2026-09-11 the operator [passed three initial checks](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks):
@@ -88,8 +88,10 @@ whole-plan status. UIR-06b moves the unchanged worker-owned preference workflow 
 separates saved configuration, virtual preview and applied decisions, and uses **Reverse rule
 application** while preserving later manual overrides. UIR-07a adds bounded 500-run History pages,
 explicit highlighted/open/active identity, immutable recorded settings, contextual current/terminal
-warning revisions, retained accepted pages and exact History/Progress/Summary return focus. Core 218
-and three WPF methods pass. Next: UIR-07b contextual Performance detail. Re-audit runtime before reuse;
+warning revisions, retained accepted pages and exact History/Progress/Summary return focus. UIR-07b
+adds exact-run contextual Performance, qualified comparison, explicit unavailable/summary-only
+telemetry and a selectable 64-device detail while retaining 25/6/64 bounds. Core 220 and three WPF
+methods pass. Next: UIR-08 local integration regression and acceptance-matrix preparation. Re-audit runtime before reuse;
 do not troubleshoot Windows scaling.
 Small visual preferences can evolve during implementation.
 Execution enablement and physical/provider campaigns retain their separate authority requirements.

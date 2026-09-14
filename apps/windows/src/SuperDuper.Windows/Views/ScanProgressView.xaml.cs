@@ -10,6 +10,8 @@ public partial class ScanProgressView : UserControl
 
     internal bool RestoreWarningEntryFocus() => ProgressWarningEntry.Focus();
 
+    internal bool RestorePerformanceEntryFocus() => ProgressPerformanceEntry.Focus();
+
     private void OnCancelButtonIsEnabledChanged(
         object sender,
         DependencyPropertyChangedEventArgs eventArgs)

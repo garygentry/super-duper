@@ -1,40 +1,41 @@
 # Current redesign session checkpoint
 
-Updated 2026-09-13. [Execution plan](execution-plan.md) owns gate status.
+Updated 2026-09-14. [Execution plan](execution-plan.md) owns gate status.
 
 - Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; no switch/worktree/merge/push.
-- Latest implementation: **UIR-07a, the commit containing this checkpoint**, based on `9b81c92`
-  (UIR-06b). UIR-00/01/02/03 complete; **UIR-04, UIR-05, UIR-06 and UIR-07 in_progress**.
-  UIR-04a/b/c, UIR-05a/b/c, UIR-06a/b and UIR-07a are locally implemented.
-- [UIR-07a evidence](evidence/uir-07a-history-warnings.md): History now binds one explicit newest-first
-  page of at most 500 runs, with Previous/Next paging, retained accepted data on failure and deterministic
-  row focus. Highlighting only inspects; **Open scan** still changes the workspace. The card names exact
-  scan/date/state, immutable recorded settings, any different opened workspace run and any active run.
-- Contextual warnings retain exact run/date/state, 25-row pages, the five-page cache, at most three
-  examples and worker-owned current/terminal revision identity. Active refresh replaces rather than mixes
-  revisions and retains accepted data on failure. Close returns to the exact History, Progress or Summary
-  origin; stable hash-warning navigation still opens the immutable completed run and restores focus.
-- Verification: full Core **218 passed**; **three loaded-STA WPF methods passed**; isolated fixture build
-  has zero warnings/errors. There are 114 visually reviewed captures under
-  `artifacts/uir07a/captures-accepted-final`; final TRX files are under `artifacts/uir07a/results` and
-  `artifacts/uir07a/results-accepted`. Retained probes include the corrected XAML binding/assertions and
-  one sandbox-only Windows SDK read denial before the identical isolated WPF run passed with SDK access.
-- **Exact next local slice: UIR-07b contextual Performance detail.** Read the Performance part of S05,
-  capability/validation guidance and directly linked Performance, lazy-load, run-context, return-focus and
-  WPF bounds tests. Preserve unavailable values, comparison qualifiers, exact selected run, 25 history
-  rows, six phase rows, 64 device rows and no raw sample/time-series claim. Preserve every UIR-07a History/
-  warning identity, paging, revision and return-focus contract. Do not pull recovery resolution, execution,
-  full A17 or UIR-08 integration forward.
-- Retain UIR-06a worker-owned combined totals, separate 200-row Files/Folders pages, independent five-page
-  caches, exact links and validation states. **Check marked copies** remains whole-plan; **Check these
-  copies** remains visible-page. Retain UIR-06b ordered roots, virtual preview scope/revision/signature,
-  confirmation/provenance, fresh-preview enforcement, **Reverse rule application**, later manual overrides
-  and Reset semantics. Retain all UIR-04/05 monitoring, rescan, query, comparison, decision, reveal and focus.
+- Latest implementation: **UIR-07b, the commit containing this checkpoint**, based on `32d0ad0`
+  (UIR-07a). UIR-00/01/02/03 complete; **UIR-04, UIR-05, UIR-06 and UIR-07 in_progress**.
+  UIR-04a/b/c, UIR-05a/b/c, UIR-06a/b and UIR-07a/b are locally implemented.
+- [UIR-07b evidence](evidence/uir-07b-contextual-performance.md): one action from highlighted History,
+  active Progress or stopped-run Summary loads the exact product-run-verified Performance snapshot.
+  Close restores exact origin focus without retargeting an older opened Results/Review run. Abandoning
+  contextual detail through the tabs clears its temporary run override; direct Performance uses the
+  stable opened run.
+- Performance composes at most six phase rows, partial/full cache and actual-read summaries, explicit
+  unavailable host/device fields, one selected-device current/peak detail from 64 virtualized rows and
+  25 qualified comparison rows. Differing volume/device, scan-input or build context is not like-for-like.
+  Persisted summaries are explicitly not raw samples or time-series data.
+- Verification: full Core **220 passed**; **three loaded-STA WPF methods passed**; isolated fixture build
+  has zero warnings/errors. There are 125 captures under `artifacts/uir07b/captures-final-2`; representative
+  exact context, device and comparison states were visually reviewed. Final TRX files are under
+  `artifacts/uir07b/results-final`. Retained failed probes were not overwritten.
+- **Exact next local slice: UIR-08 local integration regression and acceptance-matrix preparation.**
+  Read the UIR-08 ledger row, A01-A17 matrix, current native evidence and linked integrated Debug/Release,
+  layout/theme/keyboard/accessibility/scale and long-scan/rescan procedures. Run locally available
+  automated checks and inventory remaining evidence honestly before requesting any separate native action.
+  Do not infer NVDA/physical 200% availability, troubleshoot Windows or start physical/provider/performance work.
+- Preserve UIR-07a explicit highlighted/opened/active identity, immutable settings, bounded 500-run
+  History pages, 25-row/five-page warnings, retained accepted pages, stable result navigation and exact
+  History/Progress/Summary return focus. Retain UIR-06a combined totals, separate 200-row/five-page
+  Files/Folders queries, exact links, validation states and the two distinct Check actions.
+- Retain UIR-06b ordered roots, virtual preview scope/revision/signature, confirmation/provenance,
+  fresh-preview enforcement, **Reverse rule application**, later manual overrides and Reset semantics.
+  Retain all UIR-04/05 monitoring, rescan, query, comparison, decision, reveal and focus contracts.
 - Retain UIR-03 scoped acceptance, Narrator, Dark/Desert/live text size, 150%/175% transition/focus/selection
   and prior Debug/Release/Rust evidence. NVDA and physical 200% remain `unrun_unavailable` for UIR-08/A11;
-  do not troubleshoot Windows, force scaling or install software. Full A17/native/operator acceptance remains later.
+  full A17/native/operator acceptance remains later.
 - Runtime: PID 67748/session 1 was re-audited responsive at the exact older UIR-03f fixture executable and
-  left untouched. UIR-07a outputs are isolated and not running; test windows closed. No production app,
+  left untouched. UIR-07b outputs are isolated and not running; test windows closed. No production app,
   worker, database, cache, log, user file or state was touched.
 - Boundaries: production deletion disabled; `DisabledRecycleOperationCapabilityExecutor`, `CanSubmit=false`,
   `executorEnabled=false`, absent execution action, recovery/SOP boundaries and all safety locks unchanged.

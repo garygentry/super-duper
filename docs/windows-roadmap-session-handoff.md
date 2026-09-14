@@ -23,11 +23,11 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest local slice: UIR-07a History/open-run and contextual warnings, in this checkpoint's commit.
-  Baseline `9b81c92` (UIR-06b). Evidence:
-  `plans/ui-redesign/evidence/uir-07a-history-warnings.md`.
+- Latest local slice: UIR-07b contextual Performance detail, in this checkpoint's commit.
+  Baseline `32d0ad0` (UIR-07a). Evidence:
+  `plans/ui-redesign/evidence/uir-07b-contextual-performance.md`.
 - UIR-00/01/02/03 complete; UIR-04, UIR-05, UIR-06 and UIR-07 in_progress. UIR-04a/b/c,
-  UIR-05a/b/c, UIR-06a/b and UIR-07a are locally implemented. Later integrated/full A17/native/
+  UIR-05a/b/c, UIR-06a/b and UIR-07a/b are locally implemented. Later integrated/full A17/native/
   operator validation remains open.
 - UIR-07a binds one newest-first 500-run History page with explicit Previous/Next navigation and
   retained accepted data on failure. Highlighted, opened workspace and active scan identities are
@@ -35,10 +35,14 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Contextual warnings retain exact run/date/state, 25-row pages, five cached pages, worker-owned
   current/terminal revisions, retained accepted data and stable completed-run navigation. Close returns
   focus to the exact History, Progress or Summary origin without retargeting the opened historical run.
-- Verification: 218 Core and three loaded-STA WPF methods passed; isolated fixture build has zero
-  warnings/errors. History and warnings are vertically reachable at 1180x760, 900x600 and toolbar stress
-  while retaining prior Review/Results/monitoring/theme/text/focus checks. There are 114 reviewed captures
-  under `artifacts/uir07a/captures-accepted-final`; final results are under `artifacts/uir07a/results*`.
+- Contextual Performance verifies the exact product-run snapshot and returns focus to its History,
+  Progress or Summary entry without retargeting the opened run. Six phase rows, partial/full cache and
+  actual-read summaries, 64 selectable device rows and 25 qualified comparisons retain explicit
+  unavailable/summary-only semantics; no raw sample or time-series claim exists.
+- Verification: 220 Core and three loaded-STA WPF methods passed; isolated fixture build has zero
+  warnings/errors. Performance is vertically reachable at 1180x760, 900x600 and toolbar stress while
+  retaining prior Review/Results/monitoring/theme/text/focus checks. There are 125 reviewed captures
+  under `artifacts/uir07b/captures-final-2`; final results are under `artifacts/uir07b/results-final`.
 - Retain UIR-03 scoped shell acceptance: nine earlier walkthrough passes, scrollbar correction,
   Narrator, corrected Dark/Desert/live text size, and physical 150%/175% transitions with focus and
   file-group selection retained. Do not replay accepted checks without a reopen reason.
@@ -46,15 +50,16 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   UIR-08/A11, not passed or waived. Do not troubleshoot Windows, force scaling or install software.
 - Prior paired Debug/Release integration and UIR-03c Rust 226 passed/10 ignored are retained, not rerun.
   UIR-04a/b/c are local implementation; full A17/native/user acceptance and UIR-08 integration remain later.
-- Exact next local slice: UIR-07b contextual Performance detail. Read the Performance portion of S05,
-  capability/validation guidance and linked Performance, lazy-load, run-context, return-focus and WPF
-  bounds tests. Preserve exact selected run, unavailable values, comparison qualifiers, 25 history rows,
-  six phase rows, 64 device rows and no raw sample/time-series claim. Preserve every UIR-07a History/
-  warning identity/bound/return contract. Do not pull recovery resolution, execution, full A17 or UIR-08 forward.
+- Exact next local slice: UIR-08 local integration regression and acceptance-matrix preparation. Read
+  the UIR-08 ledger row, A01-A17 matrix, current native evidence and linked integrated Debug/Release,
+  layout/theme/keyboard/accessibility/scale and long-scan/rescan procedures. Run locally available
+  automated checks, inventory remaining evidence honestly and prepare a concrete separately authorized
+  native procedure. Do not infer NVDA/physical 200%, troubleshoot Windows, start a physical/provider/
+  performance campaign, resolve recovery outcomes or enable execution.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; print the required copyable next-session
   prompt at handoff. UIR-04 retains later integrated/operator validation; no physical campaign authority.
 - Runtime audit: fictional PID 67748/session 1 responsive at the exact UIR-03f executable, left untouched.
-  UIR-04b/04c/05a/05b/05c/06a/06b/07a outputs are built, not launched. UIR-07a fixture build has zero
+  UIR-04b/04c/05a/05b/05c/06a/06b/07a/07b outputs are built, not launched. UIR-07b fixture build has zero
   warnings/errors. Re-audit before reuse.
   Test windows closed; no production app/worker observed. Production state and disabled deletion untouched.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
@@ -501,17 +506,16 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-UIR-04a/b/c, UIR-05a/b/c, UIR-06a/b and UIR-07a are locally implemented; UIR-04/05/06/07 remain in
-progress for later integrated/native acceptance. Next local work is UIR-07b: contextual Performance
-detail. Read the Performance portion of S05, capability/validation guidance and directly linked
-PerformanceViewModel, Shell lazy-load, run-context, return-focus and WPF bounds tests. Compose existing
-phase/cache/read/device summaries around the exact selected run while preserving explicit unavailable
-values, comparison qualifiers, 25 history rows, six phase rows, 64 device rows and no raw sample/time-
-series claim. Preserve every UIR-07a History/warning identity, page/cache/revision, retained-data and
-return-focus contract plus every UIR-04/05/06 contract. Do not pull recovery resolution, execution,
-full A17 or UIR-08 integration forward. Retain UIR-07a's 218 Core/three WPF results, 114 reviewed captures
-and clean fixture build. Full A17 and integrated/native/operator validation remain later. Use the compact
-checkpoint/session guide.
+UIR-04a/b/c, UIR-05a/b/c, UIR-06a/b and UIR-07a/b are locally implemented; UIR-04/05/06/07 remain in
+progress for later integrated/native acceptance. Next local work is UIR-08 local integration regression
+and acceptance-matrix preparation. Read the UIR-08 ledger row, A01-A17 matrix, current native evidence
+and directly linked integrated Debug/Release, layout/theme/keyboard/accessibility/scale and long-scan/
+rescan procedures. Run the locally available automated matrix, map every criterion to existing/current
+evidence and prepare the smallest concrete procedure for any separately authorized native action.
+Preserve every UIR-04/05/06/07 contract. Do not infer NVDA/physical 200% availability, troubleshoot
+Windows, start physical/provider/performance work, resolve recovery outcomes or enable execution.
+Retain UIR-07b's 220 Core/three WPF results, 125 captures and clean fixture build. Full A17 and native/
+operator acceptance remain open. Use the compact checkpoint/session guide.
 All work stays on codex/ui-redesign; preserve wpf-poc at deefa40, no switch/worktree/merge/push.
 Re-audit PID 67748 and all fixture/app/worker paths before reuse; never overwrite running outputs.
 Preserve production state/deletion locks and SOP boundaries. NVDA/physical 200% remain unavailable
@@ -612,6 +616,14 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+2026-09-14 UIR-07b: Core 220 passed and three loaded-STA WPF methods passed. Performance is one action
+from exact History/Progress/Summary run context and Close restores exact origin focus without retargeting
+the opened run. Product-run snapshot identity is verified; six phase rows, partial/full cache and actual-
+read summaries, 64 selectable device rows and 25 comparison rows retain explicit unavailable values and
+context qualifiers. Raw samples/time-series are explicitly unavailable. The isolated fixture build passed
+with zero warnings/errors; 125 captures and final TRX files are under `artifacts/uir07b`. See
+`plans/ui-redesign/evidence/uir-07b-contextual-performance.md`.
 
 2026-09-13 UIR-07a: Core 218 passed and three loaded-STA WPF methods passed. History now binds one
 explicit newest-first 500-run page with Previous/Next navigation and retained accepted data on failure.
@@ -1377,6 +1389,16 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+- 2026-09-14: UIR-07b locally implements contextual Performance for A12/A13/A15 and exact-run A16
+  context. History, active Progress and stopped-run Summary each open a product-run-verified snapshot
+  and restore exact origin focus; direct navigation remains anchored to the stable opened run. The
+  existing worker summaries are composed with six phase rows, partial/full cache and actual reads, one
+  selected-device current/peak detail from 64 rows and 25 comparison rows. Unavailable values and
+  volume/device/input/build qualifiers remain explicit; no raw-sample/time-series claim was added.
+  Core 220 and three WPF methods pass; 125 captures and a clean fixture build are retained. UIR-08 local
+  integration regression and acceptance-matrix preparation is next. Runtime, production deletion,
+  worker/protocol/query ceilings, recovery and SOP boundaries are unchanged.
 
 - 2026-09-13: UIR-07a locally implements History/open-run and contextual warnings for
   A07/A12/A15 plus the run-context portions of A16/A17. History uses an explicit 500-run page rather

@@ -12,6 +12,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
     private readonly IUiDispatcher _dispatcher;
     private readonly Action<long>? _onCancelling;
     private readonly Func<WorkerRun, CancellationToken, Task>? _openWarnings;
+    private readonly Func<WorkerRun, CancellationToken, Task>? _openPerformance;
     private readonly TimeProvider _clock;
     private readonly ITimer _elapsedTimer;
     private long? _lastUpdateTimestamp;
@@ -39,12 +40,14 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         IUiDispatcher dispatcher,
         Action<long>? onCancelling = null,
         Func<WorkerRun, CancellationToken, Task>? openWarnings = null,
-        TimeProvider? clock = null)
+        TimeProvider? clock = null,
+        Func<WorkerRun, CancellationToken, Task>? openPerformance = null)
     {
         _workerClient = workerClient;
         _dispatcher = dispatcher;
         _onCancelling = onCancelling;
         _openWarnings = openWarnings;
+        _openPerformance = openPerformance;
         _clock = clock ?? TimeProvider.System;
         _elapsedTimer = _clock.CreateTimer(
             _ => QueueClockRefresh(),
@@ -53,6 +56,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
             Timeout.InfiniteTimeSpan);
         CancelCommand = new AsyncRelayCommand(CancelAsync, () => CanCancel);
         OpenWarningsCommand = new AsyncRelayCommand(OpenWarningsAsync, () => CanOpenWarnings);
+        OpenPerformanceCommand = new AsyncRelayCommand(OpenPerformanceAsync, () => CanOpenPerformance);
     }
 
     public WorkerRun? Run
@@ -231,6 +235,12 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         ? $"Review {run.WarningCount:N0} current warnings in bounded run history; access key Alt+W"
         : "No current warnings to review; access key Alt+W";
 
+    public bool CanOpenPerformance => Run is not null && _openPerformance is not null;
+
+    public string PerformanceAutomationName => Run is { } run
+        ? $"View bounded performance summaries for exact Scan {run.Id:N0}; access key Alt+P"
+        : "No scan performance to review; access key Alt+P";
+
     public WorkerScanProgressSnapshot? ProgressSnapshot
     {
         get => _progressSnapshot;
@@ -342,6 +352,8 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
     public IAsyncRelayCommand CancelCommand { get; }
 
     public IAsyncRelayCommand OpenWarningsCommand { get; }
+
+    public IAsyncRelayCommand OpenPerformanceCommand { get; }
 
     public void ShowRun(WorkerRun? run)
     {
@@ -557,6 +569,11 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
             ? _openWarnings(run, cancellationToken)
             : Task.CompletedTask;
 
+    private Task OpenPerformanceAsync(CancellationToken cancellationToken) =>
+        Run is { } run && _openPerformance is not null
+            ? _openPerformance(run, cancellationToken)
+            : Task.CompletedTask;
+
     private void UpdateTimer()
     {
         if (_timerActive == IsActive) return;
@@ -624,6 +641,8 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(WarningCount));
         OnPropertyChanged(nameof(CanOpenWarnings));
         OnPropertyChanged(nameof(WarningAutomationName));
+        OnPropertyChanged(nameof(CanOpenPerformance));
+        OnPropertyChanged(nameof(PerformanceAutomationName));
         OnPropertyChanged(nameof(ExcludedSubtreeCount));
         OnPropertyChanged(nameof(Elapsed));
         OnPropertyChanged(nameof(DetailedProgressUnavailableMessage));
@@ -635,6 +654,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ProgressAnnouncement));
         CancelCommand.NotifyCanExecuteChanged();
         OpenWarningsCommand.NotifyCanExecuteChanged();
+        OpenPerformanceCommand.NotifyCanExecuteChanged();
     }
 
     private void RaiseProgressProperties()

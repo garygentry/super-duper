@@ -677,6 +677,9 @@ public sealed class WpfSurfaceSmokeTests
                 "Review persisted warnings for the highlighted exact run",
                 AutomationProperties.GetName(FindByAutomationId<Button>(history, "OpenRunWarnings")));
             Assert.AreEqual(
+                "View bounded performance summaries for the highlighted exact scan",
+                AutomationProperties.GetName(FindByAutomationId<Button>(history, "OpenHighlightedPerformance")));
+            Assert.AreEqual(
                 "Load the previous bounded run-history page and return focus to the highlighted scan",
                 AutomationProperties.GetName(FindByAutomationId<Button>(history, "PreviousRunHistoryPage")));
             Assert.AreEqual(
@@ -1241,6 +1244,12 @@ public sealed class WpfSurfaceSmokeTests
         Keyboard.Focus(cancel);
         Assert.IsTrue(cancel.IsKeyboardFocused);
 
+        var performanceEntry = FindByAutomationId<Button>(progress, "ProgressPerformanceEntry");
+        Assert.AreEqual("Alt+P", AutomationProperties.GetAccessKey(performanceEntry));
+        StringAssert.Contains(AutomationProperties.GetName(performanceEntry), "exact Scan 42");
+        performanceEntry.Command.Execute(performanceEntry.CommandParameter);
+        Assert.AreEqual(1, data.OpenPerformanceCommand.ExecuteCount);
+
         var warningEntry = FindByAutomationId<Button>(progress, "ProgressWarningEntry");
         Assert.AreEqual("Alt+W", AutomationProperties.GetAccessKey(warningEntry));
         Assert.AreEqual("_Review warnings", warningEntry.Content);
@@ -1318,24 +1327,34 @@ public sealed class WpfSurfaceSmokeTests
         DrainDispatcher();
 
         var refresh = FindByAutomationId<Button>(performance, "RefreshPerformance");
+        var returnButton = FindByAutomationId<Button>(performance, "ReturnFromPerformance");
         var compare = FindByAutomationId<Button>(performance, "ComparePerformanceRun");
         var phaseGrid = FindByAutomationId<DataGrid>(performance, "PerformancePhaseGrid");
-        var deviceGrid = FindByAutomationId<DataGrid>(performance, "PerformanceDeviceGrid");
+        var deviceList = FindByAutomationId<ListBox>(performance, "PerformanceDeviceList");
         var historyGrid = FindByAutomationId<DataGrid>(performance, "PerformanceHistoryGrid");
         var status = FindByAutomationId<TextBlock>(performance, "PerformanceStatus");
         var healthCard = FindByAutomationId<Border>(performance, "PerformanceHealthCard");
 
         Assert.AreEqual("Alt+R", AutomationProperties.GetAccessKey(refresh));
         Assert.AreEqual("Alt+C", AutomationProperties.GetAccessKey(compare));
+        Assert.AreEqual("_Return to scan history", returnButton.Content);
+        Assert.AreEqual("Performance · highlighted scan", FindByAutomationId<TextBlock>(performance, "PerformanceHeading").Text);
+        StringAssert.Contains(FindByAutomationId<TextBlock>(performance, "PerformanceRunIdentity").Text, "Scan 107");
+        StringAssert.Contains(FindByAutomationId<TextBlock>(performance, "PerformanceSnapshotBoundary").Text, "raw samples and time-series data are not available");
         Assert.AreEqual(Application.Current.FindResource("CardStrokeColorDefaultBrush"), healthCard.BorderBrush);
         Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(phaseGrid));
-        Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(deviceGrid));
+        Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(deviceList));
         Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(historyGrid));
-        Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(deviceGrid));
+        Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(deviceList));
         Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(historyGrid));
         Assert.AreEqual(6, phaseGrid.Items.Count);
-        Assert.AreEqual(64, deviceGrid.Items.Count);
+        Assert.AreEqual(64, deviceList.Items.Count);
         Assert.AreEqual(25, historyGrid.Items.Count);
+        Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(phaseGrid));
+        Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(deviceList));
+        Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(historyGrid));
+        Assert.AreEqual("Fixture SSD · volume:c", AutomationProperties.GetName(
+            FindByAutomationId<Border>(performance, "SelectedPerformanceDeviceDetail")));
         Assert.AreEqual(
             AutomationNotificationProcessing.MostRecent,
             AutomationNotificationBehavior.GetNotificationProcessing(status));
@@ -1607,11 +1626,17 @@ public sealed class WpfSurfaceSmokeTests
     private sealed class PerformanceSurfaceData : INotifyPropertyChanged
     {
         private string _statusMessage = "Loaded bounded representative history.";
+        private PerformanceSurfaceRow _selectedDevice = new();
         public bool HasRun => true;
         public bool HasError => false;
         public string? ErrorMessage => null;
         public string StatusMessage { get => _statusMessage; set { _statusMessage = value; PropertyChanged?.Invoke(this, new(nameof(StatusMessage))); } }
         public long AnnouncementVersion => 1;
+        public string ContextHeading => "Performance · highlighted scan";
+        public string ContextIdentity => "Photo archive · Scan 107 · 9/13/2026 8:00 PM · Completed";
+        public string SnapshotBoundary => "Worker telemetry 7 for exact Scan 107. Current and peak values are persisted summaries; raw samples and time-series data are not available.";
+        public string ReturnLabel => "_Return to scan history";
+        public string ReturnAutomationName => "Close performance details and return focus to the highlighted scan performance entry";
         public string RunStatus => "Completed";
         public string RunDuration => "00.00:00:05";
         public string FullReadThroughput => "10 MB/s";
@@ -1619,6 +1644,7 @@ public sealed class WpfSurfaceSmokeTests
         public string MemorySummary => "Unavailable";
         public string CandidateFunnel => "100 discovered → 20 metadata-only → 80 candidates → 70 partial → 50 full requests → 10 duplicate items";
         public string CacheSummary => "60% hits";
+        public string ReadSummary => "100 MB logical candidate data · 1 MB partial bytes actually read · 50 MB full bytes actually read. Logical work is not disk throughput.";
         public string WarningSummary => "3";
         public string UnavailableSummary => "9 cumulative; current host counters unavailable";
         public string CurrentPeakRead => "25 MB/s";
@@ -1629,9 +1655,17 @@ public sealed class WpfSurfaceSmokeTests
         public string ComparisonPeakRead => "23 MB/s";
         public ProgressSurfaceCommand RefreshCommand { get; } = new();
         public ProgressSurfaceCommand CompareCommand { get; } = new();
+        public ProgressSurfaceCommand ReturnCommand { get; } = new();
         public IReadOnlyList<PerformanceSurfaceRow> Phases { get; } = Enumerable.Range(1, 6).Select(index => PerformanceSurfaceRow.CreatePhase(index)).ToArray();
         public IReadOnlyList<PerformanceSurfaceRow> Devices { get; } = Enumerable.Range(1, 64).Select(index => PerformanceSurfaceRow.CreateDevice(index)).ToArray();
         public IReadOnlyList<PerformanceSurfaceRow> History { get; } = Enumerable.Range(1, 25).Select(index => PerformanceSurfaceRow.CreateRun(index)).ToArray();
+        public bool HasSelectedDevice => true;
+        public string SelectedDeviceHeading => "Fixture SSD · volume:c";
+        public PerformanceSurfaceRow SelectedDevice
+        {
+            get => _selectedDevice;
+            set => _selectedDevice = value;
+        }
         public PerformanceSurfaceRow? SelectedComparisonRun { get; set; }
         public event PropertyChangedEventHandler? PropertyChanged;
     }
@@ -1720,6 +1754,11 @@ public sealed class WpfSurfaceSmokeTests
             "Review 2 current warnings in bounded run history; access key Alt+W";
 
         public ProgressSurfaceCommand OpenWarningsCommand { get; } = new();
+
+        public string PerformanceAutomationName =>
+            "View bounded performance summaries for exact Scan 42; access key Alt+P";
+
+        public ProgressSurfaceCommand OpenPerformanceCommand { get; } = new();
 
         public string ExcludedSubtreeCount => "1";
 

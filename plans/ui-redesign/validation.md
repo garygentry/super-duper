@@ -110,8 +110,20 @@ changes the workspace. The selected card names immutable recorded settings, any 
 and any separate active scan. Warning pages retain 25 rows/five cached pages, exact run/date/state,
 current/terminal revision ownership, retained accepted data on failure and stable completed-run result
 navigation. Close returns focus to the exact History, Progress or Summary origin. Core 218 and three
-loaded-STA WPF methods pass with 114 reviewed captures. Performance composition, full A17 and
-integrated native/scale/screen-reader/operator acceptance remain UIR-07b/UIR-08/09.
+loaded-STA WPF methods pass with 114 reviewed captures. Performance composition is recorded below;
+full A17 and integrated native/scale/screen-reader/operator acceptance remain UIR-08/09.
+
+## UIR-07b local implementation evidence
+
+[UIR-07b](evidence/uir-07b-contextual-performance.md) implements local contextual Performance
+composition for A12/A13/A15 and exact-run A16 context. One action from History, active Progress or
+stopped-run Summary loads a product-run-verified bounded snapshot and returns focus to that exact
+origin without retargeting an older opened run. Six phase rows, 25 comparison rows and a virtualized
+64-device selector remain hard boundaries; unavailable values stay explicit and differing device,
+input or build contexts are not presented as like-for-like. Persisted current/peak summaries are
+distinguished from unavailable raw samples/time-series data. Core 220 and three loaded-STA WPF
+methods pass with 125 reviewed captures. Full A13 integration/scale, A17 and native screen-reader/
+DPI/operator acceptance remain UIR-08/09.
 
 ## Carried native checks from scoped shell acceptance
 

@@ -64,7 +64,12 @@
                         </ItemsControl>
                     </Expander>
                     <WrapPanel Margin="0,8,0,0">
+                        <Button x:Name="HighlightedPerformanceEntry"
+                                AutomationProperties.AutomationId="OpenHighlightedPerformance"
+                                AutomationProperties.Name="View bounded performance summaries for the highlighted exact scan"
+                                Command="{Binding OpenPerformanceCommand}" Content="View _performance" />
                         <Button AutomationProperties.AutomationId="OpenRunWarnings"
+                                Margin="8,0,0,0"
                                 AutomationProperties.Name="Review persisted warnings for the highlighted exact run"
                                 Command="{Binding OpenWarningsCommand}" Content="Review _warnings" />
                     </WrapPanel>

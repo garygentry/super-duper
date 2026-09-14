@@ -14,10 +14,14 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
     private const ulong LiveRefreshSequenceInterval = 50;
 
     private readonly IWorkerClient _workerClient;
+    private readonly Func<long, string?> _sessionName;
+    private readonly Action<PerformanceReturnDestination>? _returnFromPerformance;
     private CancellationTokenSource? _loadCancellation;
     private WorkerRun? _productRun;
     private WorkerPerformanceSnapshot? _current;
     private PerformanceRunListItemViewModel? _selectedComparisonRun;
+    private PerformanceDeviceItemViewModel? _selectedDevice;
+    private PerformanceReturnDestination _returnDestination;
     private bool _isBusy;
     private string _statusMessage = "Select a scan to view bounded performance telemetry.";
     private string? _errorMessage;
@@ -31,11 +35,17 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
     private long _announcementVersion;
     private bool _disposed;
 
-    public PerformanceViewModel(IWorkerClient workerClient)
+    public PerformanceViewModel(
+        IWorkerClient workerClient,
+        Func<long, string?>? sessionName = null,
+        Action<PerformanceReturnDestination>? returnFromPerformance = null)
     {
         _workerClient = workerClient;
+        _sessionName = sessionName ?? (_ => null);
+        _returnFromPerformance = returnFromPerformance;
         RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(), () => HasRun && !IsBusy);
         CompareCommand = new AsyncRelayCommand(CompareAsync, () => HasRun && !IsBusy && SelectedComparisonRun is not null);
+        ReturnCommand = new RelayCommand(ReturnFromPerformance, () => HasRun && _returnFromPerformance is not null);
     }
 
     public ObservableCollection<PerformanceRunListItemViewModel> History { get; } = [];
@@ -45,6 +55,8 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
     public ObservableCollection<PerformanceDeviceItemViewModel> Devices { get; } = [];
 
     public bool HasRun => _productRun is not null;
+
+    public long? ProductRunId => _productRun?.Id;
 
     public bool IsBusy
     {
@@ -97,10 +109,63 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
         }
     }
 
+    public PerformanceDeviceItemViewModel? SelectedDevice
+    {
+        get => _selectedDevice;
+        set
+        {
+            if (SetProperty(ref _selectedDevice, value))
+            {
+                OnPropertyChanged(nameof(HasSelectedDevice));
+                OnPropertyChanged(nameof(SelectedDeviceHeading));
+            }
+        }
+    }
+
+    public bool HasSelectedDevice => SelectedDevice is not null;
+
+    public string SelectedDeviceHeading => SelectedDevice is { } device
+        ? $"{device.Device} · {device.Volume}"
+        : "No drive selected";
+
+    public string ContextHeading => _returnDestination switch
+    {
+        PerformanceReturnDestination.ScanProgress => "Performance · active scan",
+        PerformanceReturnDestination.ScanSummary => "Performance · scan summary",
+        PerformanceReturnDestination.Workspace => "Performance · opened scan",
+        _ => "Performance · highlighted scan",
+    };
+
+    public string ContextIdentity => _productRun is { } run
+        ? $"{_sessionName(run.SessionId) ?? "Saved scan"} · Scan {run.Id:N0} · "
+          + $"{(run.StartedAt ?? run.CreatedAt).ToLocalTime():g} · {DisplayFormatting.Status(run.Status)}"
+        : "No scan selected";
+
+    public string SnapshotBoundary => _current is { } current && _productRun is { } run
+        ? $"Worker telemetry {current.Run.Id:N0} for exact Scan {run.Id:N0} · metrics contract v{current.Run.MetricsContractVersion}. "
+          + "Current and peak values are persisted summaries; raw samples and time-series data are not available."
+        : "Loading the worker-owned bounded summary for this exact scan. Raw samples and time-series data are not available.";
+
+    public string ReturnLabel => _returnDestination switch
+    {
+        PerformanceReturnDestination.ScanProgress => "_Return to progress",
+        PerformanceReturnDestination.ScanSummary => "_Return to scan summary",
+        _ => "_Return to scan history",
+    };
+
+    public string ReturnAutomationName => _returnDestination switch
+    {
+        PerformanceReturnDestination.ScanProgress => "Close performance details and return focus to the active scan performance entry",
+        PerformanceReturnDestination.ScanSummary => "Close performance details and return focus to the scan summary performance entry",
+        PerformanceReturnDestination.Workspace => "Close performance details and return focus to the opened scan in history",
+        _ => "Close performance details and return focus to the highlighted scan performance entry",
+    };
+
     public string RunStatus => _current is null ? "Unavailable" : DisplayFormatting.Status(_current.Run.State);
     public string RunDuration => _current is null ? "—" : Duration(_current.Run.LastMonotonicNanos);
     public string CandidateFunnel => _current is null ? "—" : Funnel(_current);
     public string CacheSummary => _current is null ? "—" : Cache(_current);
+    public string ReadSummary => _current is null ? "—" : Reads(_current);
     public string FullReadThroughput => _current is null ? "—" : Throughput(_current);
     public string CpuSummary => _current is null ? "Unavailable" : Cpu(_current.Host);
     public string MemorySummary => _current is null ? "Unavailable" : Memory(_current.Host);
@@ -115,13 +180,31 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
 
     public IAsyncRelayCommand RefreshCommand { get; }
     public IAsyncRelayCommand CompareCommand { get; }
+    public IRelayCommand ReturnCommand { get; }
 
-    public async Task ShowRunAsync(WorkerRun? run, CancellationToken cancellationToken = default)
+    public async Task ShowRunAsync(
+        WorkerRun? run,
+        CancellationToken cancellationToken = default,
+        PerformanceReturnDestination returnDestination = PerformanceReturnDestination.History)
     {
+        var runChanged = _productRun?.Id != run?.Id || _productRun?.SessionId != run?.SessionId;
         _productRun = run;
+        _returnDestination = returnDestination;
         OnPropertyChanged(nameof(HasRun));
+        OnPropertyChanged(nameof(ProductRunId));
+        NotifyContextChanged();
         _nextLiveRefreshSequence = 0;
         ResetComparison();
+        ReturnCommand.NotifyCanExecuteChanged();
+        if (runChanged)
+        {
+            _current = null;
+            History.Clear();
+            Phases.Clear();
+            Devices.Clear();
+            SelectedDevice = null;
+            NotifySummaryChanged();
+        }
         if (run is null)
         {
             CancelLoad();
@@ -129,6 +212,7 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
             History.Clear();
             Phases.Clear();
             Devices.Clear();
+            SelectedDevice = null;
             StatusMessage = "Select a scan to view bounded performance telemetry.";
             ErrorMessage = null;
             NotifySummaryChanged();
@@ -198,8 +282,11 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
                 return;
             }
             _current = null;
+            History.Clear();
             Phases.Clear();
             Devices.Clear();
+            SelectedComparisonRun = null;
+            SelectedDevice = null;
             ErrorMessage = $"Performance telemetry is unavailable: {exception.Message}";
             StatusMessage = "No performance values were substituted; unavailable fields remain unavailable.";
             AnnouncementVersion++;
@@ -224,6 +311,15 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
         {
             throw new InvalidDataException("The worker returned an unbounded performance collection.");
         }
+        if (_productRun is not { } productRun || snapshot.Run.ProductRunId != productRun.Id)
+        {
+            throw new InvalidDataException("The worker returned performance telemetry for a different product run.");
+        }
+        if (page.Runs.Select(run => run.Id).Distinct().Count() != page.Runs.Count)
+        {
+            throw new InvalidDataException("The worker returned duplicate performance history rows.");
+        }
+        var selectedDeviceKey = SelectedDevice?.IdentityKey;
         _current = snapshot;
         History.Clear();
         foreach (var run in page.Runs)
@@ -241,7 +337,11 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
         {
             Devices.Add(new PerformanceDeviceItemViewModel(device));
         }
+        SelectedDevice = selectedDeviceKey is null
+            ? Devices.FirstOrDefault()
+            : Devices.FirstOrDefault(device => device.IdentityKey == selectedDeviceKey) ?? Devices.FirstOrDefault();
         NotifySummaryChanged();
+        NotifyContextChanged();
     }
 
     private async Task CompareAsync()
@@ -265,6 +365,11 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
             {
                 throw new InvalidDataException("The worker returned an unsafe or unbounded comparison snapshot.");
             }
+            if (comparison.Run.Id != selectedStatusRunId
+                || comparison.Run.ProductRunId != selected.ProductRunId)
+            {
+                throw new InvalidDataException("The worker returned comparison telemetry for a different selected run.");
+            }
             var differences = new List<string>();
             if (!DeviceIdentity(current).SequenceEqual(DeviceIdentity(comparison), StringComparer.Ordinal))
             {
@@ -278,9 +383,12 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
             {
                 differences.Add("software build");
             }
+            var comparisonIdentity = comparison.Run.ProductRunId is long comparisonProductRunId
+                ? $"Scan {comparisonProductRunId:N0} · telemetry {comparison.Run.Id:N0}"
+                : $"Telemetry {comparison.Run.Id:N0} without a recorded scan link";
             ComparisonMessage = differences.Count == 0
-                ? $"Comparable with telemetry run {comparison.Run.Id}: same volume/device, scan inputs, and software build."
-                : $"Context differs from telemetry run {comparison.Run.Id}: {string.Join(", ", differences)}. Values are shown but are not a like-for-like result.";
+                ? $"Comparable with {comparisonIdentity}: same volume/device, scan inputs, and software build."
+                : $"Context differs from {comparisonIdentity}: {string.Join(", ", differences)}. Values are shown but are not a like-for-like result.";
             ComparisonDuration = Duration(comparison.Run.LastMonotonicNanos);
             ComparisonThroughput = Throughput(comparison);
             ComparisonWarnings = TryCounter(comparison, "warnings", out var warnings) ? warnings.ToString("N0") : "Unavailable";
@@ -321,6 +429,7 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(RunDuration));
         OnPropertyChanged(nameof(CandidateFunnel));
         OnPropertyChanged(nameof(CacheSummary));
+        OnPropertyChanged(nameof(ReadSummary));
         OnPropertyChanged(nameof(FullReadThroughput));
         OnPropertyChanged(nameof(CpuSummary));
         OnPropertyChanged(nameof(MemorySummary));
@@ -345,14 +454,38 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
 
     private static string Cache(WorkerPerformanceSnapshot snapshot)
     {
-        if (!TryCounter(snapshot, "full_hash_cache_hits", out var hits))
+        var partial = CacheStage(snapshot, "partial_hash", "Partial");
+        var full = CacheStage(snapshot, "full_hash", "Full");
+        return $"{partial} · {full}";
+    }
+
+    private static string CacheStage(WorkerPerformanceSnapshot snapshot, string prefix, string label)
+    {
+        if (!TryCounter(snapshot, $"{prefix}_cache_hits", out var hits))
         {
-            return "Unavailable (no counter summary recorded)";
+            return $"{label}: unavailable (no counter summary recorded)";
         }
-        var misses = Counter(snapshot, "full_hash_cache_misses");
-        var errors = Counter(snapshot, "full_hash_cache_errors");
+        var misses = Counter(snapshot, $"{prefix}_cache_misses");
+        var errors = Counter(snapshot, $"{prefix}_cache_errors");
+        var stores = Counter(snapshot, $"{prefix}_cache_stores");
         var total = hits + misses + errors;
-        return total == 0 ? "Unavailable (no cache lookups recorded)" : $"{hits * 100m / total:0.0}% hits · {hits:N0} hit / {misses:N0} miss / {errors:N0} error";
+        return total == 0
+            ? $"{label}: unavailable (no cache lookups recorded)"
+            : $"{label}: {hits * 100m / total:0.0}% hits · {hits:N0} hit / {misses:N0} miss / {errors:N0} error / {stores:N0} store";
+    }
+
+    private static string Reads(WorkerPerformanceSnapshot snapshot)
+    {
+        var logical = TryCounter(snapshot, "candidate_bytes", out var candidateBytes)
+            ? $"{DisplayFormatting.Bytes(candidateBytes.ToString(CultureInfo.InvariantCulture))} logical candidate data"
+            : "Logical candidate data unavailable";
+        var partial = TryCounter(snapshot, "partial_hash_bytes_read", out var partialBytes)
+            ? $"{DisplayFormatting.Bytes(partialBytes.ToString(CultureInfo.InvariantCulture))} partial bytes actually read"
+            : "Partial actual reads unavailable";
+        var full = TryCounter(snapshot, "full_hash_bytes_read", out var fullBytes)
+            ? $"{DisplayFormatting.Bytes(fullBytes.ToString(CultureInfo.InvariantCulture))} full bytes actually read"
+            : "Full actual reads unavailable";
+        return $"{logical} · {partial} · {full}. Logical work is not disk throughput.";
     }
 
     private static string Throughput(WorkerPerformanceSnapshot snapshot)
@@ -402,6 +535,21 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
         && string.Equals(left.AppVersion, right.AppVersion, StringComparison.Ordinal)
         && left.ProductSchemaVersion == right.ProductSchemaVersion;
 
+    private void ReturnFromPerformance()
+    {
+        if (_productRun is null || _returnFromPerformance is null) return;
+        _returnFromPerformance(_returnDestination);
+    }
+
+    private void NotifyContextChanged()
+    {
+        OnPropertyChanged(nameof(ContextHeading));
+        OnPropertyChanged(nameof(ContextIdentity));
+        OnPropertyChanged(nameof(SnapshotBoundary));
+        OnPropertyChanged(nameof(ReturnLabel));
+        OnPropertyChanged(nameof(ReturnAutomationName));
+    }
+
     private void CancelLoad()
     {
         _loadCancellation?.Cancel();
@@ -421,6 +569,7 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
 public sealed class PerformanceRunListItemViewModel(WorkerPerformanceRun run)
 {
     public long StatusRunId => run.Id;
+    public long? ProductRunId => run.ProductRunId;
     public string Run => run.ProductRunId is long id ? $"Scan {id}" : $"Telemetry {run.Id}";
     public string Status => DisplayFormatting.Status(run.State);
     public string Started => run.StartedUnixMillis is long value ? DateTimeOffset.FromUnixTimeMilliseconds(value).ToLocalTime().ToString("g") : "Unavailable";
@@ -437,6 +586,7 @@ public sealed class PerformancePhaseItemViewModel(WorkerPerformancePhase phase)
 public sealed class PerformanceDeviceItemViewModel(WorkerDevicePerformanceSummary device)
 {
     private static string Scaled(ulong? value, decimal divisor, string suffix) => value is ulong number ? $"{number / divisor:0.##} {suffix}" : "Unavailable";
+    public string IdentityKey => $"{device.Descriptor.DeviceKey}\u001f{device.Descriptor.VolumeKey}";
     public string Device => device.Descriptor.Model ?? device.Descriptor.DeviceKey;
     public string Volume => device.Descriptor.VolumeKey;
     public string Details => string.Join(" · ", new[] { device.Descriptor.MediaType, device.Descriptor.BusType, device.Descriptor.Filesystem }.Where(value => !string.IsNullOrWhiteSpace(value))!);
@@ -453,4 +603,12 @@ public sealed class PerformanceDeviceItemViewModel(WorkerDevicePerformanceSummar
     public string CurrentQueue => Scaled(device.Latest?.QueueDepthMillis, 1000m, "depth");
     public string PeakQueue => Scaled(device.PeakQueueDepthMillis, 1000m, "depth");
     public string Availability => device.Latest is null ? "No device sample available" : $"{device.Latest.UnavailableCounterCount:N0} unavailable counters in latest sample";
+}
+
+public enum PerformanceReturnDestination
+{
+    History,
+    ScanProgress,
+    ScanSummary,
+    Workspace,
 }

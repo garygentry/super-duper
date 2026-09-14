@@ -32,6 +32,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     private long? _activeSessionId;
     private WorkspaceDestination _selectedDestination;
     private WorkerRun? _selectedRun;
+    private WorkerRun? _performanceContextRun;
+    private PerformanceReturnDestination _performanceReturnDestination;
     private CancellationTokenSource _workspaceCancellation = new();
     private readonly Dictionary<WorkspaceDestination, Task> _paneLoads = [];
     private long _navigationGeneration;
@@ -81,8 +83,14 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             dispatcher,
             runId => _progressGate.MarkCancelling(runId),
             OpenProgressWarningsAsync,
-            _clock);
-        Summary = new ScanProgressViewModel(workerClient, dispatcher, openWarnings: OpenProgressWarningsAsync, clock: _clock);
+            _clock,
+            (run, token) => OpenPerformanceAsync(run, PerformanceReturnDestination.ScanProgress, token));
+        Summary = new ScanProgressViewModel(
+            workerClient,
+            dispatcher,
+            openWarnings: OpenProgressWarningsAsync,
+            clock: _clock,
+            openPerformance: (run, token) => OpenPerformanceAsync(run, PerformanceReturnDestination.ScanSummary, token));
         Progress.PropertyChanged += OnProgressPropertyChanged;
         History = new RunHistoryViewModel(
             workerClient,
@@ -90,8 +98,12 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             () => SelectedRun,
             () => ActiveRunId is long activeRunId && Progress.Run?.Id == activeRunId ? Progress.Run : null,
             sessionId => Sessions.Find(sessionId)?.Name,
-            ReturnFromWarnings);
-        Performance = new PerformanceViewModel(workerClient);
+            ReturnFromWarnings,
+            (run, token) => OpenPerformanceAsync(run, PerformanceReturnDestination.History, token));
+        Performance = new PerformanceViewModel(
+            workerClient,
+            sessionId => Sessions.Find(sessionId)?.Name,
+            ReturnFromPerformance);
         DuplicateFiles = new DuplicateFilesViewModel(workerClient, clipboard, explorer);
         DuplicateFolders = new DuplicateFoldersViewModel(workerClient, clipboard, explorer);
         Preflight = new PreflightViewModel(
@@ -280,8 +292,18 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(ScanDestination));
                 return;
             }
+            var leavingContextualPerformance = _selectedDestination == WorkspaceDestination.Performance
+                && value != WorkspaceDestination.Performance
+                && _performanceContextRun is not null;
             if (!SetProperty(ref _selectedDestination, value)) return;
             _navigationGeneration++;
+            if (leavingContextualPerformance)
+            {
+                _performanceContextRun = null;
+                _paneLoads.Remove(WorkspaceDestination.Performance);
+            }
+            if (value == WorkspaceDestination.Performance && _performanceContextRun is null)
+                _performanceReturnDestination = PerformanceReturnDestination.Workspace;
             switch (value)
             {
                 case WorkspaceDestination.ScanSetup or WorkspaceDestination.ScanProgress or WorkspaceDestination.ScanSummary: _scanDestination = value; break;
@@ -743,6 +765,55 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         FocusRequestVersion++;
     }
 
+    private async Task OpenPerformanceAsync(
+        WorkerRun run,
+        PerformanceReturnDestination returnDestination,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var validOrigin = returnDestination switch
+        {
+            PerformanceReturnDestination.History => History.SelectedRun?.Id == run.Id,
+            PerformanceReturnDestination.ScanProgress => Progress.Run?.Id == run.Id,
+            PerformanceReturnDestination.ScanSummary => Summary.Run?.Id == run.Id,
+            _ => false,
+        };
+        if (!validOrigin) return;
+
+        _performanceContextRun = run;
+        _performanceReturnDestination = returnDestination;
+        _paneLoads.Remove(WorkspaceDestination.Performance);
+        SelectedDestination = WorkspaceDestination.Performance;
+        var navigation = _navigationGeneration;
+        await EnsurePaneAsync();
+        if (cancellationToken.IsCancellationRequested
+            || navigation != _navigationGeneration
+            || Performance.ProductRunId != run.Id)
+            return;
+        FocusTarget = "performance-heading";
+        FocusRequestVersion++;
+    }
+
+    private void ReturnFromPerformance(PerformanceReturnDestination destination)
+    {
+        SelectedDestination = destination switch
+        {
+            PerformanceReturnDestination.ScanProgress => WorkspaceDestination.ScanProgress,
+            PerformanceReturnDestination.ScanSummary => WorkspaceDestination.ScanSummary,
+            _ => WorkspaceDestination.History,
+        };
+        FocusTarget = destination switch
+        {
+            PerformanceReturnDestination.ScanProgress => "progress-performance",
+            PerformanceReturnDestination.ScanSummary => "summary-performance",
+            PerformanceReturnDestination.Workspace => "history-grid",
+            _ => "history-performance",
+        };
+        _performanceContextRun = null;
+        _paneLoads.Remove(WorkspaceDestination.Performance);
+        FocusRequestVersion++;
+    }
+
     private async Task SelectSessionAsync(
         SessionListItemViewModel selected,
         CancellationToken cancellationToken = default,
@@ -1015,6 +1086,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(WorkspaceSessionName));
         History.NotifyExternalContextChanged();
         if (!changed) return;
+        _performanceContextRun = null;
         _workspaceCancellation.Cancel();
         _workspaceCancellation.Dispose();
         _workspaceCancellation = new();
@@ -1031,7 +1103,10 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     // Only one set of bounded pane state is retained, for the opened workspace run.
     private Task EnsurePaneAsync()
     {
-        if (SelectedRun is not { } run) return Task.CompletedTask;
+        var run = SelectedDestination == WorkspaceDestination.Performance
+            ? _performanceContextRun ?? SelectedRun
+            : SelectedRun;
+        if (run is null) return Task.CompletedTask;
         if (_paneLoads.TryGetValue(SelectedDestination, out var pending)) return pending;
         var token = _workspaceCancellation.Token;
         var load = SelectedDestination switch
@@ -1039,7 +1114,10 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             WorkspaceDestination.FileResults => DuplicateFiles.ShowRunAsync(run, token),
             WorkspaceDestination.FolderResults => DuplicateFolders.ShowRunAsync(run, token),
             WorkspaceDestination.Review => Preflight.ShowRunAsync(run, token),
-            WorkspaceDestination.Performance => Performance.ShowRunAsync(run, token),
+            WorkspaceDestination.Performance => Performance.ShowRunAsync(
+                run,
+                token,
+                _performanceContextRun is null ? PerformanceReturnDestination.Workspace : _performanceReturnDestination),
             _ => Task.CompletedTask,
         };
         if (SelectedDestination == WorkspaceDestination.FileResults)

@@ -100,6 +100,73 @@ public sealed class ShellSessionWorkflowTests
         Assert.AreEqual(run.Id, shell.SelectedRun?.Id);
     }
 
+    [TestMethod]
+    public async Task ContextualPerformanceUsesExactHistoryProgressAndSummaryRunAndReturnOrigin()
+    {
+        var client = new TestWorkerClient();
+        var session = client.AddSession("Archive", Path.GetTempPath());
+        var old = client.AddRun(session.Id, "completed");
+        var active = client.AddRun(session.Id, "running", "hashing");
+        var snapshots = new Dictionary<long, WorkerPerformanceSnapshot>
+        {
+            [old.Id] = PerformanceSnapshot(old, 70),
+            [active.Id] = PerformanceSnapshot(active, 71),
+        };
+        var historyRequests = 0;
+        client.PerformanceRunsHandler = (_, pageSize, _) =>
+        {
+            historyRequests++;
+            Assert.AreEqual(PerformanceViewModel.HistoryLimit, pageSize);
+            return Task.FromResult(new WorkerPerformanceRunPage(
+                snapshots.Values.Select(snapshot => snapshot.Run).ToArray(), null, false));
+        };
+        client.PerformanceSnapshotHandler = (statusRunId, productRunId, _) => Task.FromResult(
+            statusRunId is long telemetryId
+                ? snapshots.Values.Single(snapshot => snapshot.Run.Id == telemetryId)
+                : snapshots[productRunId!.Value]);
+        using var shell = CreateShell(client);
+        await shell.InitializeAsync();
+        shell.History.SelectedRun = shell.History.Runs.Single(run => run.Id == old.Id);
+        shell.OpenScanCommand.Execute(null);
+        Assert.AreEqual(old.Id, shell.SelectedRun?.Id);
+        Assert.AreEqual(old.Id, shell.Summary.Run?.Id);
+
+        await shell.Progress.OpenPerformanceCommand.ExecuteAsync(null);
+        Assert.AreEqual(WorkspaceDestination.Performance, shell.SelectedDestination);
+        Assert.AreEqual(active.Id, shell.Performance.ProductRunId);
+        Assert.AreEqual(old.Id, shell.SelectedRun?.Id, "Active performance must not retarget the opened historical workspace run.");
+        Assert.AreEqual("performance-heading", shell.FocusTarget);
+        shell.Performance.ReturnCommand.Execute(null);
+        Assert.AreEqual(WorkspaceDestination.ScanProgress, shell.SelectedDestination);
+        Assert.AreEqual("progress-performance", shell.FocusTarget);
+
+        await shell.Summary.OpenPerformanceCommand.ExecuteAsync(null);
+        Assert.AreEqual(old.Id, shell.Performance.ProductRunId);
+        shell.Performance.ReturnCommand.Execute(null);
+        Assert.AreEqual(WorkspaceDestination.ScanSummary, shell.SelectedDestination);
+        Assert.AreEqual("summary-performance", shell.FocusTarget);
+
+        shell.SelectedDestination = WorkspaceDestination.History;
+        await shell.History.OpenPerformanceCommand.ExecuteAsync(null);
+        Assert.AreEqual(old.Id, shell.Performance.ProductRunId);
+        StringAssert.Contains(shell.Performance.ContextIdentity, $"Archive · Scan {old.Id}");
+        shell.Performance.ReturnCommand.Execute(null);
+        Assert.AreEqual(WorkspaceDestination.History, shell.SelectedDestination);
+        Assert.AreEqual("history-performance", shell.FocusTarget);
+
+        await shell.Progress.OpenPerformanceCommand.ExecuteAsync(null);
+        Assert.AreEqual(active.Id, shell.Performance.ProductRunId);
+        shell.SelectedDestination = WorkspaceDestination.History;
+        shell.SelectedDestination = WorkspaceDestination.Performance;
+        Assert.AreEqual(old.Id, shell.Performance.ProductRunId, "A direct Performance tab must use the opened run after a contextual view is abandoned.");
+        Assert.AreEqual("Performance · opened scan", shell.Performance.ContextHeading);
+        shell.Performance.ReturnCommand.Execute(null);
+        Assert.AreEqual(WorkspaceDestination.History, shell.SelectedDestination);
+        Assert.AreEqual("history-grid", shell.FocusTarget);
+        Assert.AreEqual(5, historyRequests);
+        Assert.IsFalse(shell.Preflight.Operation.CanSubmit);
+    }
+
     [DataTestMethod]
     [DataRow(false)]
     [DataRow(true)]
@@ -596,4 +663,28 @@ public sealed class ShellSessionWorkflowTests
             new TestClipboard(),
             new TestExplorer(),
             new TestCloudLocationService());
+
+    private static WorkerPerformanceSnapshot PerformanceSnapshot(WorkerRun productRun, long statusRunId) => new(
+        new WorkerPerformanceRun(
+            statusRunId,
+            $"operation-{statusRunId}",
+            productRun.Id,
+            2,
+            "engine",
+            "worker",
+            "app",
+            15,
+            $"input-{productRun.Id}",
+            productRun.Status,
+            productRun.StartedAt?.ToUnixTimeMilliseconds(),
+            productRun.CompletedAt?.ToUnixTimeMilliseconds(),
+            1_000,
+            1,
+            null,
+            null),
+        [],
+        [],
+        new WorkerHostPerformanceSummary(null, null, null, null, null),
+        [],
+        false);
 }
