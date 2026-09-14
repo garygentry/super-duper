@@ -13,9 +13,12 @@ public sealed class SavedScanRepeatTests
         var root = Directory.CreateDirectory(Path.Combine(temp, "files")).FullName;
         var firstPath = Path.Combine(root, "first.bin");
         var copyPath = Path.Combine(root, "copy.bin");
+        var changingPath = Path.Combine(root, "changing.bin");
+        var addedPath = Path.Combine(root, "added.bin");
         var bytes = Enumerable.Range(0, 256 * 1024).Select(i => (byte)(i % 251)).ToArray();
         await File.WriteAllBytesAsync(firstPath, bytes);
         await File.WriteAllBytesAsync(copyPath, bytes);
+        await File.WriteAllBytesAsync(changingPath, bytes);
         WorkerClient Open(string log) => new(worker, TimeSpan.FromSeconds(15), Path.Combine(temp, "history.db"),
             Path.Combine(temp, "logs", log), Path.Combine(temp, "hash-cache"));
         try
@@ -32,7 +35,7 @@ public sealed class SavedScanRepeatTests
                 originalGroups = await Groups(client, original.Id);
                 Assert.AreEqual(1, originalGroups.Total);
                 originalMembers = await Members(client, original.Id, originalGroups.Groups.Single().Id);
-                Assert.AreEqual(2, originalMembers.Total);
+                Assert.AreEqual(3, originalMembers.Total);
                 await client.SetReviewDecisionAsync("retain-decision", original.Id, originalGroups.Groups.Single().Id,
                     originalMembers.Members[0].Id, "keep", 0);
             }
@@ -48,19 +51,40 @@ public sealed class SavedScanRepeatTests
                 Assert.AreNotEqual(original.Id, repeated.Id);
                 Assert.IsNotNull(repeated.StartedAt);
 
-                // Change only disposable fixture membership and saved exclusions, retaining both old runs.
+                // Change only disposable fixture membership and contents, retaining both old runs. Restoring
+                // LastWriteTime keeps this a Windows change-token regression rather than a timestamp-only test.
+                var preservedModifiedTime = File.GetLastWriteTimeUtc(changingPath);
                 File.Delete(copyPath);
-                await File.WriteAllBytesAsync(Path.Combine(root, "added.bin"), bytes);
-                await client.UpdateSessionAsync(session.Id, "Edited repeat fixture", [root], ["**/added.bin"]);
+                await File.WriteAllBytesAsync(addedPath, bytes);
+                var changedBytes = bytes.ToArray();
+                changedBytes[0] ^= 0xff;
+                await File.WriteAllBytesAsync(changingPath, changedBytes);
+                File.SetLastWriteTimeUtc(changingPath, preservedModifiedTime);
+                await client.UpdateSessionAsync(session.Id, "Edited repeat fixture", [root], []);
                 var edited = await Scan(client, session.Id, RepeatCachePolicyNames.ReuseVerified);
-                Assert.AreEqual(0, (await Groups(client, edited.Id)).Total);
+                var editedGroups = await Groups(client, edited.Id);
+                Assert.AreEqual(1, editedGroups.Total);
+                var editedMembers = await Members(client, edited.Id, editedGroups.Groups.Single().Id);
+                Assert.AreEqual(2, editedMembers.Total);
+                CollectionAssert.AreEquivalent(
+                    new[] { Path.GetFileName(firstPath), Path.GetFileName(addedPath) },
+                    editedMembers.Members.Select(member => Path.GetFileName(member.Path)).ToArray());
+                var editedReads = await client.GetPerformanceSnapshotAsync(productRunId: edited.Id);
+                Assert.IsTrue(editedReads.Counters.Single(c => c.Metric == "full_hash_cache_hits").Value > 0);
+                Assert.IsTrue(editedReads.Counters.Single(c => c.Metric == "full_hash_cache_misses").Value > 0);
+                Assert.IsTrue(editedReads.Counters.Single(c => c.Metric == "full_hash_bytes_read").Value > 0);
                 Assert.AreEqual(1, (await Groups(client, original.Id)).Total);
                 Assert.AreEqual(1, (await Groups(client, repeated.Id)).Total);
                 Assert.AreEqual(0, (await client.GetRunAsync(original.Id)).Parameters.IgnorePatterns.Count);
-                CollectionAssert.AreEqual(new[] { "**/added.bin" }, edited.Parameters.IgnorePatterns.ToArray());
+                Assert.AreEqual(0, edited.Parameters.IgnorePatterns.Count);
                 var retained = await Members(client, original.Id, originalGroups.Groups.Single().Id);
                 CollectionAssert.AreEquivalent(originalMembers.Members.Select(m => m.Id).ToArray(), retained.Members.Select(m => m.Id).ToArray());
                 Assert.AreEqual("keep", retained.Members.Single(m => m.Id == originalMembers.Members[0].Id).Decision);
+
+                await client.UpdateSessionAsync(session.Id, "Edited repeat fixture", [root], ["**/added.bin"]);
+                var excluded = await Scan(client, session.Id, RepeatCachePolicyNames.ReuseVerified);
+                Assert.AreEqual(0, (await Groups(client, excluded.Id)).Total);
+                CollectionAssert.AreEqual(new[] { "**/added.bin" }, excluded.Parameters.IgnorePatterns.ToArray());
 
                 await client.UpdateSessionAsync(session.Id, "Edited repeat fixture", [root], []);
                 var reread = await Scan(client, session.Id, RepeatCachePolicyNames.RevalidateContent);
@@ -68,7 +92,7 @@ public sealed class SavedScanRepeatTests
                 Assert.AreEqual(RepeatCachePolicyNames.RevalidateContent, (await client.GetRunAsync(reread.Id)).Parameters.RepeatCachePolicy);
                 var reads = await client.GetPerformanceSnapshotAsync(productRunId: reread.Id);
                 Assert.AreEqual(0UL, reads.Counters.Single(c => c.Metric == "full_hash_cache_hits").Value);
-                Assert.AreEqual(4, (await client.ListRunsAsync(session.Id)).Total);
+                Assert.AreEqual(5, (await client.ListRunsAsync(session.Id)).Total);
             }
         }
         finally { await TestDirectoryCleanup.DeleteAsync(temp); }

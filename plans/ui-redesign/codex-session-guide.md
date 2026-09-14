@@ -90,8 +90,10 @@ of that capability. [Official AGENTS.md guidance](https://learn.chatgpt.com/docs
   truthful unavailable/summary-only telemetry, qualified comparison and retained 25-history/
   six-phase/64-device bounds; [evidence](evidence/uir-07b-contextual-performance.md). Core 220 and
   three WPF methods passed.
-- **Next: UIR-08** — locally available integrated Rust/.NET Debug/Release regression and honest
-  acceptance-matrix preparation, followed only by separately authorized native actions.
+- **UIR-08 local integration complete; native evidence next** — [A01-A17 evidence map](evidence/uir-08-integration-regression.md),
+  Rust/.NET Debug/Release regression and current automated visual review pass. The strengthened A17
+  five-run worker regression passes. Run the prepared current-screen native walkthrough only after
+  its separate authority; NVDA/200% remain unavailable and physical/provider/performance work stays distinct.
 - **UIR-09** — final operator workflow acceptance, package and durable handoff after UIR-08's
   integrated/native evidence. Remain on the branch after completion;
   merge, publication and the parked deletion/release work need their own later instruction.

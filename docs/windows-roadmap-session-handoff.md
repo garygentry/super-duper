@@ -23,12 +23,12 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest local slice: UIR-07b contextual Performance detail, in this checkpoint's commit.
-  Baseline `32d0ad0` (UIR-07a). Evidence:
-  `plans/ui-redesign/evidence/uir-07b-contextual-performance.md`.
-- UIR-00/01/02/03 complete; UIR-04, UIR-05, UIR-06 and UIR-07 in_progress. UIR-04a/b/c,
-  UIR-05a/b/c, UIR-06a/b and UIR-07a/b are locally implemented. Later integrated/full A17/native/
-  operator validation remains open.
+- Latest local slice: UIR-08 local integration regression and acceptance-matrix preparation, in this
+  checkpoint's commit. Baseline `a37bbf9` (UIR-07b). Evidence:
+  `plans/ui-redesign/evidence/uir-08-integration-regression.md`.
+- UIR-00/01/02/03 complete; UIR-04 through UIR-08 in_progress. UIR-04a/b/c, UIR-05a/b/c,
+  UIR-06a/b and UIR-07a/b are locally implemented; current integrated automation passes. The prepared
+  current-screen native walkthrough and UIR-09 user acceptance remain open.
 - UIR-07a binds one newest-first 500-run History page with explicit Previous/Next navigation and
   retained accepted data on failure. Highlighted, opened workspace and active scan identities are
   distinct; exact date/state and immutable recorded settings stay visible. **Open scan** remains explicit.
@@ -39,29 +39,30 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   Progress or Summary entry without retargeting the opened run. Six phase rows, partial/full cache and
   actual-read summaries, 64 selectable device rows and 25 qualified comparisons retain explicit
   unavailable/summary-only semantics; no raw sample or time-series claim exists.
-- Verification: 220 Core and three loaded-STA WPF methods passed; isolated fixture build has zero
-  warnings/errors. Performance is vertically reachable at 1180x760, 900x600 and toolbar stress while
-  retaining prior Review/Results/monitoring/theme/text/focus checks. There are 125 reviewed captures
-  under `artifacts/uir07b/captures-final-2`; final results are under `artifacts/uir07b/results-final`.
+- UIR-08 verification: Rust Debug/Release each pass 226 tests with ten named profiles ignored. Windows
+  Debug/Release each build with zero warnings/errors and pass 220 Core, 76 Infrastructure and three
+  loaded-STA WPF methods, with five explicit physical/provider/deletion skips. Current capture regression
+  passes with 191 Debug plus 191 Release PNGs; representative layout/theme/text/long-scan/Results/Review/
+  History/Performance states were reviewed. The latest fictional fixture built cleanly and was not launched.
+- A17 now has a five-run real-worker regression across restart/persistent cache, unchanged reuse, combined
+  add/delete/same-size changed content with preserved modified time, exclusion, forced re-read and immutable
+  prior membership/settings/decision. One assertion path-spelling failure is retained; corrected focused and
+  full Debug/Release matrices pass.
 - Retain UIR-03 scoped shell acceptance: nine earlier walkthrough passes, scrollbar correction,
   Narrator, corrected Dark/Desert/live text size, and physical 150%/175% transitions with focus and
   file-group selection retained. Do not replay accepted checks without a reopen reason.
 - NVDA (not installed) and physical 200% (not offered by Windows) remain `unrun_unavailable` for
   UIR-08/A11, not passed or waived. Do not troubleshoot Windows, force scaling or install software.
-- Prior paired Debug/Release integration and UIR-03c Rust 226 passed/10 ignored are retained, not rerun.
-  UIR-04a/b/c are local implementation; full A17/native/user acceptance and UIR-08 integration remain later.
-- Exact next local slice: UIR-08 local integration regression and acceptance-matrix preparation. Read
-  the UIR-08 ledger row, A01-A17 matrix, current native evidence and linked integrated Debug/Release,
-  layout/theme/keyboard/accessibility/scale and long-scan/rescan procedures. Run locally available
-  automated checks, inventory remaining evidence honestly and prepare a concrete separately authorized
-  native procedure. Do not infer NVDA/physical 200%, troubleshoot Windows, start a physical/provider/
-  performance campaign, resolve recovery outcomes or enable execution.
+- Exact next action: the four-step UIR-08 current-screen native walkthrough in the evidence, only after
+  explicit authority to open the already built fictional fixture and perform operator theme/text/monitor
+  steps. Record pass/fail/unrun/unavailable for available keyboard/focus, both viewports, Narrator,
+  Dark/available contrast/150% text and available 150%/175% monitor transitions. Do not bundle a real-
+  worker A17, physical long-scan, provider or performance action.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; print the required copyable next-session
-  prompt at handoff. UIR-04 retains later integrated/operator validation; no physical campaign authority.
+  prompt at handoff. UIR-04 through UIR-08 retain later native/operator validation; no physical campaign authority.
 - Runtime audit: fictional PID 67748/session 1 responsive at the exact UIR-03f executable, left untouched.
-  UIR-04b/04c/05a/05b/05c/06a/06b/07a/07b outputs are built, not launched. UIR-07b fixture build has zero
-  warnings/errors. Re-audit before reuse.
-  Test windows closed; no production app/worker observed. Production state and disabled deletion untouched.
+  UIR-08 test workers/windows exited and the latest fixture is build-only. Re-audit before reuse or launch.
+  No production app/worker observed. Production state and disabled deletion remain untouched.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
   do not rerun SOP10 or SOP9 identities.
 - Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first
@@ -506,16 +507,19 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-UIR-04a/b/c, UIR-05a/b/c, UIR-06a/b and UIR-07a/b are locally implemented; UIR-04/05/06/07 remain in
-progress for later integrated/native acceptance. Next local work is UIR-08 local integration regression
-and acceptance-matrix preparation. Read the UIR-08 ledger row, A01-A17 matrix, current native evidence
-and directly linked integrated Debug/Release, layout/theme/keyboard/accessibility/scale and long-scan/
-rescan procedures. Run the locally available automated matrix, map every criterion to existing/current
-evidence and prepare the smallest concrete procedure for any separately authorized native action.
-Preserve every UIR-04/05/06/07 contract. Do not infer NVDA/physical 200% availability, troubleshoot
-Windows, start physical/provider/performance work, resolve recovery outcomes or enable execution.
-Retain UIR-07b's 220 Core/three WPF results, 125 captures and clean fixture build. Full A17 and native/
-operator acceptance remain open. Use the compact checkpoint/session guide.
+UIR-04a/b/c, UIR-05a/b/c, UIR-06a/b and UIR-07a/b are locally implemented; UIR-08 local integration
+and A01-A17 matrix preparation are complete. Rust Debug/Release each pass 226 with ten ignored; Windows
+Debug/Release each build cleanly and pass 220 Core, 76 Infrastructure and three WPF methods, with five
+explicit skips. A17's five-run real-worker regression now combines restart/cache reuse with current
+added/deleted/changed membership, exclusions, re-read and immutable history. UIR-04 through UIR-08
+remain in progress for native/operator evidence.
+
+The next action is the four-step UIR-08 current-screen native walkthrough in
+`plans/ui-redesign/evidence/uir-08-integration-regression.md`, only after explicit authority to open the
+already built fictional fixture and perform operator theme/text/monitor steps. Record every step
+pass/fail/unrun/unavailable. Do not infer NVDA/physical 200% availability, troubleshoot Windows, bundle
+a real-worker A17/physical long-scan/provider/performance action, resolve recovery outcomes or enable
+execution. Preserve every UIR-04/05/06/07 contract and use the compact checkpoint/session guide.
 All work stays on codex/ui-redesign; preserve wpf-poc at deefa40, no switch/worktree/merge/push.
 Re-audit PID 67748 and all fixture/app/worker paths before reuse; never overwrite running outputs.
 Preserve production state/deletion locks and SOP boundaries. NVDA/physical 200% remain unavailable
@@ -616,6 +620,17 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+2026-09-14 UIR-08 local integration: Rust Debug/Release each pass 226 tests with ten named physical/
+performance profiles ignored. Windows Debug/Release each build with zero warnings/errors and pass 220
+Core, 76 Infrastructure and three loaded-STA WPF methods, with five explicit physical/provider/deletion
+skips. Current visual regression passes with 191 Debug plus 191 Release captures and representative
+states reviewed; latest fictional fixture build passes without launch. The strengthened A17 real-worker
+regression retains one history/cache across restart and five runs, proving unchanged reuse, combined
+added/deleted/same-size changed membership with preserved modified time, exclusions, forced re-read and
+immutable old results/settings/decision. UIR-08 remains in progress for the separately authorized native
+walkthrough; NVDA/physical 200% remain unavailable. See
+`plans/ui-redesign/evidence/uir-08-integration-regression.md`.
 
 2026-09-14 UIR-07b: Core 220 passed and three loaded-STA WPF methods passed. Performance is one action
 from exact History/Progress/Summary run context and Close restores exact origin focus without retargeting
@@ -1389,6 +1404,15 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+- 2026-09-14: UIR-08 local integration regression and acceptance-matrix preparation are complete;
+  UIR-08 remains in progress for native evidence. Rust Debug/Release each pass 226 with ten ignored;
+  Windows Debug/Release each pass 220 Core, 76 Infrastructure and three WPF methods with five explicit
+  skips, and 191 current captures per configuration were reviewed. A17 now has one five-run restarted-
+  worker/cache regression for unchanged reuse, add/delete/same-size change, exclusion, re-read and
+  immutable history. The next action is the separately authorized four-step latest-screen fictional
+  fixture walkthrough. NVDA/200% remain unavailable; no physical/provider/performance/production or
+  parked-release action ran. Safety, recovery and SOP boundaries are unchanged.
 
 - 2026-09-14: UIR-07b locally implements contextual Performance for A12/A13/A15 and exact-run A16
   context. History, active Progress and stopped-run Summary each open a product-run-verified snapshot

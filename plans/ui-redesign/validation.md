@@ -125,6 +125,23 @@ distinguished from unavailable raw samples/time-series data. Core 220 and three 
 methods pass with 125 reviewed captures. Full A13 integration/scale, A17 and native screen-reader/
 DPI/operator acceptance remain UIR-08/09.
 
+## UIR-08 local integration evidence
+
+[UIR-08 integration evidence](evidence/uir-08-integration-regression.md) maps every A01-A17 row to
+current Debug/Release automation, retained native evidence and exact remaining states. Rust Debug
+and Release each pass 226 tests with ten named physical/performance profiles ignored. Windows Debug
+and Release each build without warnings/errors and pass 220 Core, 76 Infrastructure and three
+loaded-STA WPF methods, with five physical/provider/deletion cases explicitly skipped. Current
+automated visual regression produced 191 Debug and 191 Release captures; representative layout,
+theme/text, long-scan, Results, Review, History and Performance states were reviewed.
+
+The real-worker A17 integration now combines restart/persistent cache, unchanged reuse, added and
+deleted membership, a same-size content change with preserved modified time, exclusion, forced
+re-read and immutable older history/decisions across five runs. UIR-08 remains `in_progress`: the
+prepared latest-screen native walkthrough is unrun and requires distinct authority. NVDA and physical
+200% remain `unrun_unavailable`; no physical/provider/performance campaign or UIR-09 acceptance is
+inferred.
+
 ## Carried native checks from scoped shell acceptance
 
 UIR-03's [scoped assessment](evidence/uir-03-shell-acceptance.md) does not complete A11. At UIR-08,
