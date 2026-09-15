@@ -8,7 +8,8 @@ linked plans remain authoritative.
 
 ## Session objective
 
-The operator activated a Windows UI redesign on 2026-09-08. Follow
+The operator activated a Windows UI redesign on 2026-09-08 and accepted its final scoped workflow at
+UIR-09 on 2026-09-14. Follow
 [`plans/ui-redesign/README.md`](../plans/ui-redesign/README.md) and its
 [`execution plan`](../plans/ui-redesign/execution-plan.md). Preserve all prior work on `wpf-poc`
 at `deefa40`; keep every redesign plan, implementation and test on `codex/ui-redesign` until
@@ -19,15 +20,15 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 
 ## Current checkpoint
 
-- Branch: `codex/ui-redesign`; remain here for plans, implementation and tests until completion.
+- Branch: `codex/ui-redesign`; remain here after completion until explicit operator direction.
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest local slice: UIR-08 available-native walkthrough and acceptance-fixture correction, in this
-  checkpoint's commit. Baseline `f356045` (UIR-08 local integration). Evidence:
-  `plans/ui-redesign/evidence/uir-08-integration-regression.md`.
-- UIR-00 through UIR-08 complete. UIR-09 final user workflow acceptance and durable completion package
-  is next. Do not repeat the completed current-screen native walkthrough without a documented reopen.
+- Latest local slice: UIR-09 final workflow acceptance and durable completion package, in this
+  checkpoint's commit. Baseline `eb72db4` (UIR-08 available-native walkthrough). Evidence:
+  `plans/ui-redesign/evidence/uir-09-final-acceptance.md`.
+- UIR-00 through UIR-09 complete. No redesign gate remains. Do not repeat the completed current-screen
+  native walkthrough or select another stream without explicit operator direction.
 - UIR-07a binds one newest-first 500-run History page with explicit Previous/Next navigation and
   retained accepted data on failure. Highlighted, opened workspace and active scan identities are
   distinct; exact date/state and immutable recorded settings stay visible. **Open scan** remains explicit.
@@ -54,18 +55,17 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   file-group selection retained. Do not replay accepted checks without a reopen reason.
 - NVDA (not installed) and physical 200% (not offered by Windows) remain `unrun_unavailable` for
   A11, not passed or waived. Do not troubleshoot Windows, force scaling or install software.
-- Exact next action: UIR-09 final user workflow acceptance and durable completion assessment. Review
-  UIR-08 evidence and scope, confirm no open critical redesign defect, request explicit operator final
-  acceptance, then update and commit the durable completion package. Do not manufacture new physical/
-  provider/performance/production work or repeat the completed native batch.
-- Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; print the required copyable next-session
-  prompt at handoff. No physical campaign authority follows from the completed available-native evidence.
+- Exact next action: none inside the redesign stream. Remain on `codex/ui-redesign` and await explicit
+  operator direction before merge, push, branch changes, parked release-validation resumption, a new
+  physical/provider/performance campaign, recovery work or production execution.
+- Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; use the reusable completion prompt for
+  a future explicitly authorized task. No physical campaign authority follows from redesign completion.
 - Runtime audit: PID 67748 was absent. PID 63908's apparent missing window was cross-context visibility,
   not a fixture crash, and it was replaced under explicit authority. Initial fixture PID 64588 was closed.
-  Corrected fixture PID 15072 was left open after the passing retest; the final non-interactive audit
+  Corrected fixture PID 15072 was left open after the passing retest; the UIR-09 read-only audit again
   found it responsive at the exact corrected path, with title/handle hidden by the known context limit.
-  Re-audit before reuse. No worker or production app/state was touched. Production state and disabled
-  deletion remain untouched.
+  It was not reused, stopped or modified. Re-audit before reuse. No worker or production app/state
+  was touched. Production state and disabled deletion remain untouched.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
   do not rerun SOP10 or SOP9 identities.
 - Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first
@@ -510,23 +510,22 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-UIR-00 through UIR-08 are complete. Rust Debug/Release each pass 226 with ten ignored; Windows
+UIR-00 through UIR-09 are complete. The operator explicitly accepted the final scoped workflow after
+the UIR-08 evidence was reviewed and no open critical redesign defect was found. Rust Debug/Release
+each pass 226 with ten ignored; Windows
 Debug/Release each build cleanly and pass 220 Core, 76 Infrastructure and three WPF methods, with five
 explicit skips. A17's five-run real-worker regression combines restart/cache reuse with current added/
 deleted/changed membership, exclusions, re-read and immutable history. The available UIR-08 native batch
 passes at 1180x760 and 900x600 after correcting the in-memory fixture's file/folder decision persistence,
 folder data and Review folder link. Narrator and the available appearance/monitor transitions pass.
 
-The next action is UIR-09 final user workflow acceptance and durable completion assessment. Review
-`plans/ui-redesign/evidence/uir-08-integration-regression.md`, confirm no open critical redesign defect,
-request explicit operator final acceptance, then update the final package and commit it on this branch.
-Do not repeat the completed native walkthrough, infer NVDA/physical 200% availability, troubleshoot
-Windows, bundle a real-worker A17/physical long-scan/provider/performance action, resolve recovery
-outcomes or enable execution. Preserve every UIR-04/05/06/07 contract and use the compact checkpoint/
-session guide. All work stays on codex/ui-redesign; preserve wpf-poc at deefa40, no switch/worktree/
-merge/push. Re-audit corrected fixture PID 15072 and all fixture/app/worker paths before reuse; never
-overwrite running outputs. Preserve production state/deletion locks and SOP boundaries. NVDA/physical
-200% remain unavailable for A11; do not troubleshoot Windows. Print the updated copyable continuation.
+No redesign action remains. Stay on `codex/ui-redesign`; preserve `wpf-poc` at `deefa40` and await
+explicit operator direction before merge, push, branch changes, parked release-validation resumption,
+physical/provider/performance work, recovery resolution or production execution. Do not repeat the
+completed native walkthrough or locally exhausted matrix without a documented reopen condition.
+NVDA and physical 200% remain unavailable/unrun for A11, not passed or waived. Re-audit corrected
+fixture PID 15072 before reuse and never overwrite running outputs. Preserve every UIR-04 through
+UIR-08 contract, production state/deletion locks and SOP boundaries.
 
 SOP10 is finished. Do not select another scan package. The operator explicitly accepted the
 consumed `sop10-physical-v1` campaign as `accepted_with_observation_limit`: both runs completed with
@@ -555,9 +554,10 @@ Before editing:
    iteration logs, accepted packages, or the parked Windows milestone narrative during cold start.
 3. Confirm that the checkpoint above still matches `HEAD` and the worktree.
    Confirm the branch is `codex/ui-redesign`; do not silently change it or discard work if it differs.
-4. Confirm the scheduled stream, select the ledger's first dependency-ready non-accepted gate, and
-   distinguish scheduling from any separate physical/provider/performance/production authority. Do
-   not select from the parked stream or re-audit accepted/`locally_exhausted` work.
+4. Confirm the scheduled stream and select its first dependency-ready non-accepted gate. The redesign
+   currently has none; do not invent one or select from the parked stream without explicit operator
+   direction. Distinguish scheduling from physical/provider/performance/production authority and do
+   not re-audit accepted/`locally_exhausted` work.
 5. Inspect code and tests only for the authorized gate, then state the evidence that permits edits,
    the verifier that closes it, and which gates remain outside the slice.
 
@@ -623,6 +623,14 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+2026-09-14 UIR-09 complete: the operator explicitly accepted the final scoped Windows redesign after
+the UIR-08 evidence and accepted scope were reviewed and no open critical redesign defect was found.
+The durable package records UIR-00 through UIR-09 complete. NVDA and physical 200% remain unavailable/
+unrun, not passed or waived. Production deletion remains disabled, parked release validation remains
+separate, and no product/runtime test was added for this documentation-only completion slice. PID 15072
+remained responsive at the exact corrected fixture path during a read-only audit and was not reused.
+See `plans/ui-redesign/evidence/uir-09-final-acceptance.md`.
 
 2026-09-14 UIR-08 complete: Rust Debug/Release each pass 226 tests with ten named physical/
 performance profiles ignored. Windows Debug/Release each build with zero warnings/errors and pass 220
@@ -1409,6 +1417,13 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+- 2026-09-14: UIR-09 is complete. After review of the UIR-08 integration/available-native evidence
+  found no open critical redesign defect, the operator explicitly stated “I accept.” The accepted scope
+  retains every UIR-04 through UIR-08 contract and the review-only safety boundary. NVDA and physical
+  200% remain unavailable/unrun, not passed or waived; release, recovery, physical/provider/performance
+  and production-execution authority remain separate. No redesign gate remains; stay on
+  `codex/ui-redesign` and await explicit operator direction.
 
 - 2026-09-14: UIR-08 available-native acceptance is complete after the operator finished the four-step
   manual batch. Scan again, Progress, Review, History, Narrator and available appearance/monitor checks

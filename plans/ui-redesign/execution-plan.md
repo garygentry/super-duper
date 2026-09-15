@@ -1,9 +1,9 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-00 through UIR-08 complete; UIR-09 final user acceptance and durable completion package
-is next. The UIR-08 local matrix and available current-screen native walkthrough pass after correcting
-three in-memory fixture gaps. NVDA and physical 200% remain unavailable/unrun for A11. Stay on
-`codex/ui-redesign`.
+Status: **UIR-00 through UIR-09 complete**. The operator accepted the final scoped workflow on
+2026-09-14 after the UIR-08 local matrix and available current-screen native walkthrough passed.
+NVDA and physical 200% remain unavailable/unrun for A11, not passed or waived. Stay on
+`codex/ui-redesign`; no redesign gate remains.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -20,7 +20,7 @@ all safety/evidence gates. Its open execution criteria are not absorbed or marke
 | UIR-06 | complete | Dedicated Review, existing rule workflow, whole-plan validation and evidence access | Local a/b plus native totals, validation meanings, Location preferences and corrected folder Open set passed in UIR-08 |
 | UIR-07 | complete | History/open-run, contextual warnings and performance detail | Local a/b plus native History identity, warnings, Performance and return focus passed in UIR-08 |
 | UIR-08 | complete | Full integration, layout/theme/keyboard/accessibility/scale and long-scan/rescan regression, available physical evidence | [Local matrix and A01-A17 map](evidence/uir-08-integration-regression.md) plus four-step native walkthrough passed after fixture correction; NVDA/physical 200% remain unavailable/unrun |
-| UIR-09 | planned | User workflow acceptance, final package and durable handoff | Ready: assess final scope acceptance, critical defects, documentation and committed branch state without expanding into parked work |
+| UIR-09 | complete | User workflow acceptance, final package and durable handoff | [Operator accepted the final scoped workflow](evidence/uir-09-final-acceptance.md); no critical redesign defect or further redesign gate remains |
 
 UIR-04 and UIR-05 are logically independent after UIR-03 but may be executed sequentially in one
 workspace. This is not authorization to spawn agents or create additional branches. Implementation
@@ -179,11 +179,13 @@ history/decisions across five runs. The operator passed the available 1180x760/9
 Narrator, Dark/contrast/150%-text and 150%/175%-monitor batch after three acceptance-fixture gaps were
 corrected and focused-retested. NVDA and physical 200% remain unavailable/unrun, not passed or waived.
 
-The exact next action is **UIR-09 final user workflow acceptance and durable completion assessment**.
-Review the UIR-08 disposition and corrected fixture evidence, confirm no open critical redesign defect,
-obtain the operator's explicit final scope acceptance, then complete the durable package on this branch.
-Do not repeat the completed native batch or expand into a real-worker A17/physical long-scan/provider/
-performance campaign, recovery outcomes or production execution.
+**UIR-09 complete (2026-09-14).** [Final acceptance evidence](evidence/uir-09-final-acceptance.md)
+records the operator's explicit acceptance after review found no open critical redesign defect. The
+durable package preserves NVDA and physical 200% as unavailable/unrun limitations and keeps release,
+recovery, physical/provider/performance and production-execution authority separate.
+
+No redesign action remains. Stay on this branch and await explicit operator direction before merge,
+publication, parked release-validation resumption, a new campaign or production execution.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read
@@ -217,7 +219,7 @@ directories are required, create them without changing the checkout's branch.
 
 ## Stopping criteria
 
-Do not declare the redesign complete with only a prototype or passing unit tests. UIR-09 requires
+Do not declare the redesign complete with only a prototype or passing unit tests. UIR-09 required
 the actual scoped WPF behavior, coherent states, meaningful regression checks, physical accessibility
 evidence required by the validation plan, and user acceptance. Distinguish:
 
@@ -225,6 +227,9 @@ evidence required by the validation plan, and user acceptance. Distinguish:
 - Implemented: code exists and relevant automated checks pass.
 - Native acceptance pending: physical desktop/user checks remain.
 - Redesign complete: scoped product is accepted and committed; production deletion remains disabled.
+
+The redesign is complete at UIR-09 under this definition. This does not complete the parked
+release-validation stream or the unavailable NVDA/physical-200% evidence.
 
 The parked release-validation stream can still be incomplete after redesign completion. Do not
 weaken its thresholds, infer provider or Recycle Bin authority, alter consumed evidence identities,

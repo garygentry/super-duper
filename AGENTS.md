@@ -4,8 +4,9 @@ Guidance for fresh coding-agent sessions in this repository.
 
 ## Active Roadmap Streams
 
-The operator activated the Windows UI redesign on 2026-09-08. All redesign plans, prototypes,
-implementation and tests stay on `codex/ui-redesign` until implementation is complete. The prior
+The operator activated the Windows UI redesign on 2026-09-08 and accepted its final scoped workflow
+at UIR-09 on 2026-09-14. All redesign plans, prototypes, implementation, tests and completion records
+stay on `codex/ui-redesign`. The prior
 checkout and operator README edit are preserved on `wpf-poc` at `deefa40`. Do not switch branches,
 merge back, rebase or delete the redesign branch unless the user explicitly changes this instruction.
 
@@ -24,7 +25,8 @@ step. Do not restart or re-audit the retained streams merely to begin UI work:
 
 For an efficient cold start, audit Git; read the handoff's current-control sections and the selected
 stream's execution plan completely; then read only the selected gate's directly linked code, tests, and
-procedures. Do not load the handoff's historical accepted-slice record or decision log unless the
+procedures. The redesign has no remaining gate; do not invent a follow-on without explicit operator
+direction. Do not load the handoff's historical accepted-slice record or decision log unless the
 selected gate cites it. Do not
 replay historical iteration logs or re-audit accepted/`locally_exhausted` gates without a documented
 reopen condition. Active scheduling is not physical/provider/performance-campaign or production-

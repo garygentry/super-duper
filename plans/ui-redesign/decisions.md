@@ -21,6 +21,14 @@ promoted to operator acceptance. User instructions outrank these planning defaul
 | D14 | Long scans are a primary workflow: live phase/current activity/progress with expandable diagnostics | Explicit user requirement; `scan-and-rescan-experience.md`, A08/A16; honest measured values, no invented whole-scan ETA |
 | D15 | Repeat scans discover current files and retain qualifying persisted hash work across runs | Explicit user requirement; A17. Existing engine reuse is retained; new/deleted/changed files affect new results, not historical snapshots |
 | D16 | Use bounded local slices, committed handoffs and one checkout/branch across Codex sessions | Recommended execution procedure in `codex-session-guide.md`; no additional task or automation created |
+| D17 | Accept the final scoped redesigned workflow with unavailable evidence retained honestly | Operator: “I accept” on 2026-09-14 after UIR-08 review found no open critical redesign defect; NVDA/physical 200% remain unavailable/unrun and release/deletion authority remains separate |
+
+## Final workflow acceptance (UIR-09 complete)
+
+The operator explicitly accepted the final scoped workflow after the UIR-08 matrix and corrected
+available-native walkthrough were reviewed. [The completion record](evidence/uir-09-final-acceptance.md)
+closes the redesign without treating NVDA or physical 200% as passed or waived and without changing
+production execution, parked release-validation or campaign authority.
 
 ## Scoped shell gate assessment (2026-09-12)
 

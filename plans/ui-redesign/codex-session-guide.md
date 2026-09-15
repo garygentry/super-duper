@@ -94,9 +94,10 @@ of that capability. [Official AGENTS.md guidance](https://learn.chatgpt.com/docs
   Rust/.NET Debug/Release regression, automated visual review and the available current-screen native
   walkthrough pass. The corrected fixture retest passed both viewports; Narrator and available
   appearance/monitor transitions passed. NVDA/physical 200% remain unavailable and unrun.
-- **Next: UIR-09** — request explicit final operator workflow acceptance, then produce the durable
-  completion package and handoff. Remain on the branch after completion;
-  merge, publication and the parked deletion/release work need their own later instruction.
+- **Complete: UIR-09** — [the operator accepted the final scoped workflow](evidence/uir-09-final-acceptance.md)
+  and the durable completion package records the remaining unavailable evidence. No redesign gate
+  remains. Stay on the branch; merge, publication and parked deletion/release work need their own
+  later instruction.
 
 There is no fixed session count: use the gate's scope and evidence to decide when to checkpoint.
 Most sessions should end with a demonstrable improvement, a commit and an exact next action.

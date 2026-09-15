@@ -1,11 +1,11 @@
 # Windows UI redesign
 
-Status: high-level direction accepted with long-scan/rescan feedback, updated 2026-09-14. UIR-00
-through UIR-08 are complete; UIR-09 final user acceptance and durable completion is next. Product
+Status: **complete at UIR-09**, updated 2026-09-14. The operator accepted the final scoped workflow
+after the UIR-08 integration and available-native pass. Product
 implementation includes UIR-04a saved setup/Scan again, UIR-04b long-scan freshness/terminal presentation, UIR-04c compact monitoring/details, UIR-05a compact file queries/totals, UIR-05b adjustable file comparison/full local A03, UIR-05c adjustable folder comparison/remaining local folder criteria, UIR-06a dedicated Review overview/revision-aware validation, UIR-06b focused Location preferences, UIR-07a History/contextual warnings, UIR-07b contextual Performance and UIR-03a/b/c/d/e/f shell/context, shared resources, viewport verification and
 the operator-reported scrollbar, theme, text-size and empty-folder fixes. The package records the
-accepted direction and UIR-08 available-native pass; it is not yet UIR-09 final acceptance or Windows
-release acceptance.
+accepted direction, UIR-08 available-native pass and [UIR-09 final acceptance](evidence/uir-09-final-acceptance.md).
+This is redesign completion, not Windows release or production deletion acceptance.
 
 ## Start here
 
@@ -52,7 +52,7 @@ are authoritative if its intentionally small fictional dataset or simplified int
 | UIR-06 | complete | Local Review/preferences slices plus current native meanings, rules and corrected folder Open set passed |
 | UIR-07 | complete | Local History/Performance slices plus current native identity, warning, Performance and return-focus observations passed |
 | UIR-08 | complete | [Integration, A01-A17 map and available native evidence](evidence/uir-08-integration-regression.md) passed; NVDA/physical 200% remain unavailable/unrun |
-| UIR-09 | planned | Ready for explicit final user acceptance and durable completion package |
+| UIR-09 | complete | [Final scoped workflow accepted and durable completion assessed](evidence/uir-09-final-acceptance.md); no redesign gate remains |
 
 On 2026-09-11 the operator [passed three initial checks](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks):
 reviewed/active scan context and harmless History highlighting, delayed-folder responsiveness/error
@@ -98,8 +98,8 @@ one five-run restart/cache/new/deleted/changed/exclusion/reread regression, and 
 captures per configuration. Core remains 220; Infrastructure is 76 passed/five skipped; three WPF
 methods pass in each configuration. The operator passed the current-screen keyboard, both-viewport,
 Narrator, theme/text and 150%/175%-monitor walkthrough after three in-memory fixture gaps were corrected
-and retested. UIR-09 final scope acceptance and durable completion are next; do not troubleshoot Windows
-scaling or infer NVDA/physical 200% acceptance.
+and retested. The operator subsequently accepted the final scoped workflow at UIR-09. NVDA and physical
+200% remain unavailable/unrun, not passed or waived; no corresponding evidence is inferred.
 Small visual preferences can evolve during implementation.
 Execution enablement and physical/provider campaigns retain their separate authority requirements.
 
@@ -109,3 +109,7 @@ Redesign completion means the scoped WPF workflows are implemented, meaningful a
 pass, required interactive desktop validation has evidence, the user has accepted the workflow,
 and all work is committed on `codex/ui-redesign`. It does not mean the parked Recycle Bin release
 stream is complete. A polished review-only build must state its execution limitation clearly.
+
+UIR-09 satisfies this definition with the explicit unavailable-evidence limits recorded above. Remain
+on `codex/ui-redesign`; merge, push, release validation and production execution require later explicit
+operator direction.

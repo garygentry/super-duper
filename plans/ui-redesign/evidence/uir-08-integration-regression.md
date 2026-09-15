@@ -8,6 +8,10 @@ matrix, automated visual review and available native/operator actions pass after
 gaps in the in-memory acceptance fixture. This is not UIR-09 final user acceptance or Windows release
 acceptance.
 
+UIR-09 subsequently accepted the final scoped workflow; see
+[the durable completion record](uir-09-final-acceptance.md). This does not change the UIR-08 gate-time
+states or convert unavailable evidence into passes or waivers.
+
 ## Current integrated result
 
 The Rust workspace and Windows solution were built and tested from the same checkout in Debug and
@@ -131,7 +135,7 @@ evidence without substituting for explicitly unavailable hardware/software or UI
 ## Native action disposition
 
 The prepared four-step batch is complete. Do not repeat it without a documented reopen condition.
-UIR-09 final workflow acceptance and durable completion assessment are next. A real-worker native
+UIR-09 subsequently accepted the final scoped workflow. A real-worker native
 A17 rescan, physical long-duration scan, provider/performance work and production execution remain
 separate and are not prerequisites manufactured for UIR-09.
 

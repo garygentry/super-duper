@@ -125,7 +125,7 @@ distinguished from unavailable raw samples/time-series data. Core 220 and three 
 methods pass with 125 reviewed captures. Full A13 integration/scale, A17 and native screen-reader/
 DPI/operator acceptance remain UIR-08/09.
 
-## UIR-08 local integration evidence
+## UIR-08 integration and available-native evidence
 
 [UIR-08 integration evidence](evidence/uir-08-integration-regression.md) maps every A01-A17 row to
 current Debug/Release automation, retained native evidence and exact remaining states. Rust Debug
@@ -135,20 +135,28 @@ loaded-STA WPF methods, with five physical/provider/deletion cases explicitly sk
 automated visual regression produced 191 Debug and 191 Release captures; representative layout,
 theme/text, long-scan, Results, Review, History and Performance states were reviewed.
 
-The real-worker A17 integration now combines restart/persistent cache, unchanged reuse, added and
-deleted membership, a same-size content change with preserved modified time, exclusion, forced
-re-read and immutable older history/decisions across five runs. UIR-08 remains `in_progress`: the
-prepared latest-screen native walkthrough is unrun and requires distinct authority. NVDA and physical
-200% remain `unrun_unavailable`; no physical/provider/performance campaign or UIR-09 acceptance is
-inferred.
+The real-worker A17 integration combines restart/persistent cache, unchanged reuse, added and deleted
+membership, a same-size content change with preserved modified time, exclusion, forced re-read and
+immutable older history/decisions across five runs. The operator passed the available latest-screen
+walkthrough at both viewports after three fixture-only corrections, plus Narrator and the available
+appearance/monitor checks. NVDA and physical 200% remain `unrun_unavailable`; no physical/provider/
+performance campaign is inferred.
+
+## UIR-09 final acceptance
+
+[UIR-09 final acceptance](evidence/uir-09-final-acceptance.md) records the operator's explicit final
+scoped workflow acceptance after review found no open critical redesign defect. It accepts the redesign
+using the complete automated baseline and available interactive evidence. It does not convert NVDA or
+physical 200% into passes or waivers, and it does not accept the Windows release, production deletion,
+recovery-resolution, provider, representative-performance or other parked campaigns.
 
 ## Carried native checks from scoped shell acceptance
 
-UIR-03's [scoped assessment](evidence/uir-03-shell-acceptance.md) does not complete A11. At UIR-08,
+UIR-03's [scoped assessment](evidence/uir-03-shell-acceptance.md) did not complete A11. At UIR-09,
 retain NVDA (`unrun_unavailable`, not installed) and physical 200% display scaling
 (`unrun_unavailable`, not offered by the operator's Windows setup) as explicit requirements.
-The 150% and 175% transition/focus/selection passes do not replace 200%. Obtain actual evidence
-or record an explicit later disposition before claiming full corresponding native acceptance.
+The 150% and 175% transition/focus/selection passes do not replace 200%. UIR-09 accepts the scoped
+workflow while preserving those limitations; do not claim full corresponding native-environment evidence.
 Do not force custom scaling or troubleshoot Windows against the operator's stated constraint.
 
 ## Scripted design/user walkthrough
@@ -227,9 +235,9 @@ files under a verified task-owned fixture root. Native provider/deletion/physica
 their existing distinct authorization. Do not open production databases in a new writer, mutate
 live review state for a design demo, stop the user's scan, or infer permission from the parked plan.
 
-Physical keyboard/screen-reader/high-contrast/multi-monitor verification is still required for native
-acceptance. The user can perform the necessary interactive steps when fixtures and procedure are
-ready. Ask only for the exact missing authority or action at that boundary, after preparing it.
+The available physical keyboard/Narrator/high-contrast/multi-monitor verification passed in UIR-08.
+NVDA and physical 200% remain unavailable/unrun after UIR-09; a later claim for those environments
+requires actual evidence and separate authority.
 
 ## Evidence record format
 
