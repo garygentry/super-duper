@@ -1,6 +1,9 @@
 # Planning, implementation and testing procedure
 
-Status: UIR-03 complete with scoped operator acceptance; UIR-04 through UIR-08 in progress. UIR-04a/b/c, UIR-05a/b/c, UIR-06a/b and UIR-07a/b are locally implemented; UIR-08 local integration regression and acceptance-matrix preparation is complete. The prepared current-screen native walkthrough is next. NVDA and 200% remain unavailable/unrun for UIR-08/A11. Stay on `codex/ui-redesign`.
+Status: UIR-00 through UIR-08 complete; UIR-09 final user acceptance and durable completion package
+is next. The UIR-08 local matrix and available current-screen native walkthrough pass after correcting
+three in-memory fixture gaps. NVDA and physical 200% remain unavailable/unrun for A11. Stay on
+`codex/ui-redesign`.
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
@@ -11,13 +14,13 @@ all safety/evidence gates. Its open execution criteria are not absorbed or marke
 | UIR-00 | complete | Preserve current work and create dedicated branch | `wpf-poc` at `deefa40`; `codex/ui-redesign` created from it |
 | UIR-01 | complete | Findings, direction, specifications, concept, capability mapping, validation and procedure | Package internally checked; prototype limitations recorded; no WPF implementation |
 | UIR-02 | complete | High-level direction accepted; operator feedback incorporated | D13-D15; no native or full prototype walkthrough acceptance inferred |
-| UIR-03 | complete | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c/d/e/f implemented; [scoped shell acceptance](evidence/uir-03-shell-acceptance.md); available operator checks passed; NVDA/200% remain unavailable for UIR-08/A11 |
-| UIR-04 | in_progress | Setup, Scan again, persistent reuse explanation, live monitoring/details and terminal summaries | UIR-03; A05/A06/A08/A14/A15/A16/A17 with controlled clock, lifecycle and rescan fixtures |
-| UIR-05 | in_progress | File/folder results, compact filters, list/detail comparison, decisions and path actions | UIR-03; A03/A04/A05/A06/A11/A13/A15 and existing query/focus/page contracts |
-| UIR-06 | in_progress | Dedicated Review, existing rule workflow, whole-plan validation and evidence access | UIR-05; A04/A10/A15 including revision, survivor, overlap, reversal and restart |
-| UIR-07 | in_progress | History/open-run, contextual warnings and performance detail | UIR-03/04; UIR-07a History/warnings and UIR-07b Performance locally implemented; A07/A12/A13/A15/A16/A17 and current/terminal warning boundaries |
-| UIR-08 | in_progress | Full integration, layout/theme/keyboard/accessibility/scale and long-scan/rescan regression, physical evidence | Local Debug/Release integration and A01-A17 mapping complete; prepared current-screen native walkthrough remains unrun and separately authorized; NVDA/200% unavailable |
-| UIR-09 | planned | User workflow acceptance, final package and durable handoff | UIR-08; scope accepted, no open critical defect, all work committed on same branch |
+| UIR-03 | complete | Shared visual resources, semantic navigation, selected/active run context, scoped loading | UIR-03a/b/c/d/e/f implemented; [scoped shell acceptance](evidence/uir-03-shell-acceptance.md); available operator checks passed |
+| UIR-04 | complete | Setup, Scan again, persistent reuse explanation, live monitoring/details and terminal summaries | Local a/b/c, integrated A17 and available current-screen setup/Progress native observations passed in UIR-08 |
+| UIR-05 | complete | File/folder results, compact filters, list/detail comparison, decisions and path actions | Local a/b/c and corrected-fixture native file/folder decisions, paths, focus and both viewports passed in UIR-08 |
+| UIR-06 | complete | Dedicated Review, existing rule workflow, whole-plan validation and evidence access | Local a/b plus native totals, validation meanings, Location preferences and corrected folder Open set passed in UIR-08 |
+| UIR-07 | complete | History/open-run, contextual warnings and performance detail | Local a/b plus native History identity, warnings, Performance and return focus passed in UIR-08 |
+| UIR-08 | complete | Full integration, layout/theme/keyboard/accessibility/scale and long-scan/rescan regression, available physical evidence | [Local matrix and A01-A17 map](evidence/uir-08-integration-regression.md) plus four-step native walkthrough passed after fixture correction; NVDA/physical 200% remain unavailable/unrun |
+| UIR-09 | planned | User workflow acceptance, final package and durable handoff | Ready: assess final scope acceptance, critical defects, documentation and committed branch state without expanding into parked work |
 
 UIR-04 and UIR-05 are logically independent after UIR-03 but may be executed sequentially in one
 workspace. This is not authorization to spawn agents or create additional branches. Implementation
@@ -165,21 +168,22 @@ explicit context qualifiers. Unavailable fields remain unavailable and the UI ma
 time-series claim. Core 220 and three loaded-STA WPF methods pass with 125 captures and a clean fixture
 build. No worker/protocol/database, recovery, execution or production boundary changed.
 
-**UIR-08 local integration and matrix preparation complete (2026-09-14).** [Evidence](evidence/uir-08-integration-regression.md)
+**UIR-08 complete (2026-09-14).** [Evidence](evidence/uir-08-integration-regression.md)
 maps A01-A17 to current and retained evidence. Rust Debug/Release each pass 226 tests with ten named
 profiles ignored. Windows Debug/Release each build cleanly and pass 220 Core, 76 Infrastructure and
 three loaded-STA WPF methods, with five physical/provider/deletion cases skipped. Current visual
 regression produced 191 captures per configuration and representative states were reviewed. The A17
 real-worker test now combines restart/persistent cache, unchanged reuse, added/deleted membership,
 same-size changed content with preserved modified time, exclusion, forced re-read and immutable old
-history/decisions across five runs. UIR-08 remains in progress for native evidence.
+history/decisions across five runs. The operator passed the available 1180x760/900x600 keyboard,
+Narrator, Dark/contrast/150%-text and 150%/175%-monitor batch after three acceptance-fixture gaps were
+corrected and focused-retested. NVDA and physical 200% remain unavailable/unrun, not passed or waived.
 
-The exact next action is the **prepared UIR-08 current-screen native walkthrough**, only after explicit
-authority to open the already built fictional fixture and perform the operator-side theme/text/monitor
-steps. Use the four-step procedure in the UIR-08 evidence; record pass/fail/unrun/unavailable per step.
-Do not include NVDA or physical 200% in the runnable batch, troubleshoot Windows, start a real-worker
-A17/physical/provider/performance campaign, resolve recovery outcomes or enable execution. After the
-available native evidence is recorded, assess the remaining UIR-08 disposition before UIR-09.
+The exact next action is **UIR-09 final user workflow acceptance and durable completion assessment**.
+Review the UIR-08 disposition and corrected fixture evidence, confirm no open critical redesign defect,
+obtain the operator's explicit final scope acceptance, then complete the durable package on this branch.
+Do not repeat the completed native batch or expand into a real-worker A17/physical long-scan/provider/
+performance campaign, recovery outcomes or production execution.
 
 Use the [multi-session guide](codex-session-guide.md), [compact checkpoint](session-checkpoint.md)
 and [kickoff prompt](session-kickoff-prompt.md). UIR-04/07/08 also read

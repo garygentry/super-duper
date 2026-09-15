@@ -58,44 +58,44 @@ of that capability. [Official AGENTS.md guidance](https://learn.chatgpt.com/docs
 ## Recommended sequence
 
 - **Complete: UIR-03** — scoped shell acceptance recorded in `evidence/uir-03-shell-acceptance.md`;
-  native NVDA/200% requirements remain UIR-08. Shell, semantic navigation and selected/active run
-  context are verified with delayed-response fixtures and scoped operator evidence.
-- **Implemented: UIR-04a** — saved setup, Scan again and qualified persistent reuse; see its evidence.
-- **Implemented: UIR-04b** — multi-day elapsed, accepted-update receipt freshness and terminal activity;
+  shell, semantic navigation and selected/active run context are verified with delayed-response
+  fixtures and scoped operator evidence. NVDA/physical 200% remain unavailable under A11.
+- **Complete: UIR-04a** — saved setup, Scan again and qualified persistent reuse; see its evidence.
+- **Complete: UIR-04b** — multi-day elapsed, accepted-update receipt freshness and terminal activity;
   [controlled Core/WPF evidence](evidence/uir-04b-long-scan-monitoring.md).
-- **Implemented: UIR-04c** — compact S02 summary, measured phase bars and expandable exact details
+- **Complete: UIR-04c** — compact S02 summary, measured phase bars and expandable exact details
   (A08/A16); [controlled phase/layout evidence](evidence/uir-04c-compact-monitoring.md).
-  UIR-04 retains integrated A17/native/operator validation; local a/b/c are implemented.
-- **Implemented: UIR-05a** — compact file query controls/filtered totals, accepted query snapshots,
+  UIR-04 integrated A17/native/operator validation passed in UIR-08.
+- **Complete: UIR-05a** — compact file query controls/filtered totals, accepted query snapshots,
   draft/apply/Enter/chips/Clear, exact binary units and retained filter/page/focus semantics;
   [evidence](evidence/uir-05a-file-query-controls.md). Core 207 and three WPF methods passed.
-- **Implemented: UIR-05b** — adjustable file list/detail comparison and full local A03 verification;
+- **Complete: UIR-05b** — adjustable file list/detail comparison and full local A03 verification;
   [evidence](evidence/uir-05b-file-comparison.md). The 1180x760 comparison uses 69.7% of usable
   Files height; 900x600 uses explicit set/copy/selected-copy navigation without horizontal scroll.
   Core 207 and three WPF methods passed.
-- **Implemented: UIR-05c** — adjustable folder list/detail comparison and remaining local
+- **Complete: UIR-05c** — adjustable folder list/detail comparison and remaining local
   A04/A05/A06/A11/A15 verification; [evidence](evidence/uir-05c-folder-comparison.md). Neutral
   selection, truthful applied queries/states, complete path/relationship scope, five actions,
   bounded reveal and focus restoration pass. Core 210 and three WPF methods passed.
-- **Implemented: UIR-06a** — dedicated Review overview with worker-owned combined totals, separate
+- **Complete: UIR-06a** — dedicated Review overview with worker-owned combined totals, separate
   bounded Files/Folders pages, exact bounded return links and revision-aware whole-plan validation;
   [evidence](evidence/uir-06a-review-overview.md). Core 214 and three WPF methods passed.
-- **Implemented: UIR-06b** — focused Location preferences in Review with saved/virtual/applied
+- **Complete: UIR-06b** — focused Location preferences in Review with saved/virtual/applied
   meanings separated and the existing revision/signature/provenance/reversal contracts retained;
   [evidence](evidence/uir-06b-location-preferences.md). Core 216 and three WPF methods passed.
-- **Implemented: UIR-07a** — bounded 500-run History paging, immutable recorded settings,
+- **Complete: UIR-07a** — bounded 500-run History paging, immutable recorded settings,
   highlighted/open/active identity and contextual 25-row/five-page current/terminal warnings with
   exact return focus; [evidence](evidence/uir-07a-history-warnings.md). Core 218 and three WPF methods passed.
-- **Implemented: UIR-07b** — exact-run contextual Performance with deterministic return focus,
+- **Complete: UIR-07b** — exact-run contextual Performance with deterministic return focus,
   truthful unavailable/summary-only telemetry, qualified comparison and retained 25-history/
   six-phase/64-device bounds; [evidence](evidence/uir-07b-contextual-performance.md). Core 220 and
   three WPF methods passed.
-- **UIR-08 local integration complete; native evidence next** — [A01-A17 evidence map](evidence/uir-08-integration-regression.md),
-  Rust/.NET Debug/Release regression and current automated visual review pass. The strengthened A17
-  five-run worker regression passes. Run the prepared current-screen native walkthrough only after
-  its separate authority; NVDA/200% remain unavailable and physical/provider/performance work stays distinct.
-- **UIR-09** — final operator workflow acceptance, package and durable handoff after UIR-08's
-  integrated/native evidence. Remain on the branch after completion;
+- **Complete: UIR-08** — [A01-A17 evidence map](evidence/uir-08-integration-regression.md),
+  Rust/.NET Debug/Release regression, automated visual review and the available current-screen native
+  walkthrough pass. The corrected fixture retest passed both viewports; Narrator and available
+  appearance/monitor transitions passed. NVDA/physical 200% remain unavailable and unrun.
+- **Next: UIR-09** — request explicit final operator workflow acceptance, then produce the durable
+  completion package and handoff. Remain on the branch after completion;
   merge, publication and the parked deletion/release work need their own later instruction.
 
 There is no fixed session count: use the gate's scope and evidence to decide when to checkpoint.

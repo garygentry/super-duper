@@ -45,6 +45,7 @@ internal static class PopulatedShellFixture
             Assert.AreEqual(old.Id, model.SelectedRun?.Id);
             Assert.AreEqual(active.Id, model.Progress.Run?.Id);
             var groups = Find<DataGrid>(window, "FileGroupsGrid");
+            VerifyManualFixtureInteractions(model);
 
             model.SelectedDestination = WorkspaceDestination.History;
             model.History.SelectedRun = model.History.Runs.Single(run => run.Id == old.Id);
@@ -314,6 +315,49 @@ internal static class PopulatedShellFixture
         Assert.AreEqual(WorkspaceDestination.History, model.SelectedDestination);
         Assert.IsTrue(Find<Button>(window, "OpenHighlightedPerformance").IsKeyboardFocused,
             "History performance Close must return focus to the exact highlighted-scan entry.");
+    }
+
+    private static void VerifyManualFixtureInteractions(ShellViewModel model)
+    {
+        var files = model.DuplicateFiles;
+        var file = files.Members.Single(member => member.Id == 1);
+        Assert.AreEqual("Remove", file.Decision);
+        files.KeepMemberCommand.ExecuteAsync(file).GetAwaiter().GetResult();
+        Assert.AreEqual("Keep", files.SelectedMember?.Decision,
+            "The manual fixture must visibly reload a worker-confirmed file decision.");
+        files.UndecideMemberCommand.ExecuteAsync(files.SelectedMember).GetAwaiter().GetResult();
+        Assert.AreEqual("Undecided", files.SelectedMember?.Decision);
+        files.RemoveMemberCommand.ExecuteAsync(files.SelectedMember).GetAwaiter().GetResult();
+        Assert.AreEqual("Remove", files.SelectedMember?.Decision);
+
+        model.SelectedDestination = WorkspaceDestination.FolderResults;
+        Drain();
+        var folders = model.DuplicateFolders;
+        Assert.AreEqual(25, folders.Groups.Count,
+            "The manual fixture must expose populated folder results for the native walkthrough.");
+        Assert.AreEqual(2, folders.Members.Count);
+        var folder = folders.Members[0];
+        Assert.AreEqual("Undecided", folder.Decision);
+        folders.KeepFolderCommand.ExecuteAsync(folder).GetAwaiter().GetResult();
+        Assert.AreEqual("Keep", folders.SelectedMember?.Decision,
+            "The manual fixture must visibly reload a worker-confirmed folder decision.");
+        folders.RemoveFolderCommand.ExecuteAsync(folders.SelectedMember).GetAwaiter().GetResult();
+        Assert.AreEqual("Remove", folders.SelectedMember?.Decision);
+        folders.UndecideFolderCommand.ExecuteAsync(folders.SelectedMember).GetAwaiter().GetResult();
+        Assert.AreEqual("Undecided", folders.SelectedMember?.Decision);
+
+        model.SelectedDestination = WorkspaceDestination.Review;
+        Drain();
+        var folderTarget = model.Preflight.FolderReviewGroups.Single(group => group.GroupId == 1).Target;
+        model.Preflight.OpenReviewResultCommand.ExecuteAsync(folderTarget).GetAwaiter().GetResult();
+        Drain();
+        Assert.AreEqual(WorkspaceDestination.FolderResults, model.SelectedDestination,
+            "Review's folder Open set must navigate into populated folder results.");
+        Assert.AreEqual(folderTarget.GroupId, folders.SelectedGroup?.Id);
+        Assert.AreEqual(2, folders.Members.Count);
+
+        model.SelectedDestination = WorkspaceDestination.FileResults;
+        Drain();
     }
 
     private static void ConfigurePopulatedFolderResults(TestWorkerClient client, ShellViewModel model, WorkerRun run)

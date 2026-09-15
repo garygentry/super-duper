@@ -3,42 +3,39 @@
 Updated 2026-09-14. [Execution plan](execution-plan.md) owns gate status.
 
 - Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; no switch/worktree/merge/push.
-- Latest implementation: **UIR-08 local integration regression and acceptance-matrix preparation,
-  the commit containing this checkpoint**, based on `a37bbf9` (UIR-07b). UIR-00/01/02/03 complete;
-  **UIR-04 through UIR-08 in_progress**. UIR-04a/b/c, UIR-05a/b/c, UIR-06a/b and UIR-07a/b are
-  locally implemented; current integrated automation passes.
-- [UIR-08 evidence](evidence/uir-08-integration-regression.md) maps every A01-A17 row to current local,
-  retained native and remaining evidence. Rust Debug/Release each pass **226 with 10 ignored**. Windows
-  Debug/Release builds have zero warnings/errors; each passes **220 Core, 76 Infrastructure and three
-  loaded-STA WPF methods**, with five explicit physical/provider/deletion skips.
-- Current visual regression passes three WPF methods per configuration and produces **191 Debug + 191
-  Release captures** under `artifacts/uir08/captures-{debug,release}`. Representative layout, Light/Dark
-  150%-text, long-scan/terminal, Results, Review, History and Performance states were visually reviewed.
-  The latest fictional fixture built cleanly under `artifacts/uir08/fixture-approved`; it was not launched.
-- The A17 real-worker regression now retains one database/cache across restart and five runs: unchanged
-  reuse; combined add/delete/same-size changed content with preserved modified time; exclusion; forced
-  re-read; exact new membership; and immutable prior membership/settings/decision. The first assertion-
-  path-spelling failure is retained; corrected focused and full Debug/Release matrices pass.
-- **Exact next action: prepared UIR-08 current-screen native walkthrough, after explicit authority.** Use
-  the evidence file's four-step latest-fixture procedure for keyboard/focus, 1180x760/900x600 access,
-  Narrator, Dark/available contrast/150% text and available 150%/175% monitor transitions. Record each
-  step pass/fail/unrun/unavailable. Do not bundle a real-worker A17, long-scan, provider or performance run.
+- Latest slice: **UIR-08 available-native walkthrough and acceptance-fixture correction, the commit
+  containing this checkpoint**, based on `f356045` (UIR-08 local integration). **UIR-00 through
+  UIR-08 are complete**; UIR-09 final user acceptance and durable completion package is next.
+- [UIR-08 evidence](evidence/uir-08-integration-regression.md) records the operator's four-step batch.
+  Steps 1 and 2 initially exposed fixed file decisions, empty folder Results and a no-op Review folder
+  **Open set**. The in-memory fixture now retains worker-confirmed file/folder decisions and revisions,
+  supplies 25 two-copy folder sets with local/UNC paths and supports exact Review-to-Folders links.
+  The operator reported the corrected 1180x760 and 900x600 retest **all pass**.
+- Step 1's Scan again/setup, active Progress details/Performance, corrected file/folder decisions and
+  paths, Review/Location preferences and History identity/warnings/Performance passed. Step 2's narrow
+  access passed. Step 3 Narrator and Step 4 Dark/available contrast/150%-text plus available 150%/175%
+  monitor transitions passed; settings were restored. Computer Use crashed the ChatGPT host twice, so
+  the operator completed the observations manually; this is not a Super Duper defect.
 - NVDA and physical 200% remain `unrun_unavailable`, not passed or waived. Do not troubleshoot Windows,
-  force scaling or install software. The five Windows skips and ten Rust ignored profiles remain skipped;
-  no consumed campaign or parked release-validation work ran.
-- Preserve UIR-07b exact-run contextual Performance from History/Progress/Summary, deterministic return
-  focus, partial/full cache and actual-read summaries, explicit unavailable/qualified comparison, 25/6/64
-  bounds and no raw sample/time-series claim. Preserve all UIR-07a highlighted/opened/active identity,
-  immutable settings, 500-run History, 25-row/five-page warnings and exact return-focus contracts.
-- Preserve UIR-06a worker-owned combined totals, separate 200-row/five-page Files/Folders queries, exact
-  links, validation states and **Check marked copies** versus **Check these copies**. Preserve UIR-06b
-  ordered roots, virtual preview scope/revision/signature, confirmation/provenance, fresh-preview
-  enforcement, **Reverse rule application**, later manual overrides and Reset semantics. Retain all
-  UIR-04/05 monitoring, rescan, query, comparison, decision, navigation, reveal and focus contracts.
-- Runtime: PID 67748/session 1 was re-audited responsive at the exact older UIR-03f fixture executable and
-  left untouched. UIR-08 test workers/windows exited; no other app/worker remained. No production app,
-  database, cache, log, user file or state was touched.
-- Boundaries: production deletion disabled; `DisabledRecycleOperationCapabilityExecutor`, `CanSubmit=false`,
-  `executorEnabled=false`, absent execution action, recovery/SOP boundaries and safety locks unchanged.
-  Update native evidence/plan/checkpoint/kickoff/handoff after the authorized walkthrough; review/test and
-  commit each coherent slice; print a complete updated copyable continuation prompt at every handoff.
+  force scaling or install software. No real long-duration scan or physical/provider/performance/
+  deletion campaign ran, and no consumed identity was replayed.
+- Proportionate correction checks: the corrected fixture builds with zero warnings/errors. The focused
+  loaded-STA WPF method's first run passed the new assertions but later hit the retained synthetic
+  Enter-focus flake; a fresh isolated rerun passed. The prior full UIR-08 baseline remains Rust
+  Debug/Release 226 passed/10 ignored and Windows Debug/Release 220 Core, 76 Infrastructure and three
+  WPF methods with five explicit skips, plus 191 captures per configuration.
+- Preserve UIR-04 through UIR-07 contracts: saved setup/reuse, honest long-scan state, bounded file/folder
+  queries and decisions, worker-owned Review totals/revisions, Location preference provenance/reversal,
+  highlighted/opened/active History identity and exact contextual warning/Performance return focus.
+- Runtime: PID 67748 was absent. PID 63908's apparent missing window was a cross-context visibility
+  limitation and it was replaced under explicit authority. Initial fixture PID 64588 was gracefully
+  closed. Corrected in-memory fixture PID 15072 was left open after the successful retest; the final
+  non-interactive audit found it responsive at the exact corrected path, with its title/handle hidden
+  by the known cross-context limitation. Re-audit before reuse. No worker, production app, database,
+  cache, log, user file or scan state was touched.
+- Production safety remains unchanged: `DisabledRecycleOperationCapabilityExecutor`, `CanSubmit=false`,
+  `executorEnabled=false`, no production execution action, and all recovery/SOP boundaries remain.
+- **Exact next action: UIR-09 final user workflow acceptance and durable completion assessment.** Review
+  the UIR-08 evidence and scope, confirm no open critical redesign defect, request explicit operator
+  final acceptance, then update the final package and commit it on this branch. Do not repeat the
+  completed native batch or manufacture physical/provider/performance/production work.

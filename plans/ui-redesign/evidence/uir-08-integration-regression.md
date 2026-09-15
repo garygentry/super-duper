@@ -2,10 +2,11 @@
 
 Date: 2026-09-14
 
-Scope: `local_code` integration regression and acceptance-matrix preparation across UIR-04 through
-UIR-07. Baseline `a37bbf9` (UIR-07b). UIR-08 is `in_progress`: the locally available matrix and
-current automated visual review pass, while the prepared native/operator actions below remain unrun
-and separately authorized. This is not UIR-09 user acceptance or Windows release acceptance.
+Scope: integration regression, acceptance-matrix disposition and current native walkthrough across
+UIR-04 through UIR-07. Baseline `a37bbf9` (UIR-07b). UIR-08 is `complete`: the locally available
+matrix, automated visual review and available native/operator actions pass after correcting three
+gaps in the in-memory acceptance fixture. This is not UIR-09 final user acceptance or Windows release
+acceptance.
 
 ## Current integrated result
 
@@ -23,7 +24,9 @@ were task-owned. Real Recycle Bin, provider, cloud-root and performance opt-ins 
 | Infrastructure tests, each configuration | **76 passed, 5 skipped**, 0 failed |
 | Loaded-STA WPF methods, each configuration | **3 passed**, 0 skipped |
 | Current WPF capture regression, Debug / Release | **3 passed** each; **191 PNGs** in each capture set |
-| Latest fictional fixture build | passed, **0 warnings / 0 errors**; build only, not launched |
+| Initial fictional fixture build | passed, **0 warnings / 0 errors** |
+| Corrected native fixture build | passed, **0 warnings / 0 errors** under `artifacts/uir08-native-followup/fixture-corrected` |
+| Focused corrected-fixture loaded-STA regression | **1 passed**, 0 skipped, 0 failed on retained rerun |
 
 Final Windows TRX files are under `artifacts/uir08/results-final`; current capture TRX files are under
 `artifacts/uir08/results-captures`. Captures are under `artifacts/uir08/captures-{debug,release}`.
@@ -58,30 +61,56 @@ the two-member result was present. That TRX remains under `artifacts/uir08/resul
 The corrected exact filename/membership assertion passed once in Debug and Release under
 `results-a17-focused-2`; the full final Windows matrix then passed in both configurations.
 
+## Available native walkthrough
+
+The operator completed the authorized four-step batch on 2026-09-14. The first current-screen pass
+found three reproducible acceptance-fixture defects: file decision buttons reloaded unchanged fixed
+data, Folders had no populated result handler, and Review's folder **Open set** consequently had no
+target to open. These were fixture-only gaps: production view models and worker contracts were not
+changed. `ShellFixtureData` now keeps in-memory file/folder decisions and review revisions coherent,
+supplies 25 two-copy folder sets with local and UNC paths, and supports exact Review-to-Folders links.
+The loaded-STA regression exercises visible Keep/Remove/Reset transitions for files and folders and
+the Review folder link. Its first full-method run reached the new assertions and later failed one
+pre-existing synthetic Enter-focus assertion in `FileQueryLayoutFixture`; a fresh isolated rerun
+passed. Both TRX results are retained under `artifacts/uir08-native-followup/test-results`. The
+corrected fixture built cleanly in a fresh output, and the operator reported the focused 1180x760
+and 900x600 retest **all pass**.
+
+| Step | Final state | Operator observation |
+|---|---|---|
+| 1. 1180x760 keyboard journey | `pass_after_fix` | Scan again/setup and active-scan separation passed; Progress details and contextual Performance passed; file decisions, populated folder decisions/paths and Review folder Open set passed after the fixture correction; History highlight/Open/warnings/Performance passed. Result-set/copy focus was retained, and History Performance returned to the current highlighted scan entry. |
+| 2. 900x600 focused journey | `pass_after_fix` | The operator initially reported the same fixture gaps as at 1180x760, then reported the corrected file/folder decisions, exact paths and Review folder Open set all pass. No remaining essential horizontal-scroll, clipping, overlap, assistance or misleading-state defect was reported. |
+| 3. Narrator | `pass` | One Files selection/decision, active Progress details and History warning/Performance return passed; labels, bounded announcements and focus were acceptable. Narrator was stopped afterward. |
+| 4. Appearance and monitors | `pass` | Dark, the available named contrast theme, 150% Windows text and existing 150%/175% monitor transitions passed with no reported focus/selection, clipping, overlap or contrast defect. Changed settings were restored. |
+
+Computer Use crashed the ChatGPT host twice while attempting the walkthrough, so the operator
+completed the observations manually. That host failure is not counted as product acceptance evidence
+or a Super Duper defect. The restarted fixture title was confirmed before the manual batch.
+
 ## Acceptance-matrix disposition
 
-States below describe this gate only. `current_local_pass` is not a substitute for the native/user
-evidence named in the remaining column, and no row is promoted to final redesign acceptance here.
+States below describe this gate only. `available_native_pass` records the operator's current-screen
+evidence without substituting for explicitly unavailable hardware/software or UIR-09 final acceptance.
 
 | ID | UIR-08 state | Current evidence | Remaining evidence / disposition |
 |---|---|---|---|
-| A01 | `current_local_pass`, retained scoped native pass | Core/Shell context and loaded-STA current screens; UIR-03 operator selected/active/highlight/Open checks | Latest-screen user journey remains UIR-08/09 native acceptance |
-| A02 | `current_local_pass`, retained scoped native pass | Delayed/out-of-order/error generation tests; optional pane and worker-exit coverage; UIR-03 delayed-folder operator pass | Latest integrated failure explanation remains in the prepared walkthrough |
-| A03 | `current_local_pass` | 1180x760 measured 69.7% Files comparison; 900x600 vertical-only set/copy/detail access; current Debug/Release WPF geometry and captures | Physical latest-screen narrow review remains unrun |
-| A04 | `current_local_pass` | File/folder decision identity, late rejection, Reset, rule application/reversal and manual-override tests in both configurations | Current native user interpretation remains unrun |
-| A05 | `current_local_pass` | Distinct empty/loading/filter/cancelled/failed/interrupted/unavailable fixtures and current captures | Current native state interpretation remains unrun |
-| A06 | `current_local_pass` | Visible-label/copy assertions, complete local/UNC/extended paths and vertically reachable technical detail | Current native copy/path walkthrough remains unrun |
-| A07 | `current_local_pass` | 500-run History paging, immutable parameters/decisions, explicit Open scan and restart tests | Current native History workflow remains unrun |
-| A08 | `current_local_pass` | Controlled >48-hour clocks, phases, unknown ETA/work, warnings, cancellation and four terminal states in Core/WPF | No real multi-day/native observation was run; do not infer it |
-| A09 | `current_local_pass`, retained native partial | Shared resources, Light/Dark, 100%/150% text, both viewports and recovery styling in current WPF; retained UIR-03 Dark/Desert/text fixes | Latest all-screen contrast/theme inspection remains unrun |
-| A10 | `current_local_pass` | Worker-owned combined totals, overlap/alias/survivor/revision/preflight and separate bounded Review pages | Current native Review interpretation remains unrun |
-| A11 | `current_local_pass`, retained native partial | Loaded-STA focus/automation/virtualization/theme/text checks; retained keyboard, Narrator and 150%/175% monitor transitions | Latest-screen keyboard/Narrator/contrast/DPI walkthrough unrun; NVDA and physical 200% are `unrun_unavailable` |
-| A12 | `current_local_pass` | Exact contextual Performance/warning navigation, 25/6/64 bounds, unavailable values and comparison qualifiers | Current native Performance/warning interpretation remains unrun |
+| A01 | `current_local_pass`, `available_native_pass` | Core/Shell context and loaded-STA current screens; operator passed selected/opened/active, History highlight/Open and both current viewports | Final redesign acceptance remains UIR-09 |
+| A02 | `current_local_pass`, retained scoped native pass | Delayed/out-of-order/error generation tests; optional pane and worker-exit coverage; retained UIR-03 delayed-folder operator pass | No new failure was injected in this native batch |
+| A03 | `current_local_pass`, `available_native_pass` | 1180x760 measured 69.7% Files comparison; operator passed 900x600 vertical-only file/folder path and decision access after fixture correction | Final redesign acceptance remains UIR-09 |
+| A04 | `current_local_pass`, `available_native_pass_after_fix` | File/folder decision identity, late rejection, Reset, rule reversal/manual override tests; operator passed visible file/folder Keep/Mark/Reset changes after fixture correction | Final redesign acceptance remains UIR-09 |
+| A05 | `current_local_pass`, current native review | Distinct empty/loading/filter/cancelled/failed/interrupted/unavailable fixtures and current captures; no misleading state was reported in the available native batch | Individual injected states remain automated/retained evidence |
+| A06 | `current_local_pass`, `available_native_pass_after_fix` | Visible labels, complete local/UNC/extended paths and vertically reachable detail; operator passed current file/folder path access | Final redesign acceptance remains UIR-09 |
+| A07 | `current_local_pass`, `available_native_pass` | 500-run History paging, immutable parameters/decisions and explicit Open scan; operator passed current History highlight/Open | Final redesign acceptance remains UIR-09 |
+| A08 | `current_local_pass`, `available_native_pass` | Controlled >48-hour clocks and terminal states; operator passed current Progress phase/activity/elapsed/warning/detail interpretation | No real multi-day observation was run; do not infer it |
+| A09 | `current_local_pass`, `available_native_pass` | Shared resources/captures plus operator pass in Dark, available contrast, 150% text and both viewports | Final redesign acceptance remains UIR-09 |
+| A10 | `current_local_pass`, `available_native_pass_after_fix` | Worker-owned combined totals/revision/preflight and bounded Review pages; operator passed Review meanings and corrected folder Open set | Final redesign acceptance remains UIR-09 |
+| A11 | `current_local_pass`, `available_native_pass` | Loaded-STA checks plus operator keyboard, Narrator, contrast/text and 150%/175% monitor-transition pass | NVDA and physical 200% remain `unrun_unavailable` |
+| A12 | `current_local_pass`, `available_native_pass` | Exact contextual Performance/warning navigation and bounds; operator passed current History/Progress returns | Final redesign acceptance remains UIR-09 |
 | A13 | `current_local_pass` | Full Rust/.NET query/page/cache/update bounds, 100,000-group bounded regressions and WPF virtualization run in both configurations | Ten operator/performance profiles remain intentionally ignored; no new campaign authorized |
-| A14 | `current_local_pass` | Setup validation, Save/Discard/Stay, failed cloud detection, save/start races and single-active-run tests | Current native setup explanation remains unrun |
+| A14 | `current_local_pass`, `available_native_pass` | Setup validation/races plus operator pass for Scan again setup, saved meanings and active-run blocking | Final redesign acceptance remains UIR-09 |
 | A15 | `current_local_pass` | Full matrix and source audit retain disabled executor injection, `CanSubmit=false`, worker `executorEnabled=false` and no production execution action | Production execution remains out of scope |
-| A16 | `current_local_pass` | Controlled freshness/no-progress/disconnect/failure, coalesced UIA cadence, minimized/restore, exact diagnostics and terminal silence | Real long-duration native observation remains unrun and separately authorized |
-| A17 | `current_local_pass` for combined automated workflow | Strengthened five-run real-worker restart/cache/new/deleted/changed/exclusion/reread/history regression plus Rust signature/fallback/cancellation anchors | Current native Scan again interpretation remains unrun; no physical/full-drive campaign was run |
+| A16 | `current_local_pass`, `available_native_pass` | Controlled freshness/no-progress/disconnect/failure and exact diagnostics; operator passed current Progress details and Narrator behavior | No real long-duration observation was run |
+| A17 | `current_local_pass`, `available_native_pass` | Strengthened five-run real-worker regression plus operator pass for Scan again/reuse/history interpretation | No physical/full-drive campaign was run |
 
 ## Explicit skipped, unavailable and unrun states
 
@@ -95,43 +124,27 @@ evidence named in the remaining column, and no row is promoted to final redesign
 - NVDA is `unrun_unavailable` because it is not installed. Physical 200% display scaling is
   `unrun_unavailable` because Windows did not offer it. Neither is passed, waived or replaced by
   Narrator or 175%. No Windows troubleshooting, forced scaling or installation was performed.
-- The latest UIR-08 fixture was not opened. No current physical keyboard, Narrator, contrast-theme,
-  text-size or multi-monitor action was run. No shipping WPF smoke, real long-duration scan, provider,
-  representative performance or production-state action was run.
+- The available current-screen keyboard, Narrator, contrast-theme, text-size and 150%/175% monitor
+  actions passed. No shipping WPF smoke, real long-duration scan, provider, representative performance
+  or production-state action was run.
 
-## Smallest prepared native action — not run
+## Native action disposition
 
-After explicit authority, use the already built in-memory executable at
-`artifacts/uir08/fixture-approved/bin/SuperDuper.Windows.RedesignFixture/debug_win-x64/SuperDuper.Windows.RedesignFixture.exe`.
-Re-audit PID 67748 and the executable path first; do not
-rebuild or stop the older fixture. Confirm the window title starts **FICTIONAL FIXTURE**. It has no
-real worker, database, Explorer or deletion path.
-
-Record one bounded available-native batch:
-
-1. At 1180x760, 100% display scale, ordinary theme and 100% text, complete the keyboard-only path:
-   Scan again/setup; active Progress details/Performance return; Files and Folders select/Keep/Mark/
-   Reset/path detail; Review totals, **Check these copies** versus **Check marked copies**, Location
-   preferences preview/apply/manual override/**Reverse rule application**; History highlight/Open,
-   warnings and contextual Performance. Record actual focused control after every panel return.
-2. Switch the fixture to 900x600 and repeat only Files/Folders exact path plus decision access,
-   Review/Location preferences and History/Performance returns. Record any horizontal scrolling needed
-   for an essential path or decision, clipping, overlap, assistance or misleading state.
-3. With Narrator, repeat one Files row/copy decision (selection alone remains harmless), active
-   Progress details and History warning/Performance return. Record labels, coalescing and focus.
-4. Inspect the same three destinations in Dark, the available named contrast theme and 150% Windows
-   text size, then move the open fixture through the available 150% and 175% monitor transitions.
-   Record theme, text/display scale, monitor, focus/selection retention and defects; restore settings.
-
-Report each step `pass`, `fail`, `unrun` or `unavailable`, with observed behavior rather than clicks.
-Do not include NVDA or 200% in the runnable batch, troubleshoot Windows, or substitute their absence
-as success. A real-worker native A17 rescan, physical long-duration scan, provider/performance work
-and UIR-09 final acceptance are separate actions and need their own explicit authority.
+The prepared four-step batch is complete. Do not repeat it without a documented reopen condition.
+UIR-09 final workflow acceptance and durable completion assessment are next. A real-worker native
+A17 rescan, physical long-duration scan, provider/performance work and production execution remain
+separate and are not prerequisites manufactured for UIR-09.
 
 ## Runtime and safety boundary
 
-PID 67748/session 1 was re-audited responsive at the exact older UIR-03f fictional fixture and left
-untouched. All UIR-08 test workers and windows exited; no other Super Duper app or worker remains.
+PID 67748 was absent. PID 63908 from the interrupted first attempt was found to have a valid titled
+window only from the interactive/elevated context, confirming the earlier zero-handle result was a
+cross-context visibility limitation rather than a fixture crash; it was replaced after explicit
+operator authority. The initial walkthrough fixture PID 64588 was gracefully closed after the reported
+defects. Corrected in-memory fixture PID 15072 was left open for the successful focused retest; re-audit
+before reuse. The final non-interactive audit found PID 15072 responsive at the exact corrected-fixture
+path; its title/handle were hidden again by the already diagnosed cross-context visibility limitation.
+No Super Duper worker or production app was started.
 No production database, cache, log, user file, recovery outcome or scan state was opened or changed.
 `DisabledRecycleOperationCapabilityExecutor`, `CanSubmit=false`, `executorEnabled=false` and the
 absence of a production execution action remain unchanged.

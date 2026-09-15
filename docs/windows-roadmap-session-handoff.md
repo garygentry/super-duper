@@ -23,12 +23,11 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest local slice: UIR-08 local integration regression and acceptance-matrix preparation, in this
-  checkpoint's commit. Baseline `a37bbf9` (UIR-07b). Evidence:
+- Latest local slice: UIR-08 available-native walkthrough and acceptance-fixture correction, in this
+  checkpoint's commit. Baseline `f356045` (UIR-08 local integration). Evidence:
   `plans/ui-redesign/evidence/uir-08-integration-regression.md`.
-- UIR-00/01/02/03 complete; UIR-04 through UIR-08 in_progress. UIR-04a/b/c, UIR-05a/b/c,
-  UIR-06a/b and UIR-07a/b are locally implemented; current integrated automation passes. The prepared
-  current-screen native walkthrough and UIR-09 user acceptance remain open.
+- UIR-00 through UIR-08 complete. UIR-09 final user workflow acceptance and durable completion package
+  is next. Do not repeat the completed current-screen native walkthrough without a documented reopen.
 - UIR-07a binds one newest-first 500-run History page with explicit Previous/Next navigation and
   retained accepted data on failure. Highlighted, opened workspace and active scan identities are
   distinct; exact date/state and immutable recorded settings stay visible. **Open scan** remains explicit.
@@ -43,7 +42,9 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   Debug/Release each build with zero warnings/errors and pass 220 Core, 76 Infrastructure and three
   loaded-STA WPF methods, with five explicit physical/provider/deletion skips. Current capture regression
   passes with 191 Debug plus 191 Release PNGs; representative layout/theme/text/long-scan/Results/Review/
-  History/Performance states were reviewed. The latest fictional fixture built cleanly and was not launched.
+  History/Performance states were reviewed. The available native four-step batch passes after correcting
+  three in-memory fixture gaps: file/folder decisions persist with revisions, 25 two-copy folder sets load,
+  and Review folder **Open set** reaches the exact Folders group. The corrected fixture builds cleanly.
 - A17 now has a five-run real-worker regression across restart/persistent cache, unchanged reuse, combined
   add/delete/same-size changed content with preserved modified time, exclusion, forced re-read and immutable
   prior membership/settings/decision. One assertion path-spelling failure is retained; corrected focused and
@@ -52,17 +53,19 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   Narrator, corrected Dark/Desert/live text size, and physical 150%/175% transitions with focus and
   file-group selection retained. Do not replay accepted checks without a reopen reason.
 - NVDA (not installed) and physical 200% (not offered by Windows) remain `unrun_unavailable` for
-  UIR-08/A11, not passed or waived. Do not troubleshoot Windows, force scaling or install software.
-- Exact next action: the four-step UIR-08 current-screen native walkthrough in the evidence, only after
-  explicit authority to open the already built fictional fixture and perform operator theme/text/monitor
-  steps. Record pass/fail/unrun/unavailable for available keyboard/focus, both viewports, Narrator,
-  Dark/available contrast/150% text and available 150%/175% monitor transitions. Do not bundle a real-
-  worker A17, physical long-scan, provider or performance action.
+  A11, not passed or waived. Do not troubleshoot Windows, force scaling or install software.
+- Exact next action: UIR-09 final user workflow acceptance and durable completion assessment. Review
+  UIR-08 evidence and scope, confirm no open critical redesign defect, request explicit operator final
+  acceptance, then update and commit the durable completion package. Do not manufacture new physical/
+  provider/performance/production work or repeat the completed native batch.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; print the required copyable next-session
-  prompt at handoff. UIR-04 through UIR-08 retain later native/operator validation; no physical campaign authority.
-- Runtime audit: fictional PID 67748/session 1 responsive at the exact UIR-03f executable, left untouched.
-  UIR-08 test workers/windows exited and the latest fixture is build-only. Re-audit before reuse or launch.
-  No production app/worker observed. Production state and disabled deletion remain untouched.
+  prompt at handoff. No physical campaign authority follows from the completed available-native evidence.
+- Runtime audit: PID 67748 was absent. PID 63908's apparent missing window was cross-context visibility,
+  not a fixture crash, and it was replaced under explicit authority. Initial fixture PID 64588 was closed.
+  Corrected fixture PID 15072 was left open after the passing retest; the final non-interactive audit
+  found it responsive at the exact corrected path, with title/handle hidden by the known context limit.
+  Re-audit before reuse. No worker or production app/state was touched. Production state and disabled
+  deletion remain untouched.
 - Retained scan gate: SOP10 accepted with the consumed physical observation limitation;
   do not rerun SOP10 or SOP9 identities.
 - Live-process state must be re-audited at cold start. The 2026-09-04 read-only health audit first
@@ -507,23 +510,23 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-UIR-04a/b/c, UIR-05a/b/c, UIR-06a/b and UIR-07a/b are locally implemented; UIR-08 local integration
-and A01-A17 matrix preparation are complete. Rust Debug/Release each pass 226 with ten ignored; Windows
+UIR-00 through UIR-08 are complete. Rust Debug/Release each pass 226 with ten ignored; Windows
 Debug/Release each build cleanly and pass 220 Core, 76 Infrastructure and three WPF methods, with five
-explicit skips. A17's five-run real-worker regression now combines restart/cache reuse with current
-added/deleted/changed membership, exclusions, re-read and immutable history. UIR-04 through UIR-08
-remain in progress for native/operator evidence.
+explicit skips. A17's five-run real-worker regression combines restart/cache reuse with current added/
+deleted/changed membership, exclusions, re-read and immutable history. The available UIR-08 native batch
+passes at 1180x760 and 900x600 after correcting the in-memory fixture's file/folder decision persistence,
+folder data and Review folder link. Narrator and the available appearance/monitor transitions pass.
 
-The next action is the four-step UIR-08 current-screen native walkthrough in
-`plans/ui-redesign/evidence/uir-08-integration-regression.md`, only after explicit authority to open the
-already built fictional fixture and perform operator theme/text/monitor steps. Record every step
-pass/fail/unrun/unavailable. Do not infer NVDA/physical 200% availability, troubleshoot Windows, bundle
-a real-worker A17/physical long-scan/provider/performance action, resolve recovery outcomes or enable
-execution. Preserve every UIR-04/05/06/07 contract and use the compact checkpoint/session guide.
-All work stays on codex/ui-redesign; preserve wpf-poc at deefa40, no switch/worktree/merge/push.
-Re-audit PID 67748 and all fixture/app/worker paths before reuse; never overwrite running outputs.
-Preserve production state/deletion locks and SOP boundaries. NVDA/physical 200% remain unavailable
-for UIR-08/A11; do not troubleshoot Windows. Print the updated copyable continuation at handoff.
+The next action is UIR-09 final user workflow acceptance and durable completion assessment. Review
+`plans/ui-redesign/evidence/uir-08-integration-regression.md`, confirm no open critical redesign defect,
+request explicit operator final acceptance, then update the final package and commit it on this branch.
+Do not repeat the completed native walkthrough, infer NVDA/physical 200% availability, troubleshoot
+Windows, bundle a real-worker A17/physical long-scan/provider/performance action, resolve recovery
+outcomes or enable execution. Preserve every UIR-04/05/06/07 contract and use the compact checkpoint/
+session guide. All work stays on codex/ui-redesign; preserve wpf-poc at deefa40, no switch/worktree/
+merge/push. Re-audit corrected fixture PID 15072 and all fixture/app/worker paths before reuse; never
+overwrite running outputs. Preserve production state/deletion locks and SOP boundaries. NVDA/physical
+200% remain unavailable for A11; do not troubleshoot Windows. Print the updated copyable continuation.
 
 SOP10 is finished. Do not select another scan package. The operator explicitly accepted the
 consumed `sop10-physical-v1` campaign as `accepted_with_observation_limit`: both runs completed with
@@ -621,15 +624,17 @@ required gates are open.
 
 ## Latest verification baseline
 
-2026-09-14 UIR-08 local integration: Rust Debug/Release each pass 226 tests with ten named physical/
+2026-09-14 UIR-08 complete: Rust Debug/Release each pass 226 tests with ten named physical/
 performance profiles ignored. Windows Debug/Release each build with zero warnings/errors and pass 220
 Core, 76 Infrastructure and three loaded-STA WPF methods, with five explicit physical/provider/deletion
 skips. Current visual regression passes with 191 Debug plus 191 Release captures and representative
-states reviewed; latest fictional fixture build passes without launch. The strengthened A17 real-worker
+states reviewed. The strengthened A17 real-worker
 regression retains one history/cache across restart and five runs, proving unchanged reuse, combined
 added/deleted/same-size changed membership with preserved modified time, exclusions, forced re-read and
-immutable old results/settings/decision. UIR-08 remains in progress for the separately authorized native
-walkthrough; NVDA/physical 200% remain unavailable. See
+immutable old results/settings/decision. The available current-screen walkthrough passes at 1180x760
+and 900x600 after three fixture-only corrections; Narrator and available appearance/monitor transitions
+pass. The corrected fixture build and fresh focused WPF rerun pass; the first focused run retained its
+later synthetic Enter-focus flake. NVDA/physical 200% remain unrun/unavailable. See
 `plans/ui-redesign/evidence/uir-08-integration-regression.md`.
 
 2026-09-14 UIR-07b: Core 220 passed and three loaded-STA WPF methods passed. Performance is one action
@@ -1404,6 +1409,16 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+- 2026-09-14: UIR-08 available-native acceptance is complete after the operator finished the four-step
+  manual batch. Scan again, Progress, Review, History, Narrator and available appearance/monitor checks
+  passed. The first two viewport passes exposed fixed file decisions, empty folder Results and a no-op
+  Review folder **Open set**; all were isolated to the in-memory acceptance fixture. The corrected fixture
+  retains decision revisions, supplies 25 two-copy folder sets and supports exact Review-to-Folders
+  navigation. A focused test and corrected-fixture build pass, and the operator's 1180x760/900x600
+  retest was all pass. NVDA/physical 200% remain unrun/unavailable. No real long scan, physical/provider/
+  performance/deletion campaign, worker or production state ran. UIR-00 through UIR-08 are complete;
+  UIR-09 explicit final user workflow acceptance and durable completion assessment is next.
 
 - 2026-09-14: UIR-08 local integration regression and acceptance-matrix preparation are complete;
   UIR-08 remains in progress for native evidence. Rust Debug/Release each pass 226 with ten ignored;

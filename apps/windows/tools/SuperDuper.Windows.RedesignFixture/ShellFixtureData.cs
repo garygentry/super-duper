@@ -25,6 +25,65 @@ internal sealed class ShellFixtureData : IDisposable
         var active = client.AddRun(session.Id, "running", "hashing") with { WarningCount = 1 };
         client.Runs[1] = active;
 
+        var reviewRevision = 2L;
+        var fileDecisions = new Dictionary<(long GroupId, long MemberId), string>
+        {
+            [(1, 1)] = "remove",
+            [(1, 2)] = "keep",
+        };
+        var folderDecisions = new Dictionary<(long GroupId, long MemberId), string>();
+
+        string FileDecision(long groupId, long memberId) =>
+            fileDecisions.TryGetValue((groupId, memberId), out var decision) ? decision : "undecided";
+        string FolderDecision(long groupId, long memberId) =>
+            folderDecisions.TryGetValue((groupId, memberId), out var decision) ? decision : "undecided";
+        WorkerReviewGroupSummary FileReviewSummary(long groupId)
+        {
+            var decisions = Enumerable.Range(1, 2).Select(id => FileDecision(groupId, id)).ToArray();
+            var removeCount = decisions.LongCount(decision => decision == "remove");
+            return new WorkerReviewGroupSummary(
+                groupId,
+                decisions.LongCount(decision => decision == "keep"),
+                removeCount,
+                decisions.LongCount(decision => decision == "undecided"),
+                2 - removeCount);
+        }
+        WorkerReviewFolderGroupSummary FolderReviewSummary(long groupId)
+        {
+            var decisions = Enumerable.Range(1, 2)
+                .Select(id => FolderDecision(groupId, groupId * 10 + id)).ToArray();
+            var removeCount = decisions.LongCount(decision => decision == "remove");
+            return new WorkerReviewFolderGroupSummary(
+                groupId,
+                decisions.LongCount(decision => decision == "keep"),
+                removeCount,
+                decisions.LongCount(decision => decision == "undecided"),
+                2 - removeCount);
+        }
+        WorkerReviewPlanSummary ReviewPlanSummary()
+        {
+            var files = Enumerable.Range(1, 25).Select(id => FileReviewSummary(id)).ToArray();
+            var folders = Enumerable.Range(1, 25).Select(id => FolderReviewSummary(id)).ToArray();
+            var fileRemoveCount = files.Sum(group => group.RemoveCount);
+            var folderRemoveCount = folders.Sum(group => group.RemoveCount);
+            return new WorkerReviewPlanSummary(
+                files.LongCount(group => group.UndecidedCount == 0),
+                files.Sum(group => group.KeepCount),
+                fileRemoveCount,
+                files.Sum(group => group.UndecidedCount),
+                (fileRemoveCount * 4096).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                files.Sum(group => group.RemainingPhysicalCopyCount))
+            {
+                DecidedFolderGroupCount = folders.LongCount(group => group.UndecidedCount == 0),
+                FolderKeepCount = folders.Sum(group => group.KeepCount),
+                FolderRemoveCount = folderRemoveCount,
+                FolderUndecidedCount = folders.Sum(group => group.UndecidedCount),
+                EffectiveRemovalFileCount = fileRemoveCount + (folderRemoveCount * 14),
+                PlannedRemovalPhysicalItemCount = fileRemoveCount + folderRemoveCount,
+                IntactFolderCopyCount = folders.Sum(group => group.IntactCopyCount),
+            };
+        }
+
         client.GroupPageHandler = (query, _) =>
         {
             FileQueries++;
@@ -40,44 +99,87 @@ internal sealed class ShellFixtureData : IDisposable
                 "4096", "1704067200000000000")
             {
                 RootPath = session.Roots[id - 1], RelativePath = $@"travel\{name}.jpg", DriveLetter = "C:",
-                Decision = id == 1 ? "remove" : "keep",
+                Decision = FileDecision(query.GroupId, id),
             }).ToArray(), 2, null, null)
         {
             ReviewPlanId = 7,
-            ReviewRevision = 2,
-            ReviewSummary = new WorkerReviewGroupSummary(query.GroupId, 1, 1, 0, 1),
+            ReviewRevision = reviewRevision,
+            ReviewSummary = FileReviewSummary(query.GroupId),
+        });
+        client.FolderGroupPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFolderGroupPage(
+            Enumerable.Range(1, 25).Select(id => new WorkerDuplicateFolderGroup(
+                id,
+                query.RunId,
+                "8192",
+                14,
+                2,
+                $@"C:\fixture\source-{id:00}\family archive\photos\2026")).ToArray(),
+            25,
+            null,
+            null));
+        client.FolderMemberPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFolderMemberPage(
+            [
+                new WorkerDuplicateFolderMember(
+                    query.GroupId * 10 + 1,
+                    query.GroupId,
+                    $@"C:\fixture\source-{query.GroupId:00}\family archive\photos\2026")
+                {
+                    Decision = FolderDecision(query.GroupId, query.GroupId * 10 + 1),
+                },
+                new WorkerDuplicateFolderMember(
+                    query.GroupId * 10 + 2,
+                    query.GroupId,
+                    $@"\\fictional-server\archive\retained generations\location-{query.GroupId:00}\family archive\photos\2026")
+                {
+                    Decision = FolderDecision(query.GroupId, query.GroupId * 10 + 2),
+                },
+            ],
+            2,
+            null,
+            null)
+        {
+            ReviewPlanId = 7,
+            ReviewRevision = reviewRevision,
+            ReviewSummary = FolderReviewSummary(query.GroupId),
         });
         client.ReviewPlanHandler = (runId, _) => Task.FromResult(runId == old.Id
             ? new WorkerReviewPlanView(
-                new WorkerReviewPlan(7, runId, "active", 2, "2026-09-08T09:45:00Z", "2026-09-08T09:46:00Z"),
-                new WorkerReviewPlanSummary(1, 1, 1, 48, "4096", 49)
-                {
-                    FolderUndecidedCount = 50,
-                    EffectiveRemovalFileCount = 1,
-                    PlannedRemovalPhysicalItemCount = 1,
-                    IntactFolderCopyCount = 50,
-                })
+                new WorkerReviewPlan(7, runId, "active", reviewRevision, "2026-09-08T09:45:00Z", "2026-09-08T09:46:00Z"),
+                ReviewPlanSummary())
             : new WorkerReviewPlanView(
                 new WorkerReviewPlan(null, runId, "notCreated", 0, null, null),
                 new WorkerReviewPlanSummary(0, 0, 0, 0, "0", 0)));
         client.ReviewGroupPageHandler = (runId, pageSize, cursor, _) => Task.FromResult(
             new WorkerReviewGroupPage(
-                Enumerable.Range(1, Math.Min(pageSize, 25)).Select(id =>
-                    id == 1
-                        ? new WorkerReviewGroupSummary(id, 1, 1, 0, 1)
-                        : new WorkerReviewGroupSummary(id, 0, 0, 2, 2)).ToArray(),
+                Enumerable.Range(1, Math.Min(pageSize, 25)).Select(id => FileReviewSummary(id)).ToArray(),
                 25,
                 runId == old.Id ? 7 : null,
-                runId == old.Id ? 2 : 0,
+                runId == old.Id ? reviewRevision : 0,
                 null));
         client.ReviewFolderGroupPageHandler = (runId, pageSize, cursor, _) => Task.FromResult(
             new WorkerReviewFolderGroupPage(
                 Enumerable.Range(1, Math.Min(pageSize, 25))
-                    .Select(id => new WorkerReviewFolderGroupSummary(id, 0, 0, 2, 2)).ToArray(),
+                    .Select(id => FolderReviewSummary(id)).ToArray(),
                 25,
                 runId == old.Id ? 7 : null,
-                runId == old.Id ? 2 : 0,
+                runId == old.Id ? reviewRevision : 0,
                 null));
+        client.ReviewDecisionHandler = (_, runId, groupId, memberId, decision, expectedRevision, _) =>
+        {
+            if (runId != old.Id || expectedRevision != reviewRevision)
+                throw new InvalidOperationException("review_generation_conflict");
+            fileDecisions[(groupId, memberId)] = decision;
+            reviewRevision++;
+            return Task.FromResult(new WorkerReviewDecisionMutation(7, reviewRevision, false, decision));
+        };
+        client.ReviewFolderDecisionHandler = (_, runId, groupId, memberId, decision, expectedRevision, _) =>
+        {
+            if (runId != old.Id || expectedRevision != reviewRevision)
+                throw new InvalidOperationException("review_generation_conflict");
+            folderDecisions[(groupId, memberId)] = decision;
+            reviewRevision++;
+            return Task.FromResult(new WorkerReviewFolderDecisionMutation(7, reviewRevision, false, decision));
+        };
         client.LatestPreflightHandler = (runId, _) => Task.FromResult<WorkerPreflight?>(
             runId == old.Id ? TestWorkerClient.CreatePreflight(17, runId, "completed", 2) : null);
         client.PreflightItemPageHandler = (query, _) => Task.FromResult(new WorkerPreflightItemPage(

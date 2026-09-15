@@ -1,10 +1,11 @@
 # Windows UI redesign
 
-Status: high-level direction accepted with long-scan/rescan feedback, updated 2026-09-14. UIR-08
-local Debug/Release integration and acceptance-matrix preparation are complete. Product
+Status: high-level direction accepted with long-scan/rescan feedback, updated 2026-09-14. UIR-00
+through UIR-08 are complete; UIR-09 final user acceptance and durable completion is next. Product
 implementation includes UIR-04a saved setup/Scan again, UIR-04b long-scan freshness/terminal presentation, UIR-04c compact monitoring/details, UIR-05a compact file queries/totals, UIR-05b adjustable file comparison/full local A03, UIR-05c adjustable folder comparison/remaining local folder criteria, UIR-06a dedicated Review overview/revision-aware validation, UIR-06b focused Location preferences, UIR-07a History/contextual warnings, UIR-07b contextual Performance and UIR-03a/b/c/d/e/f shell/context, shared resources, viewport verification and
-the operator-reported scrollbar, theme, text-size and empty-folder fixes. The package records the accepted direction and its limits; it is not a claim of
-operator usability acceptance or Windows release acceptance.
+the operator-reported scrollbar, theme, text-size and empty-folder fixes. The package records the
+accepted direction and UIR-08 available-native pass; it is not yet UIR-09 final acceptance or Windows
+release acceptance.
 
 ## Start here
 
@@ -45,13 +46,13 @@ are authoritative if its intentionally small fictional dataset or simplified int
 | UIR-00 Preserve and isolate | complete | `deefa40` on `wpf-poc`; dedicated branch created |
 | UIR-01 Evaluation and specification | complete | This package, local prototype checks, and discovery record |
 | UIR-02 Direction feedback | complete | User accepted the high-level direction; long-scan/rescan requirements captured |
-| UIR-03 Shell and context | complete | [Scoped shell acceptance](evidence/uir-03-shell-acceptance.md); available checks passed; NVDA/200% retained for UIR-08/A11 |
-| UIR-04 | in_progress | [UIR-04a setup/Scan again](evidence/uir-04a-saved-scan-setup.md), [UIR-04b elapsed/freshness/terminal](evidence/uir-04b-long-scan-monitoring.md) and [UIR-04c compact monitoring/details](evidence/uir-04c-compact-monitoring.md) locally implemented and current integration passed; native/operator acceptance remains |
-| UIR-05 | in_progress | [UIR-05a file query controls/totals](evidence/uir-05a-file-query-controls.md), [UIR-05b adjustable file comparison/A03](evidence/uir-05b-file-comparison.md) and [UIR-05c adjustable folder comparison](evidence/uir-05c-folder-comparison.md) locally implemented and current integration passed; native/operator acceptance remains |
-| UIR-06 | in_progress | [UIR-06a Review overview/validation status](evidence/uir-06a-review-overview.md) and [UIR-06b focused Location preferences](evidence/uir-06b-location-preferences.md) locally implemented and current integration passed; native/operator acceptance remains |
-| UIR-07 | in_progress | [UIR-07a History/contextual warnings](evidence/uir-07a-history-warnings.md) and [UIR-07b contextual Performance](evidence/uir-07b-contextual-performance.md) locally implemented and current integration passed; native/operator acceptance remains |
-| UIR-08 | in_progress | [Local integration and A01-A17 map](evidence/uir-08-integration-regression.md) complete; prepared current-screen native walkthrough remains unrun and separately authorized; NVDA/200% unavailable |
-| UIR-09 | planned | Final native/user workflow acceptance and durable completion package after UIR-08 |
+| UIR-03 Shell and context | complete | [Scoped shell acceptance](evidence/uir-03-shell-acceptance.md); available checks passed |
+| UIR-04 | complete | Local setup/monitoring slices, integrated A17 and current native Scan again/Progress observations passed in UIR-08 |
+| UIR-05 | complete | Local file/folder slices plus current native decisions, paths, focus and both viewports passed after the fixture correction |
+| UIR-06 | complete | Local Review/preferences slices plus current native meanings, rules and corrected folder Open set passed |
+| UIR-07 | complete | Local History/Performance slices plus current native identity, warning, Performance and return-focus observations passed |
+| UIR-08 | complete | [Integration, A01-A17 map and available native evidence](evidence/uir-08-integration-regression.md) passed; NVDA/physical 200% remain unavailable/unrun |
+| UIR-09 | planned | Ready for explicit final user acceptance and durable completion package |
 
 On 2026-09-11 the operator [passed three initial checks](evidence/uir-03-desktop-walkthrough.md#2026-09-11-initial-operator-checks):
 reviewed/active scan context and harmless History highlighting, delayed-folder responsiveness/error
@@ -71,8 +72,7 @@ fixture sizes. Those reported defects are closed. Cross-monitor transitions at 1
 noticeable clipping. Windows did not offer 200%; that case and NVDA remain unavailable/unrun.
 The operator also confirmed keyboard focus and file-group selection survive monitor moves.
 [UIR-03 is complete for its scoped shell requirements](evidence/uir-03-shell-acceptance.md).
-NVDA and 200% stay unavailable/unrun requirements for UIR-08/A11; no complete native matrix or
-release acceptance is claimed. UIR-04a now implements current saved setup, qualified persistent reuse
+NVDA and physical 200% stay unavailable/unrun for A11; no claim is substituted for them. UIR-04a now implements current saved setup, qualified persistent reuse
 copy, Save/Discard/Stay and new dated runs with retained history. See its evidence for focused Core,
 WPF and isolated real-worker checks. UIR-04b now adds multi-day elapsed/update freshness and terminal
 activity (A08/A16). UIR-04c adds the compact summary, honest measured phase bars and expandable exact
@@ -96,9 +96,10 @@ telemetry and a selectable 64-device detail while retaining 25/6/64 bounds. UIR-
 full local Rust and Windows Debug/Release matrix, maps every A01-A17 criterion, strengthens A17 with
 one five-run restart/cache/new/deleted/changed/exclusion/reread regression, and retains 191 current
 captures per configuration. Core remains 220; Infrastructure is 76 passed/five skipped; three WPF
-methods pass in each configuration. The next action is the separately authorized current-screen
-native walkthrough prepared in the UIR-08 evidence. Re-audit runtime before reuse; do not troubleshoot
-Windows scaling or infer NVDA/200% acceptance.
+methods pass in each configuration. The operator passed the current-screen keyboard, both-viewport,
+Narrator, theme/text and 150%/175%-monitor walkthrough after three in-memory fixture gaps were corrected
+and retested. UIR-09 final scope acceptance and durable completion are next; do not troubleshoot Windows
+scaling or infer NVDA/physical 200% acceptance.
 Small visual preferences can evolve during implementation.
 Execution enablement and physical/provider campaigns retain their separate authority requirements.
 
