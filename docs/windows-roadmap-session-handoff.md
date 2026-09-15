@@ -21,6 +21,19 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 ## Current checkpoint
 
 - Branch: `codex/ui-redesign`; remain here after completion until explicit operator direction.
+- 2026-09-15 VM revalidation is an explicitly requested environment slice, not a reopened redesign
+  gate. Rust locked workspace tests, Debug/Release Windows builds and the fictional fixture build pass.
+  The full Debug Windows suite passes 220 Core, 76 Infrastructure/five skips and three WPF methods
+  after the Review preference smoke harness waits for layout and fully scrolls target buttons.
+  One read-only Recycle Bin eligibility check fails only inside the filesystem sandbox and passes in
+  the VM's normal context. The fixture was directly controlled through Computer Use at Review and
+  900 × 600. A Debug-only private-state Computer Use launch is prepared in
+  `artifacts/ui-dev-session/4ee7c8b6781b49439949e6d6b72b2693`, but its real-app input journey
+  is pending: `GetCursorPos` is denied even for the fixture and `LogonUI` is active. The operator was
+  asked to unlock the desktop. No test app/worker remains open; the temporary `.uidev` sidecar was
+  removed. After unlock, reprepare the saved isolated state, finish the direct worker-backed UI check,
+  remove its sidecar and commit/report the follow-up; do not claim
+  hands-free real-app control before that evidence.
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - 2026-09-15 dedicated Windows 11 VM setup: installed Rust stable MSVC, completed Visual Studio
@@ -66,9 +79,10 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   file-group selection retained. Do not replay accepted checks without a reopen reason.
 - NVDA (not installed) and physical 200% (not offered by Windows) remain `unrun_unavailable` for
   A11, not passed or waived. Do not troubleshoot Windows, force scaling or install software.
-- Exact next action: none inside the redesign stream. Remain on `codex/ui-redesign` and await explicit
-  operator direction before merge, push, branch changes, parked release-validation resumption, a new
-  physical/provider/performance campaign, recovery work or production execution.
+- Exact next redesign action: none. The operator's separate VM validation request awaits an unlocked
+  desktop for the final native control check. Remain on `codex/ui-redesign`; merge, push, branch
+  changes, parked release-validation, physical/provider/performance campaigns, recovery and production
+  execution still need explicit direction.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; use the reusable completion prompt for
   a future explicitly authorized task. No physical campaign authority follows from redesign completion.
 - Runtime audit: PID 67748 was absent. PID 63908's apparent missing window was cross-context visibility,

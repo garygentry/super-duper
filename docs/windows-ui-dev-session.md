@@ -21,6 +21,20 @@ From the repository root:
 The script builds the matching Rust worker and Windows solution, launches the Debug WPF app, and prints
 `APP_PID`, `STATE_DIRECTORY`, and `FIXTURE_ROOT`. Its default state directory is a new ignored
 `artifacts/ui-dev-session/<id>` folder, so scans and reviews do not use a production database or cache.
+For Codex Computer Use on this VM, prepare the same private state without launching from the shell:
+
+```powershell
+./scripts/Start-WindowsUiDev.ps1 -CreateFixture -PrepareControlLaunch
+```
+
+The script prints `CONTROL_APP`, `STATE_DIRECTORY`, and `FIXTURE_ROOT`. Launch the printed existing
+Debug app executable through Computer Use, then select its exact `Super Duper` window. The Debug app
+reads the generated `.uidev` sidecar only when no explicit database environment variable is present.
+It accepts only the matching Debug worker and a state directory under the ignored UI-development tree.
+The worker/database/cache/log paths stay private. Close the
+app before reusing the state; remove the generated `.uidev` file after the final launch so ordinary
+direct Debug starts do not reopen the last test state. A locked Windows desktop must be unlocked before
+Computer Use can capture or send input.
 In the app, create a saved scan, choose **Enter path**, enter the printed fixture root, and start the
 scan. The small fixture has five files: two duplicate-file sets and one exact duplicate-folder set.
 Use Results, Review and History to inspect the completed run. Close the app normally; its private

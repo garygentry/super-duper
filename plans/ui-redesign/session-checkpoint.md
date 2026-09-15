@@ -2,6 +2,25 @@
 
 Updated 2026-09-15. [Execution plan](execution-plan.md) owns gate status.
 
+- Current VM revalidation: checkout is clean on `codex/ui-redesign` before this slice; Rust 1.98.1,
+  .NET 10.0.401/Desktop 10.0.12, `cargo test --workspace --locked`, Debug/Release Windows builds,
+  and the fictional fixture build pass. The Debug Windows suite passes 220 Core, 76 Infrastructure
+  (five expected skips), and three loaded WPF methods after stabilizing the Review preference scroll
+  assertion. The one Recycle Bin eligibility test fails inside the filesystem sandbox but passes in
+  the VM's normal development context; it does not execute deletion.
+- Desktop control directly opened Review and switched the in-memory fixture to 900 × 600. A shell-
+  launched worker-backed Debug app was visible but not input-accessible across the privilege context.
+  `Start-WindowsUiDev.ps1 -PrepareControlLaunch -CreateFixture` now prepares a validated Debug-only
+  sidecar for Computer Use to launch the existing app with private state. The prepared five-file state
+  is `artifacts/ui-dev-session/4ee7c8b6781b49439949e6d6b72b2693`; no app/worker remains open.
+  The temporary `.uidev` sidecar was removed before handoff. **Native real-app control is not yet revalidated:** Computer Use reports `GetCursorPos` access denied
+  even for the fictional fixture, and Windows `LogonUI` is active. The operator has been asked to
+  unlock the VM. After unlock, rerun the control-preparation script with `-SkipBuild` and the saved
+  `artifacts/ui-dev-session/4ee7c8b6781b49439949e6d6b72b2693` state, then launch `CONTROL_APP` through
+  Computer Use, confirm the private scan/Results/Review/History journey, close normally, remove the
+  `.uidev` sidecar, rerun the Debug Windows suite, and update/commit/report the environment follow-up.
+  Do not claim hands-free real-app
+  control until that check passes.
 - Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; remain on this branch without further branch changes, merge or push.
 - Dedicated Windows 11 VM setup is complete: Rust stable MSVC, Visual Studio C++/Clang, and .NET 10
   are available. The lockfile selects `time` 0.3.36/`time-macros` 0.2.18 for current Rust.

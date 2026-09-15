@@ -4,10 +4,12 @@ param(
     [string]$Configuration = 'Debug',
     [switch]$SkipBuild,
     [switch]$CreateFixture,
+    [switch]$PrepareControlLaunch,
     [string]$StateDirectory
 )
 
 $ErrorActionPreference = 'Stop'
+if ($PrepareControlLaunch -and $Configuration -ne 'Debug') { throw 'Desktop control launch supports only Debug isolated state.' }
 $repository = Split-Path $PSScriptRoot -Parent
 $profile = if ($Configuration -eq 'Release') { 'release' } else { 'debug' }
 $app = Join-Path $repository "apps/windows/src/SuperDuper.Windows/bin/$Configuration/net10.0-windows10.0.22000.0/win-x64/SuperDuper.Windows.exe"
@@ -30,6 +32,7 @@ if (-not $SkipBuild) {
 
         & dotnet build 'apps/windows/SuperDuper.Windows.sln' --configuration $Configuration -m:1
         if ($LASTEXITCODE -ne 0) { throw 'Windows solution build failed.' }
+
     }
     finally {
         Pop-Location
@@ -63,6 +66,14 @@ if ($CreateFixture) {
         [IO.File]::WriteAllText((Join-Path $trip 'notes.txt'), 'same fictional notes content')
     }
     [IO.File]::WriteAllText((Join-Path $fixture 'Copies/unique.txt'), 'fictional unique content')
+}
+
+if ($PrepareControlLaunch) {
+    [IO.File]::WriteAllLines([IO.Path]::ChangeExtension($app, '.uidev'), @($worker, $state))
+    Write-Output "CONTROL_APP=$app"
+    Write-Output "STATE_DIRECTORY=$state"
+    if ($CreateFixture) { Write-Output "FIXTURE_ROOT=$fixture" }
+    return
 }
 
 $start = [Diagnostics.ProcessStartInfo]::new()
