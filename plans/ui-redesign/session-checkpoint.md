@@ -7,9 +7,12 @@ Updated 2026-09-15. [Execution plan](execution-plan.md) owns gate status.
   are available. The lockfile selects `time` 0.3.36/`time-macros` 0.2.18 for current Rust.
   Debug Rust and Windows builds/tests pass, including three loaded WPF smoke methods. This
   environment work does not reopen UIR-00 through UIR-09 or authorize another roadmap stream.
-- Latest slice: **dedicated Windows VM setup and locked dependency compatibility update**.
-  Prior redesign delivery verification and synthetic WPF focus-regression stabilization is
-  `885675e`, based on `73d71da` (UIR-09 completion).
+- Latest slice: **dedicated Windows VM UI-control setup**. The isolated fixture and real Debug app
+  are controllable through desktop screenshots, accessibility IDs and direct input. A disposable
+  five-file scan produced two file sets and one exact-folder set; Results, Review, History and
+  same-state restart passed. `Start-WindowsUiDev.ps1 -CreateFixture` rebuilds/launches with unique
+  ignored state; all test app/worker/fixture processes were closed. The prior VM toolchain setup is
+  `dfe75e5`; prior redesign delivery verification is `885675e`.
 - **UIR-00 through UIR-09 are complete.** The operator explicitly stated “I accept” after review of
   the UIR-08 evidence found no open critical redesign defect. See
   [UIR-09 evidence](evidence/uir-09-final-acceptance.md).

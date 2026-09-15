@@ -32,6 +32,10 @@ dotnet run --project apps/windows/src/SuperDuper.Windows/SuperDuper.Windows.cspr
 The Debug WPF build copies `target/debug/super-duper-worker.exe`; Release copies
 `target/release/super-duper-worker.exe`. `SUPER_DUPER_WORKER_PATH` overrides worker discovery.
 
+For worker-backed UI development with a disposable database and optional five-file test root,
+see [`windows-ui-dev-session.md`](windows-ui-dev-session.md) and run
+`./scripts/Start-WindowsUiDev.ps1 -CreateFixture`.
+
 ## Repeatable Release Verification
 
 ```powershell

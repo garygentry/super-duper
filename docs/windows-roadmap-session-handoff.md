@@ -29,12 +29,15 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   `time-macros` 0.2.18. Debug Rust build/tests and Windows solution build/tests pass on this VM,
   including loaded WPF smoke tests. No redesign gate was reopened.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest local slice: dedicated Windows VM setup and locked dependency compatibility update.
-  Rust Debug build/tests pass with 226 passed and ten ignored; Windows Debug solution builds with
-  zero warnings/errors and passes 220 Core, 76 Infrastructure and three loaded WPF methods,
-  with five explicitly gated skips. Prior redesign delivery verification is `885675e`,
-  based on `73d71da` (UIR-09 completion); see
-  `plans/ui-redesign/evidence/uir-09-final-acceptance.md#post-completion-delivery-verification`.
+- Latest local slice: dedicated Windows VM UI-control setup. The isolated redesign fixture built
+  with zero warnings; Codex Computer Use captured its screen/accessibility tree, opened Review and
+  switched to 900 × 600. The real Debug app and worker scanned five disposable files into two file
+  sets and one exact-folder set; direct UI input opened Results, Review and History. A normal close
+  exited the worker, and same-state relaunch restored the saved session/results. The new
+  `Start-WindowsUiDev.ps1 -CreateFixture` launch path builds the matching Rust/.NET pair with zero
+  Windows warnings/errors and creates a unique ignored state. No app, worker or fixture process
+  remains open at handoff. Prior VM toolchain setup is `dfe75e5`; redesign delivery is `885675e`.
+  UIR-00 through UIR-09 remain complete; no gate was reopened.
 - UIR-00 through UIR-09 complete. No redesign gate remains. Do not repeat the completed current-screen
   native walkthrough or select another stream without explicit operator direction.
 - UIR-07a binds one newest-first 500-run History page with explicit Previous/Next navigation and

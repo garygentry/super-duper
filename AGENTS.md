@@ -96,6 +96,8 @@ Use the repeatable hardening workflows on Windows 11 x64:
 
 Build, smoke, diagnostics, known limitations, and recovery are documented in
 `docs/windows-build.md`, `docs/windows-smoke.md`, and `docs/windows-recovery.md`.
+For isolated real-app UI iteration on Windows, use `scripts/Start-WindowsUiDev.ps1 -CreateFixture`
+and `docs/windows-ui-dev-session.md`.
 
 The last Milestone 6 verification ran the Debug/Release Rust and .NET matrix plus the real Release
 worker/WPF smoke workflow on Windows 11 x64; all checks passed.
