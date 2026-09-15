@@ -9,6 +9,10 @@ application. Build Rust before .NET so the selected worker profile can be copied
 - Rust stable (pinned by `rust-toolchain.toml`)
 - .NET SDK 10.0.303 or a compatible patch (pinned by `global.json`)
 - A Windows 11 SDK capable of targeting `10.0.22000.0`
+- Visual Studio C++ x64/x86 build tools (`Microsoft.VisualStudio.Component.VC.Tools.x86.x64`)
+  for Rust's MSVC linker and RocksDB native compilation
+- Visual Studio Clang (`Microsoft.VisualStudio.Component.VC.Llvm.Clang`) for RocksDB bindgen;
+  set `LIBCLANG_PATH` to the installed x64 LLVM `bin` directory if bindgen cannot find `libclang.dll`
 
 ## Developer Build
 

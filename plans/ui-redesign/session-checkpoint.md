@@ -1,10 +1,15 @@
 # Current redesign session checkpoint
 
-Updated 2026-09-14. [Execution plan](execution-plan.md) owns gate status.
+Updated 2026-09-15. [Execution plan](execution-plan.md) owns gate status.
 
-- Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; no switch/worktree/merge/push.
-- Latest slice: **post-completion delivery verification and synthetic WPF focus-regression
-  stabilization, the commit containing this checkpoint**, based on `73d71da` (UIR-09 completion).
+- Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; remain on this branch without further branch changes, merge or push.
+- Dedicated Windows 11 VM setup is complete: Rust stable MSVC, Visual Studio C++/Clang, and .NET 10
+  are available. The lockfile selects `time` 0.3.36/`time-macros` 0.2.18 for current Rust.
+  Debug Rust and Windows builds/tests pass, including three loaded WPF smoke methods. This
+  environment work does not reopen UIR-00 through UIR-09 or authorize another roadmap stream.
+- Latest slice: **dedicated Windows VM setup and locked dependency compatibility update**.
+  Prior redesign delivery verification and synthetic WPF focus-regression stabilization is
+  `885675e`, based on `73d71da` (UIR-09 completion).
 - **UIR-00 through UIR-09 are complete.** The operator explicitly stated “I accept” after review of
   the UIR-08 evidence found no open critical redesign defect. See
   [UIR-09 evidence](evidence/uir-09-final-acceptance.md).

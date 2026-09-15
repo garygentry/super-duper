@@ -23,9 +23,17 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Branch: `codex/ui-redesign`; remain here after completion until explicit operator direction.
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
+- 2026-09-15 dedicated Windows 11 VM setup: installed Rust stable MSVC, completed Visual Studio
+  C++ x64/x86 and Clang components, and verified .NET SDK/Desktop Runtime 10.0. Locked `time`
+  0.3.34 was incompatible with current Rust; `Cargo.lock` now selects `time` 0.3.36 and
+  `time-macros` 0.2.18. Debug Rust build/tests and Windows solution build/tests pass on this VM,
+  including loaded WPF smoke tests. No redesign gate was reopened.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest local slice: post-completion delivery verification and synthetic WPF focus-regression
-  stabilization, in this checkpoint's commit. Baseline `73d71da` (UIR-09 completion). Evidence:
+- Latest local slice: dedicated Windows VM setup and locked dependency compatibility update.
+  Rust Debug build/tests pass with 226 passed and ten ignored; Windows Debug solution builds with
+  zero warnings/errors and passes 220 Core, 76 Infrastructure and three loaded WPF methods,
+  with five explicitly gated skips. Prior redesign delivery verification is `885675e`,
+  based on `73d71da` (UIR-09 completion); see
   `plans/ui-redesign/evidence/uir-09-final-acceptance.md#post-completion-delivery-verification`.
 - UIR-00 through UIR-09 complete. No redesign gate remains. Do not repeat the completed current-screen
   native walkthrough or select another stream without explicit operator direction.
