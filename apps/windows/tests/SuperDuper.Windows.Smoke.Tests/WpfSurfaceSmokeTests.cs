@@ -1062,8 +1062,12 @@ public sealed class WpfSurfaceSmokeTests
             fileGroups.SelectedIndex = 1;
             fileGroups.UpdateLayout();
             Assert.IsTrue(nextSet.Focus());
-            Assert.IsTrue(files.RestoreGroupGridFocus());
-            DrainDispatcher();
+            var restoredFileGroupFocus = files.RestoreGroupGridFocusAsync();
+            while (!restoredFileGroupFocus.IsCompleted)
+            {
+                DrainDispatcher();
+            }
+            Assert.IsTrue(restoredFileGroupFocus.GetAwaiter().GetResult());
             Assert.IsTrue(fileGroups.IsKeyboardFocusWithin);
             Assert.IsInstanceOfType<DataGridCell>(Keyboard.FocusedElement);
 

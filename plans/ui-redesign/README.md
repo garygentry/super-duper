@@ -6,6 +6,9 @@ implementation includes UIR-04a saved setup/Scan again, UIR-04b long-scan freshn
 the operator-reported scrollbar, theme, text-size and empty-folder fixes. The package records the
 accepted direction, UIR-08 available-native pass and [UIR-09 final acceptance](evidence/uir-09-final-acceptance.md).
 This is redesign completion, not Windows release or production deletion acceptance.
+A subsequent [delivery verification](evidence/uir-09-final-acceptance.md#post-completion-delivery-verification)
+confirmed the complete plan, produced the Debug app, stabilized the retained synthetic WPF focus
+assertion and passed the complete Debug Windows suite without changing product behavior or scope.
 
 ## Start here
 

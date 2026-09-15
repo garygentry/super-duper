@@ -50,3 +50,28 @@ diagnosed visibility limitation. It was not reused, stopped, or modified.
 After this package is committed, no redesign gate remains. Stay on `codex/ui-redesign` and await an
 explicit operator instruction before any merge, push, branch change, release-validation resumption,
 physical campaign, or production execution work.
+
+## Post-completion delivery verification
+
+On 2026-09-14 the operator authorized an overall plan/progress review and the next recommended steps
+needed to deliver the working redesigned UI. The review confirmed that UIR-00 through UIR-09 and
+A01-A17 remain complete within the accepted redesign scope; no missing product implementation or new
+redesign gate was found.
+
+Fresh delivery checks from `73d71da` produced the actual Debug Windows app and found one previously
+documented intermittent loaded-STA test-harness focus assertion. The assertion invoked the synchronous
+inner file-grid focus attempt directly, while production navigation uses the bounded asynchronous retry
+path. The regression now exercises that production path. This changes no application behavior.
+
+- `cargo build --workspace`: passed.
+- `dotnet build apps/windows/SuperDuper.Windows.sln --configuration Debug --no-restore`: passed with
+  zero warnings and zero errors.
+- The repaired `ResultsSurfaces_LoadOnStaWithSystemThemeVirtualizationAndAutomationIds` method passed
+  three consecutive focused Debug runs.
+- `dotnet test apps/windows/SuperDuper.Windows.sln --configuration Debug --no-build --no-restore`:
+  passed 220 Core, 76 Infrastructure and three loaded-STA WPF methods; the same five physical/provider/
+  deletion tests remained explicitly skipped.
+
+The known corrected fixture PID 15072 remained responsive at its isolated artifact path and was not
+reused, stopped, or modified. No production app or worker was running before the build. NVDA and
+physical 200% remain unavailable/unrun, and every production-execution boundary remains unchanged.

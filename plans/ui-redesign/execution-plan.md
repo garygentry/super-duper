@@ -7,6 +7,12 @@ NVDA and physical 200% remain unavailable/unrun for A11, not passed or waived. S
 This plan owns the redesign scope. The old release-validation ledger remains parked and retains
 all safety/evidence gates. Its open execution criteria are not absorbed or marked passed here.
 
+A post-completion delivery review on 2026-09-14 confirmed the gate ledger and A01-A17 coverage, built
+the Rust workspace and Debug Windows solution, stabilized one previously documented synthetic WPF
+focus assertion to exercise the production asynchronous retry path, and passed the complete Debug
+Windows suite. See the [UIR-09 delivery verification](evidence/uir-09-final-acceptance.md#post-completion-delivery-verification).
+No gate was reopened and no production behavior or authority changed.
+
 ## Finite gate ledger
 
 | Gate | State | Outcome and scope | Entry / completion |

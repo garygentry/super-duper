@@ -3,8 +3,8 @@
 Updated 2026-09-14. [Execution plan](execution-plan.md) owns gate status.
 
 - Required branch: `codex/ui-redesign`. Preserve `wpf-poc` at `deefa40`; no switch/worktree/merge/push.
-- Latest slice: **UIR-09 final scoped workflow acceptance and durable completion package, the commit
-  containing this checkpoint**, based on `eb72db4` (UIR-08 available-native walkthrough).
+- Latest slice: **post-completion delivery verification and synthetic WPF focus-regression
+  stabilization, the commit containing this checkpoint**, based on `73d71da` (UIR-09 completion).
 - **UIR-00 through UIR-09 are complete.** The operator explicitly stated “I accept” after review of
   the UIR-08 evidence found no open critical redesign defect. See
   [UIR-09 evidence](evidence/uir-09-final-acceptance.md).
@@ -15,6 +15,10 @@ Updated 2026-09-14. [Execution plan](execution-plan.md) owns gate status.
 - The UIR-08 automated baseline remains Rust Debug/Release 226 passed/10 ignored and Windows Debug/
   Release 220 Core, 76 Infrastructure and three loaded-STA WPF methods, with five explicit skips and
   191 captures per configuration. The corrected fixture build and fresh focused rerun passed.
+- Fresh delivery verification builds the Rust workspace and Debug Windows solution with zero Windows
+  warnings/errors. The repaired file-grid focus assertion uses the production asynchronous retry path,
+  passes three consecutive focused runs, and the complete Debug suite passes 220 Core, 76 Infrastructure
+  and three WPF methods with the same five explicit skips. Product behavior is unchanged.
 - The available 1180x760 and 900x600 keyboard journeys passed after fixture-only file/folder decision,
   folder-data and Review-folder-link corrections. Narrator, Dark/available contrast/150%-text and the
   available 150%/175% monitor transitions passed; settings were restored.

@@ -3,8 +3,8 @@
 Use this in the existing task or a fresh task opened directly in the same local saved project:
 
 ```text
-Continue in C:\Users\gary\workspace\super-duper on codex/ui-redesign at the committed UIR-09
-completion checkpoint. Preserve wpf-poc at deefa40. Do not switch branches, create another worktree,
+Continue in C:\Users\gary\workspace\super-duper on codex/ui-redesign at the committed post-UIR-09
+delivery checkpoint. Preserve wpf-poc at deefa40. Do not switch branches, create another worktree,
 merge, rebase, push or delete branches unless the operator explicitly changes those instructions.
 
 Audit Git first and preserve unexpected edits. Read AGENTS.md, the current-control sections of
@@ -21,6 +21,12 @@ contrast/150%-text and available 150%/175% monitor transitions passed after the 
 corrections. The automated baseline remains Rust Debug/Release 226 passed/10 ignored and Windows
 Debug/Release 220 Core, 76 Infrastructure and three loaded-STA WPF methods, with five explicit skips
 and 191 captures per configuration.
+
+The authorized post-completion delivery review found no missing redesign gate. The Rust workspace and
+Debug Windows solution build, and the complete Debug Windows suite passes 220 Core, 76 Infrastructure
+and three loaded-STA WPF methods with the same five explicit skips. A retained synthetic file-grid
+focus assertion now exercises the production asynchronous retry path and passed three consecutive
+focused runs; application behavior is unchanged.
 
 NVDA and physical 200% remain unrun/unavailable, not passed or waived. The completed redesign is not
 Windows release acceptance and does not authorize a shipping WPF smoke, real long-duration/full-drive,

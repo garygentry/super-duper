@@ -24,9 +24,9 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - Active stream: Windows UI redesign, `plans/ui-redesign/execution-plan.md`.
-- Latest local slice: UIR-09 final workflow acceptance and durable completion package, in this
-  checkpoint's commit. Baseline `eb72db4` (UIR-08 available-native walkthrough). Evidence:
-  `plans/ui-redesign/evidence/uir-09-final-acceptance.md`.
+- Latest local slice: post-completion delivery verification and synthetic WPF focus-regression
+  stabilization, in this checkpoint's commit. Baseline `73d71da` (UIR-09 completion). Evidence:
+  `plans/ui-redesign/evidence/uir-09-final-acceptance.md#post-completion-delivery-verification`.
 - UIR-00 through UIR-09 complete. No redesign gate remains. Do not repeat the completed current-screen
   native walkthrough or select another stream without explicit operator direction.
 - UIR-07a binds one newest-first 500-run History page with explicit Previous/Next navigation and
@@ -623,6 +623,13 @@ Missing evidence is `open` or `not_run`, never a pass. Milestone 11 remains inco
 required gates are open.
 
 ## Latest verification baseline
+
+2026-09-14 post-completion delivery verification: the Rust workspace and Debug Windows solution build;
+the Windows build has zero warnings/errors. One retained intermittent loaded-STA file-grid focus
+assertion was aligned with the production asynchronous retry path and then passed three consecutive
+focused runs. The complete Debug Windows suite passes 220 Core, 76 Infrastructure and three WPF methods,
+with the same five explicit physical/provider/deletion skips. No product behavior, gate disposition,
+production authority or unavailable NVDA/physical-200% state changed. See the UIR-09 evidence.
 
 2026-09-14 UIR-09 complete: the operator explicitly accepted the final scoped Windows redesign after
 the UIR-08 evidence and accepted scope were reviewed and no open critical redesign defect was found.
