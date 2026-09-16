@@ -21,6 +21,14 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 ## Current checkpoint
 
 - Branch: `codex/ui-redesign`; remain here after completion until explicit operator direction.
+- The operator explicitly authorized background VM work while its remote desktop is backgrounded or
+  locked. On 2026-09-15 the loaded-STA WPF fixture passed all three methods in that state, rendered
+  125 captures, and narrow Results/Review PNGs were inspected. The full Debug Windows suite then
+  passed 220 Core, 76 Infrastructure/five expected skips and three WPF methods. `AGENTS.md`, the
+  session guide and `docs/windows-ui-dev-session.md` now direct authorized implementation, tests,
+  isolated worker checks and WPF captures to continue without native desktop input. Record any
+  unavailable native input check as unrun; background evidence does not replace physical acceptance.
+  See `plans/ui-redesign/evidence/vm-background-ui-iteration.md`.
 - 2026-09-15 VM revalidation is an explicitly requested environment slice, not a reopened redesign
   gate. Rust locked workspace tests, Debug/Release Windows builds and the fictional fixture build pass.
   The full Debug Windows suite passes 220 Core, 76 Infrastructure/five skips and three WPF methods
@@ -29,11 +37,11 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   the VM's normal context. The fixture was directly controlled through Computer Use at Review and
   900 × 600. A Debug-only private-state Computer Use launch is prepared in
   `artifacts/ui-dev-session/4ee7c8b6781b49439949e6d6b72b2693`, but its real-app input journey
-  is pending: `GetCursorPos` is denied even for the fixture and `LogonUI` is active. The operator was
-  asked to unlock the desktop. No test app/worker remains open; the temporary `.uidev` sidecar was
-  removed. After unlock, reprepare the saved isolated state, finish the direct worker-backed UI check,
-  remove its sidecar and commit/report the follow-up; do not claim
-  hands-free real-app control before that evidence.
+  is unrun: `GetCursorPos` was denied even for the fixture and `LogonUI` was active. No test app/worker
+  remains open; the temporary `.uidev` sidecar was removed. Continue independent authorized work in
+  the background. If a later gate requires live native input, reprepare the saved state when interactive
+  access returns and complete the direct worker-backed UI check; do not claim live real-app control
+  before that evidence.
 - Preserved baseline: `wpf-poc` at `deefa40`, whose parent is `52126cd`. The previously uncommitted
   operator README edit is preserved unchanged in `deefa40`; no prior branch was deleted or merged.
 - 2026-09-15 dedicated Windows 11 VM setup: installed Rust stable MSVC, completed Visual Studio
@@ -79,8 +87,9 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   file-group selection retained. Do not replay accepted checks without a reopen reason.
 - NVDA (not installed) and physical 200% (not offered by Windows) remain `unrun_unavailable` for
   A11, not passed or waived. Do not troubleshoot Windows, force scaling or install software.
-- Exact next redesign action: none. The operator's separate VM validation request awaits an unlocked
-  desktop for the final native control check. Remain on `codex/ui-redesign`; merge, push, branch
+- Exact next redesign action: none. Background VM UI iteration is validated; direct native input
+  remains unrun while the remote desktop is inaccessible and does not block unrelated authorized work.
+  Remain on `codex/ui-redesign`; merge, push, branch
   changes, parked release-validation, physical/provider/performance campaigns, recovery and production
   execution still need explicit direction.
 - Compact checkpoint: `plans/ui-redesign/session-checkpoint.md`; use the reusable completion prompt for
@@ -1449,6 +1458,13 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+- 2026-09-15: The operator directed Codex to continue dedicated-VM development while the remote
+  desktop is backgrounded or possibly locked. Loaded-STA WPF behavior and 125 rendered captures,
+  plus the complete Debug Windows suite, pass without native input. Project guidance now keeps
+  authorized background implementation and verification moving, marks inaccessible Computer Use
+  input unrun, and reserves physical desktop evidence for gates that explicitly require it. No
+  redesign gate, release stream or production execution boundary was opened by this workflow change.
 
 - 2026-09-14: UIR-09 is complete. After review of the UIR-08 integration/available-native evidence
   found no open critical redesign defect, the operator explicitly stated “I accept.” The accepted scope

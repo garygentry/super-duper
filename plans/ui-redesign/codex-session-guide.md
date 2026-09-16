@@ -39,6 +39,11 @@ of that capability. [Official AGENTS.md guidance](https://learn.chatgpt.com/docs
    use controlled progress/clock sequences to exercise multi-day duration and long no-progress
    intervals quickly; a test need not run for days. For reuse, use disposable files and stable
    isolated cache paths across repeated runs and process restarts. Preserve the production app.
+   On the dedicated VM, continue loaded-STA WPF behavior checks and rendered captures when the remote
+   desktop is backgrounded or locked; see `docs/windows-ui-dev-session.md`. Mark a native input check
+   unrun if Computer Use cannot access the desktop, and revisit it only when the chosen acceptance
+   gate requires physical UI evidence. Do not make desktop unlock a prerequisite for independent local
+   implementation, builds, tests or fixture review.
 5. Review the diff and evidence. Update the gate ledger and compact checkpoint, record only material
    decisions, and synchronize the shared handoff. Commit each coherent completed in-scope slice on
    `codex/ui-redesign`. Record partial gate progress explicitly; a commit does not imply acceptance.

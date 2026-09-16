@@ -38,6 +38,15 @@ this startup instruction.
 Use `plans/ui-redesign/codex-session-guide.md` for multi-session execution and update its compact
 checkpoint with each coherent slice. Long-scan monitoring and persistent qualified rescan reuse
 are required by `plans/ui-redesign/scan-and-rescan-experience.md` (A08/A16/A17).
+On the dedicated Windows VM, remote desktop input may be unavailable while the operator's session is
+backgrounded or locked. Continue authorized repository work, Rust/.NET builds and tests, isolated
+worker fixtures, and loaded-STA WPF fixture control/captures without waiting for desktop input. Follow
+`docs/windows-ui-dev-session.md` for the verified background workflow. If Computer Use cannot capture
+or send native input, stop those input calls and record that specific native check as unrun; do not
+pause unrelated authorized development or ask the operator to unlock the VM merely to proceed with
+background checks. Recheck native input only when the desktop is available or the selected work
+actually requires physical desktop acceptance. Background evidence does not stand in for a required
+physical/provider/release gate.
 At every session handoff with remaining work, print a copyable continuation prompt in the final
 response, tailored to the committed checkpoint and exact next slice; follow the session guide.
 

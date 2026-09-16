@@ -33,8 +33,32 @@ reads the generated `.uidev` sidecar only when no explicit database environment 
 It accepts only the matching Debug worker and a state directory under the ignored UI-development tree.
 The worker/database/cache/log paths stay private. Close the
 app before reusing the state; remove the generated `.uidev` file after the final launch so ordinary
-direct Debug starts do not reopen the last test state. A locked Windows desktop must be unlocked before
-Computer Use can capture or send input.
+direct Debug starts do not reopen the last test state. Computer Use native input depends on access to
+the interactive desktop; it may fail while the remote session is backgrounded or locked.
+
+## Background UI iteration
+
+Continue local UI implementation and automated verification when native input is unavailable. The
+loaded-STA WPF smoke fixture drives real WPF views, tabs, disclosure, scrolling and decision controls
+in process. It can render screen captures without a targetable interactive desktop. Set
+`SUPER_DUPER_UIR05C_CAPTURES` to an ignored folder under `artifacts/`, then run the WPF smoke project:
+
+```powershell
+$env:SUPER_DUPER_UIR05C_CAPTURES = 'C:\Users\gary\workspace\super-duper\artifacts\vm-background-captures'
+dotnet test apps/windows/tests/SuperDuper.Windows.Smoke.Tests/SuperDuper.Windows.Smoke.Tests.csproj --configuration Debug --no-build -m:1
+```
+
+Inspect representative PNGs after a change. Run the Rust and Windows suites and disposable worker
+checks as the selected slice requires. On 2026-09-15, the WPF smoke suite passed all three methods
+and produced 125 captures while Computer Use native input was denied; narrow Results and Review PNGs
+were inspected. The complete Debug Windows suite also passed in that state: 220 Core, 76 Infrastructure,
+three WPF methods, with five expected physical/provider/deletion skips. The read-only Recycle Bin root
+eligibility test needs the VM's normal development context because the filesystem sandbox blocks its
+query; it does not execute deletion.
+
+If Computer Use reports an inaccessible desktop, stop native input calls. Record any specifically
+required native check as unrun and continue independent authorized work. Revisit that check when
+interactive access returns or before a gate that explicitly requires physical desktop evidence.
 In the app, create a saved scan, choose **Enter path**, enter the printed fixture root, and start the
 scan. The small fixture has five files: two duplicate-file sets and one exact duplicate-folder set.
 Use Results, Review and History to inspect the completed run. Close the app normally; its private
