@@ -125,9 +125,15 @@ Neither label means native mouse/keyboard acceptance. Final Release Rust/Windows
 | UX09 | One preference stage at a time, confirmation stays visible; Real ordered roots, preview, apply and reverse. | Implemented and background-verified |
 | UX10, UX11 | Performance context, issues-first warnings and optional diagnostics; WPF bounded rows, exact-context return, reachability and focus. | Implemented and background-verified |
 | UX12, UX13 | Native vector actions, accessible names/tooltips, focus and semantic theme resources; WPF Light/Dark and enlarged text pass. | Implemented; native/high-contrast physical check still pending |
-| UX14 | Private production-worker runner, hashed mixed real corpus, mutation isolation and owned-process cleanup pass. Native inventory timed out and LogonUI PID 1220 remains active. | Background gap closed; native acceptance blocked |
+| UX14 | Private production-worker runner, hashed mixed real corpus, mutation isolation and owned-process cleanup pass. Native input partially passed on 2026-09-16, then capture/discovery failed after helper recovery; LogonUI in another session is not a lock signal. | Background gap closed; native acceptance blocked |
 | UX15, UX16 | Persistent Folder toolbar; distinct file-root labels; narrow selected-copy screenshots and Core root-label regression. | Implemented and background-verified |
 | UX17, UX18 | Persist active/inactive disclosures and last mode through real app/worker restart; selected-tab underline without inherited bold content. | Verified |
 | UX19 | History list-first layout and concise, qualified ETA; exact ETA remains tested inside Diagnostics. | Verified |
 | UX20, QA01 | Recorded-path binding opens without XAML exception; restarted History captures after layout show a readable full-width row. | Verified |
 | ENG01 | History-based freshness covers targets/survivors/overflow and operation admission; seven targeted storage tests, full Debug Rust suite and Real changed/locked-file checks pass. | Fixed; final Debug/Release and real-file verification pass |
+
+## Native follow-up finding
+
+| ID | Priority | Reproduction | Disposition |
+|---|---|---|---|
+| ENG02 | Medium | Native Setup reopened canonical local roots as unknown filesystem type, filling the common screen with repeated technical warnings. | Classifier correction and local/UNC regressions implemented; focused verification recorded in implementation evidence. Native after-check pending helper recovery. |

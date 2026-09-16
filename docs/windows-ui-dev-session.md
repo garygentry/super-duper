@@ -114,7 +114,7 @@ product XAML or Core code against stale product binaries.
 The opt-in real-worker journey runs in its own test host. The existing fictional WPF smoke tests
 remain useful for deterministic timing, themes and error states, but their captures are a separate
 evidence category. Background real-worker WPF exercise also does not replace a required final native
-mouse/keyboard pass. When `LogonUI` is active or native capture/input is unavailable, record that check
+mouse/keyboard pass. When capture/input for the selected active desktop is unavailable, record that check
 as unrun and continue the independent work above.
 
 ## VM verification on 2026-09-15
@@ -128,3 +128,24 @@ the app exited the worker; relaunching with the same state restored the saved se
 The resumed setup displayed the canonical long-path root as a filesystem type not classified as fixed,
 removable or network. This did not block the disposable scan or result restoration; revisit that root
 classification if a later UI task depends on drive-type messaging.
+
+## Native recovery on 2026-09-16
+
+Do not infer desktop lock from the presence of a LogonUI process alone. In this VM, LogonUI PID 1220
+belonged to session 1 while the app and working native input ran in session 2. Judge availability
+from actual selected-session capture/input. Prefer fresh `sky.list_apps()` selection if
+`sky.list_windows()` omits the app; this occurred even while app capture/input worked. Never invent
+window handles from process inspection. Follow the skill's bounded recovery for actual timeouts,
+then continue independent work. Operator authorization remains in force; availability is a technical
+prerequisite, not a request for renewed permission or an obligation to unlock for background work.
+
+The native pass opened and cancelled the Windows folder picker, started a real rescan, observed
+completion navigation to Results, compared copies, marked one for removal, clicked Copy path, and
+launched Explorer at the containing folder. Explorer capture hit an app-approval timeout; no claim
+is made that selection/clipboard contents were verified. Subsequent app capture/discovery timed out,
+and a kernel reset plus one discovery retry also timed out. Native acceptance remains partial.
+The owned app/worker were stopped and the Debug launch sidecar removed after recovery failed.
+
+This pass reproduced canonical local-path misclassification in Setup. The classifier now converts
+only an extended drive root for DriveInfo lookup, preserving the stored path, and recognizes extended
+UNC roots before any network reachability check. See the polish evidence for test results.

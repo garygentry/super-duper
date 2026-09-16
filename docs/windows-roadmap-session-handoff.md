@@ -37,9 +37,12 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   passes fresh-state restart/rules/mutations/Stop/rescan. Matched worker hashes and process/sidecar
   cleanup verified. Two machine-speed-dependent test assumptions corrected without production changes.
   P01–P06 background-verified; P07 background matrix complete; P08 only native input/high-contrast
-  acceptance remains blocked. Native inventory timed out; LogonUI PID 1220 remains active. The
-  compact polish checkpoint owns the exact next native pass after desktop availability. Historical
+  acceptance remains blocked. Native pass partially succeeded on 2026-09-16, then helper discovery/
+  capture failed after bounded recovery. LogonUI in another session is not a lock signal. The
+  compact polish checkpoint owns the exact remaining native pass after helper recovery. Historical
   totals below are not acceptance of the new implementation. No further product decisions pending.
+  ENG02 fixes canonical drive-path misclassification discovered by native Setup; focused verification
+  is in polish evidence.
 
 - New polish P00: complete source/visual feature inventory and proposed P00–P08 plan. Debug paired
   build passes with zero Windows warnings/errors; WPF smoke passes 3/3 with 125 captures.

@@ -110,3 +110,29 @@ Only required native mouse/keyboard/dialog and physical high-contrast acceptance
 Native window enumeration previously timed out and LogonUI PID 1220 remains present at final check.
 P08 is blocked on an available desktop, not a new design decision. No unlocking/security workaround
 was attempted. All independent implementation and background verification is complete.
+
+## Native pass and follow-up (2026-09-16)
+
+The operator confirmed desktop availability and continuing sandbox authority. Native capture/input
+worked in Windows session 2 while LogonUI existed in session 1: that process alone was an incorrect
+lock signal. list_apps exposed the app even when list_windows omitted it. Direct input opened the
+folder picker and Escape returned, started scan 7 on the disposable mutation corpus, observed
+completion navigation to Files, opened comparison, marked a copy, invoked Copy path and launched
+Explorer at Backup documents. No files were deleted. Clipboard content and Explorer selected-file
+verification remain unrun: Explorer capture returned `Computer Use app approval timed out`.
+Subsequent app get_window_state and list_apps timed out; kernel reset and a fresh discovery attempt
+also timed out. No further native calls were made. Owned app 7988/worker 10344 stopped and sidecar
+removed. Final native acceptance remains incomplete because helper recovery failed, not because
+operator authorization is missing. No unlock request is required to continue independent work.
+
+ENG02: saved canonical `\\?\C:\...` roots appeared as unknown filesystem type and filled Setup with
+redundant warnings. Classifier now strips the extended prefix only for a drive-root lookup, retaining
+the original stored path. Extended UNC (including lowercase prefix) is recognized before potential
+network reachability calls. Regression asserts local classification parity, preserved stored path,
+no spurious warning and ordinary/extended UNC best-effort behavior. Verification follows below.
+
+ENG02 verification: focused SessionDefinitionValidator tests passed 8/8 in Debug and 8/8 in Release.
+Both full Windows solution builds passed with zero warnings/errors after the fix. Rust was unchanged.
+The preceding full matrix remains valid for unchanged behavior; native after-check remains pending.
+Final inspection found no owned SuperDuper app/worker and no Debug `.uidev` sidecar. Explorer was
+opened by the authorized reveal action but not controlled or closed after its app-approval timeout.

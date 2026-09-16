@@ -75,12 +75,34 @@ public sealed class SessionDefinitionValidatorTests
     }
 
     [TestMethod]
-    public void UncRoot_IsBestEffortAndDefersReachabilityToWorkerStart()
+    public void ExtendedLocalRoot_PreservesDriveClassificationAndStoredPath()
     {
-        var missing = $@"\\localhost\missing-{Guid.NewGuid():N}";
+        var path = Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar);
+        var extendedPath = @"\\?\" + path;
+        var ordinary = SessionDefinitionValidator.Validate("Local", [path], [], []);
+        var extended = SessionDefinitionValidator.Validate("Local", [extendedPath], [], []);
+
+        Assert.AreNotEqual(ScanRootKind.Other, SessionDefinitionValidator.ClassifyRoot(path));
+        Assert.AreEqual(SessionDefinitionValidator.ClassifyRoot(path),
+            SessionDefinitionValidator.ClassifyRoot(extendedPath));
+        Assert.IsTrue(extended.IsValid);
+        Assert.IsTrue(extended.HasReachableRoot);
+        Assert.AreEqual(extendedPath, extended.Roots.Single());
+        Assert.AreEqual(ordinary.Warnings.Count, extended.Warnings.Count);
+        Assert.IsFalse(extended.Warnings.Any(warning => warning.Contains("not been classified", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    [DataRow(@"\\localhost\")]
+    [DataRow(@"\\?\UNC\localhost\")]
+    [DataRow(@"\\?\unc\localhost\")]
+    public void UncRoot_IsBestEffortAndDefersReachabilityToWorkerStart(string prefix)
+    {
+        var missing = $"{prefix}missing-{Guid.NewGuid():N}";
 
         var result = SessionDefinitionValidator.Validate("Network", [missing], [], []);
 
+        Assert.AreEqual(ScanRootKind.UncNetwork, SessionDefinitionValidator.ClassifyRoot(missing));
         Assert.IsTrue(result.IsValid);
         Assert.IsTrue(result.HasReachableRoot);
         Assert.IsTrue(result.Warnings.Any(warning => warning.Contains("UNC", StringComparison.Ordinal)));

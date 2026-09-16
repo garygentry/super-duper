@@ -1,6 +1,6 @@
 # Polish checkpoint
 
-Updated 2026-09-15 local time. Branch `codex/ui-redesign`; pre-review baseline `6206610`.
+Updated 2026-09-16 local time. Branch `codex/ui-redesign`; pre-review baseline `6206610`.
 
 ## Current state
 
@@ -37,14 +37,23 @@ Updated 2026-09-15 local time. Branch `codex/ui-redesign`; pre-review baseline `
 
 ## Exact next step
 
-Native inventory previously timed out; LogonUI PID 1220 remains active at final check. Stop native
-calls until the user makes the desktop available. No remaining independent implementation/test work.
-Once unlocked, use the Computer Use skill and fresh app/window inventory. Prepare an isolated Debug
-control launch using the documented `Start-WindowsUiDev.ps1 -SkipBuild -PrepareControlLaunch` flow
-and a retained real-data journey state. Verify actual folder picker, start/stop, file/folder decisions,
-copy/reveal, rules confirmation/Escape, History/context return, keyboard/focus/resize/enlarged text and
-physical high contrast. Record failures, fix/retest affected cases, remove owned sidecar and verify
-worker cleanup. Close P08 only with actual native evidence and update the ledger/handoff.
+Native input partially succeeded on 2026-09-16: folder picker opened/Escape returned, real rescan
+completed and navigated to Results, comparison/mark/copy icon and Explorer launch worked. Clipboard
+contents and Explorer selection were not verified: Explorer capture hit app-approval timeout.
+Subsequent app capture/discovery timed out; helper reset plus one fresh discovery also timed out.
+Stop further native calls in that failed session. The app/worker were stopped and sidecar removed.
+LogonUI in session 1 does NOT establish session 2 is locked; actual input worked in session 2.
+Operator reiterated permission to continue without unlock requests; no renewed authorization needed.
+
+Native pass found canonical local paths misclassified as unknown drives. A focused classifier fix
+preserves stored paths, normalizes only DriveInfo lookup and recognizes extended UNC. Focused tests
+passed 8/8 in Debug and Release; both full Windows builds have zero warnings/errors. Detailed
+results are recorded in implementation evidence. P08 remains open for a fresh native helper session:
+recheck Setup warning removal, complete folder selection, clipboard/reveal verification, Stop,
+Keep/Reset, Folders, Review/check/rules confirmation/Escape, History/context return, keyboard/focus,
+resize/enlarged text and physical high contrast. Use fresh list_apps selection when list_windows
+omits the app. Do not invent handles. Fix/retest any finding, clean owned state and close P08 only
+with actual native evidence. Background Debug/Release evidence above predates only this classifier fix.
 
 Keep `codex/ui-redesign` and `wpf-poc`; no merge/push/release/deletion activation. Subagents exhausted
 account usage during verification; root finished locally. Build serially, Cargo jobs 2, .NET shared

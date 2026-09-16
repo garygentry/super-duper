@@ -164,8 +164,9 @@ public static class SessionDefinitionValidator
 
     public static ScanRootKind ClassifyRoot(string fullPath)
     {
-        if (fullPath.StartsWith(@"\\", StringComparison.Ordinal)
-            && !fullPath.StartsWith(@"\\?\", StringComparison.Ordinal))
+        if (fullPath.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)
+            || (fullPath.StartsWith(@"\\", StringComparison.Ordinal)
+                && !fullPath.StartsWith(@"\\?\", StringComparison.Ordinal)))
         {
             return ScanRootKind.UncNetwork;
         }
@@ -176,6 +177,13 @@ public static class SessionDefinitionValidator
             if (string.IsNullOrWhiteSpace(root))
             {
                 return ScanRootKind.Other;
+            }
+            // The worker persists canonical extended paths. DriveInfo expects the ordinary
+            // drive root; normalize only its lookup, preserving the original scan path.
+            if (root.Length == 7 && root.StartsWith(@"\\?\", StringComparison.Ordinal)
+                && char.IsAsciiLetter(root[4]) && root[5] == ':' && root[6] == '\\')
+            {
+                root = root[4..];
             }
             return new DriveInfo(root).DriveType switch
             {
