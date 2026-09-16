@@ -37,6 +37,16 @@ Updated 2026-09-16 local time. Branch `codex/ui-redesign`; pre-review baseline `
 
 ## Exact next step
 
+Fresh recovery from `adeb9f5` on 2026-09-16 restored discovery, launch and initial native capture.
+The same isolated Debug real-file state restored scan 7; Setup visibly has no spurious drive-type
+warnings, closing ENG02's native after-check. The folder chooser opened. Its returned Folder
+element could not be targeted (`element 142 is not available in cached app state`), even after
+fresh observation. Coordinate focus and Alt+N did not establish the expected focus; captures
+then became entirely black. Fresh app selection and one kernel reset/reinitialization both
+still returned black app/dialog frames. Native input stopped; do not repeat recovery in this
+failed session. No folder was selected or new scan started. Owned app 6464/worker 11540 were
+stopped and the sidecar removed. See implementation evidence for this bounded attempt.
+
 Native input partially succeeded on 2026-09-16: folder picker opened/Escape returned, real rescan
 completed and navigated to Results, comparison/mark/copy icon and Explorer launch worked. Clipboard
 contents and Explorer selection were not verified: Explorer capture hit app-approval timeout.
@@ -48,8 +58,8 @@ Operator reiterated permission to continue without unlock requests; no renewed a
 Native pass found canonical local paths misclassified as unknown drives. A focused classifier fix
 preserves stored paths, normalizes only DriveInfo lookup and recognizes extended UNC. Focused tests
 passed 8/8 in Debug and Release; both full Windows builds have zero warnings/errors. Detailed
-results are recorded in implementation evidence. P08 remains open for a fresh native helper session:
-recheck Setup warning removal, complete folder selection, clipboard/reveal verification, Stop,
+results are recorded in implementation evidence. P08 remains open for a working native capture session:
+complete folder selection, clipboard/reveal verification, Stop,
 Keep/Reset, Folders, Review/check/rules confirmation/Escape, History/context return, keyboard/focus,
 resize/enlarged text and physical high contrast. Use fresh list_apps selection when list_windows
 omits the app. Do not invent handles. Fix/retest any finding, clean owned state and close P08 only

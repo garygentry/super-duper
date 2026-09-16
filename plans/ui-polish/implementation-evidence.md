@@ -136,3 +136,32 @@ Both full Windows solution builds passed with zero warnings/errors after the fix
 The preceding full matrix remains valid for unchanged behavior; native after-check remains pending.
 Final inspection found no owned SuperDuper app/worker and no Debug `.uidev` sidecar. Explorer was
 opened by the authorized reveal action but not controlled or closed after its app-approval timeout.
+
+## Bounded native recovery from adeb9f5 (2026-09-16)
+
+The checkout was clean at `adeb9f5` on `codex/ui-redesign`. Fresh `@oai/sky` initialization and
+`list_apps` succeeded. The existing Debug build was launched with the validated `.uidev` sidecar
+pointing at `polish-journey-2a06e3b5820646c680fd5e7b5a4aa411`; no production state was used.
+The Infrastructure DLL SHA256 was
+`20EC9F21210D18CFFD34AEA5BB64DF160FB4AE9C0EC6C8F0D24BAE6772FE9DC6`.
+
+Native screenshot and accessibility evidence showed restored scan 7, both saved canonical roots,
+enabled Scan again and no unknown-drive warnings. ENG02's native after-check therefore passes.
+Clicking Add folder or drive opened the actual Windows chooser. However, targeting its returned
+Folder field failed twice with `element 142 is not available in cached app state for
+SuperDuper.Windows.exe`, including after a fresh accessibility observation. A screenshot-directed
+click did not establish Folder focus (the helper reported Search Box); no path text was typed.
+Alt+N followed by capture returned entirely black app and chooser frames. Fresh `list_apps` /
+`get_window` selection and one JavaScript reset, reinitialization and fresh selection still returned
+black frames. Discovery remained responsive. This is unavailable native capture/control evidence,
+not proof that the app crashed or that the desktop was locked. No further native input was issued.
+
+Folder selection, clipboard/reveal verification, Stop, Keep/Reset, Folders, Review/check/rules
+confirmation/Escape, History/context return, keyboard/focus, resize/enlarged text and physical
+high contrast remain unrun in this attempt. No new scan or file mutation occurred. Screenshots
+were inspected directly in the Computer Use tool output; black frames are not visual acceptance.
+No product source changed and no unchanged build/test matrix was replayed.
+
+Owned app 6464 and worker 11540 were verified by executable path in session 2. Sandbox process
+termination was denied; the normally privileged cleanup succeeded under existing authorization.
+The Debug sidecar was removed. The previously opened Explorer window was not controlled.

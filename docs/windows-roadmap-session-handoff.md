@@ -42,7 +42,10 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   compact polish checkpoint owns the exact remaining native pass after helper recovery. Historical
   totals below are not acceptance of the new implementation. No further product decisions pending.
   ENG02 fixes canonical drive-path misclassification discovered by native Setup; focused verification
-  is in polish evidence.
+  is in polish evidence. A fresh native session from `adeb9f5` verified ENG02's warning removal
+  and opened the folder chooser, but dialog targeting failed and app/dialog captures became black.
+  Fresh selection and one kernel reset did not restore capture; input stopped. P08 remains open
+  for the checkpoint's remaining native checks. No renewed operator authorization is required.
 
 - New polish P00: complete source/visual feature inventory and proposed P00–P08 plan. Debug paired
   build passes with zero Windows warnings/errors; WPF smoke passes 3/3 with 125 captures.
