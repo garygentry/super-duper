@@ -57,6 +57,7 @@ Desktop.ini
 # Plans: keep unrelated local plans private; version the UI redesign package.
 /plans/*
 !/plans/ui-redesign/
+!/plans/ui-polish/
 
 # Linux-specific
 *~

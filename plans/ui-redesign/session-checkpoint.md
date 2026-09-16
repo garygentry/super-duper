@@ -2,6 +2,10 @@
 
 Updated 2026-09-15. [Execution plan](execution-plan.md) owns gate status.
 
+New operator-directed work on 2026-09-15 is owned by
+[`plans/ui-polish`](../ui-polish/README.md). Its review/plan and initial decisions supersede the
+old 'no next action' direction for new UI work. UIR-00–09 remain complete; do not reopen them.
+
 - The operator now explicitly requests autonomous background work even when the remote VM session is
   locked. The loaded-STA WPF smoke suite passed all three methods in that state, produced 125 PNGs,
   and narrow Results/Review captures were inspected. The complete Debug Windows suite also passed:

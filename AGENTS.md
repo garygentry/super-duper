@@ -4,6 +4,15 @@ Guidance for fresh coding-agent sessions in this repository.
 
 ## Active Roadmap Streams
 
+The operator requested a new usability and visual-polish stream on 2026-09-15. For this work,
+read `plans/ui-polish/README.md`, `plans/ui-polish/execution-plan.md` and
+`plans/ui-polish/session-checkpoint.md` after the handoff's current-control sections. This package
+owns the new scope and next step; its initial product decisions are pending. Keep work on
+`codex/ui-redesign`. UIR-00 through UIR-09 remain complete; do not replay their historical gates.
+Use real-worker-backed UI journeys with disposable real-file copies, and distinguish native
+Computer Use from background WPF evidence. The new package supersedes the old 'no next UI work'
+startup direction for this explicitly requested stream.
+
 The operator activated the Windows UI redesign on 2026-09-08 and accepted its final scoped workflow
 at UIR-09 on 2026-09-14. All redesign plans, prototypes, implementation, tests and completion records
 stay on `codex/ui-redesign`. The prior
