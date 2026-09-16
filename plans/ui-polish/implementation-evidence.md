@@ -80,3 +80,33 @@ Run the extended rules/filesystem-change journey against the corrected worker,
 inspect corrected standard/narrow and theme captures, finish Debug/Release build/tests, and update
 the issue closure ledger. Native mouse/keyboard acceptance remains unrun while the desktop is
 locked. Background WPF control and real-worker evidence do not replace that final requirement.
+
+## Final background acceptance (2026-09-15)
+
+This section supersedes pending statements above; earlier incomplete runs remain diagnostic history.
+Full Rust Debug and Release workspace tests pass with the final freshness/admission guard. Release
+verification exposed two test timing assumptions: exact telemetry sequence ignored legitimate
+heartbeat samples; a threaded coalescing test assumed producer calls fit in one emission slot.
+Tests now allow those valid timings while asserting all five completed phases, zero flush errors,
+exact counters, contiguous bounded frames, source revision and eventual latest substage. Production
+behavior was unchanged by these final test corrections.
+
+Windows Release build passed with zero warnings/errors; Core 224 passed, Infrastructure 80 passed
+and five expected skips, WPF smoke 3/3 in 74 seconds. Artifacts are under
+`artifacts/ui-polish-verification/release-final`. This covers final singular/plural and success copy.
+
+The final fresh-state Release real-worker journey passed 1/1 in 23 seconds:
+`artifacts/ui-dev-session/polish-journey-fe4440ba6f8a4767a7031676cde91baa`.
+Its fresh real-file corpus is `polish-data-4ca8ef90e57e4966ad44f21cd111c2be` (671 copies).
+Restart/preferences, scoped rule preview/apply/reverse, content locks, changed/missing/new files,
+overlap, Stop/cancellation and successful rescan all passed. Narrow selected-copy, checked Review
+(scrolled detail state) and final rescan captures were inspected; standard Review entry/readiness
+is separately covered by the passing WPF matrix. No new product defect was found.
+Standalone and packaged Release worker hashes match:
+`F90D8A78565489E1C4F3B61BD7C85E0FFFC89E174A4E809D3BD049DC4F78A115`.
+The journey records disposal of owned workers; final process/sidecar inspection found none remaining.
+
+Only required native mouse/keyboard/dialog and physical high-contrast acceptance remains unrun.
+Native window enumeration previously timed out and LogonUI PID 1220 remains present at final check.
+P08 is blocked on an available desktop, not a new design decision. No unlocking/security workaround
+was attempted. All independent implementation and background verification is complete.

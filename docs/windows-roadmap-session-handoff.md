@@ -14,7 +14,7 @@ necessary engine bug fixes. `plans/ui-polish/README.md`, `execution-plan.md` and
 `session-checkpoint.md` now own this new stream on `codex/ui-redesign`. The operator accepted the
 interview recommendations and explicitly authorized autonomous implementation and subagents.
 Balanced Files/Folders, quiet native style, disabled removal, remembered details, adaptive 900×600
-and a final native pass are the accepted contract. P01–P06 implementation is under integration;
+and a final native pass are the accepted contract. P01–P06 implementation and background journeys pass;
 the compact polish checkpoint owns current evidence and the exact next step. This supersedes historical
 'await new direction' entries below without reopening UIR-00–09 or the parked release campaign.
 
@@ -30,13 +30,16 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 
 ## Current checkpoint
 
-- Polish implementation is active after the accepted interview. P01–P06 changes and a real-worker
-  WPF runner are integrated, with adaptive comparison/layout corrections under verification.
-  Real data exposed an engine bug: a changed-copy live validation did not stale an older preflight
-  when manual review revision stayed unchanged. The polish evidence ledger records the bounded fix
-  and regression status. Follow `plans/ui-polish/session-checkpoint.md` for current builds, captures,
-  next work and the still-unrun final native pass; do not treat historical baseline totals below as
-  acceptance of the new implementation.
+- Polish implementation through `e4578ef` and final verification slice are complete. Full Rust
+  Debug/Release tests pass. Both Windows builds have zero warnings/errors; Core 224, Infrastructure
+  80/five expected skips and WPF 3/3 pass in each configuration (Debug eligibility in normal VM).
+  Final Release real-file journey `artifacts/ui-dev-session/polish-journey-fe4440ba6f8a4767a7031676cde91baa`
+  passes fresh-state restart/rules/mutations/Stop/rescan. Matched worker hashes and process/sidecar
+  cleanup verified. Two machine-speed-dependent test assumptions corrected without production changes.
+  P01–P06 background-verified; P07 background matrix complete; P08 only native input/high-contrast
+  acceptance remains blocked. Native inventory timed out; LogonUI PID 1220 remains active. The
+  compact polish checkpoint owns the exact next native pass after desktop availability. Historical
+  totals below are not acceptance of the new implementation. No further product decisions pending.
 
 - New polish P00: complete source/visual feature inventory and proposed P00–P08 plan. Debug paired
   build passes with zero Windows warnings/errors; WPF smoke passes 3/3 with 125 captures.

@@ -10479,7 +10479,7 @@ mod tests {
     }
 
     #[test]
-    fn folder_substage_updates_are_latest_only_bounded_and_keep_source_revision() {
+    fn folder_substage_updates_publish_latest_and_keep_source_revision() {
         use super_duper_core::telemetry::{
             ActiveDeviceProgress, ActiveDeviceUnavailableReason, ProgressLogicalCounters,
             ProgressObservation, ScanCounters, METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION,
@@ -10515,15 +10515,37 @@ mod tests {
         reporter.on_dir_analysis_substage(FolderAnalysisSubstage::Hierarchy, 0, 10);
         reporter.on_dir_analysis_substage(FolderAnalysisSubstage::Hierarchy, 5, 10);
         reporter.on_dir_analysis_substage(FolderAnalysisSubstage::Verification, 3, 6);
-        let latest: Value = serde_json::from_str(
-            &receiver
-                .recv_timeout(Duration::from_millis(500))
-                .expect("coalesced folder-analysis frame"),
-        )
-        .unwrap();
-        assert_eq!(latest["data"]["sequence"], 2);
-        assert_eq!(latest["data"]["progress"]["revision"], source_revision);
-        assert_eq!(latest["data"]["folderAnalysis"]["substage"], "verification");
+        // Producer calls can span more than one emission slot on a busy machine.
+        // Deterministic cadence/coalescing bounds are covered in progress_projection;
+        // this threaded integration must retain ordered frames and eventually the latest value.
+        let deadline = Instant::now() + Duration::from_secs(2);
+        let mut sequence = first["data"]["sequence"].as_u64().unwrap();
+        let mut hierarchy_completed = 0;
+        let latest = loop {
+            let frame: Value = serde_json::from_str(
+                &receiver
+                    .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                    .expect("latest folder-analysis frame"),
+            )
+            .unwrap();
+            sequence += 1;
+            assert_eq!(frame["data"]["sequence"], sequence);
+            assert!(
+                sequence <= 4,
+                "three updates may emit at most three additional frames"
+            );
+            assert_eq!(frame["data"]["progress"]["revision"], source_revision);
+            if frame["data"]["folderAnalysis"]["substage"] == "verification" {
+                break frame;
+            }
+            assert_eq!(frame["data"]["folderAnalysis"]["substage"], "hierarchy");
+            let completed = frame["data"]["folderAnalysis"]["completed"]
+                .as_u64()
+                .unwrap();
+            assert!(completed >= hierarchy_completed && matches!(completed, 0 | 5));
+            hierarchy_completed = completed;
+            assert_eq!(frame["data"]["folderAnalysis"]["total"], 10);
+        };
         assert_eq!(latest["data"]["folderAnalysis"]["completed"], 3);
         assert_eq!(latest["data"]["folderAnalysis"]["total"], 6);
         assert!(receiver.recv_timeout(Duration::from_millis(150)).is_err());

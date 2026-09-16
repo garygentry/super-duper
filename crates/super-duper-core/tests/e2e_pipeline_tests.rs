@@ -185,7 +185,9 @@ fn test_full_scan_pipeline() {
         .unwrap();
     assert_eq!(state, "completed");
     assert_eq!(contract, i64::from(METRICS_CONTRACT_VERSION));
-    assert_eq!(last_sequence, 10);
+    // Five phase start/end pairs are mandatory; slower Windows runs may also persist
+    // legitimate heartbeat samples. Their count must not depend on machine speed.
+    assert!(last_sequence >= 10);
     assert_eq!(replay_flushes, 0);
     let metric = |name: &str| -> i64 {
         status
@@ -238,16 +240,17 @@ fn test_full_scan_pipeline() {
     assert_eq!(metric("partial_hashes_attempted"), 4);
     assert_eq!(metric("partial_hash_bytes_read"), 2_084);
     assert_eq!(metric("confirmed_duplicate_groups"), 2);
-    let incomplete_phase_count: i64 = status
+    assert_eq!(metric("telemetry_flush_errors"), 0);
+    let (phase_count, incomplete_phase_count): (i64, i64) = status
         .connection()
         .query_row(
-            "SELECT COUNT(*) FROM status_phase
-             WHERE run_id = (SELECT id FROM status_run WHERE product_run_id = ?1)
-               AND state <> 'completed'",
+            "SELECT COUNT(*), COUNT(CASE WHEN state <> 'completed' THEN 1 END) FROM status_phase
+             WHERE run_id = (SELECT id FROM status_run WHERE product_run_id = ?1)",
             [result.run_id],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .unwrap();
+    assert_eq!(phase_count, 5);
     assert_eq!(incomplete_phase_count, 0);
 }
 

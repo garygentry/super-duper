@@ -61,14 +61,14 @@ Readiness means the scope explicitly chosen by the operator, not an implied prod
 | Gate | Dependencies | Work and exit evidence | State |
 |---|---|---|---|
 | P00 Review and plan | None | Inventory, baseline findings, real-file preparation, operator decisions captured | Complete |
-| P01 Reliable real-app exercise | P00 | Real-worker WPF runner, independent state/data, native capability ledger; baseline journeys and issue backlog | Implemented; verification active |
-| P02 Shared shell and design system | P01 | Navigation, responsive selector, hierarchy/icons/tokens, startup/error states; representative actual WPF captures | Implemented; verification active |
-| P03 Setup, scanning and rescan | P02 | Simplified start path, settings disclosure, honest monitoring/stop/summary; rescan/restart/history journeys | Implemented; verification active |
-| P04 File and folder review | P03 | Comparable rows, unified filters/units, focused actions, paging/focus and narrow layouts; file/folder real-data decisions | Implemented; verification active |
-| P05 Review and preferences | P04 | Visible totals/check, staged rule flow, stale/error/readiness, contextual operation evidence; real preflight/rule checks | Implemented; verification active |
-| P06 History and diagnostics | P05 | Compact history, issues-first warnings, secondary performance/recovery details; exact navigation/context tests | Implemented; verification active |
-| P07 Integration and defect closure | P02–P06 | Full journey/theme/accessibility matrix, Rust/.NET Debug+Release, real-worker restart/edit/overlap cases | Active |
-| P08 Final quality audit | P07 | Independent fresh-state repeat of common journeys; all required findings closed with evidence, durable handoff | Pending |
+| P01 Reliable real-app exercise | P00 | Real-worker WPF runner, independent state/data, native capability ledger; baseline journeys and issue backlog | Implemented; background-verified |
+| P02 Shared shell and design system | P01 | Navigation, responsive selector, hierarchy/icons/tokens, startup/error states; representative actual WPF captures | Implemented; background-verified |
+| P03 Setup, scanning and rescan | P02 | Simplified start path, settings disclosure, honest monitoring/stop/summary; rescan/restart/history journeys | Implemented; background-verified |
+| P04 File and folder review | P03 | Comparable rows, unified filters/units, focused actions, paging/focus and narrow layouts; file/folder real-data decisions | Implemented; background-verified |
+| P05 Review and preferences | P04 | Visible totals/check, staged rule flow, stale/error/readiness, contextual operation evidence; real preflight/rule checks | Implemented; background-verified |
+| P06 History and diagnostics | P05 | Compact history, issues-first warnings, secondary performance/recovery details; exact navigation/context tests | Implemented; background-verified |
+| P07 Integration and defect closure | P02–P06 | Full journey/theme/accessibility matrix, Rust/.NET Debug+Release, real-worker restart/edit/overlap cases | Background matrix complete; native acceptance pending |
+| P08 Final quality audit | P07 | Independent fresh-state repeat of common journeys; all required findings closed with evidence, durable handoff | Fresh-state pass complete; native acceptance blocked |
 
 Necessary engine/worker/infrastructure bug fixes run within the gate discovering them. Record
 reproduction, expected/actual result, smallest compatible fix, targeted regression, and relevant

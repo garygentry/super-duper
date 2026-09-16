@@ -2,69 +2,50 @@
 
 Updated 2026-09-15 local time. Branch `codex/ui-redesign`; pre-review baseline `6206610`.
 
-- P00 complete; operator accepted all interview recommendations and explicitly authorized
-  autonomous implementation with subagents. No design decisions remain pending.
-- P01 real-worker WPF runner and P02–P06 product changes implemented; integration is active.
-  See [implementation evidence](implementation-evidence.md) for exact scope and caught defects.
-- Source work includes responsive shell, native shared styling/icons, persisted display settings,
-  simplified setup/monitoring, file/folder filters and decisions, Review checks first, staged
-  preferences, compact History/warnings/Performance and recovery details. Removal stays disabled.
-- Real production worker/WPF baseline exercised >200 groups and members, file/folder decisions,
-  preflight and restart. Latest extended runner adds real JSON preferences, rule application and
-  reversal, separate-corpus changed/locked/missing/added files, overlapping roots and Stop/rescan.
-  The extended run is not yet a passing acceptance result; wait for its final evidence.
-- Actual narrow screenshots revealed a copies-grid sliver and clipped Folder filters. Responsive
-  single-pane comparisons and consistent compact filters are implemented; verify selected-copy
-  captures, not just the set list. History is list-first and Progress separates concise/technical ETA.
-- Extended real journey passed disk preferences and rules preview/apply/reverse, then reproduced
-  a real engine bug: changed-file validation invalidates a working decision, but older preflight
-  still reports current because manual revision is unchanged. Engine agent owns a bounded history-
-  intersection correction and regression tests. Root UI now distinguishes this stale reason.
-- Rust Debug tests passed. Core Debug 223 passed; Infrastructure 79 plus the isolated read-only
-  eligibility check passed, with five expected skips. Full WPF regression is being updated for
-  intentional icon/staged-tab behavior; do not claim its final pass yet.
-- Rust Release workspace tests passed after resuming with two jobs (45m59 including native build).
-  This precedes the final operation-admission freshness guard; rerun affected tests after that fix.
-  Matching Debug/Release final matrix remains pending. Disable .NET shared build servers and serialize
-  builds: this resolved unreliable/stalled build-server retries and exposes compiler errors.
-- Corpus: 671 actual document/media/archive copies with source hashes and ZIP-entry provenance.
-  Worker state and mutations are private under ignored `artifacts/ui-dev-session` directories.
-- Native Computer Use previously returned only Codex with LogonUI active. Native final pass is
-  unrun, not waived; do not repeatedly probe input while locked or block independent work.
-- Next: finish narrow comparison correction, definitive smoke/real-data run, inspect standard,
-  narrow and theme captures, fix remaining findings, finish matrix, update issue closure ledger.
-  Only after all independent work is complete, resolve/report the final native input prerequisite.
-- Preserve `codex/ui-redesign` and `wpf-poc`; no merge/push/release/provider/deletion authority.
-  UIR-00–09 remain complete; do not restart historical gates.
-- Subagents hit the account usage limit during verification. Root continued locally. Latest engine
-  source also invalidates affected watcher-overflow history and guards operation preparation and
-  confirmation within their transactions. Seven targeted storage tests passed after these additions;
-  the timestamp unit test passed before the operation guards (timestamp code unchanged).
-- Core rerun includes deterministic elapsed clocks in two dispatcher-queue tests; real progress
-  delivery scheduling and exact queue-count assertions remain unchanged. Stale-check UI covers
-  uncertain filesystem changes without claiming that every case was a confirmed changed file.
-- Latest Core Debug rerun passed 224/224. WPF retry reached a stale simultaneous-editor/preview
-  layout assertion; it now verifies the accepted one-stage-at-a-time flow and is rerunning.
+## Current state
 
-## Latest verified slice (after implementation commit `10fbc0f`)
+- P00 complete. All interview recommendations accepted; implementation and subagents authorized.
+- P01–P06 implemented and background-verified. P07 background matrix complete. P08 fresh-state
+  Release journey passes; final native mouse/keyboard and physical high-contrast acceptance blocked.
+  Do not claim full readiness or restart the completed redesign/release campaigns.
+- Product changes through `e4578ef`: quiet responsive shell, shared icons/styles, remembered mode
+  and disclosures, locations-first setup, concise progress, adaptive Files/Folders comparison,
+  unified filters/units, checks-first Review, staged rules, list-first History and optional diagnostics.
+- Engine freshness fix covers newer target/survivor/reconciliation/overflow evidence and operation
+  prepare/confirm admission. History recorded-location XAML crash and narrow layout defects fixed.
+- Final verification slice corrects two machine-speed-dependent Rust test assumptions; no production
+  behavior changes. Heartbeat samples and valid intermediate coalesced frames remain permitted,
+  while exact phase/counter/revision/order and bounded-frame checks remain enforced.
 
-- Full Debug Rust workspace passed with the freshness and operation-admission guard.
-- Debug Windows solution built without warnings/errors. Core 224 passed; Infrastructure 79
-  passed/five expected skips plus normal-context read-only eligibility 1/1 passed.
-- Full WPF smoke matrix passed 3/3 in 44 seconds with actual Light/Dark, 100%/150% text,
-  standard/narrow windows, disclosure/focus/scroll checks and monitoring states. Captures:
-  `artifacts/ui-polish-verification/{layout-captures,progress-captures,shell-captures}`.
-- Actual-file journey passed 1/1 in 73 seconds:
-  `artifacts/ui-dev-session/polish-journey-2a06e3b5820646c680fd5e7b5a4aa411`.
-  Includes Stop/cancel/rescan, changes/locks/missing/new/overlapping paths, original-state
-  preservation, disk preferences/restart, and rule preview/apply/reverse.
-- Layout regressions drove compact shell/banner margins and removal of a redundant healthy
-  filter notice. Files comparison receives 61.7% of client height while another scan is active;
-  Folder comparison also passes the unchanged 60% requirement. Narrow/enlarged decisions pass.
-- Fixed a real History recorded-path XAML crash with an explicit one-way read-only binding.
-  Test navigation now opens staged/technical disclosures before inspecting their contents.
-- Rendering helpers use render-priority geometry sampling to avoid idle starvation; the expanded
-  complete suite has a two-minute watchdog, retaining three-second layout-stability limits.
-- Only the final small Review singular/plural/success-copy edit postdates the passing Debug
-  journey; validate it in the matching Release matrix. Next: Release build/tests and journey,
-  final fresh-state/native acceptance and issue-ledger closure. Native input remains unrun.
+## Verified evidence
+
+- Full Rust Debug and Release workspace tests pass, including final engine admission guards.
+- Windows Debug and Release builds: zero warnings/errors. Core 224 passed in each configuration.
+  Infrastructure 80 passed/five expected skips in each (Debug eligibility checked in normal VM).
+- WPF regression: Debug 3/3 (44s); Release 3/3 (74s). Light/Dark, 100%/150% text, standard/narrow,
+  disclosure/focus/scroll and monitoring states pass. Files gets 61.7% client height with an active
+  scan; Folders also meets unchanged 60% requirement. Actual stressed captures inspected.
+- Debug actual-file journey: `artifacts/ui-dev-session/polish-journey-2a06e3b5820646c680fd5e7b5a4aa411`.
+- Final Release actual-file journey: `artifacts/ui-dev-session/polish-journey-fe4440ba6f8a4767a7031676cde91baa`,
+  passed 1/1 in 23s. Fresh corpus `polish-data-4ca8ef90e57e4966ad44f21cd111c2be`: 671 real copies,
+  mixed documents/media/archive with provenance. Rules preview/apply/reverse, disk preferences,
+  restart, changed/locked/missing/new/overlap cases, cancellation and rescan all pass.
+- Standalone and packaged Release worker SHA256 both
+  `F90D8A78565489E1C4F3B61BD7C85E0FFFC89E174A4E809D3BD049DC4F78A115`.
+- Final cleanup: no app/worker process or `.uidev` sidecar found. Sources preserved; runtime ignored.
+- See `implementation-evidence.md` and `review.md` for evidence categories and finding dispositions.
+
+## Exact next step
+
+Native inventory previously timed out; LogonUI PID 1220 remains active at final check. Stop native
+calls until the user makes the desktop available. No remaining independent implementation/test work.
+Once unlocked, use the Computer Use skill and fresh app/window inventory. Prepare an isolated Debug
+control launch using the documented `Start-WindowsUiDev.ps1 -SkipBuild -PrepareControlLaunch` flow
+and a retained real-data journey state. Verify actual folder picker, start/stop, file/folder decisions,
+copy/reveal, rules confirmation/Escape, History/context return, keyboard/focus/resize/enlarged text and
+physical high contrast. Record failures, fix/retest affected cases, remove owned sidecar and verify
+worker cleanup. Close P08 only with actual native evidence and update the ledger/handoff.
+
+Keep `codex/ui-redesign` and `wpf-poc`; no merge/push/release/deletion activation. Subagents exhausted
+account usage during verification; root finished locally. Build serially, Cargo jobs 2, .NET shared
+build servers disabled. Do not compile concurrently with UI journeys. No more product decisions pending.
