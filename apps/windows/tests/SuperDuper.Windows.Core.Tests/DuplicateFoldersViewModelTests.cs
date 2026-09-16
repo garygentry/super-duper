@@ -110,7 +110,8 @@ public sealed class DuplicateFoldersViewModelTests
             TestWorkerClient.CreateRun(18, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
 
         viewModel.SearchText = "draft path";
-        viewModel.MinimumSizeText = "4096";
+        viewModel.MinimumSizeUnit = "MiB";
+        viewModel.MinimumSizeText = "1.5";
         await viewModel.NextPageCommand.ExecuteAsync(null);
 
         Assert.IsTrue(observedQueries.Where(query => query.Cursor == "next").All(query =>
@@ -123,7 +124,7 @@ public sealed class DuplicateFoldersViewModelTests
         Assert.AreEqual("No folders match these filters", viewModel.EmptyStateTitle);
         StringAssert.Contains(viewModel.StateMessage, "applied folder filters");
         StringAssert.Contains(viewModel.AppliedFilterSummaryText, "draft path");
-        StringAssert.Contains(viewModel.AppliedFilterSummaryText, "4096 bytes per folder copy");
+        StringAssert.Contains(viewModel.AppliedFilterSummaryText, "1572864 bytes per folder copy");
 
         viewModel.SearchText = "unapplied replacement";
         StringAssert.Contains(viewModel.AppliedFilterSummaryText, "draft path");
@@ -132,8 +133,45 @@ public sealed class DuplicateFoldersViewModelTests
         await viewModel.ClearFiltersCommand.ExecuteAsync(null);
         Assert.AreEqual(string.Empty, viewModel.SearchText);
         Assert.AreEqual(string.Empty, viewModel.MinimumSizeText);
+        Assert.AreEqual("B", viewModel.MinimumSizeUnit);
         Assert.IsFalse(viewModel.HasAppliedFilters);
         StringAssert.Contains(viewModel.AppliedFilterSummaryText, "none");
+    }
+
+    [TestMethod]
+    public async Task FolderSizeUnitsRejectFractionalBytesAndOverflowWithoutReplacingAcceptedQuery()
+    {
+        var queries = new List<DuplicateFolderGroupQuery>();
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) =>
+            {
+                queries.Add(query);
+                return Task.FromResult(new WorkerDuplicateFolderGroupPage([], 0, null, null));
+            },
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(29, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        viewModel.MinimumSizeUnit = "MiB";
+        viewModel.MinimumSizeText = "1.5";
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+        Assert.AreEqual("1572864", queries.Last().Filter.MinimumSize);
+
+        var acceptedQueryCount = queries.Count;
+        viewModel.MinimumSizeUnit = "B";
+        viewModel.MinimumSizeText = "0.1";
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+        Assert.IsTrue(viewModel.HasError);
+        Assert.AreEqual(acceptedQueryCount, queries.Count);
+
+        viewModel.MinimumSizeUnit = "GiB";
+        viewModel.MinimumSizeText = "8589934592";
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+        Assert.IsTrue(viewModel.HasError);
+        Assert.AreEqual(acceptedQueryCount, queries.Count);
+        StringAssert.Contains(viewModel.AppliedFilterSummaryText, "1572864 bytes per folder copy");
     }
 
     [TestMethod]

@@ -11,9 +11,11 @@ linked plans remain authoritative.
 **Current control, 2026-09-15:** the operator explicitly requested a new end-to-end usability and
 visual-polish review, plan, real-data VM environment and subsequent autonomous iteration, including
 necessary engine bug fixes. `plans/ui-polish/README.md`, `execution-plan.md` and
-`session-checkpoint.md` now own this new stream on `codex/ui-redesign`. Initial review and proposed
-plan are written; workflow emphasis, visual style and removal scope await the requested initial
-clarification. P01 next establishes real-worker-backed WPF journeys. This supersedes historical
+`session-checkpoint.md` now own this new stream on `codex/ui-redesign`. The operator accepted the
+interview recommendations and explicitly authorized autonomous implementation and subagents.
+Balanced Files/Folders, quiet native style, disabled removal, remembered details, adaptive 900×600
+and a final native pass are the accepted contract. P01–P06 implementation is under integration;
+the compact polish checkpoint owns current evidence and the exact next step. This supersedes historical
 'await new direction' entries below without reopening UIR-00–09 or the parked release campaign.
 
 The operator activated a Windows UI redesign on 2026-09-08 and accepted its final scoped workflow at
@@ -28,13 +30,21 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 
 ## Current checkpoint
 
+- Polish implementation is active after the accepted interview. P01–P06 changes and a real-worker
+  WPF runner are integrated, with adaptive comparison/layout corrections under verification.
+  Real data exposed an engine bug: a changed-copy live validation did not stale an older preflight
+  when manual review revision stayed unchanged. The polish evidence ledger records the bounded fix
+  and regression status. Follow `plans/ui-polish/session-checkpoint.md` for current builds, captures,
+  next work and the still-unrun final native pass; do not treat historical baseline totals below as
+  acceptance of the new implementation.
+
 - New polish P00: complete source/visual feature inventory and proposed P00–P08 plan. Debug paired
   build passes with zero Windows warnings/errors; WPF smoke passes 3/3 with 125 captures.
   Two real-document corpus scans complete with 88 groups/176 copies and working 25-row paging.
   Computer Use returns only Codex; LogonUI is active, so native real-data exercise is unrun.
   Scripts prepare disposable actual-file copies and private worker state. No app/worker remains
   running; prepared Debug sidecar is removed. See `plans/ui-polish/review.md` for evidence paths.
-  Settle the three initial decisions, then P01; no repeated operator review of routine slices.
+  The subsequent interview is accepted; continue implementation without repeated design approval.
 
 - Branch: `codex/ui-redesign`; remain here after completion until explicit operator direction.
 - The operator explicitly authorized background VM work while its remote desktop is backgrounded or

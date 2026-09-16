@@ -596,6 +596,7 @@ public sealed class SessionSetupViewModel : ObservableObject
             var path = root.Path.Trim();
             var messages = _validation.Errors.Concat(_validation.Warnings)
                 .Where(message => path.Length > 0 && message.Contains(path, StringComparison.OrdinalIgnoreCase)).ToArray();
+            root.HasStatusNotice = path.Length == 0 || messages.Length > 0;
             root.Status = path.Length == 0 ? "Enter an absolute folder or drive path."
                 : messages.Length > 0 ? string.Join(" ", messages)
                 : "Location configured; availability is checked again on Start.";

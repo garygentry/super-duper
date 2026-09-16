@@ -18,7 +18,8 @@ use super_duper_core::storage::models::{
     ExactFolderGroupInsert, PageCursor, PageCursorValue, PreferencePreviewScope,
     RecoveryObservationKind, RecoveryReviewObservationInput, RecoveryReviewState,
     RecycleEligibilityObservation, RecycleItemResultObservation, RegisteredCloudLocation,
-    RepeatCachePolicy, ReviewDecisionKind, ReviewLiveHintRequest, RunExclusionInsert,
+    RepeatCachePolicy, ReviewDecisionKind, ReviewLiveHintRequest, ReviewLiveRootOverflowRequest,
+    ReviewLiveRootReconciliationRequest, ReviewLiveValidationRequest, RunExclusionInsert,
     RunParameters, RunWarningAggregateInsert, RunWarningPageQuery, RunWarningSortField,
     ScannedFile, SortDirection,
 };
@@ -3321,6 +3322,308 @@ fn preflight_freezes_exact_review_revision_replays_and_recovers_interruption() {
         recovered.preflight.error_code.as_deref(),
         Some("worker_interrupted")
     );
+}
+
+#[test]
+fn preflight_freshness_tracks_relevant_live_history_without_rewriting_scan_or_revision() {
+    for scenario in [
+        "target",
+        "survivor",
+        "reconciliation",
+        "during-check",
+        "overflow",
+    ] {
+        let temp = tempdir().unwrap();
+        let root = fs::canonicalize(temp.path()).unwrap();
+        let roots = [root.join("main"), root.join("other")];
+        for selected in &roots {
+            fs::create_dir(selected).unwrap();
+        }
+        let names = ["remove", "survivor", "unrelated-a", "unrelated-b"];
+        let paths = [0, 1, 2, 3].map(|index| roots[index / 2].join(names[index]));
+        for (index, path) in paths.iter().enumerate() {
+            fs::write(
+                path,
+                if index < 2 {
+                    b"main copies".as_slice()
+                } else {
+                    b"other copies".as_slice()
+                },
+            )
+            .unwrap();
+        }
+        let db = Database::open_in_memory().unwrap();
+        let root_text = roots[0].to_string_lossy().into_owned();
+        let other_root_text = roots[1].to_string_lossy().into_owned();
+        let (_, run_id) = session_and_run(&db, scenario, &[&root_text, &other_root_text]);
+        let files = [0, 1, 2, 3].map(|index| live_file(run_id, &roots[index / 2], &paths[index]));
+        let groups = [0, 2].map(|index| {
+            (
+                files[index].content_hash.unwrap(),
+                files[index].file_size,
+                vec![
+                    files[index].canonical_path.clone(),
+                    files[index + 1].canonical_path.clone(),
+                ],
+            )
+        });
+        db.insert_scanned_files(&files).unwrap();
+        db.insert_duplicate_groups(run_id, &groups).unwrap();
+        db.complete_scan_run(run_id, 4, 46, 4, 2, 0, 23, 0).unwrap();
+        let ids = files.each_ref().map(|file| {
+            db.connection()
+                .query_row(
+                    "SELECT id FROM scanned_file WHERE canonical_path = ?1",
+                    params![file.canonical_path],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap()
+        });
+        let group_ids = [0, 2].map(|index| {
+            db.connection()
+                .query_row(
+                    "SELECT id FROM duplicate_group WHERE run_id = ?1 AND content_hash = ?2",
+                    params![run_id, files[index].content_hash],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap()
+        });
+        db.set_review_decision(
+            "remove",
+            run_id,
+            group_ids[0],
+            ids[0],
+            ReviewDecisionKind::Remove,
+            0,
+        )
+        .unwrap();
+        let validate = |operation: &str, index: usize| {
+            db.validate_review_files(&ReviewLiveValidationRequest {
+                operation_id: operation.to_owned(),
+                run_id,
+                group_id: group_ids[index / 2],
+                expected_review_revision: 1,
+                scope: "selection".to_owned(),
+                file_ids: vec![ids[index]],
+            })
+            .unwrap()
+        };
+        if scenario == "reconciliation" {
+            db.mark_review_root_overflow(&ReviewLiveRootOverflowRequest {
+                operation_id: "overflow".to_owned(),
+                run_id,
+                root_path: root_text.clone(),
+            })
+            .unwrap();
+        }
+        let check = db
+            .create_preflight("check", run_id, 1)
+            .unwrap()
+            .view
+            .preflight
+            .id;
+        let changed_index = if matches!(scenario, "survivor" | "reconciliation" | "overflow") {
+            1
+        } else {
+            0
+        };
+        let changed_path = Path::new(&files[changed_index].canonical_path);
+        let original_modified = fs::metadata(changed_path).unwrap().modified().unwrap();
+        let mut changed_during_check = false;
+        let result = db
+            .validate_preflight(check, &AtomicBool::new(false), |_, path| {
+                if scenario == "during-check"
+                    && !changed_during_check
+                    && path == Some(files[0].canonical_path.as_str())
+                {
+                    fs::write(changed_path, b"changed after this item was checked").unwrap();
+                    assert_eq!(
+                        validate("during-check", changed_index).items[0].state,
+                        "changed"
+                    );
+                    changed_during_check = true;
+                }
+            })
+            .unwrap();
+        assert_eq!(result.summary.ready_count, 2);
+        let prepared = if scenario == "overflow" {
+            let operation = db
+                .prepare_recycle_operation("prepare-before-overflow", run_id, check, 1)
+                .unwrap();
+            let items = db
+                .page_recycle_operation_items(operation.view.operation.id, 0, 10, None)
+                .unwrap();
+            Some(
+                db.report_recycle_eligibility(
+                    "eligibility-before-overflow",
+                    operation.view.operation.id,
+                    &[RecycleEligibilityObservation {
+                        item_id: items.items[0].id,
+                        status: "eligible".to_owned(),
+                        reason_code: Some("non_mutating_test".to_owned()),
+                    }],
+                )
+                .unwrap()
+                .view
+                .operation,
+            )
+        } else {
+            None
+        };
+        if scenario != "during-check" {
+            assert!(db.get_preflight_view(check).unwrap().is_current);
+            assert_eq!(validate("unchanged", 1).items[0].state, "present");
+            assert!(db.get_preflight_view(check).unwrap().is_current);
+            fs::write(&files[2].canonical_path, b"unrelated changed copy").unwrap();
+            assert_eq!(validate("unrelated", 2).items[0].state, "changed");
+            assert!(
+                db.get_preflight_view(check).unwrap().is_current,
+                "unrelated set must not stale check"
+            );
+            db.mark_review_root_overflow(&ReviewLiveRootOverflowRequest {
+                operation_id: "unrelated-overflow".to_owned(),
+                run_id,
+                root_path: other_root_text.clone(),
+            })
+            .unwrap();
+            assert!(
+                db.get_preflight_view(check).unwrap().is_current,
+                "unrelated root overflow must not stale check"
+            );
+            if scenario != "overflow" {
+                fs::write(changed_path, b"changed relevant copy").unwrap();
+            }
+            if matches!(scenario, "reconciliation" | "overflow") {
+                if scenario == "overflow" {
+                    db.mark_review_root_overflow(&ReviewLiveRootOverflowRequest {
+                        operation_id: "overflow".to_owned(),
+                        run_id,
+                        root_path: root_text.clone(),
+                    })
+                    .unwrap();
+                    assert!(
+                        !db.get_preflight_view(check).unwrap().is_current,
+                        "overflow must stale before individual reconciliation"
+                    );
+                }
+                let reconciled = db
+                    .reconcile_review_root(&ReviewLiveRootReconciliationRequest {
+                        operation_id: "reconcile".to_owned(),
+                        run_id,
+                        root_path: root_text.clone(),
+                        expected_dirty_revision: 1,
+                        expected_review_revision: 1,
+                        page_size: 200,
+                    })
+                    .unwrap();
+                assert_eq!(
+                    reconciled.summary.changed_count,
+                    if scenario == "overflow" { 0 } else { 1 }
+                );
+                if scenario == "overflow" {
+                    assert_eq!(reconciled.summary.present_count, 2);
+                    assert!(
+                        !db.get_preflight_view(check).unwrap().is_current,
+                        "Present-only reconciliation cannot restore a full check"
+                    );
+                }
+            } else {
+                assert_eq!(validate("changed", changed_index).items[0].state, "changed");
+            }
+        } else {
+            assert!(changed_during_check);
+        }
+        let stale = db.get_preflight_view(check).unwrap();
+        assert!(!stale.is_current, "{scenario}");
+        assert!(
+            matches!(
+                db.prepare_recycle_operation("prepare-stale", run_id, check, 1),
+                Err(RecycleOperationError::IneligiblePreflight { .. })
+            ),
+            "{scenario}: stale evidence must block operation preparation"
+        );
+        if let Some(operation) = prepared {
+            assert!(matches!(
+                db.confirm_recycle_operation(
+                    "confirm-stale",
+                    operation.id,
+                    operation.confirmation_signature.as_deref().unwrap()
+                ),
+                Err(RecycleOperationError::IneligiblePreflight { .. })
+            ));
+            assert_eq!(
+                db.get_recycle_operation(operation.id)
+                    .unwrap()
+                    .operation
+                    .status,
+                "awaiting_confirmation"
+            );
+            db.cancel_recycle_operation(operation.id).unwrap();
+        }
+        assert_eq!(
+            stale.current_review_revision, 1,
+            "live evidence does not edit manual revision"
+        );
+        assert_eq!(
+            stale.preflight.summary.ready_count, 2,
+            "stored check remains immutable"
+        );
+        let scanned_size: i64 = db
+            .connection()
+            .query_row(
+                "SELECT file_size FROM scanned_file WHERE id = ?1",
+                params![ids[changed_index]],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(scanned_size, files[changed_index].file_size);
+
+        // Restore content and metadata on the same file identity. A later metadata-only
+        // Present observation cannot revive the previous full content check.
+        fs::write(changed_path, b"main copies").unwrap();
+        fs::File::options()
+            .write(true)
+            .open(changed_path)
+            .unwrap()
+            .set_times(fs::FileTimes::new().set_modified(original_modified))
+            .unwrap();
+        assert_eq!(
+            validate("restored", changed_index).items[0].state,
+            "present"
+        );
+        assert!(!db.get_preflight_view(check).unwrap().is_current);
+        let revision = if changed_index == 0 {
+            db.set_review_decision(
+                "remark",
+                run_id,
+                group_ids[0],
+                ids[0],
+                ReviewDecisionKind::Remove,
+                1,
+            )
+            .unwrap();
+            2
+        } else {
+            1
+        };
+        let fresh = db
+            .create_preflight("fresh", run_id, revision)
+            .unwrap()
+            .view
+            .preflight
+            .id;
+        assert_eq!(
+            db.validate_preflight(fresh, &AtomicBool::new(false), |_, _| {})
+                .unwrap()
+                .summary
+                .ready_count,
+            2
+        );
+        assert!(
+            db.get_preflight_view(fresh).unwrap().is_current,
+            "new full check supersedes old evidence"
+        );
+    }
 }
 
 #[test]

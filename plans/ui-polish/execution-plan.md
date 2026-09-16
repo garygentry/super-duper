@@ -1,6 +1,6 @@
 # Autonomous usability and polish execution plan
 
-Status: proposed; settle the three decisions in README before product implementation.
+Status: accepted; implementation authorized after the operator interview and return to Default mode.
 Branch: `codex/ui-redesign`. Preserve `wpf-poc`; no merge, push or release implied.
 
 ## Outcome
@@ -10,7 +10,16 @@ check it and return later without learning engine terminology. Frequent work occ
 screen. Expert detail remains available on demand. All current capabilities remain reachable.
 Readiness means the scope explicitly chosen by the operator, not an implied production release.
 
-## Proposed interaction and visual contract
+## Accepted interaction and visual contract
+
+- Equal emphasis on file cleanup and backup folders; flexible navigation; quiet Windows-native UI.
+- Retain 900×600 via adaptive layouts. Remember individual section disclosure across restarts using
+  a small Core preference contract and Infrastructure JSON store, isolated from worker databases.
+  Missing/corrupt settings fall back safely; errors remain visible regardless of preferences.
+- On successful completion, open the remembered Files/Folders view only while watching that exact
+  active scan and no modal is open. Otherwise retain navigation and show a completion notice.
+- Mixed actual archive data and a final direct native mouse/keyboard pass are mandatory; locked
+  desktop availability is an external prerequisite only for that final pass, not implementation.
 
 - Keep WPF and the Rust worker boundary. Use restrained Windows-native typography, system
   theme/contrast support and semantic accent/success/warning/error brushes.
@@ -51,14 +60,14 @@ Readiness means the scope explicitly chosen by the operator, not an implied prod
 
 | Gate | Dependencies | Work and exit evidence | State |
 |---|---|---|---|
-| P00 Review and plan | None | Inventory, baseline findings, real-file preparation, operator decisions captured | Initial review done; decisions pending |
-| P01 Reliable real-app exercise | P00 | Real-worker WPF runner, independent state/data, native capability ledger; baseline journeys and issue backlog | Pending |
-| P02 Shared shell and design system | P01 | Navigation, responsive selector, hierarchy/icons/tokens, startup/error states; representative actual WPF captures | Pending |
-| P03 Setup, scanning and rescan | P02 | Simplified start path, settings disclosure, honest monitoring/stop/summary; rescan/restart/history journeys | Pending |
-| P04 File and folder review | P03 | Comparable rows, unified filters/units, focused actions, paging/focus and narrow layouts; file/folder real-data decisions | Pending |
-| P05 Review and preferences | P04 | Visible totals/check, staged rule flow, stale/error/readiness, contextual operation evidence; real preflight/rule checks | Pending |
-| P06 History and diagnostics | P05 | Compact history, issues-first warnings, secondary performance/recovery details; exact navigation/context tests | Pending |
-| P07 Integration and defect closure | P02–P06 | Full journey/theme/accessibility matrix, Rust/.NET Debug+Release, real-worker restart/edit/overlap cases | Pending |
+| P00 Review and plan | None | Inventory, baseline findings, real-file preparation, operator decisions captured | Complete |
+| P01 Reliable real-app exercise | P00 | Real-worker WPF runner, independent state/data, native capability ledger; baseline journeys and issue backlog | Implemented; verification active |
+| P02 Shared shell and design system | P01 | Navigation, responsive selector, hierarchy/icons/tokens, startup/error states; representative actual WPF captures | Implemented; verification active |
+| P03 Setup, scanning and rescan | P02 | Simplified start path, settings disclosure, honest monitoring/stop/summary; rescan/restart/history journeys | Implemented; verification active |
+| P04 File and folder review | P03 | Comparable rows, unified filters/units, focused actions, paging/focus and narrow layouts; file/folder real-data decisions | Implemented; verification active |
+| P05 Review and preferences | P04 | Visible totals/check, staged rule flow, stale/error/readiness, contextual operation evidence; real preflight/rule checks | Implemented; verification active |
+| P06 History and diagnostics | P05 | Compact history, issues-first warnings, secondary performance/recovery details; exact navigation/context tests | Implemented; verification active |
+| P07 Integration and defect closure | P02–P06 | Full journey/theme/accessibility matrix, Rust/.NET Debug+Release, real-worker restart/edit/overlap cases | Active |
 | P08 Final quality audit | P07 | Independent fresh-state repeat of common journeys; all required findings closed with evidence, durable handoff | Pending |
 
 Necessary engine/worker/infrastructure bug fixes run within the gate discovering them. Record
@@ -154,5 +163,8 @@ declare full native readiness. Missing external capability cannot be solved by w
 
 Commit each coherent slice with checkpoint and shared-handoff updates. Continue autonomously after
 plan decisions; ask only for a genuinely new product/safety boundary or unavailable required input.
-No subagents, new tasks or recurring automation are assumed. At a session handoff include a copyable
+The operator explicitly authorized subagents with task-appropriate models/effort. Assign exclusive
+file ownership, review results centrally and coordinate shared builds. Independent P01 tooling and
+P02 foundations may proceed concurrently; no gate passes before its dependencies. No new user tasks
+or recurring automation are requested. At a session handoff include a copyable
 prompt with committed state, exact next gate, verification and unresolved blockers.

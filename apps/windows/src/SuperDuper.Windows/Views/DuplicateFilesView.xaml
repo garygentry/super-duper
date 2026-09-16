@@ -229,17 +229,23 @@
                     </ComboBox>
                 </StackPanel>
                 <Button Margin="8,0,0,0"
+                        Style="{StaticResource ShellIconAction}"
                         KeyboardNavigation.TabIndex="130"
                         automation:AutomationProperties.AutomationId="FilePreviousRootFacets"
                         automation:AutomationProperties.Name="Previous selected-root facet page"
                         Command="{Binding PreviousRootFacetPageCommand}"
-                        Content="Previous roots" />
+                        ToolTip="Previous roots">
+                    <Path Data="{StaticResource ShellIconChevronLeft}" Style="{StaticResource ShellActionIcon}" />
+                </Button>
                 <Button Margin="6,0,0,0"
+                        Style="{StaticResource ShellIconAction}"
                         KeyboardNavigation.TabIndex="140"
                         automation:AutomationProperties.AutomationId="FileNextRootFacets"
                         automation:AutomationProperties.Name="Next selected-root facet page"
                         Command="{Binding NextRootFacetPageCommand}"
-                        Content="Next roots" />
+                        ToolTip="Next roots">
+                    <Path Data="{StaticResource ShellIconChevronRight}" Style="{StaticResource ShellActionIcon}" />
+                </Button>
                 <TextBlock Margin="10,0,0,0"
                            VerticalAlignment="Center"
                            automation:AutomationProperties.AutomationId="FileRootFacetCount"
@@ -310,17 +316,23 @@
                     </ComboBox>
                 </StackPanel>
                 <Button Margin="8,0,0,0"
+                        Style="{StaticResource ShellIconAction}"
                         KeyboardNavigation.TabIndex="160"
                         automation:AutomationProperties.AutomationId="FilePreviousDriveFacets"
                         automation:AutomationProperties.Name="Previous drive facet page"
                         Command="{Binding PreviousDriveFacetPageCommand}"
-                        Content="Previous drives" />
+                        ToolTip="Previous drives">
+                    <Path Data="{StaticResource ShellIconChevronLeft}" Style="{StaticResource ShellActionIcon}" />
+                </Button>
                 <Button Margin="6,0,0,0"
+                        Style="{StaticResource ShellIconAction}"
                         KeyboardNavigation.TabIndex="170"
                         automation:AutomationProperties.AutomationId="FileNextDriveFacets"
                         automation:AutomationProperties.Name="Next drive facet page"
                         Command="{Binding NextDriveFacetPageCommand}"
-                        Content="Next drives" />
+                        ToolTip="Next drives">
+                    <Path Data="{StaticResource ShellIconChevronRight}" Style="{StaticResource ShellActionIcon}" />
+                </Button>
                 <TextBlock Margin="10,0,0,0"
                            VerticalAlignment="Center"
                            automation:AutomationProperties.AutomationId="FileDriveFacetCount"
@@ -591,17 +603,23 @@
                            Text="{Binding GroupCountText}" TextWrapping="Wrap" />
                 <StackPanel Grid.Column="1" automation:AutomationProperties.Name="Duplicate file group paging" Orientation="Horizontal">
                     <Button
+                            Style="{StaticResource ShellIconAction}"
                             KeyboardNavigation.TabIndex="430"
                             automation:AutomationProperties.AutomationId="FilePreviousGroupPage"
                             automation:AutomationProperties.Name="Previous duplicate group page"
                             Command="{Binding PreviousPageCommand}"
-                            Content="Previous" />
+                            ToolTip="Previous sets">
+                        <Path Data="{StaticResource ShellIconChevronLeft}" Style="{StaticResource ShellActionIcon}" />
+                    </Button>
                     <Button Margin="8,0,0,0"
+                            Style="{StaticResource ShellIconAction}"
                             KeyboardNavigation.TabIndex="440"
                             automation:AutomationProperties.AutomationId="FileNextGroupPage"
                             automation:AutomationProperties.Name="Next duplicate group page"
                             Command="{Binding NextPageCommand}"
-                            Content="Next" />
+                            ToolTip="Next sets">
+                        <Path Data="{StaticResource ShellIconChevronRight}" Style="{StaticResource ShellActionIcon}" />
+                    </Button>
 
                 </StackPanel>
             </Grid>
@@ -716,44 +734,34 @@
                                    accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFileMemberQuery"
                                    Text="{Binding MemberCountText}" />
                         <Button x:Name="PreviousSetButton"
+                                Style="{StaticResource ShellIconAction}"
                                 KeyboardNavigation.TabIndex="450"
                                 automation:AutomationProperties.AutomationId="FilePreviousSet"
                                 automation:AutomationProperties.Name="Previous duplicate set; access key Alt+P; focus returns to the selected group"
                                 Click="OnSetNavigationClick"
-                                Content="_Previous set"
                                 IsEnabled="{Binding CanMoveToPreviousSet}"
-                                ToolTip="Previous duplicate set (Alt+P); returns focus to the selected group" />
+                                ToolTip="Previous duplicate set (Alt+P); returns focus to the selected group">
+                            <Path Data="{StaticResource ShellIconChevronLeft}" Style="{StaticResource ShellActionIcon}" />
+                        </Button>
                         <Button x:Name="NextSetButton"
                                 Margin="8,0,0,0"
+                                Style="{StaticResource ShellIconAction}"
                                 KeyboardNavigation.TabIndex="460"
                                 automation:AutomationProperties.AutomationId="FileNextSet"
                                 automation:AutomationProperties.Name="Next duplicate set; access key Alt+N; focus returns to the selected group"
                                 Click="OnSetNavigationClick"
-                                Content="_Next set"
                                 IsEnabled="{Binding CanMoveToNextSet}"
-                                ToolTip="Next duplicate set (Alt+N); returns focus to the selected group" />
+                                ToolTip="Next duplicate set (Alt+N); returns focus to the selected group">
+                            <Path Data="{StaticResource ShellIconChevronRight}" Style="{StaticResource ShellActionIcon}" />
+                        </Button>
                     </StackPanel>
                 </Grid>
                 <StackPanel x:Name="DetailContextSummary">
                     <TextBlock x:Name="SelectedSetExplanation"
                                automation:AutomationProperties.AutomationId="FileSelectedSetExplanation"
                                automation:AutomationProperties.Name="Exact content was verified at scan time; the representative label does not identify an original"
-                               Text="Exact content was verified at scan time. The representative label does not identify an original."
-                               Visibility="Collapsed" />
-                    <TextBlock Margin="0,3,0,0"
-                               automation:AutomationProperties.AutomationId="FileSelectedSetLocations"
-                               automation:AutomationProperties.LiveSetting="Polite"
-                               automation:AutomationProperties.Name="{Binding SelectedGroup.LocationSpan, StringFormat='Selected duplicate set location span: {0}'}"
-                               Text="{Binding SelectedGroup.LocationSpan}"
-                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
-                               ToolTip="{Binding SelectedGroup.LocationSpan}" />
-                    <TextBlock Margin="0,3,0,0"
-                               automation:AutomationProperties.AutomationId="FileReviewPlanSummary"
-                               automation:AutomationProperties.LiveSetting="Polite"
-                               automation:AutomationProperties.Name="{Binding ReviewPlanSummaryText}"
-                               Text="{Binding ReviewPlanSummaryText}"
-                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
-                               ToolTip="{Binding ReviewPlanSummaryText}" />
+                                Text="Exact content was verified at scan time. The representative label does not identify an original."
+                                Visibility="Collapsed" />
                     <TextBlock Margin="0,3,0,0"
                                automation:AutomationProperties.AutomationId="FileSelectedSetReviewSummary"
                                automation:AutomationProperties.LiveSetting="Polite"
@@ -761,6 +769,24 @@
                                Text="{Binding SelectedReviewSummaryText}"
                                TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
                                ToolTip="{Binding SelectedReviewSummaryText}" />
+                    <Expander x:Name="FileReviewDetails"
+                              Margin="0,3,0,0"
+                              Header="Set and review details"
+                              automation:AutomationProperties.AutomationId="FileReviewDetails">
+                        <StackPanel Margin="0,4,0,0">
+                            <TextBlock automation:AutomationProperties.AutomationId="FileSelectedSetLocations"
+                                       automation:AutomationProperties.LiveSetting="Polite"
+                                       automation:AutomationProperties.Name="{Binding SelectedGroup.LocationSpan, StringFormat='Selected duplicate set location span: {0}'}"
+                                       Text="{Binding SelectedGroup.LocationSpan}"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Margin="0,3,0,0"
+                                       automation:AutomationProperties.AutomationId="FileReviewPlanSummary"
+                                       automation:AutomationProperties.LiveSetting="Polite"
+                                       automation:AutomationProperties.Name="{Binding ReviewPlanSummaryText}"
+                                       Text="{Binding ReviewPlanSummaryText}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Expander>
                 </StackPanel>
             </StackPanel>
             <DataGrid x:Name="MembersGrid" MinHeight="0"
@@ -799,7 +825,7 @@
                                                ToolTip="{Binding Path}" />
                                     <TextBlock Margin="0,3,0,0"
                                                automation:AutomationProperties.Name="{Binding SelectedRoot, StringFormat='Selected root: {0}'}"
-                                               Text="{Binding SelectedRoot}"
+                                               Text="{Binding SelectedRootLabel}"
                                                TextWrapping="NoWrap"
                                                TextTrimming="CharacterEllipsis"
                                                ToolTip="{Binding SelectedRoot}" />
@@ -824,7 +850,7 @@
                     Grid.Row="2"
                     Margin="0,6,0,0"
                     Padding="10"
-                    MaxHeight="100"
+                     MaxHeight="148"
                     BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1"
                     CornerRadius="6"
@@ -852,48 +878,70 @@
                                         automation:AutomationProperties.AutomationId="FileBackToCopies"
                                         automation:AutomationProperties.Name="Back to copies in the selected duplicate set"
                                         Click="OnBackToCopiesClick"
-                                        Content="← Back to copies"
-                                        Visibility="Collapsed" />
-                                <TextBlock FontWeight="SemiBold" Text="Full path" />
-                                <TextBox Margin="0,4,0,0"
-                                         MaxHeight="88"
-                                         IsReadOnly="True"
-                                         IsReadOnlyCaretVisible="True"
-                                         Text="{Binding Path, Mode=OneWay}"
-                                         TextWrapping="Wrap"
-                                         VerticalScrollBarVisibility="Auto"
-                                         HorizontalScrollBarVisibility="Disabled"
-                                         automation:AutomationProperties.AutomationId="FileSelectedCopyPath"
-                                         automation:AutomationProperties.Name="{Binding Path, StringFormat='Complete selected copy path: {0}'}" />
-                                <WrapPanel Margin="0,8,0,0" automation:AutomationProperties.Name="Review decision for selected copy">
+                                         Content="← Back to copies"
+                                         Visibility="Collapsed" />
+                                 <StackPanel x:Name="NarrowFileAlerts" Visibility="Collapsed">
+                                     <TextBlock automation:AutomationProperties.AutomationId="FileNarrowDetailError"
+                                                automation:AutomationProperties.LiveSetting="Assertive"
+                                                Text="{Binding DataContext.DetailErrorMessage, ElementName=Root}"
+                                                TextWrapping="Wrap"
+                                                Visibility="{Binding DataContext.HasDetailError, ElementName=Root, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                     <TextBlock automation:AutomationProperties.AutomationId="FileNarrowValidationError"
+                                                automation:AutomationProperties.LiveSetting="Assertive"
+                                                Text="{Binding DataContext.LiveValidationErrorMessage, ElementName=Root}"
+                                                TextWrapping="Wrap"
+                                                Visibility="{Binding DataContext.HasLiveValidationError, ElementName=Root, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                 </StackPanel>
+                                 <TextBlock Margin="0,0,0,3"
+                                            FontWeight="SemiBold"
+                                            Text="{Binding Decision, StringFormat='Current decision: {0}'}"
+                                            TextWrapping="Wrap" />
+                                 <WrapPanel Margin="0,8,0,0" automation:AutomationProperties.Name="Review decision for selected copy">
                                     <Button automation:AutomationProperties.Name="{Binding Path, StringFormat='Keep {0}; preserves this physical copy'}"
                                             IsEnabled="{Binding CanRecordCurrentDecision}"
                                             Command="{Binding DataContext.KeepMemberCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
-                                            Content="Keep" />
+                                            Content="Keep copy" />
                                     <Button Margin="6,0,0,0"
                                             automation:AutomationProperties.Name="{Binding Path, StringFormat='Mark {0} for removal; records intent only and does not delete'}"
                                             IsEnabled="{Binding CanRecordCurrentDecision}"
                                             Command="{Binding DataContext.RemoveMemberCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
-                                            Content="Mark for removal" />
+                                            Content="Mark copy for removal" />
                                     <Button Margin="6,0,0,0"
                                             automation:AutomationProperties.Name="{Binding Path, StringFormat='Reset decision for {0} to undecided'}"
                                             IsEnabled="{Binding CanClearDecision}"
                                             Command="{Binding DataContext.UndecideMemberCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
-                                            Content="Reset decision" />
-                                </WrapPanel>
+                                             Content="Reset copy" />
+                                 </WrapPanel>
+                                 <TextBlock Margin="0,7,0,0" FontWeight="SemiBold" Text="Full path" />
+                                 <TextBox Margin="0,4,0,0"
+                                          MaxHeight="50"
+                                          IsReadOnly="True"
+                                          IsReadOnlyCaretVisible="True"
+                                          Text="{Binding Path, Mode=OneWay}"
+                                          TextWrapping="Wrap"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          automation:AutomationProperties.AutomationId="FileSelectedCopyPath"
+                                          automation:AutomationProperties.Name="{Binding Path, StringFormat='Complete selected copy path: {0}'}" />
                                 <WrapPanel Margin="0,6,0,0" automation:AutomationProperties.Name="Path actions for selected copy">
-                                    <Button automation:AutomationProperties.Name="{Binding Path, StringFormat='Copy complete path for {0}'}"
+                                    <Button Style="{StaticResource ShellIconAction}"
+                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Copy complete path for {0}'}"
                                             Command="{Binding DataContext.CopyPathCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
-                                            Content="Copy path" />
+                                            ToolTip="Copy path">
+                                        <Path Data="{StaticResource ShellIconCopy}" Style="{StaticResource ShellActionIcon}" />
+                                    </Button>
                                     <Button Margin="6,0,0,0"
+                                            Style="{StaticResource ShellIconAction}"
                                             automation:AutomationProperties.Name="{Binding Path, StringFormat='Show {0} in Explorer'}"
                                             Command="{Binding DataContext.RevealInExplorerCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
-                                            Content="Show in Explorer" />
+                                            ToolTip="Show in Explorer">
+                                        <Path Data="{StaticResource ShellIconOpenLocation}" Style="{StaticResource ShellActionIcon}" />
+                                    </Button>
                                 </WrapPanel>
                     </StackPanel>
                 </ScrollViewer>
@@ -946,7 +994,7 @@
                             automation:AutomationProperties.Name="Validate selected duplicate set or visible copy page; access key Alt+V; focus returns to the visible copy comparison"
                             automation:AutomationProperties.HelpText="Validates at most 200 explicitly bound visible copies and never follows a page cursor or reads excluded cloud placeholders."
                             Click="OnValidateFilePageClick"
-                            Content="_Validate page"
+                            Content="Check these copies"
                             IsEnabled="{Binding CanValidateVisiblePage}" />
                     <Button Margin="0,0,8,0"
                             KeyboardNavigation.TabIndex="490"
@@ -955,17 +1003,23 @@
                             Command="{Binding CancelLiveValidationCommand}"
                             Content="Cancel validation" />
                     <Button
+                            Style="{StaticResource ShellIconAction}"
                             KeyboardNavigation.TabIndex="500"
                             automation:AutomationProperties.AutomationId="FilePreviousMemberPage"
                             automation:AutomationProperties.Name="Previous selected-set member page"
                             Command="{Binding PreviousMemberPageCommand}"
-                            Content="Previous copies" />
+                            ToolTip="Previous copies">
+                        <Path Data="{StaticResource ShellIconChevronLeft}" Style="{StaticResource ShellActionIcon}" />
+                    </Button>
                     <Button Margin="8,0,0,0"
+                            Style="{StaticResource ShellIconAction}"
                             KeyboardNavigation.TabIndex="510"
                             automation:AutomationProperties.AutomationId="FileNextMemberPage"
                             automation:AutomationProperties.Name="Next selected-set member page"
                             Command="{Binding NextMemberPageCommand}"
-                            Content="Next copies" />
+                            ToolTip="Next copies">
+                        <Path Data="{StaticResource ShellIconChevronRight}" Style="{StaticResource ShellActionIcon}" />
+                    </Button>
                 </WrapPanel>
             </StackPanel>
             </ScrollViewer>

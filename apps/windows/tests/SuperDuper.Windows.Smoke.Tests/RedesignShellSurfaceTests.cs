@@ -38,12 +38,36 @@ internal static class RedesignShellSurfaceTests
             {
                 view.Name = wpf + "ContentControl";
             }
-            root.AddFirst(new XElement(wpf + "Window.Resources",
-                new XElement(wpf + "ResourceDictionary",
-                    new XElement(wpf + "ResourceDictionary.MergedDictionaries",
-                        new XElement(wpf + "ResourceDictionary", new XAttribute("Source",
-                            "/SuperDuper.Windows;component/Resources/ShellResources.xaml"))),
-                    new XElement(wpf + "BooleanToVisibilityConverter", new XAttribute(xaml + "Key", "BooleanToVisibilityConverter")))));
+            var resources = root.Element(wpf + "Window.Resources");
+            if (resources is null)
+            {
+                resources = new XElement(wpf + "Window.Resources", new XElement(wpf + "ResourceDictionary"));
+                root.AddFirst(resources);
+            }
+            // XAML's property-element shorthand puts resource entries directly under
+            // Window.Resources. Wrap those entries before adding a dictionary property.
+            var dictionary = resources.Element(wpf + "ResourceDictionary");
+            if (dictionary is null)
+            {
+                var entries = resources.Nodes().ToArray();
+                resources.RemoveNodes();
+                dictionary = new XElement(wpf + "ResourceDictionary", entries);
+                resources.Add(dictionary);
+            }
+            var mergedDictionaries = dictionary.Element(wpf + "ResourceDictionary.MergedDictionaries");
+            if (mergedDictionaries is null)
+            {
+                mergedDictionaries = new XElement(wpf + "ResourceDictionary.MergedDictionaries");
+                dictionary.AddFirst(mergedDictionaries);
+            }
+            mergedDictionaries.Add(new XElement(wpf + "ResourceDictionary", new XAttribute("Source",
+                "/SuperDuper.Windows;component/Resources/ShellResources.xaml")));
+            if (!dictionary.Elements(wpf + "BooleanToVisibilityConverter")
+                .Any(element => (string?)element.Attribute(xaml + "Key") == "BooleanToVisibilityConverter"))
+            {
+                dictionary.Add(new XElement(wpf + "BooleanToVisibilityConverter",
+                    new XAttribute(xaml + "Key", "BooleanToVisibilityConverter")));
+            }
             window = (Window)XamlReader.Parse(document.ToString());
             var client = new TestWorkerClient();
             var session = client.AddSession("Family archive", @"C:\fixture\archive");

@@ -2978,6 +2978,16 @@ changed/resolved states.
   fixed logical-path, physical-item, folder, byte, and affected-group counts. Later review edits do
   not rewrite it. Queries return the current review revision and `isCurrent`; a mismatch invalidates
   confirmation and any future execution handoff without mutating historical observations.
+  The 2026-09-16 UI-polish freshness correction also makes `isCurrent` false for known conflicting
+  live-validation or root-reconciliation evidence at or after a relevant item's check start,
+  even when the manual review revision is unchanged. Sources include removal targets and required
+  survivors; unrelated sets do not invalidate the check. Immutable evidence history prevents a
+  later metadata-only `present` observation from reviving it. A fresh full preflight supersedes
+  earlier evidence. Newer watcher-overflow history also invalidates checked sources inside the
+  affected root; an unrelated root does not. A later `present`-only root reconciliation cannot
+  revive the old content/tree check. Parsed RFC 3339 instants handle offsets and variable precision, with equal
+  instants treated conservatively. This is a compatible query-time interpretation, not a schema
+  change or a rewrite of stored results; see `preflight.get` in `docs/worker-protocol-v1.md`.
 - Materialized target rows refer only to immutable `scanned_file`, duplicate-group, and exact-folder
   snapshots. Effective review decisions select actions, but `scanned_file.marked_deleted` and
   `deletion_plan` are never consulted. Rule configuration, rule-application provenance, manual
@@ -3044,7 +3054,8 @@ changed/resolved states.
   committed item observations and summaries remain queryable. Retry deliberately creates a new
   operation and validation generation from the still-current review revision rather than mixing
   new observations into the interrupted generation.
-- `preflight.get` returns the fixed header/summary and current-revision comparison.
+- `preflight.get` returns the fixed header/summary, current-revision comparison, and freshness
+  derived from known conflicting live file evidence as specified above.
   `preflight.item.page` uses an opaque signature-bound cursor, stable outcome/kind/path/id ordering,
   a maximum page size of 200, and no filesystem access. Completed, cancelled, interrupted, and
   failed generations remain reconstructible after restart.

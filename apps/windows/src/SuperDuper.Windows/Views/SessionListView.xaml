@@ -15,32 +15,46 @@
             </Grid.ColumnDefinitions>
             <TextBlock VerticalAlignment="Center"
                        Style="{StaticResource SectionTitle}"
-                       Text="Sessions" />
-            <Button Grid.Column="1"
+                       Text="Saved scans" />
+            <Button x:Name="RefreshSavedScansButton"
+                    Grid.Column="1"
                     Command="{Binding RefreshCommand}"
-                    Content="Refresh"
-                    ToolTip="Reload sessions" />
+                    Style="{StaticResource ShellIconAction}"
+                    AutomationProperties.AutomationId="RefreshSavedScans"
+                    AutomationProperties.Name="Refresh saved scans"
+                    ToolTip="Refresh saved scans">
+                <Path Data="{StaticResource ShellIconRefresh}" Style="{StaticResource ShellActionIcon}" />
+            </Button>
         </Grid>
 
         <Grid Grid.Row="1">
             <ListBox x:Name="SessionsList"
                      AutomationProperties.AutomationId="SessionsList"
-                     AutomationProperties.Name="Scan sessions"
+                     AutomationProperties.Name="Saved scans"
                      Margin="8,0"
                      HorizontalContentAlignment="Stretch"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      ItemsSource="{Binding Items}"
                      SelectedItem="{Binding SelectedSession, Mode=TwoWay}">
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="ListBoxItem" BasedOn="{StaticResource DefaultListBoxItemStyle}">
                         <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                     </Style>
                 </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Margin="8,7">
-                            <TextBlock FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Margin="0,3,0,0" Style="{StaticResource CaptionText}" Text="{Binding StatusText}" />
-                        </StackPanel>
+                        <Grid Margin="8,7">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock FontWeight="SemiBold" Text="{Binding Name}"
+                                       TextWrapping="Wrap" ToolTip="{Binding Name}" />
+                            <TextBlock Grid.Row="1" Margin="0,3,0,0"
+                                       Style="{StaticResource CaptionText}"
+                                       Text="{Binding StatusText}" />
+                        </Grid>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
@@ -50,7 +64,7 @@
                         VerticalAlignment="Center"
                         Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <ProgressBar Width="120" Height="4" IsIndeterminate="True" />
-                <TextBlock Margin="0,10,0,0" Text="Loading sessions…" />
+                <TextBlock Margin="0,10,0,0" Text="Loading saved scans…" />
             </StackPanel>
         </Grid>
 
@@ -60,10 +74,23 @@
                        Text="{Binding ErrorMessage}"
                        TextWrapping="Wrap"
                        Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}" />
-            <Button
-                    HorizontalContentAlignment="Left"
+            <Button x:Name="NewSavedScanButton"
+                    HorizontalContentAlignment="Stretch"
+                    AutomationProperties.AutomationId="NewSavedScan"
+                    AutomationProperties.Name="New saved scan"
                     Command="{Binding NewSessionCommand}"
-                    Content="＋  New session" />
+                    ToolTip="Create a saved scan">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Path Data="{StaticResource ShellIconAdd}" Style="{StaticResource ShellActionIcon}"
+                          VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"
+                               Text="New saved scan" TextWrapping="Wrap" />
+                </Grid>
+            </Button>
         </StackPanel>
     </Grid>
 </UserControl>

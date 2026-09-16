@@ -6,6 +6,34 @@ namespace SuperDuper.Windows.Core.Tests;
 [TestClass]
 public sealed class ShellSessionWorkflowTests
 {
+    [DataTestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task CompletionOpensRememberedResultsOnlyWhenWatchingWithoutModal(bool modalOpen)
+    {
+        var client = new TestWorkerClient();
+        var session = client.AddSession("Archive", Path.GetTempPath());
+        var active = client.AddRun(session.Id, "running", "discovering");
+        using var shell = CreateShell(client);
+        await shell.InitializeAsync();
+        shell.ResultsDestination = WorkspaceDestination.FolderResults;
+        shell.ViewProgressCommand.Execute(null);
+        shell.CanNavigateOnCompletion = () => !modalOpen;
+
+        client.RaiseLifecycle("run.completed", active with { Status = "completed", CompletedAt = DateTimeOffset.UtcNow });
+
+        Assert.AreEqual(modalOpen ? WorkspaceDestination.ScanProgress : WorkspaceDestination.FolderResults,
+            shell.SelectedDestination);
+        Assert.AreEqual(modalOpen, shell.HasCompletedScanNotice);
+        if (modalOpen)
+        {
+            shell.OpenCompletedScanCommand.Execute(null);
+            Assert.AreEqual(WorkspaceDestination.FolderResults, shell.SelectedDestination);
+            Assert.IsFalse(shell.HasCompletedScanNotice);
+        }
+        Assert.AreEqual(active.Id, shell.SelectedRun?.Id);
+    }
+
     [TestMethod]
     public async Task HistoricalResultsRemainSelectedWhileActiveScanProgressesAndCompletes()
     {
@@ -40,6 +68,7 @@ public sealed class ShellSessionWorkflowTests
         Assert.AreEqual(older.Id, shell.SelectedRun?.Id);
         Assert.AreEqual(older.Id, shell.DuplicateFiles.Run?.Id);
         Assert.AreEqual(WorkspaceDestination.FileResults, shell.SelectedDestination);
+        Assert.IsTrue(shell.HasCompletedScanNotice);
         StringAssert.Contains(shell.ProgressScanContext, $"Scan {active.Id}");
         StringAssert.Contains(shell.SelectedScanContext, $"Scan {older.Id}");
     }

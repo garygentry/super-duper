@@ -7,8 +7,40 @@
     <system:Double x:Key="ShellSectionFontSize">16</system:Double>
     <system:Double x:Key="ShellPageTitleFontSize">20</system:Double>
     <system:Double x:Key="ShellTitleFontSize">24</system:Double>
+    <system:Double x:Key="ShellSpace4">4</system:Double>
+    <system:Double x:Key="ShellSpace8">8</system:Double>
+    <system:Double x:Key="ShellSpace12">12</system:Double>
+    <system:Double x:Key="ShellSpace16">16</system:Double>
+    <system:Double x:Key="ShellSpace24">24</system:Double>
+    <CornerRadius x:Key="ShellControlCornerRadius">4</CornerRadius>
+    <CornerRadius x:Key="ShellCardCornerRadius">6</CornerRadius>
     <Thickness x:Key="ShellContentInset">24,16</Thickness>
     <Thickness x:Key="PageContentInset">24</Thickness>
+    <!-- Geometry coordinates share a 16-DIP box. Consumers supply an accessible name and tooltip. -->
+    <PathGeometry x:Key="ShellIconAdd" Figures="M 8,2 L 8,14 M 2,8 L 14,8" />
+    <PathGeometry x:Key="ShellIconRefresh" Figures="M 13.5,6 A 5.5,5.5 0 1 0 13,11 M 13.5,2.5 L 13.5,6 L 10,6" />
+    <PathGeometry x:Key="ShellIconSearch" Figures="M 11.5,6.5 A 5,5 0 1 1 1.5,6.5 A 5,5 0 1 1 11.5,6.5 M 10,10 L 14.5,14.5" />
+    <PathGeometry x:Key="ShellIconFilter" Figures="M 2,3 L 14,3 L 9.5,8.5 L 9.5,13 L 6.5,14 L 6.5,8.5 Z" />
+    <PathGeometry x:Key="ShellIconCopy" Figures="M 5,2 L 13,2 L 13,11 L 5,11 Z M 3,5 L 3,14 L 11,14" />
+    <PathGeometry x:Key="ShellIconOpenLocation" Figures="M 1.5,5 L 6.5,5 L 8,6.5 L 14.5,6.5 L 14.5,13.5 L 1.5,13.5 Z M 1.5,5 L 1.5,3 L 6.5,3 L 8,4.5 L 13,4.5" />
+    <PathGeometry x:Key="ShellIconBack" Figures="M 8,2 L 2,8 L 8,14 M 2,8 L 14,8" />
+    <PathGeometry x:Key="ShellIconChevronLeft" Figures="M 10.5,2.5 L 5,8 L 10.5,13.5" />
+    <PathGeometry x:Key="ShellIconChevronRight" Figures="M 5.5,2.5 L 11,8 L 5.5,13.5" />
+    <PathGeometry x:Key="ShellIconMoveUp" Figures="M 8,2 L 3,7 M 8,2 L 13,7 M 8,2 L 8,14" />
+    <PathGeometry x:Key="ShellIconMoveDown" Figures="M 8,14 L 3,9 M 8,14 L 13,9 M 8,2 L 8,14" />
+    <PathGeometry x:Key="ShellIconDismiss" Figures="M 3,3 L 13,13 M 13,3 L 3,13" />
+    <PathGeometry x:Key="ShellIconOverflow" Figures="M 3,8 L 3.1,8 M 8,8 L 8.1,8 M 13,8 L 13.1,8" />
+    <Style x:Key="ShellActionIcon" TargetType="Path">
+        <Setter Property="Width" Value="16" />
+        <Setter Property="Height" Value="16" />
+        <Setter Property="Stretch" Value="Uniform" />
+        <Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+        <Setter Property="StrokeThickness" Value="1.7" />
+        <Setter Property="StrokeStartLineCap" Value="Round" />
+        <Setter Property="StrokeEndLineCap" Value="Round" />
+        <Setter Property="StrokeLineJoin" Value="Round" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
     <Style x:Key="ShellNavigationItem" TargetType="TabItem" BasedOn="{StaticResource DefaultTabItemStyle}">
         <Setter Property="FontSize" Value="{DynamicResource ShellBodyFontSize}" />
         <Setter Property="MinHeight" Value="32" />
@@ -85,9 +117,23 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
     </Style>
-    <Style x:Key="ShellPrimaryAction" TargetType="Button" BasedOn="{StaticResource ShellAction}">
+    <Style x:Key="ShellPrimaryAction" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+        <Setter Property="FontSize" Value="{DynamicResource ShellBodyFontSize}" />
         <Setter Property="MinHeight" Value="36" />
         <Setter Property="Padding" Value="16,8" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style x:Key="ShellSecondaryAction" TargetType="Button" BasedOn="{StaticResource ShellAction}">
+        <Setter Property="Background" Value="{DynamicResource ControlFillColorTransparentBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlFillColorTransparentBrush}" />
+    </Style>
+    <Style x:Key="ShellIconAction" TargetType="Button" BasedOn="{StaticResource ShellSecondaryAction}">
+        <Setter Property="MinWidth" Value="32" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="6" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
     </Style>
     <Style x:Key="ShellStatusBanner" TargetType="Border">
         <Setter Property="Padding" Value="12,8" />

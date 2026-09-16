@@ -11,7 +11,8 @@ namespace SuperDuper.Windows.Views;
 public partial class DuplicateFoldersView : UserControl
 {
     internal const int LocationCardFocusAttemptLimit = 8;
-    internal const double NarrowWorkspaceWidth = 760;
+    internal const double NarrowWorkspaceWidth = 960;
+    internal const double NarrowWorkspaceHeight = 500;
     internal const double NarrowSelectedDetailMinimumHeight = 80;
 
     private DuplicateFoldersViewModel? _model;
@@ -39,7 +40,7 @@ public partial class DuplicateFoldersView : UserControl
             _model.PropertyChanged += OnModelPropertyChanged;
         }
         _showNarrowDetail = false;
-        UpdateResponsiveLayout(ActualWidth);
+        UpdateResponsiveLayout(ActualWidth, ActualHeight);
         UpdateSortIndicator();
     }
 
@@ -71,15 +72,16 @@ public partial class DuplicateFoldersView : UserControl
     }
 
     private void OnWorkspaceSizeChanged(object sender, SizeChangedEventArgs e) =>
-        UpdateResponsiveLayout(e.NewSize.Width);
+        UpdateResponsiveLayout(e.NewSize.Width, e.NewSize.Height);
 
-    private void UpdateResponsiveLayout(double width)
+    private void UpdateResponsiveLayout(double width, double height)
     {
         if (FolderSetPaneColumn is null || width <= 0)
         {
             return;
         }
-        var narrow = width < NarrowWorkspaceWidth;
+        var narrow = width < NarrowWorkspaceWidth
+            || (height > 0 && height < NarrowWorkspaceHeight);
         if (narrow && !_isNarrow)
         {
             _wideSetWidth = FolderSetPaneColumn.Width;
@@ -89,7 +91,7 @@ public partial class DuplicateFoldersView : UserControl
         if (!narrow)
         {
             FolderSetPaneHeading.Visibility = Visibility.Visible;
-            FolderDetailContextSummary.Visibility = Visibility.Visible;
+            FolderReviewDetails.Visibility = Visibility.Visible;
             FolderSetPane.Visibility = Visibility.Visible;
             FolderDetailPane.Visibility = Visibility.Visible;
             FolderComparisonSplitter.Visibility = Visibility.Visible;
@@ -105,7 +107,7 @@ public partial class DuplicateFoldersView : UserControl
         }
 
         FolderSetPaneHeading.Visibility = Visibility.Collapsed;
-        FolderDetailContextSummary.Visibility = Visibility.Collapsed;
+        FolderReviewDetails.Visibility = Visibility.Collapsed;
         FolderSetPaneColumn.MinWidth = 0;
         FolderDetailPaneColumn.MinWidth = 0;
         FolderComparisonSplitter.Visibility = Visibility.Collapsed;
@@ -130,6 +132,7 @@ public partial class DuplicateFoldersView : UserControl
         FolderDetailHeader.Visibility = selectedCopyDetail ? Visibility.Collapsed : Visibility.Visible;
         LocationCards.Visibility = selectedCopyDetail ? Visibility.Collapsed : Visibility.Visible;
         BackToFolderCopiesButton.Visibility = selectedCopyDetail ? Visibility.Visible : Visibility.Collapsed;
+        NarrowFolderAlerts.Visibility = selectedCopyDetail ? Visibility.Visible : Visibility.Collapsed;
         FolderDetailCommandRegion.Visibility = selectedCopyDetail ? Visibility.Collapsed : Visibility.Visible;
         FolderDetailHeaderRow.Height = selectedCopyDetail ? new GridLength(0) : GridLength.Auto;
         FolderMemberListRow.Height = selectedCopyDetail ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
@@ -137,7 +140,7 @@ public partial class DuplicateFoldersView : UserControl
         FolderDetailCommandRow.Height = selectedCopyDetail ? new GridLength(0) : GridLength.Auto;
         SelectedFolderCopyPanel.Margin = selectedCopyDetail ? new Thickness(0) : new Thickness(0, 6, 0, 0);
         SelectedFolderCopyPanel.Padding = selectedCopyDetail ? new Thickness(2) : new Thickness(10);
-        SelectedFolderCopyPanel.MaxHeight = selectedCopyDetail ? double.PositiveInfinity : 100;
+        SelectedFolderCopyPanel.MaxHeight = selectedCopyDetail ? double.PositiveInfinity : 148;
     }
 
     private async void OnCompareSelectedSetClick(object sender, RoutedEventArgs e)
@@ -148,7 +151,7 @@ public partial class DuplicateFoldersView : UserControl
         }
         _model.SelectedMember = null;
         _showNarrowDetail = true;
-        UpdateResponsiveLayout(ActualWidth);
+        UpdateResponsiveLayout(ActualWidth, ActualHeight);
         FolderWorkspaceRoot.UpdateLayout();
         await FocusWhenVisibleAsync(SelectedFolderSetHeading);
     }
@@ -182,7 +185,7 @@ public partial class DuplicateFoldersView : UserControl
             return;
         }
         _showNarrowDetail = false;
-        UpdateResponsiveLayout(ActualWidth);
+        UpdateResponsiveLayout(ActualWidth, ActualHeight);
         await RestoreGroupGridFocusAsync();
     }
 

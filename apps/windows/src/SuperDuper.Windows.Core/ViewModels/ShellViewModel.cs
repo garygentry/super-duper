@@ -26,7 +26,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     private string? _engineVersion;
     private bool _isWorkspaceVisible;
     private bool _isLoadingSession;
-    private string _displaySessionName = "Sessions";
+    private string _displaySessionName = "Saved scans";
     private string? _contentErrorMessage;
     private long? _activeRunId;
     private long? _activeSessionId;
@@ -47,6 +47,12 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     private long _focusRequestVersion;
     private Func<Task>? _setupDeparture;
     private bool _resolvingSetupDeparture;
+    private WorkerRun? _completedScanNotice;
+
+    public Func<bool> CanNavigateOnCompletion { get; set; } = () => true;
+    public bool HasCompletedScanNotice => _completedScanNotice is not null;
+    public string CompletedScanNoticeText => _completedScanNotice is { } run
+        ? $"Scan complete · {run.DuplicateFileGroups:N0} duplicate file sets" : string.Empty;
 
     public ShellViewModel(
         IWorkerClient workerClient,
@@ -160,6 +166,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             FocusTarget = "scan-navigation";
             FocusRequestVersion++;
         });
+        OpenCompletedScanCommand = new AsyncRelayCommand(OpenCompletedScanAsync);
+        DismissCompletedScanCommand = new RelayCommand(ClearCompletedScanNotice);
     }
 
     public SessionListViewModel Sessions { get; }
@@ -314,6 +322,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(ScanDestination));
             OnPropertyChanged(nameof(ResultsDestination));
             OnPropertyChanged(nameof(HistoryDestination));
+            OnPropertyChanged(nameof(ShowActiveScanBanner));
             _ = EnsurePaneAsync();
         }
     }
@@ -361,9 +370,11 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         ? Sessions.Find(run.SessionId)?.Name ?? "Saved scan" : DisplaySessionName;
     public string StartRunLabel => $"Start scan: {DisplaySessionName}";
     public string ScanAgainLabel => $"Scan again: {DisplaySessionName}";
+    public string PrimaryScanActionText => SelectedRun is null ? "Start scan" : "Scan again";
+    public bool ShowActiveScanBanner => HasActiveRun && SelectedDestination != WorkspaceDestination.ScanProgress;
     public bool CanOpenScanSetup => IsConnected && IsWorkspaceVisible && IsSetupAvailable && !Setup.IsNew;
     public bool HasSetupDeparture => _setupDeparture is not null;
-    public string HistoryContext => $"History: {DisplaySessionName} \u00b7 Highlight a row, then Open scan to change the workspace.";
+    public string HistoryContext => $"History \u00b7 {DisplaySessionName}";
 
     public string SelectedScanContext => SelectedRun is { } run
         ? $"Scan {run.Id} · {(run.StartedAt ?? run.CreatedAt).ToLocalTime():g} · {DisplayFormatting.Status(run.Status)} · {run.Parameters.Roots.Count} locations"
@@ -415,6 +426,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _activeRunId, value))
             {
                 OnPropertyChanged(nameof(HasActiveRun));
+                OnPropertyChanged(nameof(ShowActiveScanBanner));
                 OnPropertyChanged(nameof(CanStartRun));
                 StartRunCommand.NotifyCanExecuteChanged();
                 ScanAgainCommand.NotifyCanExecuteChanged();
@@ -436,6 +448,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
     public IAsyncRelayCommand StartRunCommand { get; }
     public IRelayCommand ScanAgainCommand { get; }
+    public IRelayCommand OpenCompletedScanCommand { get; }
+    public IRelayCommand DismissCompletedScanCommand { get; }
     public IAsyncRelayCommand SaveSetupAndContinueCommand { get; }
     public IAsyncRelayCommand DiscardSetupAndContinueCommand { get; }
     public IRelayCommand StayInSetupCommand { get; }
@@ -1084,6 +1098,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SelectedRun));
         OnPropertyChanged(nameof(SelectedScanContext));
         OnPropertyChanged(nameof(WorkspaceSessionName));
+        OnPropertyChanged(nameof(PrimaryScanActionText));
         History.NotifyExternalContextChanged();
         if (!changed) return;
         _performanceContextRun = null;
@@ -1280,6 +1295,10 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         {
             ObserveProgressLifecycle(run);
         }
+        var completedActiveScan = ActiveRunId == run.Id && run.Status == "completed";
+        var watchingCompletedScan = completedActiveScan
+            && SelectedDestination == WorkspaceDestination.ScanProgress
+            && Progress.Run?.Id == run.Id && !HasSetupDeparture && CanNavigateOnCompletion();
         History.Upsert(run, select: false);
         if (SelectedRun?.Id == run.Id) SetWorkspaceRun(run);
         OnPropertyChanged(nameof(SelectedScanContext));
@@ -1308,6 +1327,43 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             StartRunCommand.NotifyCanExecuteChanged();
             ScanAgainCommand.NotifyCanExecuteChanged();
         }
+        if (completedActiveScan)
+        {
+            _completedScanNotice = run;
+            OnPropertyChanged(nameof(HasCompletedScanNotice));
+            OnPropertyChanged(nameof(CompletedScanNoticeText));
+            if (watchingCompletedScan)
+            {
+                _ = OpenCompletedScanAsync();
+            }
+        }
+    }
+
+    private void ClearCompletedScanNotice()
+    {
+        _completedScanNotice = null;
+        OnPropertyChanged(nameof(HasCompletedScanNotice));
+        OnPropertyChanged(nameof(CompletedScanNoticeText));
+    }
+
+    private async Task OpenCompletedScanAsync()
+    {
+        if (_completedScanNotice is not { } run) return;
+        if (Sessions.Find(run.SessionId) is null) { ClearCompletedScanNotice(); return; }
+        if (DeferSetupDeparture(OpenCompletedScanAsync)) return;
+        var navigation = _navigationGeneration;
+        if (Sessions.SelectedSession?.Id != run.SessionId && Sessions.Find(run.SessionId) is { } session)
+        {
+            _suppressSelection = true;
+            Sessions.SelectedSession = session;
+            _suppressSelection = false;
+            await SelectSessionAsync(session, preserveWorkspace: true);
+            if (_disposed || navigation != _navigationGeneration || Sessions.SelectedSession?.Id != run.SessionId
+                || HasContentError) return;
+        }
+        SetWorkspaceRun(run);
+        SelectedDestination = _resultsDestination;
+        ClearCompletedScanNotice();
     }
 
     private void SetActiveRun(WorkerRun run)
@@ -1388,7 +1444,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         _selectionCancellation?.Cancel();
         IsWorkspaceVisible = false;
         IsLoadingSession = false;
-        DisplaySessionName = "Sessions";
+        DisplaySessionName = "Saved scans";
         History.Clear();
         SetWorkspaceRun(null);
         if (!HasActiveRun) Progress.ShowRun(null);

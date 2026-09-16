@@ -29,6 +29,9 @@ public partial class App : Application
         services.AddSingleton<IRecycleBinService, WindowsRecycleBinService>();
         services.AddSingleton<ICloudLocationService>(_ => CreateCloudLocationService());
         services.AddSingleton<IRecycleOperationCapabilityExecutor, DisabledRecycleOperationCapabilityExecutor>();
+        services.AddSingleton<IPresentationPreferencesStore>(_ => new JsonPresentationPreferencesStore(
+            Environment.GetEnvironmentVariable("SUPER_DUPER_DB_PATH") is { Length: > 0 } database
+                ? Path.GetDirectoryName(Path.GetFullPath(database)) : null));
         services.AddSingleton<ShellViewModel>();
         services.AddSingleton<MainWindow>();
         _services = services.BuildServiceProvider(validateScopes: true);

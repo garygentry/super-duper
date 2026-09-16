@@ -39,6 +39,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     private long _totalMembers;
     private string _searchText = string.Empty;
     private string _minimumSizeText = string.Empty;
+    private string _minimumSizeUnit = "B";
     private string _stateMessage = "Select a completed run to browse duplicate folders.";
     private string? _errorMessage;
     private string? _detailErrorMessage;
@@ -148,6 +149,8 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     }
     public string SearchText { get => _searchText; set => SetProperty(ref _searchText, value); }
     public string MinimumSizeText { get => _minimumSizeText; set => SetProperty(ref _minimumSizeText, value); }
+    public IReadOnlyList<string> SizeUnits => BinarySizeInput.Units;
+    public string MinimumSizeUnit { get => _minimumSizeUnit; set => SetProperty(ref _minimumSizeUnit, value); }
     public string StateMessage { get => _stateMessage; private set => SetProperty(ref _stateMessage, value); }
     public string? ErrorMessage
     {
@@ -319,6 +322,19 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
             return parts.Count == 0
                 ? "Applied folder filters: none. Showing the default server query."
                 : $"Applied folder filters: {string.Join("; ", parts)}.";
+        }
+    }
+    public string AppliedFilterBriefText
+    {
+        get
+        {
+            if (!HasAppliedFilters) return "All exact-folder sets";
+            var parts = new List<string>();
+            if (_appliedFilter.Search.Length > 0)
+                parts.Add($"Path contains “{_appliedFilter.Search}”");
+            if (_appliedFilter.MinimumSize != "0")
+                parts.Add($"At least {_appliedFilter.MinimumSize} bytes per copy");
+            return string.Join(" · ", parts);
         }
     }
     public string EmptyStateTitle => HasAppliedFilters
@@ -524,6 +540,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     {
         SearchText = string.Empty;
         MinimumSizeText = string.Empty;
+        MinimumSizeUnit = "B";
         if (Run?.Status == "completed")
         {
             _sortField = DuplicateFolderGroupSortField.TotalBytes;
@@ -966,9 +983,9 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         }
         var minimum = MinimumSizeText.Trim();
         if (minimum.Length == 0) minimum = "0";
-        if (!long.TryParse(minimum, NumberStyles.None, CultureInfo.InvariantCulture, out var value) || value < 0)
+        if (!BinarySizeInput.TryConvertToBytes(minimum, MinimumSizeUnit, out var value))
         {
-            ErrorMessage = "Minimum size must be a non-negative whole number of bytes.";
+            ErrorMessage = "Minimum size must convert exactly to a non-negative whole number of bytes, at most 9,223,372,036,854,775,807 bytes. Use a decimal point for fractions.";
             filter = new DuplicateFolderGroupFilter(string.Empty, "0");
             return false;
         }
@@ -984,6 +1001,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         _appliedSortDirection = _sortDirection;
         OnPropertyChanged(nameof(HasAppliedFilters));
         OnPropertyChanged(nameof(AppliedFilterSummaryText));
+        OnPropertyChanged(nameof(AppliedFilterBriefText));
         OnPropertyChanged(nameof(EmptyStateTitle));
     }
 

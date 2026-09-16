@@ -11,7 +11,7 @@ use super::models::{
     RecycleOperationBatch, RecycleOperationItem, RecycleOperationItemPage,
     RecycleOperationMutationResult, RecycleOperationSummary, RecycleOperationView,
 };
-use super::preflight::PreflightError;
+use super::preflight::{has_newer_live_evidence, PreflightError};
 use super::Database;
 
 const MAXIMUM_OPERATION_ID_CHARACTERS: usize = 128;
@@ -197,6 +197,12 @@ impl Database {
             return Err(RecycleOperationError::StaleReviewRevision {
                 expected: expected_review_revision,
                 current: snapshot.11,
+            });
+        }
+        if has_newer_live_evidence(&tx, preflight_id)? {
+            return Err(RecycleOperationError::IneligiblePreflight {
+                preflight_id,
+                reason: "newer file evidence requires another check".to_owned(),
             });
         }
         let completed_at = snapshot
@@ -725,6 +731,12 @@ impl Database {
             return Err(RecycleOperationError::StaleReviewRevision {
                 expected: review_revision,
                 current: current.0,
+            });
+        }
+        if has_newer_live_evidence(&tx, preflight_id)? {
+            return Err(RecycleOperationError::IneligiblePreflight {
+                preflight_id,
+                reason: "newer file evidence requires another check".to_owned(),
             });
         }
         insert_report(

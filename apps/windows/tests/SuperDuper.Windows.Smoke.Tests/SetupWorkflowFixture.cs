@@ -32,7 +32,7 @@ internal static class SetupWorkflowFixture
                 window.Width = size.Width; window.Height = size.Height;
                 model.SelectedDestination = WorkspaceDestination.FileResults;
                 Drain();
-                Find<Button>(window, "ScanAgain").Command.Execute(null);
+                model.ScanAgainCommand.Execute(null);
                 Drain();
                 Assert.AreEqual(WorkspaceDestination.ScanSetup, model.SelectedDestination);
                 Assert.IsTrue(((TabItem)((TabControl)window.FindName("ScanTabs")).SelectedItem).IsKeyboardFocused);
@@ -48,7 +48,7 @@ internal static class SetupWorkflowFixture
                 selector.BringIntoView(); Drain();
                 Assert.AreEqual(RepeatCachePolicyNames.RevalidateContent, model.Setup.RepeatCachePolicy);
                 StringAssert.Contains(model.Setup.RepeatCachePolicyDescription, "normal candidate filtering");
-                foreach (var id in new[] { "RepeatCachePolicy", "ManualCloudLocationExclusions", "IgnorePatterns", "SetupStartScan" })
+                foreach (var id in new[] { "RepeatCachePolicy", "ManualCloudLocationExclusions", "IgnorePatterns", "StartScanButton" })
                 {
                     var control = Find<FrameworkElement>(window, id);
                     control.BringIntoView(); Drain();

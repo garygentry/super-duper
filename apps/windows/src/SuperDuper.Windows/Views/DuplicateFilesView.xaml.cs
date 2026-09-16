@@ -13,7 +13,8 @@ public partial class DuplicateFilesView : UserControl
 {
     internal const DispatcherPriority SetNavigationFocusPriority = DispatcherPriority.Background;
     internal const int SetNavigationFocusAttemptLimit = 8;
-    internal const double NarrowWorkspaceWidth = 760;
+    internal const double NarrowWorkspaceWidth = 960;
+    internal const double NarrowWorkspaceHeight = 500;
 
     private DuplicateFilesViewModel? _model;
     private bool _isNarrow;
@@ -27,6 +28,8 @@ public partial class DuplicateFilesView : UserControl
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
         PreviewKeyDown += OnWorkspaceKeyDown;
+        Loaded += (_, _) => AccessKeyManager.Register("v", ValidateFilePageButton);
+        Unloaded += (_, _) => AccessKeyManager.Unregister("v", ValidateFilePageButton);
     }
 
     private void OnWorkspaceKeyDown(object sender, KeyEventArgs e)
@@ -80,7 +83,7 @@ public partial class DuplicateFilesView : UserControl
         _model = e.NewValue as DuplicateFilesViewModel;
         if (_model is not null) _model.PropertyChanged += OnQueryPropertyChanged;
         _showNarrowDetail = false;
-        UpdateResponsiveLayout(ActualWidth);
+        UpdateResponsiveLayout(ActualWidth, ActualHeight);
         UpdateSortIndicators();
     }
 
@@ -117,12 +120,13 @@ public partial class DuplicateFilesView : UserControl
     }
 
     private void OnWorkspaceSizeChanged(object sender, SizeChangedEventArgs e) =>
-        UpdateResponsiveLayout(e.NewSize.Width);
+        UpdateResponsiveLayout(e.NewSize.Width, e.NewSize.Height);
 
-    private void UpdateResponsiveLayout(double width)
+    private void UpdateResponsiveLayout(double width, double height)
     {
         if (SetPaneColumn is null || width <= 0) return;
-        var narrow = width < NarrowWorkspaceWidth;
+        var narrow = width < NarrowWorkspaceWidth
+            || (height > 0 && height < NarrowWorkspaceHeight);
         if (narrow && !_isNarrow)
         {
             _wideSetWidth = SetPaneColumn.Width;
@@ -168,11 +172,12 @@ public partial class DuplicateFilesView : UserControl
         var selectedCopyDetail = _isNarrow && _showNarrowDetail && _model?.SelectedMember is not null;
         MembersGrid.Visibility = selectedCopyDetail ? Visibility.Collapsed : Visibility.Visible;
         BackToCopiesButton.Visibility = selectedCopyDetail ? Visibility.Visible : Visibility.Collapsed;
+        NarrowFileAlerts.Visibility = selectedCopyDetail ? Visibility.Visible : Visibility.Collapsed;
         DetailCommandRegion.Visibility = selectedCopyDetail ? Visibility.Collapsed : Visibility.Visible;
         Grid.SetRow(SelectedCopyPanel, selectedCopyDetail ? 1 : 2);
         SelectedCopyPanel.Margin = selectedCopyDetail ? new Thickness(0) : new Thickness(0, 6, 0, 0);
         SelectedCopyPanel.Padding = selectedCopyDetail ? new Thickness(2) : new Thickness(10);
-        SelectedCopyPanel.MaxHeight = selectedCopyDetail ? double.PositiveInfinity : 100;
+        SelectedCopyPanel.MaxHeight = selectedCopyDetail ? double.PositiveInfinity : 148;
     }
 
     private async void OnCompareSelectedSetClick(object sender, RoutedEventArgs e)
@@ -180,7 +185,7 @@ public partial class DuplicateFilesView : UserControl
         if (!_isNarrow || _model?.SelectedGroup is null) return;
         _model.SelectedMember = null;
         _showNarrowDetail = true;
-        UpdateResponsiveLayout(ActualWidth);
+        UpdateResponsiveLayout(ActualWidth, ActualHeight);
         await FocusWhenVisibleAsync(SelectedSetHeading);
     }
 
@@ -205,7 +210,7 @@ public partial class DuplicateFilesView : UserControl
     {
         if (!_isNarrow) return;
         _showNarrowDetail = false;
-        UpdateResponsiveLayout(ActualWidth);
+        UpdateResponsiveLayout(ActualWidth, ActualHeight);
         await RestoreGroupGridFocusAsync();
     }
 

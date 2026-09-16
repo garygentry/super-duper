@@ -271,7 +271,8 @@ public sealed class ShellViewModelTests
     {
         var client = new TestWorkerClient();
         var dispatcher = new QueuedDispatcher();
-        using var viewModel = CreateViewModel(client, dispatcher);
+        // Queue assertions isolate progress delivery from the elapsed-time display timer.
+        using var viewModel = CreateViewModel(client, dispatcher, new ManualProgressClock());
         var run = client.AddRun(1, "running", "discovering");
         viewModel.Progress.ShowRun(run);
         await Task.Delay(100);
@@ -312,7 +313,7 @@ public sealed class ShellViewModelTests
     {
         var client = new TestWorkerClient();
         var dispatcher = new QueuedDispatcher();
-        using var viewModel = CreateViewModel(client, dispatcher);
+        using var viewModel = CreateViewModel(client, dispatcher, new ManualProgressClock());
         var run = client.AddRun(1, "running", "discovering");
         viewModel.Progress.ShowRun(run);
         await Task.Delay(100);
@@ -420,7 +421,8 @@ public sealed class ShellViewModelTests
     private static ShellViewModel CreateViewModel(IWorkerClient client) =>
         CreateViewModel(client, new ImmediateDispatcher());
 
-    private static ShellViewModel CreateViewModel(IWorkerClient client, IUiDispatcher dispatcher) =>
+    private static ShellViewModel CreateViewModel(
+        IWorkerClient client, IUiDispatcher dispatcher, TimeProvider? clock = null) =>
         new(
             client,
             new TestFolderPicker(),
@@ -428,7 +430,7 @@ public sealed class ShellViewModelTests
             dispatcher,
             new TestClipboard(),
             new TestExplorer(),
-            new TestCloudLocationService());
+            new TestCloudLocationService(), clock: clock);
 
     private static async Task WaitUntilAsync(Func<bool> predicate)
     {

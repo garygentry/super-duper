@@ -362,6 +362,10 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
           + $"{_review.Summary.PlannedRemovalPhysicalItemCount:N0} physical items · "
           + $"{DisplayFormatting.Bytes(_review.Summary.PlannedRemovalBytes)} planned.";
 
+    public string MarkedRemovalSummary => _review is null
+        ? "Marked totals are unavailable."
+        : $"{_review.Summary.EffectiveRemovalFileCount:N0} files marked · {DisplayFormatting.Bytes(_review.Summary.PlannedRemovalBytes)} planned";
+
     public string CombinedRemovalExplanation =>
         "Whole-plan totals come from the worker. File/folder overlap and hard-link aliases are counted once in the distinct and physical totals.";
 
@@ -379,16 +383,22 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
           + $"changed {Preflight.ChangedCount:N0}; missing {Preflight.MissingCount:N0}; "
           + $"unavailable {Preflight.UnavailableCount:N0}; conflicts {Preflight.ConflictCount:N0}.";
 
+    private bool HasNewerFileEvidence => Preflight is { IsCurrent: false }
+        && Preflight.ReviewRevision == Preflight.CurrentReviewRevision;
+
     public string RevisionStatus => Preflight is null || Preflight.IsCurrent
         ? string.Empty
+        : HasNewerFileEvidence
+        ? "Files may have changed since this check. Check marked copies and the copies you are keeping again."
         : $"Plan changed — check again. The saved check is for plan revision {Preflight.ReviewRevision:N0}; "
           + $"the current review revision is {Preflight.CurrentReviewRevision:N0}.";
 
     public string ValidationFreshnessTitle => Preflight switch
     {
         null => "Plan has not been checked",
+        { IsCurrent: false } when HasNewerFileEvidence => "Copies need another check",
         { IsCurrent: false } => "Plan changed — check again",
-        _ => $"Current for plan revision {Preflight.ReviewRevision:N0}",
+        _ => "Checked against your current decisions",
     };
 
     public string ValidationOutcomeTitle => Preflight switch
@@ -406,11 +416,13 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
 
     public string ValidationOutcomeExplanation => Preflight switch
     {
-        null => "Check the whole marked plan before any future removal workflow.",
-        { IsCurrent: false } => "A saved result from an older plan revision cannot make the current plan ready.",
+        null => "Check marked copies and the copies you are keeping. No files are deleted.",
+        { IsCurrent: false } when HasNewerFileEvidence =>
+            "Files may have changed since this check. Check marked copies and the copies you are keeping again.",
+        { IsCurrent: false } => "Your decisions changed after the last check. Check the updated plan again.",
         { Status: "pending" or "running" or "cancelling" } => ProgressText,
         { Status: "completed", ConflictCount: > 0 } =>
-            "The worker found a retained-copy conflict. Review the affected set; at least one independently accessible survivor must remain.",
+            "A set has no safe copy to keep. Review it and keep at least one independently accessible copy.",
         { Status: "completed", ChangedCount: > 0 } =>
             "One or more marked or retained copies changed after the scan. Review the affected sets and check the updated plan again.",
         { Status: "completed", MissingCount: > 0 } =>
@@ -1022,7 +1034,7 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
             nameof(IsRunning), nameof(IsTerminal), nameof(IsCurrent), nameof(CanStart),
             nameof(CanCancel), nameof(CanMoveNext), nameof(CanMovePrevious), nameof(ProgressMaximum),
             nameof(ProgressValue), nameof(ProgressText), nameof(PlanSummary), nameof(StatusSummary),
-            nameof(SelectedRunContext), nameof(CombinedRemovalSummary), nameof(RevisionStatus),
+            nameof(SelectedRunContext), nameof(CombinedRemovalSummary), nameof(MarkedRemovalSummary), nameof(RevisionStatus),
             nameof(ValidationFreshnessTitle), nameof(ValidationOutcomeTitle),
             nameof(ValidationOutcomeExplanation), nameof(CheckMarkedCopiesLabel), nameof(PageStatus),
         })
@@ -1041,6 +1053,7 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasReviewRemovals));
         OnPropertyChanged(nameof(PlanSummary));
         OnPropertyChanged(nameof(CombinedRemovalSummary));
+        OnPropertyChanged(nameof(MarkedRemovalSummary));
         OnPropertyChanged(nameof(SelectedRunContext));
         NotifyStateChanged();
     }

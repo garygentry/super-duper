@@ -1398,6 +1398,36 @@ public sealed class DuplicateFilesViewModelTests
         Assert.AreEqual(1, statusBindingUpdates);
     }
 
+    [TestMethod]
+    public void SelectedRootLabelsKeepDeepFileLocationsDistinct()
+    {
+        string[] ancestorRoots = [@"C:\Imports\A\Photos", @"C:\Backups\B\Photos"];
+        var first = new DuplicateFileMemberListItemViewModel(
+            Member(1, 1, @"C:\Imports\A\Photos\one.bin") with { RootPath = ancestorRoots[0] },
+            ancestorRoots);
+        var second = new DuplicateFileMemberListItemViewModel(
+            Member(2, 1, @"C:\Backups\B\Photos\two.bin") with { RootPath = ancestorRoots[1] },
+            ancestorRoots);
+        Assert.AreEqual(@"A\Photos", first.SelectedRootLabel);
+        Assert.AreEqual(@"B\Photos", second.SelectedRootLabel);
+        Assert.AreEqual(ancestorRoots[0], first.SelectedRoot);
+
+        string[] driveRoots = [@"C:\Archive\Photos", @"D:\Archive\Photos"];
+        var cDrive = new DuplicateFileMemberListItemViewModel(
+            Member(3, 1, @"C:\Archive\Photos\one.bin") with { RootPath = driveRoots[0] }, driveRoots);
+        var dDrive = new DuplicateFileMemberListItemViewModel(
+            Member(4, 1, @"D:\Archive\Photos\two.bin") with { RootPath = driveRoots[1] }, driveRoots);
+        Assert.AreEqual(driveRoots[0], cDrive.SelectedRootLabel);
+        Assert.AreEqual(driveRoots[1], dDrive.SelectedRootLabel);
+
+        string[] distinctLeafRoots = [@"C:\Long\Shared\Working library", @"C:\Long\Shared\Backup archive"];
+        var canonical = new DuplicateFileMemberListItemViewModel(
+            Member(5, 1, @"C:\Long\Shared\Working library\one.bin") with
+            { RootPath = @"\\?\C:\Long\Shared\Working library" }, distinctLeafRoots);
+        Assert.AreEqual("Working library", canonical.SelectedRootLabel);
+        Assert.AreEqual(@"\\?\C:\Long\Shared\Working library", canonical.SelectedRoot);
+    }
+
     private static WorkerDuplicateFileGroup Group(long id, long runId, string name) =>
         new(id, runId, "1024", 2, "1024", name, ".bin")
         {

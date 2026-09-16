@@ -21,18 +21,20 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Margin="0,0,12,0">
+                    <WrapPanel Margin="0,0,12,0" VerticalAlignment="Center">
+                        <TextBlock Style="{StaticResource PageTitle}"
+                            Text="{Binding Phase}"
+                            automation:AutomationProperties.AutomationId="ScanProgressPhase" />
                         <TextBlock x:Name="ScanProgressStatusHeading"
-                            Style="{StaticResource SectionTitle}"
+                            Margin="10,0,0,2"
+                            VerticalAlignment="Bottom"
+                            Style="{StaticResource CaptionText}"
                             Focusable="True"
                             KeyboardNavigation.IsTabStop="False"
                             automation:AutomationProperties.AutomationId="ScanProgressStatus"
                             Text="{Binding Status}"
                             automation:AutomationProperties.Name="{Binding Status, StringFormat='Scan status: {0}'}" />
-                        <TextBlock Style="{StaticResource PageTitle}"
-                            Text="{Binding Phase}"
-                            automation:AutomationProperties.AutomationId="ScanProgressPhase" />
-                    </StackPanel>
+                    </WrapPanel>
                     <Button Grid.Column="1"
                         VerticalAlignment="Top"
                         Command="{Binding CancelCommand}"
@@ -55,13 +57,15 @@
                         automation:AutomationProperties.AutomationId="ScanWarningCount" />
                     <Button x:Name="ProgressPerformanceEntry"
                         Margin="0,0,8,0"
+                        Style="{StaticResource ShellSecondaryAction}"
                         Command="{Binding OpenPerformanceCommand}"
-                        Content="View _performance"
+                        Content="_Performance details"
                         automation:AutomationProperties.AccessKey="Alt+P"
                         automation:AutomationProperties.AutomationId="ProgressPerformanceEntry"
                         automation:AutomationProperties.Name="{Binding PerformanceAutomationName}"
                         automation:AutomationProperties.HelpText="Opens bounded persisted summaries for this exact scan and retains a return path." />
                     <Button x:Name="ProgressWarningEntry"
+                        Style="{StaticResource ShellSecondaryAction}"
                         Command="{Binding OpenWarningsCommand}"
                         Content="_Review warnings"
                         automation:AutomationProperties.AccessKey="Alt+W"
@@ -69,14 +73,10 @@
                         automation:AutomationProperties.Name="{Binding WarningAutomationName}"
                         automation:AutomationProperties.HelpText="Opens the bounded persisted-warning drilldown for this run in Run history." />
                 </WrapPanel>
-                <TextBlock Style="{StaticResource SecondaryProgressText}"
+                <TextBlock Style="{StaticResource CaptionText}"
                     Text="{Binding UpdateFreshness}"
-                    automation:AutomationProperties.AutomationId="ScanUpdateFreshness" />
-                <TextBlock Style="{StaticResource SecondaryProgressText}"
-                    Text="{Binding PhaseWork.Label}"
-                    automation:AutomationProperties.AutomationId="ScanPhaseWorkLabel"
-                    Margin="0,8,0,0"
-                    FontWeight="SemiBold" />
+                    automation:AutomationProperties.AutomationId="ScanUpdateFreshness"
+                    automation:AutomationProperties.Name="{Binding UpdateFreshness, StringFormat='Progress update: {0}'}" />
                 <Border Margin="0,6,0,6" Height="6">
                     <Border.Style>
                         <Style TargetType="Border">
@@ -97,7 +97,7 @@
                     Text="{Binding PhaseWork.Detail}"
                     automation:AutomationProperties.AutomationId="ScanPhaseWorkDetail" />
                 <TextBlock Style="{StaticResource SecondaryProgressText}"
-                    Text="{Binding EstimatedTimeRemaining, StringFormat='ETA: {0}'}"
+                    Text="{Binding EstimatedTimeRemainingSummary, StringFormat='Time left: {0}'}"
                     automation:AutomationProperties.AutomationId="ScanEstimatedTimeRemaining"
                     Margin="0,4,0,0" />
                 <TextBlock Style="{StaticResource SecondaryProgressText}"
@@ -109,14 +109,25 @@
                 <TextBlock Text="{Binding ActivityFileName}"
                     FontWeight="SemiBold"
                     TextTrimming="CharacterEllipsis"
+                    ToolTip="{Binding ActivityFileName}"
                     automation:AutomationProperties.AutomationId="ScanActivityFileName" />
                 <TextBlock Text="{Binding ActivityParent}"
                     TextTrimming="CharacterEllipsis"
+                    ToolTip="{Binding ActivityParent}"
                     automation:AutomationProperties.AutomationId="ScanActivityParent" />
-                <TextBlock Style="{StaticResource SecondaryProgressText}"
-                    Text="{Binding MetricsContext}"
-                    automation:AutomationProperties.AutomationId="ScanMetricsContext"
-                    Margin="0,6,0,6" />
+                <TextBlock Margin="0,6,0,6"
+                    automation:AutomationProperties.AutomationId="ScanSampledActivityNote">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                            <Setter Property="Text" Value="This is a sample of scan activity; a large file may stay here while it is read." />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsActive}" Value="False">
+                                    <Setter Property="Text" Value="These progress details may differ from the final scan totals." />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
                 <Border Margin="0,14,0,0"
                     Padding="12"
                     BorderThickness="1"
@@ -140,11 +151,16 @@
                     accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
                     accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
                     accessibility:AutomationNotificationBehavior.ActivityId="ScanProgress" />
-                <Expander Header="Work"
+                <Expander Header="Work details"
                     Margin="0,6,0,0"
+                    IsExpanded="False"
                     automation:AutomationProperties.AutomationId="ScanWorkExpander"
                     automation:AutomationProperties.Name="Work details">
                     <StackPanel Margin="0,8,0,12">
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding PhaseWork.Label}"
+                            automation:AutomationProperties.AutomationId="ScanPhaseWorkLabel"
+                            FontWeight="SemiBold" />
                         <TextBlock Margin="0,0,0,10"
                             automation:AutomationProperties.AutomationId="ScanDetailedProgressUnavailable"
                             automation:AutomationProperties.Name="{Binding DetailedProgressUnavailableMessage}"
@@ -254,8 +270,9 @@
                             automation:AutomationProperties.AutomationId="ScanReadOutcomes" />
                     </StackPanel>
                 </Expander>
-                <Expander Header="Hash reuse"
+                <Expander Header="Hash reuse details"
                     Margin="0,6,0,0"
+                    IsExpanded="False"
                     automation:AutomationProperties.AutomationId="ScanHashReuseExpander"
                     automation:AutomationProperties.Name="Hash reuse details">
                     <StackPanel Margin="0,8,0,12">
@@ -276,9 +293,16 @@
                 </Expander>
                 <Expander Header="Diagnostics"
                     Margin="0,6,0,0"
+                    IsExpanded="False"
                     automation:AutomationProperties.AutomationId="ScanDiagnosticsExpander"
                     automation:AutomationProperties.Name="Diagnostics details">
                     <StackPanel Margin="0,8,0,12">
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding EstimatedTimeRemaining, StringFormat='Exact ETA state: {0}'}"
+                            automation:AutomationProperties.AutomationId="ScanExactEstimatedTimeRemaining" />
+                        <TextBlock Style="{StaticResource SecondaryProgressText}"
+                            Text="{Binding MetricsContext}"
+                            automation:AutomationProperties.AutomationId="ScanMetricsContext" />
                         <TextBlock Margin="0,8,0,4" FontWeight="SemiBold" Text="Exact sampled path (selectable)" />
                         <TextBox Margin="0,4,0,8"
                             IsReadOnly="True"

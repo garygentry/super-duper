@@ -896,6 +896,29 @@ generation or `preflight:null`. The response uses the preflight object above. `c
 and `isCurrent` are computed at query time; review changes never rewrite the frozen header or item
 observations.
 
+Freshness clarification (Windows UI polish, 2026-09-16; no schema or wire-version change):
+`isCurrent` requires both the same active review revision and no known conflicting live evidence
+for a source of a checked item. Immutable `review_live_validation_item` and
+`review_live_root_reconciliation_item` history contributes `changed`, `missing`, and `unavailable`
+observations for exact `preflight_item_source.file_id` matches, including removal targets,
+required survivor copies, logical aliases, and flattened folder descendants. Unrelated sets do
+not invalidate the generation. The live observation is compared with that item's `observedAt`
+(the start of its filesystem check), or generation creation for a pending item. RFC 3339 instants
+are parsed with their precision and offset; equal instants conservatively require another check.
+Evidence arriving while a check is running therefore cannot be hidden by its later completion.
+A later metadata-only `present` result cannot revive an older full check; a new full preflight
+can supersede prior evidence. Neither manual review revisions nor stored scan/preflight results
+are rewritten. `currentReviewRevision` may equal `reviewRevision` while `isCurrent` is false.
+Newer immutable root-overflow events also invalidate a check when that run's affected root contains
+a checked source path. An unrelated selected root does not invalidate it, and a later
+`present`-only reconciliation cannot revive the earlier content/tree check.
+Operation preparation and confirmation apply this same evidence check inside their existing
+immediate database transactions and reject stale evidence as an ineligible preflight. Existing
+idempotent replays remain observations of the prior request, not new execution authorization.
+Root reconciliation revisits base-run file IDs; discovery of newly added folder children remains
+the responsibility of full folder validation or rescan. This status is evidence-based, not a
+continuous filesystem guarantee or execution authorization.
+
 ### `preflight.item.page`
 
 ```json

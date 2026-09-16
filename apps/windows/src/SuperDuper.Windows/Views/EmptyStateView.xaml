@@ -2,15 +2,16 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
-        <TextBlock HorizontalAlignment="Center" Style="{StaticResource PageTitle}" Text="No sessions yet" />
+        <TextBlock HorizontalAlignment="Center" Style="{StaticResource PageTitle}" Text="Find your duplicate files" />
         <TextBlock Margin="0,9,0,18"
                    HorizontalAlignment="Center"
                    Style="{StaticResource ShellBody}"
-                   Text="Create a reusable session, choose one or more folders, and start finding duplicates."
+                   Text="Choose folders to compare. Save them once and scan again whenever you need."
                    TextAlignment="Center"
                    TextWrapping="Wrap" />
         <Button HorizontalAlignment="Center"
+                Style="{StaticResource ShellPrimaryAction}"
                 Command="{Binding Sessions.NewSessionCommand}"
-                Content="Create a session" />
+                Content="Choose folders" />
     </StackPanel>
 </UserControl>

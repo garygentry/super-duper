@@ -6,7 +6,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::UNIX_EPOCH;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use thiserror::Error;
 use twox_hash::XxHash64;
@@ -22,6 +22,98 @@ use super::review::{validate_review_state, ReviewError};
 use super::Database;
 
 const MAXIMUM_OPERATION_ID_CHARACTERS: usize = 128;
+
+// A metadata-only Present observation cannot restore an earlier content check after a
+// conflicting observation. Consult immutable history, including required survivor copies
+// and every logical source of a coalesced physical item, rather than only the latest overlay.
+pub(super) fn has_newer_live_evidence(
+    connection: &Connection,
+    preflight_id: i64,
+) -> Result<bool, rusqlite::Error> {
+    let mut statement = connection.prepare(
+        "SELECT live.observed_at, COALESCE(item.observed_at, validation.created_at)
+         FROM preflight_item item
+         JOIN preflight validation ON validation.id = item.preflight_id
+         JOIN preflight_item_source source ON source.item_id = item.id
+         JOIN review_live_validation_item live ON live.file_id = source.file_id
+         WHERE item.preflight_id = ?1 AND live.state <> 'present'
+         UNION ALL
+         SELECT live.observed_at, COALESCE(item.observed_at, validation.created_at)
+         FROM preflight_item item
+         JOIN preflight validation ON validation.id = item.preflight_id
+         JOIN preflight_item_source source ON source.item_id = item.id
+         JOIN review_live_root_reconciliation_item live ON live.file_id = source.file_id
+         WHERE item.preflight_id = ?1 AND live.state <> 'present'",
+    )?;
+    let rows = statement.query_map(params![preflight_id], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    for row in rows {
+        let (evidence, checked) = row?;
+        if evidence_not_older(&evidence, &checked) {
+            return Ok(true);
+        }
+    }
+    // Overflow is durable evidence that changes may have been missed in this root. A later
+    // metadata-only reconciliation cannot certify the older content/tree check again.
+    let mut statement = connection.prepare(
+        "SELECT overflow.created_at, COALESCE(item.observed_at, validation.created_at),
+                overflow.root_path, source.snapshot_path
+         FROM preflight_item item
+         JOIN preflight validation ON validation.id = item.preflight_id
+         JOIN preflight_item_source source ON source.item_id = item.id
+         JOIN review_live_root_overflow overflow ON overflow.run_id = validation.run_id
+         WHERE item.preflight_id = ?1",
+    )?;
+    let rows = statement.query_map(params![preflight_id], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+        ))
+    })?;
+    for row in rows {
+        let (evidence, checked, root, path) = row?;
+        if evidence_not_older(&evidence, &checked) && path_is_within(&path, &root) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn evidence_not_older(evidence: &str, checked: &str) -> bool {
+    // RFC3339 permits different fractions and offsets: lexical ordering is incorrect.
+    // Equal instants cannot prove ordering, so conservatively require a fresh check.
+    match (
+        DateTime::parse_from_rfc3339(evidence),
+        DateTime::parse_from_rfc3339(checked),
+    ) {
+        (Ok(evidence), Ok(checked)) => evidence >= checked,
+        _ => true,
+    }
+}
+
+#[cfg(test)]
+mod freshness_timestamp_tests {
+    use super::evidence_not_older;
+
+    #[test]
+    fn freshness_orders_instants_with_offsets_and_variable_precision() {
+        let checked = "2026-09-16T10:00:00.100000000+00:00";
+        assert!(!evidence_not_older(
+            "2026-09-16T03:00:00.099999999-07:00",
+            checked
+        ));
+        assert!(evidence_not_older(
+            "2026-09-16T03:00:00.100000001-07:00",
+            checked
+        ));
+        assert!(evidence_not_older("2026-09-16T10:00:00.1Z", checked));
+        assert!(!evidence_not_older("2026-09-16T10:00:00Z", checked));
+        assert!(evidence_not_older("invalid", checked));
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum PreflightError {
@@ -432,7 +524,8 @@ impl Database {
             .optional()?
             .unwrap_or(-1);
         Ok(PreflightView {
-            is_current: current_review_revision == preflight.review_revision,
+            is_current: current_review_revision == preflight.review_revision
+                && !has_newer_live_evidence(self.connection(), preflight_id)?,
             current_review_revision,
             preflight,
         })
@@ -603,6 +696,9 @@ impl Database {
                 break;
             };
             let sources = item_sources(self.connection(), item.id)?;
+            // Evidence arriving while this item is being checked must not be hidden by the
+            // later write of its result (hashing a large file can take considerable time).
+            let observed_at = Utc::now().to_rfc3339();
             let observation = validate_item(&item, &sources, &exclusions, cancel_token);
             if observation.outcome == "cancelled" {
                 self.finish_preflight(preflight_id, "cancelled", None, None)?;
@@ -611,7 +707,7 @@ impl Database {
                 progress(&terminal, None);
                 return Ok(terminal);
             }
-            self.record_preflight_observation(item.id, &observation)?;
+            self.record_preflight_observation(item.id, &observation, &observed_at)?;
             let current = preflight_by_id(self.connection(), preflight_id)?.expect("preflight");
             progress(&current, Some(&item.snapshot_path));
         }
@@ -743,6 +839,7 @@ impl Database {
         &self,
         item_id: i64,
         observation: &PreflightObservation,
+        observed_at: &str,
     ) -> Result<(), PreflightError> {
         if !matches!(
             observation.outcome.as_str(),
@@ -752,7 +849,6 @@ impl Database {
                 message: "invalid preflight observation outcome".to_owned(),
             });
         }
-        let now = Utc::now().to_rfc3339();
         self.connection().execute(
             "UPDATE preflight_item
              SET outcome = ?1, reason_code = ?2, observed_file_identity = ?3,
@@ -767,7 +863,7 @@ impl Database {
                 observation.observed_last_modified,
                 observation.observed_content_hash,
                 observation.os_error,
-                now,
+                observed_at,
                 item_id,
             ],
         )?;

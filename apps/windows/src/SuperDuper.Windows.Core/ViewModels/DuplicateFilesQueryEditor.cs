@@ -1,6 +1,4 @@
 using System.ComponentModel;
-using System.Globalization;
-using System.Numerics;
 using CommunityToolkit.Mvvm.Input;
 using SuperDuper.Windows.Core.Workers;
 
@@ -26,7 +24,7 @@ public sealed partial class DuplicateFilesViewModel
     private string _minimumSizeUnit = "B";
     private IReadOnlyList<FileFilterChip> _appliedFilters = [];
 
-    public IReadOnlyList<string> SizeUnits { get; } = ["B", "KiB", "MiB", "GiB", "TiB"];
+    public IReadOnlyList<string> SizeUnits => BinarySizeInput.Units;
     public int RootFacetSortIndex
     {
         get => _rootFacetSortField == DuplicateFileSelectedRootFacetSortField.Value ? 1 : 0;
@@ -82,27 +80,6 @@ public sealed partial class DuplicateFilesViewModel
         OnPropertyChanged(nameof(FilteredCopiesText));
         OnPropertyChanged(nameof(FilteredSavingsText));
         OnPropertyChanged(nameof(FilteredSavingsExactText));
-    }
-
-    private static bool TryConvertSize(string text, string unit, out long bytes)
-    {
-        bytes = 0;
-        var multiplier = unit switch
-        {
-            "B" => 1L, "KiB" => 1024L, "MiB" => 1048576L,
-            "GiB" => 1073741824L, "TiB" => 1099511627776L, _ => 0L,
-        };
-        // Rational arithmetic avoids decimal/double rounding, including one byte in TiB.
-        // Bound editor work separately from the worker's unchanged signed 64-bit byte ceiling.
-        if (text.Length is 0 or > 256 || multiplier == 0) return false;
-        var parts = text.Split('.');
-        if (parts.Length > 2 || parts.Any(part => part.Length == 0 || part.Any(c => c is < '0' or > '9'))) return false;
-        var numerator = BigInteger.Parse(string.Concat(parts), CultureInfo.InvariantCulture) * multiplier;
-        var denominator = BigInteger.Pow(10, parts.Length == 2 ? parts[1].Length : 0);
-        var whole = BigInteger.DivRem(numerator, denominator, out var remainder);
-        if (!remainder.IsZero || whole > long.MaxValue) return false;
-        bytes = (long)whole;
-        return true;
     }
 
     // Paging, facet sorting and rule scope always use the accepted server query, never the editor.

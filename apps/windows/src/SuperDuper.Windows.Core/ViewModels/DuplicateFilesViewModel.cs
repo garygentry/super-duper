@@ -1143,7 +1143,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
                     ValidationState = "validation_pending",
                     ValidationReasonCode = "watcher_hint",
                     ValidationObservedAt = null,
-                })
+                }, Run?.Parameters.Roots)
                 : member).ToArray();
         }
         LiveHintStatusMessage =
@@ -2084,7 +2084,8 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
         _currentMemberPage = page;
         _currentMemberCursor = cursor;
         TotalMembers = page.Total;
-        Members = page.Members.Select(member => new DuplicateFileMemberListItemViewModel(member)).ToArray();
+        Members = page.Members.Select(member =>
+            new DuplicateFileMemberListItemViewModel(member, Run?.Parameters.Roots)).ToArray();
         SelectedReviewSummary = page.ReviewSummary;
         if (page.ReviewRevision >= ReviewPlan.Plan.Revision)
         {
@@ -2325,7 +2326,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
         {
             minimum = "0";
         }
-        if (!TryConvertSize(minimum, MinimumSizeUnit, out var value))
+        if (!BinarySizeInput.TryConvertToBytes(minimum, MinimumSizeUnit, out var value))
         {
             ErrorMessage = "Minimum size must convert exactly to a non-negative whole number of bytes, at most 9,223,372,036,854,775,807 bytes. Use a decimal point for fractions.";
             filter = new DuplicateFileGroupFilter(string.Empty, "0", false);
@@ -2820,7 +2821,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
             {
                 if (!byId.TryGetValue(member.Id, out var item))
                 {
-                    return new DuplicateFileMemberListItemViewModel(member);
+                    return new DuplicateFileMemberListItemViewModel(member, run.Parameters.Roots);
                 }
                 return new DuplicateFileMemberListItemViewModel(member with
                 {
@@ -2832,7 +2833,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
                     ValidationReasonCode = item.ReasonCode,
                     ValidationObservedAt = item.ObservedAt,
                     InvalidatedDecision = item.InvalidatedDecision,
-                });
+                }, run.Parameters.Roots);
             }).ToArray();
             _memberCache.Clear();
             var priorSummary = SelectedReviewSummary;

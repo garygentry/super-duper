@@ -142,6 +142,7 @@ public sealed class ScanProgressViewModelTests
         Assert.AreEqual(
             "Hash pipeline: about 4 s remaining · 3.91 KB at 1000 B/s logical · 10 s window",
             viewModel.EstimatedTimeRemaining);
+        Assert.AreEqual("About 4 s for file reads", viewModel.EstimatedTimeRemainingSummary);
     }
 
     [TestMethod]

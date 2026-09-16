@@ -139,6 +139,18 @@ internal static class ScanProgressProjection
         _ => "Unavailable — unsupported remaining-work stage",
     };
 
+    internal static string EtaSummary(WorkerProgressEta? eta) => eta switch
+    {
+        null or { State: "unavailable", Reason: "work_not_yet_known" or "window_warming" } => "Still estimating",
+        { State: "complete" } => "Complete",
+        { State: "unavailable", Reason: "no_recent_progress" or "unstable_rate" } => "No reliable estimate yet",
+        { State: "unavailable", Reason: "not_applicable" } => "Not estimated for this step",
+        { State: "available", RemainingLogicalBytes: not null, LogicalBytesPerSecondMillis: not null,
+            EstimatedSeconds: { } seconds, WindowNanos: not null } =>
+            $"About {DurationFromSeconds(seconds)} for file reads",
+        _ => "Not available",
+    };
+
     internal static string Eta(WorkerProgressEta? eta) => eta switch
     {
         null => "Unavailable — ETA state missing",

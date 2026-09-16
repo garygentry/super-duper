@@ -86,3 +86,19 @@ preview/apply/reverse; stale validation after real filesystem edits; restart/cac
 long-running monitoring/cancel; empty, denied/locked/missing files; real paging over 200 groups;
 worker recovery; keyboard/tooltip/icon accessibility. Do not label this initial review a complete
 native acceptance of every feature. P01 closes that evidence gap before broad visual implementation.
+
+## Findings from implementation journeys
+
+| ID | Priority | Reproduction / evidence | Owner and status |
+|---|---|---|---|
+| ENG01 | High | Complete a plan check, change a marked copy, run Files validation: copy becomes changed/decision invalidated, but latest preflight still says current with unchanged manual revision. Real journey `1e421f2a889f49be9f7e406f89bcf3b2`. | P07: bounded immutable-history freshness fix and actual-file regressions under verification. |
+| UX15 | High | At 900×600 Folder header's fixed 140-DIP scroll spends its viewport on explanation, clipping search/filter controls. | P04: persistent compact toolbar, advanced size/match details behind Filters; fresh viewport checks pending. |
+| UX16 | Medium | Full roots in copy rows share a long prefix and trim away their distinguishing names. | P04: shortest unambiguous suffix from immutable run roots; full paths retained; focused label checks and new captures pending. |
+| UX17 | Medium | Detail disclosure does not persist: a window-level Loaded handler misses descendant direct Loaded events. | P02: logical-tree tracking; actual JSON/disk restart journey passed for Setup and inactive History sections. |
+| UX18 | Medium | Selected tab bolds all page content through inherited FontWeight. | P02: selected underline retained without inherited content weight; corrected real Setup/Results captures inspected. |
+| UX19 | Medium | History repeats instructions above the list; Progress exposes ETA mechanics in the normal view. | P03/P06: list-first History and qualified concise estimate, detailed reason in Diagnostics; new captures pending. |
+| QA01 | Verification gap | Restarted History PNG has an implausibly narrow first column before deferred layout settles. | P07: await application-idle before capture and assert useful column width; determine whether any product sizing defect remains. |
+
+The accepted plan permits independent tooling/foundations to proceed concurrently. Gate completion
+still requires matching evidence. See [implementation evidence](implementation-evidence.md) and the
+compact checkpoint for current verification; these findings are not silently considered closed.

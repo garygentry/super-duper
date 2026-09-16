@@ -10,87 +10,118 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <ScrollViewer Grid.Row="0"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled">
-            <ScrollViewer.Style>
-                <Style TargetType="ScrollViewer">
-                    <Setter Property="MaxHeight" Value="140" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsEmpty}" Value="True">
-                            <Setter Property="MaxHeight" Value="80" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding IsUnavailable}" Value="True">
-                            <Setter Property="MaxHeight" Value="80" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding IsLoadingOverlayVisible}" Value="True">
-                            <Setter Property="MaxHeight" Value="80" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding IsInitialError}" Value="True">
-                            <Setter Property="MaxHeight" Value="80" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </ScrollViewer.Style>
-        <StackPanel Margin="24,8,24,4" KeyboardNavigation.TabNavigation="Continue">
-            <TextBlock Style="{StaticResource PageTitle}" Text="Exact duplicate folders" />
-            <TextBlock Margin="0,4,0,0"
-                       Text="Contents match exactly even when root names differ. Nested matches covered by a larger exact root are suppressed."
-                       TextWrapping="Wrap" />
-            <WrapPanel Margin="0,10,0,0"
-                       VerticalAlignment="Bottom"
-                       automation:AutomationProperties.Name="Exact duplicate folder filter controls">
-                <StackPanel Width="220" Margin="0,0,8,0">
-                    <TextBlock Margin="0,0,0,3" Text="Path search" />
+        <StackPanel Grid.Row="0" Margin="24,8,24,4" KeyboardNavigation.TabNavigation="Continue">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <DockPanel MinWidth="180" VerticalAlignment="Bottom">
+                    <Label DockPanel.Dock="Left" Margin="0,0,8,0" Padding="0,0,0,3"
+                           VerticalAlignment="Center" Target="{Binding ElementName=FolderSearch}"
+                           Content="_Path search" />
                     <TextBox x:Name="FolderSearch"
                              VerticalContentAlignment="Center"
                              automation:AutomationProperties.AutomationId="FolderSearch"
                              automation:AutomationProperties.Name="Folder path search"
-                             automation:AutomationProperties.HelpText="Searches complete immutable folder-copy paths after Apply filters or Enter."
+                             automation:AutomationProperties.HelpText="Searches complete immutable folder-copy paths after Apply or Enter."
                              KeyDown="OnFilterKeyDown"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                              ToolTip="Search complete duplicate folder paths" />
-                </StackPanel>
-                <StackPanel Width="190" Margin="0,0,8,0">
-                    <TextBlock Margin="0,0,0,3" Text="Minimum size per copy (bytes)" />
-                    <TextBox x:Name="FolderMinimumSize"
-                             VerticalContentAlignment="Center"
-                             automation:AutomationProperties.AutomationId="FolderMinimumSize"
-                             automation:AutomationProperties.Name="Minimum folder size per copy in bytes"
-                             automation:AutomationProperties.HelpText="A non-negative whole number of bytes for one exact folder copy; applied after Apply filters or Enter."
-                             KeyDown="OnFilterKeyDown"
-                             Text="{Binding MinimumSizeText, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Minimum one-copy folder size in bytes" />
-                </StackPanel>
-                <Button x:Name="FolderApplyFilters"
-                        Margin="0,0,8,0"
-                        VerticalAlignment="Bottom"
-                        automation:AutomationProperties.AutomationId="FolderApplyFilters"
-                        automation:AutomationProperties.Name="Apply folder filters"
-                        automation:AutomationProperties.HelpText="Applies the draft path and minimum-size values as one coherent server query."
-                        Command="{Binding ApplyFiltersCommand}"
-                        Content="Apply filters" />
-                <Button x:Name="FolderClearFilters"
-                        VerticalAlignment="Bottom"
-                        automation:AutomationProperties.AutomationId="FolderClearFilters"
-                        automation:AutomationProperties.Name="Clear folder filters"
-                        automation:AutomationProperties.HelpText="Clears draft and applied folder filters and restores the default sort."
-                        Command="{Binding ClearFiltersCommand}"
-                        Content="Clear filters" />
-            </WrapPanel>
-            <TextBlock Margin="0,7,0,0"
-                       automation:AutomationProperties.AutomationId="FolderAppliedFilterSummary"
-                       automation:AutomationProperties.Name="Applied exact-folder filter summary"
-                       Text="{Binding AppliedFilterSummaryText}"
-                       TextWrapping="Wrap" />
+                </DockPanel>
+                <WrapPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom">
+                    <Button x:Name="FolderApplyFilters"
+                            Margin="8,0,0,0"
+                            automation:AutomationProperties.AutomationId="FolderApplyFilters"
+                            automation:AutomationProperties.Name="Apply folder filters"
+                            automation:AutomationProperties.HelpText="Applies the draft path and minimum-size values as one coherent query."
+                            Command="{Binding ApplyFiltersCommand}"
+                            Content="_Apply" />
+                    <ToggleButton x:Name="FolderFiltersToggle"
+                                  Margin="8,0,0,0"
+                                  automation:AutomationProperties.AutomationId="FolderFiltersToggle"
+                                  automation:AutomationProperties.Name="Show or hide advanced folder filters"
+                                  Content="_Filters"
+                                  IsChecked="{Binding IsExpanded, ElementName=FolderFiltersExpander, Mode=TwoWay}" />
+                    <Button x:Name="FolderClearFilters"
+                            Margin="8,0,0,0"
+                            automation:AutomationProperties.AutomationId="FolderClearFilters"
+                            automation:AutomationProperties.Name="Clear folder filters"
+                            automation:AutomationProperties.HelpText="Clears draft and applied folder filters and restores the default sort."
+                            Command="{Binding ClearFiltersCommand}"
+                            Content="Clear filters" />
+                </WrapPanel>
+            </Grid>
             <TextBlock Margin="0,5,0,0"
-                       automation:AutomationProperties.AutomationId="FolderCombinedReviewSummary"
+                       automation:AutomationProperties.AutomationId="FolderAppliedFilterSummary"
                        automation:AutomationProperties.LiveSetting="Polite"
-                       Text="{Binding ReviewPlanSummaryText}"
-                       TextWrapping="Wrap" />
+                       automation:AutomationProperties.Name="{Binding AppliedFilterSummaryText}"
+                       Text="{Binding AppliedFilterBriefText}"
+                       TextWrapping="NoWrap"
+                       TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding AppliedFilterSummaryText}" />
+            <TextBlock Margin="0,5,0,0"
+                       automation:AutomationProperties.AutomationId="FolderFilterError"
+                       automation:AutomationProperties.LiveSetting="Assertive"
+                       automation:AutomationProperties.Name="{Binding ErrorMessage}"
+                       Text="{Binding ErrorMessage}"
+                       TextWrapping="Wrap"
+                       Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            <Expander x:Name="FolderFiltersExpander"
+                      Margin="0,5,0,0"
+                      Header="Filter and result details"
+                      IsExpanded="False"
+                      automation:AutomationProperties.AutomationId="FolderFiltersExpander"
+                      automation:AutomationProperties.Name="Advanced folder filters and result details"
+                      Visibility="{Binding IsExpanded, RelativeSource={RelativeSource Self}, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <ScrollViewer MaxHeight="130" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,6,0,8">
+                        <WrapPanel
+                                   automation:AutomationProperties.Name="Advanced exact-folder filter controls">
+                            <StackPanel Width="145" Margin="0,0,8,0">
+                                <Label Padding="0,0,0,3" Target="{Binding ElementName=FolderMinimumSize}"
+                                       Content="_Minimum size" />
+                                <TextBox x:Name="FolderMinimumSize"
+                                         VerticalContentAlignment="Center"
+                                         automation:AutomationProperties.AutomationId="FolderMinimumSize"
+                                         automation:AutomationProperties.Name="Minimum one-copy folder size"
+                                         automation:AutomationProperties.HelpText="Converts exactly to a non-negative whole number of bytes applied to one exact folder copy. Use a decimal point for fractions."
+                                         KeyDown="OnFilterKeyDown"
+                                         Text="{Binding MinimumSizeText, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Minimum one-copy folder size" />
+                                <Label Margin="0,4,0,0" Padding="0,0,0,3"
+                                       Target="{Binding ElementName=FolderSizeUnit}" Content="Size _unit" />
+                                <ComboBox x:Name="FolderSizeUnit"
+                                          ItemsSource="{Binding SizeUnits}"
+                                          SelectedItem="{Binding MinimumSizeUnit}"
+                                          automation:AutomationProperties.AutomationId="FolderSizeUnit"
+                                          automation:AutomationProperties.Name="Minimum folder size unit"
+                                          automation:AutomationProperties.HelpText="Binary units: KiB = 1,024 bytes; MiB = 1,048,576 bytes; GiB = 1,073,741,824 bytes; TiB = 1,099,511,627,776 bytes" />
+                            </StackPanel>
+                        </WrapPanel>
+                        <TextBlock Margin="0,8,0,0" Style="{StaticResource SectionTitle}"
+                                   Text="Exact duplicate folders" />
+                        <TextBlock Margin="0,3,0,0"
+                                   Text="Exact content only; nested matches covered by a larger exact root are omitted."
+                                   TextWrapping="Wrap" />
+                        <Expander x:Name="FolderMatchDetails"
+                                  Margin="0,4,0,0"
+                                  Header="Why locations can differ"
+                                  automation:AutomationProperties.AutomationId="FolderMatchDetails">
+                            <TextBlock Margin="0,4,0,0"
+                                       Text="Contents can match exactly even when their root names differ."
+                                       TextWrapping="Wrap" />
+                        </Expander>
+                        <TextBlock Margin="0,8,0,0"
+                                   automation:AutomationProperties.AutomationId="FolderCombinedReviewSummary"
+                                   automation:AutomationProperties.LiveSetting="Polite"
+                                   Text="{Binding ReviewPlanSummaryText}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Expander>
         </StackPanel>
-        </ScrollViewer>
-
         <Grid x:Name="FolderComparisonWorkspace"
               Grid.Row="1"
               Margin="24,8,24,24"
@@ -229,18 +260,24 @@
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" automation:AutomationProperties.Name="Duplicate folder group paging">
                         <Button x:Name="PreviousFolderGroupPageButton"
+                                Style="{StaticResource ShellIconAction}"
                                 automation:AutomationProperties.AutomationId="PreviousFolderGroupPage"
                                 automation:AutomationProperties.Name="Previous exact-folder set page; focus returns to the set list"
                                 IsEnabled="{Binding CanMovePrevious}"
                                 Click="OnFolderGroupPageClick"
-                                Content="Previous" />
+                                ToolTip="Previous folder sets">
+                            <Path Data="{StaticResource ShellIconChevronLeft}" Style="{StaticResource ShellActionIcon}" />
+                        </Button>
                         <Button x:Name="NextFolderGroupPageButton"
                                 Margin="8,0,0,0"
+                                Style="{StaticResource ShellIconAction}"
                                 automation:AutomationProperties.AutomationId="NextFolderGroupPage"
                                 automation:AutomationProperties.Name="Next exact-folder set page; focus returns to the set list"
                                 IsEnabled="{Binding CanMoveNext}"
                                 Click="OnFolderGroupPageClick"
-                                Content="Next" />
+                                ToolTip="Next folder sets">
+                            <Path Data="{StaticResource ShellIconChevronRight}" Style="{StaticResource ShellActionIcon}" />
+                        </Button>
                     </StackPanel>
                 </Grid>
             </Grid>
@@ -284,15 +321,6 @@
                                    Text="Folder-copy comparison"
                                    automation:AutomationProperties.AutomationId="FolderSelectedSetHeading"
                                    automation:AutomationProperties.Name="Selected exact-folder set comparison" />
-                        <TextBlock x:Name="FolderDetailContextSummary"
-                                   Margin="0,3,0,0"
-                                   automation:AutomationProperties.AutomationId="FolderRelationshipSummary"
-                                   automation:AutomationProperties.Name="Selected exact-folder relationship summary"
-                                   Text="{Binding SelectedRelationshipSummaryText}"
-                                   TextWrapping="Wrap" />
-                        <TextBlock Margin="0,3,0,0"
-                                   Text="Contents match exactly. Shared path context and the differing segments below describe location only; they do not identify an original."
-                                   TextWrapping="Wrap" />
                         <TextBlock Margin="0,3,0,0"
                                    automation:AutomationProperties.AutomationId="FolderSelectedReviewSummary"
                                    automation:AutomationProperties.LiveSetting="Polite"
@@ -308,6 +336,21 @@
                                    accessibility:AutomationNotificationBehavior.ActivityId="DuplicateFolderMemberQuery"
                                    Text="{Binding MemberPageStatusText}"
                                    TextWrapping="Wrap" />
+                        <Expander x:Name="FolderReviewDetails"
+                                  Margin="0,3,0,0"
+                                  Header="Folder set details"
+                                  automation:AutomationProperties.AutomationId="FolderReviewDetails">
+                            <StackPanel Margin="0,4,0,0">
+                                <TextBlock x:Name="FolderDetailContextSummary"
+                                           automation:AutomationProperties.AutomationId="FolderRelationshipSummary"
+                                           automation:AutomationProperties.Name="Selected exact-folder relationship summary"
+                                           Text="{Binding SelectedRelationshipSummaryText}"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Margin="0,3,0,0"
+                                           Text="Contents match exactly. Shared path context and the differing segments describe location only. They do not identify an original."
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Expander>
                     </StackPanel>
                 </Grid>
 
@@ -362,7 +405,7 @@
 
                 <Border x:Name="SelectedFolderCopyPanel"
                         Grid.Row="2"
-                        MaxHeight="100"
+                         MaxHeight="148"
                         Margin="0,6,0,0"
                         Padding="10"
                         BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
@@ -393,21 +436,20 @@
                                         Content="Back to copies" />
                                 <TextBlock Grid.Column="1" Style="{StaticResource SectionTitle}" Text="{Binding FolderName}" TextWrapping="Wrap" />
                             </Grid>
-                            <TextBlock Margin="0,6,0,0" FontWeight="SemiBold" Text="Complete folder path" />
-                            <TextBox x:Name="SelectedFolderCopyPath"
-                                     Margin="0,3,0,0"
-                                     Padding="5,3"
-                                     automation:AutomationProperties.AutomationId="FolderSelectedCopyPath"
-                                     automation:AutomationProperties.Name="{Binding FullPathAutomationName}"
-                                     BorderThickness="1"
-                                     HorizontalScrollBarVisibility="Disabled"
-                                     IsReadOnly="True"
-                                     IsReadOnlyCaretVisible="True"
-                                     Text="{Binding Path, Mode=OneWay}"
-                                     TextWrapping="Wrap"
-                                     VerticalScrollBarVisibility="Auto" />
-                            <TextBlock Margin="0,7,0,0"
-                                       Text="A folder decision applies to this folder copy and all descendants in this exact match. Overlapping file or folder decisions are counted once in the worker-owned review total."
+                            <StackPanel x:Name="NarrowFolderAlerts" Visibility="Collapsed">
+                                <TextBlock automation:AutomationProperties.AutomationId="FolderNarrowDetailError"
+                                           automation:AutomationProperties.LiveSetting="Assertive"
+                                           Text="{Binding DataContext.DetailErrorMessage, ElementName=Root}"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding DataContext.HasDetailError, ElementName=Root, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                <TextBlock automation:AutomationProperties.AutomationId="FolderNarrowExplorerError"
+                                           automation:AutomationProperties.LiveSetting="Assertive"
+                                           Text="{Binding DataContext.ExplorerErrorMessage, ElementName=Root}"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding DataContext.HasExplorerError, ElementName=Root, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            </StackPanel>
+                            <TextBlock Margin="0,5,0,0"
+                                       Text="A folder decision applies to this folder copy and its descendants."
                                        TextWrapping="Wrap" />
                             <TextBlock Margin="0,5,0,0"
                                        FontWeight="SemiBold"
@@ -418,32 +460,60 @@
                                         automation:AutomationProperties.HelpText="Records Keep for this named folder copy after worker confirmation; it does not delete or validate anything."
                                         Command="{Binding DataContext.KeepFolderCommand, ElementName=Root}"
                                         CommandParameter="{Binding}"
-                                        Content="Keep" />
+                                        Content="Keep folder" />
                                 <Button Margin="6,0,0,0"
                                         automation:AutomationProperties.Name="{Binding RemoveAutomationName}"
                                         automation:AutomationProperties.HelpText="Records removal intent for this named folder copy and descendants after worker confirmation; it does not delete anything."
                                         Command="{Binding DataContext.RemoveFolderCommand, ElementName=Root}"
                                         CommandParameter="{Binding}"
-                                        Content="Mark for removal" />
+                                        Content="Mark folder for removal" />
                                 <Button Margin="6,0,0,0"
                                         automation:AutomationProperties.Name="{Binding UndecideAutomationName}"
                                         automation:AutomationProperties.HelpText="Clears the durable decision for this named folder copy after worker confirmation."
                                         Command="{Binding DataContext.UndecideFolderCommand, ElementName=Root}"
                                         CommandParameter="{Binding}"
-                                        Content="Reset decision" />
+                                        Content="Reset folder" />
                             </WrapPanel>
+                            <TextBlock Margin="0,7,0,0" FontWeight="SemiBold" Text="Complete folder path" />
+                            <TextBox x:Name="SelectedFolderCopyPath"
+                                     Margin="0,3,0,0"
+                                     Padding="5,3"
+                                     MaxHeight="50"
+                                     automation:AutomationProperties.AutomationId="FolderSelectedCopyPath"
+                                     automation:AutomationProperties.Name="{Binding FullPathAutomationName}"
+                                     BorderThickness="1"
+                                     HorizontalScrollBarVisibility="Disabled"
+                                     IsReadOnly="True"
+                                     IsReadOnlyCaretVisible="True"
+                                     Text="{Binding Path, Mode=OneWay}"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto" />
                             <WrapPanel Margin="0,6,0,0" automation:AutomationProperties.Name="Path actions for selected folder copy">
-                                <Button automation:AutomationProperties.Name="{Binding CopyPathAutomationName}"
+                                <Button Style="{StaticResource ShellIconAction}"
+                                        automation:AutomationProperties.Name="{Binding CopyPathAutomationName}"
                                         Command="{Binding DataContext.CopyPathCommand, ElementName=Root}"
                                         CommandParameter="{Binding}"
-                                        Content="Copy path" />
+                                        ToolTip="Copy path">
+                                    <Path Data="{StaticResource ShellIconCopy}" Style="{StaticResource ShellActionIcon}" />
+                                </Button>
                                 <Button Margin="6,0,0,0"
+                                        Style="{StaticResource ShellIconAction}"
                                         automation:AutomationProperties.AutomationId="{Binding RevealAutomationId}"
                                         automation:AutomationProperties.Name="{Binding RevealAutomationName}"
                                         automation:AutomationProperties.HelpText="Shows only this immutable-page folder copy in Explorer. Press Alt+E from its selected comparison row for the same action."
                                         Click="OnRevealInExplorerClick"
-                                        Content="Show in Explorer" />
+                                        ToolTip="Show in Explorer">
+                                    <Path Data="{StaticResource ShellIconOpenLocation}" Style="{StaticResource ShellActionIcon}" />
+                                </Button>
                             </WrapPanel>
+                            <Expander x:Name="FolderDecisionScopeDetails"
+                                      Margin="0,4,0,0"
+                                      Header="Decision scope details"
+                                      automation:AutomationProperties.AutomationId="FolderDecisionScopeDetails">
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="Overlapping file or folder decisions are counted once in the review total."
+                                           TextWrapping="Wrap" />
+                            </Expander>
                         </StackPanel>
                     </ScrollViewer>
                 </Border>
@@ -491,26 +561,35 @@
                         <WrapPanel Margin="0,4,0,0">
                             <Button x:Name="SelectFolderPageInExplorerButton"
                                     Margin="0,0,8,0"
+                                    Style="{StaticResource ShellIconAction}"
                                     automation:AutomationProperties.AccessKey="Alt+G"
                                     automation:AutomationProperties.AutomationId="FolderSelectPageInExplorer"
                                     automation:AutomationProperties.Name="Select current folder-copy page in Explorer; focus returns to the visible folder comparison"
                                     automation:AutomationProperties.HelpText="Selects only the bounded current immutable folder-copy page, making one Explorer selection per parent location. Alt+G."
                                     IsEnabled="{Binding CanSelectPageInExplorer}"
                                     Click="OnSelectFolderPageInExplorerClick"
-                                    Content="Select pa_ge in Explorer" />
+                                    ToolTip="Select page in Explorer">
+                                <Path Data="{StaticResource ShellIconOpenLocation}" Style="{StaticResource ShellActionIcon}" />
+                            </Button>
                             <Button x:Name="PreviousFolderCardsButton"
+                                    Style="{StaticResource ShellIconAction}"
                                     automation:AutomationProperties.AutomationId="PreviousFolderCardsButton"
                                     automation:AutomationProperties.Name="Previous folder-copy page; focus returns to the visible folder comparison"
                                     IsEnabled="{Binding CanMoveMembersPrevious}"
                                     Click="OnFolderCardPageClick"
-                                    Content="Previous folders" />
+                                    ToolTip="Previous folders">
+                                <Path Data="{StaticResource ShellIconChevronLeft}" Style="{StaticResource ShellActionIcon}" />
+                            </Button>
                             <Button x:Name="NextFolderCardsButton"
                                     Margin="8,0,0,0"
+                                    Style="{StaticResource ShellIconAction}"
                                     automation:AutomationProperties.AutomationId="NextFolderCardsButton"
                                     automation:AutomationProperties.Name="Next folder-copy page; focus returns to the visible folder comparison"
                                     IsEnabled="{Binding CanMoveMembersNext}"
                                     Click="OnFolderCardPageClick"
-                                    Content="Next folders" />
+                                    ToolTip="Next folders">
+                                <Path Data="{StaticResource ShellIconChevronRight}" Style="{StaticResource ShellActionIcon}" />
+                            </Button>
                         </WrapPanel>
                     </StackPanel>
                 </ScrollViewer>

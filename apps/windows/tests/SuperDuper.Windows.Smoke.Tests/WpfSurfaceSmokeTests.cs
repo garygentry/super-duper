@@ -247,7 +247,7 @@ public sealed class WpfSurfaceSmokeTests
             StringAssert.Contains(AutomationProperties.GetName(validatePage), "focus returns");
             StringAssert.Contains(AutomationProperties.GetHelpText(validatePage), "at most 200");
             StringAssert.Contains(AutomationProperties.GetHelpText(validatePage), "never follows a page cursor");
-            StringAssert.Contains(validatePage.Content?.ToString(), "_Validate");
+            Assert.AreEqual("Check these copies", validatePage.Content);
             Assert.AreEqual("Cancel visible-page validation", AutomationProperties.GetName(
                 FindByAutomationId<Button>(files, "FileCancelValidation")));
             var dirtyWarning = FindByAutomationId<TextBlock>(files, "FileDirtyRootWarning");
@@ -362,13 +362,23 @@ public sealed class WpfSurfaceSmokeTests
                 CanClearDecision = true,
             };
             DrainDispatcher();
-            var selectedCopyActions = FindLogicalDescendants<Button>(selectedCopyPanel)
-                .Where(button => button.Content?.ToString() is
-                    "Keep" or "Mark for removal" or "Reset decision" or "Copy path" or "Show in Explorer")
-                .ToArray();
+            Assert.AreEqual("FileSelectedCopyPanel", AutomationProperties.GetAutomationId(selectedCopyPanel));
+            var selectedCopyActions = FindSelectedFileCopyActions(selectedCopyPanel);
             CollectionAssert.AreEqual(
-                new[] { "Keep", "Mark for removal", "Reset decision", "Copy path", "Show in Explorer" },
-                selectedCopyActions.Select(button => button.Content?.ToString()).ToArray());
+                new[]
+                {
+                    "Keep C:\\Data\\item.bin; preserves this physical copy",
+                    "Mark C:\\Data\\item.bin for removal; records intent only and does not delete",
+                    "Reset decision for C:\\Data\\item.bin to undecided",
+                    "Copy complete path for C:\\Data\\item.bin",
+                    "Show C:\\Data\\item.bin in Explorer",
+                },
+                selectedCopyActions.Select(AutomationProperties.GetName).ToArray());
+            CollectionAssert.AreEqual(
+                new[] { "Keep copy", "Mark copy for removal", "Reset copy" },
+                selectedCopyActions.Take(3).Select(button => button.Content).ToArray());
+            AssertIconAction(selectedCopyActions[3], "Copy path");
+            AssertIconAction(selectedCopyActions[4], "Show in Explorer");
             Assert.IsTrue(selectedCopyActions.All(button => button.Focusable && KeyboardNavigation.GetIsTabStop(button)));
             Assert.IsTrue(selectedCopyActions.All(button =>
                 AutomationProperties.GetName(button).Contains(@"C:\Data\item.bin", StringComparison.Ordinal)));
@@ -388,18 +398,28 @@ public sealed class WpfSurfaceSmokeTests
                 ],
                 2)[0];
             DrainDispatcher();
-            var folderReviewButtons = FindLogicalDescendants<Button>(folderReviewControls)
-                .Where(button => button.Content?.ToString() is
-                    "Keep" or "Mark for removal" or "Reset decision" or "Copy path" or "Show in Explorer")
-                .ToArray();
+            Assert.AreEqual("FolderSelectedCopyPanel", AutomationProperties.GetAutomationId(folderReviewControls));
+            var folderReviewButtons = FindSelectedFolderCopyActions(folderReviewControls);
             CollectionAssert.AreEqual(
-                new[] { "Keep", "Mark for removal", "Reset decision", "Copy path", "Show in Explorer" },
-                folderReviewButtons.Select(button => button.Content?.ToString()).ToArray());
+                new[]
+                {
+                    "Keep folder copy Photos at C: › Archive › Primary",
+                    "Mark folder copy Photos at C: › Archive › Primary and its descendants for removal; records intent only",
+                    "Reset decision for folder copy Photos at C: › Archive › Primary to Undecided",
+                    "Copy full path for folder copy Photos at C: › Archive › Primary",
+                    "Show folder copy Photos at C: › Archive › Primary in Explorer",
+                },
+                folderReviewButtons.Select(AutomationProperties.GetName).ToArray());
+            CollectionAssert.AreEqual(
+                new[] { "Keep folder", "Mark folder for removal", "Reset folder" },
+                folderReviewButtons.Take(3).Select(button => button.Content).ToArray());
+            AssertIconAction(folderReviewButtons[3], "Copy path");
+            AssertIconAction(folderReviewButtons[4], "Show in Explorer");
             Assert.IsTrue(folderReviewButtons.All(button => button.Focusable && KeyboardNavigation.GetIsTabStop(button)));
             Assert.IsTrue(folderReviewButtons.All(button => !string.IsNullOrWhiteSpace(AutomationProperties.GetName(button))));
             Assert.IsTrue(folderReviewButtons.Take(3).All(button =>
                 AutomationProperties.GetHelpText(button).Contains("worker confirmation", StringComparison.OrdinalIgnoreCase)));
-            var folderReveal = folderReviewButtons.Single(button => Equals(button.Content, "Show in Explorer"));
+            var folderReveal = folderReviewButtons[4];
             Assert.AreEqual("FolderReveal-10", AutomationProperties.GetAutomationId(folderReveal));
             StringAssert.Contains(AutomationProperties.GetName(folderReveal), "Archive");
             StringAssert.Contains(AutomationProperties.GetHelpText(folderReveal), "Alt+E");
@@ -647,7 +667,7 @@ public sealed class WpfSurfaceSmokeTests
                 AutomationNotificationBehavior.GetActivityId(folderExplorerError));
             AssertFolderFiltersFitSupportedMinimumWorkspace(folders);
 
-            Assert.AreEqual("Scan sessions", AutomationProperties.GetName(
+            Assert.AreEqual("Saved scans", AutomationProperties.GetName(
                 FindByAutomationId<ListBox>(sessions, "SessionsList")));
             Assert.AreEqual("Saved scan setup", AutomationProperties.GetName(setup));
             Assert.AreEqual("Saved scan name", AutomationProperties.GetName(
@@ -1186,7 +1206,7 @@ public sealed class WpfSurfaceSmokeTests
         Assert.IsFalse(string.IsNullOrWhiteSpace(AutomationProperties.GetName(search)));
         Assert.IsFalse(string.IsNullOrWhiteSpace(AutomationProperties.GetName(groups)));
         Assert.IsFalse(string.IsNullOrWhiteSpace(AutomationProperties.GetName(members)));
-        Assert.AreEqual(view is DuplicateFilesView ? "_Apply" : "Apply filters", apply.Content);
+        Assert.AreEqual("_Apply", apply.Content);
         Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(groups));
         Assert.AreEqual(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(groups));
         Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(members));
@@ -1229,8 +1249,10 @@ public sealed class WpfSurfaceSmokeTests
         var currentPath = FindByAutomationId<TextBox>(progress, "ScanCurrentPath");
         Assert.IsTrue(currentPath.IsReadOnly);
         Assert.AreEqual("Current scan path", AutomationProperties.GetName(currentPath));
-        Assert.AreEqual("ETA: " + data.EstimatedTimeRemaining,
+        Assert.AreEqual("Time left: " + data.EstimatedTimeRemainingSummary,
             FindByAutomationId<TextBlock>(progress, "ScanEstimatedTimeRemaining").Text);
+        Assert.AreEqual("Exact ETA state: " + data.EstimatedTimeRemaining,
+            FindByAutomationId<TextBlock>(progress, "ScanExactEstimatedTimeRemaining").Text);
         Assert.AreEqual(data.HashPipelineCandidateContext,
             FindByAutomationId<TextBlock>(progress, "ScanCandidateContext").Text);
         var folderProgress = FindByAutomationId<TextBlock>(progress, "ScanFolderAnalysisProgress");
@@ -1386,9 +1408,9 @@ public sealed class WpfSurfaceSmokeTests
         Assert.IsFalse(string.IsNullOrWhiteSpace(AutomationProperties.GetName(groups)));
         Assert.AreEqual("Folder-copy comparison list", AutomationProperties.GetName(cards));
         StringAssert.Contains(AutomationProperties.GetHelpText(cards), "Selection alone changes nothing");
-        Assert.AreEqual("Apply filters", apply.Content);
-        Assert.IsNotNull(FindTextBlockByText(folders, "Path search"));
-        Assert.IsNotNull(FindTextBlockByText(folders, "Minimum size per copy (bytes)"));
+        Assert.AreEqual("_Apply", apply.Content);
+        Assert.AreEqual("Show or hide advanced folder filters", AutomationProperties.GetName(
+            FindByAutomationId<ToggleButton>(folders, "FolderFiltersToggle")));
         Assert.AreEqual("Clear filters", FindByAutomationId<Button>(folders, "FolderClearFilters").Content);
         Assert.AreEqual("Sort exact-folder sets", AutomationProperties.GetName(
             FindByAutomationId<ComboBox>(folders, "FolderSetSort")));
@@ -1413,8 +1435,10 @@ public sealed class WpfSurfaceSmokeTests
         Assert.AreEqual("Alt+G", AutomationProperties.GetAccessKey(selectPage));
         StringAssert.Contains(AutomationProperties.GetHelpText(selectPage), "bounded current immutable");
         StringAssert.Contains(AutomationProperties.GetHelpText(selectPage), "one Explorer selection per parent");
-        StringAssert.Contains(selectPage.Content?.ToString(), "_g");
+        AssertIconAction(selectPage, "Select page in Explorer");
         Assert.IsTrue(selectPage.Focusable && KeyboardNavigation.GetIsTabStop(selectPage));
+        AssertIconAction(FindByAutomationId<Button>(folders, "PreviousFolderCardsButton"), "Previous folders");
+        AssertIconAction(FindByAutomationId<Button>(folders, "NextFolderCardsButton"), "Next folders");
         var selectedPath = FindByAutomationId<TextBox>(folders, "FolderSelectedCopyPath");
         Assert.IsTrue(selectedPath.IsReadOnly && selectedPath.IsReadOnlyCaretVisible);
         Assert.AreEqual(TextWrapping.Wrap, selectedPath.TextWrapping);
@@ -1468,16 +1492,19 @@ public sealed class WpfSurfaceSmokeTests
         };
         host.Show();
         FindByAutomationId<Expander>(review, "LocationPreferencesExpander").IsExpanded = true;
+        FindByAutomationId<Expander>(review, "PreferencePreviewStage").IsExpanded = true;
         host.UpdateLayout();
         DrainDispatcher();
 
-        var rootEditor = FindByAutomationId<TextBox>(review, "PreferenceNewRoot");
+        var setupStage = FindByAutomationId<Expander>(review, "PreferenceSetupStage");
         var preview = FindByAutomationId<Button>(review, "PreferenceRunPreview");
         var previewRight = preview.TranslatePoint(new Point(preview.ActualWidth, 0), review).X;
         var preferenceList = FindByAutomationId<ListView>(review, "PreferencePreviewGroups");
+        Assert.IsFalse(setupStage.IsExpanded, "Opening Preview should focus the flow by closing the editor.");
+        Assert.IsTrue(preview.IsVisible, "The active preview stage must expose its action.");
         Assert.IsTrue(
-            preview.TranslatePoint(new Point(0, 0), review).Y > rootEditor.TranslatePoint(new Point(0, 0), review).Y,
-            "The virtual preview controls should stack below the saved preference editor.");
+            preview.TranslatePoint(new Point(0, 0), review).Y >= setupStage.TranslatePoint(new Point(0, setupStage.ActualHeight), review).Y,
+            "Preview must follow the collapsed setup stage without overlapping its header.");
         Assert.IsTrue(previewRight <= review.ActualWidth, "A location-preference preview control extends beyond Review.");
         Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(preferenceList));
         host.Content = null;
@@ -1515,38 +1542,64 @@ public sealed class WpfSurfaceSmokeTests
 
     private static void AssertFolderFiltersFitSupportedMinimumWorkspace(DuplicateFoldersView folders)
     {
-        const double narrowWorkspaceWidth = 620;
-        var host = new Window
+        foreach (var size in new[] { new Size(1180, 760), new Size(900, 600) })
         {
-            Width = narrowWorkspaceWidth,
-            Height = 900,
-            Content = folders,
-            SizeToContent = SizeToContent.Manual,
-        };
-        host.Show();
-        host.UpdateLayout();
-        DrainDispatcher();
+            var host = new Window
+            {
+                Width = size.Width,
+                Height = size.Height,
+                Content = folders,
+                SizeToContent = SizeToContent.Manual,
+            };
+            host.Show();
+            host.UpdateLayout();
+            DrainDispatcher();
 
-        var heading = FindTextBlockByText(folders, "Exact duplicate folders");
-        var search = FindByAutomationId<TextBox>(folders, "FolderSearch");
-        var minimumSize = FindByAutomationId<TextBox>(folders, "FolderMinimumSize");
-        var apply = FindByAutomationId<Button>(folders, "FolderApplyFilters");
-        var headingTop = heading.TranslatePoint(new Point(0, 0), folders).Y;
-        var searchTop = search.TranslatePoint(new Point(0, 0), folders).Y;
+            var search = FindByAutomationId<TextBox>(folders, "FolderSearch");
+            var apply = FindByAutomationId<Button>(folders, "FolderApplyFilters");
+            var toggle = FindByAutomationId<ToggleButton>(folders, "FolderFiltersToggle");
+            var clear = FindByAutomationId<Button>(folders, "FolderClearFilters");
+            var summary = FindByAutomationId<TextBlock>(folders, "FolderAppliedFilterSummary");
+            foreach (var control in new FrameworkElement[] { search, apply, toggle, clear, summary })
+            {
+                AssertFitsWithinViewport(control, host,
+                    $"{AutomationProperties.GetAutomationId(control)} must be visible without scrolling at {size.Width}x{size.Height}.");
+            }
 
-        Assert.IsTrue(
-            searchTop > headingTop,
-            "Exact-folder filters should reflow below their heading in the supported narrow workspace.");
-        foreach (var control in new FrameworkElement[] { search, minimumSize, apply })
-        {
-            var controlRight = control.TranslatePoint(new Point(control.ActualWidth, 0), folders).X;
-            Assert.IsTrue(
-                controlRight <= folders.ActualWidth,
-                $"{AutomationProperties.GetAutomationId(control)} extends beyond the supported narrow workspace.");
+            if (size.Width == 900)
+            {
+                var advanced = FindByAutomationId<Expander>(folders, "FolderFiltersExpander");
+                Assert.IsFalse(advanced.IsExpanded, "Advanced folder filters should start collapsed.");
+                advanced.IsExpanded = true;
+                host.UpdateLayout();
+                DrainDispatcher();
+
+                var minimumSize = FindByAutomationId<TextBox>(folders, "FolderMinimumSize");
+                var sizeUnit = FindByAutomationId<ComboBox>(folders, "FolderSizeUnit");
+                Assert.IsFalse(string.IsNullOrWhiteSpace(AutomationProperties.GetName(sizeUnit)));
+                foreach (var control in new FrameworkElement[] { minimumSize, sizeUnit })
+                {
+                    Assert.IsTrue(control.IsVisible && control.ActualWidth > 0,
+                        $"{AutomationProperties.GetAutomationId(control)} must become available when advanced filters are expanded.");
+                    var controlRight = control.TranslatePoint(new Point(control.ActualWidth, 0), folders).X;
+                    Assert.IsTrue(controlRight <= folders.ActualWidth,
+                        $"{AutomationProperties.GetAutomationId(control)} extends beyond the advanced-filter viewport.");
+                }
+            }
+
+            host.Content = null;
+            host.Close();
         }
+    }
 
-        host.Content = null;
-        host.Close();
+    private static void AssertFitsWithinViewport(FrameworkElement control, Window host, string message)
+    {
+        Assert.IsTrue(control.IsVisible && control.ActualWidth > 0 && control.ActualHeight > 0, message);
+        var bounds = control.TransformToAncestor(host).TransformBounds(new Rect(control.RenderSize));
+        Assert.IsTrue(
+            bounds.Left >= -1 && bounds.Top >= -1
+            && bounds.Right <= host.ActualWidth + 1 && bounds.Bottom <= host.ActualHeight + 1,
+            message);
     }
 
     private static TextBlock FindTextBlockByText(DependencyObject root, string text)
@@ -1625,6 +1678,40 @@ public sealed class WpfSurfaceSmokeTests
                 yield return descendant;
             }
         }
+    }
+
+    private static Button[] FindSelectedFileCopyActions(DependencyObject panel) =>
+    [
+        FindButtonByAccessibleName(panel, "Keep C:\\Data\\item.bin; preserves this physical copy"),
+        FindButtonByAccessibleName(panel, "Mark C:\\Data\\item.bin for removal; records intent only and does not delete"),
+        FindButtonByAccessibleName(panel, "Reset decision for C:\\Data\\item.bin to undecided"),
+        FindButtonByAccessibleName(panel, "Copy complete path for C:\\Data\\item.bin"),
+        FindButtonByAccessibleName(panel, "Show C:\\Data\\item.bin in Explorer"),
+    ];
+
+    private static Button[] FindSelectedFolderCopyActions(DependencyObject panel) =>
+    [
+        FindButtonByAccessibleName(panel, "Keep folder copy Photos at C: › Archive › Primary"),
+        FindButtonByAccessibleName(panel, "Mark folder copy Photos at C: › Archive › Primary and its descendants for removal; records intent only"),
+        FindButtonByAccessibleName(panel, "Reset decision for folder copy Photos at C: › Archive › Primary to Undecided"),
+        FindButtonByAccessibleName(panel, "Copy full path for folder copy Photos at C: › Archive › Primary"),
+        FindButtonByAccessibleName(panel, "Show folder copy Photos at C: › Archive › Primary in Explorer"),
+    ];
+
+    private static Button FindButtonByAccessibleName(DependencyObject root, string name)
+    {
+        var buttons = FindLogicalDescendants<Button>(root).ToArray();
+        var match = buttons.SingleOrDefault(button => AutomationProperties.GetName(button) == name);
+        Assert.IsNotNull(match,
+            $"Could not find action named '{name}'. Available names: {string.Join(" | ", buttons.Select(AutomationProperties.GetName))}");
+        return match!;
+    }
+
+    private static void AssertIconAction(Button button, string toolTip)
+    {
+        Assert.IsInstanceOfType<System.Windows.Shapes.Path>(button.Content);
+        Assert.IsNotNull(((System.Windows.Shapes.Path)button.Content).Data);
+        Assert.AreEqual(toolTip, button.ToolTip);
     }
 
     private sealed class PerformanceSurfaceData : INotifyPropertyChanged
@@ -1793,6 +1880,8 @@ public sealed class WpfSurfaceSmokeTests
         public string RemainingWork => "4 files · 3.91 KB remaining in hash pipeline";
 
         public string EstimatedTimeRemaining => "Unavailable — collecting a stable 10-second window";
+
+        public string EstimatedTimeRemainingSummary => "Still estimating";
 
         public string Message => "Reading candidates";
 

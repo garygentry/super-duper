@@ -7,20 +7,11 @@
                   HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="{StaticResource PageContentInset}" MaxWidth="880" HorizontalAlignment="Stretch">
-            <TextBlock Style="{StaticResource PageTitle}" Text="Saved scan setup" />
-            <TextBlock Margin="0,5,0,22"
-                       Text="Start saves valid setup edits and creates a new dated run. Earlier results and review decisions stay with their original runs."
+            <TextBlock Style="{StaticResource PageTitle}" Text="Choose locations" />
+            <TextBlock Margin="0,5,0,16"
+                       Text="Add the folders or drives to compare, then start the scan."
                        TextWrapping="Wrap" />
-
-            <TextBlock FontWeight="SemiBold" Text="Name" />
-            <TextBox Margin="0,7,0,20"
-                     AutomationProperties.AutomationId="SessionName"
-                     AutomationProperties.Name="Saved scan name"
-                     MinWidth="180"
-                     IsEnabled="{Binding CanEdit}"
-                     Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
-
-            <TextBlock FontWeight="SemiBold" Text="Folders and drives" />
+            <TextBlock Style="{StaticResource SectionTitle}" Text="Folders and drives" />
             <WrapPanel Margin="0,7,0,7">
                 <Button Margin="0,0,8,8" Command="{Binding BrowseRootCommand}" Content="Add folder or drive" />
                 <Button Margin="0,0,8,8" Command="{Binding AddRootCommand}" Content="Enter path" />
@@ -40,35 +31,85 @@
                                      Text="{Binding Path, UpdateSourceTrigger=PropertyChanged}" />
                             <Button Grid.Column="1"
                                     Margin="8,0,0,0"
+                                    Style="{StaticResource ShellIconAction}"
                                     Command="{Binding DataContext.RemoveRootCommand, ElementName=Root}"
                                     CommandParameter="{Binding}"
-                                    Content="Remove location"
-                                    AutomationProperties.Name="{Binding Path, StringFormat=Remove location: {0}}" />
-                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,4,0,0" Text="{Binding Status}" TextWrapping="Wrap" />
+                                    ToolTip="{Binding Path, StringFormat=Remove location: {0}}"
+                                    AutomationProperties.Name="{Binding Path, StringFormat=Remove location: {0}}">
+                                <Path Data="{StaticResource ShellIconDismiss}" Style="{StaticResource ShellActionIcon}" />
+                            </Button>
+                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,4,0,0"
+                                       Text="{Binding Status}" TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasStatusNotice}" Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </Grid>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <TextBlock Margin="0,4,0,12" Text="Overlapping locations are combined automatically when saved." TextWrapping="Wrap" />
-            <TextBlock FontWeight="SemiBold" Text="Exclusions" />
-            <TextBlock Margin="0,5,0,12" Text="{Binding ExclusionsSummary}" TextWrapping="Wrap" />
+            <TextBlock Margin="0,4,0,12" Style="{StaticResource CaptionText}"
+                       Text="Locations are checked again when scanning starts; overlapping folders are combined." />
+
+            <TextBlock FontWeight="SemiBold" Text="Saved scan name" />
+            <TextBox Margin="0,7,0,8"
+                     AutomationProperties.AutomationId="SessionName"
+                     AutomationProperties.Name="Saved scan name"
+                     MinWidth="180"
+                     IsEnabled="{Binding CanEdit}"
+                     Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+            <WrapPanel Margin="0,0,0,16">
+                <Button MinWidth="96" Style="{StaticResource ShellSecondaryAction}"
+                        Command="{Binding SaveCommand}" Content="Save changes" />
+                <ProgressBar Margin="14,0,0,0"
+                             Width="90" Height="4" VerticalAlignment="Center"
+                             IsIndeterminate="True"
+                             Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            </WrapPanel>
+
+            <TextBlock Style="{StaticResource SectionTitle}" Text="Scan settings" />
+            <TextBlock Margin="0,5,0,3" Text="Cloud sync folders and ignored files are skipped." TextWrapping="Wrap" />
+            <TextBlock Margin="0,0,0,7" Text="{Binding RepeatCachePolicyDisplayName, StringFormat='Repeat scans: {0}'}" TextWrapping="Wrap" />
             <Grid Margin="0,0,0,7">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="Cloud locations" />
+                <TextBlock VerticalAlignment="Center"
+                           AutomationProperties.AutomationId="CloudDetectionStatus"
+                           AutomationProperties.Name="{Binding CloudDetectionSummary, FallbackValue=Cloud location detection status}"
+                           Text="{Binding CloudDetectionSummary}"
+                           TextWrapping="Wrap" />
                 <Button Grid.Column="1"
+                        Margin="8,0,0,0"
+                        Style="{StaticResource ShellSecondaryAction}"
                         AutomationProperties.AutomationId="RefreshCloudLocations"
                         AutomationProperties.Name="Refresh registered cloud locations"
                         Command="{Binding RefreshCloudLocationsCommand}"
                         Content="Refresh" />
             </Grid>
+            <TextBlock Margin="0,0,0,8"
+                       AutomationProperties.AutomationId="CloudDetectionError"
+                       AutomationProperties.Name="{Binding CloudDetectionMessage}"
+                       Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                       Text="{Binding CloudDetectionMessage}"
+                       TextWrapping="Wrap"
+                       Visibility="{Binding HasCloudDetectionMessage, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            <Expander Header="Scan policy details" Margin="0,0,0,8"
+                      AutomationProperties.AutomationId="SetupPolicyDetails"
+                      AutomationProperties.Name="Scan policy details">
             <Border Padding="12"
                     BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1"
                     CornerRadius="6">
                 <StackPanel>
+                    <TextBlock Margin="0,0,0,8" Text="{Binding ExclusionsSummary}" TextWrapping="Wrap" />
                     <TextBlock AutomationProperties.Name="Cloud scan policy"
                                AutomationProperties.AutomationId="CloudPolicyName"
                                FontWeight="SemiBold"
@@ -78,18 +119,6 @@
                                AutomationProperties.Name="Registered cloud folders are skipped before their files are inspected or read. Detection must succeed before Start."
                                Text="Registered cloud folders are skipped before their files are inspected or read. Detection must succeed before Start."
                                TextWrapping="Wrap" />
-                    <TextBlock Margin="0,8,0,0"
-                               AutomationProperties.AutomationId="CloudDetectionStatus"
-                               AutomationProperties.Name="{Binding CloudDetectionSummary, FallbackValue=Cloud location detection status}"
-                               Text="{Binding CloudDetectionSummary}"
-                               TextWrapping="Wrap" />
-                    <TextBlock Margin="0,4,0,0"
-                               AutomationProperties.AutomationId="CloudDetectionError"
-                               AutomationProperties.Name="{Binding CloudDetectionMessage}"
-                               Foreground="#C84B31"
-                               Text="{Binding CloudDetectionMessage}"
-                               TextWrapping="Wrap"
-                               Visibility="{Binding HasCloudDetectionMessage, Converter={StaticResource BooleanToVisibilityConverter}}" />
                     <ItemsControl Margin="0,8,0,0"
                                   AutomationProperties.AutomationId="DetectedCloudLocations"
                                   AutomationProperties.Name="Detected excluded cloud locations"
@@ -100,7 +129,7 @@
                                 <Border Margin="0,0,0,6"
                                         Padding="9"
                                         AutomationProperties.Name="{Binding AccessibilityName}"
-                                        Background="#120078D4"
+                                        Background="{DynamicResource SubtleFillColorSecondaryBrush}"
                                         CornerRadius="5">
                                     <StackPanel>
                                         <TextBlock FontWeight="SemiBold" Text="{Binding ProviderName}" />
@@ -111,12 +140,15 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <TextBlock Margin="0,12,0,4" FontWeight="SemiBold"
+                               Text="{Binding RepeatCachePolicyDisplayName}" />
+                    <TextBlock Text="{Binding RepeatCachePolicyDescription}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,5,0,0"
+                               Text="The persistent cache can survive app restarts. Each run discovers current files again; cache availability and qualifying metadata determine reuse."
+                               TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
-
-            <TextBlock Margin="0,16,0,4" FontWeight="SemiBold" Text="{Binding RepeatCachePolicyDisplayName}" />
-            <TextBlock Text="{Binding RepeatCachePolicyDescription}" TextWrapping="Wrap" />
-            <TextBlock Margin="0,5,0,12" Text="The persistent cache can survive app restarts. Each run discovers current files again; cache availability and qualifying metadata determine reuse." TextWrapping="Wrap" />
+            </Expander>
             <Expander x:Name="SetupAdvanced" AutomationProperties.AutomationId="SetupAdvanced" Header="Advanced: content reads and exclusions" Margin="0,8,0,8">
                 <StackPanel Margin="0,10,0,0">
                     <Label Padding="0"
@@ -194,22 +226,17 @@
                 <TextBlock Text="{Binding OperationError}" TextWrapping="Wrap" />
             </Border>
 
-            <TextBlock Margin="0,16,0,0" Text="Start saves these settings before scanning. Another active scan or incomplete validation blocks Start." TextWrapping="Wrap" />
-            <WrapPanel Margin="0,12,0,0">
-                <Button Margin="0,0,10,8" Content="Start scan" AutomationProperties.AutomationId="SetupStartScan"
-                        Command="{Binding DataContext.StartRunCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
-                <Button MinWidth="96" Command="{Binding SaveCommand}" Content="Save" />
-                <Button Margin="10,0,0,0"
-                        MinWidth="96"
-                        Command="{Binding DeleteCommand}"
-                        Content="Delete saved scan and history" />
-                <ProgressBar Margin="14,0,0,0"
-                             Width="90"
-                             Height="4"
-                             VerticalAlignment="Center"
-                             IsIndeterminate="True"
-                             Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
-            </WrapPanel>
+            <Expander Header="Manage saved scan" Margin="0,12,0,0"
+                      AutomationProperties.AutomationId="ManageSavedScan"
+                      AutomationProperties.Name="Manage saved scan">
+                <StackPanel Margin="0,8,0,0">
+                    <TextBlock Text="Deleting this saved scan also removes its earlier scan history."
+                               TextWrapping="Wrap" />
+                    <Button Margin="0,8,0,0" HorizontalAlignment="Left"
+                            MinWidth="96" Command="{Binding DeleteCommand}"
+                            Content="Delete saved scan and history" />
+                </StackPanel>
+            </Expander>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

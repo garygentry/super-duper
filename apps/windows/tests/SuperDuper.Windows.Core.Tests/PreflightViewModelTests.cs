@@ -280,7 +280,7 @@ public sealed class PreflightViewModelTests
         using var viewModel = new PreflightViewModel(worker, new RecordingConfirmation(false));
 
         await viewModel.ShowRunAsync(run);
-        Assert.AreEqual("Current for plan revision 4", viewModel.ValidationFreshnessTitle);
+        Assert.AreEqual("Checked against your current decisions", viewModel.ValidationFreshnessTitle);
         Assert.AreEqual("Ready", viewModel.ValidationOutcomeTitle);
 
         worker.PreflightHandler = (_, _) => Task.FromResult(current with
@@ -299,6 +299,12 @@ public sealed class PreflightViewModelTests
         await viewModel.RefreshReviewRevisionAsync(run.Id, 4);
         Assert.AreEqual("Needs review", viewModel.ValidationOutcomeTitle);
 
+        worker.PreflightHandler = (_, _) => Task.FromResult(current with { IsCurrent = false });
+        await viewModel.RefreshReviewRevisionAsync(run.Id, 4);
+        Assert.AreEqual("Copies need another check", viewModel.ValidationFreshnessTitle);
+        Assert.AreEqual("Needs review", viewModel.ValidationOutcomeTitle);
+        StringAssert.Contains(viewModel.RevisionStatus, "Files may have changed");
+
         worker.ReviewPlanHandler = (_, _) => Task.FromResult(Review(run.Id, 5, 1));
         worker.PreflightHandler = (_, _) => Task.FromResult(current with
         {
@@ -308,7 +314,7 @@ public sealed class PreflightViewModelTests
         await viewModel.RefreshReviewRevisionAsync(run.Id, 5);
         Assert.AreEqual("Plan changed — check again", viewModel.ValidationFreshnessTitle);
         Assert.AreEqual("Needs review", viewModel.ValidationOutcomeTitle);
-        StringAssert.Contains(viewModel.ValidationOutcomeExplanation, "older plan revision");
+        StringAssert.Contains(viewModel.ValidationOutcomeExplanation, "Your decisions changed after the last check");
     }
 
     private static WorkerReviewPlanView Review(long runId, long revision, long removals) =>

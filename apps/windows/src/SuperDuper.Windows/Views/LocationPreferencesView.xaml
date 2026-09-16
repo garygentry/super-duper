@@ -6,7 +6,33 @@
              AutomationProperties.AutomationId="LocationPreferencesPanel"
              AutomationProperties.Name="Focused location preferences panel">
     <StackPanel>
-        <TextBlock Style="{StaticResource SectionTitle}" Text="Saved preference" />
+        <TextBlock Margin="0,0,0,8" Style="{StaticResource SectionTitle}" Text="Location preferences" />
+        <TextBlock Margin="0,0,0,8" TextWrapping="Wrap"
+                   AutomationProperties.AutomationId="PreferencePreviewStatus"
+                   AutomationProperties.LiveSetting="Polite"
+                   AutomationProperties.Name="{Binding StatusMessage}"
+                   accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding AnnouncementVersion}"
+                   accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
+                   accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
+                   accessibility:AutomationNotificationBehavior.ActivityId="LocationPreferencePreview"
+                   Text="{Binding StatusMessage}" />
+        <TextBlock Margin="0,0,0,8" TextWrapping="Wrap"
+                   AutomationProperties.AutomationId="PreferencePreviewError"
+                   AutomationProperties.LiveSetting="Assertive"
+                   AutomationProperties.Name="{Binding ErrorMessage, StringFormat='Location preference error: {0}'}"
+                   accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding AnnouncementVersion}"
+                   accessibility:AutomationNotificationBehavior.NotificationKind="ActionAborted"
+                   accessibility:AutomationNotificationBehavior.NotificationProcessing="ImportantMostRecent"
+                   accessibility:AutomationNotificationBehavior.ActivityId="LocationPreferencePreviewError"
+                   Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                   Text="{Binding ErrorMessage}"
+                   Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}" />
+        <Expander x:Name="PreferenceSetupStage" Header="1. Choose preferred locations"
+                  IsExpanded="True" Expanded="OnStageExpanded" Collapsed="OnStageCollapsed" Focusable="True"
+                  AutomationProperties.AutomationId="PreferenceSetupStage"
+                  AutomationProperties.Name="Stage one: choose and save preferred locations">
+        <StackPanel Margin="0,8,0,0">
+        <TextBlock FontWeight="SemiBold" Text="Saved preference" />
         <TextBlock Margin="0,4,0,0"
                    Text="Order the scan roots you prefer to keep. Saving stores this reusable preference only; it does not change this review plan."
                    TextWrapping="Wrap" />
@@ -20,9 +46,15 @@
                       DisplayMemberPath="Name" ItemsSource="{Binding Rules}"
                       SelectedItem="{Binding SelectedRule, Mode=TwoWay}" />
             <Button Margin="6,0,0,0" KeyboardNavigation.TabIndex="190"
+                    Style="{StaticResource ShellSecondaryAction}"
                     AutomationProperties.AutomationId="PreferenceNewRule"
                     AutomationProperties.Name="Create a new ordered location preference rule"
-                    Command="{Binding NewRuleCommand}" Content="New" />
+                    Command="{Binding NewRuleCommand}" ToolTip="New preference rule">
+                <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource ShellIconAdd}" Style="{StaticResource ShellActionIcon}" />
+                    <TextBlock Margin="6,0,0,0" Text="New" />
+                </StackPanel>
+            </Button>
         </WrapPanel>
 
         <Label Margin="0,8,0,0" Padding="0,0,0,3"
@@ -49,17 +81,38 @@
         </ListBox>
         <WrapPanel Margin="0,6,0,0">
             <Button Margin="0,0,6,6" KeyboardNavigation.TabIndex="220"
+                    Style="{StaticResource ShellSecondaryAction}"
                     AutomationProperties.AutomationId="PreferenceMoveRootUp"
                     AutomationProperties.Name="Move selected root one rank higher"
-                    Command="{Binding MoveRootUpCommand}" Content="Move up" />
+                    Command="{Binding MoveRootUpCommand}" ToolTip="Move selected root up"
+                    ToolTipService.ShowOnDisabled="True">
+                <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource ShellIconMoveUp}" Style="{StaticResource ShellActionIcon}" />
+                    <TextBlock Margin="6,0,0,0" Text="Move up" />
+                </StackPanel>
+            </Button>
             <Button Margin="0,0,6,6" KeyboardNavigation.TabIndex="230"
+                    Style="{StaticResource ShellSecondaryAction}"
                     AutomationProperties.AutomationId="PreferenceMoveRootDown"
                     AutomationProperties.Name="Move selected root one rank lower"
-                    Command="{Binding MoveRootDownCommand}" Content="Move down" />
+                    Command="{Binding MoveRootDownCommand}" ToolTip="Move selected root down"
+                    ToolTipService.ShowOnDisabled="True">
+                <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource ShellIconMoveDown}" Style="{StaticResource ShellActionIcon}" />
+                    <TextBlock Margin="6,0,0,0" Text="Move down" />
+                </StackPanel>
+            </Button>
             <Button Margin="0,0,6,6" KeyboardNavigation.TabIndex="240"
+                    Style="{StaticResource ShellSecondaryAction}"
                     AutomationProperties.AutomationId="PreferenceRemoveRoot"
                     AutomationProperties.Name="Remove selected root from this rule"
-                    Command="{Binding RemoveRootCommand}" Content="Remove" />
+                    Command="{Binding RemoveRootCommand}" ToolTip="Remove selected root from preference"
+                    ToolTipService.ShowOnDisabled="True">
+                <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource ShellIconDismiss}" Style="{StaticResource ShellActionIcon}" />
+                    <TextBlock Margin="6,0,0,0" Text="Remove" />
+                </StackPanel>
+            </Button>
         </WrapPanel>
         <WrapPanel Margin="0,2,0,0">
             <TextBox MinWidth="260" MaxWidth="520" HorizontalAlignment="Stretch"
@@ -68,9 +121,16 @@
                      AutomationProperties.Name="Absolute scan root to add to the ordered rule"
                      Text="{Binding NewRoot, UpdateSourceTrigger=PropertyChanged}" />
             <Button Margin="6,0,0,0" KeyboardNavigation.TabIndex="260"
+                    Style="{StaticResource ShellSecondaryAction}"
                     AutomationProperties.AutomationId="PreferenceAddRoot"
                     AutomationProperties.Name="Add root at the lowest preference rank"
-                    Command="{Binding AddRootCommand}" Content="Add root" />
+                    Command="{Binding AddRootCommand}" ToolTip="Add location to preference rule"
+                    ToolTipService.ShowOnDisabled="True">
+                <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource ShellIconAdd}" Style="{StaticResource ShellActionIcon}" />
+                    <TextBlock Margin="6,0,0,0" Text="Add root" />
+                </StackPanel>
+            </Button>
         </WrapPanel>
         <Button Margin="0,8,0,0" HorizontalAlignment="Left" KeyboardNavigation.TabIndex="270"
                 AutomationProperties.AutomationId="PreferenceSaveRule"
@@ -78,12 +138,17 @@
                 AutomationProperties.HelpText="Saves preference configuration only; does not change any review decision"
                 Command="{Binding SaveCommand}" Content="Save preference" />
 
-        <Separator Margin="0,16,0,14" />
-        <TextBlock Style="{StaticResource SectionTitle}" Text="Virtual preview — not saved decisions"
+        </StackPanel>
+        </Expander>
+        <Expander x:Name="PreferencePreviewStage" Header="2. Preview the effect"
+                  Margin="0,8,0,0" IsExpanded="False" Expanded="OnStageExpanded" Collapsed="OnStageCollapsed" Focusable="True"
+                  AutomationProperties.AutomationId="PreferencePreviewStage"
+                  AutomationProperties.Name="Stage two: preview and apply review decisions">
+        <StackPanel Margin="0,8,0,0">
+        <TextBlock Style="{StaticResource SectionTitle}" Text="Preview choices"
                    AutomationProperties.AutomationId="PreferencePreviewHeading" />
-        <TextBlock Margin="0,4,0,0" Text="{Binding PreviewBindingText}" TextWrapping="Wrap"
-                   AutomationProperties.AutomationId="PreferencePreviewBinding"
-                   AutomationProperties.Name="{Binding PreviewBindingText}" />
+        <TextBlock Margin="0,4,0,0" TextWrapping="Wrap"
+                   Text="Preview proposes choices for the selected scope. Review decisions stay unchanged until you confirm Apply." />
         <WrapPanel Margin="0,10,0,0">
             <Label Padding="0,0,6,0" VerticalAlignment="Center"
                    Target="{Binding ElementName=PreferencePreviewScope}" Content="Preview _scope" />
@@ -137,31 +202,6 @@
             </StackPanel>
         </Border>
 
-        <TextBlock Margin="0,8,0,0" TextWrapping="Wrap"
-                   AutomationProperties.AutomationId="PreferencePreviewSummary"
-                   AutomationProperties.Name="{Binding SummaryText, StringFormat='Location preference preview summary: {0}'}"
-                   Text="{Binding SummaryText}" />
-        <TextBlock Margin="0,5,0,0" TextWrapping="Wrap"
-                   AutomationProperties.AutomationId="PreferencePreviewStatus"
-                   AutomationProperties.LiveSetting="Polite"
-                   AutomationProperties.Name="{Binding StatusMessage}"
-                   accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding AnnouncementVersion}"
-                   accessibility:AutomationNotificationBehavior.NotificationKind="ActionCompleted"
-                   accessibility:AutomationNotificationBehavior.NotificationProcessing="MostRecent"
-                   accessibility:AutomationNotificationBehavior.ActivityId="LocationPreferencePreview"
-                   Text="{Binding StatusMessage}" />
-        <TextBlock Margin="0,5,0,0" TextWrapping="Wrap"
-                   AutomationProperties.AutomationId="PreferencePreviewError"
-                   AutomationProperties.LiveSetting="Assertive"
-                   AutomationProperties.Name="{Binding ErrorMessage, StringFormat='Location preference preview error: {0}'}"
-                   accessibility:AutomationNotificationBehavior.AnnouncementVersion="{Binding AnnouncementVersion}"
-                   accessibility:AutomationNotificationBehavior.NotificationKind="ActionAborted"
-                   accessibility:AutomationNotificationBehavior.NotificationProcessing="ImportantMostRecent"
-                   accessibility:AutomationNotificationBehavior.ActivityId="LocationPreferencePreviewError"
-                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
-                   Text="{Binding ErrorMessage}"
-                   Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibilityConverter}}" />
-
         <ListView MinHeight="100" MaxHeight="230" Margin="0,8,0,0"
                   KeyboardNavigation.TabIndex="390"
                   AutomationProperties.AutomationId="PreferencePreviewGroups"
@@ -181,7 +221,7 @@
                         </WrapPanel>
                         <TextBlock Text="{Binding PreferredRoot, StringFormat='Preferred root: {0}'}" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Explanation}" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding ProposedKeepText, StringFormat='Virtual outcome: {0}'}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding ProposedKeepText, StringFormat='Proposed choice: {0}'}" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding ProposedRemoveText}" TextWrapping="Wrap" />
                     </StackPanel>
                 </DataTemplate>
@@ -194,15 +234,39 @@
             </ListView.ItemContainerStyle>
         </ListView>
 
-        <Separator Margin="0,16,0,14" />
+        <Expander Margin="0,8,0,0" Header="Preview counts and details"
+                  AutomationProperties.AutomationId="PreferencePreviewMechanics"
+                  AutomationProperties.Name="Preview counts, scope and version details">
+            <StackPanel Margin="0,8,0,0">
+                <TextBlock Text="{Binding PreviewBindingText}" TextWrapping="Wrap"
+                           AutomationProperties.AutomationId="PreferencePreviewBinding"
+                           AutomationProperties.Name="{Binding PreviewBindingText}" />
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap"
+                           AutomationProperties.AutomationId="PreferencePreviewSummary"
+                           AutomationProperties.Name="{Binding SummaryText, StringFormat='Location preference preview summary: {0}'}"
+                           Text="{Binding SummaryText}" />
+            </StackPanel>
+        </Expander>
+
+        </StackPanel>
+        </Expander>
+        <Expander x:Name="PreferenceAppliedStage" Header="3. Review applied decisions"
+                  Margin="0,8,0,0" IsExpanded="False" Expanded="OnStageExpanded" Collapsed="OnStageCollapsed" Focusable="True"
+                  AutomationProperties.AutomationId="PreferenceAppliedStage"
+                  AutomationProperties.Name="Stage three: inspect and reverse an application">
+        <StackPanel Margin="0,8,0,0">
         <TextBlock Style="{StaticResource SectionTitle}" Text="Saved decisions from rule applications"
                    AutomationProperties.AutomationId="PreferenceSavedDecisionsHeading" />
         <TextBlock Margin="0,4,0,0" Text="Only a confirmed application records review decisions. Later manual choices remain manual and are preserved by reversal."
                    TextWrapping="Wrap" />
-        <TextBlock Margin="0,8,0,0" TextWrapping="Wrap"
-                   AutomationProperties.AutomationId="PreferenceApplicationHistory"
-                   AutomationProperties.Name="{Binding ApplicationHistoryText}"
-                   Text="{Binding ApplicationHistoryText}" />
+        <Expander Margin="0,8,0,0" Header="Application details"
+                  AutomationProperties.AutomationId="PreferenceApplicationDetails"
+                  AutomationProperties.Name="Application counts and recorded details">
+            <TextBlock Margin="0,8,0,0" TextWrapping="Wrap"
+                       AutomationProperties.AutomationId="PreferenceApplicationHistory"
+                       AutomationProperties.Name="{Binding ApplicationHistoryText}"
+                       Text="{Binding ApplicationHistoryText}" />
+        </Expander>
         <Button x:Name="PreferenceReverseApplicationButton" Margin="0,8,0,0"
                 HorizontalAlignment="Left" KeyboardNavigation.TabIndex="350"
                 AutomationProperties.AutomationId="PreferenceReverseApplication"
@@ -236,5 +300,7 @@
                 </WrapPanel>
             </StackPanel>
         </Border>
+        </StackPanel>
+        </Expander>
     </StackPanel>
 </UserControl>

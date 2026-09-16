@@ -318,6 +318,15 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         _ => ScanProgressProjection.Eta(ProgressSnapshot?.Eta),
     };
 
+    public string EstimatedTimeRemainingSummary => Run?.Status switch
+    {
+        "cancelling" => "Stopping",
+        "completed" => "Complete",
+        "cancelled" => "Scan cancelled",
+        "failed" or "interrupted" => "Scan ended before completion",
+        _ => ScanProgressProjection.EtaSummary(ProgressSnapshot?.Eta),
+    };
+
     public string ProgressAnnouncement => !IsActive && Run is not null
         ? $"Scan {Status}. {Phase}. {WarningCount} warnings. {DisplayErrorMessage}"
         : ProgressSnapshot is not { } snapshot
@@ -328,7 +337,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
             + $"{snapshot.Funnel.Discovered.Files:N0} discovered; "
             + $"{snapshot.Funnel.PartialScreened.Files:N0} partial screened of "
             + $"{snapshot.Funnel.HashPipelineCandidates.Files:N0} hash candidates. "
-            + $"{RemainingWork}. ETA: {EstimatedTimeRemaining}. {WarningCount} warnings.";
+            + $"{RemainingWork}. Time left: {EstimatedTimeRemainingSummary}. {WarningCount} warnings.";
 
     public long ProgressAnnouncementVersion => _progressAnnouncementVersion;
 
@@ -651,6 +660,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ActiveDevices));
         OnPropertyChanged(nameof(RemainingWork));
         OnPropertyChanged(nameof(EstimatedTimeRemaining));
+        OnPropertyChanged(nameof(EstimatedTimeRemainingSummary));
         OnPropertyChanged(nameof(ProgressAnnouncement));
         CancelCommand.NotifyCanExecuteChanged();
         OpenWarningsCommand.NotifyCanExecuteChanged();
@@ -683,6 +693,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(RemainingWork));
         OnPropertyChanged(nameof(HashPipelineCandidateContext));
         OnPropertyChanged(nameof(EstimatedTimeRemaining));
+        OnPropertyChanged(nameof(EstimatedTimeRemainingSummary));
         OnPropertyChanged(nameof(ProgressAnnouncement));
         OnPropertyChanged(nameof(ProgressAnnouncementVersion));
     }

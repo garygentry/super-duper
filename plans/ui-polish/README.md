@@ -1,6 +1,6 @@
 # Windows usability and visual polish
 
-Status: initial review and proposed execution plan; product decisions pending. Started 2026-09-15
+Status: plan accepted; implementation active. Started 2026-09-15
 (America/Los_Angeles). Branch: `codex/ui-redesign`; baseline `6206610`.
 
 The operator requested a new end-to-end usability effort after accepting UIR-09: reduce clutter,
@@ -11,16 +11,23 @@ the completed redesign and its historical acceptance remain intact.
 ## Read in order
 
 1. [Review and evidence](review.md): feature inventory, findings, observed limitations.
-2. [Execution plan](execution-plan.md): proposed design, finite gates, acceptance and autonomy.
-3. [Checkpoint](session-checkpoint.md): exact next work and pending operator decisions.
+2. [Execution plan](execution-plan.md): accepted design, finite gates, acceptance and autonomy.
+3. [Checkpoint](session-checkpoint.md): exact next work and verification state.
 
-## Decisions requested after the initial review
+## Accepted decisions
 
 | Decision | Recommended direction | Status |
 |---|---|---|
-| Primary workflow | Balance large duplicate-file review and backup/archive folder comparison | Pending |
-| Visual style | Restrained Windows-native; clear hierarchy, compact navigation, generous content area | Pending |
-| Meaning of ready | Polish existing capabilities, retaining disabled file removal | Pending |
+| Primary workflow | Balance large duplicate-file review and backup/archive folder comparison | Accepted |
+| Visual style | Restrained Windows-native; clear hierarchy, compact navigation, generous content area | Accepted |
+| Meaning of ready | Polish existing capabilities, retaining disabled file removal | Accepted |
+
+The operator also accepted flexible navigation, manual decisions plus prominent optional location
+preferences, adaptive layouts down to 900×600, remembered section disclosure, context-aware navigation
+to completed results, mixed real archive data and a required final native mouse/keyboard pass.
+The operator explicitly authorized implementation with subagents and appropriate model/effort
+selection. P01 tooling and P02 independent foundations may proceed concurrently; integration and
+acceptance remain sequential. No intermediate operator design approval is required.
 
 If actual Recycle Bin execution is requested, expand the plan explicitly with execution, recovery,
 and the inherited release/provider safety gates before implementing that capability. Do not silently

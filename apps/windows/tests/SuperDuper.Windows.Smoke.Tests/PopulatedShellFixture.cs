@@ -169,8 +169,8 @@ internal static class PopulatedShellFixture
                     Drain();
                     var context = Find<TextBlock>(window, "SelectedScanContext");
                     Assert.AreEqual(model.SelectedScanContext, context.Text);
-                    Assert.IsTrue(context.ActualWidth > 100);
-                    Assert.IsTrue(Find<Button>(window, "ViewActiveProgress").IsVisible);
+                    Assert.IsTrue(context.IsVisible && context.ActualWidth > 0,
+                        "The selected scan context must remain rendered in the compact shell header.");
                     if (destination == WorkspaceDestination.Review)
                     {
                         Find<ScrollViewer>(window, "ReviewWorkspaceScrollViewer").ScrollToTop();
@@ -213,14 +213,20 @@ internal static class PopulatedShellFixture
         Drain();
         var scroll = Find<ScrollViewer>(window, "ReviewWorkspaceScrollViewer");
         Assert.AreEqual(ScrollBarVisibility.Disabled, scroll.HorizontalScrollBarVisibility);
+        var decisionTabs = Find<TabControl>(window, "ReviewDecisionTabs");
+        Assert.AreEqual("Marked files and folders", AutomationProperties.GetName(decisionTabs));
+        var fileTab = decisionTabs.Items.OfType<TabItem>().Single(tab => Equals(tab.Header, "Files"));
+        var folderTab = decisionTabs.Items.OfType<TabItem>().Single(tab => Equals(tab.Header, "Folders"));
+        Assert.IsTrue(fileTab.Focusable && KeyboardNavigation.GetIsTabStop(fileTab));
+        Assert.IsTrue(folderTab.Focusable && KeyboardNavigation.GetIsTabStop(folderTab));
+        Assert.AreEqual("File decisions", AutomationProperties.GetName(fileTab));
+        Assert.AreEqual("Folder decisions", AutomationProperties.GetName(folderTab));
+        decisionTabs.SelectedItem = fileTab;
+        Drain();
         var fileGroups = Find<ListView>(window, "ReviewFileGroupsList");
-        var folderGroups = Find<ListView>(window, "ReviewFolderGroupsList");
         Assert.AreEqual(25, fileGroups.Items.Count);
-        Assert.AreEqual(25, folderGroups.Items.Count);
         Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(fileGroups));
-        Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(folderGroups));
         Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(fileGroups));
-        Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(folderGroups));
         var preferences = Find<Expander>(window, "LocationPreferencesExpander");
         preferences.IsExpanded = true;
         preferences.BringIntoView();
@@ -244,6 +250,14 @@ internal static class PopulatedShellFixture
         fileGroups.BringIntoView();
         Drain();
         AssertVisible(Descendants<Button>(fileGroups).First(button => Equals(button.Content, "Open set")), window);
+        decisionTabs.SelectedItem = folderTab;
+        Drain();
+        var folderGroups = Find<ListView>(window, "ReviewFolderGroupsList");
+        Assert.AreEqual(25, folderGroups.Items.Count);
+        Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(folderGroups));
+        Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(folderGroups));
+        folderGroups.BringIntoView();
+        Drain();
         AssertVisible(Descendants<Button>(folderGroups).First(button => Equals(button.Content, "Open set")), window);
         var check = Find<Button>(window, "StartPreflightButton");
         check.BringIntoView();
@@ -480,17 +494,30 @@ internal static class PopulatedShellFixture
                         var members = Find<DataGrid>(window, "FileMembersGrid");
                         if (!members.IsVisible)
                         {
-                            Find<Button>(window, "FileCompareSelectedSet").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                            var returnToCopies = Find<Button>(window, "FileBackToCopies");
+                            if (returnToCopies.IsVisible)
+                                returnToCopies.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                            else
+                                Find<Button>(window, "FileCompareSelectedSet").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                             Drain();
                         }
-                        members.SelectedIndex = 0;
+                        members.SelectedIndex = -1;
                         members.ScrollIntoView(members.Items[0]);
+                        Drain();
+                        if (size.Width == 900 && factor == 1.5)
+                        {
+                            var firstMember = (DataGridRow)members.ItemContainerGenerator.ContainerFromIndex(0);
+                            Assert.IsNotNull(firstMember, "The 150% narrow workspace must retain a realized copy row.");
+                            firstMember.BringIntoView();
+                            Drain();
+                            AssertVisible(firstMember, window, minimumHeight: 36);
+                        }
+                        members.SelectedIndex = 0;
                         Drain();
                         var selectedPanel = Find<Border>(window, "FileSelectedCopyPanel");
                         Assert.IsTrue(selectedPanel.IsVisible);
                         var selectedPanelScroll = Descendants<ScrollViewer>(selectedPanel).First();
-                        var decisionAndPathActions = Descendants<Button>(selectedPanel).Where(button => button.Content?.ToString() is
-                            "Keep" or "Mark for removal" or "Reset decision" or "Copy path" or "Show in Explorer").ToArray();
+                        var decisionAndPathActions = FindSelectedFileCopyActions(selectedPanel);
                         if (size.Width >= 1180 || factor == 1)
                         {
                             foreach (var button in decisionAndPathActions)
@@ -499,6 +526,27 @@ internal static class PopulatedShellFixture
                                 Assert.IsTrue(button.DesiredSize.Width <= button.ActualWidth + button.Margin.Left + button.Margin.Right + 1,
                                     $"Enlarged {button.Content} must remain complete: desired={button.DesiredSize}, actual={button.RenderSize}.");
                             }
+                        }
+                        if (size.Width == 900 && factor == 1.5)
+                        {
+                            var selectedCopyReturn = Find<Button>(window, "FileBackToCopies");
+                            Assert.IsTrue(selectedCopyReturn.IsVisible,
+                                "Selecting a narrow copy must provide a visible return to the copy list.");
+                            AssertVisible(selectedCopyReturn, window);
+                            foreach (var decisionAction in decisionAndPathActions)
+                            {
+                                ReachWithinVerticalScroll(decisionAction, selectedPanelScroll, window);
+                                Assert.IsTrue(decisionAction.Focusable && KeyboardNavigation.GetIsTabStop(decisionAction));
+                                Assert.IsFalse(string.IsNullOrWhiteSpace(AutomationProperties.GetName(decisionAction)));
+                            }
+                            selectedCopyReturn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                            Drain();
+                            Assert.IsTrue(members.IsVisible,
+                                "Returning from a narrow selected copy must restore the copy list.");
+                            members.ScrollIntoView(members.Items[0]);
+                            Drain();
+                            AssertVisible((DataGridRow)members.ItemContainerGenerator.ContainerFromIndex(0), window,
+                                minimumHeight: 36);
                         }
                         Assert.AreEqual(5, decisionAndPathActions.Length);
                         Assert.AreEqual(0, selectedPanelScroll.ScrollableWidth, 0.5);
@@ -599,10 +647,10 @@ internal static class PopulatedShellFixture
         if (size.Width >= 1180)
         {
             Assert.IsTrue(setPane.IsVisible && detailPane.IsVisible && splitter.IsVisible);
-            var ratio = workspace.ActualHeight / view.ActualHeight;
-            Console.WriteLine($"{suffix} comparison height={workspace.ActualHeight:F1}/{view.ActualHeight:F1} ({ratio:P1}), widths={setPane.ActualWidth:F1}/{detailPane.ActualWidth:F1}");
+            var ratio = workspace.ActualHeight / ClientContentHeight(window);
+            Console.WriteLine($"{suffix} comparison height={workspace.ActualHeight:F1}/{ClientContentHeight(window):F1} ({ratio:P1}), widths={setPane.ActualWidth:F1}/{detailPane.ActualWidth:F1}");
             Assert.IsTrue(ratio >= 0.60,
-                $"{suffix}: list/detail must receive at least 60% of usable Files height; measured {ratio:P1}.");
+                $"{suffix}: list/detail must receive at least 60% of the client height; measured {ratio:P1}.");
             var setWidthRatio = setPane.ActualWidth / (setPane.ActualWidth + detailPane.ActualWidth);
             Assert.IsTrue(setWidthRatio is >= 0.32 and <= 0.42,
                 $"{suffix}: initial list/detail split must stay near 36/64; measured {setWidthRatio:P1}.");
@@ -651,8 +699,7 @@ internal static class PopulatedShellFixture
         var selectedPanelScroll = Descendants<ScrollViewer>(selectedPanel).First();
         if (host.Length == 0)
         {
-            foreach (var button in Descendants<Button>(selectedPanel).Where(button => button.Content?.ToString() is
-                         "Keep" or "Mark for removal" or "Reset decision" or "Copy path" or "Show in Explorer"))
+            foreach (var button in FindSelectedFileCopyActions(selectedPanel))
                 ReachWithinVerticalScroll(button, selectedPanelScroll, window);
         }
         Assert.AreEqual(0, selectedPanelScroll.ScrollableWidth, 0.5,
@@ -791,6 +838,9 @@ internal static class PopulatedShellFixture
         if (size.Width >= 1180)
         {
             Assert.IsTrue(setPane.IsVisible && detailPane.IsVisible && splitter.IsVisible);
+            var clientHeightRatio = workspace.ActualHeight / ClientContentHeight(window);
+            Assert.IsTrue(clientHeightRatio >= 0.60,
+                $"{suffix}: folder list/detail must receive at least 60% of the client height; measured {clientHeightRatio:P1}.");
             var setWidthRatio = setPane.ActualWidth / (setPane.ActualWidth + detailPane.ActualWidth);
             Assert.IsTrue(setWidthRatio is >= 0.32 and <= 0.42,
                 $"{suffix}: initial folder list/detail split must stay near 36/64; measured {setWidthRatio:P1}.");
@@ -833,8 +883,7 @@ internal static class PopulatedShellFixture
         Assert.AreEqual(ScrollBarVisibility.Disabled, selectedPath.HorizontalScrollBarVisibility);
         Assert.IsTrue(selectedPanel.IsVisible);
         var selectedPanelScroll = Find<ScrollViewer>(window, "FolderSelectedCopyScrollViewer");
-        var actions = Descendants<Button>(selectedPanel).Where(button => button.Content?.ToString() is
-            "Keep" or "Mark for removal" or "Reset decision" or "Copy path" or "Show in Explorer").ToArray();
+        var actions = FindSelectedFolderCopyActions(selectedPanel);
         Assert.AreEqual(5, actions.Length);
         if (host.Length == 0)
         {
@@ -848,7 +897,7 @@ internal static class PopulatedShellFixture
             $"{suffix}: selected-folder path and decisions must not require horizontal scrolling.");
         StringAssert.Contains(
             Descendants<TextBlock>(selectedPanel).Single(text => text.Text.StartsWith("A folder decision applies", StringComparison.Ordinal)).Text,
-            "all descendants");
+            "this folder copy and its descendants");
         Capture(window, $"populated-Folder-selected-copy-{suffix}");
 
         if (host.Length == 0)
@@ -897,6 +946,35 @@ internal static class PopulatedShellFixture
         element.BringIntoView();
         Drain();
         AssertVisible(element, window);
+    }
+
+    private static Button[] FindSelectedFileCopyActions(DependencyObject panel) =>
+    [
+        FindButtonByAccessibleName(panel, name => name.StartsWith("Keep ", StringComparison.Ordinal)),
+        FindButtonByAccessibleName(panel, name => name.StartsWith("Mark ", StringComparison.Ordinal)),
+        FindButtonByAccessibleName(panel, name => name.StartsWith("Reset decision ", StringComparison.Ordinal)),
+        FindButtonByAccessibleName(panel, name => name.StartsWith("Copy complete path ", StringComparison.Ordinal)),
+        FindButtonByAccessibleName(panel, name => name.StartsWith("Show ", StringComparison.Ordinal)),
+    ];
+
+    private static Button[] FindSelectedFolderCopyActions(DependencyObject panel) =>
+    [
+        FindButtonByAccessibleName(panel, name => name.StartsWith("Keep folder copy ", StringComparison.Ordinal)),
+        FindButtonByAccessibleName(panel, name => name.StartsWith("Mark folder copy ", StringComparison.Ordinal)),
+        FindButtonByAccessibleName(panel, name => name.StartsWith("Reset decision for folder copy ", StringComparison.Ordinal)),
+        FindButtonByAccessibleName(panel, name => name.StartsWith("Copy full path for folder copy ", StringComparison.Ordinal)),
+        FindButtonByAccessibleName(panel, name => name.StartsWith("Show folder copy ", StringComparison.Ordinal)),
+    ];
+
+    private static Button FindButtonByAccessibleName(DependencyObject root, Func<string, bool> match) =>
+        Descendants<Button>(root).Single(button => match(AutomationProperties.GetName(button)));
+
+    private static double ClientContentHeight(Window window)
+    {
+        var client = window.Content as FrameworkElement;
+        Assert.IsNotNull(client, "The full-window geometry test requires a client content root.");
+        Assert.IsTrue(client.ActualHeight > 0, "The client content root has no rendered height.");
+        return client!.ActualHeight;
     }
 
     private static void ReachWithinVerticalScroll(

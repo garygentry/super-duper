@@ -87,6 +87,36 @@ in-memory services and never calls the shipping app startup, worker, database, E
 Its 900 × 600 and 1180 × 760 controls make viewport review repeatable. It is useful for the populated
 Results/Review/History and delayed-response screens before repeating a change in the worker-backed app.
 
+## Real-file polish journeys
+
+For unattended production-WPF and real-worker exercise, run:
+
+```powershell
+./scripts/Invoke-WindowsPolishJourney.ps1
+# After building matching binaries for the current source:
+./scripts/Invoke-WindowsPolishJourney.ps1 -SkipBuild
+```
+
+The script creates a fresh corpus from actual tracked documents/media and a ZIP of actual documents,
+records source and copy hashes, and gives the worker independent databases, cache and logs beneath
+`artifacts/ui-dev-session`. It exercises the shipping views and commands on a loaded STA dispatcher;
+it does not install an automation endpoint in the shipping app. Mutations use a separate disposable
+copy tree. Original sources and baseline copies are checked for unchanged hashes. The evidence
+directory contains PNGs, a TRX result and a journey ledger with worker/UI binary hashes and owned PIDs.
+Use the matching `-Configuration Release` for Release verification.
+
+Builds are serialized for .NET with shared build servers disabled, and Rust build parallelism is
+bounded to two jobs. This avoids the shared-server stalls and excessive native compilation load
+observed during polish integration. Coordinate builds across agents; do not rebuild assemblies while
+a test host is using them. A no-dependencies test build must not be used to verify newly edited
+product XAML or Core code against stale product binaries.
+
+The opt-in real-worker journey runs in its own test host. The existing fictional WPF smoke tests
+remain useful for deterministic timing, themes and error states, but their captures are a separate
+evidence category. Background real-worker WPF exercise also does not replace a required final native
+mouse/keyboard pass. When `LogonUI` is active or native capture/input is unavailable, record that check
+as unrun and continue the independent work above.
+
 ## VM verification on 2026-09-15
 
 The fixture built with zero warnings and exposed screenshot and accessibility controls. Direct input

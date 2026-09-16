@@ -15,10 +15,12 @@
             <DockPanel>
                 <WrapPanel DockPanel.Dock="Right" Margin="12,0,0,0">
                     <Button Command="{Binding RefreshCommand}" Content="_Refresh"
+                            Style="{StaticResource ShellSecondaryAction}"
                             automation:AutomationProperties.AccessKey="Alt+R"
                             automation:AutomationProperties.AutomationId="RefreshPerformance"
                             automation:AutomationProperties.Name="Refresh bounded performance telemetry" />
                     <Button Margin="8,0,0,0" Command="{Binding ReturnCommand}" Content="{Binding ReturnLabel}"
+                            Style="{StaticResource ShellSecondaryAction}"
                             automation:AutomationProperties.AutomationId="ReturnFromPerformance"
                             automation:AutomationProperties.Name="{Binding ReturnAutomationName}" />
                 </WrapPanel>
@@ -30,11 +32,17 @@
                     <TextBlock Margin="0,4,12,0" FontWeight="SemiBold" TextWrapping="Wrap"
                                automation:AutomationProperties.AutomationId="PerformanceRunIdentity"
                                Text="{Binding ContextIdentity}" />
-                    <TextBlock Margin="0,4,12,0" Style="{StaticResource SecondaryPerformanceText}" TextWrapping="Wrap"
-                               automation:AutomationProperties.AutomationId="PerformanceSnapshotBoundary"
-                               Text="{Binding SnapshotBoundary}" />
                 </StackPanel>
             </DockPanel>
+            <Expander x:Name="PerformanceSnapshotDetails" Margin="0,8,0,0"
+                      Header="About these measurements"
+                      automation:AutomationProperties.AutomationId="PerformanceSnapshotDetails"
+                      automation:AutomationProperties.Name="Performance snapshot details">
+                <TextBlock Margin="0,8,0,0" Style="{StaticResource SecondaryPerformanceText}"
+                           TextWrapping="Wrap"
+                           automation:AutomationProperties.AutomationId="PerformanceSnapshotBoundary"
+                           Text="{Binding SnapshotBoundary}" />
+            </Expander>
 
             <TextBlock Margin="0,12,0,0" Text="{Binding StatusMessage}" TextWrapping="Wrap"
                        automation:AutomationProperties.AutomationId="PerformanceStatus"
@@ -49,27 +57,27 @@
                        automation:AutomationProperties.AutomationId="PerformanceError"
                        AutomationProperties.LiveSetting="Assertive" />
 
-            <WrapPanel Margin="0,18,0,0">
-                <Border MinWidth="220" Style="{StaticResource PerformanceCard}">
+            <UniformGrid Columns="3" Margin="0,12,0,0">
+                <Border Style="{StaticResource PerformanceCard}">
                     <StackPanel>
                         <TextBlock Style="{StaticResource SecondaryPerformanceText}" Text="Run health" />
                         <TextBlock Margin="0,4,0,0" Style="{StaticResource SectionTitle}" Text="{Binding RunStatus}" />
                         <TextBlock Style="{StaticResource SecondaryPerformanceText}" Text="{Binding RunDuration, StringFormat='Duration {0}'}" />
                     </StackPanel>
                 </Border>
-                <Border MinWidth="220" Style="{StaticResource PerformanceCard}">
+                <Border Style="{StaticResource PerformanceCard}">
                     <StackPanel>
                         <TextBlock Style="{StaticResource SecondaryPerformanceText}" Text="Full-read throughput" />
                         <TextBlock Margin="0,4,0,0" Style="{StaticResource SectionTitle}" Text="{Binding FullReadThroughput}" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
-                <Border MinWidth="180" Style="{StaticResource PerformanceCard}">
+                <Border Style="{StaticResource PerformanceCard}">
                     <StackPanel>
                         <TextBlock Style="{StaticResource SecondaryPerformanceText}" Text="Warnings" />
                         <TextBlock Margin="0,4,0,0" Style="{StaticResource SectionTitle}" Text="{Binding WarningSummary}" />
                     </StackPanel>
                 </Border>
-            </WrapPanel>
+            </UniformGrid>
 
             <TextBlock Margin="0,18,0,7" Style="{StaticResource SectionTitle}" Text="Phase durations" />
             <DataGrid MaxHeight="220" AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding Phases}"
@@ -102,8 +110,8 @@
             </Border>
 
             <TextBlock Margin="0,18,0,3" Style="{StaticResource SectionTitle}" Text="Host and drive summaries" />
-            <TextBlock Margin="0,0,0,7" Style="{StaticResource SecondaryPerformanceText}" TextWrapping="Wrap"
-                       Text="Select one of up to 64 recorded drives to inspect labeled current and peak summaries. Unavailable provider values remain unavailable." />
+            <TextBlock Margin="0,0,0,7" Style="{StaticResource CaptionText}" TextWrapping="Wrap"
+                       Text="Select a drive to inspect its recorded readings. Unavailable values remain unavailable." />
             <WrapPanel>
                 <Border MinWidth="260" Style="{StaticResource PerformanceCard}">
                     <StackPanel><TextBlock FontWeight="SemiBold" Text="System CPU" /><TextBlock Margin="0,4,0,0" Text="{Binding CpuSummary}" TextWrapping="Wrap" /></StackPanel>
@@ -156,7 +164,8 @@
             </Border>
 
             <TextBlock Margin="0,18,0,3" Style="{StaticResource SectionTitle}" Text="Retained run comparison" />
-            <TextBlock Margin="0,0,0,7" Style="{StaticResource SecondaryPerformanceText}" Text="Only the newest 25 telemetry runs are loaded. Comparison labels device, input, or build differences instead of implying equivalence." />
+            <TextBlock Margin="0,0,0,7" Style="{StaticResource CaptionText}" TextWrapping="Wrap"
+                       Text="Choose an earlier run to compare its recorded summary. Context differences are shown with the result." />
             <DataGrid MaxHeight="240" AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding History}"
                       SelectedItem="{Binding SelectedComparisonRun, Mode=TwoWay}"
                       SelectionMode="Single" SelectionUnit="FullRow"
@@ -179,13 +188,13 @@
             <TextBlock Margin="0,8,0,0" Text="{Binding ComparisonMessage}" TextWrapping="Wrap"
                        automation:AutomationProperties.AutomationId="PerformanceComparisonContext" />
             <Grid Margin="0,8,0,20">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="190" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="130" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                 <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="Current" /><TextBlock Grid.Column="2" FontWeight="SemiBold" Text="Selected prior" />
-                <TextBlock Grid.Row="1" Text="Duration" /><TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding RunDuration}" /><TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding ComparisonDuration}" />
-                <TextBlock Grid.Row="2" Text="Full-read throughput" /><TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding FullReadThroughput}" /><TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding ComparisonThroughput}" />
-                <TextBlock Grid.Row="3" Text="Warnings" /><TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding WarningSummary}" /><TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding ComparisonWarnings}" />
-                <TextBlock Grid.Row="4" Text="Peak device read" /><TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding CurrentPeakRead}" /><TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding ComparisonPeakRead}" />
+                <TextBlock Grid.Row="1" Text="Duration" /><TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding RunDuration}" TextWrapping="Wrap" /><TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding ComparisonDuration}" TextWrapping="Wrap" />
+                <TextBlock Grid.Row="2" Text="Full-read throughput" TextWrapping="Wrap" /><TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding FullReadThroughput}" TextWrapping="Wrap" /><TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding ComparisonThroughput}" TextWrapping="Wrap" />
+                <TextBlock Grid.Row="3" Text="Warnings" /><TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding WarningSummary}" TextWrapping="Wrap" /><TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding ComparisonWarnings}" TextWrapping="Wrap" />
+                <TextBlock Grid.Row="4" Text="Peak device read" TextWrapping="Wrap" /><TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding CurrentPeakRead}" TextWrapping="Wrap" /><TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding ComparisonPeakRead}" TextWrapping="Wrap" />
             </Grid>
         </StackPanel>
     </ScrollViewer>
