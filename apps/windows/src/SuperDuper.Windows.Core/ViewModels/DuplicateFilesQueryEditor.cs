@@ -57,6 +57,7 @@ public sealed partial class DuplicateFilesViewModel
         : HasError ? _hasFilteredResults ? "Query not replaced. Previous applied results remain; correct the filters or retry Apply." : "Results unavailable. Correct the filters or retry Apply."
         : ReadDraft() != _appliedDraft ? "Unapplied changes · use Apply or Enter."
         : "Filtered results · totals cover matching sets.";
+    public bool HasQueryEditorNotice => IsUnavailable || IsLoading || HasError || ReadDraft() != _appliedDraft;
 
     private FilterDraft ReadDraft() => new(SearchText, ExactPathMatch, MinimumSizeText, MinimumSizeUnit,
         OneGigabyteOrLarger, ThreeOrMoreCopies, AcrossDrives, ExtensionText, WithoutExtension,
@@ -65,6 +66,7 @@ public sealed partial class DuplicateFilesViewModel
     protected override void OnPropertyChanged(PropertyChangedEventArgs e)
     {
         base.OnPropertyChanged(e);
+        if (e.PropertyName == nameof(QueryEditorStatus)) OnPropertyChanged(nameof(HasQueryEditorNotice));
         if (e.PropertyName is nameof(SearchText) or nameof(ExactPathMatch) or nameof(MinimumSizeText)
             or nameof(MinimumSizeUnit) or nameof(OneGigabyteOrLarger) or nameof(ThreeOrMoreCopies)
             or nameof(AcrossDrives) or nameof(ExtensionText) or nameof(WithoutExtension)

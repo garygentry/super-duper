@@ -124,7 +124,7 @@
         </StackPanel>
         <Grid x:Name="FolderComparisonWorkspace"
               Grid.Row="1"
-              Margin="24,8,24,24"
+              Margin="24,8,24,16"
               automation:AutomationProperties.AutomationId="FolderComparisonWorkspace"
               automation:AutomationProperties.Name="Adjustable exact-folder set list and folder-copy comparison">
             <Grid.ColumnDefinitions>

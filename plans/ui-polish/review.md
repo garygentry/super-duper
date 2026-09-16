@@ -92,12 +92,18 @@ native acceptance of every feature. P01 closes that evidence gap before broad vi
 | ID | Priority | Reproduction / evidence | Owner and status |
 |---|---|---|---|
 | ENG01 | High | Complete a plan check, change a marked copy, run Files validation: copy becomes changed/decision invalidated, but latest preflight still says current with unchanged manual revision. Real journey `1e421f2a889f49be9f7e406f89bcf3b2`. | P07: bounded immutable-history freshness fix and actual-file regressions under verification. |
-| UX15 | High | At 900×600 Folder header's fixed 140-DIP scroll spends its viewport on explanation, clipping search/filter controls. | P04: persistent compact toolbar, advanced size/match details behind Filters; fresh viewport checks pending. |
+| UX15 | High | At 900×600 Folder header's fixed 140-DIP scroll spends its viewport on explanation, clipping search/filter controls. | P04: corrected toolbar and selected-copy controls inspected in real-worker journey `2181f77bccde46c89880b4726590eb9b`, `05-folder-decisions-narrow.png`; enlarged-text regression still pending. |
 | UX16 | Medium | Full roots in copy rows share a long prefix and trim away their distinguishing names. | P04: shortest unambiguous suffix from immutable run roots; full paths retained; focused label checks and new captures pending. |
 | UX17 | Medium | Detail disclosure does not persist: a window-level Loaded handler misses descendant direct Loaded events. | P02: logical-tree tracking; actual JSON/disk restart journey passed for Setup and inactive History sections. |
 | UX18 | Medium | Selected tab bolds all page content through inherited FontWeight. | P02: selected underline retained without inherited content weight; corrected real Setup/Results captures inspected. |
 | UX19 | Medium | History repeats instructions above the list; Progress exposes ETA mechanics in the normal view. | P03/P06: list-first History and qualified concise estimate, detailed reason in Diagnostics; new captures pending. |
-| QA01 | Verification gap | Restarted History PNG has an implausibly narrow first column before deferred layout settles. | P07: await application-idle before capture and assert useful column width; determine whether any product sizing defect remains. |
+| QA01 | Verification gap | Restarted History PNG has an implausibly narrow first column before deferred layout settles. | Closed: application-idle capture and useful-column assertion passed in real-worker journey `2181f77bccde46c89880b4726590eb9b`; restarted History PNG inspected, full row readable. |
+| UX20 | High | Expanding History's recorded locations instantiates a read-only TextBox with an implicit two-way whole-object binding and throws a XAML exception. | P07: explicitly one-way binding; populated regression now expands and checks the actual details. |
+
+The full viewport check initially measured Files at 53.6% of client height while another scan was
+active. Compact shell/banner spacing and hiding the redundant healthy filter notice raised it to
+61.7%; loading, pending-filter and error notices remain visible. Folder spacing follows the same
+16-DIP bottom inset. The 60% requirement remains unchanged.
 
 The accepted plan permits independent tooling/foundations to proceed concurrently. Gate completion
 still requires matching evidence. See [implementation evidence](implementation-evidence.md) and the

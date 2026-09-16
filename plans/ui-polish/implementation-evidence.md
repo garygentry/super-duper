@@ -44,11 +44,17 @@ ordering and duplicate error text were corrected without relaxing product behavi
 ## Evidence so far
 
 - Rust Debug workspace tests passed; explicit campaign/profile tests remain ignored.
+- The full Debug workspace rerun after the final freshness/admission guard also passed.
 - Core Debug: final rerun 224 passed (`artifacts/ui-polish-verification/core-final.trx`).
   Two queue-count tests now isolate elapsed display time using the existing manual clock;
   their exact queue assertions and real asynchronous progress-delivery scheduling remain intact.
   Infrastructure: 79 passed and five expected skips in sandbox, plus
   the remaining read-only eligibility test passed independently in the normal VM context (1/1).
+- Actual locked-copy testing uses whole-plan content validation; metadata-only file-page
+  validation can still observe metadata through a sharing lock and does not claim content access.
+  Journey `5dacd0524f5b46f48b2c7e50f27fed84` passed changed/locked/missing/add/overlap cases;
+  its final Stop/rescan setup assertion was premature while History was loading and now waits
+  for the production command's readiness. This is not yet a full journey pass.
 - Earlier real-worker baseline passed: 232 groups, over 200 members in one group, manual Files
   and Folders decisions, combined plan check, app/worker restart, unchanged source/corpus hashes.
   See `artifacts/ui-dev-session/polish-journey-a1c6e9fc4bce495cbff968c37e559696`.
@@ -63,6 +69,12 @@ ordering and duplicate error text were corrected without relaxing product behavi
   establish adequate visual layout. Corrected captures and final matrix results will supersede it.
 
 ## Remaining acceptance
+
+Latest completed verification supersedes earlier incomplete runs: WPF smoke passed 3/3 in
+44 seconds, and real-worker journey `2a06e3b5820646c680fd5e7b5a4aa411` passed 1/1 in 73 seconds,
+including the full Stop/cancel/rescan sequence. Debug solution build had zero warnings/errors.
+Actual Light/Dark enlarged/narrow selected-copy captures were inspected. The final Review
+singular/plural and concise-success-copy edit will be covered by the matching Release matrix.
 
 Run the extended rules/filesystem-change journey against the corrected worker,
 inspect corrected standard/narrow and theme captures, finish Debug/Release build/tests, and update

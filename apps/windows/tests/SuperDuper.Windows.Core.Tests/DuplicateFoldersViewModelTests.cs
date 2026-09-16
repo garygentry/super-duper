@@ -30,7 +30,7 @@ public sealed class DuplicateFoldersViewModelTests
             viewModel.GroupStatusAnnouncement);
         Assert.AreEqual(1, viewModel.GroupStatusAnnouncementVersion);
         Assert.AreEqual(
-            "Selected exact duplicate folder group loaded. Showing 1 of 1 folder copies on this server-owned page. "
+            "Selected exact duplicate folder group loaded. Showing 1 of 1 folder copies. "
             + "Use the folder-copy comparison list; shared context and differing path segments describe this page.",
             viewModel.MemberStatusAnnouncement);
         Assert.AreEqual(1, viewModel.MemberStatusAnnouncementVersion);
@@ -671,7 +671,7 @@ public sealed class DuplicateFoldersViewModelTests
         Assert.AreEqual(DuplicateFoldersViewModel.PageSize, viewModel.Members.Count);
         Assert.IsNull(viewModel.SelectedMember, "A bounded comparison page must remain selection-neutral until the user selects a row.");
         Assert.AreEqual(
-            "Showing 200 of 205 folder copies on this server-owned page",
+            "Showing 200 of 205 folder copies",
             viewModel.MemberPageStatusText);
         Assert.AreEqual(
             "205 folder copies · 12 files per copy · 2 KB per copy · 408 KB recoverable",

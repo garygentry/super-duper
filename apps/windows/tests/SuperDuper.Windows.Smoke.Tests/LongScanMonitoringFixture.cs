@@ -73,10 +73,11 @@ internal static class LongScanMonitoringFixture
                     Drain();
                     Assert.AreEqual(3UL, model.ProgressSnapshot!.Revision);
                     Assert.AreEqual(6, Find<ItemsControl>(view, "ScanProgressFunnel").Items.Count);
-                    StringAssert.Contains(Find<TextBlock>(view, "ScanEstimatedTimeRemaining").Text, "Hash pipeline");
+                    StringAssert.Contains(Find<TextBlock>(view, "ScanEstimatedTimeRemaining").Text, "for file reads");
                     Find<Expander>(view, "ScanWorkExpander").IsExpanded = true;
                     Find<Expander>(view, "ScanDiagnosticsExpander").IsExpanded = true;
                     SettleLayout(window);
+                    StringAssert.Contains(Find<TextBlock>(view, "ScanExactEstimatedTimeRemaining").Text, "Hash pipeline");
                     var path = Find<TextBox>(view, "ScanCurrentPath");
                     path.BringIntoView(); Drain();
                     Assert.IsTrue(path.Focus());
@@ -168,7 +169,7 @@ internal static class LongScanMonitoringFixture
                 Assert.AreEqual(model.PhaseWork.AutomationName, AutomationProperties.GetName(bar));
                 Assert.IsTrue(bar.IsVisible);
                 Assert.IsFalse(work.IsExpanded || reuse.IsExpanded || diagnostics.IsExpanded);
-                foreach (var id in new[] { "ScanActivityFileName", "ScanActivityParent", "ScanPhaseWorkDetail", "ScanMetricsContext" })
+                foreach (var id in new[] { "ScanActivityFileName", "ScanActivityParent", "ScanPhaseWorkDetail", "ScanEstimatedTimeRemaining" })
                 {
                     var element = Find<TextBlock>(view, id);
                     var bounds = element.TransformToAncestor(window).TransformBounds(new Rect(element.RenderSize));
@@ -187,6 +188,7 @@ internal static class LongScanMonitoringFixture
             Assert.IsTrue(model.ApplyProgress(ProgressTestData.Hashing(currentPath: pathText)));
             work.IsExpanded = reuse.IsExpanded = diagnostics.IsExpanded = true;
             SettleLayout(window);
+            AssertReachable(window, Find<TextBlock>(view, "ScanMetricsContext"));
             Assert.AreEqual(6, Find<ItemsControl>(view, "ScanProgressFunnel").Items.Count);
             StringAssert.Contains(Find<TextBlock>(view, "ScanExactHashWork").Text, "4000 of 8000");
             StringAssert.Contains(Find<TextBlock>(view, "ScanPartialReadBytes").Text, "400 B actually read");
@@ -219,7 +221,7 @@ internal static class LongScanMonitoringFixture
         }
     }
 
-    private static void SettleLayout(Window window)
+    internal static void SettleLayout(Window window)
     {
         // Fluent disclosure animation continues after a dispatcher drain. Capture and compare
         // offsets only after its geometry settles; never treat an intermediate frame as layout.
@@ -227,7 +229,7 @@ internal static class LongScanMonitoringFixture
         var elapsed = System.Diagnostics.Stopwatch.StartNew();
         var stableSince = TimeSpan.Zero;
         string? previous = null;
-        var timer = new DispatcherTimer(DispatcherPriority.ContextIdle) { Interval = TimeSpan.FromMilliseconds(50) };
+        var timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(50) };
         timer.Tick += (_, _) =>
         {
             window.UpdateLayout();

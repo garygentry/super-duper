@@ -233,16 +233,20 @@ internal static class PopulatedShellFixture
         Drain();
         SettleLayout(window);
         Assert.IsTrue(preferences.IsVisible);
+        Find<Expander>(window, "PreferencePreviewStage").IsExpanded = true;
+        SettleLayout(window);
         var preview = Find<Button>(window, "PreferenceRunPreview");
-        var reverse = Find<Button>(window, "PreferenceReverseApplication");
         var preferenceList = Find<ListView>(window, "PreferencePreviewGroups");
         preview.BringIntoView();
         Drain();
         ReachWithinVerticalScroll(preview, scroll, window);
         Capture(window, $"populated-Review-location-preferences-preview-{size.Width}x{size.Height}{suffix}");
-        Assert.AreEqual("Reverse rule application", reverse.Content);
         Assert.IsTrue(VirtualizingPanel.GetIsVirtualizing(preferenceList));
         Assert.AreEqual(ScrollBarVisibility.Disabled, ScrollViewer.GetHorizontalScrollBarVisibility(preferenceList));
+        Find<Expander>(window, "PreferenceAppliedStage").IsExpanded = true;
+        SettleLayout(window);
+        var reverse = Find<Button>(window, "PreferenceReverseApplication");
+        Assert.AreEqual("Reverse rule application", reverse.Content);
         reverse.BringIntoView();
         Drain();
         ReachWithinVerticalScroll(reverse, scroll, window);
@@ -283,8 +287,13 @@ internal static class PopulatedShellFixture
         Assert.AreEqual(model.History.SelectedRun?.Id, model.Performance.ProductRunId);
         StringAssert.Contains(Find<TextBlock>(window, "PerformanceRunIdentity").Text,
             $"Scan {model.Performance.ProductRunId}");
+        var snapshotDetails = Find<Expander>(window, "PerformanceSnapshotDetails");
+        snapshotDetails.IsExpanded = true;
+        SettleLayout(window);
         StringAssert.Contains(Find<TextBlock>(window, "PerformanceSnapshotBoundary").Text,
             "raw samples and time-series data are not available");
+        snapshotDetails.IsExpanded = false;
+        SettleLayout(window);
 
         var scroll = Find<ScrollViewer>(window, "PerformanceScrollViewer");
         var phases = Find<DataGrid>(window, "PerformancePhaseGrid");
@@ -494,8 +503,9 @@ internal static class PopulatedShellFixture
                         var members = Find<DataGrid>(window, "FileMembersGrid");
                         if (!members.IsVisible)
                         {
-                            var returnToCopies = Find<Button>(window, "FileBackToCopies");
-                            if (returnToCopies.IsVisible)
+                            var returnToCopies = Descendants<Button>(window).FirstOrDefault(button =>
+                                AutomationProperties.GetAutomationId(button) == "FileBackToCopies");
+                            if (returnToCopies?.IsVisible == true)
                                 returnToCopies.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                             else
                                 Find<Button>(window, "FileCompareSelectedSet").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -539,6 +549,9 @@ internal static class PopulatedShellFixture
                                 Assert.IsTrue(decisionAction.Focusable && KeyboardNavigation.GetIsTabStop(decisionAction));
                                 Assert.IsFalse(string.IsNullOrWhiteSpace(AutomationProperties.GetName(decisionAction)));
                             }
+                            selectedPanelScroll.ScrollToTop();
+                            Drain();
+                            Capture(window, $"theme-{theme}-text-{factor}-Files-selected-copy-{size.Width}x{size.Height}");
                             selectedCopyReturn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                             Drain();
                             Assert.IsTrue(members.IsVisible,
@@ -550,9 +563,10 @@ internal static class PopulatedShellFixture
                         }
                         Assert.AreEqual(5, decisionAndPathActions.Length);
                         Assert.AreEqual(0, selectedPanelScroll.ScrollableWidth, 0.5);
-                        Capture(window, $"theme-{theme}-text-{factor}-Files-selected-copy-{size.Width}x{size.Height}");
-                        var backToCopies = Find<Button>(window, "FileBackToCopies");
-                        if (backToCopies.IsVisible)
+                        Capture(window, $"theme-{theme}-text-{factor}-Files-{(selectedPanel.IsVisible ? "selected-copy" : "copies")}-{size.Width}x{size.Height}");
+                        var backToCopies = Descendants<Button>(window).FirstOrDefault(button =>
+                            AutomationProperties.GetAutomationId(button) == "FileBackToCopies");
+                        if (backToCopies?.IsVisible == true)
                         {
                             backToCopies.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                             Drain();
@@ -778,7 +792,12 @@ internal static class PopulatedShellFixture
         var history = Find<DataGrid>(window, "RunHistoryGrid");
         StringAssert.Contains(Find<TextBlock>(window, "HighlightedRunIdentity").Text, $"Scan {model.History.SelectedRun?.Id}");
         StringAssert.Contains(Find<TextBlock>(window, "HighlightedRunRelationship").Text, "open in the Results and Review workspace");
+        var recordedSettings = Find<Expander>(window, "RecordedRunSettings");
+        recordedSettings.IsExpanded = true;
+        SettleLayout(window);
         StringAssert.Contains(Find<TextBlock>(window, "HighlightedRunParameters").Text, "immutable run");
+        recordedSettings.IsExpanded = false;
+        SettleLayout(window);
         StringAssert.Contains(Find<TextBlock>(window, "ActiveRunHistoryContext").Text, "Active scan is separate");
         Find<ScrollViewer>(window, "HistoryWorkspaceScrollViewer").ScrollToTop();
         Drain();
@@ -792,7 +811,12 @@ internal static class PopulatedShellFixture
         var warnings = Find<DataGrid>(window, "RunWarningGrid");
         Assert.IsTrue(warnings.IsKeyboardFocusWithin);
         StringAssert.Contains(Find<TextBlock>(window, "RunWarningContextIdentity").Text, $"Scan {model.History.SelectedRun?.Id}");
+        var warningDetails = Find<Expander>(window, "WarningTechnicalDetails");
+        warningDetails.IsExpanded = true;
+        SettleLayout(window);
         StringAssert.Contains(Find<TextBlock>(window, "RunWarningSnapshotBoundary").Text, "Terminal warning revision");
+        warningDetails.IsExpanded = false;
+        SettleLayout(window);
         Assert.AreEqual("_Return to run history", Find<Button>(window, "CloseRunWarnings").Content);
         AssertVisible(warnings, window, minimumHeight: 36);
         Assert.IsTrue(history.ActualHeight >= 144 && warnings.ActualHeight >= 144);
@@ -1000,7 +1024,7 @@ internal static class PopulatedShellFixture
         var started = System.Diagnostics.Stopwatch.StartNew();
         var stableSince = TimeSpan.Zero;
         string? previous = null;
-        var timer = new DispatcherTimer(DispatcherPriority.ContextIdle) { Interval = TimeSpan.FromMilliseconds(50) };
+        var timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(50) };
         timer.Tick += (_, _) =>
         {
             window.UpdateLayout();

@@ -45,3 +45,26 @@ Updated 2026-09-15 local time. Branch `codex/ui-redesign`; pre-review baseline `
   uncertain filesystem changes without claiming that every case was a confirmed changed file.
 - Latest Core Debug rerun passed 224/224. WPF retry reached a stale simultaneous-editor/preview
   layout assertion; it now verifies the accepted one-stage-at-a-time flow and is rerunning.
+
+## Latest verified slice (after implementation commit `10fbc0f`)
+
+- Full Debug Rust workspace passed with the freshness and operation-admission guard.
+- Debug Windows solution built without warnings/errors. Core 224 passed; Infrastructure 79
+  passed/five expected skips plus normal-context read-only eligibility 1/1 passed.
+- Full WPF smoke matrix passed 3/3 in 44 seconds with actual Light/Dark, 100%/150% text,
+  standard/narrow windows, disclosure/focus/scroll checks and monitoring states. Captures:
+  `artifacts/ui-polish-verification/{layout-captures,progress-captures,shell-captures}`.
+- Actual-file journey passed 1/1 in 73 seconds:
+  `artifacts/ui-dev-session/polish-journey-2a06e3b5820646c680fd5e7b5a4aa411`.
+  Includes Stop/cancel/rescan, changes/locks/missing/new/overlapping paths, original-state
+  preservation, disk preferences/restart, and rule preview/apply/reverse.
+- Layout regressions drove compact shell/banner margins and removal of a redundant healthy
+  filter notice. Files comparison receives 61.7% of client height while another scan is active;
+  Folder comparison also passes the unchanged 60% requirement. Narrow/enlarged decisions pass.
+- Fixed a real History recorded-path XAML crash with an explicit one-way read-only binding.
+  Test navigation now opens staged/technical disclosures before inspecting their contents.
+- Rendering helpers use render-priority geometry sampling to avoid idle starvation; the expanded
+  complete suite has a two-minute watchdog, retaining three-second layout-stability limits.
+- Only the final small Review singular/plural/success-copy edit postdates the passing Debug
+  journey; validate it in the matching Release matrix. Next: Release build/tests and journey,
+  final fresh-state/native acceptance and issue-ledger closure. Native input remains unrun.

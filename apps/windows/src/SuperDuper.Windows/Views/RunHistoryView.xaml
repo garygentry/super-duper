@@ -97,7 +97,7 @@
                                AutomationProperties.AutomationId="ActiveRunHistoryContext"
                                Text="{Binding ActiveRunContext}" TextWrapping="Wrap"
                                Visibility="{Binding HasActiveRunContext, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                    <Expander Margin="0,7,0,0" Header="Recorded settings and locations"
+                    <Expander x:Name="RecordedRunSettings" Margin="0,7,0,0" Header="Recorded settings and locations"
                               AutomationProperties.AutomationId="RecordedRunSettings"
                               AutomationProperties.Name="Recorded settings and locations for selected run">
                         <StackPanel>
@@ -113,7 +113,7 @@
                                     <TextBox Margin="0,3,0,0"
                                              AutomationProperties.Name="Recorded scan location"
                                              BorderThickness="0" IsReadOnly="True" IsReadOnlyCaretVisible="True"
-                                             Text="{Binding}" TextWrapping="Wrap" />
+                                             Text="{Binding Mode=OneWay}" TextWrapping="Wrap" />
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                             </ItemsControl>

@@ -25,12 +25,12 @@ if (-not $SkipBuild) {
     }
     Push-Location $repository
     try {
-        $cargoArgs = @('build', '-p', 'super-duper-worker', '--locked')
+        $cargoArgs = @('build', '-p', 'super-duper-worker', '--locked', '--jobs', '2')
         if ($Configuration -eq 'Release') { $cargoArgs += '--release' }
         & $cargoExecutable @cargoArgs
         if ($LASTEXITCODE -ne 0) { throw 'Rust worker build failed.' }
 
-        & dotnet build 'apps/windows/SuperDuper.Windows.sln' --configuration $Configuration -m:1
+        & dotnet build 'apps/windows/SuperDuper.Windows.sln' --configuration $Configuration --disable-build-servers -m:1
         if ($LASTEXITCODE -ne 0) { throw 'Windows solution build failed.' }
 
     }

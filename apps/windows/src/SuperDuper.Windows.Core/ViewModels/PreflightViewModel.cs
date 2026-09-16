@@ -364,7 +364,7 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
 
     public string MarkedRemovalSummary => _review is null
         ? "Marked totals are unavailable."
-        : $"{_review.Summary.EffectiveRemovalFileCount:N0} files marked · {DisplayFormatting.Bytes(_review.Summary.PlannedRemovalBytes)} planned";
+        : $"{_review.Summary.EffectiveRemovalFileCount:N0} {(_review.Summary.EffectiveRemovalFileCount == 1 ? "file" : "files")} marked · {DisplayFormatting.Bytes(_review.Summary.PlannedRemovalBytes)} planned";
 
     public string CombinedRemovalExplanation =>
         "Whole-plan totals come from the worker. File/folder overlap and hard-link aliases are counted once in the distinct and physical totals.";
@@ -430,7 +430,7 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
         { Status: "completed", UnavailableCount: > 0 } =>
             "One or more marked or retained copies could not be checked. Resolve access and check the same current plan again.",
         { Status: "completed" } =>
-            "Every marked target and required survivor matched during this whole-plan check. This is not approval or an action to delete.",
+            "Marked copies and the copies you are keeping passed the check. Nothing has been deleted.",
         { Status: "cancelled" } => "The whole-plan check was cancelled before it could establish a current result.",
         { Status: "interrupted" } => "The worker stopped before the whole-plan check completed.",
         { Status: "failed" } => "The whole-plan check failed. Review its details, then check the current plan again.",

@@ -287,7 +287,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     public string GroupCountText => $"{TotalGroups:N0} groups";
     public string MemberCountText => $"{TotalMembers:N0} folders";
     public string MemberPageStatusText =>
-        $"Showing {Members.Count:N0} of {TotalMembers:N0} folder copies on this server-owned page";
+        $"Showing {Members.Count:N0} of {TotalMembers:N0} folder copies";
     public string ReviewPlanSummaryText =>
         $"Combined review: {ReviewPlan.Summary.RemoveCount:N0} files and "
         + $"{ReviewPlan.Summary.FolderRemoveCount:N0} folders marked for removal · "
@@ -1117,7 +1117,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         var groupId = group.Id;
         IsExplorerCommandRunning = true;
         ExplorerStatusMessage =
-            $"Selecting {FormatCount(page.Length, "folder copy", "folder copies")} from this server-owned page in File Explorer…";
+            $"Selecting {FormatCount(page.Length, "folder copy", "folder copies")} from this page in File Explorer…";
         try
         {
             var result = await _explorer.SelectByParentAsync(

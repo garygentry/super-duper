@@ -294,6 +294,7 @@ public sealed class RealWorkerPolishJourneyTests
         await Until(() => !shell.IsLoadingSession && shell.Setup.SessionId == sessionId && !shell.Setup.IsDetectingCloudLocations, "saved large corpus setup");
         shell.SelectedDestination = WorkspaceDestination.ScanSetup;
         shell.Setup.RepeatCachePolicy = RepeatCachePolicyNames.RevalidateContent;
+        await Until(() => shell.CanStartRun, "saved scan and history ready for repeat");
         Assert.IsTrue(shell.CanStartRun, shell.Setup.ValidationMessage);
         await Await(shell.StartRunCommand.ExecuteAsync(null));
         await Until(() => shell.Progress.CanCancel || !shell.HasActiveRun, "cancellable real scan");
@@ -414,6 +415,19 @@ public sealed class RealWorkerPolishJourneyTests
         await Await(shell.Preflight.StartCommand.ExecuteAsync(null));
         Assert.AreEqual("completed", shell.Preflight.Preflight?.Status);
         Assert.IsTrue(shell.Preflight.IsCurrent);
+        var survivorPath = files.Members.Single(member => member.Path != markedPath).Path;
+        // File-page validation reads metadata only. The full plan check must detect denied content reads.
+        using (var lockedCopy = new FileStream(survivorPath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            await Await(shell.Preflight.StartCommand.ExecuteAsync(null));
+            Assert.IsTrue(shell.Preflight.Preflight?.UnavailableCount > 0,
+                "A full content check must report the locked survivor as unavailable.");
+            Record("locked-copy-unavailable", survivorPath);
+            await CaptureAsync(window, "13-locked-copy");
+        }
+        await Await(shell.Preflight.StartCommand.ExecuteAsync(null));
+        Assert.AreEqual(0L, shell.Preflight.Preflight!.UnavailableCount);
+        Assert.IsTrue(shell.Preflight.IsCurrent);
         Record("mutation-preflight-before", shell.Preflight.Preflight!);
 
         File.AppendAllText(markedPath, "\nDisposable UI journey: this copied document changed after validation.\n");
@@ -451,15 +465,6 @@ public sealed class RealWorkerPolishJourneyTests
         await Until(() => !files.IsDetailLoading && files.Members.Count == 2, "immutable original members");
         foreach (var member in files.Members) Assert.AreEqual(immutableSizes[member.Id], member.Member.Size);
         await CaptureAsync(window, "12-original-scan-retained");
-        // Deny reads on the surviving real copy; validation must retain intent and explain unavailability.
-        var survivorPath = files.Members.Single(member => member.Path != markedPath).Path;
-        using (var lockedCopy = new FileStream(survivorPath, FileMode.Open, FileAccess.Read, FileShare.None))
-        {
-            await Await(files.ValidateVisiblePageCommand.ExecuteAsync(null));
-            Assert.AreEqual("unavailable", files.Members.Single(member => member.Path == survivorPath).Member.ValidationState);
-            Record("locked-copy-unavailable", survivorPath);
-            await CaptureAsync(window, "13-locked-copy");
-        }
         await Await(files.ValidateVisiblePageCommand.ExecuteAsync(null));
         Assert.AreEqual("present", files.Members.Single(member => member.Path == survivorPath).Member.ValidationState);
 

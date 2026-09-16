@@ -987,7 +987,7 @@ public sealed class WpfSurfaceSmokeTests
                 Assert.AreEqual("DuplicateFolderGroupQuery", announcedActivityId);
 
                 const string folderMemberAnnouncement =
-                    "Selected exact duplicate folder group loaded. Showing 2 of 2 folder copies on this server-owned page. "
+                    "Selected exact duplicate folder group loaded. Showing 2 of 2 folder copies. "
                     + "Use the folder-copy comparison list; shared context and differing path segments describe this page.";
                 AutomationProperties.SetName(folderMemberStatus, folderMemberAnnouncement);
                 AutomationNotificationBehavior.SetAnnouncementVersion(folderMemberStatus, 1);
@@ -1495,6 +1495,7 @@ public sealed class WpfSurfaceSmokeTests
         FindByAutomationId<Expander>(review, "PreferencePreviewStage").IsExpanded = true;
         host.UpdateLayout();
         DrainDispatcher();
+        LongScanMonitoringFixture.SettleLayout(host);
 
         var setupStage = FindByAutomationId<Expander>(review, "PreferenceSetupStage");
         var preview = FindByAutomationId<Button>(review, "PreferenceRunPreview");
@@ -1947,8 +1948,9 @@ public sealed class WpfSurfaceSmokeTests
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        // Includes live Light/Dark, two text sizes and both supported viewports with captures.
-        Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(60)), "The WPF smoke thread timed out.");
+        // The expanded disclosure/navigation and Light/Dark/text-size matrix includes bounded
+        // animation settling and captures; allow the complete matrix, retaining a finite watchdog.
+        Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(120)), "The WPF smoke thread timed out.");
         if (failure is not null)
         {
             ExceptionDispatchInfo.Capture(failure).Throw();
