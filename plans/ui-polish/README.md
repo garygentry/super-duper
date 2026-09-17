@@ -4,6 +4,9 @@ Status: implementation, background verification and physical appearance/focus ch
 UX23's transient native loading observation remains pending. Started 2026-09-15
 (America/Los_Angeles). Branch: `codex/ui-redesign`; baseline `6206610`.
 
+The 2026-09-16 attempt from `b68c5aa` failed native capture after bounded window recovery.
+P08 closure remains open for that observation; prior accepted checks remain valid.
+
 The operator requested a new end-to-end usability effort after accepting UIR-09: reduce clutter,
 make common tasks intuitive, establish consistent visuals and icons, exercise the real app with
 real files autonomously, and fix underlying engine defects when necessary. This is a new stream;

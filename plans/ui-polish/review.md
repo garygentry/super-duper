@@ -134,6 +134,14 @@ Neither label means native mouse/keyboard acceptance. Final Release Rust/Windows
 
 ## Native follow-up finding
 
+Latest disposition (2026-09-16): the historical table above retains its original evidence stage.
+UX12/UX13 physical 150%/Desert and keyboard/focus acceptance now pass; UX14's native journeys
+are retained as accepted. Only UX23's transient loading-frame observation remains outstanding.
+The continuation from `b68c5aa` recovered a window after a launch timeout, but native capture
+failed with `FrameArrived timed out: timed out waiting on channel`. No frame was obtained and
+P08 remains open. This is an availability failure, not a new product defect or permission gap;
+see the latest implementation evidence for cleanup and the precise closure assessment.
+
 | ID | Priority | Reproduction | Disposition |
 |---|---|---|---|
 | ENG02 | Medium | Native Setup reopened canonical local roots as unknown filesystem type, filling the common screen with repeated technical warnings. | Closed: classifier correction, local/UNC regressions and native after-check from `adeb9f5` passed; see implementation evidence. |

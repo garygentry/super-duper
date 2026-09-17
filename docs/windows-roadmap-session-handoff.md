@@ -30,6 +30,15 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 
 ## Current checkpoint
 
+- UX23-only continuation from `b68c5aa` on 2026-09-16: native launch timed out, fresh discovery
+  recovered the isolated Debug window, then bounded capture recovery returned `FrameArrived
+  timed out: timed out waiting on channel`. No native frame obtained; P08 closure assessed and
+  remains open solely for UX23's loading-frame observation. No accepted appearance/focus checks
+  replayed or background evidence substituted. Owned app 11560/worker 6900 stopped, sidecar
+  removed, follow-up audits empty. No code/build/test changes; prior verification retained.
+  Standing approval remains valid; native capture availability is the remaining prerequisite.
+  Latest polish evidence/checkpoint own continuation. `origin/wpf-poc` remains `deefa40`.
+
 - P08 continuation from `654648d` on 2026-09-16: native physical 150% text and Desert, compact
   Files/Folders selected-copy/Review, and keyboard decision-focus after-checks pass. New UX24
   async decision focus loss is fixed for both surfaces, regression-covered and independently
@@ -40,7 +49,8 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
   remains unobserved. That precise native evidence is the only next P08 slice; do not replay the
   physical appearance/focus checks. Final Debug/Release builds are clean; WPF 4/4 in each;
   fresh Release real-worker journey 1/1 at `polish-journey-c18581a7c6ff4e1d9d48bc8ebe65f02a`.
-- P08 continuation on 2026-09-16 resumed `d784f48` plus preserved edits. Preference-root DOS/UNC
+- Historical P08 checkpoint (remaining appearance/focus work superseded above): continuation on
+  2026-09-16 resumed `d784f48` plus preserved edits. Preference-root DOS/UNC
   equivalence, first legacy rank and drive-root boundary are fixed/reviewed. Shared native Check
   Escape and inline Apply/Reverse Escape/focus now pass native after-checks (ENG03/UX21/UX22).
   Fresh Debug real-file journey `polish-journey-e4149564922d459cb1761b190b1d8a09` passes; native

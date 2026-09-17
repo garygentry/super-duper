@@ -376,3 +376,39 @@ Fresh Release real-worker journey passes 1/1 (23s) at
 `artifacts/ui-dev-session/polish-journey-c18581a7c6ff4e1d9d48bc8ebe65f02a`, with 27 PNGs and
 fresh corpus `polish-data-8664ce58523b4a80a289f811a42b3957` (671 copies, 233 unique sources,
 16 types, 14,638,609 bytes). This is background real-worker evidence, not the missing native frame.
+
+## UX23 native availability attempt (2026-09-16, from b68c5aa)
+
+Cold-start Git audit was clean at `b68c5aa` on `codex/ui-redesign`; `origin/wpf-poc`
+remained `deefa40`. Normal-context process audit found no app/worker/fixture, and no `.uidev`
+sidecar existed. The Debug app DLL matched the prior verified SHA256
+`636AFCF7EC78D28F4E6DEE4D72286E7D9A66507E8DE3EF61F282F2E785397817`.
+Prepared the existing isolated real-file state
+`artifacts/ui-dev-session/polish-journey-e4149564922d459cb1761b190b1d8a09`
+with `Start-WindowsUiDev.ps1 -SkipBuild -PrepareControlLaunch`. No build or test ran during
+this attempt, and no corpus was changed. Scans 7/8 still reference removed Stop copies.
+
+Computer Use initialized and listed apps successfully. Launch of the exact Debug executable
+returned `computer-use request timed out: launch_app`. Fresh window discovery nevertheless
+returned one `Super Duper` window (ID 6160736). Process audit identified owned app PID 11560
+and its matching Debug worker PID 6900, parent 11560. LogonUI PID 1220 was also present;
+its presence alone does not establish that the target desktop was locked.
+
+The bounded recovery rediscovered the exact window, rehydrated it, activated it and requested
+native screenshot/accessibility state. That call returned
+`FrameArrived timed out: timed out waiting on channel`. No native screenshot or loading frame
+was obtained. Native calls stopped without helper debugging, input retries, appearance/focus
+rechecks or background substitution. Standing authorization was sufficient; the failure was
+tool availability, not missing operator approval.
+
+The path-verified owned app/worker were stopped and the temporary Debug `.uidev` removed.
+The immediate process query briefly retained the exiting app; a subsequent normal-context
+audit found no app/worker/fixture. The sidecar audit also found none. Production state,
+source files, OS appearance and deletion capability were unchanged.
+
+P08 closure assessment: **open**. UX23's native loading-frame after-check remains required
+and has neither passed nor been excluded by the operator. Prior accepted native journeys,
+appearance/focus checks and Debug/Release test baselines remain valid; no source changed
+and no tests were replayed. A successful native capture/input session is the exact remaining
+prerequisite. Retry only that observation when available, then assess closure against the
+existing acceptance matrix. No merge, push, release or deletion activation occurred.
