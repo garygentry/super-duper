@@ -324,6 +324,21 @@ public static class SmokeMouseInput
         }
         Assert-True ($process.MainWindowHandle -ne 0) 'WPF main window did not appear.'
         $window = [Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)
+        # The shell and the result workspaces switch to narrow layouts below their width
+        # thresholds, which collapses the saved-scan pane and the set detail pane out of the
+        # automation tree. Drive the wide layout the journey asserts against.
+        function Set-SmokeWindowMaximized {
+            try {
+                $window.GetCurrentPattern(
+                    [Windows.Automation.WindowPattern]::Pattern).SetWindowVisualState(
+                    [Windows.Automation.WindowVisualState]::Maximized)
+                Start-Sleep -Milliseconds 800
+            }
+            catch {
+                throw "The disposable WPF window could not be maximized: $($_.Exception.Message)"
+            }
+        }
+        Set-SmokeWindowMaximized
         $automationShell = New-Object -ComObject WScript.Shell
         function Activate-SmokeWindow {
             for ($attempt = 0; $attempt -lt 20; $attempt++) {
@@ -384,6 +399,32 @@ public static class SmokeMouseInput
             throw "UI Automation element AutomationId=$AutomationId did not accept keyboard focus."
         }
 
+        function Find-FocusableDescendant($Container, [int]$Attempts = 40) {
+            for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+                $condition = [Windows.Automation.PropertyCondition]::new(
+                    [Windows.Automation.AutomationElement]::IsKeyboardFocusableProperty, $true)
+                $element = $Container.FindFirst(
+                    [Windows.Automation.TreeScope]::Descendants, $condition)
+                if ($null -ne $element) { return $element }
+                Start-Sleep -Milliseconds 250
+            }
+            throw "No keyboard-focusable descendant was found in $($Container.Current.AutomationId)."
+        }
+
+        # Focus assertions only hold while this window is foreground, and the journey opens real
+        # Explorer windows that take it, so reactivate and let focus settle before asserting.
+        function Assert-FocusInside($Container, [string]$Failure) {
+            Activate-SmokeWindow
+            for ($attempt = 0; $attempt -lt 40; $attempt++) {
+                if (Test-IsAutomationDescendant $Container ([Windows.Automation.AutomationElement]::FocusedElement)) {
+                    return
+                }
+                Activate-SmokeWindow
+                Start-Sleep -Milliseconds 100
+            }
+            throw "Smoke assertion failed: $Failure"
+        }
+
         function Get-AutomationCount($Element) {
             $digits = $Element.Current.Name -replace '[^0-9]', ''
             if ([string]::IsNullOrEmpty($digits)) {
@@ -393,9 +434,27 @@ public static class SmokeMouseInput
         }
 
         function Select-Element($Element) {
-            $pattern = $Element.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)
-            $pattern.Select()
-            Start-Sleep -Milliseconds 400
+            # Leaving Setup while it is dirty refuses the navigation and raises a departure prompt,
+            # and the scan navigation is briefly disabled while a saved scan loads. Wait the way
+            # Invoke-Element does, answer the prompt, and confirm the selection actually took.
+            $lastError = $null
+            for ($attempt = 0; $attempt -lt 40; $attempt++) {
+                if ($Element.Current.IsEnabled) {
+                    try {
+                        $pattern = $Element.GetCurrentPattern(
+                            [Windows.Automation.SelectionItemPattern]::Pattern)
+                        $pattern.Select()
+                        Start-Sleep -Milliseconds 400
+                        if ($pattern.Current.IsSelected) { return }
+                        $lastError = 'the selection did not take effect'
+                    }
+                    catch { $lastError = $_.Exception.Message }
+                    $null = Resolve-SetupDeparture
+                }
+                Start-Sleep -Milliseconds 250
+            }
+            throw ("UI Automation select failed for Name=$($Element.Current.Name) " +
+                "AutomationId=$($Element.Current.AutomationId): $lastError")
         }
 
         function Invoke-Element($Element) {
@@ -530,12 +589,190 @@ public static class SmokeMouseInput
             return $false
         }
 
-        Select-Element (Find-Element Name 'Milestone 6 Smoke')
-        Select-Element (Find-Element AutomationId 'ProgressTab')
+        # The redesigned shell keeps saved scans in a collapsible pane, so the list and its items
+        # do not exist in the automation tree until the pane is open.
+        # Toggling can arrive while the shell is still loading and the control is disabled, which
+        # fails the pattern call, so wait for it the way Invoke-Element does.
+        function Set-ToggleOn([string]$AutomationId) {
+            $toggle = Find-Element AutomationId $AutomationId
+            $lastError = $null
+            for ($attempt = 0; $attempt -lt 40; $attempt++) {
+                $pattern = $toggle.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
+                if ($pattern.Current.ToggleState -eq [Windows.Automation.ToggleState]::On) { return }
+                if ($toggle.Current.IsEnabled) {
+                    try {
+                        $pattern.Toggle()
+                        Start-Sleep -Milliseconds 400
+                        if ($pattern.Current.ToggleState -eq [Windows.Automation.ToggleState]::On) { return }
+                        $lastError = 'the toggle did not stay on'
+                    }
+                    catch { $lastError = $_.Exception.Message }
+                    $null = Resolve-SetupDeparture
+                }
+                Start-Sleep -Milliseconds 250
+            }
+            throw "UI Automation toggle failed for AutomationId=${AutomationId}: $lastError"
+        }
+
+        function Open-SavedScanPane {
+            Set-ToggleOn 'SavedScanSelectorToggle'
+            $null = Find-Element AutomationId 'SessionsList'
+        }
+
+        function Find-OptionalElement([string]$Property, [string]$Value, [int]$Attempts = 8) {
+            $propertyId = if ($Property -eq 'AutomationId') {
+                [Windows.Automation.AutomationElement]::AutomationIdProperty
+            } else {
+                [Windows.Automation.AutomationElement]::NameProperty
+            }
+            for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+                $condition = [Windows.Automation.PropertyCondition]::new($propertyId, $Value)
+                $element = $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+                if ($null -ne $element) { return $element }
+                Start-Sleep -Milliseconds 250
+            }
+            return $null
+        }
+
+        # Registered cloud locations detected on this host differ from the saved definition, so the
+        # app marks Setup dirty without any operator edit and asks before leaving it. The smoke
+        # never means to edit the durable definition, so keep what is saved.
+        function Resolve-SetupDeparture {
+            $prompt = Find-OptionalElement Name 'Save setup changes before leaving?' 2
+            if ($null -eq $prompt) { return $false }
+            $discard = Find-OptionalElement Name 'Discard' 4
+            if ($null -eq $discard) { return $false }
+            Invoke-Element $discard
+            return $true
+        }
+
+        function Select-SavedScan([string]$ScanName) {
+            Open-SavedScanPane
+            Select-Element (Find-Element Name $ScanName)
+            $null = Resolve-SetupDeparture
+            for ($attempt = 0; $attempt -lt 40; $attempt++) {
+                $startAction = Find-OptionalElement AutomationId 'StartScanButton' 1
+                if ($null -ne $startAction -and $startAction.Current.Name.Contains($ScanName, [StringComparison]::Ordinal)) {
+                    return
+                }
+                Start-Sleep -Milliseconds 250
+            }
+            throw "The saved scan '$ScanName' did not become the selected workspace scan."
+        }
+
+        # Progress detail sits behind collapsed expanders, whose children are not realized until
+        # they are expanded, so they cannot be found in the automation tree while closed.
+        # Result filters live behind a toggle whose expander is itself hidden while collapsed.
+        function Open-FilterPanel([string]$ToggleAutomationId) {
+            Set-ToggleOn $ToggleAutomationId
+        }
+
+        # Facet ordering moved from a name-sort button to a sort ComboBox.
+        function Select-ComboOption([string]$AutomationId, [string]$OptionPrefix) {
+            $combo = Find-Element AutomationId $AutomationId
+            $condition = [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::ControlTypeProperty,
+                [Windows.Automation.ControlType]::ListItem)
+            $seen = [Collections.Generic.List[string]]::new()
+            # The drop-down realizes its items asynchronously, so expand and look again.
+            for ($attempt = 0; $attempt -lt 20; $attempt++) {
+                $expand = $combo.GetCurrentPattern(
+                    [Windows.Automation.ExpandCollapsePattern]::Pattern)
+                if ($expand.Current.ExpandCollapseState -ne
+                    [Windows.Automation.ExpandCollapseState]::Expanded) {
+                    try { $expand.Expand() } catch { }
+                }
+                Start-Sleep -Milliseconds 300
+                $options = $combo.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)
+                $seen.Clear()
+                foreach ($option in $options) {
+                    $seen.Add($option.Current.Name)
+                    if ($option.Current.Name.StartsWith($OptionPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+                        $option.GetCurrentPattern(
+                            [Windows.Automation.SelectionItemPattern]::Pattern).Select()
+                        Start-Sleep -Milliseconds 400
+                        return
+                    }
+                }
+            }
+            throw "Option '$OptionPrefix' was not found in ${AutomationId}. Items: $($seen -join ' | ')"
+        }
+
+        # Applied filters are now chips; the facet text next to the combo shows the draft selection.
+        function Assert-AppliedFilterChip([string]$Prefix, [string]$Failure) {
+            $condition = [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::ControlTypeProperty,
+                [Windows.Automation.ControlType]::Button)
+            for ($attempt = 0; $attempt -lt 40; $attempt++) {
+                $buttons = $window.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)
+                foreach ($button in $buttons) {
+                    if ($button.Current.Name.StartsWith($Prefix, [StringComparison]::OrdinalIgnoreCase)) {
+                        return
+                    }
+                }
+                Start-Sleep -Milliseconds 250
+            }
+            throw "Smoke assertion failed: $Failure"
+        }
+
+        function Expand-Element([string]$AutomationId) {
+            $element = Find-Element AutomationId $AutomationId
+            $lastError = $null
+            for ($attempt = 0; $attempt -lt 40; $attempt++) {
+                $pattern = $element.GetCurrentPattern(
+                    [Windows.Automation.ExpandCollapsePattern]::Pattern)
+                if ($pattern.Current.ExpandCollapseState -eq
+                    [Windows.Automation.ExpandCollapseState]::Expanded) { return }
+                if ($element.Current.IsEnabled) {
+                    try {
+                        $pattern.Expand()
+                        Start-Sleep -Milliseconds 400
+                        if ($pattern.Current.ExpandCollapseState -eq
+                            [Windows.Automation.ExpandCollapseState]::Expanded) { return }
+                        $lastError = 'the expander did not stay open'
+                    }
+                    catch { $lastError = $_.Exception.Message }
+                }
+                Start-Sleep -Milliseconds 250
+            }
+            throw "UI Automation expand failed for AutomationId=${AutomationId}: $lastError"
+        }
+
+        # The shell groups destinations under workspace areas, and a sub-tab only exists in the
+        # automation tree while its area is selected.
+        $workspaceAreaByTab = @{
+            SetupTab            = 'Scan'
+            ProgressTab         = 'Scan'
+            DuplicateFilesTab   = 'Results'
+            DuplicateFoldersTab = 'Results'
+            RunHistoryTab       = 'History'
+            PerformanceTab      = 'History'
+        }
+
+        function Select-WorkspaceTab([string]$AutomationId) {
+            if ($workspaceAreaByTab.ContainsKey($AutomationId)) {
+                $areaName = $workspaceAreaByTab[$AutomationId]
+                $tabs = Find-Element AutomationId 'MainTabs'
+                $condition = [Windows.Automation.PropertyCondition]::new(
+                    [Windows.Automation.AutomationElement]::NameProperty, $areaName)
+                $area = $null
+                for ($attempt = 0; $attempt -lt 40 -and $null -eq $area; $attempt++) {
+                    $area = $tabs.FindFirst([Windows.Automation.TreeScope]::Children, $condition)
+                    if ($null -eq $area) { Start-Sleep -Milliseconds 250 }
+                }
+                if ($null -eq $area) { throw "Workspace area '$areaName' was not found." }
+                Select-Element $area
+            }
+            Select-Element (Find-Element AutomationId $AutomationId)
+        }
+
+        Select-SavedScan 'Milestone 6 Smoke'
+        Select-WorkspaceTab 'ProgressTab'
         Assert-True (
             (Find-Element AutomationId 'ScanProgressStatus').Current.Name.Contains(
                 'Completed', [StringComparison]::OrdinalIgnoreCase)) `
             'The completed run did not project a terminal scan status in WPF.'
+        Expand-Element 'ScanWorkExpander'
         Assert-True (
             (Find-Element AutomationId 'ScanDetailedProgressUnavailable').Current.Name.Contains(
                 'completed scan', [StringComparison]::OrdinalIgnoreCase)) `
@@ -546,9 +783,11 @@ public static class SmokeMouseInput
             'The completed run retained a stale ETA claim in WPF.'
         Assert-True (-not (Find-Element AutomationId 'CancelScanButton').Current.IsEnabled) `
             'Cancel remained enabled for a completed run.'
-        Select-Element (Find-Element AutomationId 'SetupTab')
+        Select-WorkspaceTab 'SetupTab'
+        Expand-Element 'SetupPolicyDetails'
         $null = Find-Element AutomationId 'CloudPolicyName'
         $null = Find-Element AutomationId 'CloudPolicyDescription'
+        Expand-Element 'SetupAdvanced'
         $null = Find-Element AutomationId 'ManualCloudLocationExclusions'
         $cloudStatus = Find-Element AutomationId 'CloudDetectionStatus'
         $refreshCloud = Find-Element AutomationId 'RefreshCloudLocations'
@@ -565,7 +804,7 @@ public static class SmokeMouseInput
         Assert-True ($refreshCloud.Current.IsEnabled) 'Cloud registration refresh did not complete responsively.'
         Assert-True (-not $cloudStatus.Current.Name.Contains('unavailable', [StringComparison]::OrdinalIgnoreCase)) 'Cloud registration discovery remained unavailable in the normal WPF smoke.'
         Assert-True ((Find-Element AutomationId 'StartScanButton').Current.IsEnabled) 'Start scan did not become enabled after successful cloud registration discovery.'
-        Select-Element (Find-Element AutomationId 'RunHistoryTab')
+        Select-WorkspaceTab 'RunHistoryTab'
         $openWarnings = Find-Element AutomationId 'OpenRunWarnings'
         Assert-True ($openWarnings.Current.IsEnabled) 'The selected run warning count was not drillable.'
         Invoke-Element $openWarnings
@@ -600,7 +839,7 @@ public static class SmokeMouseInput
         Assert-True $selected 'Hash warning action did not navigate to the immutable duplicate-file result set.'
         Assert-True (Test-IsAutomationDescendant $groupGrid $focused) `
             'Hash warning action did not restore focus inside the immutable duplicate-set grid.'
-        Select-Element (Find-Element AutomationId 'RunHistoryTab')
+        Select-WorkspaceTab 'RunHistoryTab'
         $warningStatus = Find-Element AutomationId 'RunWarningStatus'
         Assert-True ($warningStatus.Current.Name.Contains('Opened immutable duplicate-file results', [StringComparison]::OrdinalIgnoreCase)) `
             'Hash warning action did not report its stable run-target navigation.'
@@ -621,10 +860,11 @@ public static class SmokeMouseInput
         }
         Assert-True (Test-IsAutomationDescendant $historyGrid $focused) `
             "Closing warning drilldown did not restore focus to run history. Focused element: $focusedDescription"
-        Select-Element (Find-Element AutomationId 'DuplicateFilesTab')
+        Select-WorkspaceTab 'DuplicateFilesTab'
         $initialDirtyRootWarning = Find-Element AutomationId 'FileDirtyRootWarning'
+        Open-FilterPanel 'FileFiltersToggle'
         $oneGigabyteOrLarger = Find-Element AutomationId 'FileOneGigabyteOrLarger'
-        Assert-True ($oneGigabyteOrLarger.Current.Name -eq 'Show only duplicate sets whose one-copy size is at least 1 GB, 1,073,741,824 bytes') 'One-gigabyte size preset was not accessible.'
+        Assert-True ($oneGigabyteOrLarger.Current.Name -eq 'Show only duplicate sets whose one-copy size is at least 1 GiB, 1,073,741,824 bytes') 'One-gigabyte size preset was not accessible.'
         $threeOrMoreCopies = Find-Element AutomationId 'FileThreeOrMoreCopies'
         Assert-True ($threeOrMoreCopies.Current.Name -eq 'Show only duplicate sets with three or more copies') 'Minimum-copy-count filter was not accessible.'
         $acrossDrives = Find-Element AutomationId 'FileAcrossDrives'
@@ -647,7 +887,7 @@ public static class SmokeMouseInput
         Assert-True ($driveFacet.Current.Name.Contains('Drive facet', [StringComparison]::OrdinalIgnoreCase)) 'Drive facet was not accessible.'
         $null = Find-Element AutomationId 'FilePreviousDriveFacets'
         $null = Find-Element AutomationId 'FileNextDriveFacets'
-        Invoke-Element (Find-Element AutomationId 'FileRootFacetNameSort')
+        Select-ComboOption 'FileRootFacetSort' 'Name'
         $rootFacet = Find-Element AutomationId 'FileSelectedRootFacet'
         Assert-True $rootFacet.Current.IsKeyboardFocusable 'Selected-root facet was not keyboard focusable.'
         Activate-SmokeWindow
@@ -663,10 +903,10 @@ public static class SmokeMouseInput
         $rootOption.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
         Start-Sleep -Milliseconds 400
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
-        $selectedRootFilterText = Find-Element AutomationId 'FileSelectedRootFilterText'
-        Assert-True ($selectedRootFilterText.Current.Name.Contains('Filtering sets represented under', [StringComparison]::OrdinalIgnoreCase)) 'Selected-root facet selection did not become active.'
+        Assert-AppliedFilterChip 'Remove applied filter: Root:' `
+            'Selected-root facet selection did not become active.'
         Invoke-Element (Find-Element AutomationId 'FileClearFilters')
-        Invoke-Element (Find-Element AutomationId 'FileDriveFacetNameSort')
+        Select-ComboOption 'FileDriveFacetSort' 'Name'
         $driveFacet = Find-Element AutomationId 'FileDriveFacet'
         Assert-True $driveFacet.Current.IsKeyboardFocusable 'Drive facet was not keyboard focusable.'
         Activate-SmokeWindow
@@ -682,8 +922,8 @@ public static class SmokeMouseInput
         $driveOption.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
         Start-Sleep -Milliseconds 400
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
-        $selectedDriveFilterText = Find-Element AutomationId 'FileSelectedDriveFilterText'
-        Assert-True ($selectedDriveFilterText.Current.Name.Contains('Filtering sets represented on', [StringComparison]::OrdinalIgnoreCase)) 'Drive facet selection did not become active.'
+        Assert-AppliedFilterChip 'Remove applied filter: Drive:' `
+            'Drive facet selection did not become active.'
         Invoke-Element (Find-Element AutomationId 'FileClearFilters')
         $oneGigabyteToggle = $oneGigabyteOrLarger.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
         if ($oneGigabyteToggle.Current.ToggleState -ne [Windows.Automation.ToggleState]::Off) {
@@ -773,12 +1013,24 @@ public static class SmokeMouseInput
         }
         Assert-True ((Get-AutomationCount (Find-Element AutomationId 'FileSummaryMatchingSets')) -eq 1) 'All-member no-extension filtering did not isolate the extensionless smoke set.'
         Invoke-Element (Find-Element AutomationId 'FileClearFilters')
-        Invoke-Element (Find-Element Name 'Group size')
+        # Column-header sorting moved into an explicit sort ComboBox.
+        Select-ComboOption 'FileSetSort' 'One-copy size, largest first'
         Invoke-Element (Find-Element AutomationId 'FileNextGroupPage')
         $fileGrid = Find-Element AutomationId 'FileGroupsGrid'
         $fileRow = Find-FirstDataItem $fileGrid
         Select-Element $fileRow
-        $selectedSetName = Find-Element AutomationId 'FileSelectedSetName'
+        # The set detail pane exists only in the wide layout and only for a selected set, and the
+        # page reload after paging can drop either, so re-assert both if it is not there yet.
+        $selectedSetName = $null
+        for ($attempt = 0; $attempt -lt 10 -and $null -eq $selectedSetName; $attempt++) {
+            $selectedSetName = Find-OptionalElement AutomationId 'FileSelectedSetName' 8
+            if ($null -eq $selectedSetName) {
+                Set-SmokeWindowMaximized
+                $fileGrid = Find-Element AutomationId 'FileGroupsGrid'
+                Select-Element (Find-FirstDataItem $fileGrid)
+            }
+        }
+        Assert-True ($null -ne $selectedSetName) 'The selected duplicate set detail did not appear.'
         $beforeNextSet = $selectedSetName.Current.Name
         $previousSet = Find-Element AutomationId 'FilePreviousSet'
         $nextSet = Find-Element AutomationId 'FileNextSet'
@@ -818,14 +1070,18 @@ public static class SmokeMouseInput
         $memberRow = Find-FirstDataItem $fileMembers
         $summarySets = Find-Element AutomationId 'FileSummaryMatchingSets'
         $summaryRecoverable = Find-Element AutomationId 'FileSummaryRecoverable'
+        Expand-Element 'FileTotalsExpander'
         $locationSummary = Find-Element AutomationId 'FileLocationSummaryText'
-        $selectedSetExplanation = Find-Element AutomationId 'FileSelectedSetExplanation'
+        # The "not an original" guidance moved onto the selected-set heading as help text, and the
+        # location span moved behind the review-details expander.
+        $selectedSetExplanation = Find-Element AutomationId 'FileSelectedSetName'
+        Expand-Element 'FileReviewDetails'
         $selectedSetLocations = Find-Element AutomationId 'FileSelectedSetLocations'
         Assert-True ((Get-AutomationCount $summarySets) -ge 1) 'Filtered review summary did not expose matching sets.'
         Assert-True (-not [string]::IsNullOrWhiteSpace($summaryRecoverable.Current.Name)) 'Filtered review summary did not expose recoverable bytes.'
         Assert-True ($locationSummary.Current.Name.Contains('selected root', [StringComparison]::OrdinalIgnoreCase)) 'Filtered location summary did not expose selected-root coverage.'
         Assert-True ($locationSummary.Current.Name.Contains('drive', [StringComparison]::OrdinalIgnoreCase)) 'Filtered location summary did not expose drive coverage.'
-        Assert-True ($selectedSetExplanation.Current.Name.Contains('not identify an original', [StringComparison]::OrdinalIgnoreCase)) 'Selected-set explanation was not accessible.'
+        Assert-True ($selectedSetExplanation.Current.HelpText.Contains('not identify an original', [StringComparison]::OrdinalIgnoreCase)) 'Selected-set explanation was not accessible.'
         Assert-True ($selectedSetLocations.Current.Name.Contains('selected root', [StringComparison]::OrdinalIgnoreCase)) 'Selected-set location span was not accessible.'
         $dirtyRootWarning = $null
         for ($attempt = 0; $attempt -lt 40 -and $null -eq $dirtyRootWarning; $attempt++) {
@@ -863,7 +1119,7 @@ public static class SmokeMouseInput
             Start-Sleep -Milliseconds 100
         }
         Assert-True ($dirtyRootStatus.Current.Name.Contains('checked', [StringComparison]::OrdinalIgnoreCase)) 'The explicit bounded dirty-root reconciliation request did not commit visible progress.'
-        Assert-True (Test-IsAutomationDescendant $fileMembers ([Windows.Automation.AutomationElement]::FocusedElement)) 'Dirty-root reconciliation did not restore focus to the current copy grid.'
+        Assert-FocusInside $fileMembers 'Dirty-root reconciliation did not restore focus to the current copy grid.'
         $remainingDirtyRootWarning = $window.FindFirst(
             [Windows.Automation.TreeScope]::Descendants,
             [Windows.Automation.PropertyCondition]::new(
@@ -877,6 +1133,9 @@ public static class SmokeMouseInput
         }
         $fileMembers = Find-Element AutomationId 'FileMembersGrid'
         $memberRow = Find-FirstDataItem $fileMembers
+        # The copy actions moved into a panel bound to the grid selection, so it only exists once
+        # a copy is selected.
+        Select-Element $memberRow
         $pathCell = Find-DescendantByHelpTextPrefix $memberRow 'Complete path: '
         $exactPath = $pathCell.Current.HelpText.Substring('Complete path: '.Length)
         $hintPath = Join-Path ([IO.Path]::GetDirectoryName($exactPath)) '.super-duper-live-hint.tmp'
@@ -907,7 +1166,8 @@ public static class SmokeMouseInput
                 Remove-Item -LiteralPath $hintPath -Force
             }
         }
-        Invoke-Element (Find-DescendantButtonByNameFragment $fileMembers 'records intent only and does not delete')
+        # Review-decision and reveal actions moved from the members grid to the selected-copy panel.
+        Invoke-Element (Find-DescendantButtonByNameFragment $window 'records intent only and does not delete')
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
             $memberCountStatus = Find-Element AutomationId 'FileMemberCount' 1
             $reviewPlanSummary = Find-Element AutomationId 'FileReviewPlanSummary' 1
@@ -977,7 +1237,8 @@ public static class SmokeMouseInput
         Assert-True ($liveValidationStatus.Current.Name.Contains('1 review choices invalidated', [StringComparison]::OrdinalIgnoreCase)) 'Restoring the file incorrectly cleared the sticky invalidated-decision disclosure.'
         Assert-True ($null -eq $liveValidationError) 'A restored unchanged copy remained unavailable after revalidation.'
         $fileMembers = Find-Element AutomationId 'FileMembersGrid'
-        Invoke-Element (Find-DescendantButtonByNameFragment $fileMembers 'records intent only and does not delete')
+        # Review-decision and reveal actions moved from the members grid to the selected-copy panel.
+        Invoke-Element (Find-DescendantButtonByNameFragment $window 'records intent only and does not delete')
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
             $reviewPlanSummary = Find-Element AutomationId 'FileReviewPlanSummary' 1
             if ($reviewPlanSummary.Current.Name.Contains('1 remove', [StringComparison]::OrdinalIgnoreCase)) {
@@ -987,8 +1248,11 @@ public static class SmokeMouseInput
         }
         Assert-True ($reviewPlanSummary.Current.Name.Contains('1 remove', [StringComparison]::OrdinalIgnoreCase)) 'A fresh Remove decision did not clear the restored copy invalidation.'
         Assert-True ([IO.File]::Exists($exactPath)) 'Restoring validation state or recording a fresh decision unexpectedly removed the fixture file.'
-        $preferenceExpander = Find-Element AutomationId 'PreferredRootPreviewExpander'
-        $preferenceExpander.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+        # Location preferences moved into the Review area behind their own expander, and the
+        # preferred-root preview is now its second stage.
+        Select-Element (Find-Element AutomationId 'PreflightTab')
+        Expand-Element 'LocationPreferencesExpander'
+        Expand-Element 'PreferencePreviewStage'
         $preferenceScope = Find-Element AutomationId 'PreferencePreviewScope'
         Assert-True $preferenceScope.Current.IsKeyboardFocusable 'The preferred-root scope selector was not keyboard focusable.'
         try {
@@ -1042,6 +1306,8 @@ public static class SmokeMouseInput
         $preferenceApplyButton = Find-Element AutomationId 'PreferenceApplyRule'
         Assert-True ($preferenceApplyButton.Current.IsEnabled) 'The exact completed-run preferred-root preview did not enable review-state application.'
         Invoke-Element $preferenceApplyButton
+        # HasKeyboardFocus only reports true while this window is foreground.
+        Activate-SmokeWindow
         $applicationHeading = Find-Element AutomationId 'PreferenceApplicationConfirmationHeading'
         for ($attempt = 0; $attempt -lt 40 -and -not $applicationHeading.Current.HasKeyboardFocus; $attempt++) {
             Start-Sleep -Milliseconds 100
@@ -1070,16 +1336,26 @@ public static class SmokeMouseInput
         Invoke-Element (Find-Element AutomationId 'PreferenceConfirmReversal')
         for ($attempt = 0; $attempt -lt 80; $attempt++) {
             $preferenceStatus = Find-Element AutomationId 'PreferencePreviewStatus' 1
-            if ($preferenceStatus.Current.Name.Contains('Reversed application', [StringComparison]::OrdinalIgnoreCase) -and
+            if ($preferenceStatus.Current.Name.Contains('Reversed rule application', [StringComparison]::OrdinalIgnoreCase) -and
                 $preferenceStatus.Current.Name.Contains('Manual choices were preserved', [StringComparison]::OrdinalIgnoreCase)) {
                 break
             }
             Start-Sleep -Milliseconds 100
         }
-        Assert-True ($preferenceStatus.Current.Name.Contains('Reversed application', [StringComparison]::OrdinalIgnoreCase)) 'The WPF preferred-root reversal did not announce completion.'
+        Assert-True ($preferenceStatus.Current.Name.Contains('Reversed rule application', [StringComparison]::OrdinalIgnoreCase)) 'The WPF preferred-root reversal did not announce completion.'
         Assert-True ($preferenceStatus.Current.Name.Contains('Manual choices were preserved', [StringComparison]::OrdinalIgnoreCase)) 'The WPF preferred-root reversal did not announce manual-choice preservation.'
         Assert-True ([IO.File]::Exists($exactPath)) 'The WPF preferred-root reversal unexpectedly removed the disposable fixture file.'
-        Invoke-Element (Find-DescendantButtonByNameFragment $fileMembers 'in Explorer')
+        # Back to the duplicate-file workspace; its controls are re-realized on return.
+        Select-WorkspaceTab 'DuplicateFilesTab'
+        Open-FilterPanel 'FileFiltersToggle'
+        $exactPathMatch = Find-Element AutomationId 'FileExactPathMatch'
+        $search = Find-Element AutomationId 'FileSearch'
+        # Re-establish the set and copy selection the copy-actions panel depends on.
+        Select-Element (Find-FirstDataItem (Find-Element AutomationId 'FileGroupsGrid'))
+        $fileMembers = Find-Element AutomationId 'FileMembersGrid'
+        $memberRow = Find-FirstDataItem $fileMembers
+        Select-Element $memberRow
+        Invoke-Element (Find-DescendantButtonByNameFragment $window 'in Explorer')
         Assert-NoVisibleDetailError 'FileDetailError'
 
         $exactPathToggle = $exactPathMatch.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
@@ -1094,13 +1370,17 @@ public static class SmokeMouseInput
 
         $search.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('long-a.txt')
         Invoke-Element (Find-Element AutomationId 'FileApplyFilters')
+        # Applying filters replaces the result set and clears the selection the copy-actions panel
+        # binds to, so select a set and a copy again before using its actions.
+        Select-Element (Find-FirstDataItem (Find-Element AutomationId 'FileGroupsGrid'))
         $fileMembers = Find-Element AutomationId 'FileMembersGrid'
-        $null = Find-FirstDataItem $fileMembers
-        Invoke-Element (Find-DescendantButtonByNameFragment $fileMembers 'in Explorer')
+        Select-Element (Find-FirstDataItem $fileMembers)
+        Invoke-Element (Find-DescendantButtonByNameFragment $window 'in Explorer')
         Assert-NoVisibleDetailError 'FileDetailError'
 
-        Select-Element (Find-Element AutomationId 'DuplicateFoldersTab')
-        Invoke-Element (Find-Element Name 'Representative folder')
+        Select-WorkspaceTab 'DuplicateFoldersTab'
+        # Folder column-header sorting also moved into an explicit sort ComboBox.
+        Select-ComboOption 'FolderSetSort' 'Representative path, A'
         $folderGrid = Find-Element AutomationId 'FolderGroupsGrid'
         $folderRow = Find-FirstDataItem $folderGrid
         Select-Element $folderRow
@@ -1108,50 +1388,57 @@ public static class SmokeMouseInput
         $folderSearch.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('original-set')
         Invoke-Element (Find-Element AutomationId 'FolderApplyFilters')
         $folderMembers = Find-Element AutomationId 'FolderLocationCards'
-        Assert-True ($folderMembers.Current.Name -eq 'Side-by-side folder-copy location cards') 'The exact-folder relationship surface did not expose its stable automation name.'
+        Assert-True ($folderMembers.Current.Name -eq 'Folder-copy comparison list') 'The exact-folder relationship surface did not expose its stable automation name.'
+        # The comparison surface is a DataGrid now, so its copies expose as DataItem rows.
         $folderCardItems = $folderMembers.FindAll(
             [Windows.Automation.TreeScope]::Descendants,
             [Windows.Automation.PropertyCondition]::new(
                 [Windows.Automation.AutomationElement]::ControlTypeProperty,
-                [Windows.Automation.ControlType]::ListItem))
+                [Windows.Automation.ControlType]::DataItem))
         Assert-True ($folderCardItems.Count -ge 3) 'The exact-folder relationship surface did not expose the three bounded location cards needed for parent grouping.'
-        $folderCardPaths = @()
+        # Cards no longer carry a selectable path editor; each row's accessible name states the
+        # Explorer parent it lives under.
+        $folderCardParents = @()
         foreach ($folderCardItem in $folderCardItems) {
-            $pathEditor = $folderCardItem.FindFirst(
-                [Windows.Automation.TreeScope]::Descendants,
-                [Windows.Automation.PropertyCondition]::new(
-                    [Windows.Automation.AutomationElement]::ControlTypeProperty,
-                    [Windows.Automation.ControlType]::Edit))
-            Assert-True ($null -ne $pathEditor) 'A folder location card did not expose its selectable immutable path.'
-            $folderCardPaths += $pathEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value
+            $cardName = $folderCardItem.Current.Name
+            $cardMatch = [regex]::Match($cardName, 'location (?<parent>.*?); different path segments')
+            Assert-True $cardMatch.Success `
+                "A folder location card did not expose its Explorer parent. Name: $cardName"
+            $folderCardParents += $cardMatch.Groups['parent'].Value
         }
-        $folderParentGroups = @($folderCardPaths | Group-Object { [IO.Path]::GetDirectoryName($_) })
+        $folderParentGroups = @($folderCardParents | Group-Object)
         Assert-True ($folderParentGroups.Count -ge 2) 'The grouped-selection fixture did not expose multiple Explorer parents.'
         Assert-True (($folderParentGroups | Where-Object Count -ge 2).Count -ge 1) 'The grouped-selection fixture did not expose sibling folders sharing one Explorer parent.'
         $firstFolderCard = $folderCardItems[0]
         Assert-True $firstFolderCard.Current.AutomationId.StartsWith('FolderLocationCard-', [StringComparison]::Ordinal) 'The first folder location card did not expose a stable item automation ID.'
         $firstFolderCardId = $firstFolderCard.Current.AutomationId
         Assert-True $firstFolderCard.Current.Name.Contains('different path segments', [StringComparison]::OrdinalIgnoreCase) 'The first folder location card did not explain its differentiated path segments.'
-        $folderPathEditor = $firstFolderCard.FindFirst(
-            [Windows.Automation.TreeScope]::Descendants,
-            [Windows.Automation.PropertyCondition]::new(
-                [Windows.Automation.AutomationElement]::ControlTypeProperty,
-                [Windows.Automation.ControlType]::Edit))
-        Assert-True ($null -ne $folderPathEditor) 'The first folder location card did not expose its selectable immutable path.'
-        $keptFolderPath = $folderPathEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value
+        # The selected-copy panel exposes the complete path the card strip used to carry.
+        Select-Element $firstFolderCard
+        $keptFolderPath = (Find-Element AutomationId 'FolderSelectedCopyPath').GetCurrentPattern(
+            [Windows.Automation.ValuePattern]::Pattern).Current.Value
+        Assert-True (-not [string]::IsNullOrWhiteSpace($keptFolderPath)) `
+            'The selected folder copy did not expose its complete path.'
         Activate-SmokeWindow
-        $firstFolderCard = Set-SmokeElementFocus $firstFolderCardId
-        [Windows.Forms.SendKeys]::SendWait('{RIGHT}')
+        # The copies are grid rows now: a row itself is not keyboard focusable, its cells are, and
+        # Down/Up walk the copies where the card strip used to walk them with Right/Left.
+        Select-Element $firstFolderCard
+        $firstFolderCell = Find-FocusableDescendant $firstFolderCard
+        $firstFolderCell.SetFocus()
         Start-Sleep -Milliseconds 250
+        [Windows.Forms.SendKeys]::SendWait('{DOWN}')
+        Start-Sleep -Milliseconds 400
         $secondSelection = $folderCardItems[1].GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)
-        Assert-True $secondSelection.Current.IsSelected 'Right Arrow did not move selection to the next folder location card.'
-        Assert-True $folderCardItems[1].Current.HasKeyboardFocus 'Right Arrow did not preserve keyboard focus on the newly selected folder location card.'
+        Assert-True $secondSelection.Current.IsSelected 'Down Arrow did not move selection to the next folder location card.'
+        Assert-True (Test-IsAutomationDescendant $folderCardItems[1] ([Windows.Automation.AutomationElement]::FocusedElement)) `
+            'Down Arrow did not preserve keyboard focus inside the newly selected folder location card.'
         Activate-SmokeWindow
-        [Windows.Forms.SendKeys]::SendWait('{HOME}')
-        Start-Sleep -Milliseconds 250
+        [Windows.Forms.SendKeys]::SendWait('^{HOME}')
+        Start-Sleep -Milliseconds 400
         $firstSelection = $firstFolderCard.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)
-        Assert-True $firstSelection.Current.IsSelected 'Home did not return selection to the first folder location card.'
-        $keepFolderButton = Find-DescendantButtonByNameFragment $firstFolderCard 'Keep folder copy '
+        Assert-True $firstSelection.Current.IsSelected 'Ctrl+Home did not return selection to the first folder location card.'
+        # Folder review actions moved from the card to the selected-copy panel.
+        $keepFolderButton = Find-DescendantButtonByNameFragment $window 'Keep folder copy '
         Invoke-Element $keepFolderButton
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
             $folderReviewSummary = Find-Element AutomationId 'FolderSelectedReviewSummary' 1
@@ -1165,10 +1452,13 @@ public static class SmokeMouseInput
         $firstFolderCard = Find-Element AutomationId $firstFolderCardId
         $firstSelection = $firstFolderCard.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)
         $selectFolderPageButton = Find-Element AutomationId 'FolderSelectPageInExplorer'
-        Assert-True ($selectFolderPageButton.Current.Name -eq 'Select current folder-copy page in Explorer') 'Grouped Explorer selection did not expose its stable automation name.'
+        Assert-True ($selectFolderPageButton.Current.Name.StartsWith('Select current folder-copy page in Explorer', [StringComparison]::Ordinal)) 'Grouped Explorer selection did not expose its stable automation name.'
         Assert-True $selectFolderPageButton.Current.IsEnabled 'Grouped Explorer selection was not enabled for the bounded multi-location page.'
         Activate-SmokeWindow
-        $firstFolderCard = Set-SmokeElementFocus $firstFolderCardId
+        # Grid rows are not focusable; focus a cell inside the row instead.
+        $firstFolderCard = Find-Element AutomationId $firstFolderCardId
+        Select-Element $firstFolderCard
+        (Find-FocusableDescendant $firstFolderCard).SetFocus()
         [Windows.Forms.SendKeys]::SendWait('%g')
         $folderExplorerStatus = $null
         for ($attempt = 0; $attempt -lt 80; $attempt++) {
@@ -1186,13 +1476,26 @@ public static class SmokeMouseInput
         }
         Assert-True ($null -ne $folderExplorerStatus) 'Keyboard grouped Explorer selection did not reach terminal aggregate success state.'
         Assert-True $firstSelection.Current.IsSelected 'Grouped Explorer selection replaced the selected immutable folder context.'
-        Assert-True $firstFolderCard.Current.HasKeyboardFocus 'Grouped Explorer selection did not restore focus to the selected folder card.'
+        # The action restores focus to the visible folder comparison, which focuses the grid. The
+        # selection opens real Explorer windows that take the foreground first, so come back.
+        Activate-SmokeWindow
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            $restoredFocus = [Windows.Automation.AutomationElement]::FocusedElement
+            if (Test-IsAutomationDescendant $folderMembers $restoredFocus) { break }
+            Activate-SmokeWindow
+            Start-Sleep -Milliseconds 100
+        }
+        Assert-True (Test-IsAutomationDescendant $folderMembers ([Windows.Automation.AutomationElement]::FocusedElement)) `
+            'Grouped Explorer selection did not restore focus to the folder comparison.'
         Assert-NoVisibleDetailError 'FolderExplorerError'
 
-        $folderRevealButton = Find-DescendantButtonByNameFragment $firstFolderCard 'in Explorer'
+        $folderRevealButton = Find-DescendantButtonByNameFragment $window 'in Explorer'
         Assert-True $folderRevealButton.Current.AutomationId.StartsWith('FolderReveal-', [StringComparison]::Ordinal) 'Folder reveal did not expose its stable member-scoped automation ID.'
         Activate-SmokeWindow
-        $firstFolderCard = Set-SmokeElementFocus $firstFolderCardId
+        # Grid rows are not focusable; focus a cell inside the row instead.
+        $firstFolderCard = Find-Element AutomationId $firstFolderCardId
+        Select-Element $firstFolderCard
+        (Find-FocusableDescendant $firstFolderCard).SetFocus()
         [Windows.Forms.SendKeys]::SendWait('%e')
         $folderExplorerStatus = $null
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
@@ -1243,7 +1546,15 @@ public static class SmokeMouseInput
             $partialExplorerStatus = Find-Element AutomationId 'FolderExplorerStatus'
             Assert-True ($partialExplorerStatus.Current.Name.Contains(' of ', [StringComparison]::OrdinalIgnoreCase)) 'Grouped Explorer partial failure did not retain its successful aggregate count.'
             Assert-True $firstSelection.Current.IsSelected 'Grouped Explorer partial failure replaced the selected immutable folder context.'
-            Assert-True $firstFolderCard.Current.HasKeyboardFocus 'Grouped Explorer partial failure did not restore folder-card focus.'
+            # Focus returns to the comparison grid, and Explorer windows take the foreground first.
+            Activate-SmokeWindow
+            for ($attempt = 0; $attempt -lt 40; $attempt++) {
+                if (Test-IsAutomationDescendant $folderMembers ([Windows.Automation.AutomationElement]::FocusedElement)) { break }
+                Activate-SmokeWindow
+                Start-Sleep -Milliseconds 100
+            }
+            Assert-True (Test-IsAutomationDescendant $folderMembers ([Windows.Automation.AutomationElement]::FocusedElement)) `
+                'Grouped Explorer partial failure did not restore folder-comparison focus.'
 
             Invoke-Element $folderRevealButton
             $folderExplorerError = Find-Element AutomationId 'FolderExplorerError'
@@ -1258,8 +1569,10 @@ public static class SmokeMouseInput
         Assert-True ([IO.Directory]::Exists($keptFolderPath)) 'The disposable folder fixture was not restored after Explorer failure verification.'
 
         Select-Element (Find-Element AutomationId 'PreflightTab')
+        # Review counts moved behind a "Count details" expander.
+        Expand-Element 'ReviewCountDetails'
         $preflightPlan = Find-Element AutomationId 'PreflightPlanSummary'
-        Assert-True ($preflightPlan.Current.Name.Contains('logical removal', [StringComparison]::OrdinalIgnoreCase)) 'Preflight did not expose its reviewed-plan snapshot summary.'
+        Assert-True ($preflightPlan.Current.Name.Contains('Plan revision', [StringComparison]::OrdinalIgnoreCase)) 'Preflight did not expose its reviewed-plan snapshot summary.'
         $startPreflight = Find-Element AutomationId 'StartPreflightButton'
         Assert-True ($startPreflight.Current.Name.Contains('no files will be deleted', [StringComparison]::OrdinalIgnoreCase)) 'Preflight start did not expose its non-deleting automation name.'
         Assert-True $startPreflight.Current.IsEnabled 'The current reviewed plan did not enable WPF preflight.'
@@ -1290,7 +1603,7 @@ $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
                         $process.Id),
                     [Windows.Automation.PropertyCondition]::new(
                         [Windows.Automation.AutomationElement]::NameProperty,
-                        'Run preflight validation?')))
+                        'Check marked copies?')))
             if ($null -eq $confirmation) { Start-Sleep -Milliseconds 100 }
         }
         if ($null -eq $confirmation) {
@@ -1442,12 +1755,47 @@ function Assert-WpfCloudFailClosedScenario([string]$DatabasePath) {
         }
 
         function Select-CloudElement($Element) {
-            $pattern = $Element.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern)
-            $pattern.Select()
-            Start-Sleep -Milliseconds 400
+            # See Select-Element: the scan navigation is disabled while a saved scan loads.
+            $lastError = $null
+            for ($attempt = 0; $attempt -lt 40; $attempt++) {
+                if ($Element.Current.IsEnabled) {
+                    try {
+                        $pattern = $Element.GetCurrentPattern(
+                            [Windows.Automation.SelectionItemPattern]::Pattern)
+                        $pattern.Select()
+                        Start-Sleep -Milliseconds 400
+                        return
+                    }
+                    catch { $lastError = $_.Exception.Message }
+                }
+                Start-Sleep -Milliseconds 250
+            }
+            throw ("Fail-closed UI Automation select failed for Name=$($Element.Current.Name) " +
+                "AutomationId=$($Element.Current.AutomationId): $lastError")
         }
 
+        # Saved scans live behind the collapsible pane here too.
+        $cloudToggle = Find-CloudElement AutomationId 'SavedScanSelectorToggle'
+        $cloudTogglePattern = $cloudToggle.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
+        if ($cloudTogglePattern.Current.ToggleState -ne [Windows.Automation.ToggleState]::On) {
+            $cloudTogglePattern.Toggle()
+            Start-Sleep -Milliseconds 400
+        }
+        $null = Find-CloudElement AutomationId 'SessionsList'
         Select-CloudElement (Find-CloudElement Name 'Milestone 6 Smoke')
+        # Cloud detection is disabled for this launch, so its status differs from the saved
+        # definition and leaving Setup asks first; keep the durable definition.
+        for ($attempt = 0; $attempt -lt 8; $attempt++) {
+            $condition = [Windows.Automation.PropertyCondition]::new(
+                [Windows.Automation.AutomationElement]::NameProperty, 'Discard')
+            $cloudDiscard = $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+            if ($null -ne $cloudDiscard) {
+                $cloudDiscard.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+                Start-Sleep -Milliseconds 400
+                break
+            }
+            Start-Sleep -Milliseconds 250
+        }
         Select-CloudElement (Find-CloudElement AutomationId 'SetupTab')
         $null = Find-CloudElement AutomationId 'CloudPolicyDescription'
         $null = Find-CloudElement AutomationId 'ManualCloudLocationExclusions'
