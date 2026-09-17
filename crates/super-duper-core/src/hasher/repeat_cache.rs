@@ -994,6 +994,63 @@ mod tests {
         }
     }
 
+    /// Entry keys and values are persisted in the hash cache and are looked up by exact bytes, so
+    /// an encoder change orphans every stored entry instead of failing. Pin the encoding.
+    #[test]
+    fn stored_encoding_bytes_are_pinned() {
+        let pinned_signature = CacheSignatureKey {
+            stable_identity: "volume:1:file:2".to_owned(),
+            size: 4096,
+            modified_unix_nanos: 1_700_000_000_000_000_000,
+            content_change_token: "change:7".to_owned(),
+        };
+        let key = encode_entry_key(&pinned_signature).unwrap();
+        assert_eq!(key, PINNED_ENTRY_KEY);
+
+        let value = encode_entry(StoredEntry {
+            version: STORE_SCHEMA_VERSION,
+            sequence: 9,
+            generation: 4,
+            hashes: CachedContentHashes {
+                partial_hash: 0x0102_0304_0506_0708,
+                full_hash: Some(0x1112_1314_1516_1718),
+            },
+        })
+        .unwrap();
+        assert_eq!(value, PINNED_ENTRY_VALUE);
+        let decoded = decode_entry(PINNED_ENTRY_VALUE).unwrap();
+        assert_eq!(decoded.sequence, 9);
+        assert_eq!(decoded.generation, 4);
+        assert_eq!(decoded.hashes.full_hash, Some(0x1112_1314_1516_1718));
+
+        // A v2 entry written by an earlier release must still migrate.
+        let legacy = bincode::serialize(&StoredEntryV2 {
+            version: 2,
+            sequence: 3,
+            hashes: CachedContentHashes {
+                partial_hash: 5,
+                full_hash: None,
+            },
+        })
+        .unwrap();
+        assert_eq!(legacy, PINNED_V2_ENTRY_VALUE);
+    }
+
+    const PINNED_ENTRY_KEY: &[u8] = &[
+        0, 115, 117, 112, 101, 114, 45, 100, 117, 112, 101, 114, 47, 114, 101, 112, 101, 97, 116,
+        45, 99, 97, 99, 104, 101, 47, 101, 110, 116, 114, 121, 47, 15, 0, 0, 0, 0, 0, 0, 0, 118,
+        111, 108, 117, 109, 101, 58, 49, 58, 102, 105, 108, 101, 58, 50, 0, 16, 0, 0, 0, 0, 0, 0,
+        0, 0, 42, 54, 254, 156, 151, 23, 8, 0, 0, 0, 0, 0, 0, 0, 99, 104, 97, 110, 103, 101, 58,
+        55,
+    ];
+    const PINNED_ENTRY_VALUE: &[u8] = &[
+        3, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 8, 7, 6, 5, 4, 3, 2, 1, 1, 24,
+        23, 22, 21, 20, 19, 18, 17,
+    ];
+    const PINNED_V2_ENTRY_VALUE: &[u8] = &[
+        2, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0,
+    ];
+
     fn hashes(id: usize) -> CachedContentHashes {
         CachedContentHashes {
             partial_hash: id as u64 + 10,
