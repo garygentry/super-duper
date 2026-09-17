@@ -20,7 +20,7 @@ rayon = "1.9"
 dashmap = "5.5"
 
 # Hashing
-twox-hash = "1.6"
+twox-hash = "2"
 
 # Cache
 rocksdb = "0.22"
