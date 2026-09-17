@@ -30,6 +30,13 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 
 ## Current checkpoint
 
+- UX23-only continuation from `b0241a2` on 2026-09-16: native launch and fresh app discovery
+  timed out; no native frame obtained. Stopped native calls without helper troubleshooting or
+  background substitution. P08 remains open solely for UX23's loading-frame observation.
+  Owned app 11512/worker 5952 were path/parent-verified and stopped; Debug sidecar removed.
+  No source/build/test changes or accepted checks replayed. Prior verification and settled-only
+  scan 4/6 evidence remain intact. Latest polish checkpoint/evidence own the exact next step.
+
 - UX23-only continuation from `c8af9da` on 2026-09-16: native capture/input succeeded without
   recovery. Scan 4 historical open and scan 6 next/previous member-page captures showed settled
   members without overlap; the transient loading frame remains unobserved. P08 stays open for

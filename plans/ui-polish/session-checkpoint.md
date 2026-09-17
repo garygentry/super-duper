@@ -90,14 +90,14 @@ Both native app sessions are closed, their workers exited/stopped and the Debug 
 
 ## Exact next step
 
-Latest attempt from `c8af9da` on 2026-09-16 obtained native launch/capture/input successfully
-without recovery. The earlier `FrameArrived` failure did not recur. Scan 4 historical open
-and scan 6's 208-copy set Next/Previous member-page captures all showed settled members,
-without overlap; none captured the brief loading frame. Availability alone was insufficient
-to obtain that evidence. P08 closure remains open solely for the transient native after-check.
-Owned app 7760/worker 15252 exited after native Alt+F4; normal-context audit found none and
-the exact Debug sidecar was removed. No source/build/test changes, corpus mutation, decision
-changes or accepted appearance/focus rechecks. See the latest implementation evidence.
+Latest attempt from `b0241a2` on 2026-09-16 hit `computer-use request timed out: launch_app`
+and then `computer-use request timed out: list_apps` on fresh discovery. Initial discovery
+worked, but no app frame was obtained. Native calls stopped without helper troubleshooting.
+Owned app 11512/worker 5952 were path/parent-verified and stopped; the Debug sidecar was removed.
+Earlier scan 4/6 settled captures remain valid but do not establish the transient after-check.
+P08 remains open solely for that observation; native availability failed in this attempt too.
+No source/build/test changes, corpus mutation, decision changes or accepted appearance/focus
+rechecks. See the latest implementation evidence for final cleanup and closure assessment.
 Do not repeat helper troubleshooting or an indefinite settled-frame sampling loop.
 
 Complete UX23's precise native loading-state observation, then review P08 closure. Historical open

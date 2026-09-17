@@ -452,3 +452,34 @@ P08 closure assessment: **open**, solely for UX23's native transient after-check
 frames and the retained delayed-response regression do not satisfy that requirement. No new
 product defect was observed. Continue only a bounded attempt to observe that native frame;
 do not repeat helper troubleshooting or broaden into completed checks. No merge/push/release.
+
+## UX23 native availability continuation (2026-09-16, from b0241a2)
+
+Clean start at `b0241a2` on `codex/ui-redesign`; `origin/wpf-poc` remains `deefa40`.
+Sandbox process enumeration was denied; the normal-context audit found no app/worker/fixture.
+No `.uidev` existed. The Debug DLL SHA256 remained
+`636AFCF7EC78D28F4E6DEE4D72286E7D9A66507E8DE3EF61F282F2E785397817`.
+Prepared the retained isolated real-file state
+`artifacts/ui-dev-session/polish-journey-e4149564922d459cb1761b190b1d8a09`
+with `-SkipBuild -PrepareControlLaunch`. No builds, tests or corpus changes were needed.
+
+Initial native window discovery succeeded and returned only Codex. Launching the exact existing
+Debug executable returned `computer-use request timed out: launch_app`. Fresh app discovery
+then returned `computer-use request timed out: list_apps`. No app window was acquired, no
+screenshot was obtained and no native input was sent. Stopped native calls at that point:
+no helper troubleshooting, repeated sampling, background substitution or appearance/focus recheck.
+Standing approval remains valid; this was tool availability, not missing permission.
+
+Normal-context process inspection found owned app PID 11512 at the exact Debug path. Cleanup
+also found its child Debug worker PID 5952, parent 11512. Both paths were verified before
+stopping these owned processes. Removed the exact temporary Debug `.uidev`; follow-up
+normal-context process audit and sidecar enumeration found none. No scan 7/8 was opened,
+no decision or OS setting changed, and production state and source files were untouched.
+
+P08 closure assessment: **open**, solely for UX23's native loading-frame after-check.
+This attempt cannot establish whether the loading/empty labels overlap. Prior scan 4/6
+settled frames and the delayed-response regression remain valid separate evidence, but do
+not satisfy the transient native observation. All accepted appearance/focus checks and prior
+verification are retained. No new product finding; no merge, push, release or deletion activation.
+The next slice still requires a working native capture/input session and a bounded observation
+of scan 4 opening or scan 6 member paging; stop if captures are settled rather than loop.
