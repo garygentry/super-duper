@@ -227,7 +227,7 @@ function Assert-RunProgressContract([long]$RunId) {
         Assert-True ($sequence -gt $lastSequence) 'Progress transport sequence did not increase.'
         Assert-True ($revision -gt $lastRevision) 'Progress source revision did not increase.'
         Assert-True ($frame.data.progress.progressContractVersion -eq 1) 'Progress contract version changed.'
-        Assert-True ($frame.data.progress.metricsContractVersion -eq 2) 'Progress metrics version changed.'
+        Assert-True ($frame.data.progress.metricsContractVersion -eq 3) 'Progress metrics version changed.'
         Assert-True (
             [UInt64]$frame.data.filesDiscovered -eq
                 ([UInt64]$frame.data.progress.counters.discoveredFiles -
@@ -1578,6 +1578,9 @@ if (-not $SkipWpf -and -not (Test-Path -LiteralPath $app -PathType Leaf)) { thro
 $fixture = New-SmokeFixture $smokeRoot
 $lockedPath = Join-Path $fixture.Results 'locked-during-scan.bin'
 [IO.File]::WriteAllText($lockedPath, 'locked access warning')
+# Unique-size files are resolved from metadata and never opened, so give the locked file a
+# same-size peer; the hash pipeline must then read it and record the sharing violation.
+[IO.File]::WriteAllText((Join-Path $fixture.Results 'locked-size-peer.bin'), 'locked access peer!!!')
 $exclusive = [IO.File]::Open($lockedPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::None)
 
 try {
