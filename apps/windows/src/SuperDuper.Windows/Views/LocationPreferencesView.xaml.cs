@@ -20,6 +20,23 @@ public partial class LocationPreferencesView : UserControl
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        PreviewKeyDown += OnPreviewKeyDown;
+    }
+
+    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape || _viewModel is null)
+        {
+            return;
+        }
+        var cancel = _viewModel.IsApplicationConfirmationVisible
+            ? _viewModel.CancelApplicationCommand
+            : _viewModel.IsReversalConfirmationVisible ? _viewModel.CancelReversalCommand : null;
+        if (cancel?.CanExecute(null) == true)
+        {
+            cancel.Execute(null);
+            e.Handled = true;
+        }
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

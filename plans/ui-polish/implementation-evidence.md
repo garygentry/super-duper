@@ -165,3 +165,114 @@ No product source changed and no unchanged build/test matrix was replayed.
 Owned app 6464 and worker 11540 were verified by executable path in session 2. Sandbox process
 termination was denied; the normally privileged cleanup succeeded under existing authorization.
 The Debug sidecar was removed. The previously opened Explorer window was not controlled.
+
+## Native continuation from d784f48 (2026-09-16)
+
+Clean checkout on `codex/ui-redesign`; preserved remote-tracking `origin/wpf-poc` remains
+`deefa40ebe607b785b395a29a6282e8b417a9b14` (no local `wpf-poc` ref in this clone).
+Fresh Computer Use discovery, launch and capture succeeded using the same isolated Debug state
+`polish-journey-2a06e3b5820646c680fd5e7b5a4aa411`. Native screenshots below refer to directly
+inspected tool output, not background WPF renders. The helper's accessibility snapshot often
+lagged the screenshot by one action; settled re-observation and screenshot-derived targets were
+used rather than assuming stale accessibility text was current.
+
+- Folder chooser: screenshot-directed focus, typed disposable Backup documents path, Select Folder
+  returned the exact added root to Setup. Removed that redundant setup entry and saved the original
+  two-root configuration; no source file was changed. The helper reported Search Box focus despite
+  the visible caret and successfully entered text in Folder.
+- Scan 7 Files: Keep → Undecided (Reset) → Remove each visibly persisted for the backup overview.
+  Copy path, native paste into the local search draft and Select All returned the exact complete
+  canonical path, including `\\?\` and filename. Cleared the unsubmitted search draft afterward.
+- Reveal: Explorer showed the correct Backup documents folder and highlighted Archived project
+  overview, with one selected item. Its accessibility breadcrumbs identified the exact isolated
+  journey tree. Alt+F4 closed this previously journey-owned Explorer window.
+- Review: one marked file / 12.7 KB; explicitly confirmed Check completed with both validation
+  items Ready and no changed/missing/unavailable/conflict items. Removal remained unavailable.
+- Baseline scan 6 Folders: selected Backup archive/apps, read descendant scope, and observed
+  Keep → Undecided → Remove. No filesystem deletion occurred.
+- Keyboard Alt+H opened History with visible focus. Highlighting scan 1 left workspace scan 6
+  unchanged; recorded locations expanded successfully. Performance showed highlighted scan 1;
+  Return restored the same History selection and settled focus to OpenHighlightedPerformance.
+  These scans have zero warnings and their Review warnings action was disabled.
+- UX21 reproduction: Escape did not dismiss the native Yes/No Check marked copies dialog,
+  confirmed by another observation. Shared confirmation changed to YesNoCancel, retaining default
+  No and `result == Yes` admission. App and worker exited normally before rebuilding. Native
+  after-check and remaining journeys follow in the next evidence entry.
+
+## Reviewed fixes and native continuation (2026-09-16, from d784f48 plus preserved edits)
+
+The preserved pending changes were reviewed independently. Preference comparisons now normalize
+ordinary/extended DOS and UNC root spellings in validation, preview, missing-root reporting and
+application, retain stored spelling, and give the first equivalent legacy rule root its original rank.
+Review caught repeated trailing drive separators losing the drive-root slash; corrected with a
+regression and negative checks for drive-relative, device namespace and Unix-style identities.
+Shared native confirmation uses Yes/No/Cancel with No default and affirmative-only admission.
+Inline Apply/Reverse routes Escape to the existing cancel command and focus restoration.
+
+Before rebuilding, owned app 5380 and child worker 15012 were audited by executable path and parent,
+stopped, and their Debug `.uidev` sidecar removed. Debug root storage regressions passed 4/4;
+the normalization boundary unit test passed 1/1. Matching Debug worker and full Windows build passed
+with zero Windows warnings/errors. Fresh background real-file journey passed 1/1 in 25 seconds at
+`artifacts/ui-dev-session/polish-journey-e4149564922d459cb1761b190b1d8a09`, corpus
+`polish-data-ca1a860ff5594311a8e09e6a03600c3c`. It asserts ordinary-root preferred rank, routed Escape,
+unchanged cancelled decisions, exact application identity, restored focus, apply/reverse, restart,
+mutations, Stop and rescan. This is loaded-STA real-worker evidence, not native input.
+Debug worker SHA256: `ACA08E756369F4C54157E033CDC85C28DFDAB3887D2A9C4B46D81D341DC49471`.
+
+Native Computer Use launched that freshly verified private state with app 10692/worker 12796.
+Screenshots below were directly inspected tool output. Accessibility snapshots sometimes lagged one
+action; settled observations verified focus rather than treating stale text as current.
+
+- Scan 4 rule preview chose ordinary-path Current documents above canonical Backup documents,
+  proposing one Keep and one Remove. Apply opened an exact scope confirmation; Escape dismissed it
+  and settled focus returned to Apply. Enter reopened it, Tab reached Confirm, Enter applied it.
+  Review visibly changed from two undecided copies to one marked and one kept.
+- Reverse application 2 displayed its exact one-Keep/one-Remove scope. Escape dismissed it with
+  decisions retained and settled focus on Reverse. Reopening and confirming restored two undecided
+  copies and disabled Reverse. ENG03 and UX22 native after-checks pass.
+- Marked the disposable backup overview, opened Check, observed Yes/No/Cancel with No default.
+  Native Escape closed it, focus returned to Check, and the plan remained not checked. UX21 passes.
+- Alt+S opened Scan with visible focus. To leave enough time for native cancellation, copied the
+  existing built worker binary into the disposable mutation root, first 80 then 240 total copies
+  (26,062,336 bytes each); source hash is retained in `native-stop-source.json`. Scan 7 completed
+  in 12 seconds before the first cancellation input. Scan 8 received native Alt+C while hashing,
+  showed Cancelling and then Cancelled (10 seconds). This is functional Stop evidence, not a drive
+  performance campaign. The 240 explicitly owned copies were removed after app shutdown to recover
+  disk space; those historical runs now refer to intentionally removed disposable copies.
+- System-menu Size and native drag reached 900×600 (886×593 client capture); rail collapsed and
+  Progress retained readable status/actions with vertical scrolling. Alt+H reached History, selecting
+  completed scan 7 left opened scan 8 unchanged, and Alt+O explicitly opened scan 7. Settled compact
+  Results displayed multiple meaningful copy rows, Back and checking/paging controls without overlap.
+  A transient loading/empty overlay overlap was observed and recorded as UX23 for correction.
+- Windows Settings launch returned `launched app did not expose a targetable window`; fresh apps
+  and windows enumeration exposed only the app and Codex. Native contrast shortcut produced no
+  theme change or targetable dialog. The normal Control Panel route then returned
+  `Computer Use app approval timed out`. Native input stopped; no security or unlock workaround.
+  Physical enlarged text and high contrast remain unrun; existing background theme evidence is not
+  substituted. Control Panel/Settings were not subsequently controlled.
+
+Owned app 10692/worker 12796 were re-audited, stopped, and sidecar removed. Follow-up process and
+sidecar audit found none. No merge, push, release or production deletion was performed.
+Workspace-wide formatting check reports pre-existing unrelated formatting differences; only the
+two changed Rust files were formatted. Final Release results are recorded below.
+
+Final verification for this slice:
+
+- Focused Rust storage 4/4 and namespace/relative-root unit regression 1/1 pass in Debug and Release.
+  Matching workers built in both profiles; unchanged full-workspace baseline was not replayed.
+- Full Windows Debug and Release solution builds pass with zero warnings/errors, including UX23.
+  Core tests pass 228/228 in each configuration. The delayed-response test models a bound empty
+  value and verifies it is notified/hidden while loading and reappears for a truly empty response.
+- Release WPF regression passes 3/3 in 48 seconds; artifacts under
+  `artifacts/ui-polish-verification/p08-fixes`. Narrow selected-path render was inspected.
+- Fresh final Release real-worker journey passes 1/1 in 21 seconds at
+  `artifacts/ui-dev-session/polish-journey-f97c5e0da8234bb38bf50bef4f2915f7`, using fresh corpus
+  `polish-data-2f5a4220ab1944d48632faf45c401283`. Includes ranking, both routed Escape cancellations,
+  application/reversal, unchanged decisions, focus, restart, mutations, Stop and rescan.
+  Rule-stage PNGs sample Fluent expander transitions and are not settled visual acceptance;
+  the directly observed settled native stages above establish the corresponding visual result.
+- Standalone/packaged Release workers match SHA256
+  `583C33CC6F18D26F1171A668AA89D8EB5525EB6935D1DA4701A70A0C97831883`.
+- Independent final review approved the source changes and preserved the native acceptance boundary.
+  P08 remains open for physical 150% text/high contrast, remaining keyboard/focus/compact checks,
+  and UX23's native after-check. No native success is inferred from these background results.

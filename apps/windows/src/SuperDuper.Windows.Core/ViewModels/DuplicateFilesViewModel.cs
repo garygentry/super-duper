@@ -375,6 +375,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
         {
             if (SetProperty(ref _isDetailLoading, value))
             {
+                OnPropertyChanged(nameof(IsDetailEmpty));
                 RaiseMemberPagingProperties();
                 OnPropertyChanged(nameof(CanReconcileDirtyRoot));
                 ReconcileDirtyRootCommand.NotifyCanExecuteChanged();

@@ -17,7 +17,7 @@ Updated 2026-09-16 local time. Branch `codex/ui-redesign`; pre-review baseline `
   behavior changes. Heartbeat samples and valid intermediate coalesced frames remain permitted,
   while exact phase/counter/revision/order and bounded-frame checks remain enforced.
 
-## Verified evidence
+## Retained verification baseline (before the current P08 fixes)
 
 - Full Rust Debug and Release workspace tests pass, including final engine admission guards.
 - Windows Debug and Release builds: zero warnings/errors. Core 224 passed in each configuration.
@@ -35,36 +35,49 @@ Updated 2026-09-16 local time. Branch `codex/ui-redesign`; pre-review baseline `
 - Final cleanup: no app/worker process or `.uidev` sidecar found. Sources preserved; runtime ignored.
 - See `implementation-evidence.md` and `review.md` for evidence categories and finding dispositions.
 
+## Current P08 continuation (2026-09-16)
+
+Current verification: focused Rust storage 4/4 plus boundary unit test 1/1 in both profiles;
+full Windows Debug/Release builds have zero warnings/errors; Core 228/228 in each. Release WPF 3/3
+passes. Fresh Debug real-worker journey passes 1/1 (25s); final Release journey passes 1/1 (21s) at
+`artifacts/ui-dev-session/polish-journey-f97c5e0da8234bb38bf50bef4f2915f7` (includes UX23 code).
+Core/WPF TRX files: `artifacts/ui-polish-verification/p08-fixes`. Release worker standalone/packaged
+SHA256: `583C33CC6F18D26F1171A668AA89D8EB5525EB6935D1DA4701A70A0C97831883`.
+The historical full Rust/Infrastructure baseline above is retained; it was not replayed this slice.
+
+Resumed from `d784f48` plus preserved pending changes. Reviewed/fixed preference-root equivalence,
+shared native confirmation Escape, inline Apply/Reverse Escape and focus. Independent review caught
+and corrected repeated trailing separators on drive roots. ENG03, UX21 and UX22 native after-checks
+pass; see implementation evidence. Native state was the fresh Debug journey
+`artifacts/ui-dev-session/polish-journey-e4149564922d459cb1761b190b1d8a09`.
+
+Native acceptance now includes folder selection, clipboard/reveal, manual Files/Folders decisions,
+Review check, root ranking, apply/reverse/inline Escape, native Check Escape, History/context return,
+Alt+S/H/O navigation, Alt+C cancellation and 900×600 resizing/rail collapse/usable Results.
+Prior native successes are recorded in the continuation evidence and must not be replayed wholesale.
+The 240 large disposable worker copies used to give native Stop enough time have been removed;
+scans 7/8 in this state intentionally reference removed test copies. Use scan 4 or a fresh small
+real-file journey for further Results checks; do not infer stale historical copies are still present.
+
+A brief loading/empty message overlap during native historical Results opening exposed UX23:
+IsDetailLoading did not notify the derived IsDetailEmpty binding. The narrow notification fix and
+bounded delayed-response regression are included in this slice; native after-check remains pending.
+
 ## Exact next step
 
-Fresh recovery from `adeb9f5` on 2026-09-16 restored discovery, launch and initial native capture.
-The same isolated Debug real-file state restored scan 7; Setup visibly has no spurious drive-type
-warnings, closing ENG02's native after-check. The folder chooser opened. Its returned Folder
-element could not be targeted (`element 142 is not available in cached app state`), even after
-fresh observation. Coordinate focus and Alt+N did not establish the expected focus; captures
-then became entirely black. Fresh app selection and one kernel reset/reinitialization both
-still returned black app/dialog frames. Native input stopped; do not repeat recovery in this
-failed session. No folder was selected or new scan started. Owned app 6464/worker 11540 were
-stopped and the sidecar removed. See implementation evidence for this bounded attempt.
+Complete P08 physical 150% text and high-contrast checks, remaining keyboard-only navigation/focus
+and compact selected-copy/Review checks, plus UX23's native loading after-check. Fresh native app
+capture/input worked this session. Settings launch returned no targetable window, with fresh
+apps/windows discovery exposing no Settings. The contrast shortcut produced no theme change or
+dialog; the normal Control Panel route then returned `Computer Use app approval timed out`.
+Native input stopped. Do not repeatedly debug that failed helper session. Resume only in a fresh
+working native session; no renewed operator authorization or unlock request is required.
 
-Native input partially succeeded on 2026-09-16: folder picker opened/Escape returned, real rescan
-completed and navigated to Results, comparison/mark/copy icon and Explorer launch worked. Clipboard
-contents and Explorer selection were not verified: Explorer capture hit app-approval timeout.
-Subsequent app capture/discovery timed out; helper reset plus one fresh discovery also timed out.
-Stop further native calls in that failed session. The app/worker were stopped and sidecar removed.
-LogonUI in session 1 does NOT establish session 2 is locked; actual input worked in session 2.
-Operator reiterated permission to continue without unlock requests; no renewed authorization needed.
+Owned native app 10692 and child worker 12796 were path/parent-audited and stopped; Debug `.uidev`
+sidecar removed. Earlier inherited app 5380/worker 15012 were also cleaned before rebuilding.
+Background results do not substitute for the remaining native acceptance. Do not close P08 yet.
 
-Native pass found canonical local paths misclassified as unknown drives. A focused classifier fix
-preserves stored paths, normalizes only DriveInfo lookup and recognizes extended UNC. Focused tests
-passed 8/8 in Debug and Release; both full Windows builds have zero warnings/errors. Detailed
-results are recorded in implementation evidence. P08 remains open for a working native capture session:
-complete folder selection, clipboard/reveal verification, Stop,
-Keep/Reset, Folders, Review/check/rules confirmation/Escape, History/context return, keyboard/focus,
-resize/enlarged text and physical high contrast. Use fresh list_apps selection when list_windows
-omits the app. Do not invent handles. Fix/retest any finding, clean owned state and close P08 only
-with actual native evidence. Background Debug/Release evidence above predates only this classifier fix.
-
-Keep `codex/ui-redesign` and `wpf-poc`; no merge/push/release/deletion activation. Subagents exhausted
-account usage during verification; root finished locally. Build serially, Cargo jobs 2, .NET shared
-build servers disabled. Do not compile concurrently with UI journeys. No more product decisions pending.
+Keep `codex/ui-redesign` and preserve `origin/wpf-poc` at `deefa40`. No merge/push/release/deletion
+activation. Build serially, Cargo jobs 2, .NET build servers disabled; no compilation during UI
+journeys. Update findings/evidence/checkpoint/handoff, review and commit each coherent slice, and
+print an updated continuation prompt if any work remains.

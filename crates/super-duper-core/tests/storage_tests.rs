@@ -1507,6 +1507,142 @@ fn preferred_root_preview_handles_ties_missing_roots_manual_precedence_and_physi
 }
 
 #[test]
+fn preferred_root_windows_spellings_preserve_rank_in_preview_apply_and_reverse() {
+    for (stored_root, rule_root, backup_root) in [
+        (
+            r"\\?\C:\Current documents",
+            r"c:\Current documents",
+            r"\\?\C:\Backup documents",
+        ),
+        (
+            r"\\?\UNC\server\share\Current",
+            r"\\SERVER\share\Current",
+            r"\\?\UNC\server\share\Backup",
+        ),
+        (
+            r"C:\Current documents",
+            "c:/Current documents/",
+            r"C:\Backup documents",
+        ),
+        (
+            r"C:\Current documents",
+            r"\\?\C:\Current documents",
+            r"C:\Backup documents",
+        ),
+        (r"C:\", "c:////", r"D:\Backup documents"),
+    ] {
+        let db = Database::open_in_memory().unwrap();
+        let (_, run_id) = session_and_run(&db, "Windows rule roots", &[stored_root, backup_root]);
+        let mut preferred = file(run_id, &format!("{stored_root}\\one.bin"), 100, 303);
+        preferred.root_path = stored_root.to_owned();
+        preferred.file_identity = Some("preferred-physical".to_owned());
+        let mut backup = file(run_id, &format!("{backup_root}\\two.bin"), 100, 303);
+        backup.root_path = backup_root.to_owned();
+        backup.file_identity = Some("backup-physical".to_owned());
+        db.insert_scanned_files(&[preferred.clone(), backup.clone()])
+            .unwrap();
+        db.insert_duplicate_groups(
+            run_id,
+            &[(
+                303,
+                100,
+                vec![
+                    preferred.canonical_path.clone(),
+                    backup.canonical_path.clone(),
+                ],
+            )],
+        )
+        .unwrap();
+        db.complete_scan_run(run_id, 2, 200, 2, 1, 0, 100, 0)
+            .unwrap();
+        let rule = db
+            .save_preference_rule(
+                "save",
+                None,
+                "Current first",
+                &[rule_root.to_owned(), backup_root.to_owned()],
+                0,
+            )
+            .unwrap()
+            .rule;
+        assert_eq!(rule.roots[0], rule_root, "stored spelling is preserved");
+        assert!(matches!(
+            db.save_preference_rule(
+                "duplicate",
+                None,
+                "Equivalent roots",
+                &[rule_root.to_owned(), stored_root.to_owned()],
+                0
+            ),
+            Err(PreferenceError::InvalidRule { .. })
+        ));
+
+        // Older rules may already contain equivalent spellings: the first rank still wins.
+        db.connection()
+            .execute(
+                "INSERT INTO preference_rule_root (rule_id, ordinal, root_path) VALUES (?1, 2, ?2)",
+                params![rule.id, stored_root],
+            )
+            .unwrap();
+        let scope = PreferencePreviewScope::CompletedRun;
+        let preview = db
+            .page_preference_preview(run_id, rule.id, rule.revision, 0, &scope, 50, None)
+            .unwrap();
+        assert_eq!(preview.total, 1);
+        assert_eq!(preview.groups[0].preferred_root.as_deref(), Some(rule_root));
+        assert_eq!(preview.groups[0].best_rank, Some(0));
+        assert_eq!(preview.summary.missing_rule_root_count, 0);
+        assert_eq!(preview.summary.proposed_keep_path_count, 1);
+        assert_eq!(preview.summary.proposed_remove_path_count, 1);
+        let applied = db
+            .apply_preference_rule(
+                "apply",
+                run_id,
+                rule.id,
+                rule.revision,
+                0,
+                &preview.preview_signature,
+                &scope,
+            )
+            .unwrap();
+        let members = db
+            .page_duplicate_file_members(&DuplicateFileMemberPageQuery {
+                run_id,
+                group_id: preview.groups[0].group_id,
+                limit: 20,
+                sort_field: DuplicateFileMemberSortField::Path,
+                sort_direction: SortDirection::Ascending,
+                filter: DuplicateFileMemberFilter { search: None },
+                cursor: None,
+            })
+            .unwrap();
+        assert_eq!(
+            members
+                .members
+                .iter()
+                .find(|member| member.canonical_path == preferred.canonical_path)
+                .unwrap()
+                .review_decision,
+            ReviewDecisionKind::Keep
+        );
+        assert_eq!(
+            members
+                .members
+                .iter()
+                .find(|member| member.canonical_path == backup.canonical_path)
+                .unwrap()
+                .review_decision,
+            ReviewDecisionKind::Remove
+        );
+        let reversed = db
+            .reverse_preference_rule_application("reverse", run_id, applied.application.id, 1)
+            .unwrap();
+        assert_eq!(reversed.removed_keep_count, 1);
+        assert_eq!(reversed.removed_remove_count, 1);
+    }
+}
+
+#[test]
 fn preferred_root_application_is_replayable_manual_override_safe_and_reversible() {
     let temp = tempdir().unwrap();
     let path = temp.path().join("rule-application.db");

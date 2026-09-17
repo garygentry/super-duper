@@ -474,6 +474,54 @@ public sealed class DuplicateFilesViewModelTests
     }
 
     [TestMethod]
+    public async Task DelayedMemberLoadHidesBoundEmptyStateUntilTheResponseIsEmpty()
+    {
+        var response = new TaskCompletionSource<WorkerDuplicateFileMemberPage>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var requested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFileGroupPage(
+                [Group(1, query.RunId, "first.bin")], 1, null, null)),
+            MemberPageHandler = (_, _) =>
+            {
+                requested.TrySetResult();
+                return response.Task;
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        var boundEmptyState = viewModel.IsDetailEmpty;
+        var notifiedWhileLoading = false;
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName != nameof(DuplicateFilesViewModel.IsDetailEmpty)) return;
+            // Model a binding: its displayed value changes only on notification.
+            boundEmptyState = viewModel.IsDetailEmpty;
+            notifiedWhileLoading |= viewModel.IsDetailLoading;
+            if (response.Task.IsCompleted && !viewModel.IsDetailLoading)
+                completed.TrySetResult();
+        };
+
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(16, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        await requested.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            Assert.IsTrue(viewModel.IsDetailLoading);
+            Assert.IsTrue(notifiedWhileLoading, "Entering loading must refresh the empty-state binding.");
+            Assert.IsFalse(boundEmptyState, "An empty notice must not overlap the loading indicator.");
+        }
+        finally
+        {
+            response.TrySetResult(new WorkerDuplicateFileMemberPage([], 0, null, null));
+            await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        Assert.IsFalse(viewModel.IsDetailLoading);
+        Assert.IsTrue(boundEmptyState, "A completed empty response must still show the empty notice.");
+    }
+
+    [TestMethod]
     public async Task SetNavigationRejectsLateMembersFromPreviouslySelectedGroup()
     {
         var oldResponse = new TaskCompletionSource<WorkerDuplicateFileMemberPage>(

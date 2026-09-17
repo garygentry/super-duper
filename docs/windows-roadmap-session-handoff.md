@@ -30,23 +30,25 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 
 ## Current checkpoint
 
-- Polish implementation through `e4578ef` and final verification slice are complete. Full Rust
-  Debug/Release tests pass. Both Windows builds have zero warnings/errors; Core 224, Infrastructure
-  80/five expected skips and WPF 3/3 pass in each configuration (Debug eligibility in normal VM).
-  Final Release real-file journey `artifacts/ui-dev-session/polish-journey-fe4440ba6f8a4767a7031676cde91baa`
-  passes fresh-state restart/rules/mutations/Stop/rescan. Matched worker hashes and process/sidecar
-  cleanup verified. Two machine-speed-dependent test assumptions corrected without production changes.
-  P01–P06 background-verified; P07 background matrix complete; P08 only native input/high-contrast
-  acceptance remains blocked. Native pass partially succeeded on 2026-09-16, then helper discovery/
-  capture failed after bounded recovery. LogonUI in another session is not a lock signal. The
-  compact polish checkpoint owns the exact remaining native pass after helper recovery. Historical
-  totals below are not acceptance of the new implementation. No further product decisions pending.
-  ENG02 fixes canonical drive-path misclassification discovered by native Setup; focused verification
-  is in polish evidence. A fresh native session from `adeb9f5` verified ENG02's warning removal
-  and opened the folder chooser, but dialog targeting failed and app/dialog captures became black.
-  Fresh selection and one kernel reset did not restore capture; input stopped. P08 remains open
-  for the checkpoint's remaining native checks. No renewed operator authorization is required.
-
+- P08 continuation on 2026-09-16 resumed `d784f48` plus preserved edits. Preference-root DOS/UNC
+  equivalence, first legacy rank and drive-root boundary are fixed/reviewed. Shared native Check
+  Escape and inline Apply/Reverse Escape/focus now pass native after-checks (ENG03/UX21/UX22).
+  Fresh Debug real-file journey `polish-journey-e4149564922d459cb1761b190b1d8a09` passes; native
+  rule ranking/apply/reverse, unchanged cancellation, Alt+C Stop, Alt+S/H/O navigation and
+  900×600 layout pass. Earlier folder/clipboard/reveal/manual Files/Folders/History native checks
+  remain accepted; do not replay them wholesale. UX23 transient loading/empty overlap has a narrow
+  notification fix and delayed-response regression; native after-check remains pending.
+  Remaining P08: physical 150% text/high contrast, remaining keyboard/focus and compact selected-copy/
+  Review checks. Settings launch exposed no targetable window; contrast shortcut made no visible
+  change; Control Panel launch hit `Computer Use app approval timed out`, so native input stopped.
+  Background evidence is not native acceptance. No repeated helper debugging/unlock request needed.
+  Inherited and newly owned app/worker pairs were audited and cleaned; Debug sidecar removed.
+  Large explicitly owned Stop copies were removed after testing; native scans 7/8 intentionally
+  refer to removed disposable copies. Compact polish checkpoint and latest implementation evidence
+  own exact continuation and verification; P08 stays open. Preserve `origin/wpf-poc` at `deefa40`.
+  Final slice verification: focused Rust 5/5 in each profile, full Windows Debug/Release builds
+  zero warnings/errors, Core 228/228 each, Release WPF 3/3, fresh Release real-worker journey 1/1
+  at `polish-journey-f97c5e0da8234bb38bf50bef4f2915f7`. Independent review approved the fixes.
 - New polish P00: complete source/visual feature inventory and proposed P00–P08 plan. Debug paired
   build passes with zero Windows warnings/errors; WPF smoke passes 3/3 with 125 captures.
   Two real-document corpus scans complete with 88 groups/176 copies and working 25-row paging.

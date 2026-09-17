@@ -15,7 +15,7 @@ public sealed class UserConfirmationService : IUserConfirmationService
             Application.Current.MainWindow,
             message,
             title,
-            MessageBoxButton.YesNo,
+            MessageBoxButton.YesNoCancel,
             MessageBoxImage.Warning,
             MessageBoxResult.No);
         return Task.FromResult(result == MessageBoxResult.Yes);

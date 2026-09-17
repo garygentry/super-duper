@@ -358,11 +358,13 @@ impl Database {
         let directory_state = self.preference_directory_state(run_id, plan_id)?;
         let manual_removed_files = self.preference_manual_removed_files(run_id, plan_id)?;
 
+        // Legacy rules can contain equivalent spellings; retain the first preferred rank.
         let rank_by_root = rule
             .roots
             .iter()
             .enumerate()
-            .map(|(index, root)| (root.to_lowercase(), (index as i64, root.clone())))
+            .rev()
+            .map(|(index, root)| (preference_root_key(root), (index as i64, root.clone())))
             .collect::<HashMap<_, _>>();
         let mut present_roots = HashSet::new();
         let mut scoped_physical = HashMap::<String, i64>::new();
@@ -388,7 +390,7 @@ impl Database {
                 .is_some_and(|member| member.group_id == group_id)
             {
                 let member = next_member.take().expect("member was checked above");
-                present_roots.insert(member.root_path.to_lowercase());
+                present_roots.insert(preference_root_key(&member.root_path));
                 scoped_physical
                     .entry(member.physical_key.clone())
                     .or_insert(member.file_size);
@@ -436,7 +438,7 @@ impl Database {
             }
             let best = eligible
                 .iter()
-                .filter_map(|member| rank_by_root.get(&member.root_path.to_lowercase()))
+                .filter_map(|member| rank_by_root.get(&preference_root_key(&member.root_path)))
                 .min_by_key(|(rank, _)| *rank)
                 .cloned();
             let Some((best_rank, preferred_root)) = best else {
@@ -448,7 +450,7 @@ impl Database {
                 .copied()
                 .filter(|member| {
                     rank_by_root
-                        .get(&member.root_path.to_lowercase())
+                        .get(&preference_root_key(&member.root_path))
                         .is_some_and(|(rank, _)| *rank == best_rank)
                 })
                 .collect::<Vec<_>>();
@@ -552,7 +554,7 @@ impl Database {
         summary.missing_rule_root_count = rule
             .roots
             .iter()
-            .filter(|root| !present_roots.contains(&root.to_lowercase()))
+            .filter(|root| !present_roots.contains(&preference_root_key(root)))
             .count() as i64;
         summary.proposed_remove_physical_item_count = proposed_physical.len() as i64;
         summary.proposed_remove_bytes = proposed_physical.values().sum();
@@ -803,7 +805,8 @@ impl Database {
             .roots
             .iter()
             .enumerate()
-            .map(|(index, root)| (root.to_lowercase(), index as i64))
+            .rev()
+            .map(|(index, root)| (preference_root_key(root), index as i64))
             .collect::<HashMap<_, _>>();
         let directory_state = self.preference_directory_state(run_id, Some(plan_id))?;
         let (sql, values) =
@@ -834,14 +837,18 @@ impl Database {
                 .collect::<Vec<_>>();
             let Some(best_rank) = eligible
                 .iter()
-                .filter_map(|member| rank_by_root.get(&member.root_path.to_lowercase()).copied())
+                .filter_map(|member| {
+                    rank_by_root
+                        .get(&preference_root_key(&member.root_path))
+                        .copied()
+                })
                 .min()
             else {
                 continue;
             };
             for member in eligible {
                 let decision = if rank_by_root
-                    .get(&member.root_path.to_lowercase())
+                    .get(&preference_root_key(&member.root_path))
                     .is_some_and(|rank| *rank == best_rank)
                 {
                     ReviewDecisionKind::Keep
@@ -1463,6 +1470,67 @@ fn preference_application_by_id(
         .optional()?)
 }
 
+// Compare Windows root spellings without changing persisted paths or resolving live files.
+// Restrict prefix handling to DOS/UNC paths; other namespaces retain their identity.
+fn preference_root_key(root: &str) -> String {
+    let lower = root.to_lowercase();
+    let windows = lower.replace('\\', "/");
+    let normalized = if let Some(unc) = windows.strip_prefix("//?/unc/") {
+        format!("//{unc}")
+    } else if let Some(dos) = windows.strip_prefix("//?/").filter(|value| {
+        value
+            .as_bytes()
+            .first()
+            .is_some_and(u8::is_ascii_alphabetic)
+            && value.as_bytes().get(1..3) == Some(b":/")
+    }) {
+        dos.to_owned()
+    } else {
+        windows
+    };
+    let is_dos = normalized
+        .as_bytes()
+        .first()
+        .is_some_and(u8::is_ascii_alphabetic)
+        && normalized.as_bytes().get(1..3) == Some(b":/");
+    let is_unc = normalized.starts_with("//")
+        && !normalized.starts_with("//?/")
+        && !normalized.starts_with("//./");
+    if is_dos || is_unc {
+        let trimmed = normalized.trim_end_matches('/');
+        if is_dos && trimmed.len() == 2 {
+            format!("{trimmed}/")
+        } else {
+            trimmed.to_owned()
+        }
+    } else {
+        lower
+    }
+}
+
+#[cfg(test)]
+mod root_key_tests {
+    use super::preference_root_key;
+
+    #[test]
+    fn normalization_preserves_distinct_namespaces_and_relative_roots() {
+        assert_eq!(preference_root_key("C:////"), preference_root_key(r"C:\"));
+        assert_ne!(preference_root_key(r"C:\"), preference_root_key("C:"));
+        assert_ne!(
+            preference_root_key(r"\\.\C:\data"),
+            preference_root_key(r"C:\data")
+        );
+        assert_ne!(
+            preference_root_key(r"\\?\Volume{abc}\data"),
+            preference_root_key(r"Volume{abc}\data")
+        );
+        assert_ne!(
+            preference_root_key(r"/tmp/a\b"),
+            preference_root_key("/tmp/a/b")
+        );
+    }
+}
+
 fn validate_rule_storage_inputs(
     operation_id: &str,
     name: &str,
@@ -1493,9 +1561,9 @@ fn validate_rule_storage_inputs(
                     .to_owned(),
             });
         }
-        if !distinct.insert(root.to_lowercase()) {
+        if !distinct.insert(preference_root_key(root)) {
             return Err(PreferenceError::InvalidRule {
-                message: "root values must be unique ignoring case".to_owned(),
+                message: "root values must identify distinct locations".to_owned(),
             });
         }
     }

@@ -136,4 +136,8 @@ Neither label means native mouse/keyboard acceptance. Final Release Rust/Windows
 
 | ID | Priority | Reproduction | Disposition |
 |---|---|---|---|
-| ENG02 | Medium | Native Setup reopened canonical local roots as unknown filesystem type, filling the common screen with repeated technical warnings. | Classifier correction and local/UNC regressions implemented; focused verification recorded in implementation evidence. Native after-check pending helper recovery. |
+| ENG02 | Medium | Native Setup reopened canonical local roots as unknown filesystem type, filling the common screen with repeated technical warnings. | Closed: classifier correction, local/UNC regressions and native after-check from `adeb9f5` passed; see implementation evidence. |
+| UX21 | Medium | Native Review: Escape leaves the Yes/No “Check marked copies?” dialog open. | Closed: Yes/No/Cancel retains default No and affirmative-only admission; native Escape dismissed Check and restored focus without starting a check. |
+| ENG03 | High | Preferred roots entered in ordinary DOS spelling did not match canonical extended run roots, so ranking could choose the backup or report a preferred location missing. | Closed: normalized DOS/UNC comparison preserves spelling and first legacy rank. Debug/Release storage tests and fresh real-worker/native ordinary-root ranking, apply and reverse pass. |
+| UX22 | Medium | Inline Apply/Reverse confirmations did not handle Escape. | Closed: routed Escape uses existing cancellation/focus restoration. Real-worker regression and native Apply/Reverse Escape preserve decisions/application and restore focus. |
+| UX23 | Medium | Native 900×600 History Open briefly overlaid “No copies to display” on “Loading group members”. | Fixed: detail-loading transitions notify derived empty-state binding; delayed-response regression verifies mutual exclusion and true empty response. Native after-check pending. |

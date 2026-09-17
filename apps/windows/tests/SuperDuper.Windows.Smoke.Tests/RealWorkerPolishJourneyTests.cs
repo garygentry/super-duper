@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -343,6 +344,9 @@ public sealed class RealWorkerPolishJourneyTests
         await Await(rules.PreviewCommand.ExecuteAsync(null));
         Assert.IsFalse(rules.HasError, rules.ErrorMessage);
         Assert.AreEqual(1, rules.PreviewGroups.Count);
+        Assert.AreEqual(preferredRoot, rules.PreviewGroups[0].Group.PreferredRoot,
+            "The manually entered ordinary root must outrank the canonical backup root.");
+        Assert.AreEqual(0L, rules.PreviewGroups[0].Group.BestRank);
         Assert.AreEqual(1L, rules.PreviewGroups[0].Group.ProposedRemovePathCount);
         var previewPlan = await Await(worker.GetReviewPlanAsync(run.Id, _deadline.Token));
         Assert.AreEqual(0L, previewPlan.Summary.RemoveCount, "A rule preview must not record removal decisions.");
@@ -356,6 +360,15 @@ public sealed class RealWorkerPolishJourneyTests
         await CaptureAsync(window, "10-rule-preview");
         rules.ApplyCommand.Execute(null);
         Assert.IsTrue(rules.IsApplicationConfirmationVisible);
+        await AssertConfirmationEscapeAsync(window, "PreferenceConfirmApplication", "PreferenceApplyRule");
+        Assert.IsFalse(rules.IsApplicationConfirmationVisible);
+        var cancelledApply = await Await(worker.GetReviewPlanAsync(run.Id, _deadline.Token));
+        Assert.AreEqual(previewPlan.Summary.RemoveCount, cancelledApply.Summary.RemoveCount,
+            "Escape from Apply must preserve the read-only preview without recording decisions.");
+        Assert.IsNull(rules.LatestApplication);
+        Record("rule-apply-escape", cancelledApply.Summary);
+        rules.ApplyCommand.Execute(null);
+        Assert.IsTrue(rules.IsApplicationConfirmationVisible);
         await Await(rules.ConfirmApplicationCommand.ExecuteAsync(null));
         Assert.IsFalse(rules.HasError, rules.ErrorMessage);
         Assert.AreEqual("active", rules.LatestApplication?.State);
@@ -367,6 +380,17 @@ public sealed class RealWorkerPolishJourneyTests
         await CaptureAsync(window, "10-rule-applied");
         rules.ReverseCommand.Execute(null);
         Assert.IsTrue(rules.IsReversalConfirmationVisible);
+        await AssertConfirmationEscapeAsync(window, "PreferenceConfirmReversal", "PreferenceReverseApplication");
+        Assert.IsFalse(rules.IsReversalConfirmationVisible);
+        var cancelledReverse = await Await(worker.GetReviewPlanAsync(run.Id, _deadline.Token));
+        Assert.AreEqual(applied.Summary.RuleRemoveCount, cancelledReverse.Summary.RuleRemoveCount);
+        Assert.AreEqual(applied.Summary.RuleKeepCount, cancelledReverse.Summary.RuleKeepCount);
+        Assert.AreEqual(applicationId, rules.LatestApplication!.Id);
+        Assert.AreEqual("active", rules.LatestApplication.State,
+            "Escape from Reverse must preserve the same active rule application and its decisions.");
+        Record("rule-reverse-escape", cancelledReverse.Summary);
+        rules.ReverseCommand.Execute(null);
+        Assert.IsTrue(rules.IsReversalConfirmationVisible);
         await Await(rules.ConfirmReversalCommand.ExecuteAsync(null));
         Assert.IsFalse(rules.HasError, rules.ErrorMessage);
         Assert.AreEqual(applicationId, rules.LatestApplication!.Id);
@@ -376,6 +400,27 @@ public sealed class RealWorkerPolishJourneyTests
         Assert.AreEqual(0L, reversed.Summary.RuleKeepCount);
         Record("rule-reversed", rules.LatestApplication);
         await CaptureAsync(window, "10-rule-reversed");
+    }
+
+    private static async Task AssertConfirmationEscapeAsync(MainWindow window, string confirmationId, string returnId)
+    {
+        await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+        var confirm = Find<Button>(window, confirmationId);
+        confirm.BringIntoView();
+        await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+        Assert.IsTrue(confirm.Focus());
+        // Exercise WPF routing from a child control; this is not native keyboard acceptance.
+        var escape = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(confirm), 0, Key.Escape)
+        { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+        confirm.RaiseEvent(escape);
+        Assert.IsTrue(escape.Handled, "Escape must dismiss an inline rule confirmation.");
+        await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+        var returnTarget = Find<Button>(window, returnId);
+        Assert.IsTrue(returnTarget.IsKeyboardFocused, "Cancelling must restore focus to the originating action.");
+        var unrelatedEscape = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(returnTarget), 0, Key.Escape)
+        { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+        returnTarget.RaiseEvent(unrelatedEscape);
+        Assert.IsFalse(unrelatedEscape.Handled, "Rules must not consume Escape when no confirmation is open.");
     }
     private async Task ExerciseMutationAsync(MainWindow window, ShellViewModel shell, WorkerClient worker, string baselineCorpus)
     {
