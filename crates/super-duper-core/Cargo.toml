@@ -23,7 +23,7 @@ dashmap = "6"
 twox-hash = "2"
 
 # Cache
-rocksdb = "0.22"
+rocksdb = "0.25"
 bincode = { version = "2", features = ["serde"] }
 
 # Database (SQLite)
