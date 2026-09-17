@@ -818,6 +818,21 @@ mod tests {
         }
     }
 
+    /// Folder fingerprints are persisted and compared across runs; see hasher::hash_stability.
+    #[test]
+    fn folder_fingerprints_are_pinned() {
+        let structural = [
+            StructuralAtom::File("readme.txt".into(), 18),
+            StructuralAtom::Directory("nested".into(), 7, "0123456789abcdef".into()),
+        ];
+        let verified = [
+            VerifiedAtom::File("readme.txt".into(), 18, -42),
+            VerifiedAtom::Directory("nested".into(), 7, "0123456789abcdef".into()),
+        ];
+        assert_eq!(fingerprint_structure(&structural), "1b673746f15ae380");
+        assert_eq!(fingerprint_verified(&verified), "8b87c3cc02e6d230");
+    }
+
     #[test]
     fn cache_degradation_is_counted_apart_from_unverified_candidates() {
         let temp = tempfile::TempDir::new().unwrap();

@@ -1,5 +1,7 @@
 pub mod cache;
 #[cfg(test)]
+mod hash_stability;
+#[cfg(test)]
 mod read_path;
 pub(crate) mod repeat_cache;
 #[cfg(all(test, target_os = "windows"))]
