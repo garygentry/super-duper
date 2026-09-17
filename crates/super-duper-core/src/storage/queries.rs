@@ -2037,13 +2037,19 @@ fn optional_id(result: Result<i64>) -> Result<Option<i64>> {
 }
 
 fn like_pattern(value: &str) -> String {
-    format!(
-        "%{}%",
-        value
-            .replace('\\', "\\\\")
-            .replace('%', "\\%")
-            .replace('_', "\\_")
-    )
+    format!("%{}%", escape_like(value))
+}
+
+/// Builds a `LIKE ? ESCAPE '\'` pattern that matches values starting with `prefix` literally.
+pub(crate) fn like_prefix_pattern(prefix: &str) -> String {
+    format!("{}%", escape_like(prefix))
+}
+
+fn escape_like(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
 
 pub(super) fn duplicate_file_group_predicate(

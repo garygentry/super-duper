@@ -301,7 +301,8 @@ pub unsafe extern "C" fn sd_deletion_plan_summary(
     result.unwrap_or(SdResultCode::InvalidHandle)
 }
 
-/// Mark all files in a directory for deletion.
+/// Mark all files of the active run that are in `directory_path` or its subdirectories for
+/// deletion.
 ///
 /// # Safety
 /// `directory_path` must be a valid null-terminated C string.
@@ -319,6 +320,13 @@ pub unsafe extern "C" fn sd_mark_directory_for_deletion(
     };
 
     let result = with_handle(handle, |state| {
+        let run_id = match state.active_session_id {
+            Some(id) => id,
+            None => {
+                set_last_error("No active session — run a scan first".to_string());
+                return SdResultCode::DatabaseError;
+            }
+        };
         let db = match &state.db {
             Some(db) => db,
             None => {
@@ -327,7 +335,7 @@ pub unsafe extern "C" fn sd_mark_directory_for_deletion(
             }
         };
         match super_duper_core::analysis::deletion_plan::mark_directory_for_deletion(
-            db, &path_str, None,
+            db, run_id, &path_str, None,
         ) {
             Ok(_) => SdResultCode::Ok,
             Err(e) => map_core_error(e),
@@ -470,6 +478,10 @@ pub extern "C" fn sd_clear_hash_cache() -> SdResultCode {
 }
 
 /// Execute the deletion plan. Returns success/error counts via out parameters.
+///
+/// Each file is re-validated against its scan snapshot (identity, size, modification time,
+/// content hash) and is removed only while another member of each of its duplicate groups still
+/// exists unchanged; entries that fail are skipped and counted in `error_count`.
 ///
 /// When `use_trash` is non-zero, files are moved to the system Recycle Bin / Trash
 /// instead of being permanently deleted.

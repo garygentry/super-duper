@@ -185,6 +185,10 @@ enum SdResultCode sd_delete_session(uint64_t handle, int64_t session_id);
 /**
  * Execute the deletion plan. Returns success/error counts via out parameters.
  *
+ * Each file is re-validated against its scan snapshot (identity, size, modification time,
+ * content hash) and is removed only while another member of each of its duplicate groups still
+ * exists unchanged; entries that fail are skipped and counted in `error_count`.
+ *
  * When `use_trash` is non-zero, files are moved to the system Recycle Bin / Trash
  * instead of being permanently deleted.
  *
@@ -305,7 +309,8 @@ enum SdResultCode sd_list_sessions(uint64_t handle,
                                    struct SdSessionPage *out_page);
 
 /**
- * Mark all files in a directory for deletion.
+ * Mark all files of the active run that are in `directory_path` or its subdirectories for
+ * deletion.
  *
  * # Safety
  * `directory_path` must be a valid null-terminated C string.

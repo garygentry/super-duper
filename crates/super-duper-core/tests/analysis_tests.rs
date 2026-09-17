@@ -281,13 +281,13 @@ fn test_compute_similarity_subset() {
 
 #[test]
 fn test_mark_directory_for_deletion() {
-    let (db, _) = setup_db_with_files(&[
+    let (db, run_id) = setup_db_with_files(&[
         ("/target/a.txt", 100, 111),
         ("/target/b.txt", 200, 222),
         ("/other/c.txt", 300, 333),
     ]);
 
-    let marked = deletion_plan::mark_directory_for_deletion(&db, "/target", None).unwrap();
+    let marked = deletion_plan::mark_directory_for_deletion(&db, run_id, "/target", None).unwrap();
     assert_eq!(marked, 2);
 
     let plan = db.get_deletion_plan().unwrap();
@@ -325,7 +325,7 @@ fn test_auto_mark_duplicates() {
 }
 
 #[test]
-fn test_execute_deletion_plan_real_files() {
+fn test_execute_deletion_plan_skips_rows_that_do_not_match_disk() {
     use std::io::Write;
 
     let tmp = tempfile::tempdir().unwrap();
@@ -371,10 +371,13 @@ fn test_execute_deletion_plan_real_files() {
     db.mark_file_for_deletion(id_a, None).unwrap();
     db.mark_file_for_deletion(id_b, None).unwrap();
 
+    // The rows carry no stable identity, placeholder hashes, and no duplicate group, so
+    // revalidation must refuse to remove either file.
     let (success, errors) = deletion_plan::execute_deletion_plan(&db, false).unwrap();
-    assert_eq!(success, 2);
-    assert_eq!(errors, 0);
+    assert_eq!(success, 0);
+    assert_eq!(errors, 2);
 
-    assert!(!file_a.exists());
-    assert!(!file_b.exists());
+    assert!(file_a.exists());
+    assert!(file_b.exists());
+    assert!(db.get_deletion_plan().unwrap().is_empty());
 }
