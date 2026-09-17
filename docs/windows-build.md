@@ -6,8 +6,9 @@ application. Build Rust before .NET so the selected worker profile can be copied
 ## Prerequisites
 
 - Windows 11 build 22000 or newer on x64 hardware
-- Rust stable (pinned by `rust-toolchain.toml`)
-- .NET SDK 10.0.303 or a compatible patch (pinned by `global.json`)
+- Rust stable (pinned by `rust-toolchain.toml`), 1.98 or newer (`rust-version` in `Cargo.toml`);
+  run `rustup update stable` if an older stable toolchain is installed
+- .NET SDK 10.0.400 or a compatible patch (pinned by `global.json`)
 - A Windows 11 SDK capable of targeting `10.0.22000.0`
 - Visual Studio C++ x64/x86 build tools (`Microsoft.VisualStudio.Component.VC.Tools.x86.x64`)
   for Rust's MSVC linker and RocksDB native compilation

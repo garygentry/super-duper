@@ -6,3 +6,7 @@ members = [
     "crates/super-duper-worker",
 ]
 resolver = "2"
+
+[workspace.package]
+# The toolchain the workspace is built and tested with; rust-toolchain.toml tracks stable.
+rust-version = "1.98"
