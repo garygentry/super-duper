@@ -1,0 +1,66 @@
+# Build and test gate for the Rust workspace and the Windows app.
+#
+# UNVALIDATED: this workflow has never run. It is deliberately limited to manual
+# dispatch so it cannot fail a pull request before someone has watched it pass.
+# Run it from the Actions tab, fix what the runner needs (LLVM/LIBCLANG_PATH for
+# RocksDB's bindgen is the likely first failure), then add the push and
+# pull_request triggers below and delete this notice.
+#
+# on:
+#   push:
+#     branches: [master]
+#   pull_request:
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    # The WPF app targets Windows 11 and the smoke suite needs an interactive
+    # desktop, so this job covers everything except that UI automation.
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup update stable
+          rustup default stable
+          rustup component add rustfmt clippy
+          rustc --version
+
+      - name: Install the .NET SDK pinned by global.json
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Point bindgen at the runner's LLVM
+        run: echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
+
+      - name: Cache cargo registry and build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Lint
+        run: cargo clippy --workspace --all-targets
+
+      - name: Test the Rust workspace
+        run: cargo test --workspace
+
+      - name: Build the Windows solution
+        # Rust first: the WPF project copies the matching worker beside the app.
+        run: dotnet build apps/windows/SuperDuper.Windows.sln
+
+      - name: Test the Windows solution
+        # -m:1 keeps the STA surface suite from starving the Infrastructure host.
+        # The WPF smoke journey needs a real desktop and is excluded here.
+        run: dotnet test apps/windows/SuperDuper.Windows.sln --no-build -m:1

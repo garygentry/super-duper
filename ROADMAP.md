@@ -8,17 +8,21 @@ MVP. The previous Windows app implementation was removed before the current WPF 
 - Core duplicate detection pipeline is functional
 - CLI supports processing, directory analysis, hash-cache inspection, config printing, and database
   truncation
-- SQLite schema v6 separates editable named sessions from immutable runs, owns file/group/directory
+- SQLite schema v15 separates editable named sessions from immutable runs, owns file/group/directory
   results by run, persists lifecycle outcomes and scan counters, snapshots each run's cloud-
-  exclusion policy, and stores snapshot-backed manual review plans independently from deletion
+  exclusion policy, and stores snapshot-backed manual review plans, preference rules, live
+  validation, preflight and recycle-operation state independently from deletion
 - FFI exposes handles, progress callbacks, paginated queries, and deletion actions for future native
   clients
+- The WPF Windows app talks to the engine through the `super-duper-worker` JSONL process and is
+  review-only: production Recycle Bin execution is disabled
+- The Rust workspace is edition 2024 and requires stable 1.98 or newer
 
 ## Active Roadmap Streams
 
 | Stream | Scheduling state | Authority | Next boundary |
 |---|---|---|---|
-| Windows UI redesign | Complete at UIR-09 on `codex/ui-redesign`; final scoped workflow accepted | [`plans/ui-redesign/README.md`](plans/ui-redesign/README.md), [`plans/ui-redesign/execution-plan.md`](plans/ui-redesign/execution-plan.md), and [`UIR-09 evidence`](plans/ui-redesign/evidence/uir-09-final-acceptance.md) | No redesign gate remains. NVDA and physical 200% remain unavailable/unrun, not passed or waived. Stay on the branch and await explicit direction; preserve `wpf-poc` at `deefa40`, production deletion locks, parked release-validation authority and consumed campaigns. |
+| Windows UI redesign | Complete at UIR-09, plus the P00–P08 usability/visual-polish stream; `codex/ui-redesign` is being stabilized for a pull request into `master` | [`plans/ui-redesign/README.md`](plans/ui-redesign/README.md), [`plans/ui-redesign/execution-plan.md`](plans/ui-redesign/execution-plan.md), [`UIR-09 evidence`](plans/ui-redesign/evidence/uir-09-final-acceptance.md), and [`plans/ui-polish/session-checkpoint.md`](plans/ui-polish/session-checkpoint.md) | No redesign gate remains. NVDA and physical 200% remain unavailable/unrun, not passed or waived. Remaining work is the merge itself, tracked in `HANDOFF.md`; preserve `wpf-poc` at `deefa40`, production deletion locks, parked release-validation authority and consumed campaigns. |
 | Large-drive scan optimization and observability | Complete at SOP10 with physical campaign `sop10-physical-v1` accepted as `accepted_with_observation_limit` | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) and [`docs/sop10-physical-acceptance-checklist.md`](docs/sop10-physical-acceptance-checklist.md) | No package remains. Do not rerun the consumed SOP10 or SOP9 identities. The Windows stream remains parked until separately authorized. |
 | Windows post-MVP release validation | Parked with its finite closure ledger intact | [`docs/windows-roadmap-closure-ledger.md`](docs/windows-roadmap-closure-ledger.md), [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md), and [`docs/windows-release-validation-kickoff-prompt.md`](docs/windows-release-validation-kickoff-prompt.md) | Resume at `WPM8-high-contrast` only after SOP10 reaches its documented boundary and the operator explicitly authorizes one qualifying physical high-contrast pass. Production Recycle Bin execution remains disabled. |
 
@@ -32,8 +36,11 @@ identities, safety boundaries, production locks, or the parked Windows ledger.
 
 ### 1. Safer Deletion
 
-`execute_deletion_plan()` currently removes files directly. Add a recoverable deletion path, likely
-via the `trash` crate, and keep permanent deletion as an explicit opt-in.
+`execute_deletion_plan()` sends files to the Recycle Bin via the `trash` crate on Windows and falls
+back to permanent deletion elsewhere. Since `ae3658d` it also re-validates each target's identity,
+size, timestamp and content hash immediately before removal and requires every duplicate group to
+retain a verified, unplanned survivor. What remains: make the non-Windows fallback an explicit
+opt-in rather than automatic, and give the CLI a way to choose recoverable versus permanent.
 
 Files: `crates/super-duper-core/src/analysis/deletion_plan.rs`,
 `crates/super-duper-core/src/platform/windows.rs`

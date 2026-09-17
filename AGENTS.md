@@ -165,9 +165,14 @@ operator reopens that scope.
 
 ## Dedicated Windows VM
 
+The dedicated Windows VM is where this project is developed and where anything touching the UI must
+be verified. The app cannot be exercised on the operator's desktop machine, so a session there is
+limited to engine, worker, documentation and other headless work, and must hand UI verification to
+the VM rather than claiming or skipping it.
+
 The operator has granted standing approval (reconfirmed 2026-09-16) for agents to use computer
-control on the dedicated Windows development VM for authorized tasks: launching, capturing, and
-operating the app and performing requested appearance checks. An app-approval timeout is a tool
+control on that VM for authorized tasks: launching, capturing, and operating the app and performing
+requested appearance checks. An app-approval timeout is a tool
 availability failure, not missing authorization. This does not extend to merging, pushing,
 releasing, deleting branches, or enabling deletion, which each still need explicit direction.
 
