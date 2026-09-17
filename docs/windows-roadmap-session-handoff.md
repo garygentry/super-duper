@@ -8,6 +8,14 @@ linked plans remain authoritative.
 
 ## Session objective
 
+**Final current control, 2026-09-16 local / 2026-09-17 UTC:** P00–P08 polish is complete.
+The continuation from `ecd8bc7` captured UX23's native loading frame on isolated real-file
+scan 6 with a bounded pause of its actual worker, then verified resumed completion. The
+retained fresh-state, appearance/focus and build/test evidence remains accepted. No scheduled
+UI work remains; AGENTS.md retires the mandatory roadmap startup procedure. Stay on
+`codex/ui-redesign`; preserve `origin/wpf-poc` at `deefa40`. No merge/push/release/deletion
+activation. The historical controls below record prior stages, not new work authorization.
+
 **Current control, 2026-09-15:** the operator explicitly requested a new end-to-end usability and
 visual-polish review, plan, real-data VM environment and subsequent autonomous iteration, including
 necessary engine bug fixes. `plans/ui-polish/README.md`, `execution-plan.md` and
@@ -29,6 +37,14 @@ validation stays parked. The redesign does not authorize production Recycle Bin 
 consumed/physical/provider campaign. Commit each coherent completed in-scope slice and its checkpoint.
 
 ## Current checkpoint
+
+- Final UX23/P08 closure from `ecd8bc7`: native scan 6 next-set selection at 1166×753
+  showed loading without empty-state overlap; after a 17.475-second owned-worker pause,
+  resume completed the actual two-copy result. Independent image/code review supports closure.
+  Captures: `artifacts/ui-polish-verification/ux23-ecd8bc7`. Native close exited app 2024
+  and worker 7660; normal-context audit empty and Debug sidecar removed. No product/build/test
+  changes or accepted-check replay. Scope remains review-only, with existing unavailable
+  accessibility and parked release/provider limitations retained. No next UI slice.
 
 - UX23-only continuation from `2f9679a` on 2026-09-17: native access succeeded without
   recovery. Immediate scan 4 opening and scan 6 next-member-page captures again showed

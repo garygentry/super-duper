@@ -1,5 +1,10 @@
 # Current redesign session checkpoint
 
+Final follow-on status, 2026-09-16 local / 2026-09-17 UTC: the separately requested
+[polish stream](../ui-polish/session-checkpoint.md) is complete through P08 after native UX23
+loading acceptance from `ecd8bc7`. No UI work remains. UIR-00–09 and all preservation/release
+boundaries remain unchanged; the older checkpoint below records redesign verification.
+
 Updated 2026-09-15. [Execution plan](execution-plan.md) owns gate status.
 
 New operator-directed work on 2026-09-15 is owned by

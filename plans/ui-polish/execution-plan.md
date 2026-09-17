@@ -1,6 +1,6 @@
 # Autonomous usability and polish execution plan
 
-Status: accepted; implementation authorized after the operator interview and return to Default mode.
+Status: **P00–P08 complete** after the final native UX23 loading observation from `ecd8bc7`.
 Branch: `codex/ui-redesign`. Preserve `wpf-poc`; no merge, push or release implied.
 
 ## Outcome
@@ -61,14 +61,14 @@ Readiness means the scope explicitly chosen by the operator, not an implied prod
 | Gate | Dependencies | Work and exit evidence | State |
 |---|---|---|---|
 | P00 Review and plan | None | Inventory, baseline findings, real-file preparation, operator decisions captured | Complete |
-| P01 Reliable real-app exercise | P00 | Real-worker WPF runner, independent state/data, native capability ledger; baseline journeys and issue backlog | Implemented; background-verified |
-| P02 Shared shell and design system | P01 | Navigation, responsive selector, hierarchy/icons/tokens, startup/error states; representative actual WPF captures | Implemented; background-verified |
-| P03 Setup, scanning and rescan | P02 | Simplified start path, settings disclosure, honest monitoring/stop/summary; rescan/restart/history journeys | Implemented; background-verified |
-| P04 File and folder review | P03 | Comparable rows, unified filters/units, focused actions, paging/focus and narrow layouts; file/folder real-data decisions | Implemented; background-verified |
-| P05 Review and preferences | P04 | Visible totals/check, staged rule flow, stale/error/readiness, contextual operation evidence; real preflight/rule checks | Implemented; background-verified |
-| P06 History and diagnostics | P05 | Compact history, issues-first warnings, secondary performance/recovery details; exact navigation/context tests | Implemented; background-verified |
-| P07 Integration and defect closure | P02–P06 | Full journey/theme/accessibility matrix, Rust/.NET Debug+Release, real-worker restart/edit/overlap cases | Background matrix complete; native acceptance pending |
-| P08 Final quality audit | P07 | Independent fresh-state repeat of common journeys; all required findings closed with evidence, durable handoff | Physical 150%/Desert, compact Files/Folders/Review and decision-focus after-checks pass; UX23 transient native loading-frame observation remains open |
+| P01 Reliable real-app exercise | P00 | Real-worker WPF runner, independent state/data, native capability ledger; baseline journeys and issue backlog | Complete; retained background and native acceptance |
+| P02 Shared shell and design system | P01 | Navigation, responsive selector, hierarchy/icons/tokens, startup/error states; representative actual WPF captures | Complete; retained background and native acceptance |
+| P03 Setup, scanning and rescan | P02 | Simplified start path, settings disclosure, honest monitoring/stop/summary; rescan/restart/history journeys | Complete; retained background and native acceptance |
+| P04 File and folder review | P03 | Comparable rows, unified filters/units, focused actions, paging/focus and narrow layouts; file/folder real-data decisions | Complete; retained background and native acceptance |
+| P05 Review and preferences | P04 | Visible totals/check, staged rule flow, stale/error/readiness, contextual operation evidence; real preflight/rule checks | Complete; retained background and native acceptance |
+| P06 History and diagnostics | P05 | Compact history, issues-first warnings, secondary performance/recovery details; exact navigation/context tests | Complete; retained background and native acceptance |
+| P07 Integration and defect closure | P02–P06 | Full journey/theme/accessibility matrix, Rust/.NET Debug+Release, real-worker restart/edit/overlap cases | Complete; retained background and native acceptance |
+| P08 Final quality audit | P07 | Independent fresh-state repeat of common journeys; all required findings closed with evidence, durable handoff | Complete; retained fresh-state/appearance/focus checks plus native UX23 loading and resumed completion from `ecd8bc7` |
 
 Necessary engine/worker/infrastructure bug fixes run within the gate discovering them. Record
 reproduction, expected/actual result, smallest compatible fix, targeted regression, and relevant
@@ -161,11 +161,12 @@ journeys passing, no leaked process/sidecar, clean committed work, and a concise
 limitation statement. If native evidence is still unavailable, report that specific gap; do not
 declare full native readiness. Missing external capability cannot be solved by waiting indefinitely.
 
-Closure assessment on 2026-09-17 from `2f9679a`: native launch, capture and input succeeded.
-Immediate captures after scan 4 opening and scan 6 next-member-page loading were settled,
-without overlap. UX23 remains open for the unobserved transient loading frame. Sampling stopped
-after those bounded attempts; owned processes exited and the sidecar was removed. Retain
-completed appearance/focus checks and verification. No transient native acceptance is claimed.
+Closure assessment from `ecd8bc7`: **complete**. The real scan 6 next-set transition was
+captured through native Computer Use with the owned worker briefly paused: loading text
+appeared without empty-state overlap. Resume completed the real two-copy result. This is
+native evidence with an induced worker delay, not natural-latency measurement or mocked WPF.
+Owned processes exited and the sidecar was removed. Prior fresh-state, appearance/focus and
+verification evidence remains accepted; no source/build/test changes were needed.
 
 Commit each coherent slice with checkpoint and shared-handoff updates. Continue autonomously after
 plan decisions; ask only for a genuinely new product/safety boundary or unavailable required input.

@@ -1,14 +1,14 @@
 # Polish checkpoint
 
-Updated 2026-09-17 local time. Branch `codex/ui-redesign`; pre-review baseline `6206610`.
+Updated 2026-09-16 local / 2026-09-17 UTC. Branch `codex/ui-redesign`; pre-review baseline `6206610`.
 
 ## Current state
 
 - P00 complete. All interview recommendations accepted; implementation and subagents authorized.
 - P01–P06 implemented and background-verified. P07 background matrix complete. P08 fresh-state
   Release journey passes; physical 150% text/Desert and compact keyboard/focus acceptance pass.
-  UX23's brief native loading frame remains unobserved; P08 stays open for that precise evidence.
-  Do not claim full readiness or restart the completed redesign/release campaigns.
+  UX23 native loading observation now passes; P07/P08 are complete. No polish gate remains.
+  This is scoped review-only readiness; do not restart redesign or parked release campaigns.
 - Product changes through `e4578ef`: quiet responsive shell, shared icons/styles, remembered mode
   and disclosures, locations-first setup, concise progress, adaptive Files/Folders comparison,
   unified filters/units, checks-first Review, staged rules, list-first History and optional diagnostics.
@@ -88,30 +88,25 @@ UI development guide. The operator approved Settings after a tool timeout; fresh
 activation worked. Do not ask for renewed authorization. Tool access must still actually succeed.
 Both native app sessions are closed, their workers exited/stopped and the Debug sidecar removed.
 
+## Final closure from ecd8bc7
+
+Native scan 6 next-set navigation at 1166×753 displayed “Loading group members…” without
+“No copies to display”. The owned real worker was paused for 17.475 seconds to make the
+otherwise brief state observable, then resumed successfully; the native completion capture
+shows the actual two-copy set. This is direct native evidence with controlled worker timing,
+not background WPF or natural-latency evidence. Prior-set review counts temporarily remain
+while loading and settle with the response; no broader loading-label claim is made.
+
+Independent review inspected both PNGs, the bindings and retained regression and supports
+UX23 closure. Normal native close exited app 2024 and worker 7660; normal-context process audit
+was empty and the exact Debug sidecar was removed. No source/build/test, decision, corpus or
+appearance changes. All verification above remains retained without replay.
+Native PNGs: `artifacts/ui-polish-verification/ux23-ecd8bc7/scan6-next-set-loading.png` and
+`scan6-next-set-settled.png`. See the final implementation-evidence section for provenance.
+
 ## Exact next step
 
-Latest attempt from `2f9679a` on 2026-09-17 regained native launch, discovery, capture and input
-without recovery. Immediate captures after scan 4 historical opening and scan 6 next-member-page
-loading showed settled members without overlap; the loading frame remained unobserved.
-Sampling stopped after those bounded attempts. Owned app 5520/worker 2668 were path/parent-
-verified; native close exited both, normal-context audit was empty and the Debug sidecar removed.
-Scan 4/6 settled captures remain valid but do not establish the transient after-check.
-P08 remains open solely for that observation; native availability succeeded in this attempt.
-No source/build/test changes, corpus mutation, decision changes or accepted appearance/focus
-rechecks. See the latest implementation evidence for final cleanup and closure assessment.
-Native PNGs are saved under `artifacts/ui-polish-verification/ux23-2f9679a`.
-Do not repeat helper troubleshooting or an indefinite settled-frame sampling loop.
-Another identical settled capture does not advance acceptance; closure needs the native loading
-frame itself or an explicit operator-agreed exclusion. No exclusion has been granted.
-
-Complete UX23's precise native loading-state observation, then review P08 closure. Historical open
-and the 208-copy set's next-page load were exercised without overlap in sampled settled captures,
-but no transient loading frame was captured. Do not substitute the passing delayed-response test
-for that observation or invent a pass. Do not replay completed appearance/focus/compact checks.
-Use isolated real-file state (scan 4 for small Files, scan 6 for populated Files/Folders in the prior
-Debug journey); scans 7/8 intentionally refer to removed Stop copies. Audit processes/sidecar first.
-
-Keep `codex/ui-redesign` and preserve `origin/wpf-poc` at `deefa40`. No merge/push/release/deletion
-activation. Build serially, Cargo jobs 2, .NET build servers disabled; no compilation during UI
-journeys. Update findings/evidence/checkpoint/handoff, review and commit each coherent slice, and
-print an updated continuation prompt if any work remains.
+None: P00–P08 are complete. Remain on `codex/ui-redesign`; preserve `origin/wpf-poc` at
+`deefa40`. No merge/push/release/deletion activation. The app supports scan, comparison,
+planning and checks; actual removal remains disabled. Existing unavailable NVDA/physical
+200% evidence and parked release/provider work retain their prior disposition.

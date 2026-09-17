@@ -1,12 +1,12 @@
 # Windows usability and visual polish
 
-Status: implementation, background verification and physical appearance/focus checks complete;
-UX23's transient native loading observation remains pending. Started 2026-09-15
+Status: **P00–P08 complete**; UX23's native loading observation passed. Started 2026-09-15
 (America/Los_Angeles). Branch: `codex/ui-redesign`; baseline `6206610`.
 
-The 2026-09-17 continuation from `2f9679a` regained native launch, capture and input.
-Bounded scan 4 opening and scan 6 member paging captured only settled frames without overlap.
-P08 remains open for UX23's loading-frame observation. Accepted checks remain valid.
+The continuation from `ecd8bc7` captured scan 6's native loading frame without empty-state
+overlap by briefly pausing its owned real worker, then verified completion after resume.
+See [closure evidence](implementation-evidence.md#ux23-native-loading-observation-and-p08-closure-from-ecd8bc7).
+Accepted checks and verification remain valid. No polish work remains; deletion stays disabled.
 
 The operator requested a new end-to-end usability effort after accepting UIR-09: reduce clutter,
 make common tasks intuitive, establish consistent visuals and icons, exercise the real app with

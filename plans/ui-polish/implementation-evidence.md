@@ -559,3 +559,52 @@ No new product defect found. The bounded attempt did not complete UX23; another 
 settled capture is not additional acceptance evidence. Remaining work is a native capture
 that actually includes the loading state, or an explicit operator-agreed scope exclusion.
 No exclusion is inferred. No merge, push, release or deletion activation.
+
+## UX23 native loading observation and P08 closure from ecd8bc7
+
+Observed 2026-09-16 local / 2026-09-17 UTC. Clean start at `ecd8bc7` on
+`codex/ui-redesign`; `origin/wpf-poc` is still `deefa40`. Sandbox process enumeration was
+denied; normal-context audit found no app/worker/fixture, and no sidecar existed. Retained
+Debug DLL SHA256 was `636AFCF7EC78D28F4E6DEE4D72286E7D9A66507E8DE3EF61F282F2E785397817`.
+Prepared the same private journey `polish-journey-e4149564922d459cb1761b190b1d8a09`
+with `-SkipBuild -PrepareControlLaunch`. Native launch/discovery/input/capture worked without
+helper recovery. Returned window 393766 belonged to app 2024; worker 7660 had parent 2024
+and the exact repository Debug worker path. No build or corpus mutation occurred.
+
+Selected Real-file polish journey and verified scan 6, 232 sets/670 copies. Opened Results
+and hid the saved-scan rail, exposing the 208-copy Overview-001.md set. No scan 7/8 Results
+were opened. To avoid another settled-frame loop, suspended only verified worker 7660
+through `NtSuspendProcess`, with a finally-protected resume and a 45-second maximum.
+Native click on the upper next-set arrow selected SuperDuper-generated-source.png. This
+was **next-set selection**, not member-page navigation. The direct 1166×753 native capture
+showed “Loading group members…” without “No copies to display”. The lower copy controls
+were disabled. This observes the actual production IsDetailLoading/IsDetailEmpty path.
+
+The worker was suspended at 02:29:42.2138823Z and resumed at 02:29:59.6890536Z,
+17.475 seconds later, with status 0. The next native capture showed the actual two copies,
+one in Backup archive and one in Working library. Evidence is native Computer Use with
+an induced real-worker delay; it is not mocked data, background WPF, natural latency evidence
+or a claim to repeat the compact appearance matrix. During loading the prior set's review
+count remained visible temporarily; it settled to two on response. That existing detail is
+outside UX23's empty/loading-message overlap; no broader loading-label freshness claim is made.
+
+Ignored local native PNG evidence and SHA256:
+- `artifacts/ui-polish-verification/ux23-ecd8bc7/scan6-next-set-loading.png`:
+  `DB09137960BDF206000464CF363BA1F5968F0D9575119093EDA65B264BD40C16`.
+- `artifacts/ui-polish-verification/ux23-ecd8bc7/scan6-next-set-settled.png`:
+  `13CFD7D608972A15267F72C03346DD3529611FA7AD491BBD731548AF64927F9D`.
+
+Independent read-only review inspected both images, the production overlay bindings,
+notification fix and retained delayed-response regression; it supports UX23 closure with
+the timing/viewport qualifications above. Native Alt+F4 exited the owned app and worker.
+Final normal-context audit found no app/worker/fixture; removed the exact temporary Debug
+sidecar and verified none remained. Prior tests, fresh-state journey and accepted native
+appearance/focus checks are retained, not rerun. No product source, decision, file corpus
+or OS appearance change occurred.
+
+**P08 closure: complete.** UX23's last required native loading observation now has direct
+evidence; all other accepted checks remain intact. P00–P08 are complete and the mandatory
+roadmap startup instruction is retired. Scoped capability is scan, comparison, plan and
+validation; removal remains disabled. NVDA/physical 200% remain historically unavailable,
+and release/provider/deletion work remains parked. No merge, push, release or deletion
+activation. No follow-on UI work is scheduled.

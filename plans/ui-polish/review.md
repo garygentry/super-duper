@@ -136,11 +136,10 @@ Neither label means native mouse/keyboard acceptance. Final Release Rust/Windows
 
 Latest disposition (2026-09-17): the historical table above retains its original evidence stage.
 UX12/UX13 physical 150%/Desert and keyboard/focus acceptance now pass; UX14's native journeys
-are retained as accepted. Only UX23's transient loading-frame observation remains outstanding.
-The continuation from `2f9679a` regained native launch, capture and input without recovery.
-Immediate scan 4 opening and scan 6 next-member-page captures showed settled members without
-overlap. Sampling stopped after those bounded attempts. P08 remains open for the brief loading
-frame; native availability succeeded, but the transition remains unobserved. No new defect found.
+are retained as accepted. UX23's native loading-frame observation now passes from `ecd8bc7`:
+scan 6 next-set selection displayed loading without empty-state overlap while its owned real
+worker was briefly paused; resuming produced the real two-copy result. P08 is complete.
+The induced delay is explicit; no natural transition duration is claimed. No new defect found.
 See the latest implementation evidence for cleanup and the precise closure assessment.
 
 | ID | Priority | Reproduction | Disposition |
@@ -149,5 +148,5 @@ See the latest implementation evidence for cleanup and the precise closure asses
 | UX21 | Medium | Native Review: Escape leaves the Yes/No “Check marked copies?” dialog open. | Closed: Yes/No/Cancel retains default No and affirmative-only admission; native Escape dismissed Check and restored focus without starting a check. |
 | ENG03 | High | Preferred roots entered in ordinary DOS spelling did not match canonical extended run roots, so ranking could choose the backup or report a preferred location missing. | Closed: normalized DOS/UNC comparison preserves spelling and first legacy rank. Debug/Release storage tests and fresh real-worker/native ordinary-root ranking, apply and reverse pass. |
 | UX22 | Medium | Inline Apply/Reverse confirmations did not handle Escape. | Closed: routed Escape uses existing cancellation/focus restoration. Real-worker regression and native Apply/Reverse Escape preserve decisions/application and restore focus. |
-| UX23 | Medium | Native 900×600 History Open briefly overlaid “No copies to display” on “Loading group members”. | Fixed with delayed-response regression. Native historical/page-load after-checks show no overlap in sampled settled frames; the brief loading frame remains unobserved. Keep that precise native evidence open. |
+| UX23 | Medium | Native 900×600 History Open briefly overlaid “No copies to display” on “Loading group members”. | Closed: notification fix and delayed-response regression retained; native scan 6 next-set loading frame at 1166×753 shows loading without empty overlap under a bounded real-worker pause, followed by successful resumed completion. See closure evidence from `ecd8bc7`. |
 | UX24 | Medium | At native 900×600 selected-copy detail, keyboard Keep records the decision but loses local focus; next Tab starts again at Files. | Fixed: retain a stable focus anchor during async command execution, restore the originating action only in unchanged context. Delayed/synchronous/navigation regressions and native Files/Folders decision/Tab after-checks at 150% text (Folders also Desert) pass. |
