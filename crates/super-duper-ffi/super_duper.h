@@ -406,7 +406,7 @@ enum SdResultCode sd_truncate_database(uint64_t handle);
 enum SdResultCode sd_unmark_file_for_deletion(uint64_t handle, int64_t file_id);
 
 #ifdef __cplusplus
-} // extern "C"
-#endif // __cplusplus
+}  // extern "C"
+#endif  // __cplusplus
 
-#endif /* SUPER_DUPER_H */
+#endif  /* SUPER_DUPER_H */
