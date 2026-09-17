@@ -522,3 +522,40 @@ Settled captures and the delayed-response regression do not establish that trans
 No new product defect or permission gap was found. Continue only a bounded native observation
 using isolated scan 4 or 6 when available, then reassess closure; do not repeat helper
 troubleshooting or indefinitely sample settled frames. No merge, push, release or deletion activation.
+
+## UX23 bounded native observation (2026-09-17, from 2f9679a)
+
+Clean start at `2f9679a` on `codex/ui-redesign`; `origin/wpf-poc` remains `deefa40`.
+Sandbox process enumeration was denied; normal-context audit found no app/worker/fixture.
+No `.uidev` existed. Debug DLL SHA256 matched
+`636AFCF7EC78D28F4E6DEE4D72286E7D9A66507E8DE3EF61F282F2E785397817`.
+Prepared retained isolated real-file state
+`artifacts/ui-dev-session/polish-journey-e4149564922d459cb1761b190b1d8a09`
+with `-SkipBuild -PrepareControlLaunch`. No builds, tests or corpus changes.
+
+Native launch, discovery, activation, capture and input succeeded without recovery.
+Window 328614 belonged to owned Debug app PID 5520; the Debug worker PID 2668 had
+parent 5520. Native captures were displayed and inspected at 1166×753.
+History initially shifted while selecting a row: scan 2 was highlighted only, then scan 4
+was selected and its summary visually confirmed before Open. No scan 7/8 Results opened.
+Immediately after Alt+O, scan 4 showed settled one-set/two-copy Results without overlap.
+Selected Real-file polish journey (scan 6, 232 sets/670 copies), hid the saved-scan rail,
+and clicked Next copies once for the 208-copy Overview-001.md set. Its immediate capture
+also showed settled second-page members without overlap. Neither capture showed loading.
+Stopped sampling after these two observations; no helper troubleshooting, worker delay,
+background substitution, reverse-page loop or completed appearance/focus recheck.
+
+Native PNGs (ignored local artifacts):
+- `artifacts/ui-polish-verification/ux23-2f9679a/scan4-open-settled.png`
+- `artifacts/ui-polish-verification/ux23-2f9679a/scan6-next-members-settled.png`
+
+Alt+F4 closed the owned app. Normal-context follow-up found no app/worker/fixture;
+removed the exact Debug `.uidev` and verified no sidecar remained. No decisions, source
+files, corpus or OS appearance changed. Prior tests and accepted checks remain retained.
+
+P08 closure assessment: **open**, solely for UX23's unobserved native loading frame.
+Successful native access and settled screenshots cannot establish the transient after-check.
+No new product defect found. The bounded attempt did not complete UX23; another identical
+settled capture is not additional acceptance evidence. Remaining work is a native capture
+that actually includes the loading state, or an explicit operator-agreed scope exclusion.
+No exclusion is inferred. No merge, push, release or deletion activation.

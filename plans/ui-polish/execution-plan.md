@@ -161,7 +161,7 @@ journeys passing, no leaked process/sidecar, clean committed work, and a concise
 limitation statement. If native evidence is still unavailable, report that specific gap; do not
 declare full native readiness. Missing external capability cannot be solved by waiting indefinitely.
 
-Closure assessment on 2026-09-17 from `d9c0fc7`: native launch, capture and input succeeded.
+Closure assessment on 2026-09-17 from `2f9679a`: native launch, capture and input succeeded.
 Immediate captures after scan 4 opening and scan 6 next-member-page loading were settled,
 without overlap. UX23 remains open for the unobserved transient loading frame. Sampling stopped
 after those bounded attempts; owned processes exited and the sidecar was removed. Retain

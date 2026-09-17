@@ -137,7 +137,7 @@ Neither label means native mouse/keyboard acceptance. Final Release Rust/Windows
 Latest disposition (2026-09-17): the historical table above retains its original evidence stage.
 UX12/UX13 physical 150%/Desert and keyboard/focus acceptance now pass; UX14's native journeys
 are retained as accepted. Only UX23's transient loading-frame observation remains outstanding.
-The continuation from `d9c0fc7` regained native launch, capture and input without recovery.
+The continuation from `2f9679a` regained native launch, capture and input without recovery.
 Immediate scan 4 opening and scan 6 next-member-page captures showed settled members without
 overlap. Sampling stopped after those bounded attempts. P08 remains open for the brief loading
 frame; native availability succeeded, but the transition remains unobserved. No new defect found.

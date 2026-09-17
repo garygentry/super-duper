@@ -90,16 +90,19 @@ Both native app sessions are closed, their workers exited/stopped and the Debug 
 
 ## Exact next step
 
-Latest attempt from `d9c0fc7` on 2026-09-17 regained native launch, discovery, capture and input
+Latest attempt from `2f9679a` on 2026-09-17 regained native launch, discovery, capture and input
 without recovery. Immediate captures after scan 4 historical opening and scan 6 next-member-page
 loading showed settled members without overlap; the loading frame remained unobserved.
-Sampling stopped after those bounded attempts. Owned app 10492/worker 12148 were path/parent-
+Sampling stopped after those bounded attempts. Owned app 5520/worker 2668 were path/parent-
 verified; native close exited both, normal-context audit was empty and the Debug sidecar removed.
 Scan 4/6 settled captures remain valid but do not establish the transient after-check.
 P08 remains open solely for that observation; native availability succeeded in this attempt.
 No source/build/test changes, corpus mutation, decision changes or accepted appearance/focus
 rechecks. See the latest implementation evidence for final cleanup and closure assessment.
+Native PNGs are saved under `artifacts/ui-polish-verification/ux23-2f9679a`.
 Do not repeat helper troubleshooting or an indefinite settled-frame sampling loop.
+Another identical settled capture does not advance acceptance; closure needs the native loading
+frame itself or an explicit operator-agreed exclusion. No exclusion has been granted.
 
 Complete UX23's precise native loading-state observation, then review P08 closure. Historical open
 and the 208-copy set's next-page load were exercised without overlap in sampled settled captures,

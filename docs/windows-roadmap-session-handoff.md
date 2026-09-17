@@ -30,6 +30,15 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 
 ## Current checkpoint
 
+- UX23-only continuation from `2f9679a` on 2026-09-17: native access succeeded without
+  recovery. Immediate scan 4 opening and scan 6 next-member-page captures again showed
+  settled members, not the loading frame. Saved native PNGs under
+  `artifacts/ui-polish-verification/ux23-2f9679a`; stopped after those two observations.
+  P08 remains open solely for UX23. App 5520/worker 2668 exited after native close;
+  normal-context audit empty, Debug sidecar removed. Prior verification and accepted
+  checks retained; no source/build/test changes. Do not loop on identical settled captures.
+  Latest polish checkpoint/evidence own remaining work; preserve `origin/wpf-poc` at `deefa40`.
+
 - UX23-only continuation from `d9c0fc7` on 2026-09-17: native launch, discovery, capture and
   input succeeded without recovery. Immediate scan 4 opening and scan 6 next-member-page
   captures were settled without overlap; the transient loading frame remains unobserved.

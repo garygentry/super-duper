@@ -4,7 +4,7 @@ Status: implementation, background verification and physical appearance/focus ch
 UX23's transient native loading observation remains pending. Started 2026-09-15
 (America/Los_Angeles). Branch: `codex/ui-redesign`; baseline `6206610`.
 
-The 2026-09-17 continuation from `d9c0fc7` regained native launch, capture and input.
+The 2026-09-17 continuation from `2f9679a` regained native launch, capture and input.
 Bounded scan 4 opening and scan 6 member paging captured only settled frames without overlap.
 P08 remains open for UX23's loading-frame observation. Accepted checks remain valid.
 
