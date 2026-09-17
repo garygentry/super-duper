@@ -1,13 +1,14 @@
 use chrono::{Duration, Utc};
-use rusqlite::{params, types::Value as SqlValue, Connection, Error as SqlError};
+use rusqlite::{Connection, Error as SqlError, params, types::Value as SqlValue};
 use serde::Serialize;
 use std::fs;
 use std::io::{BufWriter, Write};
 use std::path::Path;
-use std::sync::{atomic::AtomicBool, Mutex};
+use std::sync::{Mutex, atomic::AtomicBool};
 use std::time::{Instant, UNIX_EPOCH};
 use super_duper_core::hasher::xxhash::hash_file_streaming;
 use super_duper_core::platform;
+use super_duper_core::storage::Database;
 use super_duper_core::storage::live_hints::ReviewLiveHintError;
 use super_duper_core::storage::models::{
     CloudDetectionStatus, CloudPolicy, DuplicateFileDriveFacetPageQuery,
@@ -29,7 +30,6 @@ use super_duper_core::storage::recovery_review::RecoveryReviewError;
 use super_duper_core::storage::recycle_operation::RecycleOperationError;
 use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::sqlite::CURRENT_SCHEMA_VERSION;
-use super_duper_core::storage::Database;
 use tempfile::tempdir;
 #[cfg(windows)]
 use winapi::shared::minwindef::FILETIME;
@@ -555,9 +555,10 @@ fn warning_aggregates_are_bounded_paged_restart_safe_and_terminally_immutable() 
     assert_ne!(first[0].code, second[0].code);
     assert_eq!(db.get_scan_run(run_id).unwrap().warning_count, 9);
     db.complete_scan_run(run_id, 0, 0, 0, 0, 0, 0, 9).unwrap();
-    assert!(db
-        .replace_run_warning_aggregates(run_id, &warnings)
-        .is_err());
+    assert!(
+        db.replace_run_warning_aggregates(run_id, &warnings)
+            .is_err()
+    );
     drop(db);
 
     let reopened = Database::open(path.to_str().unwrap()).unwrap();
@@ -605,9 +606,10 @@ fn live_warning_accounting_is_monotonic_bounded_and_restart_safe() {
         .unwrap();
     assert_eq!((advanced.len() as i64, total, accounted), (1, 1, 5));
     assert_eq!(advanced[0].id, fallback_id);
-    assert!(db
-        .update_run_progress_with_warning_accounting(run_id, "discovering", 512, 8_192, 0, 4,)
-        .is_err());
+    assert!(
+        db.update_run_progress_with_warning_accounting(run_id, "discovering", 512, 8_192, 0, 4,)
+            .is_err()
+    );
 
     db.replace_run_warning_aggregates(
         run_id,
@@ -667,10 +669,13 @@ fn terminal_completion_accounts_for_unclassified_warning_counts() {
 #[test]
 #[ignore = "retained WPM13 Release scale fixture; run optimized with --ignored --nocapture"]
 fn warning_hundred_thousand_aggregate_release_fixture_stays_bounded() {
-    assert!(
-        !cfg!(debug_assertions),
-        "the retained 100,000-warning fixture must run in Release"
-    );
+    #[allow(clippy::assertions_on_constants)]
+    {
+        assert!(
+            !cfg!(debug_assertions),
+            "the retained 100,000-warning fixture must run in Release"
+        );
+    }
     let _large_fixture_guard = LARGE_FIXTURE_TEST_LOCK.lock().unwrap();
     let db = Database::open_in_memory().unwrap();
     let (_, run_id) = session_and_run(&db, "Warning aggregate scale", &["/root"]);
@@ -1760,14 +1765,18 @@ fn preferred_root_application_is_replayable_manual_override_safe_and_reversible(
             cursor: None,
         })
         .unwrap();
-    assert!(members
-        .members
-        .iter()
-        .all(|member| member.review_provenance.as_deref() == Some("rule")));
-    assert!(members
-        .members
-        .iter()
-        .all(|member| { member.review_application_id == Some(applied.application.id) }));
+    assert!(
+        members
+            .members
+            .iter()
+            .all(|member| member.review_provenance.as_deref() == Some("rule"))
+    );
+    assert!(
+        members
+            .members
+            .iter()
+            .all(|member| { member.review_application_id == Some(applied.application.id) })
+    );
 
     db.set_review_decision(
         "manual-clear-rule-remove",
@@ -2236,16 +2245,18 @@ fn result_rows_are_strictly_isolated_by_run() {
     let first_group = db.get_duplicate_groups(first, 0, 10).unwrap().remove(0);
     let second_group = db.get_duplicate_groups(second, 0, 10).unwrap().remove(0);
     assert_ne!(first_group.id, second_group.id);
-    assert!(db
-        .get_files_in_group(first_group.id)
-        .unwrap()
-        .iter()
-        .all(|snapshot| snapshot.run_id == first));
-    assert!(db
-        .get_files_in_group(second_group.id)
-        .unwrap()
-        .iter()
-        .all(|snapshot| snapshot.run_id == second));
+    assert!(
+        db.get_files_in_group(first_group.id)
+            .unwrap()
+            .iter()
+            .all(|snapshot| snapshot.run_id == first)
+    );
+    assert!(
+        db.get_files_in_group(second_group.id)
+            .unwrap()
+            .iter()
+            .all(|snapshot| snapshot.run_id == second)
+    );
 
     db.connection()
         .execute(
@@ -2354,10 +2365,12 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
     assert_eq!(first_page.summary.across_drive_group_count, 1);
     assert_eq!(first_page.groups.len(), 2);
     assert!(first_page.has_more);
-    assert!(first_page
-        .groups
-        .iter()
-        .all(|group| group.run_id == first_run));
+    assert!(
+        first_page
+            .groups
+            .iter()
+            .all(|group| group.run_id == first_run)
+    );
     assert_eq!(first_page.groups[0].recoverable_bytes, 400);
     assert_eq!(first_page.groups[1].recoverable_bytes, 200);
     assert!(first_page.groups[0].id < first_page.groups[1].id);
@@ -2513,10 +2526,12 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
     assert_eq!(one_copy_size.summary.matching_copy_count, 5);
     assert_eq!(one_copy_size.summary.potential_recoverable_bytes, 600);
     assert_eq!(one_copy_size.summary.largest_recoverable_bytes, 400);
-    assert!(one_copy_size
-        .groups
-        .iter()
-        .all(|group| group.file_size >= 200));
+    assert!(
+        one_copy_size
+            .groups
+            .iter()
+            .all(|group| group.file_size >= 200)
+    );
 
     let one_copy_size_root_facets = db
         .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
@@ -2625,10 +2640,12 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
         })
         .unwrap();
     assert_eq!(three_or_more_drive_facets.total, 2);
-    assert!(three_or_more_drive_facets
-        .facets
-        .iter()
-        .all(|facet| facet.matching_group_count == 1));
+    assert!(
+        three_or_more_drive_facets
+            .facets
+            .iter()
+            .all(|facet| facet.matching_group_count == 1)
+    );
 
     let root_facets = db
         .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
@@ -2785,9 +2802,11 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
     assert_eq!(selected_root_groups.total, 1);
     assert_eq!(selected_root_groups.summary.matching_group_count, 1);
     assert_eq!(selected_root_groups.summary.matching_copy_count, 2);
-    assert!(selected_root_groups.groups[0]
-        .representative_name
-        .contains("alpha"));
+    assert!(
+        selected_root_groups.groups[0]
+            .representative_name
+            .contains("alpha")
+    );
     let selected_drive_groups = db
         .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
             run_id: first_run,
@@ -2825,15 +2844,18 @@ fn duplicate_file_keyset_pages_are_stable_filtered_and_run_scoped() {
         })
         .unwrap();
     assert_eq!(members.total, 1);
-    assert!(members.members[0]
-        .canonical_path
-        .contains("first-alpha-copy"));
+    assert!(
+        members.members[0]
+            .canonical_path
+            .contains("first-alpha-copy")
+    );
     assert_eq!(members.members[0].root_path, "/selected-root");
     assert_eq!(members.members[0].relative_path, "first-alpha-copy.txt");
     assert_eq!(members.members[0].drive_letter, "D:");
-    assert!(!db
-        .duplicate_file_group_exists(second_run, group.id)
-        .unwrap());
+    assert!(
+        !db.duplicate_file_group_exists(second_run, group.id)
+            .unwrap()
+    );
 }
 
 #[test]
@@ -6014,10 +6036,12 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
     assert_eq!(large_groups.total, 2_328);
     assert_eq!(large_groups.summary.matching_group_count, 2_328);
     assert_eq!(large_groups.summary.matching_copy_count, 4_659);
-    assert!(large_groups
-        .groups
-        .iter()
-        .all(|group| group.file_size >= 4_000));
+    assert!(
+        large_groups
+            .groups
+            .iter()
+            .all(|group| group.file_size >= 4_000)
+    );
     let large_root_facets = db
         .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
             run_id,
@@ -6041,10 +6065,12 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         })
         .unwrap();
     assert_eq!(large_drive_facets.total, 2);
-    assert!(large_drive_facets
-        .facets
-        .iter()
-        .all(|facet| facet.matching_group_count == 3));
+    assert!(
+        large_drive_facets
+            .facets
+            .iter()
+            .all(|facet| facet.matching_group_count == 3)
+    );
     assert!(
         size_started.elapsed() < std::time::Duration::from_secs(5),
         "100,000-group minimum-size group/facet queries took {:?}",
@@ -6076,10 +6102,12 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
     assert_eq!(across.summary.across_drive_group_count, 100);
     assert_eq!(across.groups.len(), 100);
     assert!(!across.has_more);
-    assert!(across
-        .groups
-        .iter()
-        .all(|group| group.distinct_drive_count == 2));
+    assert!(
+        across
+            .groups
+            .iter()
+            .all(|group| group.distinct_drive_count == 2)
+    );
     assert!(
         across_started.elapsed() < std::time::Duration::from_secs(5),
         "100,000-group across-drives filter took {:?}",
@@ -6099,10 +6127,12 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         .unwrap();
     assert_eq!(three_or_more.total, 100);
     assert_eq!(three_or_more.summary.matching_copy_count, 300);
-    assert!(three_or_more
-        .groups
-        .iter()
-        .all(|group| group.file_count >= 3));
+    assert!(
+        three_or_more
+            .groups
+            .iter()
+            .all(|group| group.file_count >= 3)
+    );
     let three_or_more_roots = db
         .page_duplicate_file_selected_root_facets(&DuplicateFileSelectedRootFacetPageQuery {
             run_id,
@@ -6125,10 +6155,12 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         })
         .unwrap();
     assert_eq!(three_or_more_drives.total, 2);
-    assert!(three_or_more_drives
-        .facets
-        .iter()
-        .all(|facet| facet.matching_group_count == 100));
+    assert!(
+        three_or_more_drives
+            .facets
+            .iter()
+            .all(|facet| facet.matching_group_count == 100)
+    );
     assert!(
         copy_count_started.elapsed() < std::time::Duration::from_secs(5),
         "100,000-group minimum-copy-count group/facet queries took {:?}",
@@ -6171,10 +6203,12 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         })
         .unwrap();
     assert_eq!(exact_path_drives.total, 2);
-    assert!(exact_path_drives
-        .facets
-        .iter()
-        .all(|facet| facet.matching_group_count == 1));
+    assert!(
+        exact_path_drives
+            .facets
+            .iter()
+            .all(|facet| facet.matching_group_count == 1)
+    );
     assert!(
         exact_path_started.elapsed() < std::time::Duration::from_secs(5),
         "100,000-group exact-path group/facet queries took {:?}",
@@ -6216,10 +6250,12 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         })
         .unwrap();
     assert_eq!(extension_drives.total, 2);
-    assert!(extension_drives
-        .facets
-        .iter()
-        .all(|facet| facet.matching_group_count == 100));
+    assert!(
+        extension_drives
+            .facets
+            .iter()
+            .all(|facet| facet.matching_group_count == 100)
+    );
     let all_extension_filter = DuplicateFileGroupFilter {
         extension_key: Some("bin".to_owned()),
         extension_match: DuplicateFileExtensionMatchMode::AllMembers,
@@ -6255,10 +6291,12 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         })
         .unwrap();
     assert_eq!(all_extension_drives.total, 2);
-    assert!(all_extension_drives
-        .facets
-        .iter()
-        .all(|facet| facet.matching_group_count == 100));
+    assert!(
+        all_extension_drives
+            .facets
+            .iter()
+            .all(|facet| facet.matching_group_count == 100)
+    );
     assert!(
         extension_started.elapsed() < std::time::Duration::from_secs(5),
         "100,000-group any/all extension group/facet queries took {:?}",
@@ -6295,10 +6333,12 @@ fn hundred_thousand_group_first_and_keyset_pages_stay_bounded() {
         })
         .unwrap();
     assert_eq!(selected_root.total, 100);
-    assert!(selected_root
-        .groups
-        .iter()
-        .all(|group| group.run_id == run_id));
+    assert!(
+        selected_root
+            .groups
+            .iter()
+            .all(|group| group.run_id == run_id)
+    );
 
     let drive_facet_started = std::time::Instant::now();
     let drive_facets = db
