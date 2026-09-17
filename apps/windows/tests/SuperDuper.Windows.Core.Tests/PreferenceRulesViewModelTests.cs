@@ -107,11 +107,11 @@ public sealed class PreferenceRulesViewModelTests
                     new WorkerPreferenceApplicationSummary(1, 1, 0, 1, 1, 1, "100")),
                 false));
         };
-        worker.PreferenceReverseHandler = (operationId, runId, applicationId, expectedRevision, _) =>
+        worker.PreferenceReverseHandler = (operationId, runId, applicationId, receivedExpectedRevision, _) =>
         {
             Assert.IsFalse(string.IsNullOrWhiteSpace(operationId));
             Assert.AreEqual(8, applicationId);
-            Assert.AreEqual(reviewRevision, expectedRevision);
+            Assert.AreEqual(reviewRevision, receivedExpectedRevision);
             return Task.FromResult(new WorkerPreferenceReversalResult(
                 applicationId, 3, 2, false, "reversed", 1, 1));
         };

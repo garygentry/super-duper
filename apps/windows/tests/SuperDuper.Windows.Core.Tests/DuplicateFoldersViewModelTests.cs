@@ -797,10 +797,10 @@ public sealed class DuplicateFoldersViewModelTests
                     decision == "undecided" ? 1 : 0,
                     1),
             }),
-            ReviewFolderDecisionHandler = (_, _, _, memberId, requested, expected, _) =>
+            ReviewFolderDecisionHandler = (_, _, _, memberId, requested, receivedExpectedRevision, _) =>
             {
                 Assert.AreEqual(71, memberId);
-                Assert.AreEqual(revision, expected);
+                Assert.AreEqual(revision, receivedExpectedRevision);
                 revision++;
                 decision = requested;
                 return Task.FromResult(new WorkerReviewFolderDecisionMutation(8, revision, false, requested));
