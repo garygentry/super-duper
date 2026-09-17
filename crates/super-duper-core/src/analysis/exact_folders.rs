@@ -1,4 +1,4 @@
-use crate::hasher::cache;
+use crate::hasher::{HashPipelineIo, SystemHashPipelineIo};
 use crate::progress::{FolderAnalysisSubstage, ProgressReporter};
 use crate::storage::models::{ExactFolderGroupInsert, ScannedFile};
 use crate::storage::Database;
@@ -18,7 +18,10 @@ const PROGRESS_BATCH_SIZE: usize = 1_024;
 pub struct ExactFolderAnalysis {
     pub visible_groups: usize,
     pub retained_groups: usize,
+    /// Candidate folders omitted because a file changed, became unavailable, or failed to hash.
     pub warning_count: usize,
+    /// Files that were verified, but whose hash-cache lookup or store degraded to a content read.
+    pub cache_warning_count: usize,
     pub directory_fingerprints: usize,
     pub scanned_file_passes: usize,
     pub largest_persistence_batch: usize,
@@ -78,11 +81,31 @@ enum VerifiedAtom {
 /// Find exact duplicate folders from one ordered file stream and one bottom-up directory tree.
 /// Each file snapshot is retained only by its direct parent; ancestors carry constant-size Merkle
 /// state rather than cloned file records or descendant hash sets.
+///
+/// Files without a pipeline content hash are hashed from content without a persistent cache.
 pub fn analyze_exact_folders_cancellable(
     db: &Database,
     run_id: i64,
     cancel_token: &AtomicBool,
     progress: &dyn ProgressReporter,
+) -> Result<ExactFolderAnalysis, crate::Error> {
+    analyze_exact_folders_with_hash_io(
+        db,
+        run_id,
+        cancel_token,
+        progress,
+        &SystemHashPipelineIo::default(),
+    )
+}
+
+/// Exact-folder analysis that hashes on demand through the scan's own hash IO, so verification
+/// shares the one open hash-cache store instead of opening a second handle to it.
+pub(crate) fn analyze_exact_folders_with_hash_io(
+    db: &Database,
+    run_id: i64,
+    cancel_token: &AtomicBool,
+    progress: &dyn ProgressReporter,
+    hash_io: &dyn HashPipelineIo,
 ) -> Result<ExactFolderAnalysis, crate::Error> {
     check_cancelled(cancel_token)?;
     let total_files: usize = db.connection().query_row(
@@ -177,6 +200,7 @@ pub fn analyze_exact_folders_cancellable(
     let mut verified_classes = BTreeMap::<(u64, Vec<VerifiedAtom>), u64>::new();
     let mut next_verified_class = 1u64;
     let mut warning_count = 0usize;
+    let mut cache_warning_count = 0usize;
     let verification_total = directories
         .iter()
         .filter(|directory| {
@@ -207,9 +231,15 @@ pub fn analyze_exact_folders_cancellable(
         let mut key = Vec::new();
         let mut valid = true;
         for file in &directories[index].direct_files {
-            match verified_file_hash(db, run_id, file, cancel_token) {
+            match verified_file_hash(db, run_id, file, cancel_token, hash_io) {
                 Ok((hash, cache_warning)) => {
-                    warning_count += usize::from(cache_warning);
+                    if let Some(cache_warning) = cache_warning {
+                        cache_warning_count += 1;
+                        tracing::warn!(
+                            "Exact-folder candidate file {} was verified from content: {cache_warning}",
+                            file.canonical_path
+                        );
+                    }
                     key.push(VerifiedAtom::File(file.name.clone(), file.size, hash));
                 }
                 Err(crate::Error::Cancelled) => return Err(crate::Error::Cancelled),
@@ -347,6 +377,7 @@ pub fn analyze_exact_folders_cancellable(
         visible_groups,
         retained_groups: inserts.len(),
         warning_count,
+        cache_warning_count,
         directory_fingerprints: directories.len(),
         scanned_file_passes: 1,
         largest_persistence_batch: directories.len().min(PERSIST_BATCH_SIZE),
@@ -422,20 +453,37 @@ fn ensure_directory(
     index
 }
 
+/// Returns the verified content hash and any recoverable cache warning raised while obtaining it.
 fn verified_file_hash(
     db: &Database,
     run_id: i64,
     file: &CandidateFile,
     cancel_token: &AtomicBool,
-) -> Result<(i64, bool), crate::Error> {
+    hash_io: &dyn HashPipelineIo,
+) -> Result<(i64, Option<String>), crate::Error> {
     validate_candidate_metadata(file)?;
     if let Some(hash) = file.content_hash {
-        return Ok((hash, false));
+        return Ok((hash, None));
     }
-    let outcome =
-        cache::get_content_hash_cancellable(Path::new(&file.canonical_path), cancel_token)?;
-    db.update_scanned_file_content_hash(run_id, file.id, outcome.hash as i64)?;
-    Ok((outcome.hash as i64, outcome.warning.is_some()))
+    // The repeat cache keys a full hash to the verified partial read of the same signature, so
+    // take the same partial-then-full path the hash pipeline takes. Partial hits read no content.
+    let path = Path::new(&file.canonical_path);
+    let partial = hash_io.partial_hash(path, cancel_token)?;
+    let media = crate::platform::storage_device_for_path(path).media;
+    let full = hash_io.full_hash(
+        path,
+        partial.hash,
+        partial.verified_signature.as_ref(),
+        media,
+        cancel_token,
+        &mut |_| Ok(()),
+    )?;
+    db.update_scanned_file_content_hash(run_id, file.id, full.hash as i64)?;
+    let warning = match (partial.warning, full.warning) {
+        (Some(partial), Some(full)) => Some(format!("{partial}; {full}")),
+        (partial, full) => partial.or(full),
+    };
+    Ok((full.hash as i64, warning))
 }
 
 fn validate_candidate_metadata(file: &CandidateFile) -> std::io::Result<()> {
@@ -726,5 +774,113 @@ fn check_cancelled(cancel_token: &AtomicBool) -> Result<(), crate::Error> {
         Err(crate::Error::Cancelled)
     } else {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hasher::xxhash::{FullHashIoEvent, FullHashRead, PartialHashRead};
+    use crate::storage::models::RunParameters;
+    use crate::SilentReporter;
+    use std::io;
+
+    /// Hashes every file to the same value while reporting that the cache degraded.
+    struct DegradedCacheIo;
+
+    impl HashPipelineIo for DegradedCacheIo {
+        fn partial_hash(&self, _path: &Path, _cancel: &AtomicBool) -> io::Result<PartialHashRead> {
+            Ok(PartialHashRead {
+                hash: 1,
+                physical_bytes_read: 0,
+                cache_outcome: Some(crate::hasher::cache::CacheLookupOutcome::Error),
+                cache_stored: false,
+                warning: Some("Repeat hash cache is unavailable: locked".into()),
+                verified_signature: None,
+            })
+        }
+
+        fn full_hash(
+            &self,
+            _path: &Path,
+            _partial_hash: u64,
+            _partial_signature: Option<&crate::hasher::repeat_cache::CacheSignatureKey>,
+            _media: crate::platform::StorageMediaClass,
+            _cancel: &AtomicBool,
+            _observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
+        ) -> io::Result<FullHashRead> {
+            Ok(FullHashRead {
+                hash: 2,
+                warning: None,
+                cache_outcome: Some(crate::hasher::cache::CacheLookupOutcome::Error),
+                cache_stored: false,
+            })
+        }
+    }
+
+    #[test]
+    fn cache_degradation_is_counted_apart_from_unverified_candidates() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().to_string_lossy().into_owned();
+        let db = Database::open_in_memory().unwrap();
+        let session = db
+            .create_session("degraded", std::slice::from_ref(&root), &[])
+            .unwrap();
+        let run = db
+            .create_scan_run(
+                session,
+                &RunParameters {
+                    roots: vec![root.clone()],
+                    ignore_patterns: vec![],
+                    directory_similarity_threshold_millis: 500,
+                    repeat_cache_policy: Default::default(),
+                    cloud_policy: Default::default(),
+                    manual_location_exclusions: vec![],
+                    registered_cloud_locations: vec![],
+                    cloud_detection_status: Default::default(),
+                },
+                "test",
+            )
+            .unwrap();
+        db.start_scan_run(run).unwrap();
+        let files = ["left", "right"]
+            .into_iter()
+            .map(|folder| {
+                let path = temp.path().join(folder).join("item.bin");
+                fs::create_dir_all(path.parent().unwrap()).unwrap();
+                fs::write(&path, [7u8; 16]).unwrap();
+                ScannedFile {
+                    id: 0,
+                    run_id: run,
+                    root_path: root.clone(),
+                    canonical_path: path.to_string_lossy().into_owned(),
+                    relative_path: format!("{folder}/item.bin"),
+                    file_name: "item.bin".into(),
+                    parent_dir: path.parent().unwrap().to_string_lossy().into_owned(),
+                    drive_letter: String::new(),
+                    file_size: 16,
+                    last_modified: 0,
+                    partial_hash: None,
+                    content_hash: None,
+                    file_identity: None,
+                    warning_message: None,
+                    marked_deleted: false,
+                }
+            })
+            .collect::<Vec<_>>();
+        db.insert_scanned_files(&files).unwrap();
+
+        let analysis = analyze_exact_folders_with_hash_io(
+            &db,
+            run,
+            &AtomicBool::new(false),
+            &SilentReporter,
+            &DegradedCacheIo,
+        )
+        .unwrap();
+
+        assert_eq!(analysis.visible_groups, 1, "verified folders stay visible");
+        assert_eq!(analysis.warning_count, 0, "no candidate was omitted");
+        assert_eq!(analysis.cache_warning_count, 2);
     }
 }

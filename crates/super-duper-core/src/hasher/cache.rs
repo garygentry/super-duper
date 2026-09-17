@@ -1,38 +1,15 @@
-use rocksdb::{IteratorMode, Options, DB};
+//! Public maintenance entry points for the content-hash cache store.
+//!
+//! Scans own exactly one [`super::repeat_cache::RepeatHashCache`] handle and pass it through the
+//! hash pipeline and exact-folder verification. RocksDB locks its directory even against a second
+//! open from the same process, so nothing here keeps a process-global handle.
+
 use std::env;
-use std::fs;
-use std::io::{self, ErrorKind};
-use std::path::Path;
-use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
-use tracing::{debug, error, info, trace};
+use std::io;
+use std::path::{Path, PathBuf};
+use tracing::{error, info};
 
-use super::xxhash::FullHashIoEvent;
-
-static DEFAULT_HASH_CACHE_PATH: &str = "content_hash_cache.db";
-
-lazy_static::lazy_static! {
-    pub static ref DB_INSTANCE: Arc<Mutex<Result<DB, String>>> = {
-        let db_path = env::var("HASH_CACHE_PATH")
-            .unwrap_or_else(|_| String::from(DEFAULT_HASH_CACHE_PATH));
-        debug!("Using '{}' for hash cache", db_path);
-
-        let mut db_options = Options::default();
-        db_options.create_if_missing(true);
-        let db_instance = DB::open(&db_options, db_path).map_err(|error| error.to_string());
-        Arc::new(Mutex::new(db_instance))
-    };
-}
-
-#[derive(Debug)]
-pub struct CachedHash {
-    pub hash: u64,
-    pub warning: Option<String>,
-    pub cache_outcome: CacheLookupOutcome,
-    pub content_bytes_read: u64,
-    pub cache_stored: bool,
-}
+const DEFAULT_HASH_CACHE_PATH: &str = "content_hash_cache.db";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CacheLookupOutcome {
@@ -41,184 +18,77 @@ pub enum CacheLookupOutcome {
     Error,
 }
 
-/// Compatibility entry point for callers that do not need cancellation or cache warnings.
-pub fn get_content_hash(file: &Path) -> io::Result<u64> {
-    let cancel = AtomicBool::new(false);
-    Ok(get_content_hash_cancellable(file, &cancel)?.hash)
+/// `HASH_CACHE_PATH`, or `content_hash_cache.db` in the working directory.
+pub fn default_hash_cache_path() -> PathBuf {
+    env::var_os("HASH_CACHE_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(DEFAULT_HASH_CACHE_PATH))
 }
 
-/// Look up a file hash with short cache critical sections. Cache failures are returned as a
-/// warning after the file is hashed so callers can safely continue the scan.
-pub fn get_content_hash_cancellable(
-    file: &Path,
-    cancel_token: &AtomicBool,
-) -> io::Result<CachedHash> {
-    let media = crate::platform::storage_device_for_path(file).media;
-    let buffer_length = super::xxhash::stream_buffer_length(media);
-    get_content_hash_cancellable_observed(
-        file,
-        cancel_token,
-        buffer_length,
-        super::xxhash::stream_sequential_hint(media),
-        &mut |_| Ok(()),
-    )
+/// Count cached file entries without locking the store.
+pub fn count_entries(path: &Path) -> io::Result<u64> {
+    super::repeat_cache::count_live_entries(path)
 }
 
-pub(crate) fn get_content_hash_cancellable_observed(
-    file: &Path,
-    cancel_token: &AtomicBool,
-    buffer_length: usize,
-    sequential_hint: bool,
-    observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
-) -> io::Result<CachedHash> {
-    let canonical_path = fs::canonicalize(file)?.to_string_lossy().into_owned();
-    let metadata = fs::metadata(file)?;
-    let size = metadata.len();
-    let modified_timestamp = metadata_modified_timestamp(&metadata)?;
-
-    // Include subsec_nanos for precision (fixes second-granularity cache key issue)
-    let key = format!(
-        "{}|{}|{}.{}",
-        canonical_path,
-        size,
-        modified_timestamp.as_secs(),
-        modified_timestamp.subsec_nanos()
-    );
-    let db_key = key.into_bytes();
-
-    let lookup = DB_INSTANCE
-        .lock()
-        .map_err(|e| io::Error::new(ErrorKind::Other, format!("Failed to lock cache: {e}")))
-        .and_then(|db| match db.as_ref() {
-            Ok(db) => db
-                .get(&db_key)
-                .map_err(|e| io::Error::new(ErrorKind::Other, e)),
-            Err(error) => Err(io::Error::new(ErrorKind::Other, error.clone())),
-        });
-
-    let mut warning = None;
-    let mut cache_outcome = CacheLookupOutcome::Miss;
-    match lookup {
-        Ok(Some(value)) => match bincode::deserialize::<u64>(&value) {
-            Ok(hash) => {
-                trace!("Found hash for {} in cache", file.display());
-                observe(FullHashIoEvent::CacheLookup(CacheLookupOutcome::Hit))?;
-                return Ok(CachedHash {
-                    hash,
-                    warning: None,
-                    cache_outcome: CacheLookupOutcome::Hit,
-                    content_bytes_read: 0,
-                    cache_stored: false,
-                });
-            }
-            Err(error) => {
-                warning = Some(format!("Hash cache entry could not be decoded: {error}"));
-                cache_outcome = CacheLookupOutcome::Error;
-            }
-        },
-        Ok(None) => {}
-        Err(error) => {
-            warning = Some(format!("Hash cache lookup failed: {error}"));
-            cache_outcome = CacheLookupOutcome::Error;
-        }
-    }
-
-    observe(FullHashIoEvent::CacheLookup(cache_outcome))?;
-    let hash = super::xxhash::hash_file_streaming_observed_with_options(
-        file,
-        cancel_token,
-        buffer_length,
-        sequential_hint,
-        observe,
-    )?;
-    let metadata_after_hash = fs::metadata(file)?;
-    if metadata_after_hash.len() != size
-        || metadata_modified_timestamp(&metadata_after_hash)? != modified_timestamp
-    {
-        return Err(io::Error::new(
-            ErrorKind::InvalidData,
-            "file changed while it was being hashed",
-        ));
-    }
-    trace!(
-        "No usable hash found for {} in cache, adding",
-        file.display()
-    );
-    let store = bincode::serialize(&hash)
-        .map_err(|e| io::Error::new(ErrorKind::Other, format!("Serialize error: {e}")))
-        .and_then(|serialized| {
-            DB_INSTANCE
-                .lock()
-                .map_err(|e| io::Error::new(ErrorKind::Other, format!("Failed to lock cache: {e}")))
-                .and_then(|db| match db.as_ref() {
-                    Ok(db) => db
-                        .put(&db_key, serialized)
-                        .map_err(|e| io::Error::new(ErrorKind::Other, e)),
-                    Err(error) => Err(io::Error::new(ErrorKind::Other, error.clone())),
-                })
-        });
-    let cache_stored = store.is_ok();
-    if let Err(error) = store {
-        let message = format!("Hash cache store failed: {error}");
-        warning = Some(match warning {
-            Some(previous) => format!("{previous}; {message}"),
-            None => message,
-        });
-    }
-    Ok(CachedHash {
-        hash,
-        warning,
-        cache_outcome,
-        content_bytes_read: size,
-        cache_stored,
-    })
-}
-
-fn metadata_modified_timestamp(metadata: &fs::Metadata) -> io::Result<std::time::Duration> {
-    let modified: SystemTime = metadata.modified()?;
-    modified
-        .duration_since(UNIX_EPOCH)
-        .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))
-}
-
-pub fn count_keys() -> Result<usize, io::Error> {
-    let db = DB_INSTANCE
-        .lock()
-        .map_err(|e| io::Error::new(ErrorKind::Other, format!("Failed to lock cache: {}", e)))?;
-    let db = db
-        .as_ref()
-        .map_err(|error| io::Error::new(ErrorKind::Other, error.clone()))?;
-
-    let mut count = 0usize;
-    let iterator = DB::iterator(db, IteratorMode::Start);
-    for _ in iterator {
-        count += 1;
-    }
-    Ok(count)
-}
-
-pub fn clear_all() -> io::Result<()> {
-    let db = DB_INSTANCE
-        .lock()
-        .map_err(|e| io::Error::new(ErrorKind::Other, format!("Failed to lock cache: {}", e)))?;
-    let db = db
-        .as_ref()
-        .map_err(|error| io::Error::new(ErrorKind::Other, error.clone()))?;
-
-    let mut batch = rocksdb::WriteBatch::default();
-    for item in db.iterator(IteratorMode::Start) {
-        let (key, _) = item.map_err(|e| io::Error::new(ErrorKind::Other, e))?;
-        batch.delete(&key);
-    }
-    db.write(batch)
-        .map_err(|e| io::Error::new(ErrorKind::Other, e))?;
-    info!("Hash cache cleared");
+/// Remove every cached entry. Fails while a scan holds the store.
+pub fn clear_all(path: &Path) -> io::Result<()> {
+    super::repeat_cache::clear_store(path)?;
+    info!("Hash cache '{}' cleared", path.display());
     Ok(())
 }
 
-pub fn print_count() {
-    match count_keys() {
-        Ok(count) => info!("Total keys in hash cache: {}", count),
-        Err(e) => error!("Error counting cache keys: {}", e),
+pub fn print_count(path: &Path) {
+    match count_entries(path) {
+        Ok(count) => info!(
+            "Total entries in hash cache '{}': {}",
+            path.display(),
+            count
+        ),
+        Err(e) => error!("Error counting hash cache entries: {}", e),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hasher::repeat_cache::{CacheSignatureKey, RepeatHashCache};
+    use tempfile::TempDir;
+
+    #[test]
+    fn maintenance_counts_without_locking_and_clears_only_when_unlocked() {
+        let temp = TempDir::new().unwrap();
+        let path = temp.path().join("cache");
+        assert_eq!(count_entries(&path).unwrap(), 0);
+
+        let cache = RepeatHashCache::open(&path).unwrap();
+        let signature = CacheSignatureKey {
+            stable_identity: "volume:1:file:1".into(),
+            size: 4096,
+            modified_unix_nanos: 1,
+            content_change_token: "change:1".into(),
+        };
+        cache.store_full(&signature, 7, 11).unwrap();
+        assert_eq!(
+            count_entries(&path).unwrap(),
+            1,
+            "count reads an open store"
+        );
+        assert!(
+            clear_all(&path).is_err(),
+            "clear must not race an open handle"
+        );
+        drop(cache);
+
+        clear_all(&path).unwrap();
+        assert_eq!(count_entries(&path).unwrap(), 0);
+        let reopened = RepeatHashCache::open(&path).unwrap();
+        cache_is_empty(&reopened, &signature);
+    }
+
+    fn cache_is_empty(cache: &RepeatHashCache, signature: &CacheSignatureKey) {
+        assert_eq!(
+            cache.lookup(signature).unwrap(),
+            crate::hasher::repeat_cache::RepeatCacheLookup::Miss
+        );
     }
 }

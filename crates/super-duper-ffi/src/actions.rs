@@ -464,11 +464,13 @@ pub extern "C" fn sd_delete_all_sessions(handle: u64) -> SdResultCode {
     result.unwrap_or(SdResultCode::InvalidHandle)
 }
 
-/// Clear all entries from the RocksDB hash cache.
+/// Clear all entries from the RocksDB hash cache at `HASH_CACHE_PATH` (default
+/// `content_hash_cache.db`). Fails while a scan holds the cache open.
 /// Does not affect the SQLite database.
 #[no_mangle]
 pub extern "C" fn sd_clear_hash_cache() -> SdResultCode {
-    match super_duper_core::hasher::cache::clear_all() {
+    let cache = super_duper_core::hasher::cache::default_hash_cache_path();
+    match super_duper_core::hasher::cache::clear_all(&cache) {
         Ok(()) => SdResultCode::Ok,
         Err(e) => {
             set_last_error(e.to_string());

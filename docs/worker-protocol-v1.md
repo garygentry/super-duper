@@ -360,7 +360,10 @@ the permanent execution lock:
 
 Schema v14 stores at most three 2,048-character examples per aggregate and never one row per
 occurrence. Discovery, hashing/cache, post-discovery snapshot change, and exact-folder verification
-are the selected categories. A terminal fallback accounts for any otherwise unclassified warning.
+are the selected categories. Exact-folder verification reports two codes:
+`exact_folder_verification_warning` counts candidates that could not be verified and were omitted,
+while `exact_folder_hash_cache_warning` counts files that were verified from content after a hash
+cache operation was unavailable or degraded; those candidates are not omitted. A terminal fallback accounts for any otherwise unclassified warning.
 Pre-v14 runs migrate to an explicit legacy aggregate stating that original examples were not
 retained. Rows are immutable after the run becomes terminal, paging performs no filesystem access,
 and every page is read from one SQLite snapshot. `snapshotState` is `active` for

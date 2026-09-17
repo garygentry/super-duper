@@ -125,7 +125,9 @@ try {
     Assert-Contains $hasherSource 'const SOLID_STATE_STREAM_BUFFER_LENGTH: usize = 1024 * 1024;' 'SSD buffer constant changed.'
     Assert-Contains $hasherSource 'buckets.sort_by(|left, right| right.0.cmp(&left.0));' 'Descending bucket order changed.'
     Assert-Contains $hasherSource 'media != crate::platform::StorageMediaClass::SolidState' 'Media-scoped sequential policy changed.'
-    Assert-Contains $cacheSource 'super::xxhash::stream_sequential_hint(media)' 'Cache hashing bypasses the selected hint policy.'
+    Assert-Contains $hasherSource 'stream_sequential_hint(media),' 'Full hashing bypasses the selected hint policy.'
+    Assert-True (-not [IO.File]::ReadAllText($cacheSource).Contains('hash_file_streaming', [StringComparison]::Ordinal)) `
+        'Cache maintenance started hashing outside the hint-aware hash pipeline.'
     Assert-True (-not [IO.File]::ReadAllText($hasherSource).Contains('reuse_partial_prefix', [StringComparison]::Ordinal)) `
         'Prefix reuse entered the production hash pipeline.'
     Assert-True (-not [IO.File]::ReadAllText($cacheSource).Contains('reuse_partial_prefix', [StringComparison]::Ordinal)) `

@@ -769,9 +769,7 @@ impl ScanEngine {
         Self {
             config,
             db_path: "super_duper.db".to_string(),
-            hash_cache_path: std::env::var_os("HASH_CACHE_PATH")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("content_hash_cache.db")),
+            hash_cache_path: hasher::cache::default_hash_cache_path(),
             repeat_cache_policy: RepeatCachePolicy::default(),
             status_db_path: None,
             status_worker_version: None,
@@ -1345,13 +1343,17 @@ impl ScanEngine {
             analysis_telemetry_start,
         );
         let dir_start = Instant::now();
-        let exact_folder_analysis = exact_folders::analyze_exact_folders_cancellable(
+        // Verification hashes through the same IO (and hash-cache handle) as the hash pipeline:
+        // RocksDB rejects a second open of the store even from this process.
+        let exact_folder_analysis = exact_folders::analyze_exact_folders_with_hash_io(
             db,
             run_id,
             &self.cancel_token,
             progress,
+            &hash_io,
         )?;
-        warning_count += exact_folder_analysis.warning_count;
+        warning_count +=
+            exact_folder_analysis.warning_count + exact_folder_analysis.cache_warning_count;
         telemetry
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -1364,6 +1366,16 @@ impl ScanEngine {
             exact_folder_analysis.warning_count,
             Vec::new(),
             "An exact-folder candidate changed, became unavailable, or could not be hashed safely.",
+        ) {
+            warning_aggregates.push(warning);
+        }
+        if let Some(warning) = warning_aggregate(
+            "analyzing_folders",
+            "exact_folder_hash_cache_warning",
+            "Exact-folder verification completed, but the hash cache was unavailable or degraded for some files, so they were hashed from content.",
+            exact_folder_analysis.cache_warning_count,
+            Vec::new(),
+            "A hash cache operation failed during exact-folder verification; the file was still verified from its content.",
         ) {
             warning_aggregates.push(warning);
         }

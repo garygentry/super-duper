@@ -41,7 +41,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some(Commands::CountHashCache) => {
             info!("Counting content cache hash...");
-            super_duper_core::hasher::cache::print_count();
+            let cache = super_duper_core::hasher::cache::default_hash_cache_path();
+            super_duper_core::hasher::cache::print_count(&cache);
         }
         Some(Commands::PrintConfig) => {
             println!("Configuration: {:?}", config);

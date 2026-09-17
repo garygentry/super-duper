@@ -744,6 +744,51 @@ impl Drop for RepeatHashCache {
     }
 }
 
+/// Count live entries through a read-only handle. Read-only opens take no RocksDB lock, so this
+/// neither fails against nor blocks a scan that holds the store. A missing store has no entries.
+pub(crate) fn count_live_entries(path: &Path) -> io::Result<u64> {
+    if !path.exists() {
+        return Ok(0);
+    }
+    let db = DB::open_for_read_only(&Options::default(), path, false).map_err(rocks_error)?;
+    let mut count = 0u64;
+    for item in db.iterator(IteratorMode::From(ENTRY_PREFIX, Direction::Forward)) {
+        let (key, _) = item.map_err(rocks_error)?;
+        if !key.starts_with(ENTRY_PREFIX) {
+            break;
+        }
+        count = count.checked_add(1).ok_or_else(|| {
+            io::Error::new(ErrorKind::InvalidData, "repeat-cache entry count overflow")
+        })?;
+    }
+    Ok(count)
+}
+
+/// Remove every key, including store metadata and keys written by earlier cache formats; the next
+/// [`RepeatHashCache::open`] reinitializes the store. This takes the store lock, so it fails rather
+/// than racing while any handle (including a scan in this process) has the store open.
+pub(crate) fn clear_store(path: &Path) -> io::Result<()> {
+    let mut options = Options::default();
+    options.create_if_missing(true);
+    let db = DB::open(&options, path).map_err(rocks_error)?;
+    let mut batch = WriteBatch::default();
+    let mut batch_count = 0usize;
+    for item in db.iterator(IteratorMode::Start) {
+        let (key, _) = item.map_err(rocks_error)?;
+        batch.delete(&key);
+        batch_count += 1;
+        if batch_count == PRUNE_BATCH_ENTRIES {
+            db.write(batch).map_err(rocks_error)?;
+            batch = WriteBatch::default();
+            batch_count = 0;
+        }
+    }
+    if batch_count != 0 {
+        db.write(batch).map_err(rocks_error)?;
+    }
+    Ok(())
+}
+
 fn migrate_v2_entries(db: &DB) -> io::Result<()> {
     let mut batch = WriteBatch::default();
     let mut batch_count = 0usize;

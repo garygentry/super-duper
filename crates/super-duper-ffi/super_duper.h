@@ -157,7 +157,8 @@ extern "C" {
 enum SdResultCode sd_auto_mark_for_deletion(uint64_t handle);
 
 /**
- * Clear all entries from the RocksDB hash cache.
+ * Clear all entries from the RocksDB hash cache at `HASH_CACHE_PATH` (default
+ * `content_hash_cache.db`). Fails while a scan holds the cache open.
  * Does not affect the SQLite database.
  */
 enum SdResultCode sd_clear_hash_cache(void);
