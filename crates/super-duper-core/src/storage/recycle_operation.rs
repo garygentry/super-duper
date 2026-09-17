@@ -2,17 +2,17 @@ use std::collections::{BTreeMap, HashSet};
 use std::hash::Hasher;
 
 use chrono::{DateTime, Duration, Utc};
-use rusqlite::{params, OptionalExtension, Row, Transaction, TransactionBehavior};
+use rusqlite::{OptionalExtension, Row, Transaction, TransactionBehavior, params};
 use thiserror::Error;
 use twox_hash::XxHash64;
 
+use super::Database;
 use super::models::{
     RecycleEligibilityObservation, RecycleItemResultObservation, RecycleOperation,
     RecycleOperationBatch, RecycleOperationItem, RecycleOperationItemPage,
     RecycleOperationMutationResult, RecycleOperationSummary, RecycleOperationView,
 };
-use super::preflight::{has_newer_live_evidence, PreflightError};
-use super::Database;
+use super::preflight::{PreflightError, has_newer_live_evidence};
 
 const MAXIMUM_OPERATION_ID_CHARACTERS: usize = 128;
 const MAXIMUM_BATCH_ITEMS: usize = 32;
@@ -50,15 +50,15 @@ pub enum RecycleOperationError {
     OperationLocked { run_id: i64, operation_id: i64 },
     #[error("confirmation for recycle operation {operation_id} expired")]
     ConfirmationExpired { operation_id: i64 },
-    #[error(
-        "submission lease for recycle operation {operation_id} expired before batch admission"
-    )]
+    #[error("submission lease for recycle operation {operation_id} expired before batch admission")]
     SubmissionExpired { operation_id: i64 },
     #[error("item {item_id} does not belong to recycle operation {operation_id}")]
     ItemNotFound { operation_id: i64, item_id: i64 },
     #[error("batch {batch_id} does not belong to recycle operation {operation_id}")]
     BatchNotFound { operation_id: i64, batch_id: i64 },
-    #[error("fresh admission rejected item {item_id} in recycle operation {operation_id}: {reason_code}")]
+    #[error(
+        "fresh admission rejected item {item_id} in recycle operation {operation_id}: {reason_code}"
+    )]
     AdmissionFailed {
         operation_id: i64,
         item_id: i64,
@@ -803,7 +803,7 @@ impl Database {
                 return Err(RecycleOperationError::InvalidState {
                     operation_id,
                     status,
-                })
+                });
             }
         }
         tx.commit()?;
@@ -1176,10 +1176,10 @@ impl Database {
             let mut statement = tx.prepare(
                 "SELECT id FROM recycle_operation_item WHERE batch_id = ?1 ORDER BY ordinal",
             )?;
-            let ids = statement
+
+            statement
                 .query_map(params![batch_id], |row| row.get::<_, i64>(0))?
-                .collect::<Result<Vec<_>, _>>()?;
-            ids
+                .collect::<Result<Vec<_>, _>>()?
         };
         let batch_item_ids = item_ids.iter().copied().collect::<HashSet<_>>();
         if let Some(item_id) = observations_by_id

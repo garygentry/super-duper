@@ -5,16 +5,16 @@ use crate::hasher;
 use crate::platform;
 use crate::progress::ProgressReporter;
 use crate::scanner;
+use crate::storage::Database;
 use crate::storage::models::{
     CloudPolicy, RepeatCachePolicy, RunExclusionInsert, RunParameters, RunWarningAggregateInsert,
     ScannedFile,
 };
-use crate::storage::Database;
 use crate::telemetry::{
-    ActiveDeviceProgress, ActiveDeviceUnavailableReason, ProgressLogicalCounters,
-    ProgressObservation, ProgressReducer, ScanCounters, StatusDatabase, StatusRunStart,
-    StatusRunTerminal, TelemetryFlush, TelemetryPhase, TelemetryPhaseState, TelemetryRunState,
-    METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION,
+    ActiveDeviceProgress, ActiveDeviceUnavailableReason, METRICS_CONTRACT_VERSION,
+    PROGRESS_CONTRACT_VERSION, ProgressLogicalCounters, ProgressObservation, ProgressReducer,
+    ScanCounters, StatusDatabase, StatusRunStart, StatusRunTerminal, TelemetryFlush,
+    TelemetryPhase, TelemetryPhaseState, TelemetryRunState,
 };
 use chrono::Utc;
 use dashmap::DashMap;
@@ -222,7 +222,7 @@ impl RunTelemetry {
 
     fn apply_hash_progress(&mut self, delta: &hasher::HashProgressDelta) -> io::Result<()> {
         macro_rules! checked_add {
-            ($target:expr, $value:expr, $name:literal) => {
+            ($target:expr_2021, $value:expr_2021, $name:literal) => {
                 $target = $target.checked_add($value).ok_or_else(|| {
                     io::Error::new(
                         io::ErrorKind::InvalidData,
@@ -594,13 +594,15 @@ impl TelemetryHeartbeat {
         #[cfg(target_os = "windows")]
         {
             let (stop, receiver) = mpsc::channel();
-            let handle = std::thread::spawn(move || loop {
-                match receiver.recv_timeout(interval) {
-                    Ok(()) | Err(RecvTimeoutError::Disconnected) => break,
-                    Err(RecvTimeoutError::Timeout) => telemetry
-                        .lock()
-                        .unwrap_or_else(|poisoned| poisoned.into_inner())
-                        .sample_current_phase(),
+            let handle = std::thread::spawn(move || {
+                loop {
+                    match receiver.recv_timeout(interval) {
+                        Ok(()) | Err(RecvTimeoutError::Disconnected) => break,
+                        Err(RecvTimeoutError::Timeout) => telemetry
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner())
+                            .sample_current_phase(),
+                    }
                 }
             });
             Some(Self {

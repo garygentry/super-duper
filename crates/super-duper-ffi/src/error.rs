@@ -1,4 +1,4 @@
-use crate::types::{rust_string_to_c, SdResultCode};
+use crate::types::{SdResultCode, rust_string_to_c};
 use std::cell::RefCell;
 use std::ffi::c_char;
 
@@ -28,7 +28,7 @@ pub fn map_core_error(e: super_duper_core::Error) -> SdResultCode {
 ///
 /// # Safety
 /// Caller must free the returned string with `sd_free_string`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sd_last_error_message() -> *mut c_char {
     LAST_ERROR.with(|e| {
         let msg = e.borrow();
@@ -43,9 +43,11 @@ pub extern "C" fn sd_last_error_message() -> *mut c_char {
 ///
 /// # Safety
 /// `ptr` must have been allocated by this library (e.g., from `sd_last_error_message`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sd_free_string(ptr: *mut c_char) {
-    if !ptr.is_null() {
-        drop(std::ffi::CString::from_raw(ptr));
+    unsafe {
+        if !ptr.is_null() {
+            drop(std::ffi::CString::from_raw(ptr));
+        }
     }
 }

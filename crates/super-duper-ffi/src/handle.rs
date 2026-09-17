@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use super_duper_core::storage::Database;
 use super_duper_core::ScanEngine;
+use super_duper_core::storage::Database;
 
 static NEXT_HANDLE: AtomicU64 = AtomicU64::new(1);
 

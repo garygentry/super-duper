@@ -5,16 +5,16 @@ use std::path::Path;
 use std::time::UNIX_EPOCH;
 
 use chrono::Utc;
-use rusqlite::{params, OptionalExtension, Transaction, TransactionBehavior};
+use rusqlite::{OptionalExtension, Transaction, TransactionBehavior, params};
 use thiserror::Error;
 
 use crate::platform::{self, PathSafety};
 
+use super::Database;
 use super::models::{
     CloudPolicy, ReviewDecisionKind, ReviewLiveValidationItem, ReviewLiveValidationRequest,
     ReviewLiveValidationResult, RunParameters,
 };
-use super::Database;
 
 const MAXIMUM_VALIDATION_ITEMS: usize = 200;
 

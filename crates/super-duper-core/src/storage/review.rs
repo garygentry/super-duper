@@ -1,13 +1,13 @@
 use chrono::Utc;
-use rusqlite::{params, OptionalExtension, Transaction, TransactionBehavior};
+use rusqlite::{OptionalExtension, Transaction, TransactionBehavior, params};
 use thiserror::Error;
 
+use super::Database;
 use super::models::{
     ReviewDecisionKind, ReviewDecisionMutation, ReviewFolderDecisionMutation,
     ReviewFolderGroupPage, ReviewFolderGroupSummary, ReviewGroupPage, ReviewGroupSummary,
     ReviewPlan, ReviewPlanSummary, ReviewPlanView,
 };
-use super::Database;
 
 #[derive(Debug, Error)]
 pub enum ReviewError {
@@ -29,11 +29,15 @@ pub enum ReviewError {
     StaleRevision { expected: i64, actual: i64 },
     #[error("operation id {operation_id} was already used for a different review command")]
     IdempotencyConflict { operation_id: String },
-    #[error("removing file {file_id} would leave duplicate group {group_id} without an independently accessible physical copy")]
+    #[error(
+        "removing file {file_id} would leave duplicate group {group_id} without an independently accessible physical copy"
+    )]
     UnsafeRemoval { group_id: i64, file_id: i64 },
     #[error("exact-folder group {folder_group_id} was not found in run {run_id}")]
     FolderGroupNotFound { run_id: i64, folder_group_id: i64 },
-    #[error("folder copy {folder_member_id} is not a visible member of exact-folder group {folder_group_id} in run {run_id}")]
+    #[error(
+        "folder copy {folder_member_id} is not a visible member of exact-folder group {folder_group_id} in run {run_id}"
+    )]
     FolderMemberNotFound {
         run_id: i64,
         folder_group_id: i64,
@@ -48,9 +52,13 @@ pub enum ReviewError {
         second_kind: String,
         second_id: i64,
     },
-    #[error("review decisions would leave duplicate-file group {duplicate_group_id} without an independently accessible physical copy")]
+    #[error(
+        "review decisions would leave duplicate-file group {duplicate_group_id} without an independently accessible physical copy"
+    )]
     UnsafePhysicalRemoval { duplicate_group_id: i64 },
-    #[error("review decisions would leave exact-folder group {folder_group_id} without an intact independently accessible copy")]
+    #[error(
+        "review decisions would leave exact-folder group {folder_group_id} without an intact independently accessible copy"
+    )]
     UnsafeFolderRemoval { folder_group_id: i64 },
     #[error("run {run_id} is locked by recycle operation {operation_id}")]
     OperationLocked { run_id: i64, operation_id: i64 },

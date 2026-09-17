@@ -1,15 +1,15 @@
 use super::repeat_cache::{
-    RepeatHashCache, ACTIVE_HARD_HIGH_WATER_ENTRIES, NORMAL_LIVE_TARGET_ENTRIES,
-    POST_PRUNE_TARGET_ENTRIES, STORE_SCHEMA_VERSION,
+    ACTIVE_HARD_HIGH_WATER_ENTRIES, NORMAL_LIVE_TARGET_ENTRIES, POST_PRUNE_TARGET_ENTRIES,
+    RepeatHashCache, STORE_SCHEMA_VERSION,
 };
 use super::xxhash::{
-    build_content_hash_map_with_progress, HashProgressDelta, HashProgressSink, SystemHashPipelineIo,
+    HashProgressDelta, HashProgressSink, SystemHashPipelineIo, build_content_hash_map_with_progress,
 };
 use crate::progress::SilentReporter;
 use crate::storage::models::RepeatCachePolicy;
 use crate::telemetry::{SamplerPlatform, WindowsSamplerPlatform};
 use dashmap::DashMap;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fs::{self, OpenOptions};
 use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -301,9 +301,12 @@ fn small_fixture_and_evidence_contract_is_exact() {
     assert_eq!(contents[0], contents[1]);
     assert_eq!(contents[2], contents[3]);
     assert_ne!(contents[0], contents[2]);
-    assert!(contents
-        .iter()
-        .all(|content| content[..PARTIAL_BYTES as usize] == contents[0][..PARTIAL_BYTES as usize]));
+    assert!(
+        contents
+            .iter()
+            .all(|content| content[..PARTIAL_BYTES as usize]
+                == contents[0][..PARTIAL_BYTES as usize])
+    );
     assert!(Path::new("docs/evidence/scan-repeat-cache-policy-20260827.json").is_relative());
 }
 

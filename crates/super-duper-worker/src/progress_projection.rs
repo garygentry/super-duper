@@ -1,4 +1,4 @@
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use super_duper_core::telemetry::ScanProgressSnapshot;
 
 pub(crate) const PROGRESS_EVENT_INTERVAL_NANOS: u64 = 100_000_000;
@@ -280,10 +280,10 @@ fn decimal_field(object: &mut Map<String, Value>, field: &'static str) -> Result
 mod tests {
     use super::*;
     use super_duper_core::telemetry::{
-        ActiveDeviceProgress, ActiveDeviceUnavailableReason, CandidateFunnelProgress, ProgressEta,
-        ProgressLogicalCounters, ProgressQuantity, ProgressRate, ProgressRateValue, ProgressRates,
-        RemainingKnownWork, RemainingWorkStage, ScanCounters, TelemetryPhase,
-        METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION,
+        ActiveDeviceProgress, ActiveDeviceUnavailableReason, CandidateFunnelProgress,
+        METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION, ProgressEta, ProgressLogicalCounters,
+        ProgressQuantity, ProgressRate, ProgressRateValue, ProgressRates, RemainingKnownWork,
+        RemainingWorkStage, ScanCounters, TelemetryPhase,
     };
 
     #[test]
@@ -301,11 +301,13 @@ mod tests {
             emitted.iter().map(|value| value.value).collect::<Vec<_>>(),
             vec![0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 999]
         );
-        assert!(emitted
-            .windows(2)
-            .all(|pair| pair[0].sequence < pair[1].sequence
-                && pair[1].emitted_at_nanos - pair[0].emitted_at_nanos
-                    >= PROGRESS_EVENT_INTERVAL_NANOS));
+        assert!(
+            emitted
+                .windows(2)
+                .all(|pair| pair[0].sequence < pair[1].sequence
+                    && pair[1].emitted_at_nanos - pair[0].emitted_at_nanos
+                        >= PROGRESS_EVENT_INTERVAL_NANOS)
+        );
         for window_start_millis in 0..=1_000_u64 {
             let start = window_start_millis * 1_000_000;
             let end = start + 1_000_000_000;
@@ -328,9 +330,11 @@ mod tests {
             coalescer.offer(0, "discovering", false).unwrap().sequence,
             1
         );
-        assert!(coalescer
-            .offer(10_000_000, "candidate_screening", false)
-            .is_none());
+        assert!(
+            coalescer
+                .offer(10_000_000, "candidate_screening", false)
+                .is_none()
+        );
         assert!(coalescer.offer(20_000_000, "persisting", true).is_none());
         assert!(coalescer.offer(99_999_999, "finalizing", false).is_none());
         let emission = coalescer.take_due(100_000_000).unwrap();
@@ -346,9 +350,11 @@ mod tests {
         assert!(coalescer.offer(1, 2, false).is_none());
         coalescer.terminate();
         assert!(coalescer.take_due(PROGRESS_EVENT_INTERVAL_NANOS).is_none());
-        assert!(coalescer
-            .offer(PROGRESS_EVENT_INTERVAL_NANOS, 3, false)
-            .is_none());
+        assert!(
+            coalescer
+                .offer(PROGRESS_EVENT_INTERVAL_NANOS, 3, false)
+                .is_none()
+        );
     }
 
     #[test]

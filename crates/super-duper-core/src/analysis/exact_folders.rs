@@ -1,7 +1,7 @@
 use crate::hasher::{HashPipelineIo, SystemHashPipelineIo};
 use crate::progress::{FolderAnalysisSubstage, ProgressReporter};
-use crate::storage::models::{ExactFolderGroupInsert, ScannedFile};
 use crate::storage::Database;
+use crate::storage::models::{ExactFolderGroupInsert, ScannedFile};
 use rusqlite::params;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
@@ -782,9 +782,9 @@ fn check_cancelled(cancel_token: &AtomicBool) -> Result<(), crate::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::SilentReporter;
     use crate::hasher::xxhash::{FullHashIoEvent, FullHashRead, PartialHashRead};
     use crate::storage::models::RunParameters;
-    use crate::SilentReporter;
     use std::io;
 
     /// Hashes every file to the same value while reporting that the cache degraded.

@@ -329,7 +329,8 @@ fn collect_host_rows(connection: &Connection, run_id: i64) -> rusqlite::Result<V
                 process_write_operations, process_write_bytes, unavailable_counter_count
            FROM status_host_sample WHERE run_id = ?1 ORDER BY sequence LIMIT 100000",
     )?;
-    let rows = statement
+
+    statement
         .query_map([run_id], |row| {
             Ok([
                 row.get::<_, Option<i64>>(0)?
@@ -352,8 +353,7 @@ fn collect_host_rows(connection: &Connection, run_id: i64) -> rusqlite::Result<V
                     .map(|value| value.max(0) as u64),
             ])
         })?
-        .collect();
-    rows
+        .collect()
 }
 
 fn collect_device_rows(
@@ -367,7 +367,8 @@ fn collect_device_rows(
            FROM status_device_sample
           WHERE run_id = ?1 AND device_key = ?2 ORDER BY sequence LIMIT 100000",
     )?;
-    let rows = statement
+
+    statement
         .query_map(rusqlite::params![run_id, device_key], |row| {
             Ok([
                 row.get::<_, Option<i64>>(0)?
@@ -384,8 +385,7 @@ fn collect_device_rows(
                     .map(|value| value.max(0) as u64),
             ])
         })?
-        .collect();
-    rows
+        .collect()
 }
 
 fn distribution(values: Vec<Option<u64>>) -> Distribution {

@@ -1,11 +1,11 @@
 use crate::storage::models::RepeatCachePolicy;
-use rocksdb::{Direction, IteratorMode, Options, WriteBatch, DB};
+use rocksdb::{DB, Direction, IteratorMode, Options, WriteBatch};
 use serde::{Deserialize, Serialize};
 use std::io::{self, ErrorKind};
 use std::path::Path;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub(crate) const STORE_SCHEMA_VERSION: u32 = 3;
 const SCHEMA_KEY: &[u8] = b"\0super-duper/repeat-cache/schema";
@@ -115,7 +115,7 @@ pub(crate) fn observe_content_signature(
         Err(_) => {
             return ContentSignatureObservation::Ineligible(
                 SignatureIneligibleReason::MetadataUnavailable,
-            )
+            );
         }
     };
     let stable_identity = match metadata.stable_identity {
@@ -123,7 +123,7 @@ pub(crate) fn observe_content_signature(
         None => {
             return ContentSignatureObservation::Ineligible(
                 SignatureIneligibleReason::StableIdentityUnavailable,
-            )
+            );
         }
     };
     let modified_unix_nanos = match metadata.modified_unix_nanos {
@@ -131,7 +131,7 @@ pub(crate) fn observe_content_signature(
         _ => {
             return ContentSignatureObservation::Ineligible(
                 SignatureIneligibleReason::ModifiedTimeUnavailable,
-            )
+            );
         }
     };
     if metadata.modified_time_is_coarse {
@@ -144,7 +144,7 @@ pub(crate) fn observe_content_signature(
         None => {
             return ContentSignatureObservation::Ineligible(
                 SignatureIneligibleReason::ContentChangeTokenUnavailable,
-            )
+            );
         }
     };
     let signature = CacheSignatureKey {
@@ -803,19 +803,18 @@ fn migrate_v2_entries(db: &DB) -> io::Result<()> {
         }
         if let Ok((entry, _)) =
             bincode::serde::decode_from_slice::<StoredEntryV2, _>(&value, STORED_ENCODING)
+            && entry.version == 2
         {
-            if entry.version == 2 {
-                batch.put(
-                    key,
-                    encode_entry(StoredEntry {
-                        version: STORE_SCHEMA_VERSION,
-                        sequence: entry.sequence,
-                        generation: 0,
-                        hashes: entry.hashes,
-                    })?,
-                );
-                batch_count += 1;
-            }
+            batch.put(
+                key,
+                encode_entry(StoredEntry {
+                    version: STORE_SCHEMA_VERSION,
+                    sequence: entry.sequence,
+                    generation: 0,
+                    hashes: entry.hashes,
+                })?,
+            );
+            batch_count += 1;
         }
         if batch_count == PRUNE_BATCH_ENTRIES {
             db.write(batch).map_err(rocks_error)?;
@@ -1393,16 +1392,20 @@ mod tests {
         );
         assert_eq!(cache.read_count().unwrap(), 1);
         assert_eq!(cache.read_next_sequence().unwrap(), 42);
-        assert!(cache
-            .db
-            .get(encode_order_key(41, &encoded_key).unwrap())
-            .unwrap()
-            .is_some());
-        assert!(cache
-            .db
-            .get(encode_order_key(5, b"missing-entry").unwrap())
-            .unwrap()
-            .is_none());
+        assert!(
+            cache
+                .db
+                .get(encode_order_key(41, &encoded_key).unwrap())
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            cache
+                .db
+                .get(encode_order_key(5, b"missing-entry").unwrap())
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]

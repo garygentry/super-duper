@@ -4,16 +4,16 @@ use std::fs::{self, OpenOptions};
 use std::hash::Hasher;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
+use super_duper_core::SilentReporter;
 use super_duper_core::analysis::exact_folders;
+use super_duper_core::storage::Database;
 use super_duper_core::storage::models::{
     DuplicateFolderGroupFilter, DuplicateFolderGroupPageQuery, DuplicateFolderGroupSortField,
     RunParameters, ScannedFile, SortDirection,
 };
-use super_duper_core::storage::Database;
-use super_duper_core::SilentReporter;
 use tempfile::TempDir;
 use twox_hash::XxHash64;
 

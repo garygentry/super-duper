@@ -1,4 +1,4 @@
-use std::ffi::{c_char, CStr, CString};
+use std::ffi::{CStr, CString, c_char};
 use std::ptr;
 
 /// Result codes returned by all FFI functions.
@@ -141,8 +141,10 @@ pub fn rust_string_to_c(s: &str) -> *mut c_char {
 /// # Safety
 /// The caller must ensure `ptr` is a valid null-terminated C string.
 pub unsafe fn c_string_to_rust(ptr: *const c_char) -> Option<String> {
-    if ptr.is_null() {
-        return None;
+    unsafe {
+        if ptr.is_null() {
+            return None;
+        }
+        CStr::from_ptr(ptr).to_str().ok().map(|s| s.to_string())
     }
-    CStr::from_ptr(ptr).to_str().ok().map(|s| s.to_string())
 }

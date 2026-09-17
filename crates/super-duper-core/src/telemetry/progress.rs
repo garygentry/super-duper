@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::{
-    CounterKind, MetricInvariantError, ScanCounters, TelemetryPhase, METRICS_CONTRACT_VERSION,
+    CounterKind, METRICS_CONTRACT_VERSION, MetricInvariantError, ScanCounters, TelemetryPhase,
 };
 
 pub const PROGRESS_CONTRACT_VERSION: u32 = 1;

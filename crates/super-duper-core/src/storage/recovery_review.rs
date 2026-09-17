@@ -1,16 +1,16 @@
 use std::hash::Hasher;
 
 use chrono::{DateTime, Utc};
-use rusqlite::{params, types::Type, OptionalExtension, Row, Transaction, TransactionBehavior};
+use rusqlite::{OptionalExtension, Row, Transaction, TransactionBehavior, params, types::Type};
 use thiserror::Error;
 use twox_hash::XxHash64;
 
+use super::Database;
 use super::models::{
     RecoveryObservationKind, RecoveryReviewMutationResult, RecoveryReviewObservation,
     RecoveryReviewObservationInput, RecoveryReviewObservationPage, RecoveryReviewState,
     RecoveryReviewSummary,
 };
-use super::Database;
 
 const MAXIMUM_REQUEST_ID_CHARACTERS: usize = 128;
 const MAXIMUM_NOTE_CHARACTERS: usize = 1_000;

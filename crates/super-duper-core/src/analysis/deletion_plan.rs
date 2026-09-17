@@ -1,8 +1,8 @@
 use crate::hasher::xxhash::hash_file_streaming;
 use crate::platform::{self, PathSafety};
+use crate::storage::Database;
 use crate::storage::models::ScannedFile;
 use crate::storage::queries::like_prefix_pattern;
-use crate::storage::Database;
 use rusqlite::params;
 use std::collections::HashSet;
 use std::fs;

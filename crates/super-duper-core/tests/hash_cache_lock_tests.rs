@@ -5,12 +5,12 @@
 
 use std::fs;
 use std::path::Path;
-use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
 
 use super_duper_core::analysis::exact_folders;
-use super_duper_core::storage::models::{RunParameters, ScannedFile};
 use super_duper_core::storage::Database;
+use super_duper_core::storage::models::{RunParameters, ScannedFile};
 use super_duper_core::telemetry::ProgressObservation;
 use super_duper_core::{AppConfig, ProgressReporter, ScanEngine, SilentReporter};
 use tempfile::tempdir;
@@ -51,7 +51,9 @@ fn unhashed_file(run_id: i64, root: &Path, folder: &str, byte: u8) -> ScannedFil
 fn standalone_exact_folder_analysis_does_not_lock_out_a_later_engine_run() {
     let temp = tempdir().unwrap();
     let cache_path = temp.path().join("content_hash_cache.db");
-    std::env::set_var("HASH_CACHE_PATH", &cache_path);
+    // SAFETY: this file is its own test binary and holds exactly one test, so nothing else in
+    // this process reads or writes the environment while this runs.
+    unsafe { std::env::set_var("HASH_CACHE_PATH", &cache_path) };
 
     let fixture_root = temp.path().join("fixture");
     let fixture = Database::open_in_memory().unwrap();

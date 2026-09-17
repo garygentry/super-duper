@@ -249,7 +249,7 @@ fn read_full_unbuffered(
     buffer_bytes: usize,
     cancel: &AtomicBool,
 ) -> io::Result<ReadResult> {
-    use std::alloc::{alloc, dealloc, Layout};
+    use std::alloc::{Layout, alloc, dealloc};
     use std::os::windows::fs::OpenOptionsExt;
 
     const FILE_FLAG_NO_BUFFERING: u32 = 0x2000_0000;
@@ -346,7 +346,7 @@ fn require_write_once_output(path: &Path) -> io::Result<()> {
 #[cfg(target_os = "windows")]
 mod windows_profile {
     use super::*;
-    use crate::hasher::scheduler::{execute_device_reads, DeviceReadPolicy, ScheduledRead};
+    use crate::hasher::scheduler::{DeviceReadPolicy, ScheduledRead, execute_device_reads};
     use crate::platform::StorageDevice;
     use crate::telemetry::{SamplerPlatform, WindowsSamplerPlatform};
     use std::fs;

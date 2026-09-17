@@ -1,6 +1,6 @@
 use glob::Pattern;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::fmt;
 use std::fs;
 use std::io::{self, BufRead, Write};
@@ -10,6 +10,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 use super_duper_core::progress::{FolderAnalysisSubstage, ProgressReporter};
+use super_duper_core::storage::Database;
 use super_duper_core::storage::live_hints::ReviewLiveHintError;
 use super_duper_core::storage::live_validation::ReviewLiveValidationError;
 use super_duper_core::storage::models::{
@@ -40,7 +41,6 @@ use super_duper_core::storage::recovery_review::RecoveryReviewError;
 use super_duper_core::storage::recycle_operation::RecycleOperationError;
 use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::root_reconciliation::ReviewLiveRootError;
-use super_duper_core::storage::Database;
 use super_duper_core::telemetry::{
     ProgressObservation, ProgressReducer, ScanProgressSnapshot, StatusDatabase, TelemetryPhase,
 };
@@ -49,8 +49,8 @@ use super_duper_core::{AppConfig, ScanEngine};
 mod progress_projection;
 
 use progress_projection::{
-    progress_event_data, FolderAnalysisProgress, LatestValueCoalescer, LegacyProgressProjection,
-    PendingProgress,
+    FolderAnalysisProgress, LatestValueCoalescer, LegacyProgressProjection, PendingProgress,
+    progress_event_data,
 };
 
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -1427,7 +1427,7 @@ impl WorkerSession {
                         "invalid_request",
                         format!("Invalid request envelope: {error}"),
                     ),
-                )
+                );
             }
         };
 
@@ -3324,7 +3324,7 @@ impl WorkerSession {
                 return Err(ProtocolFailure::new(
                     "invalid_request",
                     "preflight.get requires exactly one positive preflightId or runId",
-                ))
+                ));
             }
         };
         Ok(json!({"preflight":view.as_ref().map(preflight_view_dto)}))
@@ -3491,10 +3491,12 @@ impl WorkerSession {
             (None, Some(run_id)) if run_id > 0 => db
                 .latest_recycle_operation_for_run(run_id)
                 .map_err(recycle_operation_error)?,
-            _ => return Err(ProtocolFailure::new(
-                "invalid_request",
-                "recycle_operation.get requires exactly one positive recycleOperationId or runId",
-            )),
+            _ => {
+                return Err(ProtocolFailure::new(
+                    "invalid_request",
+                    "recycle_operation.get requires exactly one positive recycleOperationId or runId",
+                ));
+            }
         };
         Ok(json!({
             "operation": operation.as_ref().map(recycle_operation_view_dto),
@@ -4088,15 +4090,14 @@ fn run_scan_thread(
     match outcome {
         Ok(Ok(_)) | Ok(Err(super_duper_core::Error::Cancelled)) => {}
         Ok(Err(error)) => {
-            if let Ok(db) = Database::open_connection(&state.database_path.to_string_lossy()) {
-                if matches!(db.get_scan_run(run_id), Ok(run) if run.status == "running" || run.status == "cancelling")
-                {
-                    if cancel_token.load(Ordering::Acquire) {
-                        let _ = db.mark_run_cancelling(run_id);
-                        let _ = db.cancel_scan_run(run_id);
-                    } else {
-                        let _ = db.fail_scan_run(run_id, &error.to_string());
-                    }
+            if let Ok(db) = Database::open_connection(&state.database_path.to_string_lossy())
+                && matches!(db.get_scan_run(run_id), Ok(run) if run.status == "running" || run.status == "cancelling")
+            {
+                if cancel_token.load(Ordering::Acquire) {
+                    let _ = db.mark_run_cancelling(run_id);
+                    let _ = db.cancel_scan_run(run_id);
+                } else {
+                    let _ = db.fail_scan_run(run_id, &error.to_string());
                 }
             }
             eprintln!("worker scan failed: {error}");
@@ -4233,19 +4234,19 @@ impl WorkerProgressReporter {
     }
 
     fn phase(&self, phase: &'static str) {
-        if let Ok(db) = Database::open_connection(&self.state.database_path.to_string_lossy()) {
-            if let Ok(run) = db.get_scan_run(self.run_id) {
-                let mut progress = self
-                    .progress
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                progress.files_discovered = run.files_discovered.max(0) as usize;
-                progress.bytes_discovered = run.bytes_discovered.max(0) as u64;
-                progress.files_hashed = run.files_hashed.max(0) as usize;
-                progress.warning_count = run.warning_count.max(0) as usize;
-                progress.durable_warning_count = progress.warning_count;
-                progress.phase_warning_base = progress.warning_count;
-            }
+        if let Ok(db) = Database::open_connection(&self.state.database_path.to_string_lossy())
+            && let Ok(run) = db.get_scan_run(self.run_id)
+        {
+            let mut progress = self
+                .progress
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            progress.files_discovered = run.files_discovered.max(0) as usize;
+            progress.bytes_discovered = run.bytes_discovered.max(0) as u64;
+            progress.files_hashed = run.files_hashed.max(0) as usize;
+            progress.warning_count = run.warning_count.max(0) as usize;
+            progress.durable_warning_count = progress.warning_count;
+            progress.phase_warning_base = progress.warning_count;
         }
         self.update(Some(phase), None, true);
     }
@@ -5135,7 +5136,7 @@ fn normalize_extension_match(
             .with_details(json!({
                 "field":"filter.extensionMatch",
                 "allowed":["any","all"]
-            })))
+            })));
         }
     };
     Ok(extension.map_or(DuplicateFileExtensionMatchMode::AnyMember, |_| parsed))
@@ -7402,8 +7403,8 @@ mod tests {
     use super_duper_core::platform;
     use super_duper_core::storage::models::ScannedFile;
     use super_duper_core::telemetry::{
-        StatusRunStart, StatusRunTerminal, TelemetryRunState, METRICS_CONTRACT_VERSION,
-        PROGRESS_CONTRACT_VERSION,
+        METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION, StatusRunStart, StatusRunTerminal,
+        TelemetryRunState,
     };
     use tempfile::TempDir;
 
@@ -8589,8 +8590,7 @@ mod tests {
             1
         );
         assert_eq!(
-            response(&application_frames, "apply")["result"]["application"]["summary"]
-                ["ruleRemovePathCount"],
+            response(&application_frames, "apply")["result"]["application"]["summary"]["ruleRemovePathCount"],
             2
         );
         assert_eq!(
@@ -8603,8 +8603,8 @@ mod tests {
                 .is_none()
         );
         assert_eq!(
-            response(&application_frames, "application-detail")["result"]["application"]
-                ["ruleRoots"][0],
+            response(&application_frames, "application-detail")["result"]["application"]["ruleRoots"]
+                [0],
             roots[0]
         );
         assert_eq!(
@@ -8612,8 +8612,7 @@ mod tests {
             "rule"
         );
         assert_eq!(
-            response(&application_frames, "members")["result"]["members"][0]
-                ["decisionApplicationId"],
+            response(&application_frames, "members")["result"]["members"][0]["decisionApplicationId"],
             1
         );
         assert_eq!(
@@ -9330,11 +9329,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(minimum_copy_count_root_facet["result"]["total"], 2);
-        assert!(minimum_copy_count_root_facet["result"]["facets"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|facet| facet["matchingGroupCount"] == 1));
+        assert!(
+            minimum_copy_count_root_facet["result"]["facets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|facet| facet["matchingGroupCount"] == 1)
+        );
         let extension_root_facet_request = json!({
             "type":"request",
             "id":"root-facet-extension",
@@ -9348,11 +9349,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(extension_root_facet["result"]["total"], 2);
-        assert!(extension_root_facet["result"]["facets"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|facet| facet["matchingGroupCount"] == 1));
+        assert!(
+            extension_root_facet["result"]["facets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|facet| facet["matchingGroupCount"] == 1)
+        );
         let all_extension_root_facet_request = json!({
             "type":"request",
             "id":"root-facet-all-extension",
@@ -9366,11 +9369,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(all_extension_root_facet["result"]["total"], 2);
-        assert!(all_extension_root_facet["result"]["facets"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|facet| facet["matchingGroupCount"] == 1));
+        assert!(
+            all_extension_root_facet["result"]["facets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|facet| facet["matchingGroupCount"] == 1)
+        );
         let invalid_root_facet_extension_request = json!({
             "type":"request",
             "id":"root-facet-extension-invalid",
@@ -9431,11 +9436,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(minimum_copy_count_drive_facet["result"]["total"], 2);
-        assert!(minimum_copy_count_drive_facet["result"]["facets"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|facet| facet["matchingGroupCount"] == 1));
+        assert!(
+            minimum_copy_count_drive_facet["result"]["facets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|facet| facet["matchingGroupCount"] == 1)
+        );
         let extension_drive_facet_request = json!({
             "type":"request",
             "id":"drive-facet-extension",
@@ -9449,11 +9456,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(extension_drive_facet["result"]["total"], 2);
-        assert!(extension_drive_facet["result"]["facets"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|facet| facet["matchingGroupCount"] == 1));
+        assert!(
+            extension_drive_facet["result"]["facets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|facet| facet["matchingGroupCount"] == 1)
+        );
         let all_extension_drive_facet_request = json!({
             "type":"request",
             "id":"drive-facet-all-extension",
@@ -9467,11 +9476,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(all_extension_drive_facet["result"]["total"], 2);
-        assert!(all_extension_drive_facet["result"]["facets"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|facet| facet["matchingGroupCount"] == 1));
+        assert!(
+            all_extension_drive_facet["result"]["facets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|facet| facet["matchingGroupCount"] == 1)
+        );
         let drive_facet_cursor = drive_facet["result"]["nextCursor"].as_str().unwrap();
         let next_drive_facet_request = json!({
             "type":"request",
@@ -9662,11 +9673,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(exact_root_facets["result"]["total"], 2);
-        assert!(exact_root_facets["result"]["facets"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|facet| facet["matchingGroupCount"] == 1));
+        assert!(
+            exact_root_facets["result"]["facets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|facet| facet["matchingGroupCount"] == 1)
+        );
         let exact_root_cursor = exact_root_facets["result"]["nextCursor"].as_str().unwrap();
         let wrong_root_path_match_request = json!({
             "type":"request",
@@ -9704,11 +9717,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(exact_drive_facets["result"]["total"], 2);
-        assert!(exact_drive_facets["result"]["facets"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|facet| facet["matchingGroupCount"] == 1));
+        assert!(
+            exact_drive_facets["result"]["facets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|facet| facet["matchingGroupCount"] == 1)
+        );
         let exact_drive_cursor = exact_drive_facets["result"]["nextCursor"].as_str().unwrap();
         let wrong_drive_path_match_request = json!({
             "type":"request",
@@ -9945,13 +9960,11 @@ mod tests {
                 .unwrap();
         assert_eq!(members["result"]["members"].as_array().unwrap().len(), 3);
         assert!(members["result"]["members"][0]["modifiedTimeUnixNanos"].is_string());
-        assert!(members["result"]["members"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|member| member["rootPath"] == "/archive"
+        assert!(members["result"]["members"].as_array().unwrap().iter().any(
+            |member| member["rootPath"] == "/archive"
                 && member["relativePath"] == "copies/b-copy.bin"
-                && member["driveLetter"] == "E:"));
+                && member["driveLetter"] == "E:"
+        ));
 
         let initial_plan: Value = serde_json::from_str(
             &worker
@@ -10405,8 +10418,8 @@ mod tests {
     #[test]
     fn delayed_latest_progress_emits_without_another_callback_and_stops_at_terminal() {
         use super_duper_core::telemetry::{
-            ActiveDeviceProgress, ActiveDeviceUnavailableReason, ProgressLogicalCounters,
-            ProgressObservation, ScanCounters, METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION,
+            ActiveDeviceProgress, ActiveDeviceUnavailableReason, METRICS_CONTRACT_VERSION,
+            PROGRESS_CONTRACT_VERSION, ProgressLogicalCounters, ProgressObservation, ScanCounters,
         };
 
         let temp = TempDir::new().unwrap();
@@ -10484,8 +10497,8 @@ mod tests {
     #[test]
     fn folder_substage_updates_publish_latest_and_keep_source_revision() {
         use super_duper_core::telemetry::{
-            ActiveDeviceProgress, ActiveDeviceUnavailableReason, ProgressLogicalCounters,
-            ProgressObservation, ScanCounters, METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION,
+            ActiveDeviceProgress, ActiveDeviceUnavailableReason, METRICS_CONTRACT_VERSION,
+            PROGRESS_CONTRACT_VERSION, ProgressLogicalCounters, ProgressObservation, ScanCounters,
         };
 
         let temp = TempDir::new().unwrap();
@@ -10561,8 +10574,8 @@ mod tests {
             RunWarningPageQuery, RunWarningSortField, SortDirection,
         };
         use super_duper_core::telemetry::{
-            ActiveDeviceProgress, ActiveDeviceUnavailableReason, ProgressLogicalCounters,
-            ProgressObservation, ScanCounters, METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION,
+            ActiveDeviceProgress, ActiveDeviceUnavailableReason, METRICS_CONTRACT_VERSION,
+            PROGRESS_CONTRACT_VERSION, ProgressLogicalCounters, ProgressObservation, ScanCounters,
         };
 
         let temp = TempDir::new().unwrap();
@@ -10636,8 +10649,8 @@ mod tests {
     #[test]
     fn warning_progress_is_silent_when_durable_accounting_fails() {
         use super_duper_core::telemetry::{
-            ActiveDeviceProgress, ActiveDeviceUnavailableReason, ProgressLogicalCounters,
-            ProgressObservation, ScanCounters, METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION,
+            ActiveDeviceProgress, ActiveDeviceUnavailableReason, METRICS_CONTRACT_VERSION,
+            PROGRESS_CONTRACT_VERSION, ProgressLogicalCounters, ProgressObservation, ScanCounters,
         };
 
         let temp = TempDir::new().unwrap();
@@ -10731,9 +10744,11 @@ mod tests {
             "finalizing" => 4,
             _ => panic!("unexpected progress phase {phase}"),
         };
-        assert!(phases
-            .windows(2)
-            .all(|pair| phase_order(pair[0]) <= phase_order(pair[1])));
+        assert!(
+            phases
+                .windows(2)
+                .all(|pair| phase_order(pair[0]) <= phase_order(pair[1]))
+        );
         assert!(progress.windows(2).all(|pair| {
             pair[0]["data"]["sequence"].as_u64().unwrap()
                 < pair[1]["data"]["sequence"].as_u64().unwrap()
@@ -10748,9 +10763,11 @@ mod tests {
                 frame["event"] == "run.completed" && frame["data"]["run"]["status"] == "completed"
             })
             .expect("completed terminal event");
-        assert!(events[terminal_index + 1..]
-            .iter()
-            .all(|frame| frame["event"] != "run.progress"));
+        assert!(
+            events[terminal_index + 1..]
+                .iter()
+                .all(|frame| frame["event"] != "run.progress")
+        );
         let reopened = Database::open_connection(db_path.to_str().unwrap()).unwrap();
         assert_eq!(reopened.get_scan_run(1).unwrap().status, "completed");
     }

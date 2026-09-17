@@ -2,17 +2,17 @@ use std::collections::{HashMap, HashSet};
 
 use chrono::Utc;
 use rusqlite::{
-    params, params_from_iter, types::Value, Connection, Error as SqlError, OpenFlags,
-    OptionalExtension, TransactionBehavior,
+    Connection, Error as SqlError, OpenFlags, OptionalExtension, TransactionBehavior, params,
+    params_from_iter, types::Value,
 };
 use thiserror::Error;
 
 use super::models::{
     CounterKind, DeviceDescriptor, DevicePerformanceSummary, DeviceSample, HostPerformanceSummary,
-    HostSample, MetricInvariantError, StatusCounterSummary, StatusPhaseSummary,
-    StatusRetentionPolicy, StatusRetentionResult, StatusRunRecord, StatusRunStart,
-    StatusRunTerminal, TelemetryFlush, TelemetryPhase, TelemetryPhaseState, TelemetryRunState,
-    WriteDisposition, METRICS_CONTRACT_VERSION,
+    HostSample, METRICS_CONTRACT_VERSION, MetricInvariantError, StatusCounterSummary,
+    StatusPhaseSummary, StatusRetentionPolicy, StatusRetentionResult, StatusRunRecord,
+    StatusRunStart, StatusRunTerminal, TelemetryFlush, TelemetryPhase, TelemetryPhaseState,
+    TelemetryRunState, WriteDisposition,
 };
 
 pub const CURRENT_STATUS_SCHEMA_VERSION: i64 = 2;
@@ -259,13 +259,13 @@ impl StatusDatabase {
                     flush.phase.as_str()
                 )));
             }
-            if let (Some(committed), Some(proposed)) = (committed_start, phase_started) {
-                if committed != proposed {
-                    return Err(StatusStoreError::InvalidInput(format!(
-                        "phase {} start timestamp changed from {committed} to {proposed}",
-                        flush.phase.as_str()
-                    )));
-                }
+            if let (Some(committed), Some(proposed)) = (committed_start, phase_started)
+                && committed != proposed
+            {
+                return Err(StatusStoreError::InvalidInput(format!(
+                    "phase {} start timestamp changed from {committed} to {proposed}",
+                    flush.phase.as_str()
+                )));
             }
             let committed_active = sqlite_counter(committed_active)?;
             if flush.phase_active_nanos < committed_active {

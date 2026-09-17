@@ -1,9 +1,9 @@
+use super::Database;
 use super::models::*;
 use super::queries::duplicate_file_group_predicate;
-use super::Database;
 use chrono::Utc;
 use rusqlite::types::Value as SqlValue;
-use rusqlite::{params, params_from_iter, OptionalExtension, Transaction, TransactionBehavior};
+use rusqlite::{OptionalExtension, Transaction, TransactionBehavior, params, params_from_iter};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hasher;
 use twox_hash::XxHash64;

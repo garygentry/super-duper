@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 
-use rusqlite::{params, params_from_iter, types::Value, OptionalExtension};
+use rusqlite::{OptionalExtension, params, params_from_iter, types::Value};
 use thiserror::Error;
 
+use super::Database;
 use super::live_validation::{normalize_path, path_is_within};
 use super::models::{
     ReviewLiveHintRequest, ReviewLiveHintResult, ReviewLiveHintTarget, RunParameters,
 };
-use super::Database;
 
 const MAXIMUM_HINT_PATHS: usize = 200;
 

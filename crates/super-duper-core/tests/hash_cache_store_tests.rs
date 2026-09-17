@@ -30,14 +30,14 @@ fn warning_codes(db_path: &Path, run_id: i64) -> Vec<(String, String, i64)> {
              WHERE run_id = ?1 ORDER BY id",
         )
         .unwrap();
-    let rows = statement
+
+    statement
         .query_map(rusqlite::params![run_id], |row| {
             Ok((row.get(0)?, row.get(1)?, row.get(2)?))
         })
         .unwrap()
         .collect::<Result<Vec<_>, _>>()
-        .unwrap();
-    rows
+        .unwrap()
 }
 
 #[test]
@@ -53,7 +53,9 @@ fn exact_folder_verification_shares_the_engine_hash_cache_across_repeated_runs()
     }
     let cache_path = temp.path().join("content_hash_cache.db");
     // Any process-global cache that reads the environment resolves to the engine's store.
-    std::env::set_var("HASH_CACHE_PATH", &cache_path);
+    // SAFETY: this file is its own test binary and holds exactly one test, so nothing else in
+    // this process reads or writes the environment while this runs.
+    unsafe { std::env::set_var("HASH_CACHE_PATH", &cache_path) };
     let db_path = temp.path().join("super_duper.db");
 
     let scan = || {

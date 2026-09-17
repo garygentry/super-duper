@@ -1,9 +1,10 @@
 use chrono::Utc;
-use rusqlite::{params, OptionalExtension, Transaction, TransactionBehavior};
+use rusqlite::{OptionalExtension, Transaction, TransactionBehavior, params};
 use thiserror::Error;
 
+use super::Database;
 use super::live_validation::{
-    count_state, normalize_path, path_is_within, validate_path, Observation, ValidationSnapshot,
+    Observation, ValidationSnapshot, count_state, normalize_path, path_is_within, validate_path,
 };
 use super::models::{
     CloudPolicy, ReviewDecisionKind, ReviewLiveRootOverflowRequest, ReviewLiveRootOverflowResult,
@@ -11,7 +12,6 @@ use super::models::{
     ReviewLiveRootReconciliationSummary, ReviewLiveRootState, ReviewLiveValidationItem,
     RunParameters,
 };
-use super::Database;
 
 const MAXIMUM_RECONCILIATION_ITEMS: i64 = 200;
 
@@ -654,13 +654,13 @@ fn ensure_completed_root_context(
             root_path: root_path.to_owned(),
         });
     }
-    if let Some(expected) = expected_review_revision {
-        if review_revision != expected {
-            return Err(ReviewLiveRootError::StaleReviewRevision {
-                expected,
-                actual: review_revision,
-            });
-        }
+    if let Some(expected) = expected_review_revision
+        && review_revision != expected
+    {
+        return Err(ReviewLiveRootError::StaleReviewRevision {
+            expected,
+            actual: review_revision,
+        });
     }
     Ok(())
 }
@@ -946,21 +946,25 @@ mod tests {
         assert_eq!(second.summary.present_count, 1);
         assert_eq!(second.root.state, "clean");
         assert_eq!(second.root.reconciled_item_count, 3);
-        assert!(fixture
-            .db
-            .list_dirty_review_roots(fixture.run_id)
-            .unwrap()
-            .is_empty());
+        assert!(
+            fixture
+                .db
+                .list_dirty_review_roots(fixture.run_id)
+                .unwrap()
+                .is_empty()
+        );
         let second_replay = fixture.db.reconcile_review_root(&second_request).unwrap();
         assert!(second_replay.replayed);
         assert_eq!(second_replay.reconciliation_id, second.reconciliation_id);
 
         drop(fixture.db);
         let reopened = Database::open(fixture.database_path.to_str().unwrap()).unwrap();
-        assert!(reopened
-            .list_dirty_review_roots(fixture.run_id)
-            .unwrap()
-            .is_empty());
+        assert!(
+            reopened
+                .list_dirty_review_roots(fixture.run_id)
+                .unwrap()
+                .is_empty()
+        );
         assert_eq!(count_rows(&reopened, "review_live_file_state"), 3);
         assert_eq!(immutable_rows(&reopened, fixture.run_id), immutable_before);
         let next = reopened

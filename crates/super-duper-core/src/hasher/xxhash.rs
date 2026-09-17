@@ -1,9 +1,9 @@
 use super::cache;
 use super::repeat_cache::{
-    compare_content_signatures, observe_content_signature, ContentSignatureObservation,
-    ContentSignatureWindow, RepeatCacheLookup, RepeatHashCache, SystemContentSignatureProbe,
+    ContentSignatureObservation, ContentSignatureWindow, RepeatCacheLookup, RepeatHashCache,
+    SystemContentSignatureProbe, compare_content_signatures, observe_content_signature,
 };
-use super::scheduler::{execute_device_reads, DeviceReadPolicy, ScheduledRead};
+use super::scheduler::{DeviceReadPolicy, ScheduledRead, execute_device_reads};
 use crate::progress::ProgressReporter;
 use crate::storage::models::RepeatCachePolicy;
 use dashmap::DashMap;
@@ -417,18 +417,18 @@ impl HashPipelineIo for SystemHashPipelineIo {
         let mut cache_stored = false;
         match compare_content_signatures(before, observe_content_signature(path, &probe)) {
             ContentSignatureWindow::Unchanged(signature) => {
-                if let Some(cache_store) = self.repeat_cache.as_ref() {
-                    if partial_signature.is_some_and(|expected| expected == &signature) {
-                        match cache_store.store_full(&signature, partial_hash, hash) {
-                            Ok(super::repeat_cache::RepeatCacheStoreOutcome::Stored) => {
-                                cache_stored = true
-                            }
-                            Ok(super::repeat_cache::RepeatCacheStoreOutcome::Replayed) => {}
-                            Err(error) => append_warning(
-                                &mut warning,
-                                format!("Repeat cache full store failed: {error}"),
-                            ),
+                if let Some(cache_store) = self.repeat_cache.as_ref()
+                    && partial_signature.is_some_and(|expected| expected == &signature)
+                {
+                    match cache_store.store_full(&signature, partial_hash, hash) {
+                        Ok(super::repeat_cache::RepeatCacheStoreOutcome::Stored) => {
+                            cache_stored = true
                         }
+                        Ok(super::repeat_cache::RepeatCacheStoreOutcome::Replayed) => {}
+                        Err(error) => append_warning(
+                            &mut warning,
+                            format!("Repeat cache full store failed: {error}"),
+                        ),
                     }
                 }
             }

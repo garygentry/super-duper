@@ -53,13 +53,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Some(false),
             ) {
                 Ok(true) => match super_duper_core::storage::Database::open("super_duper.db") {
-                    Ok(db) => {
-                        if let Err(e) = db.truncate_all() {
+                    Ok(db) => match db.truncate_all() {
+                        Err(e) => {
                             error!("Error truncating database: {}", e);
-                        } else {
+                        }
+                        _ => {
                             println!("All tables truncated");
                         }
-                    }
+                    },
                     Err(e) => error!("Error opening database: {}", e),
                 },
                 _ => {

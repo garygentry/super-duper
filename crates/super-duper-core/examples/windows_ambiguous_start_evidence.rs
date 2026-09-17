@@ -1,5 +1,5 @@
 use rusqlite::types::ValueRef;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::{env, fs, path::Path};
 use super_duper_core::storage::Database;
 
@@ -66,7 +66,8 @@ fn query_rows(
         .iter()
         .map(|name| (*name).to_owned())
         .collect::<Vec<_>>();
-    let rows = statement
+
+    statement
         .query_map([operation_id], |row| {
             let mut value = Map::new();
             for (index, name) in names.iter().enumerate() {
@@ -74,8 +75,7 @@ fn query_rows(
             }
             Ok(Value::Object(value))
         })?
-        .collect();
-    rows
+        .collect()
 }
 
 fn sqlite_value(value: ValueRef<'_>) -> Value {

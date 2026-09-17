@@ -1,7 +1,7 @@
 use std::env;
 use tracing::info;
 use tracing_subscriber::prelude::*;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt};
 
 pub fn init_logger() -> impl Drop {
     let filter = env::var("TRACING_LEVEL").unwrap_or_else(|_| "info".to_string());

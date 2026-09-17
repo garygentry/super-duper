@@ -1,8 +1,8 @@
 use super::models::*;
-use super::sqlite::{normalized_file_extension_key, Database};
+use super::sqlite::{Database, normalized_file_extension_key};
 use chrono::Utc;
 use rusqlite::types::Value as SqlValue;
-use rusqlite::{params, params_from_iter, Error, OptionalExtension, Result};
+use rusqlite::{Error, OptionalExtension, Result, params, params_from_iter};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 const ACTIVE_UNCLASSIFIED_WARNING_CODE: &str = "active_unclassified_recoverable_warning";
@@ -2149,14 +2149,14 @@ pub(super) fn duplicate_file_group_predicate(
             .to_owned(),
         );
     }
-    if include_selected_root {
-        if let Some(selected_root) = filter
+    if include_selected_root
+        && let Some(selected_root) = filter
             .selected_root
             .as_deref()
             .filter(|value| !value.is_empty())
-        {
-            predicates.push(
-                "EXISTS (
+    {
+        predicates.push(
+            "EXISTS (
                     SELECT 1 FROM duplicate_group_member filter_root_member
                     JOIN scanned_file filter_root_file
                       ON filter_root_file.id = filter_root_member.file_id
@@ -2164,19 +2164,18 @@ pub(super) fn duplicate_file_group_predicate(
                       AND filter_root_file.run_id = dg.run_id
                       AND filter_root_file.root_path = ? COLLATE NOCASE
                 )"
-                .to_owned(),
-            );
-            parameters.push(SqlValue::Text(selected_root.to_owned()));
-        }
+            .to_owned(),
+        );
+        parameters.push(SqlValue::Text(selected_root.to_owned()));
     }
-    if include_selected_drive {
-        if let Some(selected_drive) = filter
+    if include_selected_drive
+        && let Some(selected_drive) = filter
             .selected_drive
             .as_deref()
             .filter(|value| !value.is_empty())
-        {
-            predicates.push(
-                "EXISTS (
+    {
+        predicates.push(
+            "EXISTS (
                     SELECT 1 FROM duplicate_group_member filter_selected_drive_member
                     JOIN scanned_file filter_selected_drive_file
                       ON filter_selected_drive_file.id = filter_selected_drive_member.file_id
@@ -2184,10 +2183,9 @@ pub(super) fn duplicate_file_group_predicate(
                       AND filter_selected_drive_file.run_id = dg.run_id
                       AND filter_selected_drive_file.drive_letter = ? COLLATE NOCASE
                 )"
-                .to_owned(),
-            );
-            parameters.push(SqlValue::Text(selected_drive.to_owned()));
-        }
+            .to_owned(),
+        );
+        parameters.push(SqlValue::Text(selected_drive.to_owned()));
     }
     (predicates, parameters)
 }

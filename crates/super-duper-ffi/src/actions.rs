@@ -1,6 +1,6 @@
 use crate::callbacks::FfiProgressBridge;
 use crate::error::{map_core_error, set_last_error};
-use crate::handle::{allocate_handle, destroy_handle, with_handle, EngineState};
+use crate::handle::{EngineState, allocate_handle, destroy_handle, with_handle};
 use crate::types::*;
 use std::ffi::c_char;
 use std::sync::atomic::Ordering;
@@ -11,49 +11,51 @@ use super_duper_core::{AppConfig, ScanEngine, SilentReporter};
 ///
 /// # Safety
 /// `db_path` must be a valid null-terminated C string.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sd_engine_create(db_path: *const c_char) -> u64 {
-    let db_path_str = match c_string_to_rust(db_path) {
-        Some(s) => s,
-        None => "super_duper.db".to_string(),
-    };
+    unsafe {
+        let db_path_str = match c_string_to_rust(db_path) {
+            Some(s) => s,
+            None => "super_duper.db".to_string(),
+        };
 
-    let config = AppConfig {
-        root_paths: Vec::new(),
-        ignore_patterns: Vec::new(),
-    };
+        let config = AppConfig {
+            root_paths: Vec::new(),
+            ignore_patterns: Vec::new(),
+        };
 
-    let engine = ScanEngine::new(config).with_db_path(&db_path_str);
-    let cancel_token = engine.cancel_token();
+        let engine = ScanEngine::new(config).with_db_path(&db_path_str);
+        let cancel_token = engine.cancel_token();
 
-    let db = match Database::open(&db_path_str) {
-        Ok(db) => db,
-        Err(e) => {
-            set_last_error(format!("Failed to open database: {}", e));
-            return 0;
-        }
-    };
+        let db = match Database::open(&db_path_str) {
+            Ok(db) => db,
+            Err(e) => {
+                set_last_error(format!("Failed to open database: {}", e));
+                return 0;
+            }
+        };
 
-    // Preserve the legacy FFI selector semantics by selecting the latest completed run.
-    let active_session_id = db.get_latest_completed_run_id().unwrap_or(None);
+        // Preserve the legacy FFI selector semantics by selecting the latest completed run.
+        let active_session_id = db.get_latest_completed_run_id().unwrap_or(None);
 
-    let state = EngineState {
-        engine,
-        db: Some(db),
-        db_path: db_path_str,
-        root_paths: Vec::new(),
-        ignore_patterns: Vec::new(),
-        is_scanning: false,
-        cancel_token,
-        progress_bridge: None,
-        active_session_id,
-    };
+        let state = EngineState {
+            engine,
+            db: Some(db),
+            db_path: db_path_str,
+            root_paths: Vec::new(),
+            ignore_patterns: Vec::new(),
+            is_scanning: false,
+            cancel_token,
+            progress_bridge: None,
+            active_session_id,
+        };
 
-    allocate_handle(state)
+        allocate_handle(state)
+    }
 }
 
 /// Destroy an engine instance and free its resources.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sd_engine_destroy(handle: u64) -> SdResultCode {
     if destroy_handle(handle) {
         SdResultCode::Ok
@@ -67,86 +69,90 @@ pub extern "C" fn sd_engine_destroy(handle: u64) -> SdResultCode {
 ///
 /// # Safety
 /// `paths` must be a valid array of `count` null-terminated C strings.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sd_engine_set_scan_paths(
     handle: u64,
     paths: *const *const c_char,
     count: u32,
 ) -> SdResultCode {
-    if paths.is_null() {
-        set_last_error("paths is null".to_string());
-        return SdResultCode::InvalidArgument;
-    }
+    unsafe {
+        if paths.is_null() {
+            set_last_error("paths is null".to_string());
+            return SdResultCode::InvalidArgument;
+        }
 
-    let mut root_paths = Vec::new();
-    for i in 0..count {
-        let path_ptr = *paths.add(i as usize);
-        match c_string_to_rust(path_ptr) {
-            Some(s) => root_paths.push(s),
-            None => {
-                set_last_error(format!("Invalid path at index {}", i));
-                return SdResultCode::InvalidArgument;
+        let mut root_paths = Vec::new();
+        for i in 0..count {
+            let path_ptr = *paths.add(i as usize);
+            match c_string_to_rust(path_ptr) {
+                Some(s) => root_paths.push(s),
+                None => {
+                    set_last_error(format!("Invalid path at index {}", i));
+                    return SdResultCode::InvalidArgument;
+                }
             }
         }
+
+        let result = with_handle(handle, |state| {
+            state.root_paths = root_paths;
+            let config = AppConfig {
+                root_paths: state.root_paths.clone(),
+                ignore_patterns: state.ignore_patterns.clone(),
+            };
+            state.engine = ScanEngine::new(config).with_db_path(&state.db_path);
+            state.cancel_token = state.engine.cancel_token();
+            SdResultCode::Ok
+        });
+
+        result.unwrap_or(SdResultCode::InvalidHandle)
     }
-
-    let result = with_handle(handle, |state| {
-        state.root_paths = root_paths;
-        let config = AppConfig {
-            root_paths: state.root_paths.clone(),
-            ignore_patterns: state.ignore_patterns.clone(),
-        };
-        state.engine = ScanEngine::new(config).with_db_path(&state.db_path);
-        state.cancel_token = state.engine.cancel_token();
-        SdResultCode::Ok
-    });
-
-    result.unwrap_or(SdResultCode::InvalidHandle)
 }
 
 /// Set ignore patterns for file scanning.
 ///
 /// # Safety
 /// `patterns` must be a valid array of `count` null-terminated C strings.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sd_engine_set_ignore_patterns(
     handle: u64,
     patterns: *const *const c_char,
     count: u32,
 ) -> SdResultCode {
-    if patterns.is_null() && count > 0 {
-        set_last_error("patterns is null".to_string());
-        return SdResultCode::InvalidArgument;
-    }
+    unsafe {
+        if patterns.is_null() && count > 0 {
+            set_last_error("patterns is null".to_string());
+            return SdResultCode::InvalidArgument;
+        }
 
-    let mut ignore_patterns = Vec::new();
-    for i in 0..count {
-        let pattern_ptr = *patterns.add(i as usize);
-        match c_string_to_rust(pattern_ptr) {
-            Some(s) => ignore_patterns.push(s),
-            None => {
-                set_last_error(format!("Invalid pattern at index {}", i));
-                return SdResultCode::InvalidArgument;
+        let mut ignore_patterns = Vec::new();
+        for i in 0..count {
+            let pattern_ptr = *patterns.add(i as usize);
+            match c_string_to_rust(pattern_ptr) {
+                Some(s) => ignore_patterns.push(s),
+                None => {
+                    set_last_error(format!("Invalid pattern at index {}", i));
+                    return SdResultCode::InvalidArgument;
+                }
             }
         }
+
+        let result = with_handle(handle, |state| {
+            state.ignore_patterns = ignore_patterns;
+            let config = AppConfig {
+                root_paths: state.root_paths.clone(),
+                ignore_patterns: state.ignore_patterns.clone(),
+            };
+            state.engine = ScanEngine::new(config).with_db_path(&state.db_path);
+            state.cancel_token = state.engine.cancel_token();
+            SdResultCode::Ok
+        });
+
+        result.unwrap_or(SdResultCode::InvalidHandle)
     }
-
-    let result = with_handle(handle, |state| {
-        state.ignore_patterns = ignore_patterns;
-        let config = AppConfig {
-            root_paths: state.root_paths.clone(),
-            ignore_patterns: state.ignore_patterns.clone(),
-        };
-        state.engine = ScanEngine::new(config).with_db_path(&state.db_path);
-        state.cancel_token = state.engine.cancel_token();
-        SdResultCode::Ok
-    });
-
-    result.unwrap_or(SdResultCode::InvalidHandle)
 }
 
 /// Set a progress callback for scan operations.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sd_set_progress_callback(
     handle: u64,
     callback: SdProgressCallback,
@@ -160,7 +166,7 @@ pub extern "C" fn sd_set_progress_callback(
 }
 
 /// Clear the progress callback.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sd_clear_progress_callback(handle: u64) -> SdResultCode {
     let result = with_handle(handle, |state| {
         state.progress_bridge = None;
@@ -171,7 +177,7 @@ pub extern "C" fn sd_clear_progress_callback(handle: u64) -> SdResultCode {
 }
 
 /// Start a synchronous scan. Blocks until complete.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sd_scan_start(handle: u64) -> SdResultCode {
     let result = with_handle(handle, |state| {
         if state.is_scanning {
@@ -200,7 +206,7 @@ pub extern "C" fn sd_scan_start(handle: u64) -> SdResultCode {
 }
 
 /// Request cancellation of the current scan.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sd_scan_cancel(handle: u64) -> SdResultCode {
     let result = with_handle(handle, |state| {
         state.cancel_token.store(true, Ordering::Relaxed);
@@ -211,13 +217,13 @@ pub extern "C" fn sd_scan_cancel(handle: u64) -> SdResultCode {
 }
 
 /// Check if a scan is currently running.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sd_scan_is_running(handle: u64) -> bool {
     with_handle(handle, |state| state.is_scanning).unwrap_or(false)
 }
 
 /// Mark a file for deletion.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sd_mark_file_for_deletion(handle: u64, file_id: i64) -> SdResultCode {
     let result = with_handle(handle, |state| {
         let db = match &state.db {
@@ -240,7 +246,7 @@ pub extern "C" fn sd_mark_file_for_deletion(handle: u64, file_id: i64) -> SdResu
 }
 
 /// Unmark a file from the deletion plan.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sd_unmark_file_for_deletion(handle: u64, file_id: i64) -> SdResultCode {
     let result = with_handle(handle, |state| {
         let db = match &state.db {
@@ -266,39 +272,41 @@ pub extern "C" fn sd_unmark_file_for_deletion(handle: u64, file_id: i64) -> SdRe
 ///
 /// # Safety
 /// `out_count` and `out_bytes` must be valid pointers.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sd_deletion_plan_summary(
     handle: u64,
     out_count: *mut i64,
     out_bytes: *mut i64,
 ) -> SdResultCode {
-    if out_count.is_null() || out_bytes.is_null() {
-        set_last_error("Output pointers are null".to_string());
-        return SdResultCode::InvalidArgument;
-    }
-
-    let result = with_handle(handle, |state| {
-        let db = match &state.db {
-            Some(db) => db,
-            None => {
-                set_last_error("No database open".to_string());
-                return SdResultCode::DatabaseError;
-            }
-        };
-        match db.get_deletion_plan_summary() {
-            Ok((count, bytes)) => {
-                *out_count = count;
-                *out_bytes = bytes;
-                SdResultCode::Ok
-            }
-            Err(e) => {
-                set_last_error(format!("Query error: {}", e));
-                SdResultCode::DatabaseError
-            }
+    unsafe {
+        if out_count.is_null() || out_bytes.is_null() {
+            set_last_error("Output pointers are null".to_string());
+            return SdResultCode::InvalidArgument;
         }
-    });
 
-    result.unwrap_or(SdResultCode::InvalidHandle)
+        let result = with_handle(handle, |state| {
+            let db = match &state.db {
+                Some(db) => db,
+                None => {
+                    set_last_error("No database open".to_string());
+                    return SdResultCode::DatabaseError;
+                }
+            };
+            match db.get_deletion_plan_summary() {
+                Ok((count, bytes)) => {
+                    *out_count = count;
+                    *out_bytes = bytes;
+                    SdResultCode::Ok
+                }
+                Err(e) => {
+                    set_last_error(format!("Query error: {}", e));
+                    SdResultCode::DatabaseError
+                }
+            }
+        });
+
+        result.unwrap_or(SdResultCode::InvalidHandle)
+    }
 }
 
 /// Mark all files of the active run that are in `directory_path` or its subdirectories for
@@ -306,47 +314,49 @@ pub unsafe extern "C" fn sd_deletion_plan_summary(
 ///
 /// # Safety
 /// `directory_path` must be a valid null-terminated C string.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sd_mark_directory_for_deletion(
     handle: u64,
     directory_path: *const c_char,
 ) -> SdResultCode {
-    let path_str = match c_string_to_rust(directory_path) {
-        Some(s) => s,
-        None => {
-            set_last_error("directory_path is null".to_string());
-            return SdResultCode::InvalidArgument;
-        }
-    };
-
-    let result = with_handle(handle, |state| {
-        let run_id = match state.active_session_id {
-            Some(id) => id,
+    unsafe {
+        let path_str = match c_string_to_rust(directory_path) {
+            Some(s) => s,
             None => {
-                set_last_error("No active session — run a scan first".to_string());
-                return SdResultCode::DatabaseError;
+                set_last_error("directory_path is null".to_string());
+                return SdResultCode::InvalidArgument;
             }
         };
-        let db = match &state.db {
-            Some(db) => db,
-            None => {
-                set_last_error("No database open".to_string());
-                return SdResultCode::DatabaseError;
-            }
-        };
-        match super_duper_core::analysis::deletion_plan::mark_directory_for_deletion(
-            db, run_id, &path_str, None,
-        ) {
-            Ok(_) => SdResultCode::Ok,
-            Err(e) => map_core_error(e),
-        }
-    });
 
-    result.unwrap_or(SdResultCode::InvalidHandle)
+        let result = with_handle(handle, |state| {
+            let run_id = match state.active_session_id {
+                Some(id) => id,
+                None => {
+                    set_last_error("No active session — run a scan first".to_string());
+                    return SdResultCode::DatabaseError;
+                }
+            };
+            let db = match &state.db {
+                Some(db) => db,
+                None => {
+                    set_last_error("No database open".to_string());
+                    return SdResultCode::DatabaseError;
+                }
+            };
+            match super_duper_core::analysis::deletion_plan::mark_directory_for_deletion(
+                db, run_id, &path_str, None,
+            ) {
+                Ok(_) => SdResultCode::Ok,
+                Err(e) => map_core_error(e),
+            }
+        });
+
+        result.unwrap_or(SdResultCode::InvalidHandle)
+    }
 }
 
 /// Auto-mark duplicate files for deletion (keeps first alphabetically).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sd_auto_mark_for_deletion(handle: u64) -> SdResultCode {
     let result = with_handle(handle, |state| {
         let session_id = match state.active_session_id {
@@ -377,7 +387,7 @@ pub extern "C" fn sd_auto_mark_for_deletion(handle: u64) -> SdResultCode {
 }
 
 /// Set the active session used by all query functions.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sd_set_active_session(handle: u64, session_id: i64) -> SdResultCode {
     let result = with_handle(handle, |state| {
         state.active_session_id = Some(session_id);
@@ -390,7 +400,7 @@ pub extern "C" fn sd_set_active_session(handle: u64, session_id: i64) -> SdResul
 /// scanned_file rows are preserved (they are the global file index).
 /// If the deleted session was the active one, the active session is updated to the
 /// most recent remaining completed session.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sd_delete_session(handle: u64, session_id: i64) -> SdResultCode {
     let result = with_handle(handle, |state| {
         let db = match &state.db {
@@ -419,7 +429,7 @@ pub extern "C" fn sd_delete_session(handle: u64, session_id: i64) -> SdResultCod
 /// Truncate all SQLite tables (sessions, files, groups, directory data, deletion plan).
 /// The hash cache (RocksDB) is NOT touched.
 /// Clears the engine's active_session_id.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sd_truncate_database(handle: u64) -> SdResultCode {
     let result = with_handle(handle, |state| {
         if state.is_scanning {
@@ -443,7 +453,7 @@ pub extern "C" fn sd_truncate_database(handle: u64) -> SdResultCode {
 /// Delete all session history and derived analysis results.
 /// The scanned_file global index and hash cache are preserved.
 /// Clears the engine's active_session_id.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sd_delete_all_sessions(handle: u64) -> SdResultCode {
     let result = with_handle(handle, |state| {
         if state.is_scanning {
@@ -467,7 +477,7 @@ pub extern "C" fn sd_delete_all_sessions(handle: u64) -> SdResultCode {
 /// Clear all entries from the RocksDB hash cache at `HASH_CACHE_PATH` (default
 /// `content_hash_cache.db`). Fails while a scan holds the cache open.
 /// Does not affect the SQLite database.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sd_clear_hash_cache() -> SdResultCode {
     let cache = super_duper_core::hasher::cache::default_hash_cache_path();
     match super_duper_core::hasher::cache::clear_all(&cache) {
@@ -490,36 +500,41 @@ pub extern "C" fn sd_clear_hash_cache() -> SdResultCode {
 ///
 /// # Safety
 /// `out_result` must be a valid pointer.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sd_deletion_execute(
     handle: u64,
     use_trash: u8,
     out_result: *mut SdDeletionResult,
 ) -> SdResultCode {
-    if out_result.is_null() {
-        set_last_error("out_result is null".to_string());
-        return SdResultCode::InvalidArgument;
-    }
-
-    let result = with_handle(handle, |state| {
-        let db = match &state.db {
-            Some(db) => db,
-            None => {
-                set_last_error("No database open".to_string());
-                return SdResultCode::DatabaseError;
-            }
-        };
-        match super_duper_core::analysis::deletion_plan::execute_deletion_plan(db, use_trash != 0) {
-            Ok((success, errors)) => {
-                *out_result = SdDeletionResult {
-                    success_count: success as u32,
-                    error_count: errors as u32,
-                };
-                SdResultCode::Ok
-            }
-            Err(e) => map_core_error(e),
+    unsafe {
+        if out_result.is_null() {
+            set_last_error("out_result is null".to_string());
+            return SdResultCode::InvalidArgument;
         }
-    });
 
-    result.unwrap_or(SdResultCode::InvalidHandle)
+        let result = with_handle(handle, |state| {
+            let db = match &state.db {
+                Some(db) => db,
+                None => {
+                    set_last_error("No database open".to_string());
+                    return SdResultCode::DatabaseError;
+                }
+            };
+            match super_duper_core::analysis::deletion_plan::execute_deletion_plan(
+                db,
+                use_trash != 0,
+            ) {
+                Ok((success, errors)) => {
+                    *out_result = SdDeletionResult {
+                        success_count: success as u32,
+                        error_count: errors as u32,
+                    };
+                    SdResultCode::Ok
+                }
+                Err(e) => map_core_error(e),
+            }
+        });
+
+        result.unwrap_or(SdResultCode::InvalidHandle)
+    }
 }

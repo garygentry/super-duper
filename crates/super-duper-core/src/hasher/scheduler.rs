@@ -126,87 +126,90 @@ where
         for _ in 0..worker_count {
             let shared = &shared;
             let work = &work;
-            scope.spawn(move || loop {
-                let task = {
-                    let (lock, ready) = shared;
-                    let mut state = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-                    loop {
-                        if cancel.load(Ordering::Acquire) && !state.stopped {
-                            state.stopped = true;
-                            state.error = Some(io::Error::new(
-                                io::ErrorKind::Interrupted,
-                                "hash scheduling cancelled",
-                            ));
-                            for queue in &mut state.queues {
-                                queue.pending.clear();
+            scope.spawn(move || {
+                loop {
+                    let task = {
+                        let (lock, ready) = shared;
+                        let mut state =
+                            lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                        loop {
+                            if cancel.load(Ordering::Acquire) && !state.stopped {
+                                state.stopped = true;
+                                state.error = Some(io::Error::new(
+                                    io::ErrorKind::Interrupted,
+                                    "hash scheduling cancelled",
+                                ));
+                                for queue in &mut state.queues {
+                                    queue.pending.clear();
+                                }
                             }
-                        }
-                        if state.stopped {
+                            if state.stopped {
+                                if state.active == 0 {
+                                    return;
+                                }
+                                state = ready
+                                    .wait(state)
+                                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                                continue;
+                            }
+
+                            let queue_count = state.queues.len();
+                            let mut selected = None;
+                            for offset in 0..queue_count {
+                                let index = (state.next_queue + offset) % queue_count;
+                                let queue = &state.queues[index];
+                                if queue.active < queue.limit && !queue.pending.is_empty() {
+                                    selected = Some(index);
+                                    break;
+                                }
+                            }
+                            if let Some(index) = selected {
+                                state.next_queue = (index + 1) % queue_count;
+                                let task = state.queues[index]
+                                    .pending
+                                    .pop_front()
+                                    .expect("selected queue must contain a task");
+                                state.queues[index].active += 1;
+                                state.active += 1;
+                                break (index, task);
+                            }
                             if state.active == 0 {
                                 return;
                             }
                             state = ready
                                 .wait(state)
                                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-                            continue;
                         }
+                    };
 
-                        let queue_count = state.queues.len();
-                        let mut selected = None;
-                        for offset in 0..queue_count {
-                            let index = (state.next_queue + offset) % queue_count;
-                            let queue = &state.queues[index];
-                            if queue.active < queue.limit && !queue.pending.is_empty() {
-                                selected = Some(index);
-                                break;
+                    let (queue_index, (task_index, value)) = task;
+                    let result = if cancel.load(Ordering::Acquire) {
+                        Err(io::Error::new(
+                            io::ErrorKind::Interrupted,
+                            "hash scheduling cancelled",
+                        ))
+                    } else {
+                        work(value)
+                    };
+
+                    let (lock, ready) = shared;
+                    let mut state = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                    state.queues[queue_index].active -= 1;
+                    state.active -= 1;
+                    match result {
+                        Ok(value) if !state.stopped => state.results[task_index] = Some(value),
+                        Ok(_) => {}
+                        Err(error) if !state.stopped => {
+                            state.stopped = true;
+                            state.error = Some(error);
+                            for queue in &mut state.queues {
+                                queue.pending.clear();
                             }
                         }
-                        if let Some(index) = selected {
-                            state.next_queue = (index + 1) % queue_count;
-                            let task = state.queues[index]
-                                .pending
-                                .pop_front()
-                                .expect("selected queue must contain a task");
-                            state.queues[index].active += 1;
-                            state.active += 1;
-                            break (index, task);
-                        }
-                        if state.active == 0 {
-                            return;
-                        }
-                        state = ready
-                            .wait(state)
-                            .unwrap_or_else(|poisoned| poisoned.into_inner());
+                        Err(_) => {}
                     }
-                };
-
-                let (queue_index, (task_index, value)) = task;
-                let result = if cancel.load(Ordering::Acquire) {
-                    Err(io::Error::new(
-                        io::ErrorKind::Interrupted,
-                        "hash scheduling cancelled",
-                    ))
-                } else {
-                    work(value)
-                };
-
-                let (lock, ready) = shared;
-                let mut state = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-                state.queues[queue_index].active -= 1;
-                state.active -= 1;
-                match result {
-                    Ok(value) if !state.stopped => state.results[task_index] = Some(value),
-                    Ok(_) => {}
-                    Err(error) if !state.stopped => {
-                        state.stopped = true;
-                        state.error = Some(error);
-                        for queue in &mut state.queues {
-                            queue.pending.clear();
-                        }
-                    }
-                    Err(_) => {}
+                    ready.notify_all();
                 }
-                ready.notify_all();
             });
         }
     });
@@ -231,7 +234,7 @@ mod tests {
     #[cfg(target_os = "windows")]
     use crate::telemetry::{SamplerPlatform, WindowsSamplerPlatform};
     #[cfg(target_os = "windows")]
-    use std::alloc::{alloc, dealloc, Layout};
+    use std::alloc::{Layout, alloc, dealloc};
     #[cfg(target_os = "windows")]
     use std::fs::{self, OpenOptions};
     #[cfg(target_os = "windows")]
@@ -243,7 +246,7 @@ mod tests {
     #[cfg(target_os = "windows")]
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::{mpsc, Arc, Barrier};
+    use std::sync::{Arc, Barrier, mpsc};
     use std::time::Duration;
 
     fn task(device: &str, media: StorageMediaClass, value: usize) -> ScheduledRead<usize> {
@@ -610,9 +613,11 @@ mod tests {
             ));
         }
         let checksums = samples[0]["checksums"].clone();
-        assert!(samples
-            .iter()
-            .all(|sample| sample["checksums"] == checksums));
+        assert!(
+            samples
+                .iter()
+                .all(|sample| sample["checksums"] == checksums)
+        );
         let evidence = serde_json::json!({
             "schemaVersion": 1,
             "gate": "SOP6-device-aware-scheduler",

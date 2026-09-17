@@ -6,13 +6,13 @@ use std::path::{Component, Path};
 use std::ptr;
 use winapi::shared::minwindef::DWORD;
 use winapi::um::fileapi::{
-    CreateFileW, GetFileAttributesW, GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
-    FILE_BASIC_INFO, INVALID_FILE_ATTRIBUTES, OPEN_EXISTING,
+    BY_HANDLE_FILE_INFORMATION, CreateFileW, FILE_BASIC_INFO, GetFileAttributesW,
+    GetFileInformationByHandle, INVALID_FILE_ATTRIBUTES, OPEN_EXISTING,
 };
 use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
 use winapi::um::ioapiset::DeviceIoControl;
 use winapi::um::minwinbase::FileBasicInfo;
-use winapi::um::winbase::{GetFileInformationByHandleEx, FILE_FLAG_BACKUP_SEMANTICS};
+use winapi::um::winbase::{FILE_FLAG_BACKUP_SEMANTICS, GetFileInformationByHandleEx};
 use winapi::um::winioctl::{IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, VOLUME_DISK_EXTENTS};
 use winapi::um::winnt::{
     FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_OFFLINE, FILE_ATTRIBUTE_REPARSE_POINT,

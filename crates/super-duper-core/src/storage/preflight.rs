@@ -7,19 +7,19 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::UNIX_EPOCH;
 
 use chrono::{DateTime, Utc};
-use rusqlite::{params, Connection, OptionalExtension, Transaction};
+use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use thiserror::Error;
 use twox_hash::XxHash64;
 
 use crate::hasher::xxhash::hash_file_streaming;
 use crate::platform::{self, PathSafety};
 
+use super::Database;
 use super::models::{
     CloudPolicy, Preflight, PreflightItem, PreflightItemPage, PreflightObservation,
     PreflightStartResult, PreflightSummary, PreflightView, RecycleOperationItem, RunParameters,
 };
-use super::review::{validate_review_state, ReviewError};
-use super::Database;
+use super::review::{ReviewError, validate_review_state};
 
 const MAXIMUM_OPERATION_ID_CHARACTERS: usize = 128;
 
@@ -1366,13 +1366,13 @@ fn survivor_items(
              OR (?3 IS NOT NULL AND item.folder_group_id = ?3))
          ORDER BY item.ordinal",
     )?;
-    let rows = statement
+
+    statement
         .query_map(
             params![preflight_id, file_group_id, folder_group_id],
             item_from_row,
         )?
-        .collect();
-    rows
+        .collect()
 }
 
 fn validate_item(
@@ -1424,7 +1424,7 @@ fn validate_file(
     let before = match fs::metadata(path) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return observation("missing", "path_missing")
+            return observation("missing", "path_missing");
         }
         Err(error) => return unavailable_observation("metadata_unavailable", &error),
     };
@@ -1471,7 +1471,7 @@ fn validate_file(
             Ok(PathSafety::File) => {}
             Ok(PathSafety::Missing) => return observation("missing", "alias_missing"),
             Ok(PathSafety::CloudPlaceholder) => {
-                return observation("conflict", "alias_cloud_placeholder")
+                return observation("conflict", "alias_cloud_placeholder");
             }
             Ok(PathSafety::ReparsePoint) => return observation("conflict", "alias_reparse_point"),
             Ok(_) => return observation("conflict", "alias_wrong_type"),
@@ -1488,10 +1488,10 @@ fn validate_file(
     let hash = match hash_file_streaming(path, cancel_token) {
         Ok(hash) => hash as i64,
         Err(error) if error.kind() == io::ErrorKind::Interrupted => {
-            return observation("cancelled", "cancelled")
+            return observation("cancelled", "cancelled");
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return observation("missing", "path_missing_during_hash")
+            return observation("missing", "path_missing_during_hash");
         }
         Err(error) => return unavailable_observation("hash_unavailable", &error),
     };
@@ -1530,7 +1530,7 @@ fn validate_folder(
         Ok(PathSafety::Missing) => return observation("missing", "folder_missing"),
         Ok(PathSafety::Directory) => {}
         Ok(PathSafety::CloudPlaceholder) => {
-            return observation("conflict", "folder_cloud_placeholder")
+            return observation("conflict", "folder_cloud_placeholder");
         }
         Ok(PathSafety::ReparsePoint) => return observation("conflict", "folder_reparse_point"),
         Ok(_) => return observation("conflict", "folder_wrong_type"),
@@ -1585,16 +1585,16 @@ fn validate_folder(
                     pending.push(path);
                 }
                 Ok(PathSafety::CloudPlaceholder) => {
-                    return observation("conflict", "folder_contains_cloud_placeholder")
+                    return observation("conflict", "folder_contains_cloud_placeholder");
                 }
                 Ok(PathSafety::ReparsePoint) => {
-                    return observation("conflict", "folder_contains_reparse_point")
+                    return observation("conflict", "folder_contains_reparse_point");
                 }
                 Ok(PathSafety::Missing) => {
-                    return observation("changed", "folder_changed_during_enumeration")
+                    return observation("changed", "folder_changed_during_enumeration");
                 }
                 Ok(PathSafety::Other) => {
-                    return observation("conflict", "folder_contains_unsupported_type")
+                    return observation("conflict", "folder_contains_unsupported_type");
                 }
                 Err(error) => return unavailable_observation("folder_entry_unavailable", &error),
             }

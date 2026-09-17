@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use chrono::Utc;
-use rusqlite::{params, Connection, Error, Result};
+use rusqlite::{Connection, Error, Result, params};
 use tracing::{debug, info};
 
 pub const CURRENT_SCHEMA_VERSION: i64 = 15;
@@ -176,12 +176,12 @@ impl Database {
             0 | 1 => {
                 return Err(Error::InvalidParameterName(format!(
                     "unsupported legacy schema version {version}; database was not modified"
-                )))
+                )));
             }
             newer if newer > CURRENT_SCHEMA_VERSION => {
                 return Err(Error::InvalidParameterName(format!(
                     "database schema version {newer} is newer than supported version {CURRENT_SCHEMA_VERSION}"
-                )))
+                )));
             }
             _ => return Err(Error::InvalidQuery),
         }
@@ -240,12 +240,12 @@ impl Database {
                     "SELECT id, file_name FROM scanned_file
                      WHERE extension_key IS NULL ORDER BY id LIMIT 500",
                 )?;
-                let rows = statement
+
+                statement
                     .query_map([], |row| {
                         Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
                     })?
-                    .collect::<Result<Vec<_>>>()?;
-                rows
+                    .collect::<Result<Vec<_>>>()?
             };
             if rows.is_empty() {
                 break;
