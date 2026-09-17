@@ -20,7 +20,7 @@
 
   <ItemGroup>
     <Resource Include="Assets\AppIcon\SuperDuper.ico" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.13" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
     <ProjectReference Include="..\SuperDuper.Windows.Core\SuperDuper.Windows.Core.csproj" />
     <ProjectReference Include="..\SuperDuper.Windows.Infrastructure\SuperDuper.Windows.Infrastructure.csproj" />
   </ItemGroup>

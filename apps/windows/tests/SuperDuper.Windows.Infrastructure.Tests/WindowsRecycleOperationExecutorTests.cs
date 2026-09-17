@@ -129,7 +129,7 @@ public sealed class WindowsRecycleOperationExecutorTests
             1, 1, 0, "signature", "admitted", DateTimeOffset.UtcNow.AddSeconds(-1).ToString("O"),
             null, null, null, [CreateItem(1, @"C:\missing.bin", "file")]);
 
-        await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => executor.ExecuteBatchAsync(
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => executor.ExecuteBatchAsync(
             batch,
             _ =>
             {
@@ -151,7 +151,7 @@ public sealed class WindowsRecycleOperationExecutorTests
             1, 1, 0, "signature", "admitted", DateTimeOffset.UtcNow.AddSeconds(30).ToString("O"),
             null, null, null, items);
 
-        await Assert.ThrowsExceptionAsync<ArgumentOutOfRangeException>(() => executor.ExecuteBatchAsync(
+        await Assert.ThrowsExactlyAsync<ArgumentOutOfRangeException>(() => executor.ExecuteBatchAsync(
             batch,
             _ =>
             {
@@ -173,7 +173,7 @@ public sealed class WindowsRecycleOperationExecutorTests
         try
         {
             using var executor = new WindowsRecycleOperationExecutor();
-            var exception = await Assert.ThrowsExceptionAsync<InvalidOperationException>(() =>
+            var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
                 executor.ExecuteBatchAsync(
                     CreateBatch(1, CreateItem(1, path, "file")),
                     _ =>
@@ -204,7 +204,7 @@ public sealed class WindowsRecycleOperationExecutorTests
         try
         {
             using var executor = new WindowsRecycleOperationExecutor();
-            var exception = await Assert.ThrowsExceptionAsync<InvalidOperationException>(() =>
+            var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
                 executor.ExecuteBatchAsync(
                     CreateBatch(1, CreateItem(1, root, "file")),
                     _ =>

@@ -77,7 +77,7 @@ public sealed class WindowsCloudLocationServiceTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
-        await Assert.ThrowsExceptionAsync<TaskCanceledException>(
+        await Assert.ThrowsExactlyAsync<TaskCanceledException>(
             () => service.DetectAsync(cancellation.Token));
 
         Assert.IsFalse(source.Enumerated);

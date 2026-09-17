@@ -6,7 +6,7 @@ namespace SuperDuper.Windows.Core.Tests;
 [TestClass]
 public sealed class ShellSessionWorkflowTests
 {
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public async Task CompletionOpensRememberedResultsOnlyWhenWatchingWithoutModal(bool modalOpen)
@@ -196,7 +196,7 @@ public sealed class ShellSessionWorkflowTests
         Assert.IsFalse(shell.Preflight.Operation.CanSubmit);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public async Task LateHistoryResponseCannotReplaceAnotherSavedScan(bool fail)
@@ -353,7 +353,7 @@ public sealed class ShellSessionWorkflowTests
         Assert.AreEqual(session.Id, client.Sessions.Single().Id);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("completed")]
     [DataRow("cancelled")]
     [DataRow("failed")]
@@ -449,7 +449,7 @@ public sealed class ShellSessionWorkflowTests
         Assert.IsFalse(shell.Preflight.Operation.CanSubmit);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public async Task DelayedOpenCannotReplaceNewRunOrStealNavigation(bool fail)
@@ -546,7 +546,7 @@ public sealed class ShellSessionWorkflowTests
         Assert.IsFalse(shell.History.IsWarningDrilldownOpen);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("cancelled")]
     [DataRow("failed")]
     [DataRow("interrupted")]
@@ -603,7 +603,7 @@ public sealed class ShellSessionWorkflowTests
         Assert.AreEqual(current.Id, shell.Progress.Run?.Id);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("stay")]
     [DataRow("save")]
     [DataRow("discard")]

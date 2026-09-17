@@ -21,7 +21,7 @@ public sealed class WorkerClientStartupTests
             $"missing-super-duper-worker-{Guid.NewGuid():N}.exe");
         await using var client = new WorkerClient(missingPath, TimeSpan.FromSeconds(1));
 
-        var exception = await Assert.ThrowsExceptionAsync<WorkerConnectionException>(
+        var exception = await Assert.ThrowsExactlyAsync<WorkerConnectionException>(
             () => client.ConnectAsync());
 
         Assert.AreEqual(Path.GetFullPath(missingPath), exception.ExecutablePath);

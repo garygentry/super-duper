@@ -29,7 +29,7 @@ public sealed class DisabledRecycleOperationCapabilityExecutorTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
-        await Assert.ThrowsExceptionAsync<OperationCanceledException>(
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(
             () => executor.InspectAsync([], cancellation.Token));
     }
 
@@ -42,7 +42,7 @@ public sealed class DisabledRecycleOperationCapabilityExecutorTests
             1, 1, 0, "signature", "admitted", DateTimeOffset.UtcNow.AddSeconds(30).ToString("O"),
             null, null, null, []);
 
-        await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => executor.ExecuteBatchAsync(
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => executor.ExecuteBatchAsync(
             batch,
             _ =>
             {

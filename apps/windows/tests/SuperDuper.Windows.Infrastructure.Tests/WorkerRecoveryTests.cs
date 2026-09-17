@@ -80,7 +80,7 @@ public sealed class WorkerRecoveryTests
             }
             if (restartedProcessId is int processId)
             {
-                Assert.ThrowsException<ArgumentException>(() => Process.GetProcessById(processId));
+                Assert.ThrowsExactly<ArgumentException>(() => Process.GetProcessById(processId));
             }
             if (Directory.Exists(temp))
             {

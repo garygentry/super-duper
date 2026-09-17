@@ -246,7 +246,7 @@ public sealed class ScanProgressViewModelTests
         StringAssert.Contains(viewModel.ProgressAnnouncement, "Cancelling");
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("cancelling", "Unavailable — cancellation is in progress", "Unavailable — cancellation is in progress", "Unavailable — cancellation is in progress")]
     [DataRow("completed", "Unavailable — no active scan I/O", "Complete", "Complete")]
     [DataRow("cancelled", "Unavailable — scan was cancelled", "Unavailable — scan was cancelled", "Unavailable — scan was cancelled")]

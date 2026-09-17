@@ -53,7 +53,7 @@ public sealed class LongScanMonitoringTests
         Assert.AreEqual("10", model.FilesDiscovered);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("completed")]
     [DataRow("cancelled")]
     [DataRow("failed")]
@@ -113,7 +113,7 @@ public sealed class LongScanMonitoringTests
         Assert.AreEqual("4 files/s · 400 B/s · 10 s window", model.PartialRecentRate);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(59, "59s")]
     [DataRow(60, "1m 0s")]
     [DataRow(86399, "23h 59m 59s")]

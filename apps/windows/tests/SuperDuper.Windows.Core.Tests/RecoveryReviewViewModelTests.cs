@@ -22,7 +22,7 @@ public sealed class RecoveryReviewViewModelTests
             RecoveryReviewViewModel.ObservationChoices.Select(choice => choice.Value).ToArray());
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("not_started", 0, "Not started")]
     [DataRow("in_progress", 1, "In progress")]
     [DataRow("review_complete_with_unresolved_evidence", 2, "Review complete with unresolved evidence")]

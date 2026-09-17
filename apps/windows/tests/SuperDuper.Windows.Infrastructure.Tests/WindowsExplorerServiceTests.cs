@@ -22,7 +22,9 @@ public sealed class WindowsExplorerServiceTests
         });
 
         var reveal = service.RevealAsync(@"C:\fixture\folder");
-        await nativeStarted.Task;
+        // Block instead of awaiting: the runner may execute this test on a pool thread, and an
+        // await would free that thread for the native work, making the thread-id check vacuous.
+        Assert.IsTrue(nativeStarted.Task.Wait(TimeSpan.FromSeconds(10)));
 
         Assert.IsFalse(reveal.IsCompleted);
         Assert.AreNotEqual(callerThread, nativeThread);
@@ -38,7 +40,7 @@ public sealed class WindowsExplorerServiceTests
         var service = new WindowsExplorerService(
             _ => throw new IOException("The location is unavailable."));
 
-        var exception = await Assert.ThrowsExceptionAsync<InvalidOperationException>(
+        var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => service.RevealAsync(@"C:\missing\folder"));
 
         StringAssert.Contains(exception.Message, @"File Explorer could not reveal 'C:\missing\folder'.");
@@ -53,7 +55,7 @@ public sealed class WindowsExplorerServiceTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
-        await Assert.ThrowsExceptionAsync<TaskCanceledException>(
+        await Assert.ThrowsExactlyAsync<TaskCanceledException>(
             () => service.RevealAsync(@"C:\fixture\folder", cancellation.Token));
 
         Assert.IsFalse(called);
@@ -80,13 +82,14 @@ public sealed class WindowsExplorerServiceTests
 
         var selection = service.SelectByParentAsync(
             [@"D:\Other\Three", @"C:\Shared\Two", @"c:\shared\One"]);
-        await firstCallStarted.Task;
+        // Keep the caller thread occupied (see the RevealAsync test) so no native call can reuse it.
+        Assert.IsTrue(firstCallStarted.Task.Wait(TimeSpan.FromSeconds(10)));
 
         Assert.IsFalse(selection.IsCompleted);
         Assert.AreNotEqual(callerThread, calls[0].ThreadId);
 
         releaseFirstCall.SetResult();
-        var result = await selection;
+        var result = selection.GetAwaiter().GetResult();
 
         Assert.AreEqual(3, result.RequestedItemCount);
         Assert.AreEqual(2, result.ParentCount);
@@ -145,7 +148,7 @@ public sealed class WindowsExplorerServiceTests
                 cancellation.Cancel();
             });
 
-        await Assert.ThrowsExceptionAsync<OperationCanceledException>(
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(
             () => service.SelectByParentAsync(
                 [@"C:\First\One", @"D:\Second\Two"],
                 cancellation.Token));
@@ -165,7 +168,7 @@ public sealed class WindowsExplorerServiceTests
             .Select(index => $@"C:\Bounded\Folder-{index}")
             .ToArray();
 
-        Assert.ThrowsException<ArgumentOutOfRangeException>(
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
             () => service.SelectByParentAsync(paths));
         Assert.IsFalse(called);
     }

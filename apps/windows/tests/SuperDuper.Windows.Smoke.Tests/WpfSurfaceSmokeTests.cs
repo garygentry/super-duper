@@ -1182,7 +1182,7 @@ public sealed class WpfSurfaceSmokeTests
             {
                 DrainDispatcher();
             }
-            Assert.ThrowsException<InvalidOperationException>(() => failed.GetAwaiter().GetResult());
+            Assert.ThrowsExactly<InvalidOperationException>(() => failed.GetAwaiter().GetResult());
             Assert.IsTrue(locationCards.IsKeyboardFocusWithin);
 
             focusHost.Close();

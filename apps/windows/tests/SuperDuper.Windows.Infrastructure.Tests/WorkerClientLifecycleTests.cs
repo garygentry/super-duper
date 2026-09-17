@@ -31,7 +31,7 @@ public sealed class WorkerClientLifecycleTests
             await client.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
 
             Assert.IsNotNull(processId);
-            Assert.ThrowsException<ArgumentException>(() => Process.GetProcessById(processId.Value));
+            Assert.ThrowsExactly<ArgumentException>(() => Process.GetProcessById(processId.Value));
             await Task.WhenAll(requests.Select(async request =>
             {
                 try
@@ -85,7 +85,7 @@ public sealed class WorkerClientLifecycleTests
             await client.DisposeAsync();
 
             Assert.IsNotNull(processId);
-            Assert.ThrowsException<ArgumentException>(() => Process.GetProcessById(processId.Value));
+            Assert.ThrowsExactly<ArgumentException>(() => Process.GetProcessById(processId.Value));
 
             await using var restarted = new WorkerClient(
                 worker,
@@ -255,7 +255,7 @@ public sealed class WorkerClientLifecycleTests
                     WorkerSortDirection.Ascending,
                     new DuplicateFileMemberFilter(string.Empty)));
             var reviewAfter = await client.GetReviewPlanAsync(started.Id);
-            var stale = await Assert.ThrowsExceptionAsync<WorkerProtocolException>(() =>
+            var stale = await Assert.ThrowsExactlyAsync<WorkerProtocolException>(() =>
                 client.SetReviewDecisionAsync(
                     $"stale-{Guid.NewGuid():N}",
                     started.Id,
@@ -454,7 +454,7 @@ public sealed class WorkerClientLifecycleTests
                 loadedRule.Name,
                 [missingRoot, immutableRoot],
                 loadedRule.Revision);
-            var stalePreferenceRule = await Assert.ThrowsExceptionAsync<WorkerProtocolException>(() =>
+            var stalePreferenceRule = await Assert.ThrowsExactlyAsync<WorkerProtocolException>(() =>
                 client.GetPreferencePreviewAsync(
                     new PreferencePreviewQuery(
                         started.Id,

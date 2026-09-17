@@ -41,7 +41,7 @@ public sealed class WorkerRunProgressParserTests
 
         for (var index = 0; index < invalid.Length; index++)
         {
-            Assert.ThrowsException<WorkerProtocolException>(
+            Assert.ThrowsExactly<WorkerProtocolException>(
                 () => Parse(invalid[index]),
                 $"invalid contract mutation {index} was accepted");
         }
@@ -95,9 +95,9 @@ public sealed class WorkerRunProgressParserTests
 
         Assert.AreEqual("verification", parsed.FolderAnalysis?.Substage);
         Assert.AreEqual(5UL, parsed.FolderAnalysis?.Completed);
-        Assert.ThrowsException<WorkerProtocolException>(() => Parse(
+        Assert.ThrowsExactly<WorkerProtocolException>(() => Parse(
             json.Replace("\"completed\":5", "\"completed\":9")));
-        Assert.ThrowsException<WorkerProtocolException>(() => Parse(
+        Assert.ThrowsExactly<WorkerProtocolException>(() => Parse(
             json.Replace("\"verification\"", "\"invented\"")));
     }
 
@@ -123,7 +123,7 @@ public sealed class WorkerRunProgressParserTests
 
         for (var index = 0; index < invalid.Length; index++)
         {
-            Assert.ThrowsException<WorkerProtocolException>(
+            Assert.ThrowsExactly<WorkerProtocolException>(
                 () => Parse(invalid[index]),
                 $"invalid semantic mutation {index} was accepted");
         }

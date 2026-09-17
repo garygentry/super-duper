@@ -68,7 +68,7 @@ public sealed class JsonLineProtocolTests
         source.Cancel();
 
         Assert.IsTrue(correlator.TryCancel("cancelled", source.Token));
-        await Assert.ThrowsExceptionAsync<TaskCanceledException>(async () => await pending);
+        await Assert.ThrowsExactlyAsync<TaskCanceledException>(async () => await pending);
         Assert.IsTrue(correlator.TryComplete(Success("cancelled", 1)));
     }
 

@@ -150,7 +150,7 @@ public sealed class WindowsExplorerService : IExplorerService
         ITEMIDLIST* parent = null;
         try
         {
-            PInvoke.SHParseDisplayName(path, null, out item, 0, null).ThrowOnFailure();
+            PInvoke.SHParseDisplayName(path, null, out item, 0, out _).ThrowOnFailure();
             var parentPath = Path.GetDirectoryName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
             if (string.IsNullOrWhiteSpace(parentPath))
             {
@@ -158,7 +158,7 @@ public sealed class WindowsExplorerService : IExplorerService
                 return;
             }
 
-            PInvoke.SHParseDisplayName(parentPath, null, out parent, 0, null).ThrowOnFailure();
+            PInvoke.SHParseDisplayName(parentPath, null, out parent, 0, out _).ThrowOnFailure();
             var child = PInvoke.ILFindLastID(item);
             PInvoke.SHOpenFolderAndSelectItems(parent, 1, &child, 0).ThrowOnFailure();
         }
@@ -188,10 +188,10 @@ public sealed class WindowsExplorerService : IExplorerService
 
         try
         {
-            PInvoke.SHParseDisplayName(parentPath, null, out parent, 0, null).ThrowOnFailure();
+            PInvoke.SHParseDisplayName(parentPath, null, out parent, 0, out _).ThrowOnFailure();
             for (var index = 0; index < paths.Count; index++)
             {
-                PInvoke.SHParseDisplayName(paths[index], null, out items[index], 0, null).ThrowOnFailure();
+                PInvoke.SHParseDisplayName(paths[index], null, out items[index], 0, out _).ThrowOnFailure();
                 children[index] = PInvoke.ILFindLastID(items[index]);
             }
             PInvoke.SHOpenFolderAndSelectItems(parent, (uint)paths.Count, children, 0).ThrowOnFailure();

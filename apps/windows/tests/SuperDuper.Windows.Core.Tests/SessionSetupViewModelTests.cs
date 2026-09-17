@@ -18,7 +18,7 @@ public sealed class SessionSetupViewModelTests
         Assert.AreEqual(RepeatCachePolicyNames.ReuseVerified, viewModel.RepeatCachePolicy);
         Assert.AreEqual(2, viewModel.RepeatCachePolicies.Count);
         StringAssert.Contains(viewModel.RepeatCachePolicyDescription, "file identity and change metadata qualify");
-        Assert.ThrowsException<ArgumentOutOfRangeException>(
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
             () => viewModel.RepeatCachePolicy = "trust_path");
     }
 

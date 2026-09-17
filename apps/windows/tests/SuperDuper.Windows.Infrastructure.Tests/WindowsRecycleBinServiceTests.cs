@@ -27,7 +27,7 @@ public sealed class WindowsRecycleBinServiceTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
-        await Assert.ThrowsExceptionAsync<OperationCanceledException>(
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(
             () => service.OpenAsync(cancellation.Token));
 
         Assert.IsFalse(started);
