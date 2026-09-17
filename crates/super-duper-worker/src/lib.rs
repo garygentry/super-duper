@@ -4010,8 +4010,7 @@ fn run_preflight_thread(state: Arc<SharedState>, preflight_id: i64, cancel_token
                 preflight.status.as_str(),
                 "completed" | "cancelled" | "failed" | "interrupted"
             );
-            if terminal
-                || last_event.map_or(true, |last| now.duration_since(last) >= EVENT_INTERVAL)
+            if terminal || last_event.is_none_or(|last| now.duration_since(last) >= EVENT_INTERVAL)
             {
                 last_event = Some(now);
                 state.emit(
@@ -4267,9 +4266,9 @@ impl WorkerProgressReporter {
             progress.current_path = Some(path.to_owned());
         }
         let write_database = force
-            || progress.last_database_write.map_or(true, |last| {
-                now.duration_since(last) >= DATABASE_PROGRESS_INTERVAL
-            });
+            || progress
+                .last_database_write
+                .is_none_or(|last| now.duration_since(last) >= DATABASE_PROGRESS_INTERVAL);
         if !write_database {
             return progress.warning_count <= progress.durable_warning_count;
         }
@@ -5547,7 +5546,9 @@ fn decode_cursor(
     }
     let bytes = encoded
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| {
             let digits = std::str::from_utf8(pair).map_err(|_| invalid_cursor())?;
             u8::from_str_radix(digits, 16).map_err(|_| invalid_cursor())
