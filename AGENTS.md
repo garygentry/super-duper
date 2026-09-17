@@ -1,116 +1,177 @@
 # AGENTS.md
 
-Guidance for fresh coding-agent sessions in this repository.
+Shared guidance for coding agents (Codex, Claude Code, and others) working in this repository.
+`CLAUDE.md` imports this file; keep repository-wide guidance here so the two cannot drift.
 
-## Standing computer-control approval
+## What This Project Is
 
-The operator explicitly grants standing approval to control this dedicated Windows VM/sandbox
-(reconfirmed 2026-09-16). Always treat Computer Use for the authorized task as approved; do not ask
-again to launch, capture or operate native apps or to perform the requested appearance checks.
-An app-approval timeout is a tool availability failure, not missing operator authorization.
-After the operator reports approving the tool, resume with fresh window discovery. Preserve the
-task's explicit no-merge/push/release/deletion-activation boundaries and runtime isolation.
+Super Duper is a duplicate file detector. A Rust workspace owns all product logic — scanning,
+hashing, duplicate and exact-folder analysis, SQLite storage, review plans, and deletion planning.
+Three front ends sit on top of it:
 
-## Completed roadmap streams
+- `super-duper-cli` drives the engine directly for headless scans.
+- `super-duper-worker` is a long-lived JSONL child process that the Windows app talks to.
+- `super-duper-ffi` is a UI-agnostic C ABI for future native clients (not used by the Windows app).
 
-UIR-00–UIR-09 and the subsequent usability/visual-polish P00–P08 stream are complete.
-`plans/ui-polish/session-checkpoint.md` and `plans/ui-polish/implementation-evidence.md` record final UX23
-native loading acceptance from `ecd8bc7` and retained verification. No scheduled UI work remains;
-the mandatory roadmap cold-start procedure is retired. Do not replay accepted gates or infer
-new work from the parked Windows release/provider/deletion campaign.
+The Windows app under `apps/windows` is a WPF/.NET 10 application for Windows 11 x64. It is a
+clean-slate product surface over the worker boundary, not a continuation of the Windows app that was
+deleted earlier (`ui/windows`); do not reintroduce that structure.
 
-Keep all work on `codex/ui-redesign`. Preserve `wpf-poc` and `origin/wpf-poc` at `deefa40`,
-including the operator README edit. Do not switch branches, merge, rebase, push, release,
-delete the branch or enable deletion without explicit operator direction. The app remains
-review-only. Historical plans and evidence remain available for a specifically reopened scope.
-Long-scan monitoring and persistent qualified rescan reuse remain required by
-`plans/ui-redesign/scan-and-rescan-experience.md` (A08/A16/A17).
-
-On the dedicated Windows VM, remote desktop input may be unavailable while the operator's session is
-backgrounded or locked. Continue authorized repository work, Rust/.NET builds and tests, isolated
-worker fixtures, and loaded-STA WPF fixture control/captures without waiting for desktop input. Follow
-`docs/windows-ui-dev-session.md` for the verified background workflow. If Computer Use cannot capture
-or send native input, stop those input calls and record that specific native check as unrun; do not
-pause unrelated authorized development or ask the operator to unlock the VM merely to proceed with
-background checks. Recheck native input only when the desktop is available or the selected work
-actually requires physical desktop acceptance. Background evidence does not stand in for a required
-physical/provider/release gate.
-At every session handoff with remaining work, print a copyable continuation prompt in the final
-response, tailored to the committed checkpoint and exact next slice; follow the session guide.
-
-## Current State
-
-This branch contains the clean-slate Rust workspace and the new WPF/.NET 10 Windows MVP scaffold.
-The previous Windows app implementation remains removed, including its `ui/windows` tree and its
-XAML/C# structure.
-
-The app under `apps/windows` is a new product surface over the Rust engine's worker-process boundary,
-not a continuation of the deleted app.
-
-## What Remains
+## Repository Layout
 
 ```text
 super-duper/
-  Cargo.toml
-  Cargo.lock
-  Config.toml
+  Cargo.toml, Cargo.lock, Config.toml, rust-toolchain.toml, global.json
   crates/
-    super-duper-core/     # scanner, hasher, analysis, SQLite storage, deletion plans
-    super-duper-cli/      # headless command-line driver
-    super-duper-ffi/      # C ABI for future native clients
-    super-duper-worker/   # versioned JSONL worker for the Windows app
-  apps/windows/           # WPF/.NET 10 solution, application layers, and tests
-  docs/
-    architecture.svg
-  README.md
-  ROADMAP.md
-  CLAUDE.md
-  crates/CLAUDE.md
+    super-duper-core/     # scanner, hasher, analysis, storage (SQLite), telemetry
+    super-duper-cli/      # headless CLI
+    super-duper-ffi/      # C ABI + generated super_duper.h
+    super-duper-worker/   # JSONL worker process for the Windows app
+  apps/windows/
+    SuperDuper.Windows.sln
+    src/SuperDuper.Windows/                 # WPF executable: XAML views, WPF services, App/MainWindow
+    src/SuperDuper.Windows.Core/            # view models, service/worker contracts, validation (net10.0)
+    src/SuperDuper.Windows.Infrastructure/  # worker client, JSONL protocol, Shell/Recycle Bin/Explorer interop
+    tests/  Core.Tests, Infrastructure.Tests, Smoke.Tests (MSTest; Smoke drives real WPF on an STA thread)
+    tools/  RedesignFixture (fictional in-memory UI fixture), AmbiguousStartHost (test host)
+  scripts/        # PowerShell build, smoke, acceptance, and measurement workflows
+  docs/           # protocol, schema, build, smoke, recovery docs; docs/evidence holds measurement JSON
+  plans/          # versioned UI plans (ui-redesign, ui-polish); other plans/ content is gitignored
 ```
+
+Rust-specific module detail lives in `crates/CLAUDE.md`.
 
 ## Build And Test
 
-Use the Rust workspace commands:
+Build Rust before .NET: the WPF project copies `target/<profile>/super-duper-worker.exe` beside the
+app, and .NET integration tests launch that worker.
 
 ```bash
-cargo build --workspace
+cargo fmt --all --check
+cargo clippy --workspace --all-targets
 cargo test --workspace
-```
-
-Use the Windows solution commands after building Rust so the worker executable is available:
-
-```bash
 dotnet build apps/windows/SuperDuper.Windows.sln
-dotnet test apps/windows/SuperDuper.Windows.sln
+dotnet test apps/windows/SuperDuper.Windows.sln -m:1
 ```
 
-Use the repeatable hardening workflows on Windows 11 x64:
+- Keep the workspace rustfmt-clean and clippy-clean; both are clean today, so any new finding is
+  yours. Silence a lint only with a scoped `#[allow]` and a reason.
+- Run the .NET test projects serially (`-m:1`). Running the WPF STA smoke suite concurrently with
+  the Infrastructure tests can starve dispatcher startup and produce false UI timeouts.
+- Release: add `--release` / `--configuration Release`. Release .NET tests select the Release worker.
+- Toolchains: Rust stable, edition 2024, 1.98 or newer (`[workspace.package] rust-version`; run
+  `rustup update stable` if a build reports an older toolchain), .NET SDK pinned by `global.json`
+  (10.0.400), Windows 11 SDK `10.0.22000.0`, VS C++ build tools, and VS Clang (`LIBCLANG_PATH`) for
+  RocksDB bindgen.
+- Windows tests use the MSTest 4 meta-package; `Microsoft.NET.Test.Sdk` is deliberately absent.
+- `[profile.dev] debug = "line-tables-only"` keeps debug builds near 7 GB instead of ~63 GB of
+  PDBs, which previously filled the disk and hit the linker's `LNK1140` limit. Backtraces keep file
+  and line numbers. Override locally rather than reverting the default, and reclaim space with
+  `cargo clean --profile dev` — disk pressure from `target/` is the recurring build failure here.
+- Run the app: `dotnet run --project apps/windows/src/SuperDuper.Windows/SuperDuper.Windows.csproj`.
+- CLI: `cargo run -p super-duper-cli -- process|analyze-directories|count-hash-cache|print-config|truncate-db`.
+
+Repeatable Windows workflows:
 
 ```powershell
-./scripts/Invoke-WindowsSmoke.ps1
-./scripts/Verify-WindowsRelease.ps1
+./scripts/Start-WindowsUiDev.ps1 -CreateFixture   # real app + disposable state (docs/windows-ui-dev-session.md)
+./scripts/Invoke-WindowsSmoke.ps1                  # worker/WPF smoke (docs/windows-smoke.md)
+./scripts/Verify-WindowsRelease.ps1                # full Release matrix + publish to artifacts/windows-x64
 ```
 
-Build, smoke, diagnostics, known limitations, and recovery are documented in
-`docs/windows-build.md`, `docs/windows-smoke.md`, and `docs/windows-recovery.md`.
-For isolated real-app UI iteration on Windows, use `scripts/Start-WindowsUiDev.ps1 -CreateFixture`
-and `docs/windows-ui-dev-session.md`.
+See `docs/windows-build.md`, `docs/windows-smoke.md`, and `docs/windows-recovery.md`.
 
-The last Milestone 6 verification ran the Debug/Release Rust and .NET matrix plus the real Release
-worker/WPF smoke workflow on Windows 11 x64; all checks passed.
+## Architecture Rules
 
-## Development Notes
+- Keep `super-duper-core` UI-agnostic. Product logic belongs in core, not in the worker or C#.
+- The worker protocol is `docs/worker-protocol-v1.md`. Stdout is protocol-only (one JSON object
+  per LF-terminated frame, 1 MiB max); diagnostics go to stderr. Additive fields are allowed within
+  v1; update the doc with any protocol change.
+- Keep `super-duper-ffi` a stable, app-neutral contract. `crates/super-duper-ffi/super_duper.h` is
+  generated by `build.rs` (cbindgen) and may change when the crate builds.
+- Windows app layering: XAML views and WPF-specific services in `SuperDuper.Windows`; view models,
+  contracts, and validation in `SuperDuper.Windows.Core` (no WPF references); process, protocol, and
+  native Shell/Win32 interop in `SuperDuper.Windows.Infrastructure` (CsWin32, `NativeMethods.txt`).
+  MVVM uses CommunityToolkit.Mvvm; composition uses Microsoft.Extensions.DependencyInjection in
+  `App.xaml.cs`.
 
-- Keep `super-duper-core` UI-agnostic.
-- Keep `super-duper-ffi` as a stable native-client contract, not tailored to one app.
-- Do not reintroduce the old Windows app structure, XAML, C# view models, services, or workarounds.
-- Runtime files such as `super_duper.db`, `content_hash_cache.db`, and `logs/` should stay out of
-  source control.
-- The generated FFI header is `crates/super-duper-ffi/super_duper.h`; building the FFI crate may
-  refresh it.
+## Safety Invariants
 
-## Windows App Work
+- The Windows app is review-only. `App.xaml.cs` registers `DisabledRecycleOperationCapabilityExecutor`,
+  so production Recycle Bin execution is disabled. Do not wire `WindowsRecycleOperationExecutor` or
+  any other file-mutating path into production, and do not add deletion to the worker or UI, without
+  explicit operator direction.
+- Scans, reviews, and previews must not modify scanned files. Review decisions are durable
+  snapshot-backed records, not filesystem actions.
+- Smoke, acceptance, and fault-injection workflows must use disposable state
+  (`SUPER_DUPER_DB_PATH`, `SUPER_DUPER_STATUS_DB_PATH`, `HASH_CACHE_PATH` under `artifacts/` or temp),
+  never real user data.
+- Runtime files (`super_duper.db`, `scan_status.db`, `content_hash_cache.db`, `logs/`, `artifacts/`)
+  stay out of source control.
 
-Follow `docs/windows-mvp-plan.md` and `docs/worker-protocol-v1.md`. Keep WPF views in the executable,
-application contracts/view models in `SuperDuper.Windows.Core`, and process/native concerns in
-`SuperDuper.Windows.Infrastructure`.
+## Storage
+
+- Main database: embedded SQLite `super_duper.db`, WAL mode. Rust owns the schema:
+  `crates/super-duper-core/src/storage/schema.sql` for new databases plus in-place transactional
+  migrations in `storage/sqlite.rs` (`CURRENT_SCHEMA_VERSION`, currently 15). Newer-than-supported
+  databases are rejected. Any schema change needs a migration step, a bumped version, tests in
+  `crates/super-duper-core/tests/storage_tests.rs`, and a `docs/storage-schema-vN.md`.
+- Table families: sessions and immutable runs (`scan_session`, `scan_run`, `run_exclusion`,
+  `run_warning_aggregate`); results (`scanned_file`, `duplicate_group[_member]`,
+  `duplicate_folder_group[_member]`, `directory_*`); review (`review_plan`, `review_decision`,
+  `review_folder_decision`, `*_command` idempotency ledgers); preference rules; live validation and
+  root reconciliation (`review_live_*`); preflight and recycle operations (`preflight*`,
+  `recycle_operation*`, `recovery_review_observation`); legacy `deletion_plan`.
+- Scan telemetry lives in a separate worker-owned status database (`scan_status.db`,
+  `telemetry/status_schema.sql`), never in the main schema.
+- Content-hash cache: one RocksDB store at `HASH_CACHE_PATH` (default `content_hash_cache.db`),
+  owned by `hasher/repeat_cache.rs`. RocksDB locks that directory even against a second open from
+  the same process, so a scan opens it once and shares it (hashing and exact-folder verification);
+  never add another open of the same path. `hasher/cache.rs` keeps only path resolution plus
+  read-only counting and locked clearing for the CLI and FFI.
+- Dependency pins with reasons: `bincode` stays on 2.0.1 (3.0.0 on crates.io is an empty
+  placeholder) and the stored encoding uses `config::legacy()` to stay byte-identical with the 1.x
+  on-disk format — `stored_encoding_bytes_are_pinned` in `hasher/repeat_cache.rs` fails if that
+  changes. `resolver` stays `"2"` although edition 2024 defaults to `"3"`. RocksDB 0.25 (bundled
+  11.8) is a one-way upgrade: a store it writes may not open under the previously bundled 8.10.
+
+## Environment Variables
+
+- `TRACING_LEVEL`, `LOG_FILE_PATH` — CLI logging (via `.env`; see `.env.example`).
+- `HASH_CACHE_PATH` — RocksDB hash cache location.
+- `SUPER_DUPER_DB_PATH`, `SUPER_DUPER_STATUS_DB_PATH` — worker database overrides.
+- `SUPER_DUPER_LOG` — worker stderr tracing filter; `SUPER_DUPER_DIAGNOSTIC_LOG_PATH` — bounded
+  diagnostic log.
+- `SUPER_DUPER_WORKER_PATH` — app override for worker discovery.
+- `SUPER_DUPER_DISABLE_CLOUD_REGISTRATION_DISCOVERY` — test/diagnostic switch.
+- `SUPER_DUPER_SOP*`, `SUPER_DUPER_WPM13_*`, `SUPER_DUPER_*_EVIDENCE*`, `SUPER_DUPER_UIR05C_CAPTURES`
+  are evidence/measurement hooks used by scripts and tests only.
+
+Debug app builds also honor a `.uidev` sidecar next to the executable (written by
+`Start-WindowsUiDev.ps1`) when no database override is set; it is compiled out of Release.
+
+## Project Status And History
+
+The Windows MVP (milestones 0–6), the UI redesign (UIR-00–UIR-09), the usability/visual-polish
+stream (P00–P08), and the large-drive scan optimization stream (SOP1–SOP10) are complete. The
+Windows post-MVP release-validation stream is parked; its ledger is
+`docs/windows-roadmap-closure-ledger.md`, and production Recycle Bin execution remains disabled.
+`ROADMAP.md` tracks forward-looking work.
+
+Historical plans, handoffs, and evidence (`plans/`, `docs/windows-post-mvp-ux-plan.md`,
+`docs/windows-roadmap-session-handoff.md`, `docs/evidence/`) are records, not work queues. Do not
+replay accepted gates, rerun consumed campaign identities, or infer new work from them unless the
+operator reopens that scope.
+
+## Dedicated Windows VM
+
+The operator has granted standing approval (reconfirmed 2026-09-16) for agents to use computer
+control on the dedicated Windows development VM for authorized tasks: launching, capturing, and
+operating the app and performing requested appearance checks. An app-approval timeout is a tool
+availability failure, not missing authorization. This does not extend to merging, pushing,
+releasing, deleting branches, or enabling deletion, which each still need explicit direction.
+
+Remote desktop input may be unavailable while the operator's session is backgrounded or locked.
+Continue builds, tests, isolated worker fixtures, and loaded-STA WPF captures without waiting
+(`docs/windows-ui-dev-session.md`). Record any native check you could not run as unrun; background
+evidence does not substitute for a required physical, provider, or release gate.

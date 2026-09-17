@@ -76,3 +76,6 @@ Desktop.ini
 # But keep source SQL files
 !**/src/**/*.sql
 
+
+# Local launcher shortcuts (point at the gitignored artifacts/ publish)
+*.lnk

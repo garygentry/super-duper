@@ -1,14 +1,23 @@
 # CLAUDE.md - Rust Crates
 
-The Rust workspace is the core of Super Duper. `super-duper-core` contains the business logic,
-`super-duper-cli` is the headless driver, and `super-duper-ffi` exposes a C-compatible boundary for
-future native clients.
+Repository-wide rules (build order, safety invariants, storage policy) are in the root `AGENTS.md`.
+This file covers the Rust workspace.
+
+## Crates
+
+- `super-duper-core` — all product logic. UI-agnostic; no async runtime.
+- `super-duper-cli` — headless driver over `ScanEngine` using `Config.toml` and `.env`.
+- `super-duper-worker` — long-lived JSONL process launched by the Windows app
+  (`docs/worker-protocol-v1.md`). Owns the main database, the status database, and command dispatch.
+- `super-duper-ffi` — C ABI for future native clients; not used by the Windows app.
 
 ## Build Commands
 
 ```bash
 cargo build --workspace
-cargo build --release --workspace
+cargo test --workspace
+cargo test -p super-duper-core --test storage_tests
+cargo build -p super-duper-worker            # needed before building/running the Windows app
 cargo run -p super-duper-cli -- process
 cargo run -p super-duper-cli -- analyze-directories
 cargo run -p super-duper-cli -- count-hash-cache
@@ -16,85 +25,84 @@ cargo run -p super-duper-cli -- print-config
 cargo run -p super-duper-cli -- truncate-db
 ```
 
-## Environment Variables
+RocksDB compiles native code: on Windows it needs the VS C++ build tools and Clang
+(`LIBCLANG_PATH`); on Linux it needs `libclang-dev`.
 
-Configured via `.env` in the working directory:
+The workspace is edition 2024 and requires Rust 1.98 or newer; `edition`, `rust-version`, and the
+`[profile.dev]` debug-info setting are declared once in the root `Cargo.toml`. Keep the workspace
+`cargo fmt --all --check` and `cargo clippy --workspace --all-targets` clean.
 
-- `TRACING_LEVEL` - Log verbosity (`debug`, `info`, `warn`, `error`, `trace`)
-- `LOG_FILE_PATH` - File log output path, default `./logs/sd.log`
-- `HASH_CACHE_PATH` - RocksDB cache location, default `content_hash_cache.db`
-
-## Configuration
-
-`Config.toml` in the repo root defines scan targets and ignore patterns:
-
-```toml
-root_paths = ["../test-data/folder1", "../test-data/folder2"]
-ignore_patterns = ["**/node_modules/**", "*/$RECYCLE.BIN"]
-```
-
-## Workspace Structure
+## Layout
 
 ```text
-super-duper-core/
-  src/
-    lib.rs
-    config.rs
-    engine.rs
-    error.rs
-    progress.rs
-    scanner/walk.rs
-    hasher/xxhash.rs
-    hasher/cache.rs
-    storage/sqlite.rs
-    storage/models.rs
-    storage/queries.rs
-    storage/schema.sql
-    analysis/dir_fingerprint.rs
-    analysis/dir_similarity.rs
-    analysis/deletion_plan.rs
-    platform/windows.rs
+super-duper-core/src/
+  engine.rs              # ScanEngine: scan -> hash -> store -> analyze, cancellation, progress
+  config.rs, error.rs, progress.rs
+  scanner/walk.rs        # parallel traversal, ignore patterns, size grouping, cloud/run exclusions
+  hasher/
+    xxhash.rs            # partial (1 KB) and full XxHash64 hashing pipeline
+    cache.rs             # hash-cache path resolution and count/clear maintenance (no global handle)
+    read_path.rs         # buffered/sequential read strategy
+    scheduler.rs         # per-device read scheduling (HDD vs SSD)
+    repeat_cache.rs, repeat_profile.rs   # the one RocksDB hash-cache store; a scan opens it once
+                                          # and shares it with exact-folder verification
+  analysis/
+    file_dupes.rs        # confirmed duplicate-file groups
+    exact_folders.rs     # verified exact duplicate folders (Merkle-style), nested suppression
+    dir_fingerprint.rs, dir_similarity.rs  # directory fingerprints and Jaccard similarity
+    deletion_plan.rs     # legacy deletion plan used by CLI/FFI
+  storage/
+    sqlite.rs            # open, pragmas (WAL), CURRENT_SCHEMA_VERSION, in-place migrations
+    schema.sql           # schema for new databases (must match migrated shape)
+    models.rs, queries.rs                      # sessions, runs, results, keyset-paged queries
+    review.rs, preference.rs                   # review plans/decisions, preferred-root rules
+    live_validation.rs, live_hints.rs, root_reconciliation.rs  # live re-validation of review state
+    preflight.rs, recycle_operation.rs, recovery_review.rs     # recycle staging, ledger, recovery
+  telemetry/             # metrics contract, sampler, separate status DB (status_schema.sql)
+  platform/windows.rs    # drive letters, device/volume probes (cfg(windows))
+super-duper-core/tests/  # storage, e2e pipeline, exact folders, analysis, progress contract,
+                         # telemetry, sop10 scale
+super-duper-core/examples/  # evidence snapshot tools used by acceptance scripts
 
-super-duper-cli/
-  src/
-    main.rs
-    commands.rs
-    logging.rs
-    progress.rs
+super-duper-worker/src/
+  main.rs                # stdin/stdout wiring
+  lib.rs                 # frame parsing, request dispatch, run/preflight lifecycle, tests
+  progress_projection.rs # scan progress -> protocol projection
 
-super-duper-ffi/
-  src/
-    handle.rs
-    types.rs
-    callbacks.rs
-    error.rs
-    queries.rs
-    actions.rs
-  super_duper.h
-  build.rs
+super-duper-cli/src/     # main.rs, commands.rs, logging.rs, progress.rs
+super-duper-ffi/src/     # handle.rs, types.rs, callbacks.rs, error.rs, queries.rs, actions.rs
+super-duper-ffi/super_duper.h  # generated by build.rs via cbindgen
 ```
+
+Worker command families (method names in `lib.rs`): `app.status`, `session.*`, `run.*`,
+`warning.page`, `run_exclusion.page`, `duplicate_file_*`, `duplicate_folder_group.*`,
+`review_plan.get`, `review_*_group.page`, `review_*decision.set`, `preference_rule.*`,
+`review_live_*`, `preflight.*`, `recycle_operation.*`, `recovery_review.get`.
 
 ## Processing Pipeline
 
-1. Scan: `scanner/walk.rs` traverses directories in parallel and groups candidate files by size.
-2. Hash: `hasher/` applies partial and full XxHash64 hashing, backed by RocksDB cache entries.
-3. Store: `engine.rs` and `storage/` write sessions, files, groups, and analysis data to SQLite.
-4. Analyze: `analysis/` builds directory fingerprints, directory similarity results, and deletion
-   plans.
+1. Scan: `scanner/walk.rs` walks roots in parallel, applies ignore patterns and run exclusions, and
+   groups candidate files by size.
+2. Hash: `hasher/` applies partial then full XxHash64, scheduled per device and backed by the RocksDB
+   cache.
+3. Store: `engine.rs` and `storage/` write immutable run-owned files and groups to SQLite.
+4. Analyze: `analysis/` builds duplicate groups, exact folders, directory fingerprints and
+   similarity.
 
 ## Concurrency Model
 
-The core uses `rayon` for data parallelism and `DashMap` for concurrent maps. It does not use an
-async runtime. `ScanEngine::cancel()` sets an atomic cancel token passed through scan phases.
+`rayon` for data parallelism and `DashMap` for concurrent maps; no async runtime. Cancellation uses
+an atomic token checked through scan phases (`ScanEngine::cancel()`). The worker runs scans off the
+request loop so it keeps answering protocol requests during a run.
+
+## Storage Changes
+
+Adding or changing tables requires all of: bump `CURRENT_SCHEMA_VERSION`, add a transactional
+migration from the previous version in `sqlite.rs`, update `schema.sql` to the same final shape,
+cover upgrade and fresh-create paths in `tests/storage_tests.rs`, and add `docs/storage-schema-vN.md`.
 
 ## FFI Layer
 
-- `handle.rs` manages opaque `u64` handles.
-- `types.rs` defines `#[repr(C)]` structs and result codes.
-- `callbacks.rs` bridges progress callbacks.
-- `error.rs` stores thread-local error detail.
-- `queries.rs` exposes paginated read APIs.
-- `actions.rs` exposes engine lifecycle, scan, cancellation, and deletion APIs.
-
-The FFI crate should stay UI-agnostic. Future clients should consume it as a contract rather than
-shape it around a particular app implementation.
+Opaque `u64` handles, `#[repr(C)]` types and result codes, progress callbacks, thread-local error
+detail (`sd_last_error_message()`), paginated queries, and Rust-owned buffers freed by `sd_free_*()`.
+Keep it app-neutral.

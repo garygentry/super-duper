@@ -7,7 +7,7 @@ The repository contains the Rust engine, CLI, reusable FFI boundary, versioned w
 ## Features
 
 - Two-tier hashing: exact file size, then a 1 KB XxHash64 partial hash, then full-content hashing only for candidates
-- Streaming full-file hashing with a bounded buffer and a RocksDB cache keyed by canonical path, size, and high-resolution modified timestamp
+- Streaming full-file hashing with a bounded buffer and one RocksDB repeat cache, keyed by a content signature (canonical path, size, and high-resolution modified timestamp) and shared by hashing and exact-folder verification
 - SQLite session storage for scans, duplicate groups, directory analysis, and deletion plans
 - Directory fingerprinting and Jaccard similarity for exact, subset, and near-match folder trees
 - Exact duplicate-folder verification by relative structure and content, with redundant nested
@@ -52,9 +52,9 @@ super-duper/
 
 | Tool           | Notes                                                             |
 | -------------- | ----------------------------------------------------------------- |
-| Rust toolchain | `rustup` recommended, stable channel                              |
+| Rust toolchain | `rustup` recommended, stable channel, 1.98 or newer                |
 | `libclang-dev` | Required by RocksDB's bindgen step on Linux                       |
-| .NET SDK       | 10.0.303 or a compatible 10.0 patch; required for the Windows app |
+| .NET SDK       | 10.0.400 or a compatible 10.0 patch; required for the Windows app |
 | Windows        | Windows 11 x64 for building and running the WPF application       |
 | Windows SDK    | A Windows 11 SDK capable of targeting `10.0.22000.0`              |
 
@@ -200,7 +200,7 @@ cargo run -p super-duper-cli -- process
 # Re-run directory fingerprinting and similarity analysis
 cargo run -p super-duper-cli -- analyze-directories
 
-# Inspect the persistent hash cache
+# Count live entries in the persistent hash cache (read-only; safe while a scan is running)
 cargo run -p super-duper-cli -- count-hash-cache
 
 # Print loaded configuration
@@ -226,11 +226,15 @@ Configured via a `.env` file in the working directory when needed.
 ## Database
 
 Super Duper uses embedded SQLite (`super_duper.db` in the working directory). New databases use
-schema version 6. Version 2, 3, 4, and 5 databases are upgraded transactionally and in place;
+schema version 15. Version 2 through 14 databases are upgraded transactionally and in place;
 unknown older schemas and databases created by a newer engine are rejected without modification.
-See [`docs/storage-schema-v6.md`](docs/storage-schema-v6.md) for durable file/folder-review storage
-and migration details and [`docs/storage-schema-v4.md`](docs/storage-schema-v4.md) for cloud-safe
-run policy.
+Each version has its own note, from [`docs/storage-schema-v3.md`](docs/storage-schema-v3.md) to
+[`docs/storage-schema-v15.md`](docs/storage-schema-v15.md); see
+[`docs/storage-schema-v6.md`](docs/storage-schema-v6.md) for durable file/folder-review storage and
+[`docs/storage-schema-v4.md`](docs/storage-schema-v4.md) for cloud-safe run policy.
+
+Scan telemetry lives in a separate worker-owned status database (`scan_status.db`), not in this
+schema.
 
 Key tables:
 
@@ -264,7 +268,8 @@ The `super-duper-ffi` crate exposes the core through a C ABI for future native c
 
 ## Project Status
 
-The Rust core and CLI are functional, and Windows MVP Milestones 0–6 are implemented. The bounded
+The Rust core and CLI are functional, and Windows MVP Milestones 0–6 are implemented, followed by
+the UI redesign (UIR-00–UIR-09) and usability/visual-polish (P00–P08) streams. The bounded
 release-acceptance remediation for immediate rerun, native Explorer reveal, deterministic
 shutdown, unexpected-worker recovery, sorting, and accessibility is code complete and verified.
 See
