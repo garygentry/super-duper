@@ -263,11 +263,24 @@ public partial class DuplicateFoldersView : UserControl
         {
             e.Handled = true;
             await RevealSelectedLocationAsync();
+            return;
+        }
+
+        if (IsSelectPageShortcut(e.Key, e.SystemKey, Keyboard.Modifiers))
+        {
+            e.Handled = true;
+            await SelectCurrentPageInExplorerAsync();
         }
     }
 
     internal static bool IsRevealShortcut(Key key, Key systemKey, ModifierKeys modifiers) =>
         (key == Key.System ? systemKey : key) == Key.E
+        && modifiers.HasFlag(ModifierKeys.Alt);
+
+    // The page-selection action is icon-only, so it carries no access text; it still advertises
+    // Alt+G through AutomationProperties.AccessKey and its help text, so implement that here.
+    internal static bool IsSelectPageShortcut(Key key, Key systemKey, ModifierKeys modifiers) =>
+        (key == Key.System ? systemKey : key) == Key.G
         && modifiers.HasFlag(ModifierKeys.Alt);
 
     private async void OnRevealInExplorerClick(object sender, RoutedEventArgs e)

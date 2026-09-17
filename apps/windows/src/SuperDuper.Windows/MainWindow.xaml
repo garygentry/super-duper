@@ -240,7 +240,11 @@
                                             <Button DockPanel.Dock="Right" Margin="12,0,0,0" Style="{StaticResource ShellPrimaryAction}"
                                                         AutomationProperties.AutomationId="OpenScan" AutomationProperties.Name="Open highlighted scan in the workspace"
                                                         Command="{Binding OpenScanCommand}">
-                                                <AccessText Text="_Open scan" />
+                                                <!-- Alt+E: the warning drilldown below shares this
+                                                     scope and owns Alt+O for "_Open duplicate
+                                                     results"; two matches make WPF cycle focus
+                                                     instead of invoking either action. -->
+                                                <AccessText Text="Op_en scan" />
                                             </Button>
                                             <TextBlock VerticalAlignment="Center" Style="{StaticResource ShellBody}" Text="{Binding HistoryContext}"
                                                        TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding HistoryContext}" />
