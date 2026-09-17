@@ -412,3 +412,43 @@ appearance/focus checks and Debug/Release test baselines remain valid; no source
 and no tests were replayed. A successful native capture/input session is the exact remaining
 prerequisite. Retry only that observation when available, then assess closure against the
 existing acceptance matrix. No merge, push, release or deletion activation occurred.
+
+## UX23 native sampling continuation (2026-09-16, from c8af9da)
+
+Clean Git start at `c8af9da` on `codex/ui-redesign`; `origin/wpf-poc` remains `deefa40`.
+The sandbox denied process enumeration; the normal-context audit succeeded and found no
+app/worker/fixture. No sidecar existed. The existing Debug DLL matched the retained SHA256
+`636AFCF7EC78D28F4E6DEE4D72286E7D9A66507E8DE3EF61F282F2E785397817`.
+Prepared the same isolated real-file journey
+`artifacts/ui-dev-session/polish-journey-e4149564922d459cb1761b190b1d8a09`
+with `-SkipBuild -PrepareControlLaunch`. No build, test, corpus mutation or source change.
+
+Native launch, fresh app discovery, activation, capture and input all succeeded this time,
+without helper recovery or troubleshooting. Returned window ID 6751690 belonged to owned
+app PID 7760; matching Debug worker PID 15252 had parent 7760. Direct native screenshots
+were inspected in this task at 1166×753; these are not background WPF captures.
+
+- History initially highlighted scan 8; no scan 7/8 Results were opened. A row click highlighted
+  scan 2 only; its observed identity was corrected before Open. Scan 4 was then selected and
+  confirmed in the native History summary. Alt+O opened its one-set/two-copy Results.
+  The immediately requested screenshot already showed settled members, without overlap.
+- Selected the existing Real-file polish journey saved session, which opened scan 6:
+  232 sets/670 copies, including the 208-copy Overview-001.md set. Hid the saved-scan rail
+  to expose its member comparison. This was navigation for sampling, not an appearance re-audit.
+- Clicked Next copies and immediately captured, then Previous copies and immediately captured.
+  The screenshots showed the second page and restored first page respectively, without overlap.
+  Both were already settled; neither showed “Loading group members”. Accessibility document
+  text included hidden loading/empty strings and lagged navigation, so it was not used as proof
+  that those labels were visually displayed.
+
+The bounded native samples did **not** capture the transient loading frame. Capture availability
+is no longer the latest blocker; observing the brief transition itself is the remaining gap.
+No artificial delay, fake worker, background substitution or repeated sampling loop was introduced.
+Accepted appearance/focus checks and all prior verification remain intact.
+
+Alt+F4 closed the owned app normally. Normal-context audit found no app/worker/fixture, and
+the exact temporary Debug sidecar was removed. No decisions, file removal or OS settings changed.
+P08 closure assessment: **open**, solely for UX23's native transient after-check. Settled native
+frames and the retained delayed-response regression do not satisfy that requirement. No new
+product defect was observed. Continue only a bounded attempt to observe that native frame;
+do not repeat helper troubleshooting or broaden into completed checks. No merge/push/release.

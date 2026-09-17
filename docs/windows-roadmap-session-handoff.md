@@ -30,6 +30,14 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 
 ## Current checkpoint
 
+- UX23-only continuation from `c8af9da` on 2026-09-16: native capture/input succeeded without
+  recovery. Scan 4 historical open and scan 6 next/previous member-page captures showed settled
+  members without overlap; the transient loading frame remains unobserved. P08 stays open for
+  that exact evidence, no longer a reproduced capture-availability failure. Owned app 7760 and
+  worker 15252 exited after native close; normal-context audit empty, Debug sidecar removed.
+  No source/build/test changes or accepted appearance/focus rechecks. Preserve prior verification,
+  `origin/wpf-poc` at `deefa40`, and all boundaries. Latest polish evidence/checkpoint own next work.
+
 - UX23-only continuation from `b68c5aa` on 2026-09-16: native launch timed out, fresh discovery
   recovered the isolated Debug window, then bounded capture recovery returned `FrameArrived
   timed out: timed out waiting on channel`. No native frame obtained; P08 closure assessed and

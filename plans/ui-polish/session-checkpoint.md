@@ -90,13 +90,15 @@ Both native app sessions are closed, their workers exited/stopped and the Debug 
 
 ## Exact next step
 
-Latest attempt from `b68c5aa` on 2026-09-16 could not obtain a native capture. Exact Debug
-launch timed out; fresh discovery recovered the owned window, but the bounded recovery's
-capture returned `FrameArrived timed out: timed out waiting on channel`. No loading-frame
-evidence was obtained. Owned app 11560/worker 6900 were stopped, the Debug sidecar removed,
-and follow-up audits found none. No source/build/test changes; all accepted checks retained.
-P08 closure was assessed and remains blocked by that precise native evidence, not authorization.
-See the latest section of `implementation-evidence.md`. Do not repeat helper troubleshooting.
+Latest attempt from `c8af9da` on 2026-09-16 obtained native launch/capture/input successfully
+without recovery. The earlier `FrameArrived` failure did not recur. Scan 4 historical open
+and scan 6's 208-copy set Next/Previous member-page captures all showed settled members,
+without overlap; none captured the brief loading frame. Availability alone was insufficient
+to obtain that evidence. P08 closure remains open solely for the transient native after-check.
+Owned app 7760/worker 15252 exited after native Alt+F4; normal-context audit found none and
+the exact Debug sidecar was removed. No source/build/test changes, corpus mutation, decision
+changes or accepted appearance/focus rechecks. See the latest implementation evidence.
+Do not repeat helper troubleshooting or an indefinite settled-frame sampling loop.
 
 Complete UX23's precise native loading-state observation, then review P08 closure. Historical open
 and the 208-copy set's next-page load were exercised without overlap in sampled settled captures,
