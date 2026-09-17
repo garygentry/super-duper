@@ -10,3 +10,9 @@ resolver = "2"
 [workspace.package]
 # The toolchain the workspace is built and tested with; rust-toolchain.toml tracks stable.
 rust-version = "1.98"
+
+# Full MSVC debug info for this dependency tree produces ~60 GB of PDBs per debug build cycle and
+# can exceed the linker's program-database limit (LNK1140). Line tables keep file and line numbers
+# in panic backtraces at a fraction of the size.
+[profile.dev]
+debug = "line-tables-only"

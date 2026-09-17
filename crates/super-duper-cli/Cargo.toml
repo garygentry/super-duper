@@ -17,5 +17,5 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "ansi"]
 tracing-appender = "0.2"
 
 # Display
-colored = "2.1"
+colored = "3"
 indicatif = "0.18"

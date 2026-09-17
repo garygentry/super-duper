@@ -6,10 +6,11 @@ rust-version.workspace = true
 
 [dependencies]
 # Configuration
-config = "0.14.0"
-toml = "0.8.11"
+config = "0.15"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+# Evidence snapshot hashing (examples/)
 sha2 = "0.10"
 
 # File system
@@ -33,7 +34,7 @@ rusqlite = { version = "0.40", features = ["bundled", "collation"] }
 tracing = "0.1"
 
 # Error handling
-thiserror = "1.0"
+thiserror = "2"
 
 # Collections
 ahash = "0.8.11"
