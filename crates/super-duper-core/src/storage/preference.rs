@@ -1508,29 +1508,6 @@ fn preference_root_key(root: &str) -> String {
     }
 }
 
-#[cfg(test)]
-mod root_key_tests {
-    use super::preference_root_key;
-
-    #[test]
-    fn normalization_preserves_distinct_namespaces_and_relative_roots() {
-        assert_eq!(preference_root_key("C:////"), preference_root_key(r"C:\"));
-        assert_ne!(preference_root_key(r"C:\"), preference_root_key("C:"));
-        assert_ne!(
-            preference_root_key(r"\\.\C:\data"),
-            preference_root_key(r"C:\data")
-        );
-        assert_ne!(
-            preference_root_key(r"\\?\Volume{abc}\data"),
-            preference_root_key(r"Volume{abc}\data")
-        );
-        assert_ne!(
-            preference_root_key(r"/tmp/a\b"),
-            preference_root_key("/tmp/a/b")
-        );
-    }
-}
-
 fn validate_rule_storage_inputs(
     operation_id: &str,
     name: &str,
@@ -1695,4 +1672,27 @@ fn folder_survivor_conflict(
         }
     }
     None
+}
+
+#[cfg(test)]
+mod root_key_tests {
+    use super::preference_root_key;
+
+    #[test]
+    fn normalization_preserves_distinct_namespaces_and_relative_roots() {
+        assert_eq!(preference_root_key("C:////"), preference_root_key(r"C:\"));
+        assert_ne!(preference_root_key(r"C:\"), preference_root_key("C:"));
+        assert_ne!(
+            preference_root_key(r"\\.\C:\data"),
+            preference_root_key(r"C:\data")
+        );
+        assert_ne!(
+            preference_root_key(r"\\?\Volume{abc}\data"),
+            preference_root_key(r"Volume{abc}\data")
+        );
+        assert_ne!(
+            preference_root_key(r"/tmp/a\b"),
+            preference_root_key("/tmp/a/b")
+        );
+    }
 }

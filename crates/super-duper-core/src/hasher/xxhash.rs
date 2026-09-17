@@ -200,10 +200,10 @@ impl HashDeviceMapper for SystemHashDeviceMapper {
                 .devices_by_drive
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            return cache
+            cache
                 .entry(key)
                 .or_insert_with(|| crate::platform::storage_device_for_path(path))
-                .clone();
+                .clone()
         }
         #[cfg(not(target_os = "windows"))]
         crate::platform::storage_device_for_path(path)
@@ -661,6 +661,8 @@ fn build_content_hash_map_with_scheduler(
         .into_iter()
         .filter(|(_, files)| files.len() > 1)
         .collect::<Vec<_>>();
+    // Kept verbatim: scripts/Verify-WindowsHashReadPath.ps1 asserts this accepted SOP7 bucket order.
+    #[allow(clippy::unnecessary_sort_by)]
     buckets.sort_by(|left, right| right.0.cmp(&left.0));
     let total_files = buckets.iter().map(|(_, files)| files.len()).sum();
     let batcher = HashProgressBatcher::new(sink);
@@ -904,6 +906,7 @@ impl HashOutcome {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn populate_full_hash(
     file: &Path,
     file_size: u64,
@@ -1456,10 +1459,7 @@ mod tests {
             observe(FullHashIoEvent::ContentReadStarted)?;
             observe(FullHashIoEvent::ContentBytesRead(123))?;
             if matches!(self.0, FullScenario::ReadFailure) {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "injected read failure",
-                ));
+                return Err(io::Error::other("injected read failure"));
             }
             Ok(FullHashRead {
                 hash: 13,

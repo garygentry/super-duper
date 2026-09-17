@@ -2707,7 +2707,7 @@ impl WorkerSession {
             .first()
             .and_then(|group| {
                 let has_previous =
-                    cursor.as_ref().map_or(false, |value| !value.before) || page.has_more;
+                    cursor.as_ref().is_some_and(|value| !value.before) || page.has_more;
                 has_previous.then(|| encode_group_cursor(group, sort_field, true, &signature))
             })
             .transpose()?;
@@ -2814,7 +2814,7 @@ impl WorkerSession {
             .first()
             .and_then(|facet| {
                 let has_previous =
-                    cursor.as_ref().map_or(false, |value| !value.before) || page.has_more;
+                    cursor.as_ref().is_some_and(|value| !value.before) || page.has_more;
                 has_previous
                     .then(|| encode_selected_root_facet_cursor(facet, sort_field, true, &signature))
             })
@@ -2926,7 +2926,7 @@ impl WorkerSession {
             .first()
             .and_then(|facet| {
                 let has_previous =
-                    cursor.as_ref().map_or(false, |value| !value.before) || page.has_more;
+                    cursor.as_ref().is_some_and(|value| !value.before) || page.has_more;
                 has_previous.then(|| encode_drive_facet_cursor(facet, sort_field, true, &signature))
             })
             .transpose()?;
@@ -3020,7 +3020,7 @@ impl WorkerSession {
             .first()
             .and_then(|member| {
                 let has_previous =
-                    cursor.as_ref().map_or(false, |value| !value.before) || page.has_more;
+                    cursor.as_ref().is_some_and(|value| !value.before) || page.has_more;
                 has_previous.then(|| encode_member_cursor(member, sort_field, true, &signature))
             })
             .transpose()?;
@@ -3375,7 +3375,7 @@ impl WorkerSession {
             "preflight.item.page",
             preflight.preflight.run_id,
             None,
-            i64::from(parameters.page_size),
+            parameters.page_size,
             page.items.len(),
             page.total,
             query_started.elapsed(),
@@ -4640,12 +4640,9 @@ pub fn run_with_options<R: BufRead, W: Write + Send>(
         drop(session);
         drop(state);
         drop(sender);
-        let writer_result = writer.join().map_err(|_| {
-            WorkerError::Io(io::Error::new(
-                io::ErrorKind::Other,
-                "worker output thread panicked",
-            ))
-        })?;
+        let writer_result = writer
+            .join()
+            .map_err(|_| WorkerError::Io(io::Error::other("worker output thread panicked")))?;
         dispatch_result.and(writer_result)
     })
 }
@@ -5171,6 +5168,7 @@ fn validate_minimum_copy_count(value: i64) -> Result<(), ProtocolFailure> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn group_query_signature(
     run_id: i64,
     sort_field: DuplicateFileGroupSortField,
@@ -5202,6 +5200,7 @@ fn group_query_signature(
     .to_string()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn selected_root_facet_query_signature(
     run_id: i64,
     sort_field: DuplicateFileSelectedRootFacetSortField,
@@ -5231,6 +5230,7 @@ fn selected_root_facet_query_signature(
     .to_string()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn drive_facet_query_signature(
     run_id: i64,
     sort_field: DuplicateFileDriveFacetSortField,
@@ -10415,10 +10415,12 @@ mod tests {
         let cancel_token = Arc::new(AtomicBool::new(false));
         let reporter = WorkerProgressReporter::new(state, 41, cancel_token.clone());
         let observation = |monotonic_nanos, discovered_files, zero_byte_files, discovered_bytes| {
-            let mut counters = ScanCounters::default();
-            counters.discovered_files = discovered_files;
-            counters.zero_byte_files = zero_byte_files;
-            counters.discovered_bytes = discovered_bytes;
+            let counters = ScanCounters {
+                discovered_files,
+                zero_byte_files,
+                discovered_bytes,
+                ..ScanCounters::default()
+            };
             ProgressObservation {
                 progress_contract_version: PROGRESS_CONTRACT_VERSION,
                 metrics_contract_version: METRICS_CONTRACT_VERSION,
@@ -10585,10 +10587,12 @@ mod tests {
         drop(db);
 
         let reporter = WorkerProgressReporter::new(state, run_id, Arc::new(AtomicBool::new(false)));
-        let mut counters = ScanCounters::default();
-        counters.discovered_files = 1;
-        counters.discovered_bytes = 4_096;
-        counters.warnings = 3;
+        let counters = ScanCounters {
+            discovered_files: 1,
+            discovered_bytes: 4_096,
+            warnings: 3,
+            ..ScanCounters::default()
+        };
         reporter.on_progress_observation(&ProgressObservation {
             progress_contract_version: PROGRESS_CONTRACT_VERSION,
             metrics_contract_version: METRICS_CONTRACT_VERSION,
@@ -10640,8 +10644,10 @@ mod tests {
         let (sender, receiver) = mpsc::channel();
         let state = SharedState::new(WorkerOptions::new(&db_path), sender).unwrap();
         let reporter = WorkerProgressReporter::new(state, 41, Arc::new(AtomicBool::new(false)));
-        let mut counters = ScanCounters::default();
-        counters.warnings = 1;
+        let counters = ScanCounters {
+            warnings: 1,
+            ..ScanCounters::default()
+        };
         reporter.on_progress_observation(&ProgressObservation {
             progress_contract_version: PROGRESS_CONTRACT_VERSION,
             metrics_contract_version: METRICS_CONTRACT_VERSION,

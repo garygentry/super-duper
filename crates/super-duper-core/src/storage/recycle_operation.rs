@@ -709,7 +709,7 @@ impl Database {
             .as_deref()
             .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
             .map(|value| value.with_timezone(&Utc));
-        if expires_at.map_or(true, |expires| Utc::now() > expires) {
+        if expires_at.is_none_or(|expires| Utc::now() > expires) {
             tx.execute(
                 "UPDATE recycle_operation SET status = 'expired', completed_at = ?1,
                         error_code = 'confirmation_expired' WHERE id = ?2",
@@ -1045,7 +1045,7 @@ impl Database {
             .as_deref()
             .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
             .map(|value| value.with_timezone(&Utc));
-        if admission_expires_at.map_or(true, |expires| Utc::now() > expires) {
+        if admission_expires_at.is_none_or(|expires| Utc::now() > expires) {
             tx.execute(
                 "UPDATE recycle_operation_batch SET status = 'pending', admission_expires_at = NULL
                  WHERE id = ?1 AND recycle_operation_id = ?2 AND status = 'admitted'",

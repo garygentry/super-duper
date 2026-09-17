@@ -254,7 +254,7 @@ fn read_full_unbuffered(
 
     const FILE_FLAG_NO_BUFFERING: u32 = 0x2000_0000;
     const FILE_FLAG_SEQUENTIAL_SCAN: u32 = 0x0800_0000;
-    if buffer_bytes % 4096 != 0 {
+    if !buffer_bytes.is_multiple_of(4096) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "SOP7 direct-read buffer must be 4 KiB aligned",
@@ -509,7 +509,7 @@ mod windows_profile {
             .sample_devices(std::slice::from_ref(descriptor))
             .into_iter()
             .next()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "SOP7 device sample missing"))?;
+            .ok_or_else(|| io::Error::other("SOP7 device sample missing"))?;
         let host_after = sampler.sample_host();
         results.sort_by_key(|(stable_id, _)| *stable_id);
         let physical_bytes = results
@@ -597,8 +597,7 @@ mod windows_profile {
                 std::thread::sleep(std::time::Duration::from_millis(200));
             }
         }
-        Err(last_error
-            .unwrap_or_else(|| io::Error::new(io::ErrorKind::Other, "SOP7 fixture cleanup failed")))
+        Err(last_error.unwrap_or_else(|| io::Error::other("SOP7 fixture cleanup failed")))
     }
 
     #[test]

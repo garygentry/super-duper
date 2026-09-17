@@ -369,8 +369,7 @@ impl RepeatHashCache {
 
         let count = self.read_count()?;
         if count >= self.limits.active_hard_high_water {
-            return Err(io::Error::new(
-                ErrorKind::Other,
+            return Err(io::Error::other(
                 "repeat-cache active generation reached its hard high-water mark",
             ));
         }
@@ -683,8 +682,7 @@ impl RepeatHashCache {
                 if protected_generation.is_some() {
                     return Ok(());
                 }
-                return Err(io::Error::new(
-                    ErrorKind::Other,
+                return Err(io::Error::other(
                     "repeat-cache cannot prune below the active-generation protection boundary",
                 ));
             }
@@ -937,7 +935,7 @@ fn decode_u64(value: &[u8], field: &str) -> io::Result<u64> {
 }
 
 fn rocks_error(error: rocksdb::Error) -> io::Error {
-    io::Error::new(ErrorKind::Other, error)
+    io::Error::other(error)
 }
 
 fn bincode_error(error: bincode::Error) -> io::Error {
@@ -999,7 +997,7 @@ mod tests {
     fn hashes(id: usize) -> CachedContentHashes {
         CachedContentHashes {
             partial_hash: id as u64 + 10,
-            full_hash: (id % 2 == 0).then_some(id as u64 + 100),
+            full_hash: id.is_multiple_of(2).then_some(id as u64 + 100),
         }
     }
 

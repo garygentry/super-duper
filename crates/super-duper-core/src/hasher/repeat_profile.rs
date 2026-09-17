@@ -51,7 +51,7 @@ impl HashProgressSink for ProfileSink {
 }
 
 fn write_fixture(root: &Path, file_count: usize, file_bytes: u64) -> io::Result<Vec<PathBuf>> {
-    if file_count < 4 || file_count % 2 != 0 || file_bytes < PARTIAL_BYTES {
+    if file_count < 4 || !file_count.is_multiple_of(2) || file_bytes < PARTIAL_BYTES {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "SOP8 fixture requires an even count of at least four files and at least 1 KiB per file",
@@ -136,7 +136,7 @@ fn profile_arm(
         .sample_devices(std::slice::from_ref(descriptor))
         .into_iter()
         .next()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "SOP8 device sample missing"))?;
+        .ok_or_else(|| io::Error::other("SOP8 device sample missing"))?;
     let host_after = sampler.sample_host();
     Ok(json!({
         "arm": label,
@@ -177,7 +177,7 @@ fn profile_arm(
 fn median(values: &[u64]) -> u64 {
     let mut sorted = values.to_vec();
     sorted.sort_unstable();
-    if sorted.len() % 2 == 0 {
+    if sorted.len().is_multiple_of(2) {
         sorted[sorted.len() / 2 - 1].saturating_add(sorted[sorted.len() / 2]) / 2
     } else {
         sorted[sorted.len() / 2]
@@ -276,7 +276,7 @@ fn remove_with_bounded_retry(path: &Path) -> io::Result<()> {
             std::thread::sleep(std::time::Duration::from_millis(200));
         }
     }
-    Err(last_error.unwrap_or_else(|| io::Error::new(io::ErrorKind::Other, "cleanup failed")))
+    Err(last_error.unwrap_or_else(|| io::Error::other("cleanup failed")))
 }
 
 fn write_once_json(path: &Path, value: &Value) -> io::Result<()> {

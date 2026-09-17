@@ -157,7 +157,7 @@ pub fn discover_files_with_exclusions(
 
     let files = files
         .into_inner()
-        .map_err(|_| io::Error::new(io::ErrorKind::Other, "discovery result lock poisoned"))?;
+        .map_err(|_| io::Error::other("discovery result lock poisoned"))?;
     progress.on_discovery_progress(
         file_count.load(Ordering::Relaxed),
         byte_count.load(Ordering::Relaxed),
@@ -366,16 +366,16 @@ fn visit_dirs(
                 None
             }
         };
-        let first_physical_file = file_identity.as_ref().map_or(true, |identity| {
-            seen_file_identities.insert(identity.clone())
-        });
+        let first_physical_file = file_identity
+            .as_ref()
+            .is_none_or(|identity| seen_file_identities.insert(identity.clone()));
 
         if first_physical_file {
             map.entry(metadata.len()).or_default().push(path);
         }
         files
             .lock()
-            .map_err(|_| io::Error::new(io::ErrorKind::Other, "discovery result lock poisoned"))?
+            .map_err(|_| io::Error::other("discovery result lock poisoned"))?
             .push(DiscoveredFile {
                 root_path: root.to_string_lossy().into_owned(),
                 canonical_path,
@@ -390,7 +390,7 @@ fn visit_dirs(
             });
         byte_count.fetch_add(metadata.len(), Ordering::Relaxed);
         let count = file_count.fetch_add(1, Ordering::Relaxed) + 1;
-        if count % 256 == 0 {
+        if count.is_multiple_of(256) {
             progress.on_discovery_progress(
                 count,
                 byte_count.load(Ordering::Relaxed),
@@ -470,7 +470,7 @@ pub fn is_link_or_reparse(path: &Path) -> io::Result<bool> {
     {
         use std::os::windows::fs::MetadataExt;
         const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0400;
-        return Ok(metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0);
+        Ok(metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0)
     }
     #[cfg(not(windows))]
     Ok(false)

@@ -74,8 +74,7 @@ impl Database {
             });
         }
 
-        let placeholders = std::iter::repeat("?")
-            .take(request.paths.len())
+        let placeholders = std::iter::repeat_n("?", request.paths.len())
             .collect::<Vec<_>>()
             .join(",");
         let sql = format!(

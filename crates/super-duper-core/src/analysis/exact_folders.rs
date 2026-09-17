@@ -602,7 +602,7 @@ fn report_substage_batched(
     completed: usize,
     total: usize,
 ) {
-    if completed == total || completed % PROGRESS_BATCH_SIZE == 0 {
+    if completed == total || completed.is_multiple_of(PROGRESS_BATCH_SIZE) {
         report_substage(progress, substage, completed, total);
     }
 }

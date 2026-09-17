@@ -981,7 +981,7 @@ fn validate_flush(flush: &TelemetryFlush) -> Result<(), StatusStoreError> {
         .is_some_and(|completed| {
             flush
                 .phase_started_monotonic_nanos
-                .map_or(true, |started| completed < started)
+                .is_none_or(|started| completed < started)
                 || completed > flush.monotonic_nanos
         })
     {

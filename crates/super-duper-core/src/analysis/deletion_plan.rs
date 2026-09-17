@@ -24,7 +24,7 @@ pub fn mark_directory_for_deletion(
     if directory_path.trim().is_empty() {
         return Err(crate::Error::Other("directory_path is empty".to_owned()));
     }
-    let directory = directory_path.trim_end_matches(|c| c == '\\' || c == '/');
+    let directory = directory_path.trim_end_matches(['\\', '/']);
     let mut stmt = db.connection().prepare(
         "SELECT id, parent_dir FROM scanned_file
          WHERE run_id = ?1 AND marked_deleted = 0

@@ -62,7 +62,9 @@ pub struct RegisteredCloudLocation {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum RepeatCachePolicy {
+    #[default]
     ReuseVerified,
     RevalidateContent,
 }
@@ -73,12 +75,6 @@ impl RepeatCachePolicy {
             Self::ReuseVerified => "reuse_verified",
             Self::RevalidateContent => "revalidate_content",
         }
-    }
-}
-
-impl Default for RepeatCachePolicy {
-    fn default() -> Self {
-        Self::ReuseVerified
     }
 }
 

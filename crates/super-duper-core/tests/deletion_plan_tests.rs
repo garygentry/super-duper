@@ -385,7 +385,8 @@ fn execute_skips_file_without_duplicate_group() {
     let db = Database::open_in_memory().unwrap();
     let run_id = create_run(&db);
     let file = snapshot_file(run_id, &path);
-    db.insert_scanned_files(&[file.clone()]).unwrap();
+    db.insert_scanned_files(std::slice::from_ref(&file))
+        .unwrap();
     let id = file_id(&db, run_id, &file.canonical_path);
     db.mark_file_for_deletion(id, None).unwrap();
 

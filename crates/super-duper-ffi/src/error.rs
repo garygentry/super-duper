@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::ffi::c_char;
 
 thread_local! {
-    static LAST_ERROR: RefCell<Option<String>> = RefCell::new(None);
+    static LAST_ERROR: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
 pub fn set_last_error(msg: String) {

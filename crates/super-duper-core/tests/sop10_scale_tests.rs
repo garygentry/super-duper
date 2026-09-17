@@ -34,7 +34,10 @@ const MAXIMUM_PRIVATE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 #[test]
 #[ignore = "SOP10f first-result Release generated-store profile"]
 fn sop10_release_scale_profile() {
-    assert!(!cfg!(debug_assertions), "SOP10f must run in Release");
+    #[allow(clippy::assertions_on_constants)]
+    {
+        assert!(!cfg!(debug_assertions), "SOP10f must run in Release");
+    }
     let evidence_path = required_new_path("SOP10_SCALE_EVIDENCE_PATH");
     let journal_path = required_new_path("SOP10_SCALE_JOURNAL_PATH");
     let build_commit =

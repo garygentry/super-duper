@@ -353,17 +353,19 @@ mod tests {
 
     #[test]
     fn typed_snapshot_projects_every_byte_quantity_as_a_decimal_string() {
-        let mut counters = ScanCounters::default();
-        counters.discovered_bytes = u64::MAX;
-        counters.hard_link_alias_bytes = u64::MAX;
-        counters.singleton_size_bytes = u64::MAX;
-        counters.candidate_bytes = u64::MAX;
-        counters.duplicate_candidate_bytes = u64::MAX;
-        counters.metadata_resolved_bytes = u64::MAX;
-        counters.partial_hash_bytes_read = u64::MAX;
-        counters.partial_collision_bytes = u64::MAX;
-        counters.full_hash_bytes_read = u64::MAX;
-        counters.recoverable_bytes = u64::MAX;
+        let counters = ScanCounters {
+            discovered_bytes: u64::MAX,
+            hard_link_alias_bytes: u64::MAX,
+            singleton_size_bytes: u64::MAX,
+            candidate_bytes: u64::MAX,
+            duplicate_candidate_bytes: u64::MAX,
+            metadata_resolved_bytes: u64::MAX,
+            partial_hash_bytes_read: u64::MAX,
+            partial_collision_bytes: u64::MAX,
+            full_hash_bytes_read: u64::MAX,
+            recoverable_bytes: u64::MAX,
+            ..ScanCounters::default()
+        };
         let quantity = ProgressQuantity {
             files: 7,
             logical_bytes: u64::MAX,

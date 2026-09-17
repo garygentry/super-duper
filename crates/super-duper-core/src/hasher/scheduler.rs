@@ -221,11 +221,7 @@ where
     state
         .results
         .into_iter()
-        .map(|result| {
-            result.ok_or_else(|| {
-                io::Error::new(io::ErrorKind::Other, "device scheduler omitted a result")
-            })
-        })
+        .map(|result| result.ok_or_else(|| io::Error::other("device scheduler omitted a result")))
         .collect()
 }
 

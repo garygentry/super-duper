@@ -818,8 +818,7 @@ impl Database {
     }
 
     pub(super) fn active_review_plan(&self, run_id: i64) -> rusqlite::Result<Option<ReviewPlan>> {
-        Ok(self
-            .connection()
+        self.connection()
             .query_row(
                 "SELECT id, run_id, state, revision, created_at, updated_at
                  FROM review_plan WHERE run_id = ?1 AND state = 'active'",
@@ -835,7 +834,7 @@ impl Database {
                     })
                 },
             )
-            .optional()?)
+            .optional()
     }
 
     fn review_plan_summary(
