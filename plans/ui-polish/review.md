@@ -134,13 +134,13 @@ Neither label means native mouse/keyboard acceptance. Final Release Rust/Windows
 
 ## Native follow-up finding
 
-Latest disposition (2026-09-16): the historical table above retains its original evidence stage.
+Latest disposition (2026-09-17): the historical table above retains its original evidence stage.
 UX12/UX13 physical 150%/Desert and keyboard/focus acceptance now pass; UX14's native journeys
 are retained as accepted. Only UX23's transient loading-frame observation remains outstanding.
-The continuation from `b0241a2` hit native launch and fresh app-discovery timeouts; no frame
-was obtained. Native calls stopped without helper troubleshooting. Earlier scan 4 opening and
-scan 6 paging captures remain settled-only evidence. P08 remains open for the brief loading
-frame; this attempt adds a tool-availability failure, not a product defect or permission gap.
+The continuation from `d9c0fc7` regained native launch, capture and input without recovery.
+Immediate scan 4 opening and scan 6 next-member-page captures showed settled members without
+overlap. Sampling stopped after those bounded attempts. P08 remains open for the brief loading
+frame; native availability succeeded, but the transition remains unobserved. No new defect found.
 See the latest implementation evidence for cleanup and the precise closure assessment.
 
 | ID | Priority | Reproduction | Disposition |

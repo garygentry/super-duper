@@ -483,3 +483,42 @@ not satisfy the transient native observation. All accepted appearance/focus chec
 verification are retained. No new product finding; no merge, push, release or deletion activation.
 The next slice still requires a working native capture/input session and a bounded observation
 of scan 4 opening or scan 6 member paging; stop if captures are settled rather than loop.
+
+## UX23 bounded native observation (2026-09-17, from d9c0fc7)
+
+Clean start at `d9c0fc7` on `codex/ui-redesign`; `origin/wpf-poc` remains `deefa40`.
+Sandbox process enumeration was denied; normal-context audit found no app/worker/fixture.
+No `.uidev` existed. LogonUI PID 1248 was present, which alone does not establish desktop lock.
+The Debug DLL matched retained SHA256
+`636AFCF7EC78D28F4E6DEE4D72286E7D9A66507E8DE3EF61F282F2E785397817`.
+Prepared the retained private real-file state
+`artifacts/ui-dev-session/polish-journey-e4149564922d459cb1761b190b1d8a09`
+with `-SkipBuild -PrepareControlLaunch`. No builds, tests or corpus changes were needed.
+
+Computer Use launch, fresh discovery, activation, screenshot capture and input succeeded without
+recovery or helper troubleshooting. Returned window 66470 belonged to owned Debug app PID 10492;
+matching Debug worker PID 12148 had parent 10492. Direct native screenshots at 1166×753 were
+displayed and inspected in this task; they are not background WPF evidence.
+
+- Startup showed the retained scan 8 Setup context. Navigated to History, selected and visually
+  confirmed scan 4 in its summary before opening. No scan 7/8 Results were opened.
+- Alt+O opened scan 4. The immediately requested screenshot already showed its one-set/two-copy
+  Results with settled members and no loading/empty overlap.
+- Selected Real-file polish journey, which opened scan 6 (232 sets/670 copies), and hid the
+  saved-scan rail to expose the 208-copy Overview-001.md comparison. Clicked Next copies once
+  and immediately captured. The screenshot showed settled second-page members without overlap.
+- Neither transition capture showed the loading frame. Stopped sampling after these bounded
+  observations; no reverse-page sampling loop, artificial delays or worker substitution.
+  Accessibility text lagged the History navigation; visual screenshots governed the observations.
+
+Alt+F4 closed the owned app normally. Follow-up normal-context process audit found no
+app/worker/fixture. Removed the exact temporary Debug `.uidev`; sidecar enumeration found none.
+No decision, source file, corpus or OS appearance changed. All accepted checks and verification
+remain retained; no tests or completed appearance/focus journeys were replayed.
+
+P08 closure assessment: **open**, solely for UX23's unobserved native loading-frame after-check.
+Native availability succeeded this time; observing the brief transition is the remaining gap.
+Settled captures and the delayed-response regression do not establish that transient observation.
+No new product defect or permission gap was found. Continue only a bounded native observation
+using isolated scan 4 or 6 when available, then reassess closure; do not repeat helper
+troubleshooting or indefinitely sample settled frames. No merge, push, release or deletion activation.

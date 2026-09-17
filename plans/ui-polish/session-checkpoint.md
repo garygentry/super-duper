@@ -1,6 +1,6 @@
 # Polish checkpoint
 
-Updated 2026-09-16 local time. Branch `codex/ui-redesign`; pre-review baseline `6206610`.
+Updated 2026-09-17 local time. Branch `codex/ui-redesign`; pre-review baseline `6206610`.
 
 ## Current state
 
@@ -90,12 +90,13 @@ Both native app sessions are closed, their workers exited/stopped and the Debug 
 
 ## Exact next step
 
-Latest attempt from `b0241a2` on 2026-09-16 hit `computer-use request timed out: launch_app`
-and then `computer-use request timed out: list_apps` on fresh discovery. Initial discovery
-worked, but no app frame was obtained. Native calls stopped without helper troubleshooting.
-Owned app 11512/worker 5952 were path/parent-verified and stopped; the Debug sidecar was removed.
-Earlier scan 4/6 settled captures remain valid but do not establish the transient after-check.
-P08 remains open solely for that observation; native availability failed in this attempt too.
+Latest attempt from `d9c0fc7` on 2026-09-17 regained native launch, discovery, capture and input
+without recovery. Immediate captures after scan 4 historical opening and scan 6 next-member-page
+loading showed settled members without overlap; the loading frame remained unobserved.
+Sampling stopped after those bounded attempts. Owned app 10492/worker 12148 were path/parent-
+verified; native close exited both, normal-context audit was empty and the Debug sidecar removed.
+Scan 4/6 settled captures remain valid but do not establish the transient after-check.
+P08 remains open solely for that observation; native availability succeeded in this attempt.
 No source/build/test changes, corpus mutation, decision changes or accepted appearance/focus
 rechecks. See the latest implementation evidence for final cleanup and closure assessment.
 Do not repeat helper troubleshooting or an indefinite settled-frame sampling loop.

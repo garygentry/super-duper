@@ -161,10 +161,11 @@ journeys passing, no leaked process/sidecar, clean committed work, and a concise
 limitation statement. If native evidence is still unavailable, report that specific gap; do not
 declare full native readiness. Missing external capability cannot be solved by waiting indefinitely.
 
-Closure assessment on 2026-09-16 from `b0241a2`: native launch and fresh app discovery timed
-out; no frame was obtained. Native calls stopped without helper troubleshooting. UX23 remains
-open for the unobserved transient loading frame; prior settled captures do not satisfy it.
-Retain completed appearance/focus checks and verification. No new acceptance is claimed.
+Closure assessment on 2026-09-17 from `d9c0fc7`: native launch, capture and input succeeded.
+Immediate captures after scan 4 opening and scan 6 next-member-page loading were settled,
+without overlap. UX23 remains open for the unobserved transient loading frame. Sampling stopped
+after those bounded attempts; owned processes exited and the sidecar was removed. Retain
+completed appearance/focus checks and verification. No transient native acceptance is claimed.
 
 Commit each coherent slice with checkpoint and shared-handoff updates. Continue autonomously after
 plan decisions; ask only for a genuinely new product/safety boundary or unavailable required input.

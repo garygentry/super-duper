@@ -30,6 +30,14 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 
 ## Current checkpoint
 
+- UX23-only continuation from `d9c0fc7` on 2026-09-17: native launch, discovery, capture and
+  input succeeded without recovery. Immediate scan 4 opening and scan 6 next-member-page
+  captures were settled without overlap; the transient loading frame remains unobserved.
+  Bounded sampling stopped; P08 remains open solely for that observation. Owned app 10492
+  and worker 12148 exited on native close; normal-context audit empty, Debug sidecar removed.
+  No source/build/test changes or accepted checks replayed. Prior verification retained.
+  Latest polish checkpoint/evidence own next work; preserve `origin/wpf-poc` at `deefa40`.
+
 - UX23-only continuation from `b0241a2` on 2026-09-16: native launch and fresh app discovery
   timed out; no native frame obtained. Stopped native calls without helper troubleshooting or
   background substitution. P08 remains open solely for UX23's loading-frame observation.
