@@ -108,11 +108,13 @@ pub(crate) fn analyze_exact_folders_with_hash_io(
     hash_io: &dyn HashPipelineIo,
 ) -> Result<ExactFolderAnalysis, crate::Error> {
     check_cancelled(cancel_token)?;
-    let total_files: usize = db.connection().query_row(
+    // SQLite counts are i64; rusqlite no longer reads them directly into usize.
+    let total_files: i64 = db.connection().query_row(
         "SELECT COUNT(*) FROM scanned_file WHERE run_id = ?1",
         params![run_id],
         |row| row.get(0),
     )?;
+    let total_files = total_files.max(0) as usize;
     let mut directories = Vec::<DirectoryState>::new();
     let mut by_path = HashMap::<String, usize>::new();
     let mut streamed_files = 0usize;

@@ -127,20 +127,20 @@ fn product_evidence(
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
-                row.get::<_, u64>(2)?,
-                row.get::<_, u64>(3)?,
-                row.get::<_, u64>(4)?,
-                row.get::<_, u64>(5)?,
-                row.get::<_, u64>(6)?,
-                row.get::<_, u64>(7)?,
-                row.get::<_, u64>(8)?,
+                (row.get::<_, i64>(2)?.max(0) as u64),
+                (row.get::<_, i64>(3)?.max(0) as u64),
+                (row.get::<_, i64>(4)?.max(0) as u64),
+                (row.get::<_, i64>(5)?.max(0) as u64),
+                (row.get::<_, i64>(6)?.max(0) as u64),
+                (row.get::<_, i64>(7)?.max(0) as u64),
+                (row.get::<_, i64>(8)?.max(0) as u64),
             ))
         },
     )?;
     let warning_occurrence_count = connection.query_row(
         "SELECT COALESCE(SUM(occurrence_count), 0) FROM run_warning_aggregate WHERE run_id = ?1",
         [run_id],
-        |row| row.get::<_, u64>(0),
+        |row| row.get::<_, i64>(0).map(|value| value.max(0) as u64),
     )?;
     let parameters: serde_json::Value = serde_json::from_str(&row.1)?;
     let repeat_cache_policy = parameters
@@ -248,9 +248,9 @@ fn status_evidence(
             Ok((
                 row.get::<_, i64>(0)?,
                 row.get::<_, String>(1)?,
-                row.get::<_, u64>(2)?,
-                row.get::<_, u64>(3)?,
-                row.get::<_, u64>(4)?,
+                (row.get::<_, i64>(2)?.max(0) as u64),
+                (row.get::<_, i64>(3)?.max(0) as u64),
+                (row.get::<_, i64>(4)?.max(0) as u64),
             ))
         },
     )?;
@@ -260,7 +260,10 @@ fn status_evidence(
         "SELECT metric, value FROM status_counter WHERE run_id = ?1 AND phase = 'overall' ORDER BY metric",
     )?;
     for row in statement.query_map([status_run_id], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
+        Ok((
+            row.get::<_, String>(0)?,
+            (row.get::<_, i64>(1)?.max(0) as u64),
+        ))
     })? {
         let (name, value) = row?;
         counters.insert(name, value);
@@ -268,7 +271,7 @@ fn status_evidence(
     let (flush_count, flush_payload_bytes) = connection.query_row(
         "SELECT COUNT(*), COALESCE(SUM(length(payload_json)), 0) FROM status_flush WHERE run_id = ?1",
         [status_run_id],
-        |row| Ok((row.get::<_, u64>(0)?, row.get::<_, u64>(1)?)),
+        |row| Ok(((row.get::<_, i64>(0)?.max(0) as u64), (row.get::<_, i64>(1)?.max(0) as u64))),
     )?;
     let host_rows = collect_host_rows(connection, status_run_id)?;
     let host_unavailable_counter_total = host_rows.iter().map(|row| row[8].unwrap_or(0)).sum();
@@ -329,15 +332,24 @@ fn collect_host_rows(connection: &Connection, run_id: i64) -> rusqlite::Result<V
     let rows = statement
         .query_map([run_id], |row| {
             Ok([
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?,
-                row.get(3)?,
-                row.get(4)?,
-                row.get(5)?,
-                row.get(6)?,
-                row.get(7)?,
-                row.get(8)?,
+                row.get::<_, Option<i64>>(0)?
+                    .map(|value| value.max(0) as u64),
+                row.get::<_, Option<i64>>(1)?
+                    .map(|value| value.max(0) as u64),
+                row.get::<_, Option<i64>>(2)?
+                    .map(|value| value.max(0) as u64),
+                row.get::<_, Option<i64>>(3)?
+                    .map(|value| value.max(0) as u64),
+                row.get::<_, Option<i64>>(4)?
+                    .map(|value| value.max(0) as u64),
+                row.get::<_, Option<i64>>(5)?
+                    .map(|value| value.max(0) as u64),
+                row.get::<_, Option<i64>>(6)?
+                    .map(|value| value.max(0) as u64),
+                row.get::<_, Option<i64>>(7)?
+                    .map(|value| value.max(0) as u64),
+                row.get::<_, Option<i64>>(8)?
+                    .map(|value| value.max(0) as u64),
             ])
         })?
         .collect();
@@ -358,12 +370,18 @@ fn collect_device_rows(
     let rows = statement
         .query_map(rusqlite::params![run_id, device_key], |row| {
             Ok([
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?,
-                row.get(3)?,
-                row.get(4)?,
-                row.get(5)?,
+                row.get::<_, Option<i64>>(0)?
+                    .map(|value| value.max(0) as u64),
+                row.get::<_, Option<i64>>(1)?
+                    .map(|value| value.max(0) as u64),
+                row.get::<_, Option<i64>>(2)?
+                    .map(|value| value.max(0) as u64),
+                row.get::<_, Option<i64>>(3)?
+                    .map(|value| value.max(0) as u64),
+                row.get::<_, Option<i64>>(4)?
+                    .map(|value| value.max(0) as u64),
+                row.get::<_, Option<i64>>(5)?
+                    .map(|value| value.max(0) as u64),
             ])
         })?
         .collect();

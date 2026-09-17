@@ -27,7 +27,7 @@ rocksdb = "0.25"
 bincode = { version = "2", features = ["serde"] }
 
 # Database (SQLite)
-rusqlite = { version = "0.31", features = ["bundled", "collation"] }
+rusqlite = { version = "0.40", features = ["bundled", "collation"] }
 
 # Logging
 tracing = "0.1"

@@ -9,7 +9,7 @@ super-duper-core = { path = "../super-duper-core" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 glob = "0.3"
-rusqlite = "0.31"
+rusqlite = "0.40"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]

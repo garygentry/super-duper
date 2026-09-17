@@ -327,9 +327,9 @@ fn scanned_file_count(db: &Database, run_id: i64) -> usize {
         .query_row(
             "SELECT COUNT(*) FROM scanned_file WHERE run_id = ?1",
             params![run_id],
-            |row| row.get(0),
+            |row| row.get::<_, i64>(0),
         )
-        .unwrap()
+        .unwrap() as usize
 }
 
 fn directory_count(db: &Database, run_id: i64) -> usize {
@@ -337,9 +337,9 @@ fn directory_count(db: &Database, run_id: i64) -> usize {
         .query_row(
             "SELECT COUNT(*) FROM directory_node WHERE run_id = ?1",
             params![run_id],
-            |row| row.get(0),
+            |row| row.get::<_, i64>(0),
         )
-        .unwrap()
+        .unwrap() as usize
 }
 
 fn similarity_pair_count(db: &Database, run_id: i64) -> usize {
@@ -347,9 +347,9 @@ fn similarity_pair_count(db: &Database, run_id: i64) -> usize {
         .query_row(
             "SELECT COUNT(*) FROM directory_similarity WHERE run_id = ?1",
             params![run_id],
-            |row| row.get(0),
+            |row| row.get::<_, i64>(0),
         )
-        .unwrap()
+        .unwrap() as usize
 }
 
 fn required_new_path(variable: &str) -> PathBuf {
