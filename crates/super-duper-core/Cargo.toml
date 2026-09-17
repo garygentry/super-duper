@@ -17,7 +17,7 @@ glob = "0.3"
 
 # Parallelism
 rayon = "1.9"
-dashmap = "5.5"
+dashmap = "6"
 
 # Hashing
 twox-hash = "2"
