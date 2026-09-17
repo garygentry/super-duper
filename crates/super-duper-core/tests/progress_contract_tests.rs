@@ -1,11 +1,11 @@
 use super_duper_core::telemetry::{
-    ActiveDeviceProgress, ActiveDeviceUnavailableReason, EtaUnavailableReason,
-    ProgressContractError, ProgressEta, ProgressLogicalCounters, ProgressObservation,
-    ProgressRateUnavailableReason, ProgressRateValue, ProgressReducer, RemainingWorkStage,
-    ScanCounters, TelemetryPhase, ETA_MIN_INTERVAL_NANOS, ETA_MIN_OBSERVATION_SPAN_NANOS,
-    ETA_RATE_STABILITY_MIN_BASIS_POINTS, MAX_ACTIVE_PROGRESS_DEVICES, MAX_PROGRESS_RATE_POINTS,
-    METRICS_CONTRACT_VERSION, PROGRESS_CONTRACT_VERSION, PROGRESS_RATE_POINT_MIN_INTERVAL_NANOS,
-    RECENT_PROGRESS_RATE_WINDOW_NANOS,
+    ActiveDeviceProgress, ActiveDeviceUnavailableReason, ETA_MIN_INTERVAL_NANOS,
+    ETA_MIN_OBSERVATION_SPAN_NANOS, ETA_RATE_STABILITY_MIN_BASIS_POINTS, EtaUnavailableReason,
+    MAX_ACTIVE_PROGRESS_DEVICES, MAX_PROGRESS_RATE_POINTS, METRICS_CONTRACT_VERSION,
+    PROGRESS_CONTRACT_VERSION, PROGRESS_RATE_POINT_MIN_INTERVAL_NANOS, ProgressContractError,
+    ProgressEta, ProgressLogicalCounters, ProgressObservation, ProgressRateUnavailableReason,
+    ProgressRateValue, ProgressReducer, RECENT_PROGRESS_RATE_WINDOW_NANOS, RemainingWorkStage,
+    ScanCounters, TelemetryPhase,
 };
 
 const SECOND: u64 = 1_000_000_000;

@@ -1,9 +1,9 @@
 use rusqlite::Connection;
 use super_duper_core::telemetry::{
-    CounterKind, DeviceDescriptor, DeviceSample, HostSample, ScanCounters, StatusDatabase,
-    StatusRetentionPolicy, StatusRunStart, StatusRunTerminal, TelemetryFlush, TelemetryPhase,
-    TelemetryPhaseState, TelemetryRunState, WriteDisposition, CURRENT_STATUS_SCHEMA_VERSION,
-    MAX_STATUS_RUN_PAGE, MAX_STATUS_SAMPLE_PAGE, METRICS_CONTRACT_VERSION,
+    CURRENT_STATUS_SCHEMA_VERSION, CounterKind, DeviceDescriptor, DeviceSample, HostSample,
+    MAX_STATUS_RUN_PAGE, MAX_STATUS_SAMPLE_PAGE, METRICS_CONTRACT_VERSION, ScanCounters,
+    StatusDatabase, StatusRetentionPolicy, StatusRunStart, StatusRunTerminal, TelemetryFlush,
+    TelemetryPhase, TelemetryPhaseState, TelemetryRunState, WriteDisposition,
 };
 use tempfile::tempdir;
 
@@ -217,11 +217,13 @@ fn status_store_replays_exact_start_and_flush_but_rejects_conflicts_and_regressi
 
     let mut conflicting_start = start.clone();
     conflicting_start.input_signature = "different".to_owned();
-    assert!(database
-        .begin_run(&conflicting_start)
-        .unwrap_err()
-        .to_string()
-        .contains("conflicts"));
+    assert!(
+        database
+            .begin_run(&conflicting_start)
+            .unwrap_err()
+            .to_string()
+            .contains("conflicts")
+    );
 
     let first = flush(1, 10);
     assert_eq!(
@@ -235,26 +237,32 @@ fn status_store_replays_exact_start_and_flush_but_rejects_conflicts_and_regressi
 
     let mut conflicting_flush = first.clone();
     conflicting_flush.counters.warnings = 1;
-    assert!(database
-        .flush(run.id, &conflicting_flush)
-        .unwrap_err()
-        .to_string()
-        .contains("conflicts"));
+    assert!(
+        database
+            .flush(run.id, &conflicting_flush)
+            .unwrap_err()
+            .to_string()
+            .contains("conflicts")
+    );
 
     let mut phase_regressed = flush(2, 10);
     phase_regressed.phase_active_nanos = 1;
-    assert!(database
-        .flush(run.id, &phase_regressed)
-        .unwrap_err()
-        .to_string()
-        .contains("phase_active_nanos regressed"));
+    assert!(
+        database
+            .flush(run.id, &phase_regressed)
+            .unwrap_err()
+            .to_string()
+            .contains("phase_active_nanos regressed")
+    );
 
     let regressed = flush(2, 9);
-    assert!(database
-        .flush(run.id, &regressed)
-        .unwrap_err()
-        .to_string()
-        .contains("regressed"));
+    assert!(
+        database
+            .flush(run.id, &regressed)
+            .unwrap_err()
+            .to_string()
+            .contains("regressed")
+    );
     let committed = database.get_run(run.id).unwrap();
     assert_eq!(committed.last_sequence, 1);
     let second_flush_exists: bool = database
@@ -583,9 +591,11 @@ fn status_queries_use_stable_bounded_cursors_and_fixed_summaries() {
 
     let counters = database.get_run_counters(run_ids[2]).unwrap();
     assert_eq!(counters.len(), CounterKind::ALL.len());
-    assert!(counters
-        .windows(2)
-        .all(|pair| pair[0].metric < pair[1].metric));
+    assert!(
+        counters
+            .windows(2)
+            .all(|pair| pair[0].metric < pair[1].metric)
+    );
     let phases = database.get_run_phases(run_ids[2]).unwrap();
     assert_eq!(phases.len(), 1);
     assert_eq!(phases[0].phase, TelemetryPhase::Discovering);
@@ -629,9 +639,11 @@ fn status_queries_use_stable_bounded_cursors_and_fixed_summaries() {
         .list_device_samples(run_ids[2], "physical:0", 0, 2)
         .unwrap();
     assert_eq!(device_samples.len(), 2);
-    assert!(database
-        .list_host_samples(run_ids[2], 0, MAX_STATUS_SAMPLE_PAGE + 1)
-        .is_err());
+    assert!(
+        database
+            .list_host_samples(run_ids[2], 0, MAX_STATUS_SAMPLE_PAGE + 1)
+            .is_err()
+    );
     assert!(database.list_host_samples(999_999, 0, 1).is_err());
 }
 

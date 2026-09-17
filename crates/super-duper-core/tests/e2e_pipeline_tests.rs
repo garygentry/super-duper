@@ -7,7 +7,7 @@ use tempfile::tempdir;
 use super_duper_core::analysis::{deletion_plan, dir_fingerprint, dir_similarity};
 use super_duper_core::storage::Database;
 use super_duper_core::telemetry::{
-    CounterKind, ProgressObservation, ProgressReducer, StatusDatabase, METRICS_CONTRACT_VERSION,
+    CounterKind, METRICS_CONTRACT_VERSION, ProgressObservation, ProgressReducer, StatusDatabase,
 };
 use super_duper_core::{AppConfig, ProgressReporter, ScanEngine, SilentReporter};
 
@@ -588,11 +588,12 @@ fn test_pipeline_failure_is_persisted_as_failed() {
     let run = db.list_runs(0, 10).unwrap().0.remove(0);
     assert_eq!(run.status, "failed");
     assert!(run.completed_at.is_some());
-    assert!(run
-        .error_message
-        .as_deref()
-        .unwrap_or_default()
-        .contains("forced persistence failure"));
+    assert!(
+        run.error_message
+            .as_deref()
+            .unwrap_or_default()
+            .contains("forced persistence failure")
+    );
     let status = StatusDatabase::open_connection(status_path.to_str().unwrap()).unwrap();
     let (state, code): (String, Option<String>) = status
         .connection()
@@ -871,9 +872,11 @@ fn files_changed_or_removed_after_discovery_become_warnings_not_false_results() 
         .filter(|file| file.warning_message.is_some())
         .collect::<Vec<_>>();
     assert!(warning_snapshots.len() >= 2);
-    assert!(warning_snapshots
-        .iter()
-        .all(|file| file.content_hash.is_none()));
+    assert!(
+        warning_snapshots
+            .iter()
+            .all(|file| file.content_hash.is_none())
+    );
     let grouped_names = db
         .get_duplicate_groups(result.run_id, 0, 100)
         .unwrap()

@@ -1,4 +1,4 @@
-use std::ffi::{c_char, CStr, CString};
+use std::ffi::{CStr, CString, c_char};
 use std::fs;
 use std::ptr;
 use std::sync::atomic::{AtomicU32, Ordering};

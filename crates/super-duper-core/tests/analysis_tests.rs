@@ -1,6 +1,6 @@
 use super_duper_core::analysis::{deletion_plan, dir_fingerprint, dir_similarity};
-use super_duper_core::storage::models::{RunParameters, ScannedFile};
 use super_duper_core::storage::Database;
+use super_duper_core::storage::models::{RunParameters, ScannedFile};
 
 fn make_test_scanned_file(path: &str, size: i64, hash: i64, run_id: i64) -> ScannedFile {
     ScannedFile {

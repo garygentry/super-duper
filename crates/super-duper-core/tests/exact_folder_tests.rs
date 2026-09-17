@@ -1,13 +1,13 @@
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
 use super_duper_core::analysis::exact_folders;
 use super_duper_core::progress::{FolderAnalysisSubstage, ProgressReporter};
+use super_duper_core::storage::Database;
 use super_duper_core::storage::models::{
     DuplicateFolderGroupFilter, DuplicateFolderGroupPageQuery, DuplicateFolderGroupSortField,
     RunParameters, ScannedFile, SortDirection,
 };
-use super_duper_core::storage::Database;
 use super_duper_core::{AppConfig, ScanEngine, SilentReporter};
 use tempfile::TempDir;
 

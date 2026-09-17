@@ -5,8 +5,8 @@ use std::time::UNIX_EPOCH;
 use super_duper_core::analysis::deletion_plan;
 use super_duper_core::hasher::xxhash::hash_file_streaming;
 use super_duper_core::platform;
-use super_duper_core::storage::models::{RunParameters, ScannedFile};
 use super_duper_core::storage::Database;
+use super_duper_core::storage::models::{RunParameters, ScannedFile};
 
 fn create_run(db: &Database) -> i64 {
     let roots = vec!["root".to_string()];
