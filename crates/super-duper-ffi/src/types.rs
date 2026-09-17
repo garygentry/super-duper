@@ -123,7 +123,7 @@ pub struct SdDeletionResult {
 
 /// Progress callback signature.
 pub type SdProgressCallback = extern "C" fn(
-    phase: u32,           // 0=scan, 1=hash, 2=db_write
+    phase: u32, // 0=scan, 1=hash, 2=db_write
     current: u64,
     total: u64,
     message: *const c_char,

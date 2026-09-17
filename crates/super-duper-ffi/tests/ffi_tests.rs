@@ -185,14 +185,19 @@ fn test_scan_and_query_duplicates() {
     };
     let result = unsafe { sd_query_files_in_group(handle, first_group_id, &mut file_page) };
     assert_eq!(result, SdResultCode::Ok);
-    assert!(file_page.count >= 2, "duplicate group should have at least 2 files");
+    assert!(
+        file_page.count >= 2,
+        "duplicate group should have at least 2 files"
+    );
 
     // Verify file records have valid strings
     for i in 0..file_page.count as usize {
         let file = unsafe { &*file_page.files.add(i) };
         assert!(!file.canonical_path.is_null());
         assert!(!file.file_name.is_null());
-        let path = unsafe { CStr::from_ptr(file.canonical_path) }.to_str().unwrap();
+        let path = unsafe { CStr::from_ptr(file.canonical_path) }
+            .to_str()
+            .unwrap();
         assert!(!path.is_empty());
     }
 
@@ -423,7 +428,10 @@ fn test_last_error_message_after_invalid_handle() {
     let msg_ptr = sd_last_error_message();
     assert!(!msg_ptr.is_null());
     let msg = unsafe { CStr::from_ptr(msg_ptr) }.to_str().unwrap();
-    assert!(msg.contains("Invalid handle"), "error message should mention invalid handle, got: {msg}");
+    assert!(
+        msg.contains("Invalid handle"),
+        "error message should mention invalid handle, got: {msg}"
+    );
 
     unsafe { sd_free_string(msg_ptr) };
 }

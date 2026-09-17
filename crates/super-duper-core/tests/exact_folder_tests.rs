@@ -144,21 +144,13 @@ fn folder_substage_progress_is_ordered_monotonic_complete_and_bounded() {
     .unwrap();
     let progress = FolderProgressRecorder::default();
 
-    exact_folders::analyze_exact_folders_cancellable(
-        &db,
-        run,
-        &AtomicBool::new(false),
-        &progress,
-    )
-    .unwrap();
+    exact_folders::analyze_exact_folders_cancellable(&db, run, &AtomicBool::new(false), &progress)
+        .unwrap();
 
     let updates = progress.updates.into_inner().unwrap();
     assert!(updates.len() <= 16);
-    assert!(updates
-        .windows(2)
-        .all(|pair| pair[0].0 <= pair[1].0
-            && (pair[0].0 != pair[1].0
-                || (pair[0].2 == pair[1].2 && pair[0].1 <= pair[1].1))));
+    assert!(updates.windows(2).all(|pair| pair[0].0 <= pair[1].0
+        && (pair[0].0 != pair[1].0 || (pair[0].2 == pair[1].2 && pair[0].1 <= pair[1].1))));
     for substage in [
         FolderAnalysisSubstage::Hierarchy,
         FolderAnalysisSubstage::StructuralCandidates,

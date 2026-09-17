@@ -127,7 +127,12 @@ impl ProgressReporter for CliReporter {
         self.set_bar(pb);
     }
 
-    fn on_dir_analysis_complete(&self, fingerprints: usize, similarity_pairs: usize, duration_secs: f64) {
+    fn on_dir_analysis_complete(
+        &self,
+        fingerprints: usize,
+        similarity_pairs: usize,
+        duration_secs: f64,
+    ) {
         self.finish_bar();
         eprintln!(
             "  \x1b[32m✓\x1b[0m Directory analysis complete: {} fingerprints, {} similar pairs in {:.2}s",
