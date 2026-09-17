@@ -24,7 +24,7 @@ twox-hash = "2"
 
 # Cache
 rocksdb = "0.22"
-bincode = "1.3"
+bincode = { version = "2", features = ["serde"] }
 
 # Database (SQLite)
 rusqlite = { version = "0.31", features = ["bundled", "collation"] }

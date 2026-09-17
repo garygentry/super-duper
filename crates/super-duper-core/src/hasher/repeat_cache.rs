@@ -27,6 +27,12 @@ pub(crate) const MAXIMUM_ENCODED_ORDER_KEY_BYTES: usize =
     ORDER_PREFIX.len() + 10 + MAXIMUM_ENCODED_KEY_BYTES;
 const PRUNE_BATCH_ENTRIES: usize = 1024;
 
+/// bincode 1.x byte compatibility for persisted keys and values; see the pinned-encoding test.
+const STORED_ENCODING: bincode::config::Configuration<
+    bincode::config::LittleEndian,
+    bincode::config::Fixint,
+> = bincode::config::legacy();
+
 impl FromStr for RepeatCachePolicy {
     type Err = io::Error;
 
@@ -795,7 +801,9 @@ fn migrate_v2_entries(db: &DB) -> io::Result<()> {
         if !key.starts_with(ENTRY_PREFIX) {
             break;
         }
-        if let Ok(entry) = bincode::deserialize::<StoredEntryV2>(&value) {
+        if let Ok((entry, _)) =
+            bincode::serde::decode_from_slice::<StoredEntryV2, _>(&value, STORED_ENCODING)
+        {
             if entry.version == 2 {
                 batch.put(
                     key,
@@ -837,7 +845,8 @@ fn validate_bounded_text(value: &str, maximum: usize, field: &str) -> io::Result
 }
 
 fn encode_entry_key(signature: &CacheSignatureKey) -> io::Result<Vec<u8>> {
-    let encoded = bincode::serialize(signature).map_err(bincode_error)?;
+    let encoded =
+        bincode::serde::encode_to_vec(signature, STORED_ENCODING).map_err(bincode_error)?;
     let mut key = Vec::with_capacity(ENTRY_PREFIX.len() + encoded.len());
     key.extend_from_slice(ENTRY_PREFIX);
     key.extend_from_slice(&encoded);
@@ -851,7 +860,7 @@ fn encode_entry_key(signature: &CacheSignatureKey) -> io::Result<Vec<u8>> {
 }
 
 fn encode_entry(entry: StoredEntry) -> io::Result<Vec<u8>> {
-    let encoded = bincode::serialize(&entry).map_err(bincode_error)?;
+    let encoded = bincode::serde::encode_to_vec(&entry, STORED_ENCODING).map_err(bincode_error)?;
     if encoded.len() > MAXIMUM_ENCODED_VALUE_BYTES {
         return Err(io::Error::new(
             ErrorKind::InvalidInput,
@@ -862,7 +871,8 @@ fn encode_entry(entry: StoredEntry) -> io::Result<Vec<u8>> {
 }
 
 fn decode_entry(value: &[u8]) -> io::Result<StoredEntry> {
-    let entry: StoredEntry = bincode::deserialize(value).map_err(bincode_error)?;
+    let (entry, _) = bincode::serde::decode_from_slice::<StoredEntry, _>(value, STORED_ENCODING)
+        .map_err(bincode_error)?;
     if entry.version != STORE_SCHEMA_VERSION {
         return Err(io::Error::new(
             ErrorKind::InvalidData,
@@ -938,8 +948,8 @@ fn rocks_error(error: rocksdb::Error) -> io::Error {
     io::Error::other(error)
 }
 
-fn bincode_error(error: bincode::Error) -> io::Error {
-    io::Error::new(ErrorKind::InvalidData, error)
+fn bincode_error(error: impl std::fmt::Display) -> io::Error {
+    io::Error::new(ErrorKind::InvalidData, error.to_string())
 }
 
 #[cfg(test)]
@@ -1024,14 +1034,17 @@ mod tests {
         assert_eq!(decoded.hashes.full_hash, Some(0x1112_1314_1516_1718));
 
         // A v2 entry written by an earlier release must still migrate.
-        let legacy = bincode::serialize(&StoredEntryV2 {
-            version: 2,
-            sequence: 3,
-            hashes: CachedContentHashes {
-                partial_hash: 5,
-                full_hash: None,
+        let legacy = bincode::serde::encode_to_vec(
+            &StoredEntryV2 {
+                version: 2,
+                sequence: 3,
+                hashes: CachedContentHashes {
+                    partial_hash: 5,
+                    full_hash: None,
+                },
             },
-        })
+            STORED_ENCODING,
+        )
         .unwrap();
         assert_eq!(legacy, PINNED_V2_ENTRY_VALUE);
     }
@@ -1438,11 +1451,14 @@ mod tests {
             db.put(NEXT_SEQUENCE_KEY, 2u64.to_be_bytes()).unwrap();
             db.put(
                 &encoded_key,
-                bincode::serialize(&StoredEntryV2 {
-                    version: 2,
-                    sequence: 1,
-                    hashes: hashes(41),
-                })
+                bincode::serde::encode_to_vec(
+                    &StoredEntryV2 {
+                        version: 2,
+                        sequence: 1,
+                        hashes: hashes(41),
+                    },
+                    STORED_ENCODING,
+                )
                 .unwrap(),
             )
             .unwrap();
