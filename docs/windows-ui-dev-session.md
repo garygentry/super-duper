@@ -131,6 +131,12 @@ classification if a later UI task depends on drive-type messaging.
 
 ## Native recovery on 2026-09-16
 
+The operator has standing approval for computer control in this dedicated VM/sandbox and explicitly
+reconfirmed it after approving the Settings tool prompt. Do not request repeated computer-control
+permission. A tool approval timeout does not revoke that authorization; when approval arrives,
+resume from fresh discovery and observations. Tool-enforced access still has to succeed before
+claiming native evidence. Keep task scope, isolated state and deletion restrictions unchanged.
+
 Do not infer desktop lock from the presence of a LogonUI process alone. In this VM, LogonUI PID 1220
 belonged to session 1 while the app and working native input ran in session 2. Judge availability
 from actual selected-session capture/input. Prefer fresh `sky.list_apps()` selection if

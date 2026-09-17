@@ -907,6 +907,10 @@ internal static class PopulatedShellFixture
         Assert.AreEqual(ScrollBarVisibility.Disabled, selectedPath.HorizontalScrollBarVisibility);
         Assert.IsTrue(selectedPanel.IsVisible);
         var selectedPanelScroll = Find<ScrollViewer>(window, "FolderSelectedCopyScrollViewer");
+        Assert.IsTrue(detailPane.IsVisible && detailPane.Focusable,
+            "Folder decision focus requires an anchor that stays visible in compact selected-copy detail.");
+        Assert.IsFalse(KeyboardNavigation.GetIsTabStop(detailPane),
+            "The temporary decision focus anchor must not add a tab stop.");
         var actions = FindSelectedFolderCopyActions(selectedPanel);
         Assert.AreEqual(5, actions.Length);
         if (host.Length == 0)

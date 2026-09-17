@@ -276,3 +276,103 @@ Final verification for this slice:
 - Independent final review approved the source changes and preserved the native acceptance boundary.
   P08 remains open for physical 150% text/high contrast, remaining keyboard/focus/compact checks,
   and UX23's native after-check. No native success is inferred from these background results.
+
+## P08 compact native continuation (2026-09-16, from 654648d)
+
+Cold-start Git audit was clean on `codex/ui-redesign`; `origin/wpf-poc` remained `deefa40`.
+The initial process query required the VM's normal context; read-only elevated audit found no app,
+worker or fixture. No `.uidev` sidecar existed. Reused the verified Debug pair without rebuilding,
+prepared only the isolated `polish-journey-e4149564922d459cb1761b190b1d8a09` state, and launched
+through a fresh Computer Use session. App DLL SHA256 was
+`CEFA1FA1513EC5F09194D8165C1B87F9D74D9584A1BA784EB551003ABC6BD90A`; worker SHA256 remained
+`ACA08E756369F4C54157E033CDC85C28DFDAB3887D2A9C4B46D81D341DC49471`.
+
+Directly inspected native captures and inputs:
+
+- Alt+H opened History. Arrow navigation selected scan 4 without changing the workspace;
+  Alt+O opened its one real-file set/two copies. Scans 7/8 were not used for comparison because
+  their large disposable Stop copies were intentionally removed in the previous slice.
+- Native system-menu sizing reached 900×600 (886×593 capture). Set list and comparison each
+  displayed meaningful rows. Selected Backup overview exposed Back, Keep/Mark/Reset, full path,
+  Copy and Reveal without page scrolling. Current decision remained readable as text.
+- Tab traversed search, Apply, Filters, Clear and both Back controls with visible outlines.
+  Keep was reachable by keyboard; Enter changed Remove to Keep. The async refresh then lost
+  local focus and next Tab returned to Files: new medium finding UX24. Restored Mark with mouse
+  for Review. No file was deleted. Files/Folders decision-focus correction follows below.
+- Compact Review showed one marked file/12.7 KB, not-checked status and Check on entry.
+  Tab reached Check; Enter opened the native confirmation; Escape dismissed it and visibly
+  restored Check focus without starting validation. Compact Review at normal text passes.
+- One native capture returned `no monitor found for window`; fresh selection/activation and
+  the single capture retry succeeded. Accessibility focused-element output lagged visible focus;
+  screenshots, rather than the stale field, established the keyboard observations.
+- Control Panel initially reported no targetable window, but fresh discovery found it. Its visual
+  accessibility page opened and the contrast link launched Settings. Settings capture hit
+  `Computer Use app approval timed out`; input stopped. Owned app 1424 and worker 6168 were
+  path/parent-audited and stopped, `.uidev` removed, and follow-up audit found none.
+- The operator then reported approving the prompt and explicitly reconfirmed standing permission
+  for computer control in this dedicated VM. `AGENTS.md` and the UI development guide now retain
+  that approval. A fresh JS session rediscovered Settings; activation produced the actual Settings
+  surface. Native Accessibility → Text size showed 150% before Apply and enlarged Windows text
+  after Apply. This establishes the physical setting, not yet application acceptance.
+
+UX23's historical open showed no overlapping empty message in sampled settled captures, but a
+loading frame was not captured in this first pass. Keep its precise native after-check separate.
+
+### UX24 correction and physical appearance after-check
+
+Files and Folders now hold focus on a stable visible element before the existing async command
+disables its originating button, then restore that button after command completion and binding
+updates. Restoration requires the same model/run/group/member and unchanged anchor focus, so it
+does not override user navigation. Existing commands still execute exactly once. Independent review
+caught the compact Folders heading being collapsed; its anchor is now the persistent detail pane.
+The regression uses actual WPF button command dispatch, delayed and synchronous completion,
+navigation away, changed selection and the following Tab. Its dispatcher wait is bounded.
+
+Initial verification failures are retained under `artifacts/ui-polish-verification/p08-focus`:
+the test's direct button invocation initially lacked a DispatcherSynchronizationContext; the fixture
+was corrected to model WPF dispatch. A full smoke attempt while OS text was 150% failed the existing
+620-DIP Path/Apply top-alignment assertion before the new focus case. Native 900×600 at 150% showed
+readable, unclipped search/actions; the 620-DIP observation is not native acceptance at that width.
+Final focused Debug regression passed 1/1 with OS text still 150% (`p08-focus-final.trx`).
+
+The rebuilt isolated app was launched only after builds/tests stopped. Direct native evidence:
+
+- Physical 150%: Windows Text size slider visibly read 150%, Apply enlarged Settings, and the app
+  launched with enlarged body/action/header text. At 1180×760, Setup, History and populated Files
+  were readable. At 900×600, Files retained a complete meaningful set row, comparison/back path,
+  readable search/totals, and selected-copy Keep/Mark/Reset. Full path stayed in its local scroller.
+- Files UX24 after-check: Keep changed the real worker decision, Tab moved to neighboring Mark,
+  Enter changed it back to Remove and focus remained visibly on Mark. No return to the Files tab.
+- Compact 150% Review: first Tab brought Check into view through a short scroll with marked total
+  and current status still visible. No horizontal page scroll or inaccessible primary action.
+- Native Settings Accessibility → Contrast themes → Desert → Apply changed both Windows and the
+  running app. At 900×600 plus 150% text, Review, native confirmation, Files and Folders used readable
+  contrast colors and visible focus. Shift+Tab reached Check; Enter opened the legible confirmation;
+  Escape closed it and restored Check. No color-only decision meaning was required.
+- Baseline scan 6 has 232 sets/670 copies. Its Files comparison showed meaningful rows and the
+  208-member set's next page opened correctly. Folders showed complete meaningful set/copy rows.
+  Selected Backup archive/apps showed descendant scope, readable decision and Keep/Mark/Reset.
+  Keep → Tab → Mark → Enter → Tab → Reset → Enter completed against the real worker; each settled
+  decision was correct and retained local focus. Folder decision ended Undecided. UX24 native
+  after-checks pass for both Files and Folders, including keyboard operation in high contrast.
+- Restored Contrast themes None and Text size 100% via Settings Apply. The running app visibly
+  returned to normal text and colors. Closed Settings, the app and the owned Control Panel normally;
+  app/worker process audit found none and the temporary `.uidev` sidecar was removed.
+
+UX23 native historical opening and populated member-page loading were exercised without a visible
+empty-message overlap in the sampled frames. All captured states had already settled; the brief
+loading frame itself remains unobserved. Its deterministic delayed-response regression passes,
+but that does not replace this narrowly outstanding native observation. P08 remains open for that
+evidence; do not replay the physical appearance or decision-focus checks just completed.
+
+Final UX24 verification: Debug/Release Windows solution builds each completed with zero warnings
+and errors. Full WPF smoke passes 4/4 in Debug (46s) and Release (44s) after restoring OS defaults;
+TRX files are `p08-focus-debug-final.trx` and `p08-focus-release-final.trx` in the folder above.
+The final source review approved the stable folder anchor, command ordering and navigation guards.
+Rebuilt Debug app DLL SHA256: `636AFCF7EC78D28F4E6DEE4D72286E7D9A66507E8DE3EF61F282F2E785397817`;
+Release DLL SHA256: `DF4080BF3BBBF8D48ED2443A40F4B433E0CB2673C6BD75FAE1AB27CA3427572C`.
+No Rust/Core/Infrastructure behavior changed; their prior verified baselines remain retained.
+Fresh Release real-worker journey passes 1/1 (23s) at
+`artifacts/ui-dev-session/polish-journey-c18581a7c6ff4e1d9d48bc8ebe65f02a`, with 27 PNGs and
+fresh corpus `polish-data-8664ce58523b4a80a289f811a42b3957` (671 copies, 233 unique sources,
+16 types, 14,638,609 bytes). This is background real-worker evidence, not the missing native frame.

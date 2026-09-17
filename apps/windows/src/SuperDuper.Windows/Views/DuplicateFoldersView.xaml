@@ -298,6 +298,8 @@
 
             <Grid x:Name="FolderDetailPane"
                   Grid.Column="2"
+                  Focusable="True"
+                  KeyboardNavigation.IsTabStop="False"
                   automation:AutomationProperties.AutomationId="FolderDetailPane"
                   automation:AutomationProperties.Name="Folder copies in selected exact-folder set">
                 <Grid.RowDefinitions>
@@ -459,18 +461,21 @@
                                 <Button automation:AutomationProperties.Name="{Binding KeepAutomationName}"
                                         automation:AutomationProperties.HelpText="Records Keep for this named folder copy after worker confirmation; it does not delete or validate anything."
                                         Command="{Binding DataContext.KeepFolderCommand, ElementName=Root}"
+                                        Click="OnReviewDecisionClick"
                                         CommandParameter="{Binding}"
                                         Content="Keep folder" />
                                 <Button Margin="6,0,0,0"
                                         automation:AutomationProperties.Name="{Binding RemoveAutomationName}"
                                         automation:AutomationProperties.HelpText="Records removal intent for this named folder copy and descendants after worker confirmation; it does not delete anything."
                                         Command="{Binding DataContext.RemoveFolderCommand, ElementName=Root}"
+                                        Click="OnReviewDecisionClick"
                                         CommandParameter="{Binding}"
                                         Content="Mark folder for removal" />
                                 <Button Margin="6,0,0,0"
                                         automation:AutomationProperties.Name="{Binding UndecideAutomationName}"
                                         automation:AutomationProperties.HelpText="Clears the durable decision for this named folder copy after worker confirmation."
                                         Command="{Binding DataContext.UndecideFolderCommand, ElementName=Root}"
+                                        Click="OnReviewDecisionClick"
                                         CommandParameter="{Binding}"
                                         Content="Reset folder" />
                             </WrapPanel>

@@ -68,7 +68,7 @@ Readiness means the scope explicitly chosen by the operator, not an implied prod
 | P05 Review and preferences | P04 | Visible totals/check, staged rule flow, stale/error/readiness, contextual operation evidence; real preflight/rule checks | Implemented; background-verified |
 | P06 History and diagnostics | P05 | Compact history, issues-first warnings, secondary performance/recovery details; exact navigation/context tests | Implemented; background-verified |
 | P07 Integration and defect closure | P02–P06 | Full journey/theme/accessibility matrix, Rust/.NET Debug+Release, real-worker restart/edit/overlap cases | Background matrix complete; native acceptance pending |
-| P08 Final quality audit | P07 | Independent fresh-state repeat of common journeys; all required findings closed with evidence, durable handoff | Fresh-state/ranking/confirmation/Stop and compact native checks pass; UX23 loading fix after-check, remaining keyboard/text/high contrast pending after Control Panel approval timeout |
+| P08 Final quality audit | P07 | Independent fresh-state repeat of common journeys; all required findings closed with evidence, durable handoff | Physical 150%/Desert, compact Files/Folders/Review and decision-focus after-checks pass; UX23 transient native loading-frame observation remains open |
 
 Necessary engine/worker/infrastructure bug fixes run within the gate discovering them. Record
 reproduction, expected/actual result, smallest compatible fix, targeted regression, and relevant

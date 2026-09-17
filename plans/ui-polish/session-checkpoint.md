@@ -6,7 +6,8 @@ Updated 2026-09-16 local time. Branch `codex/ui-redesign`; pre-review baseline `
 
 - P00 complete. All interview recommendations accepted; implementation and subagents authorized.
 - P01–P06 implemented and background-verified. P07 background matrix complete. P08 fresh-state
-  Release journey passes; final native mouse/keyboard and physical high-contrast acceptance blocked.
+  Release journey passes; physical 150% text/Desert and compact keyboard/focus acceptance pass.
+  UX23's brief native loading frame remains unobserved; P08 stays open for that precise evidence.
   Do not claim full readiness or restart the completed redesign/release campaigns.
 - Product changes through `e4578ef`: quiet responsive shell, shared icons/styles, remembered mode
   and disclosures, locations-first setup, concise progress, adaptive Files/Folders comparison,
@@ -35,7 +36,7 @@ Updated 2026-09-16 local time. Branch `codex/ui-redesign`; pre-review baseline `
 - Final cleanup: no app/worker process or `.uidev` sidecar found. Sources preserved; runtime ignored.
 - See `implementation-evidence.md` and `review.md` for evidence categories and finding dispositions.
 
-## Current P08 continuation (2026-09-16)
+## Retained P08 verification through 654648d (2026-09-16)
 
 Current verification: focused Rust storage 4/4 plus boundary unit test 1/1 in both profiles;
 full Windows Debug/Release builds have zero warnings/errors; Core 228/228 in each. Release WPF 3/3
@@ -61,21 +62,40 @@ real-file journey for further Results checks; do not infer stale historical copi
 
 A brief loading/empty message overlap during native historical Results opening exposed UX23:
 IsDetailLoading did not notify the derived IsDetailEmpty binding. The narrow notification fix and
-bounded delayed-response regression are included in this slice; native after-check remains pending.
+bounded delayed-response regression are included. New native sampling is recorded below.
+
+## Latest P08 continuation from 654648d
+
+Physical Windows 150% text and Desert were applied through native Settings and inspected in the
+real-worker app. Standard enlarged Setup/History/Files and compact Files/Folders/Review pass:
+meaningful rows, readable decision/scope, Back and primary actions remain reachable. Compact
+Review Check comes into view on first Tab at 150%; confirmation Escape restores focus. OS appearance
+was restored to 100% text/contrast None, verified in Settings and the running app.
+
+UX24 exposed local focus loss after async Keep/Mark/Reset. Files and Folders now preserve a stable
+focus anchor and restore the originating action only for unchanged context without stealing focus
+after navigation. Independent review corrected the compact folder anchor and approved the final fix.
+Native Files Keep/Mark/Tab and Folders Keep/Mark/Reset/Tab after-checks pass at 900×600/150%
+(Folders in Desert).
+Debug/Release Windows builds pass with zero warnings/errors; full WPF smoke passes 4/4 in each.
+Fresh Release real-worker journey passes 1/1 (23s) at
+`artifacts/ui-dev-session/polish-journey-c18581a7c6ff4e1d9d48bc8ebe65f02a`.
+TRX evidence: `artifacts/ui-polish-verification/p08-focus`. Earlier failures are retained and
+explained in implementation evidence; prior Rust/Core/Infrastructure baselines remain unchanged.
+
+Standing computer-control approval for this dedicated VM is now explicit in AGENTS.md and the
+UI development guide. The operator approved Settings after a tool timeout; fresh discovery and
+activation worked. Do not ask for renewed authorization. Tool access must still actually succeed.
+Both native app sessions are closed, their workers exited/stopped and the Debug sidecar removed.
 
 ## Exact next step
 
-Complete P08 physical 150% text and high-contrast checks, remaining keyboard-only navigation/focus
-and compact selected-copy/Review checks, plus UX23's native loading after-check. Fresh native app
-capture/input worked this session. Settings launch returned no targetable window, with fresh
-apps/windows discovery exposing no Settings. The contrast shortcut produced no theme change or
-dialog; the normal Control Panel route then returned `Computer Use app approval timed out`.
-Native input stopped. Do not repeatedly debug that failed helper session. Resume only in a fresh
-working native session; no renewed operator authorization or unlock request is required.
-
-Owned native app 10692 and child worker 12796 were path/parent-audited and stopped; Debug `.uidev`
-sidecar removed. Earlier inherited app 5380/worker 15012 were also cleaned before rebuilding.
-Background results do not substitute for the remaining native acceptance. Do not close P08 yet.
+Complete UX23's precise native loading-state observation, then review P08 closure. Historical open
+and the 208-copy set's next-page load were exercised without overlap in sampled settled captures,
+but no transient loading frame was captured. Do not substitute the passing delayed-response test
+for that observation or invent a pass. Do not replay completed appearance/focus/compact checks.
+Use isolated real-file state (scan 4 for small Files, scan 6 for populated Files/Folders in the prior
+Debug journey); scans 7/8 intentionally refer to removed Stop copies. Audit processes/sidecar first.
 
 Keep `codex/ui-redesign` and preserve `origin/wpf-poc` at `deefa40`. No merge/push/release/deletion
 activation. Build serially, Cargo jobs 2, .NET build servers disabled; no compilation during UI

@@ -1,6 +1,7 @@
 # Windows usability and visual polish
 
-Status: implementation and background verification complete; final native acceptance pending. Started 2026-09-15
+Status: implementation, background verification and physical appearance/focus checks complete;
+UX23's transient native loading observation remains pending. Started 2026-09-15
 (America/Los_Angeles). Branch: `codex/ui-redesign`; baseline `6206610`.
 
 The operator requested a new end-to-end usability effort after accepting UIR-09: reduce clutter,

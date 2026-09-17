@@ -30,6 +30,16 @@ consumed/physical/provider campaign. Commit each coherent completed in-scope sli
 
 ## Current checkpoint
 
+- P08 continuation from `654648d` on 2026-09-16: native physical 150% text and Desert, compact
+  Files/Folders selected-copy/Review, and keyboard decision-focus after-checks pass. New UX24
+  async decision focus loss is fixed for both surfaces, regression-covered and independently
+  reviewed. OS restored to 100% text/contrast None; owned native app/worker sessions closed and
+  sidecar removed. Standing computer-control approval is retained in AGENTS.md; Settings access
+  worked after the operator approved and fresh discovery/activation resumed. UX23 native historical
+  and member-page loads showed no overlap in sampled settled frames, but the brief loading frame
+  remains unobserved. That precise native evidence is the only next P08 slice; do not replay the
+  physical appearance/focus checks. Final Debug/Release builds are clean; WPF 4/4 in each;
+  fresh Release real-worker journey 1/1 at `polish-journey-c18581a7c6ff4e1d9d48bc8ebe65f02a`.
 - P08 continuation on 2026-09-16 resumed `d784f48` plus preserved edits. Preference-root DOS/UNC
   equivalence, first legacy rank and drive-root boundary are fixed/reviewed. Shared native Check
   Escape and inline Apply/Reverse Escape/focus now pass native after-checks (ENG03/UX21/UX22).
@@ -581,8 +591,9 @@ performance, and later-gate campaigns remain untouched.
 
 ## Immediate next step
 
-**New active stream:** follow `plans/ui-polish/session-checkpoint.md`. Record the operator's
-initial decisions, then implement P01 real-worker-backed WPF background/native test environment.
+**New active stream:** follow `plans/ui-polish/session-checkpoint.md`. P01–P07 implementation and
+background verification are complete. P08 physical appearance/compact/focus checks pass; complete
+the narrowly outstanding UX23 native transient-loading observation, then assess closure.
 The retained instructions below describe the completed redesign and parked streams, not the new
 polish scheduling authority.
 
@@ -1500,6 +1511,13 @@ For each session:
     authorized, begin it immediately; do not end a session merely because one narrow check passed.
 
 ## Handoff decision log
+
+- 2026-09-16 P08 follow-up from `654648d`: standing computer-control approval reconfirmed for the
+  dedicated VM; retain it without repeat permission questions. Physical 150%/Desert and compact
+  Files/Folders/Review native checks passed after Settings approval. UX24 async decision focus loss
+  fixed and independently reviewed with native after-checks. UX23's fleeting loading state remains
+  unobserved despite clean settled native historical/page-load frames; keep P08 open for that
+  precise evidence. OS settings restored, owned app/worker/sidecar cleaned. No scope expansion.
 
 - 2026-09-15: The operator directed Codex to continue dedicated-VM development while the remote
   desktop is backgrounded or possibly locked. Loaded-STA WPF behavior and 125 rendered captures,

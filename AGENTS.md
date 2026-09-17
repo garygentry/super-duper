@@ -2,6 +2,15 @@
 
 Guidance for fresh coding-agent sessions in this repository.
 
+## Standing computer-control approval
+
+The operator explicitly grants standing approval to control this dedicated Windows VM/sandbox
+(reconfirmed 2026-09-16). Always treat Computer Use for the authorized task as approved; do not ask
+again to launch, capture or operate native apps or to perform the requested appearance checks.
+An app-approval timeout is a tool availability failure, not missing operator authorization.
+After the operator reports approving the tool, resume with fresh window discovery. Preserve the
+task's explicit no-merge/push/release/deletion-activation boundaries and runtime isolation.
+
 ## Active Roadmap Streams
 
 The operator requested a new usability and visual-polish stream on 2026-09-15. For this work,

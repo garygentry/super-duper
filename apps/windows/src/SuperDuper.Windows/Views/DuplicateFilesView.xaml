@@ -901,18 +901,21 @@
                                     <Button automation:AutomationProperties.Name="{Binding Path, StringFormat='Keep {0}; preserves this physical copy'}"
                                             IsEnabled="{Binding CanRecordCurrentDecision}"
                                             Command="{Binding DataContext.KeepMemberCommand, ElementName=Root}"
+                                            Click="OnReviewDecisionClick"
                                             CommandParameter="{Binding}"
                                             Content="Keep copy" />
                                     <Button Margin="6,0,0,0"
                                             automation:AutomationProperties.Name="{Binding Path, StringFormat='Mark {0} for removal; records intent only and does not delete'}"
                                             IsEnabled="{Binding CanRecordCurrentDecision}"
                                             Command="{Binding DataContext.RemoveMemberCommand, ElementName=Root}"
+                                            Click="OnReviewDecisionClick"
                                             CommandParameter="{Binding}"
                                             Content="Mark copy for removal" />
                                     <Button Margin="6,0,0,0"
                                             automation:AutomationProperties.Name="{Binding Path, StringFormat='Reset decision for {0} to undecided'}"
                                             IsEnabled="{Binding CanClearDecision}"
                                             Command="{Binding DataContext.UndecideMemberCommand, ElementName=Root}"
+                                            Click="OnReviewDecisionClick"
                                             CommandParameter="{Binding}"
                                              Content="Reset copy" />
                                  </WrapPanel>

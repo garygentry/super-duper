@@ -20,6 +20,10 @@ namespace SuperDuper.Windows.Smoke.Tests;
 public sealed class WpfSurfaceSmokeTests
 {
     [TestMethod]
+    public void DecisionActions_RestoreLocalFocusWithoutOverridingNavigation()
+        => RunOnSta(DecisionActionFocusTests.Verify);
+
+    [TestMethod]
     public void ShutdownCompletionIsNotQueuedAtStarvableIdlePriority()
     {
         Assert.AreEqual(DispatcherPriority.Normal, MainWindow.ShutdownDispatcherPriority);

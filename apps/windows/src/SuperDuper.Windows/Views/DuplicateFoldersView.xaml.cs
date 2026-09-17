@@ -189,6 +189,17 @@ public partial class DuplicateFoldersView : UserControl
         await RestoreGroupGridFocusAsync();
     }
 
+    private async void OnReviewDecisionClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || _model is not { } model) return;
+        var runId = model.Run?.Id;
+        var groupId = model.SelectedGroup?.Id;
+        var memberId = model.SelectedMember?.Id;
+        await DecisionActionFocus.PreserveAsync(button, FolderDetailPane,
+            () => ReferenceEquals(_model, model) && model.Run?.Id == runId
+                && model.SelectedGroup?.Id == groupId && model.SelectedMember?.Id == memberId);
+    }
+
     private async void OnSetSortChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_syncingSort || _model is null || FolderSetSort.SelectedItem is not ComboBoxItem item

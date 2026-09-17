@@ -180,6 +180,17 @@ public partial class DuplicateFilesView : UserControl
         SelectedCopyPanel.MaxHeight = selectedCopyDetail ? double.PositiveInfinity : 148;
     }
 
+    private async void OnReviewDecisionClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || _model is not { } model) return;
+        var runId = model.Run?.Id;
+        var groupId = model.SelectedGroup?.Id;
+        var memberId = model.SelectedMember?.Id;
+        await DecisionActionFocus.PreserveAsync(button, SelectedSetHeading,
+            () => ReferenceEquals(_model, model) && model.Run?.Id == runId
+                && model.SelectedGroup?.Id == groupId && model.SelectedMember?.Id == memberId);
+    }
+
     private async void OnCompareSelectedSetClick(object sender, RoutedEventArgs e)
     {
         if (!_isNarrow || _model?.SelectedGroup is null) return;
