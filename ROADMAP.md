@@ -58,6 +58,26 @@ Done:
   kept deliberately.
 - App state defaults to `%LOCALAPPDATA%\SuperDuper` instead of the install folder
   (`WorkerStateLocations`).
+- One owner per database (F2) and named database failures (F3): the worker holds
+  `<database>.lock`, answers `database_unavailable` with a reason, rejects newer schemas before any
+  pragma, and the app is single-instance per state folder.
+
+Failure-mode pass, 2026-09-18 (Release app, 60,000-file disposable fixture). Degraded correctly:
+worker killed mid-scan, corrupt/truncated/newer/read-only main database (file never modified),
+corrupt status database, held hash-cache `LOCK`, long paths, a missing root, closing during a scan.
+Open findings, fixed in this order:
+
+- **F6** An offline UNC or mapped root blocks the worker for 60 s or more while a session is saved:
+  `fs::canonicalize` runs on the request loop.
+- **F1** Cancelled, failed and interrupted runs report their last phase as Finalizing:
+  `terminal_run` overwrites `phase`.
+- **F4** Every path in the UI shows the `\\?\` verbatim prefix; display and Copy path should use
+  the plain form.
+- **F5** A root that was missing during the scan produces a false "Watcher coverage overflowed"
+  dirty-root warning.
+
+Not run: full disk (needs an operator-mounted small VHDX) and an offline OneDrive root (no signed-in
+account on the VM; the unavailable-detection fail-closed path is covered by the smoke).
 
 ## Post-Merge Follow-Ups
 

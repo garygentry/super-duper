@@ -79,3 +79,4 @@ Desktop.ini
 
 # Local launcher shortcuts (point at the gitignored artifacts/ publish)
 *.lnk
+*.db.lock

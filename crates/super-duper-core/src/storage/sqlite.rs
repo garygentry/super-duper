@@ -10,6 +10,91 @@ pub struct Database {
     conn: Connection,
 }
 
+/// A database whose schema version this build cannot open. It is carried inside
+/// `rusqlite::Error::ToSqlConversionFailure` (the boxed-error variant available without extra
+/// rusqlite features), whose display is the message below, so
+/// [`OpenFailure::classify`] can recognize it without matching text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SchemaVersionError {
+    NewerThanSupported { found: i64 },
+    UnsupportedLegacy { found: i64 },
+}
+
+impl std::fmt::Display for SchemaVersionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NewerThanSupported { found } => write!(
+                formatter,
+                "database schema version {found} is newer than supported version {CURRENT_SCHEMA_VERSION}"
+            ),
+            Self::UnsupportedLegacy { found } => write!(
+                formatter,
+                "unsupported legacy schema version {found}; database was not modified"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for SchemaVersionError {}
+
+/// Why [`Database::open`] failed, in terms a person can act on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpenFailure {
+    /// Written by a newer build; this build must not touch it.
+    NewerVersion,
+    /// A pre-release schema that cannot be upgraded in place.
+    UnsupportedVersion,
+    /// Not a SQLite database, or corrupt.
+    Damaged,
+    /// The file or its folder cannot be written.
+    ReadOnly,
+    /// The path cannot be opened at all, for example a missing folder or a directory.
+    Unavailable,
+    /// The volume is full.
+    DiskFull,
+    /// Another connection holds a conflicting lock.
+    Busy,
+    Other,
+}
+
+impl OpenFailure {
+    pub fn classify(error: &Error) -> Self {
+        use rusqlite::ErrorCode;
+        match error {
+            Error::ToSqlConversionFailure(inner) => {
+                match inner.downcast_ref::<SchemaVersionError>() {
+                    Some(SchemaVersionError::NewerThanSupported { .. }) => Self::NewerVersion,
+                    Some(SchemaVersionError::UnsupportedLegacy { .. }) => Self::UnsupportedVersion,
+                    None => Self::Other,
+                }
+            }
+            Error::SqliteFailure(failure, _) => match failure.code {
+                ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt => Self::Damaged,
+                ErrorCode::ReadOnly | ErrorCode::PermissionDenied => Self::ReadOnly,
+                ErrorCode::CannotOpen | ErrorCode::NotFound => Self::Unavailable,
+                ErrorCode::DiskFull => Self::DiskFull,
+                ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked => Self::Busy,
+                _ => Self::Other,
+            },
+            _ => Self::Other,
+        }
+    }
+
+    /// Stable protocol code.
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::NewerVersion => "newer_version",
+            Self::UnsupportedVersion => "unsupported_version",
+            Self::Damaged => "damaged",
+            Self::ReadOnly => "read_only",
+            Self::Unavailable => "unavailable",
+            Self::DiskFull => "disk_full",
+            Self::Busy => "in_use",
+            Self::Other => "failed",
+        }
+    }
+}
+
 impl Database {
     pub fn open(path: &str) -> Result<Self> {
         let db = Self::open_connection(path)?;
@@ -24,6 +109,13 @@ impl Database {
     pub fn open_connection(path: &str) -> Result<Self> {
         let conn = Connection::open(path)?;
         let db = Database { conn };
+        // Before any pragma: switching to WAL rewrites the header of a newer build's database.
+        let found = db.schema_version()?;
+        if found > CURRENT_SCHEMA_VERSION {
+            return Err(Error::ToSqlConversionFailure(Box::new(
+                SchemaVersionError::NewerThanSupported { found },
+            )));
+        }
         db.configure_pragmas()?;
         db.migrate_schema()?;
         Ok(db)
@@ -174,13 +266,13 @@ impl Database {
             2 => self.migrate_v2_to_v3()?,
             0 if !self.has_user_tables()? => self.conn.execute_batch(include_str!("schema.sql"))?,
             0 | 1 => {
-                return Err(Error::InvalidParameterName(format!(
-                    "unsupported legacy schema version {version}; database was not modified"
+                return Err(Error::ToSqlConversionFailure(Box::new(
+                    SchemaVersionError::UnsupportedLegacy { found: version },
                 )));
             }
             newer if newer > CURRENT_SCHEMA_VERSION => {
-                return Err(Error::InvalidParameterName(format!(
-                    "database schema version {newer} is newer than supported version {CURRENT_SCHEMA_VERSION}"
+                return Err(Error::ToSqlConversionFailure(Box::new(
+                    SchemaVersionError::NewerThanSupported { found: newer },
                 )));
             }
             _ => return Err(Error::InvalidQuery),

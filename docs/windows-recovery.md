@@ -108,6 +108,16 @@ never proof that this app recycled it.
 
 ## Database Failure Or Suspected Corruption
 
+When the worker cannot open its database, the app names the problem instead of reporting a worker
+crash: already open in another window, data from a newer version, an early version that cannot be
+upgraded, damaged, read-only, location unavailable, or disk full. Each screen shows the database
+path, and the worker does not modify the file in any of these cases.
+
+Super Duper runs one window per data folder. Starting it again brings the existing window forward.
+The worker also holds `super_duper.db.lock` beside the database while it runs, so a second worker
+(for example a script using the same `SUPER_DUPER_DB_PATH`) is refused instead of marking the
+first worker's scan interrupted. The lock file can stay behind after exit; it is harmless.
+
 1. Close Super Duper and confirm its worker exited.
 2. Find the database: `SUPER_DUPER_DB_PATH` when set, otherwise
    `%LOCALAPPDATA%\SuperDuper\super_duper.db`.

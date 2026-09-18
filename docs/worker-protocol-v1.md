@@ -124,6 +124,8 @@ The V1 base error codes are:
 - `unsupported_protocol`: client and worker have no mutually supported protocol version
 - `invalid_state`: the command is not allowed in the current worker state
 - `internal_error`: the worker could not complete the request because of an unexpected failure
+- `database_unavailable`: the worker could not open or does not own its main database (see
+  [Database availability](#database-availability))
 
 Later commands may define additional stable codes, such as `scan_busy`.
 
@@ -196,6 +198,26 @@ Successful result:
 If there is no common version, the worker returns `unsupported_protocol` and remains unnegotiated.
 The client may send a corrected `hello` request. After a successful negotiation, another `hello`
 returns `invalid_state`. Any other request before negotiation returns `handshake_required`.
+
+### Database availability
+
+At startup the worker takes an exclusive lock on `<database>.lock` beside its main database, then
+opens and migrates the database. Startup reconciliation marks every running run interrupted, so it
+runs only in the worker that holds the lock. If either step fails, the worker does not exit
+immediately: it answers every request, `hello` included, with `database_unavailable` until its input
+ends, then exits with code 1. `retryable` is false. `details`:
+
+- `reason`: `in_use` (another worker holds the lock), `newer_version`, `unsupported_version`,
+  `damaged`, `read_only`, `unavailable` (for example a missing folder or a directory path),
+  `disk_full`, or `failed`
+- `databasePath`: the main database path
+
+A database written by a newer engine is rejected before any pragma runs, so its file is not
+modified.
+
+```json
+{"type":"response","id":"1","ok":false,"error":{"code":"database_unavailable","message":"database schema version 99 is newer than supported version 15","retryable":false,"details":{"reason":"newer_version","databasePath":"C:\\Users\\operator\\AppData\\Local\\SuperDuper\\super_duper.db"}}}
+```
 
 Both sides must reject a successful `hello` response that selects a version the client did not
 offer. Minor compatible additions use new optional fields rather than a new version. Breaking

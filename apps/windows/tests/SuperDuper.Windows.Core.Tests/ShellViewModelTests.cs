@@ -55,6 +55,55 @@ public sealed class ShellViewModelTests
     }
 
     [TestMethod]
+    public async Task InitializeAsync_ExplainsAnUnavailableDatabaseInsteadOfAWorkerCrash()
+    {
+        const string database = @"C:\Users\someone\AppData\Local\SuperDuper\super_duper.db";
+        var client = new FakeWorkerClient(_ => Task.FromException<WorkerHelloResult>(
+            new WorkerDatabaseUnavailableException(
+                WorkerDatabaseUnavailableException.NewerVersion,
+                database,
+                "database schema version 99 is newer than supported version 15")));
+        var viewModel = CreateViewModel(client);
+
+        await viewModel.InitializeAsync();
+
+        Assert.AreEqual(WorkerConnectionState.Failed, viewModel.ConnectionState);
+        Assert.IsTrue(viewModel.IsRecoveryScreenVisible);
+        Assert.AreEqual("Saved data is from a newer version", viewModel.StatusTitle);
+        StringAssert.Contains(viewModel.StatusDetail, "Nothing was changed.");
+        StringAssert.Contains(viewModel.StatusDetail, database);
+        Assert.IsFalse(viewModel.StatusDetail.Contains("reconcile", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void DatabaseUnavailable_DescribesEveryReasonWithItsPath()
+    {
+        string[] reasons =
+        [
+            WorkerDatabaseUnavailableException.InUse,
+            WorkerDatabaseUnavailableException.NewerVersion,
+            WorkerDatabaseUnavailableException.UnsupportedVersion,
+            WorkerDatabaseUnavailableException.Damaged,
+            WorkerDatabaseUnavailableException.ReadOnly,
+            WorkerDatabaseUnavailableException.Unavailable,
+            WorkerDatabaseUnavailableException.DiskFull,
+        ];
+        var titles = reasons
+            .Select(reason => new WorkerDatabaseUnavailableException(reason, @"D:\state\db.db", "raw").Describe())
+            .Select(description =>
+            {
+                StringAssert.EndsWith(description.Detail, @"Data: D:\state\db.db");
+                return description.Title;
+            })
+            .ToArray();
+        Assert.AreEqual(reasons.Length, titles.Distinct().Count());
+
+        var unknown = new WorkerDatabaseUnavailableException("failed", @"D:\state\db.db", "disk I/O error").Describe();
+        Assert.AreEqual("Saved data couldn't be opened", unknown.Title);
+        StringAssert.StartsWith(unknown.Detail, "disk I/O error");
+    }
+
+    [TestMethod]
     public async Task ConfirmCancelAndExitAsync_CancelsActivePreflightWithoutDeleting()
     {
         var client = new TestWorkerClient();

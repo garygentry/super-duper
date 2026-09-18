@@ -230,12 +230,28 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
             await StopProcessAsync().ConfigureAwait(false);
             throw CreateConnectionException("The hello handshake timed out.", exception);
         }
+        catch (WorkerProtocolException exception) when (exception.Code == "database_unavailable")
+        {
+            await StopProcessAsync().ConfigureAwait(false);
+            throw new WorkerDatabaseUnavailableException(
+                DetailString(exception.Details, "reason") ?? "failed",
+                DetailString(exception.Details, "databasePath") ?? _databasePath ?? "",
+                exception.Message,
+                exception);
+        }
         catch (Exception exception) when (exception is not WorkerConnectionException)
         {
             await StopProcessAsync().ConfigureAwait(false);
             throw CreateConnectionException("The hello handshake failed.", exception);
         }
     }
+
+    private static string? DetailString(JsonElement details, string name) =>
+        details.ValueKind == JsonValueKind.Object
+        && details.TryGetProperty(name, out var value)
+        && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
 
     public Task<WorkerSessionPage> ListSessionsAsync(
         long offset = 0,
