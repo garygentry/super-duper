@@ -147,7 +147,8 @@ See `docs/windows-build.md`, `docs/windows-smoke.md`, and `docs/windows-recovery
 - `SUPER_DUPER_DB_PATH`, `SUPER_DUPER_STATUS_DB_PATH` — worker database overrides.
 - `SUPER_DUPER_LOG` — worker stderr tracing filter; `SUPER_DUPER_DIAGNOSTIC_LOG_PATH` — bounded
   diagnostic log.
-- `SUPER_DUPER_WORKER_PATH` — app override for worker discovery.
+- `SUPER_DUPER_WORKER_PATH` — app override for worker discovery; Debug builds only (Release launches
+  only the sibling worker).
 - `SUPER_DUPER_DISABLE_CLOUD_REGISTRATION_DISCOVERY` — test/diagnostic switch.
 - `SUPER_DUPER_SOP*`, `SUPER_DUPER_WPM13_*`, `SUPER_DUPER_*_EVIDENCE*`, `SUPER_DUPER_UIR05C_CAPTURES`
   are evidence/measurement hooks used by scripts and tests only.

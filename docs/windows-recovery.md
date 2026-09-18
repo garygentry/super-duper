@@ -44,7 +44,8 @@ troubleshooting. Set `SUPER_DUPER_LOG` to a Rust tracing filter such as
 ## Worker Startup Failure
 
 1. Read the recovery screen; it includes the attempted executable and diagnostic log paths.
-2. Build Rust before .NET, or set `SUPER_DUPER_WORKER_PATH` to an absolute compatible worker.
+2. Build Rust before .NET so the worker is copied beside the app. Release builds launch only that
+   sibling worker; Debug builds also honor `SUPER_DUPER_WORKER_PATH`.
 3. Verify worker and WPF app came from the same source/release output.
 4. Inspect `worker.log` for database migration/open or protocol negotiation errors.
 5. Restart after correcting the executable, permissions, or database issue.

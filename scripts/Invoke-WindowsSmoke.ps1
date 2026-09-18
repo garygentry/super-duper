@@ -1893,19 +1893,37 @@ function Assert-WpfCloudFailClosedScenario([string]$DatabasePath) {
     }
 }
 
+# Release builds ignore SUPER_DUPER_WORKER_PATH and launch only the sibling worker, so a missing
+# worker is simulated with a copy of the app folder that has no worker (and no .uidev sidecar).
+function New-WorkerlessAppCopy {
+    $source = Split-Path $app
+    $destination = Join-Path $smokeRoot 'workerless-app'
+    [IO.Directory]::CreateDirectory($destination) | Out-Null
+    Copy-Item -Path (Join-Path $source '*') -Destination $destination -Recurse -Exclude 'super-duper-worker.exe', '*.uidev'
+    $copy = Join-Path $destination (Split-Path -Leaf $app)
+    Assert-True (Test-Path -LiteralPath $copy) 'Workerless app copy is missing the app executable.'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $destination 'super-duper-worker.exe'))) 'Workerless app copy still contains a worker.'
+    return $copy
+}
+
 function Assert-WpfCloseScenario(
     [string]$Name,
     [string]$DatabasePath,
     [string]$WorkerPath,
-    [bool]$ExpectRecovery) {
+    [bool]$ExpectRecovery,
+    [string]$AppExecutable = $app) {
     Add-Type -AssemblyName UIAutomationClient
     Add-Type -AssemblyName UIAutomationTypes
     $knownWorkerIds = @(Get-Process -Name 'super-duper-worker' -ErrorAction SilentlyContinue | ForEach-Object Id)
     $start = [Diagnostics.ProcessStartInfo]::new()
-    $start.FileName = $app
-    $start.WorkingDirectory = Split-Path $app
+    $start.FileName = $AppExecutable
+    $start.WorkingDirectory = Split-Path $AppExecutable
     $start.UseShellExecute = $false
-    $start.Environment['SUPER_DUPER_WORKER_PATH'] = $WorkerPath
+    if ([string]::IsNullOrWhiteSpace($WorkerPath)) {
+        $null = $start.Environment.Remove('SUPER_DUPER_WORKER_PATH')
+    } else {
+        $start.Environment['SUPER_DUPER_WORKER_PATH'] = $WorkerPath
+    }
     $start.Environment['SUPER_DUPER_DB_PATH'] = $DatabasePath
     $start.Environment['HASH_CACHE_PATH'] = Join-Path $smokeRoot ("close-cache-" + [guid]::NewGuid().ToString('N'))
     $process = [Diagnostics.Process]::Start($start)
@@ -2578,7 +2596,7 @@ try {
         $idleDatabase = Join-Path $smokeRoot 'idle-close.db'
         Assert-WpfCloseScenario 'idle connected close 1' $idleDatabase $worker $false
         Assert-WpfCloseScenario 'idle connected close 2' $idleDatabase $worker $false
-        Assert-WpfCloseScenario 'worker startup failure close' (Join-Path $smokeRoot 'startup-failure.db') (Join-Path $smokeRoot 'missing-worker.exe') $true
+        Assert-WpfCloseScenario 'worker startup failure close' (Join-Path $smokeRoot 'startup-failure.db') $null $true (New-WorkerlessAppCopy)
         $databaseFailurePath = Join-Path $smokeRoot 'database-path-is-a-directory'
         [IO.Directory]::CreateDirectory($databaseFailurePath) | Out-Null
         Assert-WpfCloseScenario 'database failure close' $databaseFailurePath $worker $true

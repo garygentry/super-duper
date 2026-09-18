@@ -32,13 +32,30 @@ through finite named gates or coherent gate groups, with bounded commits and gat
 Rescheduling the scan stream changes work selection, not retained SOP9 evidence, consumed campaign
 identities, safety boundaries, production locks, or the parked Windows ledger.
 
+## First Release (v0.1.0)
+
+Operator decisions, 2026-09-18:
+
+- Ship a self-contained win-x64 build as a zip (no .NET runtime prerequisite, no installer).
+- Unsigned; the release notes explain the SmartScreen "unknown publisher" prompt.
+- The parked release-validation ledger stays parked and out of scope. High contrast, Narrator/NVDA
+  and multi-monitor DPI are listed as unverified, not passed.
+- Deletion stays disabled: the app ships review-only.
+
+Release work, in order: gate development overrides in Release builds; audit what Release still
+honors; failure-mode checks against a large disposable fixture; the post-merge follow-ups below;
+then release hygiene (version metadata, CHANGELOG, license and third-party notices, a release
+checklist that names CI versus VM gates) and a full `Verify-WindowsRelease.ps1` run.
+
+Done:
+
+- `SUPER_DUPER_WORKER_PATH` and the repository `target/debug` fallback are honored only in Debug
+  builds; Release launches only the worker beside the app (`WorkerExecutableLocator`).
+
 ## Post-Merge Follow-Ups
 
 Carried over from the handoff that stabilized `codex/ui-redesign` for the merge. None blocked it.
 
-- **Gate `SUPER_DUPER_WORKER_PATH` before distribution.** `WorkerExecutableLocator.Resolve()`
-  honors the override in Release builds, ahead of the deployed sibling worker, with no directory
-  restriction. Gate it behind `#if DEBUG` or require a path inside the install directory.
 - **Decide the Setup-dirty prompt.** Switching saved scans always prompts "Save setup changes
   before leaving?" on a machine whose registered cloud locations differ from the saved definition,
   because detection marks Setup dirty without an operator edit. Confirm or change that experience.
