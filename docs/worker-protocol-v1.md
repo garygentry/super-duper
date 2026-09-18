@@ -655,6 +655,10 @@ edited roots are not accepted. The response returns the latest root state, `repl
 its reconciliation cursor/count, and persists `reasonCode=watcher_overflow`. Exact operation replay
 does not increment the revision; a conflicting payload returns `idempotency_conflict`.
 
+The Windows app reports it when a root's watcher raises an error or cannot be started. A root that
+does not exist is not watched and not reported: nothing was being observed, and results under it
+are still checked by live validation when viewed.
+
 This is a loss-of-trust report, not an authoritative filesystem event. It emits one bounded
 `result.state_changed` overflow event so the currently selected matching run becomes visibly dirty;
 it validates no path and performs no filesystem or Shell mutation.

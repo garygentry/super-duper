@@ -67,6 +67,8 @@ Done:
   nonexistent server name was never slow (about 1.5 s).
 - Cancelled, failed and interrupted runs keep the phase they reached (F1); only `completed` records
   `finalizing`. Both `terminal_run` and startup reconciliation used to overwrite it.
+- A root that does not exist is no longer reported as lost watcher coverage (F5), which had made
+  it look dirty with "Watcher coverage overflowed … reconciliation required".
 
 Failure-mode pass, 2026-09-18 (Release app, 60,000-file disposable fixture). Degraded correctly:
 worker killed mid-scan, corrupt/truncated/newer/read-only main database (file never modified),
@@ -75,8 +77,6 @@ Open findings, fixed in this order:
 
 - **F4** Every path in the UI shows the `\\?\` verbatim prefix; display and Copy path should use
   the plain form.
-- **F5** A root that was missing during the scan produces a false "Watcher coverage overflowed"
-  dirty-root warning.
 
 Not run: full disk (needs an operator-mounted small VHDX) and an offline OneDrive root (no signed-in
 account on the VM; the unavailable-detection fail-closed path is covered by the smoke).
