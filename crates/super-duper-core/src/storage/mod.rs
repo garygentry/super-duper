@@ -10,4 +10,4 @@ pub mod review;
 pub mod root_reconciliation;
 pub mod sqlite;
 
-pub use sqlite::Database;
+pub use sqlite::{Database, OpenFailure, SchemaVersionError};

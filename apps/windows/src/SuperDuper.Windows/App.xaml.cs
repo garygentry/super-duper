@@ -12,6 +12,7 @@ namespace SuperDuper.Windows;
 public partial class App : Application
 {
     private readonly ServiceProvider _services;
+    private readonly SingleInstanceGate? _instance;
 
     public App()
     {
@@ -19,6 +20,7 @@ public partial class App : Application
         ApplyIsolatedUiDevConfiguration();
 #endif
         var state = WorkerStateLocations.FromEnvironment();
+        _instance = SingleInstanceGate.TryAcquire(state.StateDirectory, () => Dispatcher.InvokeAsync(ActivateMainWindow));
         var services = new ServiceCollection();
         services.AddSingleton<IWorkerClient>(
             _ => new WorkerClient(WorkerExecutableLocator.Resolve(), state));
@@ -80,6 +82,12 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if (_instance is null)
+        {
+            // Another window already owns this state; it has been asked to come forward.
+            Shutdown();
+            return;
+        }
 
         var window = _services.GetRequiredService<MainWindow>();
         MainWindow = window;
@@ -94,9 +102,21 @@ public partial class App : Application
         }
     }
 
+    private void ActivateMainWindow()
+    {
+        if (MainWindow is not { } window) return;
+        if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
+        window.Show();
+        // Raise it even when Windows refuses the focus change (the launcher had no foreground rights).
+        window.Topmost = true;
+        window.Topmost = false;
+        window.Activate();
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
         _services.Dispose();
+        _instance?.Dispose();
         base.OnExit(e);
     }
 }

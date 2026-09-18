@@ -1,3 +1,5 @@
 ILFindLastID
 SHOpenFolderAndSelectItems
 SHParseDisplayName
+AllowSetForegroundWindow
+ASFW_ANY

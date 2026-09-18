@@ -8,7 +8,6 @@ use std::sync::{Mutex, atomic::AtomicBool};
 use std::time::{Instant, UNIX_EPOCH};
 use super_duper_core::hasher::xxhash::hash_file_streaming;
 use super_duper_core::platform;
-use super_duper_core::storage::Database;
 use super_duper_core::storage::live_hints::ReviewLiveHintError;
 use super_duper_core::storage::models::{
     CloudDetectionStatus, CloudPolicy, DuplicateFileDriveFacetPageQuery,
@@ -30,6 +29,7 @@ use super_duper_core::storage::recovery_review::RecoveryReviewError;
 use super_duper_core::storage::recycle_operation::RecycleOperationError;
 use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::sqlite::CURRENT_SCHEMA_VERSION;
+use super_duper_core::storage::{Database, OpenFailure};
 use tempfile::tempdir;
 #[cfg(windows)]
 use winapi::shared::minwindef::FILETIME;
@@ -2029,6 +2029,70 @@ fn newer_schema_is_rejected_without_modification() {
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .unwrap();
     assert_eq!(version, 99);
+}
+
+fn open_failure(path: &Path) -> OpenFailure {
+    match Database::open(path.to_str().unwrap()) {
+        Ok(_) => panic!("{} unexpectedly opened", path.display()),
+        Err(error) => OpenFailure::classify(&error),
+    }
+}
+
+#[test]
+fn open_failures_are_classified_for_people() {
+    let temp = tempdir().unwrap();
+
+    let newer = temp.path().join("newer.db");
+    Connection::open(&newer)
+        .unwrap()
+        .execute_batch("PRAGMA user_version = 99;")
+        .unwrap();
+    let newer_bytes = fs::read(&newer).unwrap();
+    assert_eq!(open_failure(&newer), OpenFailure::NewerVersion);
+    assert_eq!(fs::read(&newer).unwrap(), newer_bytes);
+    let message = Database::open(newer.to_str().unwrap())
+        .err()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        message,
+        "database schema version 99 is newer than supported version 15"
+    );
+
+    let legacy = temp.path().join("legacy.db");
+    Connection::open(&legacy)
+        .unwrap()
+        .execute_batch("CREATE TABLE sessions(id INTEGER); PRAGMA user_version = 1;")
+        .unwrap();
+    assert_eq!(open_failure(&legacy), OpenFailure::UnsupportedVersion);
+
+    let damaged = temp.path().join("damaged.db");
+    let noise: Vec<u8> = (0..65_536u32)
+        .map(|value| (value * 7919 % 251) as u8)
+        .collect();
+    fs::write(&damaged, &noise).unwrap();
+    assert_eq!(open_failure(&damaged), OpenFailure::Damaged);
+    assert_eq!(fs::read(&damaged).unwrap(), noise);
+
+    let directory = temp.path().join("a-directory.db");
+    fs::create_dir(&directory).unwrap();
+    assert_eq!(open_failure(&directory), OpenFailure::Unavailable);
+
+    let missing_folder = temp.path().join("missing").join("state.db");
+    assert_eq!(open_failure(&missing_folder), OpenFailure::Unavailable);
+
+    let read_only = temp.path().join("read-only.db");
+    fs::write(&read_only, []).unwrap();
+    let mut permissions = fs::metadata(&read_only).unwrap().permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&read_only, permissions.clone()).unwrap();
+    assert_eq!(open_failure(&read_only), OpenFailure::ReadOnly);
+    #[allow(clippy::permissions_set_readonly_false)] // Restore so the temp dir can be removed.
+    permissions.set_readonly(false);
+    fs::set_permissions(&read_only, permissions).unwrap();
+
+    assert_eq!(OpenFailure::Busy.code(), "in_use");
+    assert_eq!(OpenFailure::NewerVersion.code(), "newer_version");
 }
 
 #[test]

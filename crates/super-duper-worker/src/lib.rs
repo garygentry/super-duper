@@ -10,7 +10,6 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 use super_duper_core::progress::{FolderAnalysisSubstage, ProgressReporter};
-use super_duper_core::storage::Database;
 use super_duper_core::storage::live_hints::ReviewLiveHintError;
 use super_duper_core::storage::live_validation::ReviewLiveValidationError;
 use super_duper_core::storage::models::{
@@ -41,6 +40,7 @@ use super_duper_core::storage::recovery_review::RecoveryReviewError;
 use super_duper_core::storage::recycle_operation::RecycleOperationError;
 use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::root_reconciliation::ReviewLiveRootError;
+use super_duper_core::storage::{Database, OpenFailure};
 use super_duper_core::telemetry::{
     ProgressObservation, ProgressReducer, ScanProgressSnapshot, StatusDatabase, TelemetryPhase,
 };
@@ -72,6 +72,7 @@ pub enum WorkerError {
     Io(io::Error),
     FatalProtocol(String),
     Startup(String),
+    DatabaseUnavailable(DatabaseUnavailable),
 }
 
 impl fmt::Display for WorkerError {
@@ -79,6 +80,72 @@ impl fmt::Display for WorkerError {
         match self {
             Self::Io(error) => write!(formatter, "I/O error: {error}"),
             Self::FatalProtocol(message) | Self::Startup(message) => formatter.write_str(message),
+            Self::DatabaseUnavailable(failure) => write!(
+                formatter,
+                "worker database initialization failed: {}",
+                failure.message
+            ),
+        }
+    }
+}
+
+/// The main database could not be opened (or is owned by another worker). The worker still
+/// answers requests with a `database_unavailable` error so the client can say why.
+#[derive(Debug, Clone)]
+pub struct DatabaseUnavailable {
+    pub reason: &'static str,
+    pub message: String,
+    pub database_path: PathBuf,
+}
+
+impl DatabaseUnavailable {
+    fn new(reason: &'static str, message: impl Into<String>, database_path: &Path) -> Self {
+        Self {
+            reason,
+            message: message.into(),
+            database_path: database_path.to_path_buf(),
+        }
+    }
+
+    fn from_io(error: &io::Error, database_path: &Path) -> Self {
+        let reason = match error.kind() {
+            io::ErrorKind::NotFound => "unavailable",
+            io::ErrorKind::PermissionDenied | io::ErrorKind::ReadOnlyFilesystem => "read_only",
+            io::ErrorKind::StorageFull => "disk_full",
+            _ => "failed",
+        };
+        Self::new(reason, error.to_string(), database_path)
+    }
+
+    fn protocol_failure(&self) -> ProtocolFailure {
+        ProtocolFailure::new("database_unavailable", self.message.clone()).with_details(json!({
+            "reason": self.reason,
+            "databasePath": self.database_path.to_string_lossy(),
+        }))
+    }
+}
+
+/// `<database>.lock`, held exclusively for the worker's lifetime. Startup reconciliation marks
+/// every running run interrupted, which is only correct when no other worker owns the database.
+fn acquire_database_lock(database_path: &Path) -> Result<fs::File, DatabaseUnavailable> {
+    let mut lock_path = database_path.as_os_str().to_owned();
+    lock_path.push(".lock");
+    let file = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)
+        .map_err(|error| DatabaseUnavailable::from_io(&error, database_path))?;
+    match file.try_lock() {
+        Ok(()) => Ok(file),
+        Err(fs::TryLockError::WouldBlock) => Err(DatabaseUnavailable::new(
+            "in_use",
+            "Another Super Duper worker is using this database",
+            database_path,
+        )),
+        Err(fs::TryLockError::Error(error)) => {
+            Err(DatabaseUnavailable::from_io(&error, database_path))
         }
     }
 }
@@ -1259,6 +1326,7 @@ struct ActivePreflight {
 }
 
 struct SharedState {
+    _database_lock: fs::File,
     database_path: PathBuf,
     status_database_path: PathBuf,
     diagnostic_log_path: Option<PathBuf>,
@@ -1274,10 +1342,17 @@ impl SharedState {
         let database_path = options.database_path;
         let status_database_path = options.status_database_path;
         let diagnostic_log_path = options.diagnostic_log_path;
+        let database_lock =
+            acquire_database_lock(&database_path).map_err(WorkerError::DatabaseUnavailable)?;
         Database::open(&database_path.to_string_lossy()).map_err(|error| {
-            WorkerError::Startup(format!("worker database initialization failed: {error}"))
+            WorkerError::DatabaseUnavailable(DatabaseUnavailable::new(
+                OpenFailure::classify(&error).code(),
+                error.to_string(),
+                &database_path,
+            ))
         })?;
         Ok(Arc::new(Self {
+            _database_lock: database_lock,
             database_path,
             status_database_path,
             diagnostic_log_path,
@@ -4621,7 +4696,20 @@ pub fn run_with_options<R: BufRead, W: Write + Send>(
     std::thread::scope(|scope| {
         let (sender, receiver) = mpsc::channel::<String>();
         let writer = scope.spawn(move || write_output(receiver, &mut output));
-        let state = SharedState::new(options, sender.clone())?;
+        let state = match SharedState::new(options, sender.clone()) {
+            Ok(state) => state,
+            Err(WorkerError::DatabaseUnavailable(failure)) => {
+                let served = serve_database_unavailable(&mut input, &sender, &failure);
+                drop(sender);
+                let writer_result = writer.join().map_err(|_| {
+                    WorkerError::Io(io::Error::other("worker output thread panicked"))
+                })?;
+                served?;
+                writer_result?;
+                return Err(WorkerError::DatabaseUnavailable(failure));
+            }
+            Err(error) => return Err(error),
+        };
         let mut session = WorkerSession::new(state.clone());
         let dispatch_result = (|| loop {
             let Some(line) = read_frame(&mut input)? else {
@@ -4652,6 +4740,27 @@ fn write_output<W: Write>(receiver: Receiver<String>, output: &mut W) -> Result<
         output.write_all(frame.as_bytes())?;
         output.write_all(b"\n")?;
         output.flush()?;
+    }
+    Ok(())
+}
+
+/// Answers every request, `hello` included, with the startup failure until input ends.
+fn serve_database_unavailable<R: BufRead>(
+    input: &mut R,
+    sender: &Sender<String>,
+    failure: &DatabaseUnavailable,
+) -> Result<(), WorkerError> {
+    while let Some(line) = read_frame(input)? {
+        let value: Value = serde_json::from_str(&line).map_err(|error| {
+            WorkerError::FatalProtocol(format!("received malformed JSON: {error}"))
+        })?;
+        let object = value.as_object().ok_or_else(|| {
+            WorkerError::FatalProtocol("protocol frame must be a JSON object".to_owned())
+        })?;
+        let response = serialize_failure(request_id(object)?, failure.protocol_failure())?;
+        if sender.send(response).is_err() {
+            break;
+        }
     }
     Ok(())
 }
@@ -11149,6 +11258,119 @@ mod tests {
         assert_eq!(
             response(&frames, "get")["result"]["run"]["status"],
             "interrupted"
+        );
+    }
+
+    fn execute_unavailable(database: &Path, requests: &[&str]) -> (WorkerError, Vec<Value>) {
+        let input = Cursor::new(format!("{}\n", requests.join("\n")));
+        let mut output = Vec::new();
+        let error = run_with_options(input, &mut output, WorkerOptions::new(database))
+            .expect_err("worker unexpectedly opened the database");
+        let frames = String::from_utf8(output)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        (error, frames)
+    }
+
+    #[test]
+    fn second_worker_reports_in_use_without_reconciling_the_owners_run() {
+        let temp = TempDir::new().unwrap();
+        let db_path = temp.path().join("worker.db");
+        let db = Database::open(db_path.to_str().unwrap()).unwrap();
+        let session = db.create_session("Owned", &["/tmp".into()], &[]).unwrap();
+        let run = db
+            .create_scan_run(
+                session,
+                &RunParameters {
+                    roots: vec!["/tmp".into()],
+                    ignore_patterns: vec![],
+                    directory_similarity_threshold_millis: 500,
+                    repeat_cache_policy: RepeatCachePolicy::RevalidateContent,
+                    cloud_policy: Default::default(),
+                    manual_location_exclusions: vec![],
+                    registered_cloud_locations: vec![],
+                    cloud_detection_status: Default::default(),
+                },
+                "test",
+            )
+            .unwrap();
+        db.start_scan_run(run).unwrap();
+        drop(db);
+        let owner = acquire_database_lock(&db_path).unwrap();
+
+        let (error, frames) = execute_unavailable(
+            &db_path,
+            &[
+                HELLO,
+                r#"{"type":"request","id":"list","method":"session.list","params":{}}"#,
+            ],
+        );
+
+        assert!(matches!(
+            error,
+            WorkerError::DatabaseUnavailable(DatabaseUnavailable {
+                reason: "in_use",
+                ..
+            })
+        ));
+        for id in ["hello-1", "list"] {
+            let error = &response(&frames, id)["error"];
+            assert_eq!(error["code"], "database_unavailable");
+            assert_eq!(error["details"]["reason"], "in_use");
+            assert_eq!(
+                error["details"]["databasePath"],
+                db_path.to_string_lossy().as_ref()
+            );
+        }
+        let db = Database::open_connection(db_path.to_str().unwrap()).unwrap();
+        assert_eq!(db.get_scan_run(run).unwrap().status, "running");
+        drop(db);
+
+        drop(owner);
+        let frames = execute(
+            &temp,
+            &[
+                HELLO.to_owned(),
+                r#"{"type":"request","id":"get","method":"run.get","params":{"runId":1}}"#
+                    .to_owned(),
+            ],
+        );
+        assert_eq!(
+            response(&frames, "get")["result"]["run"]["status"],
+            "interrupted"
+        );
+    }
+
+    #[test]
+    fn unopenable_database_is_reported_with_its_reason_and_left_unchanged() {
+        let temp = TempDir::new().unwrap();
+        let newer = temp.path().join("newer.db");
+        rusqlite::Connection::open(&newer)
+            .unwrap()
+            .execute_batch("PRAGMA user_version = 99;")
+            .unwrap();
+        let before = fs::read(&newer).unwrap();
+        let (error, frames) = execute_unavailable(&newer, &[HELLO]);
+        assert!(matches!(
+            error,
+            WorkerError::DatabaseUnavailable(DatabaseUnavailable {
+                reason: "newer_version",
+                ..
+            })
+        ));
+        assert_eq!(
+            response(&frames, "hello-1")["error"]["details"]["reason"],
+            "newer_version"
+        );
+        assert_eq!(fs::read(&newer).unwrap(), before);
+
+        let missing = temp.path().join("missing").join("state.db");
+        let (_, frames) = execute_unavailable(&missing, &[HELLO]);
+        assert_eq!(
+            response(&frames, "hello-1")["error"]["details"]["reason"],
+            "unavailable"
         );
     }
 }

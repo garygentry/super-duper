@@ -506,6 +506,11 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         {
             throw;
         }
+        catch (WorkerDatabaseUnavailableException exception)
+        {
+            (StatusTitle, StatusDetail) = exception.Describe();
+            ConnectionState = WorkerConnectionState.Failed;
+        }
         catch (Exception exception)
         {
             StatusTitle = "Worker connection failed";
@@ -1005,6 +1010,11 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             {
                 ShowEmptyState();
             }
+        }
+        catch (WorkerDatabaseUnavailableException exception)
+        {
+            (StatusTitle, StatusDetail) = exception.Describe();
+            ConnectionState = WorkerConnectionState.Failed;
         }
         catch (Exception exception)
         {

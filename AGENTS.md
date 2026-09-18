@@ -111,8 +111,11 @@ See `docs/windows-build.md`, `docs/windows-smoke.md`, and `docs/windows-recovery
 - Smoke, acceptance, and fault-injection workflows must use disposable state
   (`SUPER_DUPER_DB_PATH`, `SUPER_DUPER_STATUS_DB_PATH`, `HASH_CACHE_PATH` under `artifacts/` or temp),
   never real user data.
-- Runtime files (`super_duper.db`, `scan_status.db`, `content_hash_cache.db`, `logs/`, `artifacts/`)
-  stay out of source control.
+- Runtime files (`super_duper.db` and its `.lock`, `scan_status.db`, `content_hash_cache.db`,
+  `logs/`, `artifacts/`) stay out of source control.
+- One worker owns a database: it holds `<database>.lock` for its lifetime and answers
+  `database_unavailable` otherwise, and the app is single-instance per state folder. Do not add a
+  second concurrent worker on the same database, even in scripts.
 
 ## Storage
 
