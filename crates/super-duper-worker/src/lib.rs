@@ -3976,12 +3976,17 @@ impl WorkerSession {
                     .map(|location| &location.path),
             )
             .collect::<Vec<_>>();
-        if !session.roots.iter().any(|root| {
+        let any_excluded = session.roots.iter().any(|root| {
             effective_exclusions
                 .iter()
                 .any(|exclusion| path_is_within(Path::new(root), Path::new(exclusion)))
-                || Path::new(root).is_dir()
-        }) {
+        });
+        if !any_excluded
+            && !probe_with_deadline(&session.roots, ROOT_PROBE_TIMEOUT, |root: String| {
+                Path::new(&root).is_dir()
+            })
+            .contains(&Some(true))
+        {
             return Err(ProtocolFailure::new(
                 "invalid_session",
                 "At least one session root must be an accessible directory",
@@ -6081,8 +6086,8 @@ fn validate_session(
                 .flatten(),
         )
         .collect::<Vec<_>>();
-    let mut normalized = Vec::with_capacity(roots.len());
-    for (root_index, root) in roots.into_iter().enumerate() {
+    let mut trimmed = Vec::with_capacity(roots.len());
+    for (root_index, root) in roots.iter().enumerate() {
         let root = root.trim();
         if root.is_empty() || !Path::new(root).is_absolute() {
             return Err(ProtocolFailure::new(
@@ -6091,14 +6096,29 @@ fn validate_session(
             )
             .with_details(json!({"field":"roots", "rootIndex":root_index})));
         }
-        let canonical = if pre_io_exclusions
+        trimmed.push(root.to_owned());
+    }
+    // Excluded (cloud) roots are never touched; the rest are canonicalized with a deadline so an
+    // offline share cannot stall the request loop. A root that does not answer is kept as typed.
+    let probed = trimmed
+        .iter()
+        .filter(|root| {
+            !pre_io_exclusions
+                .iter()
+                .any(|exclusion| path_is_within(Path::new(root), Path::new(exclusion)))
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let canonical_roots = probe_with_deadline(&probed, ROOT_PROBE_TIMEOUT, |root: String| {
+        fs::canonicalize(root).ok()
+    });
+    let mut normalized = Vec::with_capacity(trimmed.len());
+    for root in &trimmed {
+        let canonical = probed
             .iter()
-            .any(|exclusion| path_is_within(Path::new(root), Path::new(exclusion)))
-        {
-            PathBuf::from(root)
-        } else {
-            fs::canonicalize(root).unwrap_or_else(|_| PathBuf::from(root))
-        };
+            .position(|candidate| candidate == root)
+            .and_then(|index| canonical_roots[index].clone().flatten())
+            .unwrap_or_else(|| PathBuf::from(root));
         let value = canonical.to_string_lossy().into_owned();
         if !normalized
             .iter()
@@ -6235,6 +6255,40 @@ fn path_compare_key(path: &Path) -> String {
 
 fn paths_equal(left: &Path, right: &Path) -> bool {
     path_compare_key(left) == path_compare_key(right)
+}
+
+/// The longest a request waits on filesystem probes of user-supplied roots. An offline network
+/// share can block `canonicalize` or `is_dir` for the SMB timeout, a minute or more.
+const ROOT_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// Runs `probe` for each item on its own thread and waits at most `timeout` in total. Items whose
+/// probe did not finish in time come back as `None`; their threads are abandoned and end when the
+/// operating system gives up.
+fn probe_with_deadline<T, R, F>(items: &[T], timeout: Duration, probe: F) -> Vec<Option<R>>
+where
+    T: Clone + Send + 'static,
+    R: Send + 'static,
+    F: Fn(T) -> R + Copy + Send + 'static,
+{
+    let (sender, receiver) = mpsc::channel();
+    for (index, item) in items.iter().cloned().enumerate() {
+        let sender = sender.clone();
+        let _ = std::thread::Builder::new()
+            .name("root-probe".to_owned())
+            .spawn(move || {
+                let _ = sender.send((index, probe(item)));
+            });
+    }
+    drop(sender);
+    let deadline = Instant::now() + timeout;
+    let mut results = (0..items.len()).map(|_| None).collect::<Vec<_>>();
+    for _ in 0..items.len() {
+        match receiver.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+            Ok((index, result)) => results[index] = Some(result),
+            Err(_) => break,
+        }
+    }
+    results
 }
 
 fn path_is_within(path: &Path, ancestor: &Path) -> bool {
@@ -11372,5 +11426,80 @@ mod tests {
             response(&frames, "hello-1")["error"]["details"]["reason"],
             "unavailable"
         );
+    }
+
+    #[test]
+    fn probes_that_do_not_answer_in_time_are_abandoned() {
+        let started = Instant::now();
+        let results = probe_with_deadline(&[0_u64, 1, 2], Duration::from_millis(300), |item| {
+            if item == 1 {
+                std::thread::sleep(Duration::from_secs(10));
+            }
+            item * 10
+        });
+        assert!(started.elapsed() < Duration::from_secs(3));
+        assert_eq!(results, vec![Some(0), None, Some(20)]);
+    }
+
+    #[test]
+    fn unreachable_network_root_does_not_stall_session_save_or_scan_start() {
+        let temp = TempDir::new().unwrap();
+        let local = fs::canonicalize(temp.path()).unwrap().join("local");
+        fs::create_dir_all(&local).unwrap();
+        let offline = r"\\sd-no-such-server-7f3a\share\photos";
+        let db_path = temp.path().join("worker.db");
+        let (sender, _receiver) = mpsc::channel();
+        let state = SharedState::new(WorkerOptions::new(&db_path), sender).unwrap();
+        let mut session = WorkerSession::new(state.clone());
+        session.handle_line(HELLO).unwrap();
+        let request = |id: &str, name: &str, roots: Vec<String>| {
+            json!({
+                "type":"request", "id":id, "method":"session.create",
+                "params":{
+                    "name":name, "roots":roots, "ignorePatterns":[],
+                    "cloudPolicy":"exclude_registered_roots", "manualLocationExclusions":[],
+                    "registeredCloudLocations":[], "cloudDetectionStatus":"complete"
+                }
+            })
+            .to_string()
+        };
+
+        let started = Instant::now();
+        let mixed: Value = serde_json::from_str(
+            &session
+                .handle_line(&request(
+                    "mixed",
+                    "Mixed",
+                    vec![offline.to_owned(), local.to_string_lossy().into_owned()],
+                ))
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(mixed["ok"], true, "{mixed}");
+        let roots = mixed["result"]["session"]["roots"].as_array().unwrap();
+        assert_eq!(roots[0], offline);
+        assert!(started.elapsed() < ROOT_PROBE_TIMEOUT + Duration::from_secs(2));
+
+        let only_offline: Value = serde_json::from_str(
+            &session
+                .handle_line(&request("offline", "Offline", vec![offline.to_owned()]))
+                .unwrap(),
+        )
+        .unwrap();
+        let session_id = only_offline["result"]["session"]["id"].as_i64().unwrap();
+        let started = Instant::now();
+        let start: Value = serde_json::from_str(
+            &session
+                .handle_line(
+                    &json!({"type":"request","id":"start","method":"run.start",
+                        "params":{"sessionId":session_id}})
+                    .to_string(),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(started.elapsed() < ROOT_PROBE_TIMEOUT + Duration::from_secs(2));
+        assert_eq!(start["error"]["code"], "invalid_session", "{start}");
+        state.shutdown();
     }
 }

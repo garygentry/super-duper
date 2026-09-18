@@ -228,9 +228,12 @@ envelope or command changes require a new major protocol version.
 Session and run IDs are positive JSON integers. Session names are trimmed and unique under
 case-insensitive comparison. A session contains 1–64 absolute roots and at most 512 valid glob
 ignore patterns. Reachable non-excluded roots are canonicalized; roots already classified inside an
-effective cloud/manual exclusion remain lexical so validation cannot hydrate them. Duplicates are removed case-insensitively, and
-nested roots are collapsed so a child is not scanned twice. Definitions may retain a temporarily
-unreachable absolute root, but `run.start` requires at least one currently accessible directory.
+effective cloud/manual exclusion remain lexical so validation cannot hydrate them. Duplicates are
+removed case-insensitively, and nested roots are collapsed so a child is not scanned twice.
+Definitions may retain a temporarily unreachable absolute root, but `run.start` requires at least
+one currently accessible directory. Both probes run per root in parallel and a request waits for
+them at most 3 seconds in total: a root that has not answered (for example a switched-off network
+share) is kept as typed when saving and counts as inaccessible when starting.
 
 Session mutations (`session.create`, `session.update`, and `session.delete`) return `invalid_state`
 while a scan is active. This keeps the saved definition and the new run snapshot unambiguous.
