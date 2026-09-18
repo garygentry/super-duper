@@ -22,7 +22,7 @@ MVP. The previous Windows app implementation was removed before the current WPF 
 
 | Stream | Scheduling state | Authority | Next boundary |
 |---|---|---|---|
-| Windows UI redesign | Complete at UIR-09, plus the P00–P08 usability/visual-polish stream; `codex/ui-redesign` is being stabilized for a pull request into `master` | [`plans/ui-redesign/README.md`](plans/ui-redesign/README.md), [`plans/ui-redesign/execution-plan.md`](plans/ui-redesign/execution-plan.md), [`UIR-09 evidence`](plans/ui-redesign/evidence/uir-09-final-acceptance.md), and [`plans/ui-polish/session-checkpoint.md`](plans/ui-polish/session-checkpoint.md) | No redesign gate remains. NVDA and physical 200% remain unavailable/unrun, not passed or waived. Remaining work is the merge itself, tracked in `HANDOFF.md`; preserve `wpf-poc` at `deefa40`, production deletion locks, parked release-validation authority and consumed campaigns. |
+| Windows UI redesign | Complete at UIR-09, plus the P00–P08 usability/visual-polish stream; merged into `master` on 2026-09-18 as a fast-forward ([#1](https://github.com/garygentry/super-duper/pull/1)) | [`plans/ui-redesign/README.md`](plans/ui-redesign/README.md), [`plans/ui-redesign/execution-plan.md`](plans/ui-redesign/execution-plan.md), [`UIR-09 evidence`](plans/ui-redesign/evidence/uir-09-final-acceptance.md), and [`plans/ui-polish/session-checkpoint.md`](plans/ui-polish/session-checkpoint.md) | No redesign gate remains. NVDA and physical 200% remain unavailable/unrun, not passed or waived. Non-blocking follow-ups are listed under "Post-Merge Follow-Ups" below; preserve `wpf-poc` at `deefa40`, production deletion locks, parked release-validation authority and consumed campaigns. |
 | Large-drive scan optimization and observability | Complete at SOP10 with physical campaign `sop10-physical-v1` accepted as `accepted_with_observation_limit` | [`docs/scan-optimization-plan.md`](docs/scan-optimization-plan.md) and [`docs/sop10-physical-acceptance-checklist.md`](docs/sop10-physical-acceptance-checklist.md) | No package remains. Do not rerun the consumed SOP10 or SOP9 identities. The Windows stream remains parked until separately authorized. |
 | Windows post-MVP release validation | Parked with its finite closure ledger intact | [`docs/windows-roadmap-closure-ledger.md`](docs/windows-roadmap-closure-ledger.md), [`docs/windows-post-mvp-ux-plan.md`](docs/windows-post-mvp-ux-plan.md), and [`docs/windows-release-validation-kickoff-prompt.md`](docs/windows-release-validation-kickoff-prompt.md) | Resume at `WPM8-high-contrast` only after SOP10 reaches its documented boundary and the operator explicitly authorizes one qualifying physical high-contrast pass. Production Recycle Bin execution remains disabled. |
 
@@ -31,6 +31,29 @@ The shared startup checkpoint is
 through finite named gates or coherent gate groups, with bounded commits and gate-specific authority.
 Rescheduling the scan stream changes work selection, not retained SOP9 evidence, consumed campaign
 identities, safety boundaries, production locks, or the parked Windows ledger.
+
+## Post-Merge Follow-Ups
+
+Carried over from the handoff that stabilized `codex/ui-redesign` for the merge. None blocked it.
+
+- **Gate `SUPER_DUPER_WORKER_PATH` before distribution.** `WorkerExecutableLocator.Resolve()`
+  honors the override in Release builds, ahead of the deployed sibling worker, with no directory
+  restriction. Gate it behind `#if DEBUG` or require a path inside the install directory.
+- **Decide the Setup-dirty prompt.** Switching saved scans always prompts "Save setup changes
+  before leaving?" on a machine whose registered cloud locations differ from the saved definition,
+  because detection marks Setup dirty without an operator edit. Confirm or change that experience.
+- **Optionally surface `exact_folder_hash_cache_warning`** (verified, but the hash cache
+  degraded). It currently renders as a plain aggregate row; only `hash_recoverable_warning` gets
+  navigation affordances.
+- **Match exclusions spelled differently from their root.** Exclusion paths are compared as given
+  against canonical walk paths, so an exclusion written with an 8.3 short name (or otherwise
+  non-canonically) under a canonical root does not prune. The app supplies long paths today; this
+  matters if exclusions become hand-typed.
+- **Move `resolver` to `"3"`** (the edition 2024 default) as its own testable change.
+- **Give `README.md` an editorial pass.** Factual drift is corrected; the acceptance and status
+  prose may still describe an earlier state.
+- **Run `scripts/Verify-WindowsHashReadPath.ps1` at the next SOP7 check.** Its SOP7 assertion was
+  retargeted from `hasher/cache.rs` to `hasher/xxhash.rs` but has not been run.
 
 ## Now - Safety And Correctness
 
