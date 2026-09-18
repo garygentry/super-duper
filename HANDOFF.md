@@ -56,8 +56,33 @@ Steps 1–3 below are done, and open item 1 is closed.
     Down/Ctrl+Home walk covers grid navigation, and its stale "Right Arrow" wording was corrected
   - `super_duper.h` is pinned to LF so builds no longer dirty it under `core.autocrlf=true`
   - the build docs now list PowerShell 7
-- **Still open:** items 2–8 below, step 4 (CI) and steps 6–7. Five `scripts/*.ps1` files are LF or
-  mixed in this checkout despite `eol=crlf`; git normalizes them, so it is cosmetic.
+- **CI (step 4) changed plan.** `workflow_dispatch` only works for workflows already on the
+  default branch, and `ci.yml` is not on `master`, so it could never be dispatched from this
+  branch. The operator chose to let the draft PR run it: `ci.yml` now has the `pull_request` and
+  `push: master` triggers, plus the `cargo build --workspace` step it was missing (without it the
+  worker tests go Inconclusive and the job passes anyway). Steps 4 and 6 are now one loop.
+- **Still open:** items 2–5, 7 and 8 below (item 6 deferred past the merge), the CI loop, and step 7.
+  Five `scripts/*.ps1` files are LF or mixed in this checkout despite `eol=crlf`; git normalizes
+  them, so it is cosmetic.
+
+### Next session starts here
+
+The operator asked for a fresh session at this point to keep context small.
+
+1. The commit that enables the CI triggers may still be local only: check `git status -sb`, and push
+   `codex/ui-redesign` (fast-forward) once the operator approves. GitHub CLI 2.101 is installed
+   (`C:\Program Files\GitHub CLI\gh.exe`, which may not be on an already-open shell's PATH);
+   `gh auth status` should show the operator signed in. Never sign in on their behalf.
+2. With the operator's go-ahead, open the PR into `master` **as a draft** (`gh pr create --draft
+   --base master --head codex/ui-redesign`). Use the description guidance in step 6 below; also
+   mention that the scripts need PowerShell 7 and that CI first runs on this PR.
+3. Watch the `build-and-test` run and fix what the runner needs. Commit and push fixes only with the
+   operator's approval. Once it is green, delete the UNVALIDATED notice in `ci.yml`.
+4. Ask before marking the PR ready and before merging. Then do step 7.
+
+The WPF smoke is not in CI; it was verified on the VM (see above). The smoke needs a connected RDP
+session and PowerShell 7: `pwsh -File scripts/Invoke-WindowsSmoke.ps1 -Configuration Release
+-SkipBuild` after a Release build.
 
 ## Plan on the VM
 
@@ -86,8 +111,8 @@ Steps 1–3 below are done, and open item 1 is closed.
    retry, so treat a lone focus failure as environmental and rerun before calling it a regression.
    This is the gate that makes "stable" mean something.
 
-4. **Validate the CI workflow.** `.github/workflows/ci.yml` exists but has never run, so it is
-   limited to manual dispatch. Run it from the Actions tab, fix what the runner needs — RocksDB's
+4. **Validate the CI workflow.** Superseded: see "CI (step 4) changed plan" above; the draft PR now
+   runs it. The original plan was to run it from the Actions tab, fix what the runner needs — RocksDB's
    bindgen wanting `LIBCLANG_PATH` is the likely first failure — then enable the `push` and
    `pull_request` triggers that are commented out at the top, and delete the notice. If it proves
    more trouble than it is worth, delete the file; it should not be a merge blocker.

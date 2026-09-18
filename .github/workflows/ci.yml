@@ -1,16 +1,14 @@
 # Build and test gate for the Rust workspace and the Windows app.
 #
-# UNVALIDATED: this workflow has never run. It is deliberately limited to manual
-# dispatch so it cannot fail a pull request before someone has watched it pass.
-# Run it from the Actions tab, fix what the runner needs (LLVM/LIBCLANG_PATH for
-# RocksDB's bindgen is the likely first failure), then add the push and
-# pull_request triggers below and delete this notice.
-#
-# on:
-#   push:
-#     branches: [master]
-#   pull_request:
+# UNVALIDATED: this workflow has not passed yet. workflow_dispatch only works for
+# workflows already on the default branch, so the draft pull request of
+# codex/ui-redesign into master is its first run. Fix what the runner needs
+# (LLVM/LIBCLANG_PATH for RocksDB's bindgen is the likely first failure), then
+# delete this notice once it passes.
 on:
+  push:
+    branches: [master]
+  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -55,6 +53,11 @@ jobs:
 
       - name: Test the Rust workspace
         run: cargo test --workspace
+
+      - name: Build the Rust workspace
+        # clippy and cargo test do not produce super-duper-worker.exe; without it the
+        # worker-backed Infrastructure tests report Inconclusive and the job still passes.
+        run: cargo build --workspace
 
       - name: Build the Windows solution
         # Rust first: the WPF project copies the matching worker beside the app.
