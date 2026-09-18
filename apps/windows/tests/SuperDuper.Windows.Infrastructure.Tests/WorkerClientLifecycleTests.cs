@@ -64,9 +64,11 @@ public sealed class WorkerClientLifecycleTests
         var root = Path.Combine(temp, "root");
         var database = Path.Combine(temp, "worker.db");
         Directory.CreateDirectory(root);
-        for (var index = 0; index < 1_500; index++)
+        // The scan must still be running when disposal closes stdin. Per-file work dominates, so
+        // enough files keep it busy for seconds; 1,500 once finished first on a CI runner.
+        for (var index = 0; index < 10_000; index++)
         {
-            await File.WriteAllBytesAsync(Path.Combine(root, $"{index:D4}.bin"), new byte[4096]);
+            await File.WriteAllBytesAsync(Path.Combine(root, $"{index:D5}.bin"), new byte[4096]);
         }
 
         try
@@ -77,11 +79,24 @@ public sealed class WorkerClientLifecycleTests
                 database,
                 Path.Combine(temp, "logs", "worker.log"),
                 Path.Combine(temp, "hash-cache"));
+            var completedBeforeDispose = false;
+            client.RunLifecycleChanged += (_, eventArgs) =>
+            {
+                if (eventArgs.EventName == "run.completed")
+                {
+                    Volatile.Write(ref completedBeforeDispose, true);
+                }
+            };
             _ = await client.ConnectAsync();
             var session = await client.CreateSessionAsync("Active shutdown", [root], []);
             var run = await client.StartRunAsync(session.Id);
             var processId = client.OwnedProcessId;
 
+            if (Volatile.Read(ref completedBeforeDispose))
+            {
+                await client.DisposeAsync();
+                Assert.Inconclusive("The scan completed before disposal, so there was no active run to cancel.");
+            }
             await client.DisposeAsync();
 
             Assert.IsNotNull(processId);
