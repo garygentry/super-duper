@@ -134,11 +134,12 @@ framework-dependent.
 By default, the worker stores `super_duper.db` beside the worker and creates
 `content_hash_cache.db` relative to its working directory. The selected locations must be
 writable. The app looks for `super-duper-worker.exe` beside its executable and then in the
-repository's `target/debug` directory during development.
+repository's `target/debug` directory in Debug builds. Release builds use only the worker beside
+the app.
 
 These optional environment variables override those locations:
 
-- `SUPER_DUPER_WORKER_PATH`: absolute path to `super-duper-worker.exe`
+- `SUPER_DUPER_WORKER_PATH`: absolute path to `super-duper-worker.exe` (Debug builds only)
 - `SUPER_DUPER_DB_PATH`: absolute path to the worker-owned SQLite database
 - `HASH_CACHE_PATH`: path to the RocksDB content-hash cache directory
 
@@ -221,7 +222,7 @@ Configured via a `.env` file in the working directory when needed.
 | `HASH_CACHE_PATH`         | `content_hash_cache.db`                         | RocksDB hash cache location                              |
 | `SUPER_DUPER_DB_PATH`     | `super_duper.db` beside worker                  | Worker-owned SQLite database override                    |
 | `SUPER_DUPER_LOG`         | `super_duper_core=info,super_duper_worker=info` | Worker stderr tracing filter                             |
-| `SUPER_DUPER_WORKER_PATH` | Auto-detected                                   | Absolute Windows worker executable override              |
+| `SUPER_DUPER_WORKER_PATH` | Auto-detected                                   | Worker executable override (Debug builds only)           |
 
 ## Database
 
