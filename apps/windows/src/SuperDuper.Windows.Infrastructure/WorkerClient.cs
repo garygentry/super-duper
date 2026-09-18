@@ -114,32 +114,75 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
             _liveHintBatcher = new ReviewLiveHintBatcher(run.Id, SendLiveHintBatchAsync);
             foreach (var rootPath in run.Parameters.Roots.Take(ReviewLiveHintBatcher.MaximumPendingRoots))
             {
-                try
+                switch (TryCreateRootWatcher(rootPath, out var watcher))
                 {
-                    var watcher = new FileSystemWatcher(rootPath)
-                    {
-                        IncludeSubdirectories = true,
-                        NotifyFilter = NotifyFilters.FileName
-                            | NotifyFilters.DirectoryName
-                            | NotifyFilters.LastWrite
-                            | NotifyFilters.Size
-                            | NotifyFilters.CreationTime,
-                        InternalBufferSize = 16 * 1024,
-                    };
-                    watcher.Changed += (_, e) => _liveHintBatcher?.Enqueue(rootPath, e.FullPath);
-                    watcher.Created += (_, e) => _liveHintBatcher?.Enqueue(rootPath, e.FullPath);
-                    watcher.Deleted += (_, e) => _liveHintBatcher?.Enqueue(rootPath, e.FullPath);
-                    watcher.Renamed += (_, e) =>
-                        _liveHintBatcher?.EnqueueRename(rootPath, e.OldFullPath, e.FullPath);
-                    watcher.Error += (_, _) => _liveHintBatcher?.EnqueueOverflow(rootPath);
-                    watcher.EnableRaisingEvents = true;
-                    _liveWatchers.Add(watcher);
-                }
-                catch
-                {
-                    _liveHintBatcher.EnqueueOverflow(rootPath);
+                    case RootWatchOutcome.Watching:
+                        watcher!.Changed += (_, e) => _liveHintBatcher?.Enqueue(rootPath, e.FullPath);
+                        watcher.Created += (_, e) => _liveHintBatcher?.Enqueue(rootPath, e.FullPath);
+                        watcher.Deleted += (_, e) => _liveHintBatcher?.Enqueue(rootPath, e.FullPath);
+                        watcher.Renamed += (_, e) =>
+                            _liveHintBatcher?.EnqueueRename(rootPath, e.OldFullPath, e.FullPath);
+                        watcher.Error += (_, _) => _liveHintBatcher?.EnqueueOverflow(rootPath);
+                        try
+                        {
+                            watcher.EnableRaisingEvents = true;
+                            _liveWatchers.Add(watcher);
+                        }
+                        catch
+                        {
+                            watcher.Dispose();
+                            _liveHintBatcher.EnqueueOverflow(rootPath);
+                        }
+                        break;
+                    case RootWatchOutcome.Missing:
+                        // Nothing to watch, so no coverage was lost. Viewed results are still
+                        // validated on demand and report their missing files.
+                        break;
+                    default:
+                        _liveHintBatcher.EnqueueOverflow(rootPath);
+                        break;
                 }
             }
+        }
+    }
+
+    internal enum RootWatchOutcome
+    {
+        Watching,
+        Missing,
+        Failed,
+    }
+
+    /// <summary>
+    /// A missing root is not a loss of watcher coverage: reporting it as an overflow made every
+    /// root that was unavailable during the scan look dirty and in need of reconciliation.
+    /// </summary>
+    internal static RootWatchOutcome TryCreateRootWatcher(string rootPath, out FileSystemWatcher? watcher)
+    {
+        watcher = null;
+        try
+        {
+            watcher = new FileSystemWatcher(rootPath)
+            {
+                IncludeSubdirectories = true,
+                NotifyFilter = NotifyFilters.FileName
+                    | NotifyFilters.DirectoryName
+                    | NotifyFilters.LastWrite
+                    | NotifyFilters.Size
+                    | NotifyFilters.CreationTime,
+                InternalBufferSize = 16 * 1024,
+            };
+            return RootWatchOutcome.Watching;
+        }
+        catch (ArgumentException) when (!Directory.Exists(rootPath))
+        {
+            return RootWatchOutcome.Missing;
+        }
+        catch
+        {
+            watcher?.Dispose();
+            watcher = null;
+            return RootWatchOutcome.Failed;
         }
     }
 
