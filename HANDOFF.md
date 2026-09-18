@@ -6,7 +6,7 @@ session has picked the work up and the merge is done** — it is a temporary rel
 document. Durable guidance belongs in `AGENTS.md`, `crates/CLAUDE.md` and `ROADMAP.md`.
 
 Branch: `codex/ui-redesign`, pushed and clean. `master` has not moved from `54c7d48`, so the branch
-is 236 commits ahead and merges as a fast-forward. The goal on the VM is to confirm stability on a
+is ahead by 237 commits at `0c00863` plus the VM session's commits, and merges as a fast-forward. The goal on the VM is to confirm stability on a
 clean machine and then open the pull request into `master`.
 
 ## Why the move
@@ -34,6 +34,30 @@ What landed recently, in case a failure needs attributing:
   majors, migrated the Windows tests to MSTest 4, fixed two keyboard-accessibility regressions, and
   rewrote the WPF smoke journey for the redesigned shell
 - `9210725` and the commit adding this plan rewrote the agent docs and cleaned up repository drift
+
+## Progress on the VM (2026-09-17)
+
+Steps 1–3 below are done, and open item 1 is closed.
+
+- **Environment.** Rust 1.98.1, .NET SDK 10.0.401, Windows SDK 10.0.26100 (targets 22000), VS 2026
+  Community C++ x64 and Clang 22.1.3 with `LIBCLANG_PATH`. PowerShell 7 was missing and is now
+  installed (winget MSIX, reached through the `WindowsApps\pwsh.exe` alias); the scripts need it.
+- **Baseline matched** after `cargo clean`: fmt and clippy clean, 250 Rust tests, .NET 0 warnings,
+  228 + 80 + 4 with six opt-in skips. The command list omitted `cargo build --workspace`, so the
+  worker was missing and six Infrastructure tests went Inconclusive until it was built; AGENTS.md
+  now lists that step.
+- **`Verify-WindowsRelease.ps1` passed** end to end on the VM, WPF smoke included. The first attempt
+  failed at the first `SendKeys` only because the RDP session was disconnected; the smoke needs a
+  connected session (it works with the RDP window on another virtual desktop, not minimized).
+- **Fixed in the working tree:**
+  - the smoke now closes the Explorer windows it opened on its fixture, matching the long and 8.3
+    short root paths, and leaves other Explorer windows alone
+  - `MoveLocationCardSelection` and its two test calls were deleted (open item 1); the real smoke's
+    Down/Ctrl+Home walk covers grid navigation, and its stale "Right Arrow" wording was corrected
+  - `super_duper.h` is pinned to LF so builds no longer dirty it under `core.autocrlf=true`
+  - the build docs now list PowerShell 7
+- **Still open:** items 2–8 below, step 4 (CI) and steps 6–7. Five `scripts/*.ps1` files are LF or
+  mixed in this checkout despite `eol=crlf`; git normalizes them, so it is cosmetic.
 
 ## Plan on the VM
 
@@ -70,7 +94,7 @@ What landed recently, in case a failure needs attributing:
 
 5. **Close or consciously defer the open items** listed below.
 
-6. **Open the pull request into `master`.** Fast-forward or a merge commit, not a squash: the 236
+6. **Open the pull request into `master`.** Fast-forward or a merge commit, not a squash: the
    commit messages carry reasoning the diff does not. The description should cover the WPF app, the
    engine and worker work, the toolchain bump, and — importantly for anyone else building `master`
    afterwards — that it now requires `rustup update stable`.
@@ -83,7 +107,7 @@ What landed recently, in case a failure needs attributing:
 
 None of these block the merge.
 
-1. **`MoveLocationCardSelection` is dead production code.**
+1. **Closed on the VM: deleted.** **`MoveLocationCardSelection` is dead production code.**
    `apps/windows/src/SuperDuper.Windows/Views/DuplicateFoldersView.xaml.cs` still maps
    Left/Right/Home/End for folder copies, but no key handler calls it; only `WpfSurfaceSmokeTests`
    does. The copies are a `DataGrid` now, so Down/Up/Ctrl+Home come from the grid. Either delete
@@ -112,7 +136,7 @@ None of these block the merge.
    navigation affordances to `hash_recoverable_warning` only; the new code currently renders as a
    plain aggregate row. Surfacing it is optional.
 
-6. **Switching saved scans always prompts "Save setup changes before leaving?"** on a machine whose
+6. **Deferred past the merge by the operator (2026-09-17).** **Switching saved scans always prompts "Save setup changes before leaving?"** on a machine whose
    registered cloud locations differ from the saved definition, because detection marks Setup dirty
    without any operator edit. That is the app behaving as designed, and the smoke answers Discard,
    but it is worth confirming it is the intended experience.

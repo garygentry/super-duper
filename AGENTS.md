@@ -50,10 +50,14 @@ app, and .NET integration tests launch that worker.
 cargo fmt --all --check
 cargo clippy --workspace --all-targets
 cargo test --workspace
+cargo build --workspace
 dotnet build apps/windows/SuperDuper.Windows.sln
 dotnet test apps/windows/SuperDuper.Windows.sln -m:1
 ```
 
+- `cargo build` is what produces `super-duper-worker.exe`; `clippy` and `cargo test` do not. After a
+  `cargo clean`, skipping it makes six worker-backed Infrastructure tests report Inconclusive
+  instead of running.
 - Keep the workspace rustfmt-clean and clippy-clean; both are clean today, so any new finding is
   yours. Silence a lint only with a scoped `#[allow]` and a reason.
 - Run the .NET test projects serially (`-m:1`). Running the WPF STA smoke suite concurrently with
@@ -62,7 +66,8 @@ dotnet test apps/windows/SuperDuper.Windows.sln -m:1
 - Toolchains: Rust stable, edition 2024, 1.98 or newer (`[workspace.package] rust-version`; run
   `rustup update stable` if a build reports an older toolchain), .NET SDK pinned by `global.json`
   (10.0.400), Windows 11 SDK `10.0.22000.0`, VS C++ build tools, and VS Clang (`LIBCLANG_PATH`) for
-  RocksDB bindgen.
+  RocksDB bindgen. The `scripts/*.ps1` workflows are written for PowerShell 7 (`pwsh`), not Windows
+  PowerShell 5.1: they use .NET APIs 5.1 lacks, and `Verify-WindowsRelease.ps1` checks `$IsWindows`.
 - Windows tests use the MSTest 4 meta-package; `Microsoft.NET.Test.Sdk` is deliberately absent.
 - `[profile.dev] debug = "line-tables-only"` keeps debug builds near 7 GB instead of ~63 GB of
   PDBs, which previously filled the disk and hit the linker's `LNK1140` limit. Backtraces keep file

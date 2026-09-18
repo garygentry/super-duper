@@ -14,6 +14,8 @@ application. Build Rust before .NET so the selected worker profile can be copied
   for Rust's MSVC linker and RocksDB native compilation
 - Visual Studio Clang (`Microsoft.VisualStudio.Component.VC.Llvm.Clang`) for RocksDB bindgen;
   set `LIBCLANG_PATH` to the installed x64 LLVM `bin` directory if bindgen cannot find `libclang.dll`
+- PowerShell 7 (`pwsh`, for example `winget install --id Microsoft.PowerShell`) for the
+  `scripts/*.ps1` workflows, which use .NET APIs that Windows PowerShell 5.1 lacks
 
 ## Developer Build
 
