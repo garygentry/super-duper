@@ -16,6 +16,8 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
     private readonly TimeSpan _startupTimeout;
     private readonly string? _databasePath;
     private readonly string? _hashCachePath;
+    private readonly string? _statusDatabasePath;
+    private readonly string? _stateDirectoryToCreate;
     private readonly string _diagnosticLogPath;
     private readonly ResponseCorrelator _responses = new();
     private readonly SemaphoreSlim _connectionGate = new(1, 1);
@@ -42,6 +44,13 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
     public WorkerClient(string executablePath)
         : this(executablePath, DefaultStartupTimeout)
     {
+    }
+
+    public WorkerClient(string executablePath, WorkerStateLocations state)
+        : this(executablePath, DefaultStartupTimeout, state.DatabasePath, diagnosticLogPath: null, state.HashCachePath)
+    {
+        _statusDatabasePath = Path.GetFullPath(state.StatusDatabasePath);
+        _stateDirectoryToCreate = state.CreateStateDirectory ? Path.GetFullPath(state.StateDirectory) : null;
     }
 
     internal WorkerClient(string executablePath, TimeSpan startupTimeout)
@@ -1138,10 +1147,18 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
         {
             startInfo.Environment["HASH_CACHE_PATH"] = _hashCachePath;
         }
+        if (_statusDatabasePath is not null)
+        {
+            startInfo.Environment["SUPER_DUPER_STATUS_DB_PATH"] = _statusDatabasePath;
+        }
         startInfo.Environment["SUPER_DUPER_DIAGNOSTIC_LOG_PATH"] = _diagnosticLogPath;
 
         try
         {
+            if (_stateDirectoryToCreate is not null)
+            {
+                Directory.CreateDirectory(_stateDirectoryToCreate);
+            }
             _process = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("The operating system did not start the worker process.");
         }

@@ -38,8 +38,9 @@ troubleshooting. Set `SUPER_DUPER_LOG` to a Rust tracing filter such as
   only. A separately gated real executor exists only for explicit disposable acceptance tests.
   Deleting a session removes worker-owned history only when no operation lock requires its evidence;
   it never deletes scanned files.
-- The database and hash cache use the worker working directory unless `SUPER_DUPER_DB_PATH` and
-  `HASH_CACHE_PATH` are set. Keep unpackaged output in a user-writable location.
+- The app keeps its database, status database, hash cache and preferences in
+  `%LOCALAPPDATA%\SuperDuper` unless `SUPER_DUPER_DB_PATH` is set; then they follow that database's
+  folder unless `SUPER_DUPER_STATUS_DB_PATH` or `HASH_CACHE_PATH` overrides them individually.
 
 ## Worker Startup Failure
 
@@ -108,7 +109,8 @@ never proof that this app recycled it.
 ## Database Failure Or Suspected Corruption
 
 1. Close Super Duper and confirm its worker exited.
-2. Find the database: `SUPER_DUPER_DB_PATH` when set, otherwise `super_duper.db` beside the worker.
+2. Find the database: `SUPER_DUPER_DB_PATH` when set, otherwise
+   `%LOCALAPPDATA%\SuperDuper\super_duper.db`.
 3. Copy the database, `-wal`, and `-shm` together to a safe location. Never copy only the main file
    while the worker is running.
 4. Preserve the log and exact app/worker versions.
@@ -126,5 +128,6 @@ consistent run are fatal by design; the worker does not truncate or silently rec
 ## Hash Cache Failure
 
 The RocksDB cache is an optimization. Lookup/store failures become warnings. Close the app before
-moving a damaged cache aside. Its path is `HASH_CACHE_PATH` when set and
-`content_hash_cache.db` beside the worker otherwise. The next scan recreates it and may be slower.
+moving a damaged cache aside. Its path is `HASH_CACHE_PATH` when set, otherwise
+`content_hash_cache.db` in the database's folder (`%LOCALAPPDATA%\SuperDuper` by default). The next
+scan recreates it and may be slower.
