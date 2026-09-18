@@ -203,6 +203,51 @@ function Stop-SmokeWorkerForCleanup($Connection) {
     }
 }
 
+# The WPF journey's reveal and grouped-selection checks open real Explorer windows on the
+# disposable fixture, and they pile up across repeated runs. Close only windows (or tabs) whose
+# folder is inside the smoke root so the operator's own Explorer windows are left alone. Explorer
+# reports folders beyond MAX_PATH (the long-path fixture) by their 8.3 short path, so match both.
+function Close-SmokeExplorerWindows([string]$Root) {
+    if (-not (Test-Path -LiteralPath $Root)) { return }
+    $separator = [IO.Path]::DirectorySeparatorChar
+    $rootPaths = [Collections.Generic.List[string]]::new()
+    $rootPaths.Add((Resolve-Path -LiteralPath $Root).Path.TrimEnd($separator))
+    try {
+        $shortRoot = (New-Object -ComObject Scripting.FileSystemObject).GetFolder($rootPaths[0]).ShortPath
+        if (-not [string]::IsNullOrEmpty($shortRoot)) { $rootPaths.Add($shortRoot.TrimEnd($separator)) }
+    }
+    catch {
+        # Without a short path, only windows reported by their long path are matched.
+    }
+    try {
+        $shell = New-Object -ComObject Shell.Application
+    }
+    catch {
+        Write-Warning "Smoke Explorer windows could not be enumerated for cleanup: $($_.Exception.Message)"
+        return
+    }
+    try {
+        foreach ($explorerWindow in @($shell.Windows())) {
+            try {
+                $path = [string]$explorerWindow.Document.Folder.Self.Path
+                foreach ($rootPath in $rootPaths) {
+                    if ($path.Equals($rootPath, [StringComparison]::OrdinalIgnoreCase) -or
+                        $path.StartsWith($rootPath + $separator, [StringComparison]::OrdinalIgnoreCase)) {
+                        $explorerWindow.Quit()
+                        break
+                    }
+                }
+            }
+            catch {
+                # A window that is closing, or a view with no file-system folder, has no path.
+            }
+        }
+    }
+    finally {
+        [Runtime.InteropServices.Marshal]::ReleaseComObject($shell) | Out-Null
+    }
+}
+
 function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw "Smoke assertion failed: $Message" }
 }
@@ -1669,7 +1714,7 @@ $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
         $operationBoundary = Find-Element AutomationId 'RecycleOperationBoundaryNotice'
         Assert-True ($operationBoundary.Current.Name.Contains('execution is disabled', [StringComparison]::OrdinalIgnoreCase)) 'WPF did not disclose the disabled Recycle Bin executor boundary.'
         Assert-True ([IO.File]::Exists($exactPath)) 'WPF preflight unexpectedly removed a disposable fixture file.'
-        Write-Output "WPF automation passed for restored run $RunId, including stable-ID hash-warning navigation by Alt+O to the exact immutable duplicate-file set with group-grid focus and unchanged warning history, a real coalesced watcher burst with bounded live-state hints, durable watcher-overflow warning and one explicit bounded reconciliation batch with copy-grid focus restoration, durable non-deleting file Remove and exact-folder Keep review decisions, bounded external-modification validation with immutable history, sticky decision invalidation, fresh-choice recovery, bounded side-by-side folder location cards with stable automation and Right Arrow focus, current-page parent-grouped Explorer selection with keyboard access, aggregate success, actionable partial failure, and focus restoration, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, ordinary/long-path file reveal, and keyboard folder reveal success plus actionable missing-location failure."
+        Write-Output "WPF automation passed for restored run $RunId, including stable-ID hash-warning navigation by Alt+O to the exact immutable duplicate-file set with group-grid focus and unchanged warning history, a real coalesced watcher burst with bounded live-state hints, durable watcher-overflow warning and one explicit bounded reconciliation batch with copy-grid focus restoration, durable non-deleting file Remove and exact-folder Keep review decisions, bounded external-modification validation with immutable history, sticky decision invalidation, fresh-choice recovery, bounded side-by-side folder location cards with stable automation and Down Arrow/Ctrl+Home focus, current-page parent-grouped Explorer selection with keyboard access, aggregate success, actionable partial failure, and focus restoration, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, ordinary/long-path file reveal, and keyboard folder reveal success plus actionable missing-location failure."
     }
     catch {
         $automationFailure = $_
@@ -2544,6 +2589,7 @@ finally {
     Stop-SmokeWorkerForCleanup $connection
     Stop-SmokeWorkerForCleanup $restored
     if ($null -ne $exclusive) { $exclusive.Dispose() }
+    Close-SmokeExplorerWindows $smokeRoot
     if (-not $KeepArtifacts -and (Test-Path -LiteralPath $smokeRoot)) {
         $resolved = (Resolve-Path -LiteralPath $smokeRoot).Path
         $expectedPrefix = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())

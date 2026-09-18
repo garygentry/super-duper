@@ -349,30 +349,6 @@ public partial class DuplicateFoldersView : UserControl
         return LocationCards.Focus();
     }
 
-    internal bool MoveLocationCardSelection(Key key)
-    {
-        if (LocationCards.Items.Count == 0)
-        {
-            return false;
-        }
-        var current = Math.Max(0, LocationCards.SelectedIndex);
-        var next = key switch
-        {
-            Key.Left => Math.Max(0, current - 1),
-            Key.Right => Math.Min(LocationCards.Items.Count - 1, current + 1),
-            Key.Home => 0,
-            Key.End => LocationCards.Items.Count - 1,
-            _ => -1,
-        };
-        if (next < 0)
-        {
-            return false;
-        }
-        LocationCards.SelectedIndex = next;
-        LocationCards.ScrollIntoView(LocationCards.SelectedItem);
-        return LocationCards.Focus();
-    }
-
     internal async Task<bool> RestoreGroupGridFocusAsync()
     {
         for (var attempt = 0; attempt < LocationCardFocusAttemptLimit; attempt++)

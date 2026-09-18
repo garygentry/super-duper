@@ -1150,11 +1150,6 @@ public sealed class WpfSurfaceSmokeTests
             }
             Assert.IsTrue(restoredCardFocus.GetAwaiter().GetResult());
             Assert.IsTrue(locationCards.IsKeyboardFocusWithin);
-            Assert.IsTrue(folders.MoveLocationCardSelection(Key.Right));
-            Assert.AreEqual(1, locationCards.SelectedIndex);
-            Assert.IsTrue(locationCards.IsKeyboardFocusWithin);
-            Assert.IsTrue(folders.MoveLocationCardSelection(Key.Home));
-            Assert.AreEqual(0, locationCards.SelectedIndex);
             var firstLocationCard = (DataGridRow)locationCards.ItemContainerGenerator.ContainerFromIndex(0);
             Assert.AreEqual("FolderLocationCard-21", AutomationProperties.GetAutomationId(firstLocationCard));
             StringAssert.Contains(AutomationProperties.GetName(firstLocationCard), "different path segments");
