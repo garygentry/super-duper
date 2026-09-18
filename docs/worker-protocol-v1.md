@@ -473,7 +473,8 @@ Progress data is:
   `progress.revision` is the source observation order; coalescing can skip source revisions, so it
   is not a substitute for `sequence`.
 - `status` is `running` or `cancelling`; terminal lifecycle events carry the persisted terminal
-  status.
+  status. A `completed` run's phase is `finalizing`; a `cancelled`, `failed`, or `interrupted` run
+  keeps the last phase it reached.
 - The top-level `phase` remains `discovering`, `hashing`, `persisting`, `analyzing_folders`, or
   `finalizing` for protocol-v1 compatibility. `progress.phase` carries the typed contract value;
   the interleaved hashing pipeline is `candidate_screening`.

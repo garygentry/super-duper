@@ -6738,26 +6738,41 @@ fn lifecycle_terminal_states_and_counters_are_durable() {
         .create_scan_run(session, &parameters(&["/root"], &[]), "test")
         .unwrap();
     db.start_scan_run(cancelled).unwrap();
+    db.update_run_progress(cancelled, "hashing", 10, 100, 4, 0)
+        .unwrap();
     db.mark_run_cancelling(cancelled).unwrap();
     db.cancel_scan_run(cancelled).unwrap();
-    assert_eq!(db.get_scan_run(cancelled).unwrap().status, "cancelled");
+    let cancelled_row = db.get_scan_run(cancelled).unwrap();
+    assert_eq!(cancelled_row.status, "cancelled");
+    assert_eq!(
+        cancelled_row.phase.as_deref(),
+        Some("hashing"),
+        "a cancelled run keeps the phase it reached"
+    );
 
     let failed = db
         .create_scan_run(session, &parameters(&["/root"], &[]), "test")
         .unwrap();
     db.start_scan_run(failed).unwrap();
+    db.update_run_progress(failed, "persisting", 10, 100, 10, 0)
+        .unwrap();
     db.fail_scan_run(failed, "disk full").unwrap();
     let failed_row = db.get_scan_run(failed).unwrap();
     assert_eq!(failed_row.status, "failed");
+    assert_eq!(failed_row.phase.as_deref(), Some("persisting"));
     assert_eq!(failed_row.error_message.as_deref(), Some("disk full"));
 
     let interrupted = db
         .create_scan_run(session, &parameters(&["/root"], &[]), "test")
         .unwrap();
     db.start_scan_run(interrupted).unwrap();
+    db.update_run_progress(interrupted, "analyzing_folders", 10, 100, 10, 0)
+        .unwrap();
     db.interrupt_scan_run(interrupted, "worker stopped")
         .unwrap();
-    assert_eq!(db.get_scan_run(interrupted).unwrap().status, "interrupted");
+    let interrupted_row = db.get_scan_run(interrupted).unwrap();
+    assert_eq!(interrupted_row.status, "interrupted");
+    assert_eq!(interrupted_row.phase.as_deref(), Some("analyzing_folders"));
 
     assert!(db.complete_scan_run(failed, 0, 0, 0, 0, 0, 0, 0).is_err());
 }
@@ -6774,6 +6789,8 @@ fn opening_database_reconciles_abandoned_runs() {
         .create_scan_run(session, &parameters(&["/root"], &[]), "test")
         .unwrap();
     db.start_scan_run(running).unwrap();
+    db.update_run_progress(running, "hashing", 10, 100, 4, 0)
+        .unwrap();
     let cancelling = db
         .create_scan_run(session, &parameters(&["/root"], &[]), "test")
         .unwrap();
@@ -6788,6 +6805,11 @@ fn opening_database_reconciles_abandoned_runs() {
         assert!(run.completed_at.is_some());
         assert!(run.error_message.is_some());
     }
+    assert_eq!(
+        reopened.get_scan_run(running).unwrap().phase.as_deref(),
+        Some("hashing"),
+        "reconciliation keeps the phase a crashed run reached"
+    );
 }
 
 #[test]
