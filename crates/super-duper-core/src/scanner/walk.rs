@@ -486,13 +486,16 @@ mod tests {
     #[test]
     fn broad_root_prunes_excluded_subtree_before_discovery() {
         let temp = tempdir().unwrap();
-        let local = temp.path().join("local");
-        let cloud = temp.path().join("cloud");
+        // Canonical like the walk: a short-name temp dir (C:\Users\RUNNER~1 on CI runners) would
+        // otherwise spell the exclusion differently from the paths the walk visits.
+        let base = fs::canonicalize(temp.path()).unwrap();
+        let local = base.join("local");
+        let cloud = base.join("cloud");
         fs::create_dir_all(&local).unwrap();
         fs::create_dir_all(&cloud).unwrap();
         fs::write(local.join("kept.bin"), b"local").unwrap();
         fs::write(cloud.join("placeholder.bin"), b"cloud").unwrap();
-        let root = temp.path().to_string_lossy().into_owned();
+        let root = base.to_string_lossy().into_owned();
         let result = discover_files_with_exclusions(
             &[&root],
             &[],

@@ -10808,7 +10808,9 @@ mod tests {
     #[test]
     fn completed_run_snapshots_and_pages_excluded_cloud_subtrees() {
         let temp = TempDir::new().unwrap();
-        let root = temp.path().join("scan");
+        // session.create canonicalizes roots but not cloud locations, so a short-name temp dir
+        // (C:\Users\RUNNER~1 on CI runners) must be canonical up front for the two to match.
+        let root = fs::canonicalize(temp.path()).unwrap().join("scan");
         let local = root.join("local");
         let cloud = root.join("cloud");
         fs::create_dir_all(&local).unwrap();
