@@ -51,6 +51,13 @@ Done:
 
 - `SUPER_DUPER_WORKER_PATH` and the repository `target/debug` fallback are honored only in Debug
   builds; Release launches only the worker beside the app (`WorkerExecutableLocator`).
+- Release audit: evidence hooks (`SUPER_DUPER_SOP*`, WPM13/UIR05C) exist only in ignored tests and
+  test fixtures, and `.uidev` is Debug-only. Release still honors the state-location overrides
+  (`SUPER_DUPER_DB_PATH`, `SUPER_DUPER_STATUS_DB_PATH`, `HASH_CACHE_PATH`), `SUPER_DUPER_LOG`, and
+  `SUPER_DUPER_DISABLE_CLOUD_REGISTRATION_DISCOVERY` (fail-closed: scans cannot start). These are
+  kept deliberately.
+- App state defaults to `%LOCALAPPDATA%\SuperDuper` instead of the install folder
+  (`WorkerStateLocations`).
 
 ## Post-Merge Follow-Ups
 

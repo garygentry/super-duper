@@ -144,7 +144,9 @@ See `docs/windows-build.md`, `docs/windows-smoke.md`, and `docs/windows-recovery
 
 - `TRACING_LEVEL`, `LOG_FILE_PATH` — CLI logging (via `.env`; see `.env.example`).
 - `HASH_CACHE_PATH` — RocksDB hash cache location.
-- `SUPER_DUPER_DB_PATH`, `SUPER_DUPER_STATUS_DB_PATH` — worker database overrides.
+- `SUPER_DUPER_DB_PATH`, `SUPER_DUPER_STATUS_DB_PATH` — worker database overrides. With none set,
+  the app keeps all state in `%LOCALAPPDATA%\SuperDuper` (`WorkerStateLocations`); with only the
+  database set, the status database and hash cache follow its folder.
 - `SUPER_DUPER_LOG` — worker stderr tracing filter; `SUPER_DUPER_DIAGNOSTIC_LOG_PATH` — bounded
   diagnostic log.
 - `SUPER_DUPER_WORKER_PATH` — app override for worker discovery; Debug builds only (Release launches

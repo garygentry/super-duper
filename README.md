@@ -131,11 +131,12 @@ framework-dependent.
 
 ### Runtime State And Overrides
 
-By default, the worker stores `super_duper.db` beside the worker and creates
-`content_hash_cache.db` relative to its working directory. The selected locations must be
-writable. The app looks for `super-duper-worker.exe` beside its executable and then in the
-repository's `target/debug` directory in Debug builds. Release builds use only the worker beside
-the app.
+The app keeps `super_duper.db`, `scan_status.db`, `content_hash_cache.db` and its preferences in
+`%LOCALAPPDATA%\SuperDuper`, which it creates on first start. When `SUPER_DUPER_DB_PATH` is set,
+the other state follows that database's folder unless overridden individually. The worker run on
+its own (for example by tests) defaults to its working directory. The app looks for
+`super-duper-worker.exe` beside its executable and then in the repository's `target/debug`
+directory in Debug builds. Release builds use only the worker beside the app.
 
 These optional environment variables override those locations:
 
@@ -220,7 +221,7 @@ Configured via a `.env` file in the working directory when needed.
 | `TRACING_LEVEL`           | `info`                                          | Log verbosity: `trace`, `debug`, `info`, `warn`, `error` |
 | `LOG_FILE_PATH`           | `./logs/sd.log`                                 | File log output path                                     |
 | `HASH_CACHE_PATH`         | `content_hash_cache.db`                         | RocksDB hash cache location                              |
-| `SUPER_DUPER_DB_PATH`     | `super_duper.db` beside worker                  | Worker-owned SQLite database override                    |
+| `SUPER_DUPER_DB_PATH`     | App: `%LOCALAPPDATA%\SuperDuper\super_duper.db` | Worker-owned SQLite database override                    |
 | `SUPER_DUPER_LOG`         | `super_duper_core=info,super_duper_worker=info` | Worker stderr tracing filter                             |
 | `SUPER_DUPER_WORKER_PATH` | Auto-detected                                   | Worker executable override (Debug builds only)           |
 

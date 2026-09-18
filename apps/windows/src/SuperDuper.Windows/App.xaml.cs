@@ -18,9 +18,10 @@ public partial class App : Application
 #if DEBUG
         ApplyIsolatedUiDevConfiguration();
 #endif
+        var state = WorkerStateLocations.FromEnvironment();
         var services = new ServiceCollection();
         services.AddSingleton<IWorkerClient>(
-            _ => new WorkerClient(WorkerExecutableLocator.Resolve()));
+            _ => new WorkerClient(WorkerExecutableLocator.Resolve(), state));
         services.AddSingleton<IFolderPickerService, FolderPickerService>();
         services.AddSingleton<IUserConfirmationService, UserConfirmationService>();
         services.AddSingleton<IUiDispatcher>(_ => new WpfUiDispatcher(Dispatcher));
@@ -29,9 +30,7 @@ public partial class App : Application
         services.AddSingleton<IRecycleBinService, WindowsRecycleBinService>();
         services.AddSingleton<ICloudLocationService>(_ => CreateCloudLocationService());
         services.AddSingleton<IRecycleOperationCapabilityExecutor, DisabledRecycleOperationCapabilityExecutor>();
-        services.AddSingleton<IPresentationPreferencesStore>(_ => new JsonPresentationPreferencesStore(
-            Environment.GetEnvironmentVariable("SUPER_DUPER_DB_PATH") is { Length: > 0 } database
-                ? Path.GetDirectoryName(Path.GetFullPath(database)) : null));
+        services.AddSingleton<IPresentationPreferencesStore>(_ => new JsonPresentationPreferencesStore(state.StateDirectory));
         services.AddSingleton<ShellViewModel>();
         services.AddSingleton<MainWindow>();
         _services = services.BuildServiceProvider(validateScopes: true);
