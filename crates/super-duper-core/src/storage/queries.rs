@@ -2021,7 +2021,7 @@ fn terminal_run(
         return Err(Error::InvalidQuery);
     }
     changed_one(db.connection().execute(
-        "UPDATE scan_run SET status = ?1, phase = 'finalizing', completed_at = ?2,
+        "UPDATE scan_run SET status = ?1, completed_at = ?2,
                 error_message = ?3, warning_revision = warning_revision + 1
          WHERE id = ?4 AND status = ?5",
         params![status, Utc::now().to_rfc3339(), message, run_id, current],

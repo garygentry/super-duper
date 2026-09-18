@@ -65,14 +65,14 @@ Done:
   TCP connect timeout, about 10.7 s per `session.create`/`update` and again at `run.start` (21.4 s
   measured). Probes now run in parallel with a 3 s total deadline (6.3 s for both requests). A
   nonexistent server name was never slow (about 1.5 s).
+- Cancelled, failed and interrupted runs keep the phase they reached (F1); only `completed` records
+  `finalizing`. Both `terminal_run` and startup reconciliation used to overwrite it.
 
 Failure-mode pass, 2026-09-18 (Release app, 60,000-file disposable fixture). Degraded correctly:
 worker killed mid-scan, corrupt/truncated/newer/read-only main database (file never modified),
 corrupt status database, held hash-cache `LOCK`, long paths, a missing root, closing during a scan.
 Open findings, fixed in this order:
 
-- **F1** Cancelled, failed and interrupted runs report their last phase as Finalizing:
-  `terminal_run` overwrites `phase`.
 - **F4** Every path in the UI shows the `\\?\` verbatim prefix; display and Copy path should use
   the plain form.
 - **F5** A root that was missing during the scan produces a false "Watcher coverage overflowed"

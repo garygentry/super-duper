@@ -1362,7 +1362,7 @@ impl Database {
         let now = Utc::now().to_rfc3339();
         let count = self.conn.execute(
             "UPDATE scan_run
-             SET status = 'interrupted', phase = 'finalizing', completed_at = ?1,
+             SET status = 'interrupted', completed_at = ?1,
                  warning_revision = warning_revision + 1,
                  error_message = COALESCE(error_message, 'Run interrupted before a terminal state was persisted')
              WHERE status IN ('running', 'cancelling')",
