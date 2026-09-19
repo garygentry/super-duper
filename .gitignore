@@ -54,10 +54,8 @@ Desktop.ini
 # Git worktrees
 .worktrees/
 
-# Plans: keep unrelated local plans private; version the UI redesign package.
-/plans/*
-!/plans/ui-redesign/
-!/plans/ui-polish/
+# Local planning notes stay out of the repository; open work lives in GitHub issues.
+/plans/
 
 # Linux-specific
 *~

@@ -11,7 +11,7 @@ public sealed class WindowsCloudLocationServiceTests
         if (string.IsNullOrWhiteSpace(expectedRoot))
         {
             Assert.Inconclusive(
-                "Set SUPER_DUPER_EXPECTED_CLOUD_ROOT and run through Invoke-WindowsCloudPolicyAcceptance.ps1.");
+                "Opt-in: set SUPER_DUPER_EXPECTED_CLOUD_ROOT to a cloud root registered on this PC.");
         }
 
         var result = await new WindowsCloudLocationService().DetectAsync();

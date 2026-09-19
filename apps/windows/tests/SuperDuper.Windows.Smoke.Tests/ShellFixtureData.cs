@@ -4,7 +4,7 @@ using SuperDuper.Windows.Core.Workers;
 
 namespace SuperDuper.Windows.Fixtures;
 
-// Fictional in-memory data shared by loaded-STA checks and the manual desktop host.
+// Fictional in-memory data for the loaded-STA shell checks.
 // Every external service is fake: no worker, database, scan, Explorer or deletion is reachable.
 internal sealed class ShellFixtureData : IDisposable
 {

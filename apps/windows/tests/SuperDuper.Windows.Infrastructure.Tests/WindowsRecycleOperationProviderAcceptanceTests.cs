@@ -25,7 +25,7 @@ public sealed class WindowsRecycleOperationProviderAcceptanceTests
             StringComparison.Ordinal))
         {
             Assert.Inconclusive(
-                "Run through Invoke-WindowsRecycleBinAcceptance.ps1 with explicit provider fixtures.");
+                "Opt-in: set SUPER_DUPER_RUN_REAL_RECYCLE_PROVIDER_TESTS=1 with explicit provider fixtures.");
         }
 
         var cloudRoot = RequiredPath("SUPER_DUPER_RECYCLE_CLOUD_ROOT");
