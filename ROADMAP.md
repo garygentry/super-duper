@@ -98,11 +98,24 @@ Its six findings (F1–F6) are fixed above.
 Not run: full disk (needs an operator-mounted small VHDX) and an offline OneDrive root (no signed-in
 account on the VM; the unavailable-detection fail-closed path is covered by the smoke).
 
+Release candidate, 2026-09-18: `Verify-WindowsRelease.ps1` passed end to end on `master` at
+`b34af74`, including the worker and WPF smoke against the published app. It produced
+`super-duper-0.1.0-win-x64.zip` (79,088,178 bytes, SHA-256
+`5056cd2113a61b50c9c9ff3ae107da0ce98c3390ad406509cf6736842718fa8e`). The unzipped package ran a
+scan with its own worker. Tagging and publishing wait for the operator (`docs/release-checklist.md`).
+
+After the database lock landed, 5 of 20 CI runs had intermittent Infrastructure failures (hello
+timeouts, SQLite locked or unopenable files) that did not reproduce locally under triple load, and
+four re-runs before and after the change all passed. Worker-backed test classes now run one at a
+time (`[DoNotParallelize]`); watch CI for recurrences.
+
 ## Post-Merge Follow-Ups
 
 Carried over from the handoff that stabilized `codex/ui-redesign` for the merge. None blocked it.
 
-- **Optionally surface `exact_folder_hash_cache_warning`** (verified, but the hash cache
+- **Give `super-duper-worker.exe` a Windows version resource.** The app exe reports its product
+  and version, but the worker's file properties are blank.
+- **Optionally surface `exact_folder_hash_cache_warning`** (after v0.1.0; verified, but the hash cache
   degraded). It currently renders as a plain aggregate row; only `hash_recoverable_warning` gets
   navigation affordances.
 - **Exclusions spelled through a junction or `subst` drive** still do not match the canonical walk.
