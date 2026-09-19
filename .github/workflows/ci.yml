@@ -5,6 +5,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+env:
+  # Bump this to start every cargo cache fresh (see the cache steps below for when).
+  CARGO_CACHE_VERSION: v1
+
 jobs:
   build-and-test:
     # The WPF app targets Windows 11 and the smoke suite needs an interactive
@@ -37,10 +41,15 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          # The restore-keys prefix means the cache only grows across Cargo.lock changes and never
+          # drops stale artifacts on its own (#35). Bump the CARGO_CACHE_VERSION suffix below (and
+          # the matching one in release-package) after a toolchain bump, a major dependency change,
+          # or when `gh cache list` shows it approaching the 10 GB repository limit; that starts a
+          # fresh cache instead of restoring the stale one.
+          key: cargo-${{ runner.os }}-${{ env.CARGO_CACHE_VERSION }}-${{ hashFiles('Cargo.lock') }}
           # A Cargo.lock change (a new dependency, a version bump) starts from the newest earlier
           # build instead of from scratch; cargo rebuilds only what changed.
-          restore-keys: cargo-${{ runner.os }}-
+          restore-keys: cargo-${{ runner.os }}-${{ env.CARGO_CACHE_VERSION }}-
 
       - name: Check formatting
         run: cargo fmt --all --check
@@ -97,8 +106,8 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target/release
-          key: cargo-release-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: cargo-release-${{ runner.os }}-
+          key: cargo-release-${{ runner.os }}-${{ env.CARGO_CACHE_VERSION }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-release-${{ runner.os }}-${{ env.CARGO_CACHE_VERSION }}-
 
       - name: Cache cargo-about
         id: cargo-about
