@@ -70,6 +70,10 @@ try {
     if (-not $appVersion.StartsWith($version, [StringComparison]::Ordinal)) {
         throw "SuperDuper.Windows.exe reports product version '$appVersion', expected $version."
     }
+    $workerVersion = (Get-Item -LiteralPath (Join-Path $publish 'super-duper-worker.exe')).VersionInfo.ProductVersion
+    if ($workerVersion -ne $version) {
+        throw "super-duper-worker.exe reports product version '$workerVersion', expected $version."
+    }
 
     & (Join-Path $PSScriptRoot 'New-ThirdPartyNotices.ps1') -PublishDirectory $publish `
         -OutputPath (Join-Path $publish 'THIRD-PARTY-NOTICES.txt')

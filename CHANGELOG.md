@@ -5,6 +5,11 @@ All notable changes to Super Duper are recorded here. Versions follow
 
 ## [Unreleased]
 
+### Changed
+
+- `super-duper-worker.exe` now carries product, version, and copyright details in its file
+  properties, like `SuperDuper.Windows.exe`.
+
 ### Fixed
 
 - Opening the results database no longer writes to it, so reading results, saving progress, and
