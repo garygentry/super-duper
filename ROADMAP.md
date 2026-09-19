@@ -84,6 +84,11 @@ Done:
 - Exclusions written with 8.3 short names (`C:\Users\RUNNER~1\...`) now prune the canonical walk:
   such an exclusion is also matched by its `GetLongPathNameW` spelling. Only paths with a `~`
   component are looked up, so ordinary cloud exclusions are never touched on disk.
+- Release hygiene: MIT `LICENSE`, one version (0.1.0) with license and product metadata in Cargo
+  and `Directory.Build.props`, `CHANGELOG.md`, generated `THIRD-PARTY-NOTICES.txt`
+  (`scripts/New-ThirdPartyNotices.ps1`: cargo-about for crates, deps.json for .NET, bundled native
+  library licenses), and `Verify-WindowsRelease.ps1` producing the self-contained zip after smoking
+  the published app. `docs/release-checklist.md` names CI versus VM gates.
 
 Failure-mode pass, 2026-09-18 (Release app, 60,000-file disposable fixture). Degraded correctly:
 worker killed mid-scan, corrupt/truncated/newer/read-only main database (file never modified),

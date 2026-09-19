@@ -128,17 +128,22 @@ a release candidate.
 ./scripts/Verify-WindowsRelease.ps1
 ```
 
-The verifier runs the Rust and .NET Release tests, creates a framework-dependent `win-x64`
-publish, places the matching Release worker beside the app, and runs the real worker/WPF smoke
-workflow. After it passes, start the published application with:
+The verifier runs the Rust and .NET Release tests and creates a self-contained `win-x64` publish
+in `artifacts/windows-x64`. It checks that the Cargo and .NET versions agree, adds `LICENSE.txt`,
+`THIRD-PARTY-NOTICES.txt` (generated with `cargo-about`) and `CHANGELOG.md`, runs the real
+worker/WPF smoke against the published app, and packages
+`artifacts/super-duper-<version>-win-x64.zip` with a `.sha256` file. The zip needs no installed
+.NET runtime. See [`docs/release-checklist.md`](docs/release-checklist.md) for the full release
+procedure and which gates run in CI versus on the Windows VM.
+
+To start the published application:
 
 ```powershell
 $publish = Resolve-Path 'artifacts/windows-x64'
 Start-Process -FilePath (Join-Path $publish 'SuperDuper.Windows.exe') -WorkingDirectory $publish
 ```
 
-The machine must have the .NET 10 Desktop Runtime installed because the publish is
-framework-dependent.
+The release build is not code-signed, so Windows SmartScreen may warn on first launch.
 
 ### Runtime State And Overrides
 
@@ -294,3 +299,9 @@ files, and Recycle Bin execution is disabled in production builds.
 Not yet verified for v0.1.0: Windows high contrast, Narrator/NVDA, and multi-monitor or 200% DPI
 behavior. Historical plans and acceptance evidence live under `plans/` and `docs/`; they are
 records, not a work queue.
+
+## License
+
+Super Duper is released under the [MIT License](LICENSE). Release packages include
+`THIRD-PARTY-NOTICES.txt` for the .NET runtime, NuGet packages, Rust crates and native libraries
+they contain.

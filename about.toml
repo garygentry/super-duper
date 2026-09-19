@@ -1,0 +1,19 @@
+# cargo-about configuration for THIRD-PARTY-NOTICES in the Windows release zip.
+# scripts/New-ThirdPartyNotices.ps1 runs it against the shipped worker crate only.
+# Every accepted license is permissive and compatible with shipping Super Duper under MIT; a
+# dependency under any other license fails generation until it is reviewed and added here.
+accepted = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "Unicode-3.0",
+    "Zlib",
+]
+# Only what is linked into super-duper-worker.exe ships.
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
