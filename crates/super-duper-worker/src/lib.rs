@@ -4011,10 +4011,8 @@ impl WorkerSession {
                 .any(|exclusion| path_is_within(Path::new(root), Path::new(exclusion)))
         });
         if !any_excluded
-            && !probe_with_deadline(&session.roots, ROOT_PROBE_TIMEOUT, |root: String| {
-                Path::new(&root).is_dir()
-            })
-            .contains(&Some(true))
+            && !probe_with_deadline(&session.roots, ROOT_PROBE_TIMEOUT, root_is_directory)
+                .contains(&Some(true))
         {
             return Err(ProtocolFailure::new(
                 "invalid_session",
@@ -6138,9 +6136,7 @@ fn validate_session(
         })
         .cloned()
         .collect::<Vec<_>>();
-    let canonical_roots = probe_with_deadline(&probed, ROOT_PROBE_TIMEOUT, |root: String| {
-        fs::canonicalize(root).ok()
-    });
+    let canonical_roots = probe_with_deadline(&probed, ROOT_PROBE_TIMEOUT, canonical_root);
     let mut normalized = Vec::with_capacity(trimmed.len());
     for root in &trimmed {
         let canonical = probed
@@ -6289,6 +6285,18 @@ fn paths_equal(left: &Path, right: &Path) -> bool {
 /// The longest a request waits on filesystem probes of user-supplied roots. An offline network
 /// share can block `canonicalize` or `is_dir` for the SMB timeout, a minute or more.
 const ROOT_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
+
+fn canonical_root(root: String) -> Option<PathBuf> {
+    #[cfg(test)]
+    tests::block_if_unanswered_test_root(&root);
+    fs::canonicalize(root).ok()
+}
+
+fn root_is_directory(root: String) -> bool {
+    #[cfg(test)]
+    tests::block_if_unanswered_test_root(&root);
+    Path::new(&root).is_dir()
+}
 
 /// Runs `probe` for each item on its own thread and waits at most `timeout` in total. Items whose
 /// probe did not finish in time come back as `None`; their threads are abandoned and end when the
@@ -11485,6 +11493,17 @@ mod tests {
         );
     }
 
+    /// Roots under this prefix stand in for a switched-off share: their probes block far past
+    /// `ROOT_PROBE_TIMEOUT`. A real unreachable address is not deterministic, because Windows
+    /// caches the failed SMB connection and later probes of it fail at once.
+    const UNANSWERED_TEST_ROOT: &str = r"\\sd-test-unanswered\share";
+
+    pub(super) fn block_if_unanswered_test_root(root: &str) {
+        if root.starts_with(UNANSWERED_TEST_ROOT) {
+            std::thread::sleep(Duration::from_secs(60));
+        }
+    }
+
     #[test]
     fn probes_that_do_not_answer_in_time_are_abandoned() {
         let started = Instant::now();
@@ -11503,7 +11522,11 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let local = fs::canonicalize(temp.path()).unwrap().join("local");
         fs::create_dir_all(&local).unwrap();
-        let offline = r"\\sd-no-such-server-7f3a\share\photos";
+        let offline = format!(r"{UNANSWERED_TEST_ROOT}\photos");
+        let offline = offline.as_str();
+        // Each request waits out the deadline, so 3 s of this is expected; the rest is room for a
+        // loaded CI runner. Without the deadline the probe blocks for a minute.
+        let bound = ROOT_PROBE_TIMEOUT + Duration::from_secs(10);
         let db_path = temp.path().join("worker.db");
         let (sender, _receiver) = mpsc::channel();
         let state = SharedState::new(WorkerOptions::new(&db_path), sender).unwrap();
@@ -11535,7 +11558,7 @@ mod tests {
         assert_eq!(mixed["ok"], true, "{mixed}");
         let roots = mixed["result"]["session"]["roots"].as_array().unwrap();
         assert_eq!(roots[0], offline);
-        assert!(started.elapsed() < ROOT_PROBE_TIMEOUT + Duration::from_secs(2));
+        assert!(started.elapsed() < bound, "{:?}", started.elapsed());
 
         let only_offline: Value = serde_json::from_str(
             &session
@@ -11555,7 +11578,7 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
-        assert!(started.elapsed() < ROOT_PROBE_TIMEOUT + Duration::from_secs(2));
+        assert!(started.elapsed() < bound, "{:?}", started.elapsed());
         assert_eq!(start["error"]["code"], "invalid_session", "{start}");
         state.shutdown();
     }
