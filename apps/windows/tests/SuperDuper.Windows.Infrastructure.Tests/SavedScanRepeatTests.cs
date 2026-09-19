@@ -7,6 +7,8 @@ namespace SuperDuper.Windows.Infrastructure.Tests;
 [DoNotParallelize]
 public sealed class SavedScanRepeatTests
 {
+    public TestContext TestContext { get; set; } = null!;
+
     [TestMethod]
     public async Task ReopenedCacheAndEditedSetupCreateNewRunsWithoutRewritingHistory()
     {
@@ -97,7 +99,7 @@ public sealed class SavedScanRepeatTests
                 Assert.AreEqual(5, (await client.ListRunsAsync(session.Id)).Total);
             }
         }
-        finally { await TestDirectoryCleanup.DeleteAsync(temp); }
+        finally { await TestDirectoryCleanup.DeleteAsync(temp, TestContext); }
     }
 
     private static async Task<WorkerRun> Scan(WorkerClient client, long sessionId, string policy)

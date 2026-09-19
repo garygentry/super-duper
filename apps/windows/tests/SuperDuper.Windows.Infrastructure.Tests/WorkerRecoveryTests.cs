@@ -12,6 +12,8 @@ namespace SuperDuper.Windows.Infrastructure.Tests;
 [DoNotParallelize]
 public sealed class WorkerRecoveryTests
 {
+    public TestContext TestContext { get; set; } = null!;
+
     [TestMethod]
     public async Task KilledOwnedWorker_RaisesTypedExitAndSameClientRestartsForNewRun()
     {
@@ -86,7 +88,7 @@ public sealed class WorkerRecoveryTests
             }
             if (Directory.Exists(temp))
             {
-                await TestDirectoryCleanup.DeleteAsync(temp);
+                await TestDirectoryCleanup.DeleteAsync(temp, TestContext);
             }
         }
     }
@@ -165,7 +167,7 @@ public sealed class WorkerRecoveryTests
         {
             if (Directory.Exists(temp))
             {
-                await TestDirectoryCleanup.DeleteAsync(temp);
+                await TestDirectoryCleanup.DeleteAsync(temp, TestContext);
             }
         }
     }

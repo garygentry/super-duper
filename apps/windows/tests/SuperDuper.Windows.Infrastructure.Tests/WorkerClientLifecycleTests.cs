@@ -8,6 +8,8 @@ namespace SuperDuper.Windows.Infrastructure.Tests;
 [DoNotParallelize]
 public sealed class WorkerClientLifecycleTests
 {
+    public TestContext TestContext { get; set; } = null!;
+
     [TestMethod]
     public async Task DisposeAsync_WithConcurrentRequestsStopsOwnedWorker()
     {
@@ -53,7 +55,7 @@ public sealed class WorkerClientLifecycleTests
             await client.DisposeAsync();
             if (Directory.Exists(temp))
             {
-                await TestDirectoryCleanup.DeleteAsync(temp);
+                await TestDirectoryCleanup.DeleteAsync(temp, TestContext);
             }
         }
     }
@@ -118,7 +120,7 @@ public sealed class WorkerClientLifecycleTests
         {
             if (Directory.Exists(temp))
             {
-                await TestDirectoryCleanup.DeleteAsync(temp);
+                await TestDirectoryCleanup.DeleteAsync(temp, TestContext);
             }
         }
     }
@@ -606,7 +608,7 @@ public sealed class WorkerClientLifecycleTests
         {
             if (Directory.Exists(temp))
             {
-                await TestDirectoryCleanup.DeleteAsync(temp);
+                await TestDirectoryCleanup.DeleteAsync(temp, TestContext);
             }
         }
     }
