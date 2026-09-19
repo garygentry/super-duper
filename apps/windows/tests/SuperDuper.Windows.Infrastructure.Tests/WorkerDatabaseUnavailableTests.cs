@@ -8,6 +8,8 @@ namespace SuperDuper.Windows.Infrastructure.Tests;
 [DoNotParallelize]
 public sealed class WorkerDatabaseUnavailableTests
 {
+    public TestContext TestContext { get; set; } = null!;
+
     [TestMethod]
     public async Task ConnectAsync_ReportsNewerDatabaseWithoutChangingIt()
     {
@@ -35,7 +37,7 @@ public sealed class WorkerDatabaseUnavailableTests
         }
         finally
         {
-            await TestDirectoryCleanup.DeleteAsync(temp);
+            await TestDirectoryCleanup.DeleteAsync(temp, TestContext);
         }
     }
 
@@ -64,7 +66,7 @@ public sealed class WorkerDatabaseUnavailableTests
         }
         finally
         {
-            await TestDirectoryCleanup.DeleteAsync(temp);
+            await TestDirectoryCleanup.DeleteAsync(temp, TestContext);
         }
     }
 
