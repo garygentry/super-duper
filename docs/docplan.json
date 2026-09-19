@@ -1,0 +1,1726 @@
+{
+  "version": "1.0",
+  "provenance": {
+    "generatedBy": "content-architect",
+    "generatedAt": "2026-09-19",
+    "repoRef": "f62b23e (master) on branch docs/windows-front-end",
+    "mode": "audit",
+    "tracks": "GitHub issue #22 (Refresh repository documentation after v0.1.0); also resolves the MSTest doc statement from #35 by describing the current state",
+    "auditNotes": [
+      "Commit f62b23e removed plans/, docs/evidence, apps/windows/tools, crates/super-duper-core/examples, ROADMAP.md, several docs and 32 scripts. README.md, AGENTS.md, crates/CLAUDE.md and seven docs still referenced removed material.",
+      "No end-user documentation of the Windows app existed beyond README and CHANGELOG bullets; no maintainer architecture documentation of the WPF app existed beyond AGENTS.md layering rules.",
+      "docs/architecture.svg predates the worker and shows the Windows app as a future FFI client. It is wrong and is removed; the replacement is a diagram request on arch-overview.",
+      "dev-notes.md duplicates AGENTS.md (storage) and README (runtime files) and is folded into those and removed, per #22.",
+      "House style: the repository wraps prose near 100 columns with several sentences per line and uses sentence-case headings in newer docs. Drafts follow the repository convention rather than docs-helper's one-sentence-per-line rule; every other docs-helper rule applies."
+    ],
+    "drafting": "Phase 6 drafted 2026-09-19 on branch docs/windows-front-end. Prose follows the repository conventions noted in auditNotes. No diagrams were rendered (Node.js unavailable)."
+  },
+  "scope": "both",
+  "project": {
+    "name": "Super Duper",
+    "kind": "app",
+    "summary": "Review-only duplicate file finder: a Rust engine and JSONL worker behind a WPF/.NET 10 Windows 11 app, plus a headless CLI and a C ABI."
+  },
+  "audiences": [
+    {
+      "id": "app-user",
+      "name": "Windows app user",
+      "description": "Someone who downloads the release zip and uses the app to find duplicates and record keep/remove decisions. Knows Windows and their own folders; does not read code.",
+      "expertise": "beginner"
+    },
+    {
+      "id": "maintainer",
+      "name": "Maintainer",
+      "description": "A developer or coding agent changing the Windows app, the worker or the engine. Reads C# and Rust; needs the layering, runtime behavior, conventions and decisions.",
+      "expertise": "expert"
+    },
+    {
+      "id": "release-operator",
+      "name": "Release operator",
+      "description": "The person who verifies and publishes a release on the dedicated Windows VM and runs the gates CI cannot.",
+      "expertise": "expert"
+    }
+  ],
+  "sources": [
+    {
+      "id": "app-composition",
+      "path": "apps/windows/src/SuperDuper.Windows/App.xaml.cs",
+      "type": "entrypoint",
+      "note": "Composition root: .uidev sidecar (Debug), state locations, single-instance gate, DI registrations including DisabledRecycleOperationCapabilityExecutor, startup and exit."
+    },
+    {
+      "id": "app-mainwindow",
+      "path": "apps/windows/src/SuperDuper.Windows/MainWindow.xaml*",
+      "type": "entrypoint",
+      "note": "Shell layout: tabs and sub-tabs, banners, recovery card, unsaved-setup prompt, responsive breakpoints, preference persistence, focus targets, shutdown sequence."
+    },
+    {
+      "id": "app-views",
+      "path": "apps/windows/src/SuperDuper.Windows/Views/*.xaml*",
+      "type": "api",
+      "note": "Every user-visible label, access key, keyboard handler and layout breakpoint."
+    },
+    {
+      "id": "app-wpf-support",
+      "path": "apps/windows/src/SuperDuper.Windows/{Accessibility,Resources,Services,Converters}/**",
+      "type": "api",
+      "note": "AutomationNotificationBehavior, WindowTextScale, ShellResources tokens, WPF services (dialogs, clipboard, dispatcher), PlainPathConverter, ServerSortInteraction, DecisionActionFocus."
+    },
+    {
+      "id": "shell-vm",
+      "path": "apps/windows/src/SuperDuper.Windows.Core/ViewModels/ShellViewModel.cs",
+      "type": "api",
+      "note": "Navigation model (WorkspaceArea/Destination), pane loading, connection states, restart and recovery, completion navigation, close confirmation."
+    },
+    {
+      "id": "core-viewmodels",
+      "path": "apps/windows/src/SuperDuper.Windows.Core/ViewModels/*.cs",
+      "type": "api",
+      "note": "Behavior behind each screen: setup, progress, files, folders, preflight, preference rules, history, warnings, performance, recycle/recovery review."
+    },
+    {
+      "id": "setup-validator",
+      "path": "apps/windows/src/SuperDuper.Windows.Core/Validation/SessionDefinitionValidator.cs",
+      "type": "config",
+      "note": "Saved-scan validation rules, limits, default ignore patterns, drive-type warnings."
+    },
+    {
+      "id": "worker-contracts",
+      "path": "apps/windows/src/SuperDuper.Windows.Core/Workers/*.cs",
+      "type": "api",
+      "note": "IWorkerClient families, DTOs, progress contract, WorkerDatabaseUnavailableException reasons and user text."
+    },
+    {
+      "id": "worker-client",
+      "path": "apps/windows/src/SuperDuper.Windows.Infrastructure/{WorkerClient,ResponseCorrelator,Protocol/JsonLineProtocol,WorkerRunProgressParser,ReviewLiveHintBatcher,BoundedDiagnosticLog}.cs",
+      "type": "api",
+      "note": "Process launch, hello handshake, correlation, event dispatch, stderr capture and log rotation, restart, live-hint batching."
+    },
+    {
+      "id": "worker-locations",
+      "path": "apps/windows/src/SuperDuper.Windows.Infrastructure/{WorkerExecutableLocator,WorkerStateLocations,SingleInstanceGate}.cs",
+      "type": "config",
+      "note": "Worker discovery rules (Debug vs Release), state folder and env overrides, single instance per state folder."
+    },
+    {
+      "id": "infra-services",
+      "path": "apps/windows/src/SuperDuper.Windows.Infrastructure/{WindowsExplorerService,WindowsCloudLocationService,JsonPresentationPreferencesStore,WindowsRecycleBinService,WindowsTextScaleSource,DisabledRecycleOperationCapabilityExecutor,WindowsRecycleOperationExecutor}.cs",
+      "type": "api",
+      "note": "Explorer reveal and grouped selection, cloud sync-root detection, presentation preferences, Recycle Bin navigation, disabled vs real recycle executor."
+    },
+    {
+      "id": "windows-manifests",
+      "path": "apps/windows/{Directory.Build.props,SuperDuper.Windows.sln,src/**/*.csproj,src/SuperDuper.Windows/app.manifest,src/SuperDuper.Windows.Infrastructure/NativeMethods.txt}",
+      "type": "manifest",
+      "note": "Target frameworks, packages, version, worker copy targets, long-path manifest, CsWin32 APIs."
+    },
+    {
+      "id": "toolchain-manifests",
+      "path": "{Cargo.toml,rust-toolchain.toml,global.json,about.toml}",
+      "type": "manifest",
+      "note": "Workspace version, Rust floor, .NET SDK pin, license policy for notices."
+    },
+    {
+      "id": "core-tests",
+      "path": "apps/windows/tests/SuperDuper.Windows.Core.Tests/**",
+      "type": "test",
+      "note": "View-model and validation behavior against in-memory doubles; the most reliable statement of intended UI behavior."
+    },
+    {
+      "id": "infra-tests",
+      "path": "apps/windows/tests/SuperDuper.Windows.Infrastructure.Tests/**",
+      "type": "test",
+      "note": "Protocol, locator, state, preferences, Explorer, real-worker lifecycle, database_unavailable, recovery; opt-in RealCloudProvider/RealRecycleBin/RealRecycleBinProvider categories."
+    },
+    {
+      "id": "smoke-tests",
+      "path": "apps/windows/tests/SuperDuper.Windows.Smoke.Tests/**",
+      "type": "test",
+      "note": "In-process STA WPF surface tests with fixtures and optional capture variables."
+    },
+    {
+      "id": "smoke-script",
+      "path": "scripts/Invoke-WindowsSmoke.ps1",
+      "type": "test",
+      "note": "Worker protocol smoke plus real-desktop WPF UI Automation journey and close scenarios."
+    },
+    {
+      "id": "uidev-script",
+      "path": "scripts/Start-WindowsUiDev.ps1",
+      "type": "entrypoint",
+      "note": "Disposable-state Debug/Release launch, five-file fixture, .uidev control launch."
+    },
+    {
+      "id": "release-scripts",
+      "path": "scripts/{Verify-WindowsRelease.ps1,New-ThirdPartyNotices.ps1,Generate-WindowsIcon.py}",
+      "type": "ci",
+      "note": "Release matrix, publish, notices, package; icon generation."
+    },
+    {
+      "id": "ci",
+      "path": ".github/workflows/ci.yml",
+      "type": "ci",
+      "note": "build-and-test and release-package jobs on windows-latest."
+    },
+    {
+      "id": "worker-dispatch",
+      "path": "crates/super-duper-worker/src/{lib.rs,main.rs,progress_projection.rs}",
+      "type": "api",
+      "note": "Method dispatch, events, error codes, database lock and database_unavailable, shutdown, progress projection."
+    },
+    {
+      "id": "core-storage",
+      "path": "crates/super-duper-core/src/storage/{schema.sql,sqlite.rs,queries.rs}",
+      "type": "schema",
+      "note": "Schema v15, migrations, open-failure classification, session delete cascade and refusal."
+    },
+    {
+      "id": "core-telemetry",
+      "path": "crates/super-duper-core/src/telemetry/**",
+      "type": "schema",
+      "note": "Status database schema and limits, progress constants and wire names."
+    },
+    {
+      "id": "core-engine",
+      "path": "crates/super-duper-core/src/{engine.rs,scanner/**,hasher/**,analysis/**}",
+      "type": "api",
+      "note": "Scan pipeline: discovery, size grouping, partial and full hashing, repeat cache, exact folders."
+    },
+    {
+      "id": "existing-docs",
+      "path": "{README.md,AGENTS.md,CHANGELOG.md,dev-notes.md,crates/CLAUDE.md,docs/*.md}",
+      "type": "history",
+      "note": "Claims audited against code; findings recorded per document."
+    },
+    {
+      "id": "history-cleanup",
+      "path": "git:f62b23e; GitHub issues #22 and #35",
+      "type": "history",
+      "note": "What the cleanup removed and the owner's docs-refresh checklist."
+    },
+    {
+      "id": "history-design",
+      "path": "git:v0.1.0:plans/ui-redesign/product-direction.md; git:5188dcc:docs/windows-mvp-plan.md",
+      "type": "history",
+      "note": "Fixed MVP decisions (worker process not FFI, WPF Fluent, worker-only database access) and the redesign's alternatives and product invariants."
+    },
+    {
+      "id": "history-state",
+      "path": "git:eb9f99b; git:76def1b; git:dcd9660",
+      "type": "history",
+      "note": "Why state moved to %LOCALAPPDATA%, why one owner per database, why Release launches only the sibling worker."
+    },
+    {
+      "id": "history-ffi-app",
+      "path": "git:e6d9f33..bcee9ce (WinUI 3 app over super-duper-ffi)",
+      "type": "history",
+      "note": "The earlier in-process FFI client and its handle-leak and dispose-race fixes."
+    },
+    {
+      "id": "changelog",
+      "path": "CHANGELOG.md",
+      "type": "history",
+      "note": "Released features, requirements, SmartScreen note, known limitations for v0.1.0."
+    }
+  ],
+  "documents": [
+    {
+      "id": "docs-index",
+      "title": "Super Duper documentation",
+      "path": "docs/README.md",
+      "family": "diataxis",
+      "type": "reference",
+      "audience": [
+        "app-user",
+        "maintainer",
+        "release-operator"
+      ],
+      "purpose": "Lists every document by audience and purpose so readers find the right page without browsing the folder.",
+      "sourceRefs": [
+        "existing-docs"
+      ],
+      "outline": [
+        {
+          "heading": "Using the Windows app",
+          "intent": "Link the user guide in reading order: tutorial, how-to guides, reference, explanation."
+        },
+        {
+          "heading": "Architecture",
+          "intent": "Link the container view, the Windows app component, runtime and concepts chapters, risks, and decisions."
+        },
+        {
+          "heading": "Develop, test and release",
+          "intent": "Link build, UI dev session, testing reference, smoke, recovery and release checklist."
+        },
+        {
+          "heading": "Contracts and storage",
+          "intent": "Link the worker protocol, progress contract, status database and schema notes."
+        }
+      ],
+      "status": "drafted",
+      "priority": 1,
+      "verification": "Navigation only; each link is checked to exist."
+    },
+    {
+      "id": "ug-tutorial",
+      "title": "Find your first duplicates",
+      "path": "docs/user-guide/getting-started.md",
+      "family": "diataxis",
+      "type": "tutorial",
+      "audience": [
+        "app-user"
+      ],
+      "purpose": "Takes a new user from the release zip to a completed scan of a small practice folder, one marked copy and a whole-plan check.",
+      "sourceRefs": [
+        "changelog",
+        "app-views",
+        "shell-vm",
+        "core-viewmodels",
+        "uidev-script"
+      ],
+      "outline": [
+        {
+          "heading": "Before you start",
+          "intent": "Windows 11 x64, the release zip, and a small practice folder the reader creates with two identical files.",
+          "sourceRefs": [
+            "changelog"
+          ]
+        },
+        {
+          "heading": "Step 1 — Start Super Duper",
+          "intent": "Unzip, run SuperDuper.Windows.exe, get past SmartScreen, see the empty state.",
+          "sourceRefs": [
+            "changelog",
+            "app-views"
+          ]
+        },
+        {
+          "heading": "Step 2 — Choose the practice folder",
+          "intent": "Choose folders, add the folder, name the saved scan.",
+          "sourceRefs": [
+            "app-views",
+            "core-viewmodels"
+          ]
+        },
+        {
+          "heading": "Step 3 — Run the scan",
+          "intent": "Start scan, watch Progress, arrive at Results when it completes.",
+          "sourceRefs": [
+            "shell-vm",
+            "app-views"
+          ]
+        },
+        {
+          "heading": "Step 4 — Compare the copies",
+          "intent": "Select the set, read the copies, open one in Explorer.",
+          "sourceRefs": [
+            "app-views"
+          ]
+        },
+        {
+          "heading": "Step 5 — Mark a copy for removal",
+          "intent": "Mark copy for removal and see that nothing is deleted.",
+          "sourceRefs": [
+            "app-views",
+            "core-viewmodels"
+          ]
+        },
+        {
+          "heading": "Step 6 — Check the plan",
+          "intent": "Review tab, Check marked copies, confirm, see Ready.",
+          "sourceRefs": [
+            "app-views",
+            "core-viewmodels"
+          ]
+        },
+        {
+          "heading": "What you did",
+          "intent": "Recap and links to the how-to guides."
+        }
+      ],
+      "status": "drafted",
+      "priority": 1,
+      "verification": "Steps derived from view XAML and view-model state rules. The exact on-screen outcome of a two-file practice scan was not observed in a running app this session."
+    },
+    {
+      "id": "ug-scan",
+      "title": "Set up and run scans",
+      "path": "docs/user-guide/scan-folders.md",
+      "family": "diataxis",
+      "type": "how-to",
+      "audience": [
+        "app-user"
+      ],
+      "purpose": "Covers the recurring scan tasks: create and edit saved scans, add locations, exclude folders, handle cloud folders, repeat a scan, cancel, and delete.",
+      "sourceRefs": [
+        "app-views",
+        "core-viewmodels",
+        "setup-validator",
+        "shell-vm",
+        "core-storage",
+        "worker-dispatch"
+      ],
+      "outline": [
+        {
+          "heading": "Create a saved scan",
+          "intent": "New saved scan, name, locations; nothing is stored until Save changes or Start scan."
+        },
+        {
+          "heading": "Add folders, drives and network paths",
+          "intent": "Picker vs Enter path; what the drive-type warnings mean; overlapping folders are combined.",
+          "sourceRefs": [
+            "setup-validator"
+          ]
+        },
+        {
+          "heading": "Skip folders and files",
+          "intent": "Ignore patterns (with defaults) and manual cloud exclusions.",
+          "sourceRefs": [
+            "setup-validator",
+            "core-viewmodels"
+          ]
+        },
+        {
+          "heading": "Scan folders that contain cloud sync folders",
+          "intent": "Registered sync roots are excluded before reading; detection must succeed; Refresh.",
+          "sourceRefs": [
+            "core-viewmodels",
+            "infra-services"
+          ]
+        },
+        {
+          "heading": "Scan the same locations again",
+          "intent": "Scan again starts immediately; Repeat scans choice and that it resets on load.",
+          "sourceRefs": [
+            "shell-vm",
+            "core-viewmodels"
+          ]
+        },
+        {
+          "heading": "Watch or cancel a scan",
+          "intent": "Progress, the active-scan banner, Cancel scan, closing the app during a scan.",
+          "sourceRefs": [
+            "app-views",
+            "shell-vm"
+          ]
+        },
+        {
+          "heading": "Rename or delete a saved scan",
+          "intent": "Rename via Setup; delete removes history and decisions but never scanned files; when delete is refused.",
+          "sourceRefs": [
+            "core-storage",
+            "worker-dispatch"
+          ]
+        }
+      ],
+      "status": "drafted",
+      "priority": 1
+    },
+    {
+      "id": "ug-review",
+      "title": "Review duplicate files and folders",
+      "path": "docs/user-guide/review-duplicates.md",
+      "family": "diataxis",
+      "type": "how-to",
+      "audience": [
+        "app-user"
+      ],
+      "purpose": "Shows how to narrow results, compare copies, record Keep and Remove decisions for files and folders, and act on copies in Explorer.",
+      "sourceRefs": [
+        "app-views",
+        "core-viewmodels",
+        "worker-dispatch",
+        "infra-services"
+      ],
+      "outline": [
+        {
+          "heading": "Find the sets that matter",
+          "intent": "Path search, exact path, Filters (size, copies, across drives, extension, root, drive), Apply, chips, Clear filters, sorting."
+        },
+        {
+          "heading": "Compare the copies in a set",
+          "intent": "Set list, copy list, paging, narrow-window navigation."
+        },
+        {
+          "heading": "Record a decision for a file",
+          "intent": "Keep copy, Mark copy for removal, Reset copy; last-copy protection; failures."
+        },
+        {
+          "heading": "Record a decision for a folder",
+          "intent": "Folder decisions cover descendants; overlap and last-intact-copy refusals."
+        },
+        {
+          "heading": "Open or copy a location",
+          "intent": "Show in Explorer, Copy path, Select page in Explorer (folders)."
+        }
+      ],
+      "status": "drafted",
+      "priority": 1,
+      "verification": "Next/previous set shortcuts are omitted: tooltips promise Alt+N/Alt+P but no binding exists (see gaps)."
+    },
+    {
+      "id": "ug-preferences",
+      "title": "Apply location preferences",
+      "path": "docs/user-guide/location-preferences.md",
+      "family": "diataxis",
+      "type": "how-to",
+      "audience": [
+        "app-user"
+      ],
+      "purpose": "Shows how to rank preferred scan roots, preview the decisions a rule would make, apply them and reverse an application.",
+      "sourceRefs": [
+        "app-views",
+        "core-viewmodels",
+        "worker-dispatch"
+      ],
+      "outline": [
+        {
+          "heading": "Save a ranked list of locations",
+          "intent": "Step 1 of the panel: rule name, roots, order, Save preference."
+        },
+        {
+          "heading": "Preview and apply",
+          "intent": "Preview scope choices, Applicable vs Blocked rows, Apply preview and confirmation."
+        },
+        {
+          "heading": "Reverse an application",
+          "intent": "Reverse rule application; later manual choices are preserved."
+        }
+      ],
+      "status": "drafted",
+      "priority": 2
+    },
+    {
+      "id": "ug-check",
+      "title": "Check marked copies before acting on them",
+      "path": "docs/user-guide/check-marked-copies.md",
+      "family": "diataxis",
+      "type": "how-to",
+      "audience": [
+        "app-user"
+      ],
+      "purpose": "Shows how to confirm that a review plan still matches the files on disk, from a quick check of visible copies to the whole-plan check.",
+      "sourceRefs": [
+        "app-views",
+        "core-viewmodels",
+        "worker-client",
+        "worker-dispatch"
+      ],
+      "outline": [
+        {
+          "heading": "Check the copies you are looking at",
+          "intent": "Check these copies (up to 200 visible copies); what Missing and Changed do to decisions."
+        },
+        {
+          "heading": "Catch up after many file changes",
+          "intent": "The dirty-results warning and Reconcile next batch."
+        },
+        {
+          "heading": "Check the whole plan",
+          "intent": "Review tab, Check marked copies, the confirmation, Ready/Blocked/Needs review, details and Open set."
+        },
+        {
+          "heading": "Act on the plan outside Super Duper",
+          "intent": "The app does not delete; what to do with the list (Copy path, Show in Explorer), and re-check after changes."
+        }
+      ],
+      "status": "drafted",
+      "priority": 1
+    },
+    {
+      "id": "ug-history",
+      "title": "Look into a past scan",
+      "path": "docs/user-guide/past-scans.md",
+      "family": "diataxis",
+      "type": "how-to",
+      "audience": [
+        "app-user"
+      ],
+      "purpose": "Shows how to reopen an earlier scan, see what settings it used, and investigate its warnings and performance.",
+      "sourceRefs": [
+        "app-views",
+        "core-viewmodels",
+        "shell-vm"
+      ],
+      "outline": [
+        {
+          "heading": "Open an earlier scan",
+          "intent": "History › Scans, highlight vs Open scan, where each status opens."
+        },
+        {
+          "heading": "See the settings a scan used",
+          "intent": "Recorded settings and locations are immutable."
+        },
+        {
+          "heading": "Investigate warnings",
+          "intent": "Review warnings, the drilldown, Open duplicate results, return."
+        },
+        {
+          "heading": "See why a scan took as long as it did",
+          "intent": "Performance details, sections, comparing runs."
+        }
+      ],
+      "status": "drafted",
+      "priority": 2
+    },
+    {
+      "id": "ug-troubleshoot",
+      "title": "Fix startup and saved-data problems",
+      "path": "docs/user-guide/troubleshooting.md",
+      "family": "diataxis",
+      "type": "how-to",
+      "audience": [
+        "app-user"
+      ],
+      "purpose": "Tells a user what to do for each startup, connection and saved-data message the app can show.",
+      "sourceRefs": [
+        "worker-contracts",
+        "shell-vm",
+        "app-mainwindow",
+        "worker-locations",
+        "worker-client",
+        "core-storage"
+      ],
+      "outline": [
+        {
+          "heading": "The app says it is already open",
+          "intent": "Single instance per data folder; find the other window."
+        },
+        {
+          "heading": "The scan engine stopped",
+          "intent": "Worker connection failed / exited unexpectedly; Reconnect; interrupted scans."
+        },
+        {
+          "heading": "Saved data can't be opened",
+          "intent": "One entry per database_unavailable title with the action."
+        },
+        {
+          "heading": "Back up or reset your saved data",
+          "intent": "Close the app; copy db + -wal + -shm together; move aside to start clean."
+        },
+        {
+          "heading": "Find the logs",
+          "intent": "worker.log and worker.log.previous under %LOCALAPPDATA%\\SuperDuper\\logs."
+        },
+        {
+          "heading": "A newer version can't be undone",
+          "intent": "Upgrades are one-way; back up before first opening with a newer version."
+        }
+      ],
+      "status": "drafted",
+      "priority": 1
+    },
+    {
+      "id": "ug-reference",
+      "title": "Windows app reference",
+      "path": "docs/user-guide/app-reference.md",
+      "family": "diataxis",
+      "type": "reference",
+      "audience": [
+        "app-user"
+      ],
+      "purpose": "Lookup for every screen, command, keyboard shortcut, status, limit and file location in the Windows app.",
+      "sourceRefs": [
+        "app-views",
+        "app-mainwindow",
+        "shell-vm",
+        "core-viewmodels",
+        "setup-validator",
+        "worker-contracts",
+        "worker-locations",
+        "infra-services"
+      ],
+      "outline": [
+        {
+          "heading": "System requirements",
+          "intent": "Windows 11 x64 build 22000+, self-contained zip, unsigned."
+        },
+        {
+          "heading": "Window layout",
+          "intent": "Areas and sub-tabs, header, banners, layout breakpoints."
+        },
+        {
+          "heading": "Screens",
+          "intent": "One subsection per screen: purpose, commands (exact labels), states."
+        },
+        {
+          "heading": "Keyboard shortcuts",
+          "intent": "Verified access keys and key handlers only; conflicts excluded."
+        },
+        {
+          "heading": "Scan statuses and phases",
+          "intent": "Pending…Interrupted; the five phases."
+        },
+        {
+          "heading": "Limits",
+          "intent": "Page sizes, 64 roots, 200-character names, 200-copy checks, 1 MiB etc. that users can hit."
+        },
+        {
+          "heading": "Saved-scan validation messages",
+          "intent": "Errors vs warnings table."
+        },
+        {
+          "heading": "Files the app keeps",
+          "intent": "State folder contents, logs, preferences; environment overrides for advanced users."
+        },
+        {
+          "heading": "Glossary",
+          "intent": "User-facing terms."
+        }
+      ],
+      "status": "drafted",
+      "priority": 1,
+      "verification": "Labels and limits taken from XAML and view models. Duplicate or unbound access keys are excluded and recorded in gaps."
+    },
+    {
+      "id": "ug-concepts",
+      "title": "How Super Duper finds and reviews duplicates",
+      "path": "docs/user-guide/how-it-works.md",
+      "family": "diataxis",
+      "type": "explanation",
+      "audience": [
+        "app-user"
+      ],
+      "purpose": "Explains why results can be trusted, why the app never deletes, and why a scan's findings and the files' current state are kept apart.",
+      "sourceRefs": [
+        "core-engine",
+        "core-storage",
+        "shell-vm",
+        "infra-services",
+        "history-design",
+        "changelog"
+      ],
+      "outline": [
+        {
+          "heading": "Saved scans and scans",
+          "intent": "Reusable definition vs immutable run; history is not rewritten."
+        },
+        {
+          "heading": "How a duplicate is confirmed",
+          "intent": "Size, partial hash, full hash; hard links; folders by structure and content; nested suppression."
+        },
+        {
+          "heading": "Why repeat scans are faster",
+          "intent": "Verified hash reuse and its limits; Re-read candidate content."
+        },
+        {
+          "heading": "Why cloud folders are skipped",
+          "intent": "Placeholders would download; fail closed when detection is unavailable."
+        },
+        {
+          "heading": "Decisions are a plan, not an action",
+          "intent": "Review-only; survivor protection; overlap counted once."
+        },
+        {
+          "heading": "What a scan saw and what is there now",
+          "intent": "Historical findings vs live checks, invalidation, whole-plan check."
+        },
+        {
+          "heading": "Everything stays on this PC",
+          "intent": "Local state, no network, one window per data folder."
+        }
+      ],
+      "status": "drafted",
+      "priority": 1
+    },
+    {
+      "id": "arch-overview",
+      "title": "System overview",
+      "path": "docs/architecture/overview.md",
+      "family": "architecture",
+      "type": "c4-view",
+      "subtype": "container",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Shows the running and deployable units — WPF app, worker, core, CLI, FFI and the three stores — and how they talk.",
+      "sourceRefs": [
+        "app-composition",
+        "worker-client",
+        "worker-dispatch",
+        "worker-locations",
+        "core-storage",
+        "core-telemetry",
+        "toolchain-manifests",
+        "release-scripts"
+      ],
+      "outline": [
+        {
+          "heading": "Context",
+          "intent": "The user, the Windows shell (Explorer, Cloud Files registration, Recycle Bin navigation), and local drives."
+        },
+        {
+          "heading": "Containers",
+          "intent": "Table of containers, technology, responsibility and owner of each store."
+        },
+        {
+          "heading": "How they communicate",
+          "intent": "JSONL over stdio, one worker per database, CLI and FFI link core directly."
+        },
+        {
+          "heading": "What ships",
+          "intent": "Release zip contents and where state lives at runtime."
+        }
+      ],
+      "diagrams": [
+        {
+          "description": "C4 container diagram: user -> SuperDuper.Windows (WPF/.NET 10) -> super-duper-worker (Rust child process) via JSONL over stdin/stdout; worker -> super-duper-core (linked library); core -> super_duper.db (SQLite, WAL), scan_status.db (SQLite), content_hash_cache.db (RocksDB); super-duper-cli -> core; super-duper-ffi -> core (future native clients, not used by the app); app -> Windows Shell (Explorer reveal, Cloud Files sync-root registration, Recycle Bin folder navigation).",
+          "sourceRefs": [
+            "app-composition",
+            "worker-client",
+            "worker-dispatch",
+            "worker-locations",
+            "core-storage"
+          ]
+        }
+      ],
+      "status": "drafted",
+      "priority": 1,
+      "verification": "Diagram not rendered: Node.js is unavailable on this machine, so diagram-generator could not run. The page carries a text table instead; the stale docs/architecture.svg is removed."
+    },
+    {
+      "id": "arch-components",
+      "title": "Windows app components",
+      "path": "docs/architecture/windows-app-components.md",
+      "family": "architecture",
+      "type": "c4-view",
+      "subtype": "component",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Maps the three projects and their main components so a maintainer knows where a change belongs.",
+      "sourceRefs": [
+        "windows-manifests",
+        "app-composition",
+        "app-mainwindow",
+        "app-views",
+        "app-wpf-support",
+        "shell-vm",
+        "core-viewmodels",
+        "worker-contracts",
+        "worker-client",
+        "worker-locations",
+        "infra-services"
+      ],
+      "outline": [
+        {
+          "heading": "Projects and dependencies",
+          "intent": "Core (net10.0, no WPF), Infrastructure (Windows TFM, CsWin32), App (WPF, DI) and the dependency direction."
+        },
+        {
+          "heading": "Composition root",
+          "intent": "DI registration table and constructor selection."
+        },
+        {
+          "heading": "Shell and navigation",
+          "intent": "Areas, destinations, explicit view binding, lazy panes."
+        },
+        {
+          "heading": "Screens",
+          "intent": "View -> view model table."
+        },
+        {
+          "heading": "Worker boundary",
+          "intent": "IWorkerClient families, extra interfaces, WorkerClient responsibilities."
+        },
+        {
+          "heading": "Windows services",
+          "intent": "Explorer, cloud detection, preferences, Recycle Bin navigation, text scale, recycle executors."
+        },
+        {
+          "heading": "Tests by layer",
+          "intent": "Which test project covers which components."
+        }
+      ],
+      "diagrams": [
+        {
+          "description": "Component diagram inside the Windows app: SuperDuper.Windows (App composition root, MainWindow, Views, WPF services) depends on SuperDuper.Windows.Core (ShellViewModel, screen view models, SessionDefinitionValidator, IWorkerClient contracts) and SuperDuper.Windows.Infrastructure (WorkerClient + JsonLineProtocol, WorkerExecutableLocator, WorkerStateLocations, SingleInstanceGate, WindowsExplorerService, WindowsCloudLocationService, JsonPresentationPreferencesStore); Infrastructure depends on Core; WorkerClient talks to super-duper-worker.",
+          "sourceRefs": [
+            "windows-manifests",
+            "app-composition"
+          ]
+        }
+      ],
+      "status": "drafted",
+      "priority": 1
+    },
+    {
+      "id": "arch-runtime",
+      "title": "Windows app runtime scenarios",
+      "path": "docs/architecture/windows-app-runtime.md",
+      "family": "architecture",
+      "type": "arc42-chapter",
+      "subtype": "Runtime view",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Walks through startup, a scan, live review state, worker failure and shutdown as they actually execute.",
+      "sourceRefs": [
+        "app-composition",
+        "app-mainwindow",
+        "shell-vm",
+        "worker-client",
+        "worker-locations",
+        "worker-dispatch",
+        "core-viewmodels"
+      ],
+      "outline": [
+        {
+          "heading": "Startup",
+          "intent": ".uidev, state locations, single instance, DI, worker launch, hello, database_unavailable, session load."
+        },
+        {
+          "heading": "Starting and following a scan",
+          "intent": "Save-then-start, run events, progress gate (100 ms, latest-only), 1 s timer, completion navigation."
+        },
+        {
+          "heading": "Live review state",
+          "intent": "FileSystemWatcher per root, hint batching, overflow, result.state_changed, validation and reconcile commands."
+        },
+        {
+          "heading": "Worker exit and recovery",
+          "intent": "Exit monitor, RecoveryRequired, local interruption, Reconnect, worker reconciliation."
+        },
+        {
+          "heading": "Shutdown",
+          "intent": "Close confirmation, lifetime token, 2 s grace then kill, preference flush."
+        }
+      ],
+      "diagrams": [
+        {
+          "description": "Sequence diagram of startup: App -> WorkerStateLocations.FromEnvironment; App -> SingleInstanceGate.TryAcquire; App -> MainWindow.InitializeAsync -> ShellViewModel -> WorkerClient.ConnectAsync -> launch super-duper-worker with env; WorkerClient -> worker: hello {protocolVersions:[1]}; worker -> WorkerClient: selected protocol 1 or database_unavailable error; ShellViewModel -> WorkerClient: session.list.",
+          "sourceRefs": [
+            "app-composition",
+            "worker-client",
+            "shell-vm"
+          ]
+        }
+      ],
+      "status": "drafted",
+      "priority": 1
+    },
+    {
+      "id": "arch-concepts",
+      "title": "Windows app conventions",
+      "path": "docs/architecture/windows-app-concepts.md",
+      "family": "architecture",
+      "type": "arc42-chapter",
+      "subtype": "Crosscutting concepts",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Records the rules every Windows app change must keep: layering, threading, bounded data, safety, accessibility, theming and wording.",
+      "sourceRefs": [
+        "windows-manifests",
+        "app-wpf-support",
+        "shell-vm",
+        "core-viewmodels",
+        "worker-client",
+        "history-design",
+        "core-tests",
+        "smoke-script"
+      ],
+      "outline": [
+        {
+          "heading": "Layering",
+          "intent": "What may live in each project; no WPF in Core; interop in Infrastructure."
+        },
+        {
+          "heading": "Threading",
+          "intent": "No filesystem/database/native work on the dispatcher; IUiDispatcher; progress gate."
+        },
+        {
+          "heading": "Bounded data",
+          "intent": "Server paging, page caps, no full-run downloads, drafts until Apply."
+        },
+        {
+          "heading": "Safety",
+          "intent": "Review-only, worker truth for counts, survivor protection, historical vs live state, disposable state for tests."
+        },
+        {
+          "heading": "Accessibility",
+          "intent": "Automation names, AutomationNotificationBehavior, focus restoration, access keys, stable AutomationIds relied on by the smoke."
+        },
+        {
+          "heading": "Appearance",
+          "intent": "Fluent ThemeMode System, ShellResources tokens, WindowTextScale, breakpoints, PlainPathConverter."
+        },
+        {
+          "heading": "Wording",
+          "intent": "User-facing vocabulary (saved scan, set, copy, Mark for removal) vs protocol terms."
+        },
+        {
+          "heading": "Presentation preferences",
+          "intent": "What may and may not be persisted."
+        }
+      ],
+      "status": "drafted",
+      "priority": 1
+    },
+    {
+      "id": "arch-risks",
+      "title": "Windows app risks and technical debt",
+      "path": "docs/architecture/windows-app-risks.md",
+      "family": "architecture",
+      "type": "arc42-chapter",
+      "subtype": "Risks and technical debt",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Lists known weaknesses found in code so maintainers can weigh them before changing nearby code.",
+      "sourceRefs": [
+        "app-composition",
+        "app-views",
+        "worker-client",
+        "infra-services",
+        "smoke-script",
+        "windows-manifests",
+        "smoke-tests",
+        "core-viewmodels"
+      ],
+      "outline": [
+        {
+          "heading": "Reliability",
+          "intent": "No global exception handler with async void handlers; no per-request timeout; TryCancel keeps pending entries; message-text error matching."
+        },
+        {
+          "heading": "Usability defects",
+          "intent": "Duplicate access keys, unbound Alt+N/Alt+P, Validate page wording, unwired ScanAgainCommand, repeat policy not saved."
+        },
+        {
+          "heading": "Diagnostics",
+          "intent": "Worker log ignores state overrides; LOG_FILE_PATH in .uidev has no effect."
+        },
+        {
+          "heading": "Verification gaps",
+          "intent": "Protocol smoke does not use the published worker; build silently skips a missing worker; Smoke.Tests on MSTest 3; high contrast, screen readers and DPI unverified."
+        },
+        {
+          "heading": "Dormant code",
+          "intent": "Recycle operation client methods and WindowsRecycleOperationExecutor kept for a parked feature; unused resource keys."
+        }
+      ],
+      "status": "drafted",
+      "priority": 2,
+      "verification": "Every item is a static-reading finding with a file reference; none was reproduced at runtime."
+    },
+    {
+      "id": "adr-0001",
+      "title": "ADR-0001: The Windows app reaches the engine through a worker process",
+      "path": "docs/architecture/decisions/0001-worker-process-boundary.md",
+      "family": "architecture",
+      "type": "adr",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Records why the WPF app talks to a long-lived JSONL child process instead of loading the FFI library in process.",
+      "sourceRefs": [
+        "history-design",
+        "history-ffi-app",
+        "worker-client",
+        "worker-dispatch"
+      ],
+      "status": "drafted",
+      "priority": 2,
+      "verification": "The decision and its consequences are verified. The original rationale was not written down; the context cites the earlier in-process WinUI 3 client's lifecycle fixes as history, not as the stated reason."
+    },
+    {
+      "id": "adr-0002",
+      "title": "ADR-0002: The Windows app is review-only",
+      "path": "docs/architecture/decisions/0002-review-only-windows-app.md",
+      "family": "architecture",
+      "type": "adr",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Records why production builds register a disabled Recycle Bin executor and expose no deletion.",
+      "sourceRefs": [
+        "app-composition",
+        "infra-services",
+        "core-viewmodels",
+        "changelog",
+        "history-design"
+      ],
+      "status": "drafted",
+      "priority": 2
+    },
+    {
+      "id": "adr-0003",
+      "title": "ADR-0003: One worker owns a database, one window per data folder",
+      "path": "docs/architecture/decisions/0003-one-owner-per-database.md",
+      "family": "architecture",
+      "type": "adr",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Records why the worker locks its database and the app is single-instance per state folder.",
+      "sourceRefs": [
+        "history-state",
+        "worker-locations",
+        "worker-dispatch",
+        "core-storage"
+      ],
+      "status": "drafted",
+      "priority": 2
+    },
+    {
+      "id": "adr-0004",
+      "title": "ADR-0004: Keep WPF and recompose the app instead of migrating",
+      "path": "docs/architecture/decisions/0004-keep-wpf-redesign-in-place.md",
+      "family": "architecture",
+      "type": "adr",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Records the UI redesign's choice of a persistent WPF workspace over a framework migration or wizard.",
+      "sourceRefs": [
+        "history-design",
+        "windows-manifests"
+      ],
+      "status": "drafted",
+      "priority": 3
+    },
+    {
+      "id": "adr-0005",
+      "title": "ADR-0005: App state lives in %LOCALAPPDATA%\\SuperDuper",
+      "path": "docs/architecture/decisions/0005-app-state-in-localappdata.md",
+      "family": "architecture",
+      "type": "adr",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Records why the app stopped keeping state beside the worker and how overrides compose.",
+      "sourceRefs": [
+        "history-state",
+        "worker-locations"
+      ],
+      "status": "drafted",
+      "priority": 3
+    },
+    {
+      "id": "windows-build",
+      "title": "Windows build",
+      "path": "docs/windows-build.md",
+      "family": "diataxis",
+      "type": "how-to",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Shows how to install prerequisites, build, test and run the Windows app from source.",
+      "sourceRefs": [
+        "windows-manifests",
+        "toolchain-manifests",
+        "worker-locations",
+        "release-scripts",
+        "ci"
+      ],
+      "outline": [
+        {
+          "heading": "Prerequisites",
+          "intent": "Add cargo-about for release verification."
+        },
+        {
+          "heading": "Build and test",
+          "intent": "Rust before .NET; -m:1 everywhere."
+        },
+        {
+          "heading": "Run the app",
+          "intent": "Debug worker lookup order including the beside-app step and the stale-copy caveat."
+        },
+        {
+          "heading": "Verify a release build",
+          "intent": "What the verifier does, accurately: protocol smoke uses target/release, WPF smoke uses the publish folder; link release checklist and CI."
+        }
+      ],
+      "status": "drafted",
+      "priority": 1,
+      "verification": "Audit: dotnet test lines lack -m:1; worker lookup omits the sibling step; verifier smoke claim partly wrong; cargo-about prerequisite missing; no CI mention."
+    },
+    {
+      "id": "windows-ui-dev",
+      "title": "Isolated Windows UI development sessions",
+      "path": "docs/windows-ui-dev-session.md",
+      "family": "diataxis",
+      "type": "how-to",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Shows how to run the real app against disposable state and how to iterate on UI when the desktop is unavailable.",
+      "sourceRefs": [
+        "uidev-script",
+        "app-composition",
+        "smoke-tests"
+      ],
+      "outline": [
+        {
+          "heading": "Run the app with disposable state",
+          "intent": "Start-WindowsUiDev.ps1 parameters, printed keys, fixture."
+        },
+        {
+          "heading": "Prepare a launch for a desktop-control tool",
+          "intent": "-PrepareControlLaunch and .uidev rules, tool-neutral."
+        },
+        {
+          "heading": "Iterate when the desktop is unavailable",
+          "intent": "Smoke.Tests in-process with the four capture variables."
+        },
+        {
+          "heading": "Build hygiene",
+          "intent": "Serialized builds; don't rebuild under a running test host."
+        }
+      ],
+      "status": "drafted",
+      "priority": 1,
+      "verification": "Audit: removed fictional fixture, polish journey, Codex-specific calls and dated VM logs; capture variables incomplete."
+    },
+    {
+      "id": "windows-testing",
+      "title": "Windows test suites",
+      "path": "docs/windows-testing.md",
+      "family": "diataxis",
+      "type": "reference",
+      "audience": [
+        "maintainer",
+        "release-operator"
+      ],
+      "purpose": "Lookup for what each Windows test project covers, what it needs, what skips and why, and every test-only environment variable.",
+      "sourceRefs": [
+        "core-tests",
+        "infra-tests",
+        "smoke-tests",
+        "smoke-script",
+        "ci",
+        "windows-manifests"
+      ],
+      "outline": [
+        {
+          "heading": "Test projects",
+          "intent": "Table: project, framework and MSTest version, parallelism, needs worker/desktop."
+        },
+        {
+          "heading": "Worker-backed tests",
+          "intent": "Which tests, the worker path per configuration, Inconclusive when missing."
+        },
+        {
+          "heading": "Opt-in real-environment categories",
+          "intent": "RealCloudProvider, RealRecycleBin (mutating), RealRecycleBinProvider with variables and filters."
+        },
+        {
+          "heading": "WPF surface captures",
+          "intent": "The four capture variables and what each fixture renders."
+        },
+        {
+          "heading": "Smoke script",
+          "intent": "Pointer to windows-smoke.md; what only the script covers."
+        },
+        {
+          "heading": "Where tests run",
+          "intent": "CI jobs vs VM."
+        }
+      ],
+      "status": "drafted",
+      "priority": 1
+    },
+    {
+      "id": "windows-smoke",
+      "title": "Windows smoke workflow",
+      "path": "docs/windows-smoke.md",
+      "family": "diataxis",
+      "type": "how-to",
+      "audience": [
+        "maintainer",
+        "release-operator"
+      ],
+      "purpose": "Shows how to run the worker and WPF smoke, read its result, and do the WPF part by hand when automation cannot run.",
+      "sourceRefs": [
+        "smoke-script",
+        "app-views",
+        "infra-tests"
+      ],
+      "outline": [
+        {
+          "heading": "Run the smoke",
+          "intent": "Debug/Release, all parameters including -AppPath."
+        },
+        {
+          "heading": "What it checks",
+          "intent": "Condensed coverage (11 result-query timings), no campaign narrative."
+        },
+        {
+          "heading": "Read the result",
+          "intent": "All success lines; fixture path always printed."
+        },
+        {
+          "heading": "Run the WPF part by hand",
+          "intent": "Manual steps with current labels (1 GiB, Check these copies)."
+        },
+        {
+          "heading": "Opt-in real provider tests",
+          "intent": "Pointer to windows-testing.md; replace deleted acceptance scripts."
+        }
+      ],
+      "status": "drafted",
+      "priority": 1,
+      "verification": "Audit: deleted acceptance scripts; 5 vs 11 timings; GB vs GiB; -AppPath missing; success lines incomplete."
+    },
+    {
+      "id": "windows-recovery",
+      "title": "Windows diagnostics, limitations and recovery",
+      "path": "docs/windows-recovery.md",
+      "family": "diataxis",
+      "type": "how-to",
+      "audience": [
+        "maintainer",
+        "release-operator"
+      ],
+      "purpose": "Shows maintainers how to diagnose worker, database, cache and interrupted-operation problems without destroying evidence.",
+      "sourceRefs": [
+        "worker-client",
+        "worker-dispatch",
+        "core-storage",
+        "worker-locations",
+        "app-mainwindow"
+      ],
+      "outline": [
+        {
+          "heading": "Diagnostics",
+          "intent": "stderr capture, log rotation, log path ignores DB override, SUPER_DUPER_LOG, durable warnings."
+        },
+        {
+          "heading": "Known limitations",
+          "intent": "Current list; warning.page no longer reserved."
+        },
+        {
+          "heading": "Worker startup failure",
+          "intent": "Release vs Debug discovery."
+        },
+        {
+          "heading": "Unexpected exit or interrupted run",
+          "intent": "Reconnect; interrupted/expired/recovery_required without campaign references."
+        },
+        {
+          "heading": "Database failure",
+          "intent": "Reasons, lock file, backup set; every upgrade is one-way."
+        },
+        {
+          "heading": "Hash cache failure",
+          "intent": "Unchanged."
+        }
+      ],
+      "status": "drafted",
+      "priority": 1,
+      "verification": "Audit: warning.page claim wrong; Restart worker -> Reconnect; ambiguous-start campaign and acceptance references removed; downgrade note generalized."
+    },
+    {
+      "id": "release-checklist",
+      "title": "Release checklist",
+      "path": "docs/release-checklist.md",
+      "family": "diataxis",
+      "type": "how-to",
+      "audience": [
+        "release-operator"
+      ],
+      "purpose": "Shows how to prepare, verify and publish a Windows release.",
+      "sourceRefs": [
+        "release-scripts",
+        "ci",
+        "smoke-script",
+        "history-cleanup"
+      ],
+      "status": "drafted",
+      "priority": 2,
+      "verification": "Audit: worker-smoke row wrong; ROADMAP references removed; failure-mode list inlined; cargo-about pin; RC zip overwrite (#35)."
+    },
+    {
+      "id": "worker-protocol",
+      "title": "Super Duper worker protocol v1",
+      "path": "docs/worker-protocol-v1.md",
+      "family": "diataxis",
+      "type": "reference",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Defines the JSONL wire contract between the Windows app and the worker.",
+      "sourceRefs": [
+        "worker-dispatch",
+        "worker-client",
+        "worker-contracts",
+        "core-storage"
+      ],
+      "outline": [
+        {
+          "heading": "Status and scope",
+          "intent": "Rewritten without milestone narrative."
+        },
+        {
+          "heading": "Method and event index",
+          "intent": "New: every dispatched method and emitted event with a link."
+        },
+        {
+          "heading": "Errors",
+          "intent": "Consolidated error-code table including the 15 undocumented codes and retryable semantics."
+        }
+      ],
+      "status": "drafted",
+      "priority": 2,
+      "verification": "Drafted as targeted fixes: rewritten scope, method and event index, consolidated error table, app.status, inline statuses and phases, labelled client-behavior notes, campaign codes scrubbed, two wrong examples corrected, and unknown request parameters documented as rejected (deny_unknown_fields). A full reorganization of the body and a field-by-field check of every example remain open."
+    },
+    {
+      "id": "scan-progress-contract",
+      "title": "Scan progress contract v1",
+      "path": "docs/scan-progress-contract-v1.md",
+      "family": "diataxis",
+      "type": "reference",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Defines the scan progress payload, its constants and how the app applies it.",
+      "sourceRefs": [
+        "core-telemetry",
+        "worker-dispatch",
+        "worker-client",
+        "core-viewmodels"
+      ],
+      "status": "drafted",
+      "priority": 2,
+      "verification": "Audit: camelCase field names wrong (wire is snake_case); metrics v2 -> v3; SOP narrative; stale warning-drilldown note."
+    },
+    {
+      "id": "scan-status-database",
+      "title": "Scan status database",
+      "path": "docs/scan-status-database.md",
+      "family": "diataxis",
+      "type": "reference",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Describes the worker-owned telemetry database and its limits.",
+      "sourceRefs": [
+        "core-telemetry"
+      ],
+      "status": "drafted",
+      "priority": 3,
+      "verification": "Audit: accurate; add schema version and table list, link the performance commands."
+    },
+    {
+      "id": "storage-schema-history",
+      "title": "Storage schema version notes (v3–v15)",
+      "path": "docs/storage-schema-v*.md",
+      "family": "diataxis",
+      "type": "reference",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Records what each schema version added.",
+      "sourceRefs": [
+        "core-storage"
+      ],
+      "status": "needs-restructure",
+      "priority": 3,
+      "verification": "Drafted only for v10 and v14 (references to deleted files). Campaign codes remain in v3, v4, v9, v10, v11, v12 and v13; scrubbing them and consolidating into storage-schema-current is deferred."
+    },
+    {
+      "id": "storage-schema-current",
+      "title": "Storage schema",
+      "path": "docs/storage-schema.md",
+      "family": "diataxis",
+      "type": "reference",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "One current-schema reference (all 40 tables by family) with the version notes demoted to history.",
+      "sourceRefs": [
+        "core-storage"
+      ],
+      "status": "planned",
+      "priority": 3,
+      "verification": "Deferred: engine-side, outside the Windows front-end focus of this pass."
+    },
+    {
+      "id": "readme",
+      "title": "README",
+      "path": "README.md",
+      "family": "diataxis",
+      "type": "reference",
+      "audience": [
+        "app-user",
+        "maintainer"
+      ],
+      "purpose": "Repository landing page: what Super Duper is, how to get it, where the docs are.",
+      "sourceRefs": [
+        "existing-docs",
+        "changelog",
+        "worker-locations",
+        "core-storage"
+      ],
+      "status": "drafted",
+      "priority": 1,
+      "verification": "Audit: stale tree entry and plans sentence, wrong missing-worker claim, incomplete prerequisites and override list, stale architecture.svg, 15 of 40 tables listed. Restructure keeps the landing role and points to docs/ for depth."
+    },
+    {
+      "id": "agents",
+      "title": "AGENTS.md",
+      "path": "AGENTS.md",
+      "family": "diataxis",
+      "type": "reference",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Shared guidance for coding agents.",
+      "sourceRefs": [
+        "existing-docs",
+        "history-cleanup",
+        "infra-tests",
+        "smoke-tests"
+      ],
+      "status": "drafted",
+      "priority": 1,
+      "verification": "Audit: tools/, docs/evidence, plans/, ROADMAP, ledger, evidence env vars, six vs nine Inconclusive tests, MSTest statement."
+    },
+    {
+      "id": "crates-claude",
+      "title": "crates/CLAUDE.md",
+      "path": "crates/CLAUDE.md",
+      "family": "diataxis",
+      "type": "reference",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Rust workspace guidance for agents.",
+      "sourceRefs": [
+        "core-engine",
+        "core-telemetry",
+        "worker-dispatch"
+      ],
+      "status": "drafted",
+      "priority": 2,
+      "verification": "Audit: deleted hasher modules and examples, sop10 tests, missing modules and command families."
+    },
+    {
+      "id": "changelog-doc",
+      "title": "Changelog",
+      "path": "CHANGELOG.md",
+      "family": "diataxis",
+      "type": "reference",
+      "audience": [
+        "app-user"
+      ],
+      "purpose": "Release notes.",
+      "sourceRefs": [
+        "changelog"
+      ],
+      "status": "existing",
+      "priority": 3
+    }
+  ],
+  "grouping": [
+    {
+      "title": "Start here",
+      "documents": [
+        "docs-index",
+        "readme",
+        "ug-tutorial"
+      ]
+    },
+    {
+      "title": "Using the Windows app",
+      "documents": [
+        "ug-scan",
+        "ug-review",
+        "ug-preferences",
+        "ug-check",
+        "ug-history",
+        "ug-troubleshoot"
+      ]
+    },
+    {
+      "title": "Windows app reference",
+      "documents": [
+        "ug-reference",
+        "changelog-doc"
+      ]
+    },
+    {
+      "title": "Understanding Super Duper",
+      "documents": [
+        "ug-concepts"
+      ]
+    },
+    {
+      "title": "Architecture",
+      "documents": [
+        "arch-overview",
+        "arch-components",
+        "arch-runtime",
+        "arch-concepts",
+        "arch-risks"
+      ]
+    },
+    {
+      "title": "Decisions",
+      "documents": [
+        "adr-0001",
+        "adr-0002",
+        "adr-0003",
+        "adr-0004",
+        "adr-0005"
+      ]
+    },
+    {
+      "title": "Develop, test and release",
+      "documents": [
+        "windows-build",
+        "windows-ui-dev",
+        "windows-testing",
+        "windows-smoke",
+        "windows-recovery",
+        "release-checklist",
+        "agents",
+        "crates-claude"
+      ]
+    },
+    {
+      "title": "Contracts and storage",
+      "documents": [
+        "worker-protocol",
+        "scan-progress-contract",
+        "scan-status-database",
+        "storage-schema-current",
+        "storage-schema-history"
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "note": "Nothing in this plan was observed in a running app. All UI behavior comes from XAML, view models and tests. A walkthrough of the user guide on the dedicated Windows VM is needed before the guide is called verified.",
+      "affects": [
+        "ug-tutorial",
+        "ug-scan",
+        "ug-review",
+        "ug-preferences",
+        "ug-check",
+        "ug-history",
+        "ug-troubleshoot",
+        "ug-reference"
+      ]
+    },
+    {
+      "note": "Access keys: tooltips on the next/previous duplicate-set buttons promise Alt+N/Alt+P but no binding exists (DuplicateFilesView.xaml:741-755, .xaml.cs:31). Progress announces Alt+W for Review warnings but its access key is R, already used by the Results and Review tabs (ScanProgressView.xaml:70-71). Alt+P on Progress is shared by the Progress tab and Performance details; Alt+F by the Files tab and Filters; Alt+R and Alt+S by top-level tabs; History shares R, N and P with its warnings controls. None of these are documented as working shortcuts; all keys are unverified at runtime.",
+      "affects": [
+        "ug-reference",
+        "ug-review",
+        "arch-risks"
+      ]
+    },
+    {
+      "note": "The watcher notice tells users to 'choose Validate page' (DuplicateFilesViewModel.cs:1154) but the button is 'Check these copies'. Docs use the button label.",
+      "affects": [
+        "ug-check",
+        "windows-smoke",
+        "arch-risks"
+      ]
+    },
+    {
+      "note": "The header 'Scan again' button starts a scan immediately; ScanAgainCommand (open Setup) exists but is not bound. Whether that is intended is unknown; docs describe the current behavior.",
+      "affects": [
+        "ug-scan",
+        "arch-risks"
+      ]
+    },
+    {
+      "note": "The Repeat scans choice is not saved with the saved scan and resets to 'Reuse verified hashes' when a saved scan loads. Intent unknown; docs describe current behavior.",
+      "affects": [
+        "ug-scan",
+        "ug-concepts",
+        "arch-risks"
+      ]
+    },
+    {
+      "note": "Unverified whether deleting a saved scan removes its telemetry from scan_status.db; docs do not claim either way.",
+      "affects": [
+        "ug-scan"
+      ]
+    },
+    {
+      "note": "The original rationale for a worker process over in-process FFI was never written down. ADR-0001 states the decision and verified consequences and cites the earlier WinUI 3/FFI client only as history.",
+      "affects": [
+        "adr-0001"
+      ]
+    },
+    {
+      "note": "Per-monitor DPI behavior without a dpiAwareness manifest entry, Fluent theme behavior under high contrast, and screen-reader behavior are unverified (issue #23).",
+      "affects": [
+        "ug-reference",
+        "arch-concepts",
+        "arch-risks"
+      ]
+    },
+    {
+      "note": "Diagrams were not rendered: Node.js is not installed, so diagram-generator's renderer cannot run. The diagrams[] requests remain for a later pass; affected pages use text tables.",
+      "affects": [
+        "arch-overview",
+        "arch-components",
+        "arch-runtime"
+      ]
+    },
+    {
+      "note": "Field-by-field agreement between every C# DTO and each protocol JSON example was only spot-checked.",
+      "affects": [
+        "worker-protocol"
+      ]
+    },
+    {
+      "note": "Whether the worker itself writes a diagnostic log at SUPER_DUPER_DIAGNOSTIC_LOG_PATH or only reports it as metadata was not traced; docs describe the app-side worker.log only.",
+      "affects": [
+        "windows-recovery",
+        "ug-troubleshoot"
+      ]
+    },
+    {
+      "note": "Tooling decisions left to the owner: whether the protocol smoke should run the published worker, whether the build should fail when the worker is missing, and aligning Smoke.Tests to MSTest 4 (#35). Docs describe current behavior.",
+      "affects": [
+        "windows-build",
+        "windows-smoke",
+        "release-checklist",
+        "windows-testing",
+        "agents"
+      ]
+    },
+    {
+      "note": "Worker log location: the app always writes worker stderr to %LOCALAPPDATA%\\SuperDuper\\logs, even with SUPER_DUPER_DB_PATH set (WorkerClient.cs:87, 1569), so smoke and UI-dev runs write into the real log folder despite the disposable-state rule. LOG_FILE_PATH set by Start-WindowsUiDev.ps1 and .uidev is read only by the CLI.",
+      "affects": [
+        "windows-recovery",
+        "windows-ui-dev",
+        "arch-risks",
+        "ug-troubleshoot"
+      ]
+    },
+    {
+      "note": "Code comment and output drift outside the docs: ci.yml:69-72 says release-package smokes the worker against the published app (it runs target/release); Invoke-WindowsSmoke.ps1:1717 still prints 1 GB-or-larger for the 1 GiB filter.",
+      "affects": [
+        "windows-smoke",
+        "release-checklist"
+      ]
+    },
+    {
+      "note": "SessionDefinitionValidator calls Directory.Exists and DriveInfo on the UI thread for local and removable roots (SessionDefinitionValidator.cs:67,126,190), an exception to the no-filesystem-on-dispatcher rule. WorkerClient.DispatchEvent runs subscribers inside its error handling, so a handler exception kills the worker. DuplicateFoldersViewModel matches worker error codes by message text.",
+      "affects": [
+        "arch-concepts",
+        "arch-risks"
+      ]
+    },
+    {
+      "note": "The release failure-mode pass (corrupt/newer/read-only database, worker kill, locked cache, missing and offline roots, long paths) has no written procedure; the checklist lists the cases only.",
+      "affects": [
+        "release-checklist"
+      ]
+    },
+    {
+      "note": "User-facing text still uses protocol terms in places: validation messages say session, and Cancel preflight and exit? and a Run preflight again announcement say preflight, while the rest of the UI says saved scan and Check marked copies.",
+      "affects": [
+        "ug-reference",
+        "arch-concepts"
+      ]
+    }
+  ]
+}

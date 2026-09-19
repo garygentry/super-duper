@@ -1,143 +1,146 @@
-# Windows Diagnostics, Limitations, And Recovery
+# Windows diagnostics, limitations and recovery
+
+How to diagnose worker, database, hash cache and interrupted-operation problems in the Windows app
+without destroying the evidence you need.
 
 ## Diagnostics
 
-Worker stdout is protocol-only. Human diagnostics, recoverable filesystem warnings, panics, and
-performance records go to stderr. The WPF host drains stderr, retains a bounded tail for connection
-failures, and writes a rotating local log:
+Worker stdout carries only protocol frames. Human diagnostics, recoverable filesystem warnings,
+panics and performance records go to stderr. The app drains stderr, keeps the last 16,384
+characters to show in connection-failure messages, and writes everything to a rotating log:
 
 ```text
 %LOCALAPPDATA%\SuperDuper\logs\worker.log
 %LOCALAPPDATA%\SuperDuper\logs\worker.log.previous
 ```
 
-The active log rotates at approximately 5 MiB during a worker lifetime and retains one previous
-segment. Performance records contain run/group identifiers, counts, and durations but no searched
-path/filter text. Filesystem diagnostics are local and can contain paths needed for
-troubleshooting. Set `SUPER_DUPER_LOG` to a Rust tracing filter such as
-`super_duper_core=debug` for more detail. Never redirect diagnostics to worker stdout.
+- The log is always in `%LOCALAPPDATA%\SuperDuper\logs`, even when `SUPER_DUPER_DB_PATH` moves the
+  database and other state elsewhere.
+- The active log rotates at 5 MiB and keeps one previous file.
+- Performance records (`performance kind=scan_phase …` and `performance kind=result_query …`)
+  contain run and group identifiers, counts and durations, but no searched path or filter text.
+  Filesystem diagnostics are local and can contain paths.
+- Set `SUPER_DUPER_LOG` to a Rust tracing filter, such as `super_duper_core=debug`, for more
+  detail. Never redirect diagnostics to worker stdout.
 
-## Known MVP Limitations
+Recoverable filesystem warnings are also stored durably with each run, as bounded per-kind
+aggregates with an exact count and up to three examples. Review them in the app from
+**History** > **Scans** > **Review warnings**; they survive worker restarts.
+
+## Known limitations
 
 - Windows 11 x64 only; releases are an unpackaged, self-contained zip.
-- Fixed local drives are primary. Removable, mapped, and UNC roots are explicitly selected and
-  best-effort. Disconnects, credentials, provider latency, and mapped-drive visibility under a
-  different account can produce warnings.
-- There is no automatic drive discovery, reconnect, pause/resume, or scheduled/background scan.
+- Fixed local drives are the primary target. Removable, mapped and UNC roots are explicitly
+  selected and best-effort: disconnects, credentials, provider latency and mapped-drive visibility
+  under a different account can produce warnings.
+- There is no automatic drive discovery, pause and resume, or scheduled or background scan.
 - The app and worker are long-path aware, but a remote provider can impose its own limits.
-- Reparse points, junctions, and symbolic links are skipped. Hard-linked directory entries are
-  snapshotted but one physical file is not counted as multiple recoverable copies.
-- Files that disappear, become inaccessible, or change metadata after discovery are warned and
-  excluded from affected duplicate results. A completed run can therefore have warnings.
-- V1 exposes a warning count and local diagnostics; `warning.page` remains reserved.
-- The WPF post-MVP review surface exposes non-deleting review decisions, preflight observations,
-  and reconstruction of schema-v10 Recycle Bin operation intent/evidence. Schema v11 adds a bounded
-  append-only recovery-review checklist for manual operator observations and corrections. The production
-  executor is disabled: there is no Recycle Bin submission/mutation action or arbitrary filesystem
-  mutation exposed by the app. Opening the Recycle Bin is navigation for independent inspection
-  only. A separately gated real executor exists only for explicit disposable acceptance tests.
-  Deleting a session removes worker-owned history only when no operation lock requires its evidence;
-  it never deletes scanned files.
-- The app keeps its database, status database, hash cache and preferences in
-  `%LOCALAPPDATA%\SuperDuper` unless `SUPER_DUPER_DB_PATH` is set; then they follow that database's
-  folder unless `SUPER_DUPER_STATUS_DB_PATH` or `HASH_CACHE_PATH` overrides them individually.
+- Reparse points, junctions and symbolic links are skipped. Hard-linked directory entries are
+  recorded, but one physical file is not counted as several recoverable copies.
+- Files that disappear, become inaccessible or change metadata after discovery produce warnings and
+  are left out of the affected duplicate results, so a completed run can have warnings.
+- The app is review-only. It records decisions, runs non-deleting preflight checks, and can show
+  recorded Recycle Bin operation evidence, but production Recycle Bin execution is disabled: no
+  app action moves, recycles or deletes a file. **Open Recycle Bin** only opens the Windows Recycle
+  Bin for your own inspection. The real Shell executor runs only in opt-in tests with disposable
+  files (see [`windows-testing.md`](windows-testing.md)).
+- Deleting a saved scan removes only the worker's own history for it, never scanned files. It is
+  refused while any of its runs has a Recycle Bin operation that is unfinished or needs recovery.
+- The database, status database, hash cache and preferences live in `%LOCALAPPDATA%\SuperDuper`
+  unless `SUPER_DUPER_DB_PATH` is set; then they follow that database's folder, unless
+  `SUPER_DUPER_STATUS_DB_PATH` or `HASH_CACHE_PATH` overrides them individually.
 
-## Worker Startup Failure
+## Worker startup failure
 
-1. Read the recovery screen; it includes the attempted executable and diagnostic log paths.
-2. Build Rust before .NET so the worker is copied beside the app. Release builds launch only that
-   sibling worker; Debug builds also honor `SUPER_DUPER_WORKER_PATH`.
-3. Verify worker and WPF app came from the same source/release output.
-4. Inspect `worker.log` for database migration/open or protocol negotiation errors.
-5. Restart after correcting the executable, permissions, or database issue.
+1. Read the recovery screen. **Technical details** shows the worker executable the app tried and
+   the diagnostic log path.
+2. Check which worker the app starts. A Release app starts only `super-duper-worker.exe` beside
+   it. A Debug app tries `SUPER_DUPER_WORKER_PATH`, then the worker beside the app, then
+   `target/debug/super-duper-worker.exe`; a stale worker left beside a Debug app wins over a newer
+   one in `target/debug`. Build Rust before .NET so the build copies the current worker.
+3. Confirm the worker and the app came from the same source or release package.
+4. Look in `worker.log` for database open or migration errors and protocol negotiation errors.
+   The app waits 10 seconds for the worker's handshake before reporting a failure.
+5. Correct the executable, permissions or database problem, then choose **Reconnect**.
 
-## Unexpected Exit Or Interrupted Run
+## Unexpected exit or interrupted run
 
-An unexpected worker exit fails pending UI requests but does not alter completed history. The app
-shows a dedicated recovery screen instead of leaving stale scan progress. Choose **Restart worker**
-to start a fresh owned process, negotiate protocol V1, reload sessions/history, and reconcile
-durable `running` or `cancelling` rows to `interrupted`. Partial results are not presented as
-completed. Inspect the interrupted run and log, then start a new immutable run. If restart fails,
-the recovery screen retains the executable and diagnostic-log paths. Do not edit SQLite state
-manually.
+An unexpected worker exit fails the requests in flight but does not change completed history.
+The app shows the recovery screen instead of stale progress. **Reconnect** starts a new worker,
+negotiates protocol v1 and reloads saved scans and history. When a worker starts and opens the
+database, it reconciles work that has no live owner:
 
-An abandoned preflight is likewise reconciled to `interrupted`. Its already committed observations
-remain queryable, but they are never resumed or treated as execution authority. If the review
-revision is still current, start a new preflight operation to obtain a fresh validation generation.
+| Record | Left in | Becomes |
+|---|---|---|
+| Scan run | `running`, `cancelling` | `interrupted` |
+| Preflight check | `running`, `cancelling` | `interrupted` |
+| Recycle Bin operation | `prepared`, `awaiting_confirmation` | `expired` |
+| Recycle Bin operation | `submitted`, `executing`, `cancelling` | `recovery_required` |
+| Operation batch | `shell_started` | `ambiguous` |
+| Item in that batch | `pending` | `unknown`, with a recovery record |
 
-An abandoned schema-v10 operation that never reached durable submission becomes `expired` on
-startup. A test-injected operation in `submitted`, `executing`, or `cancelling` becomes
-`recovery_required`. Every pending item in a durable `shell_started` batch becomes `unknown` with a
-recovery record because mutation may have occurred before a result was persisted. Do not retry,
-edit, or clear that operation: its run/review remain locked to prevent repeating a potentially
-completed mutation. Schema v11 can separately append one of the five approved operator
-observations per unknown item and preserve corrections as supersession history; even complete
-review remains explicitly unresolved and changes none of those original rows. In WPF, page every
-unknown item, copy its stored path/evidence, inspect the Windows Recycle Bin independently, record
-one of the five observations, and use an explicit correction to supersede a current observation.
-The prior record and correction reason remain in history. Failed reads and a failed observation
-request expose only exact safe retry; the latter reuses the same idempotent request. **Start a fresh
-scan** navigates to new scan authority and never replays an old operation. The app does not inspect
-source/provider/content/Recycle Bin state, infer an outcome, restore, delete, clear evidence, or
-change any original status. The production app cannot initiate Shell work, but the explicitly
-invoked disposable executor tests can exercise this boundary.
+- An interrupted run's partial results are never shown as completed. Inspect the run and the log,
+  then start a new scan.
+- An interrupted preflight check keeps the observations it had committed, but they are never
+  resumed or treated as current. Start a new preflight check while the review is still current.
+- An `unknown` item means Shell work may have happened before a result was saved. Do not retry,
+  edit or clear the operation. Its run and review stay locked so a possibly completed action cannot
+  be repeated.
 
-The accepted `WPM11-ambiguous-start` development-host campaign is retained at
-`artifacts/windows-ambiguous-start/20260823-144048-588`. Its disposable host stopped only after the
-durable `shell_started` marker and before `IFileOperation.PerformOperations`; Explorer, providers,
-the database, and its worker were not killed. Restart reconstructed two immutable `unknown` items,
-an `ambiguous` batch, a `recovery_required` operation, and both recovery rows. The operator then used
-the real WPF Option A checklist to append three observations for two items, including one explicit
-supersession with its prior record and correction reason retained. The exact verifier proved all
-source-evidence rows unchanged and no retry, replay, resubmission, inference, restore, deletion, or
-copy-forward. Run it only against the retained bundle after closing WPF normally:
+For a `recovery_required` operation, the **Review** area shows **Recovery review**:
 
-```powershell
-./scripts/Verify-WindowsAmbiguousStartCampaign.ps1 `
-  -EvidenceDirectory artifacts/windows-ambiguous-start/20260823-144048-588
-```
+1. Page through every unknown item. Use **Copy stored path** and **Copy evidence**, and inspect the
+   Windows Recycle Bin and the source location yourself (**Open Recycle Bin**).
+2. Record one observation per item: **Observed in Recycle Bin**, **Observed at source**,
+   **Observed in both**, **Observed in neither** or **Deferred unresolved**.
+3. To change a recorded observation, use **Correct selected observation** and give a reason. The
+   earlier record and the reason stay in the history.
 
-The earlier safe prepare failure is retained separately at
-`artifacts/windows-ambiguous-start/20260823-143955-657`; it never reached durable Shell start.
+Observations are appended and never change the original `unknown`, `ambiguous` or
+`recovery_required` records; even a complete review stays unresolved. The app does not inspect
+the source, provider, content or Recycle Bin itself, and never infers an outcome, restores or
+deletes. After a failed read or a failed observation request, only **Retry review read** or
+**Retry same observation request** is offered; the latter resends the same request, so it cannot
+record the observation twice. **Start a fresh scan** leaves the operation as it is and never
+replays it.
 
-Preserve the timestamped evidence bundle produced by
-`Invoke-WindowsRecycleBinAcceptance.ps1` with the database and logs. The acceptance matrix in
-[`windows-recycle-bin-acceptance.md`](windows-recycle-bin-acceptance.md) requires numeric callback,
-HRESULT, abort, source/survivor, and Recycle Bin observations; absence of a source path alone is
-never proof that this app recycled it.
+Never edit SQLite state by hand.
 
-## Database Failure Or Suspected Corruption
+## Database failure
 
-When the worker cannot open its database, the app names the problem instead of reporting a worker
-crash: already open in another window, data from a newer version, an early version that cannot be
+When the worker cannot open its database, the app names the reason instead of reporting a crash:
+already open in another window, data from a newer version, an early version that cannot be
 upgraded, damaged, read-only, location unavailable, or disk full. Each screen shows the database
 path, and the worker does not modify the file in any of these cases.
 
-Super Duper runs one window per data folder. Starting it again brings the existing window forward.
+Super Duper runs one window per data folder; starting it again brings the existing window forward.
 The worker also holds `super_duper.db.lock` beside the database while it runs, so a second worker
-(for example a script using the same `SUPER_DUPER_DB_PATH`) is refused instead of marking the
-first worker's scan interrupted. The lock file can stay behind after exit; it is harmless.
+on the same database (for example a script with the same `SUPER_DUPER_DB_PATH`) is refused instead
+of marking the first worker's scan interrupted. The lock file can remain after exit; it is
+harmless.
+
+To preserve evidence:
 
 1. Close Super Duper and confirm its worker exited.
 2. Find the database: `SUPER_DUPER_DB_PATH` when set, otherwise
    `%LOCALAPPDATA%\SuperDuper\super_duper.db`.
-3. Copy the database, `-wal`, and `-shm` together to a safe location. Never copy only the main file
-   while the worker is running.
-4. Preserve the log and exact app/worker versions.
-5. To test a clean start without destroying evidence, move the complete database set aside and
-   restart. Restore it only while the app is closed.
+3. Copy the database, `-wal` and `-shm` files together to a safe location. Never copy only the main
+   file, and never copy while the worker is running.
+4. Keep the log and the exact app and worker versions.
+5. To test a clean start, move the complete database set aside and restart. Restore it only while
+   the app is closed.
 
-Schemas v10 and v11 have no in-place downgrade. Before a v9-to-v10 or v10-to-v11 first open, close
-the app/worker and copy the database, `-wal`, and `-shm` as one set. To return to an older build,
-restore the matching complete pre-migration backup while all processes are closed. Never lower
-`user_version` or manually drop operation/recovery-review tables.
+Every schema upgrade is one-way; there is no in-place downgrade. Before a newer build opens a
+database for the first time, close the app and copy the database, `-wal` and `-shm` as one set. To
+return to an older build, restore that complete backup while all processes are closed. Never lower
+`user_version` or drop tables by hand.
 
-Unknown old schemas, newer schemas, migration failures, corruption, and inability to persist a
-consistent run are fatal by design; the worker does not truncate or silently recreate them.
+Unknown old schemas, newer schemas, migration failures, corruption and an inability to save a
+consistent run are fatal by design; the worker never truncates or silently recreates the database.
 
-## Hash Cache Failure
+## Hash cache failure
 
-The RocksDB cache is an optimization. Lookup/store failures become warnings. Close the app before
-moving a damaged cache aside. Its path is `HASH_CACHE_PATH` when set, otherwise
+The RocksDB hash cache is an optimization. Lookup and store failures become warnings. Close the app
+before moving a damaged cache aside. Its path is `HASH_CACHE_PATH` when set, otherwise
 `content_hash_cache.db` in the database's folder (`%LOCALAPPDATA%\SuperDuper` by default). The next
 scan recreates it and may be slower.
