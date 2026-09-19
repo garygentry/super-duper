@@ -81,6 +81,9 @@ Done:
   its unverified accessibility checks.
 - `resolver = "3"` (edition 2024 default). The resolved dependency graph and features were
   identical to `"2"` (`cargo tree`, 233 package/feature lines) and `Cargo.lock` was unchanged.
+- Exclusions written with 8.3 short names (`C:\Users\RUNNER~1\...`) now prune the canonical walk:
+  such an exclusion is also matched by its `GetLongPathNameW` spelling. Only paths with a `~`
+  component are looked up, so ordinary cloud exclusions are never touched on disk.
 
 Failure-mode pass, 2026-09-18 (Release app, 60,000-file disposable fixture). Degraded correctly:
 worker killed mid-scan, corrupt/truncated/newer/read-only main database (file never modified),
@@ -97,10 +100,9 @@ Carried over from the handoff that stabilized `codex/ui-redesign` for the merge.
 - **Optionally surface `exact_folder_hash_cache_warning`** (verified, but the hash cache
   degraded). It currently renders as a plain aggregate row; only `hash_recoverable_warning` gets
   navigation affordances.
-- **Match exclusions spelled differently from their root.** Exclusion paths are compared as given
-  against canonical walk paths, so an exclusion written with an 8.3 short name (or otherwise
-  non-canonically) under a canonical root does not prune. The app supplies long paths today; this
-  matters if exclusions become hand-typed.
+- **Exclusions spelled through a junction or `subst` drive** still do not match the canonical walk.
+  8.3 short names are handled (see Done); other aliases would need the excluded path to be opened,
+  which the cloud-safety boundary avoids. The app supplies canonical long paths today.
 - **Run `scripts/Verify-WindowsHashReadPath.ps1` at the next SOP7 check.** Its SOP7 assertion was
   retargeted from `hasher/cache.rs` to `hasher/xxhash.rs` but has not been run.
 

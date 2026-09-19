@@ -66,6 +66,16 @@ pub fn classify_path_without_open(path: &Path) -> io::Result<PathSafety> {
 }
 
 #[cfg(target_os = "windows")]
+pub(crate) fn long_path_name(path: &Path) -> Option<PathBuf> {
+    windows::long_path_name(path)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub(crate) fn long_path_name(_path: &Path) -> Option<PathBuf> {
+    None
+}
+
+#[cfg(target_os = "windows")]
 pub fn get_drive_letter(path: &Path) -> Option<OsString> {
     windows::get_drive_letter(path)
 }

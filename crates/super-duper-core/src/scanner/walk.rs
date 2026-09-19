@@ -67,6 +67,7 @@ pub fn discover_files_with_exclusions(
     cancel_token: &AtomicBool,
     progress: &dyn ProgressReporter,
 ) -> io::Result<TraversalResult> {
+    let location_exclusions = &with_long_spellings(location_exclusions);
     let map = DashMap::new();
     let seen_file_identities = DashSet::new();
     let files = Mutex::new(Vec::new());
@@ -402,6 +403,22 @@ fn visit_dirs(
     })
 }
 
+/// The walk visits canonical long paths, so an exclusion written with 8.3 short names
+/// (`C:\Users\RUNNER~1\...`) would never prune. Such an exclusion is also matched by its long
+/// spelling; see [`platform::long_path_name`] for which paths are looked up.
+fn with_long_spellings(exclusions: &[LocationExclusion]) -> Vec<LocationExclusion> {
+    let mut all = exclusions.to_vec();
+    for exclusion in exclusions {
+        if let Some(long) = platform::long_path_name(&exclusion.path) {
+            all.push(LocationExclusion {
+                path: long,
+                ..exclusion.clone()
+            });
+        }
+    }
+    all
+}
+
 fn matching_exclusion<'a>(
     path: &Path,
     exclusions: &'a [LocationExclusion],
@@ -517,6 +534,86 @@ mod tests {
             Path::new(&result.excluded_subtrees[0].path),
             &cloud
         ));
+    }
+
+    #[cfg(windows)]
+    fn short_path_name(path: &Path) -> Option<PathBuf> {
+        use std::os::windows::ffi::{OsStrExt, OsStringExt};
+        let wide: Vec<u16> = path.as_os_str().encode_wide().chain([0]).collect();
+        let mut buffer = vec![0u16; 1024];
+        // SAFETY: `wide` is NUL-terminated and `buffer` is writable for its full length.
+        let length = unsafe {
+            winapi::um::fileapi::GetShortPathNameW(
+                wide.as_ptr(),
+                buffer.as_mut_ptr(),
+                buffer.len() as u32,
+            )
+        } as usize;
+        (length > 0 && length < buffer.len())
+            .then(|| PathBuf::from(std::ffi::OsString::from_wide(&buffer[..length])))
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn exclusion_spelled_with_short_names_prunes_the_canonical_walk() {
+        let temp = tempdir().unwrap();
+        let base = fs::canonicalize(temp.path()).unwrap();
+        let local = base.join("local");
+        let cloud = base.join("Cloud synced folder with a long name");
+        fs::create_dir_all(&local).unwrap();
+        fs::create_dir_all(&cloud).unwrap();
+        fs::write(local.join("kept.bin"), b"local").unwrap();
+        fs::write(cloud.join("placeholder.bin"), b"cloud").unwrap();
+        let Some(short) = short_path_name(&cloud).filter(|short| {
+            short
+                .components()
+                .any(|component| component.as_os_str().to_string_lossy().contains('~'))
+        }) else {
+            eprintln!("8.3 short names are disabled on this volume; nothing to exercise");
+            return;
+        };
+        let root = base.to_string_lossy().into_owned();
+
+        let result = discover_files_with_exclusions(
+            &[&root],
+            &[],
+            &[LocationExclusion {
+                path: short.clone(),
+                reason_code: "manual_location_excluded".to_owned(),
+                provider_id: None,
+                provider_name: None,
+            }],
+            &AtomicBool::new(false),
+            &SilentReporter,
+        )
+        .unwrap();
+
+        assert_eq!(
+            result.files_discovered,
+            1,
+            "{} was not pruned",
+            short.display()
+        );
+        assert!(result.files[0].canonical_path.contains("kept.bin"));
+        assert_eq!(result.excluded_subtrees.len(), 1);
+    }
+
+    #[test]
+    fn long_spellings_leave_ordinary_exclusions_alone() {
+        let exclusion = LocationExclusion {
+            path: PathBuf::from(if cfg!(windows) {
+                r"C:\Users\someone\OneDrive"
+            } else {
+                "/home/someone/cloud"
+            }),
+            reason_code: "registered_cloud_root_excluded".to_owned(),
+            provider_id: None,
+            provider_name: None,
+        };
+        assert_eq!(
+            with_long_spellings(std::slice::from_ref(&exclusion)),
+            vec![exclusion]
+        );
     }
 
     #[test]
