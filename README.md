@@ -291,8 +291,9 @@ The `super-duper-ffi` crate exposes the core through a C ABI for future native c
 
 ## Project Status
 
-The first release, v0.1.0, is in preparation; [`ROADMAP.md`](ROADMAP.md) tracks the remaining
-work. The Rust engine and CLI are functional, and the Windows app has completed its MVP, redesign
+The first release, [v0.1.0](https://github.com/garygentry/super-duper/releases/tag/v0.1.0), was
+published on 2026-09-19; open work is tracked in
+[GitHub issues](https://github.com/garygentry/super-duper/issues). The Rust engine and CLI are functional, and the Windows app has completed its MVP, redesign
 and polish streams. The app is review-only: it has no operation that deletes or moves scanned
 files, and Recycle Bin execution is disabled in production builds.
 

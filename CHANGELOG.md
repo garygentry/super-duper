@@ -17,7 +17,7 @@ All notable changes to Super Duper are recorded here. Versions follow
 - Starting a preflight check, and its final survivor check, wait briefly for another write to
   finish instead of failing at once with "database is locked".
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-09-19
 
 First release of the Windows app. It is **review-only**: Super Duper finds duplicates and records
 what you want to keep or remove, but it never deletes, moves, or modifies scanned files.

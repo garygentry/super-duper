@@ -1453,7 +1453,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "super-duper-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "colored",
@@ -1467,7 +1467,7 @@ dependencies = [
 
 [[package]]
 name = "super-duper-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ahash",
  "bincode",
@@ -1491,7 +1491,7 @@ dependencies = [
 
 [[package]]
 name = "super-duper-ffi"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cbindgen",
  "lazy_static",
@@ -1502,7 +1502,7 @@ dependencies = [
 
 [[package]]
 name = "super-duper-worker"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "glob",
  "rusqlite",
