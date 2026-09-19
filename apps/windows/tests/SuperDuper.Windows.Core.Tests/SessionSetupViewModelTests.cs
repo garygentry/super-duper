@@ -274,6 +274,69 @@ public sealed class SessionSetupViewModelTests
         }
     }
 
+    [TestMethod]
+    public async Task CloudDetectionChange_IsNotAnEditButIsSavedWhenScanStarts()
+    {
+        var root = Directory.CreateTempSubdirectory("super-duper-cloud-change-");
+        try
+        {
+            var client = new TestWorkerClient();
+            var saved = await client.CreateSessionAsync(
+                "Saved", [root.FullName], [], CloudPolicyNames.ExcludeRegisteredRoots, [], [],
+                CloudDetectionStatusNames.Complete);
+            var cloud = new WorkerRegisteredCloudLocation(
+                Path.Combine(root.FullName, "OneDrive"), "OneDrive!account", "OneDrive");
+            var detector = new TestCloudLocationService(CloudDetectionStatusNames.Complete, [cloud]);
+            var viewModel = new SessionSetupViewModel(
+                client, new TestFolderPicker(), new TestConfirmation(), _ => [], detector);
+            viewModel.Load(saved);
+
+            await viewModel.RefreshCloudLocationsCommand.ExecuteAsync(null);
+
+            Assert.IsFalse(viewModel.IsDirty, "Detection alone must not prompt to save on leave.");
+            Assert.IsTrue(viewModel.HasUnsavedCloudDetection);
+            Assert.IsTrue(viewModel.CanSave);
+            StringAssert.Contains(viewModel.CloudDetectionSummary, "changed since this scan was saved");
+
+            var started = await viewModel.EnsureSavedAsync(requireReachableRoot: true);
+
+            Assert.IsNotNull(started);
+            CollectionAssert.AreEqual(new[] { cloud }, client.Sessions.Single().RegisteredCloudLocations.ToArray());
+            Assert.IsFalse(viewModel.HasUnsavedCloudDetection);
+            Assert.IsFalse(viewModel.IsDirty);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task UnchangedCloudDetection_LeavesSetupClean()
+    {
+        var root = Directory.CreateTempSubdirectory("super-duper-cloud-same-");
+        try
+        {
+            var client = new TestWorkerClient();
+            var saved = await client.CreateSessionAsync(
+                "Saved", [root.FullName], [], CloudPolicyNames.ExcludeRegisteredRoots, [], [],
+                CloudDetectionStatusNames.Complete);
+            var viewModel = new SessionSetupViewModel(
+                client, new TestFolderPicker(), new TestConfirmation(), _ => [], new TestCloudLocationService());
+            viewModel.Load(saved);
+
+            await viewModel.RefreshCloudLocationsCommand.ExecuteAsync(null);
+
+            Assert.IsFalse(viewModel.IsDirty);
+            Assert.IsFalse(viewModel.HasUnsavedCloudDetection);
+            Assert.IsFalse(viewModel.CanSave);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
     private static SessionSetupViewModel CreateViewModel(TestWorkerClient client) =>
         new(client, new TestFolderPicker(), new TestConfirmation(), _ => [], new TestCloudLocationService());
 }

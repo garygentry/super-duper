@@ -72,6 +72,10 @@ Done:
 - Paths are shown and copied in plain form (F4): `DisplayPaths.Plain` and `PlainPathConverter`
   cover every results, Setup, history, preflight and preference surface, and Copy path copies the
   plain spelling. Stored paths stay verbatim, and exact-path search accepts either spelling.
+- Setup-dirty prompt (operator decision, 2026-09-18): a difference between this PC's registered
+  cloud locations and the saved definition is no longer an edit, so switching saved scans does not
+  ask to save. Setup notes the change, Save stays available, and starting a scan re-detects and
+  saves the current list as before (`HasUnsavedCloudDetection`).
 
 Failure-mode pass, 2026-09-18 (Release app, 60,000-file disposable fixture). Degraded correctly:
 worker killed mid-scan, corrupt/truncated/newer/read-only main database (file never modified),
@@ -85,9 +89,6 @@ account on the VM; the unavailable-detection fail-closed path is covered by the 
 
 Carried over from the handoff that stabilized `codex/ui-redesign` for the merge. None blocked it.
 
-- **Decide the Setup-dirty prompt.** Switching saved scans always prompts "Save setup changes
-  before leaving?" on a machine whose registered cloud locations differ from the saved definition,
-  because detection marks Setup dirty without an operator edit. Confirm or change that experience.
 - **Optionally surface `exact_folder_hash_cache_warning`** (verified, but the hash cache
   degraded). It currently renders as a plain aggregate row; only `hash_recoverable_warning` gets
   navigation affordances.
