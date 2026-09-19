@@ -140,8 +140,10 @@ See `docs/windows-build.md`, `docs/windows-smoke.md`, and `docs/windows-recovery
 - Dependency pins with reasons: `bincode` stays on 2.0.1 (3.0.0 on crates.io is an empty
   placeholder) and the stored encoding uses `config::legacy()` to stay byte-identical with the 1.x
   on-disk format — `stored_encoding_bytes_are_pinned` in `hasher/repeat_cache.rs` fails if that
-  changes. `resolver` stays `"2"` although edition 2024 defaults to `"3"`. RocksDB 0.25 (bundled
-  11.8) is a one-way upgrade: a store it writes may not open under the previously bundled 8.10.
+  changes. `resolver` is `"3"` (the edition 2024 default): `cargo update` prefers versions whose
+  MSRV fits `rust-version`; the resolved graph and features matched `"2"` when it moved. RocksDB
+  0.25 (bundled 11.8) is a one-way upgrade: a store it writes may not open under the previously
+  bundled 8.10.
 
 ## Environment Variables
 
