@@ -118,6 +118,10 @@ real ways a transient writer turns into "database is locked", both fixed after v
 progress save waited for the write lock; and preflight start and its survivor check read before
 writing in a deferred transaction, which SQLite fails at once rather than waiting.
 
+CI now also runs `Verify-WindowsRelease.ps1 -SkipWpfSmoke` in a parallel `release-package` job:
+Release tests, self-contained publish, notices, the worker smoke against the publish, and the zip
+(kept 14 days from `master` builds). Only the WPF smoke remains VM-only.
+
 ## Post-Merge Follow-Ups
 
 Carried over from the handoff that stabilized `codex/ui-redesign` for the merge. None blocked it.

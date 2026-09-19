@@ -10,14 +10,16 @@ self-contained, unsigned Windows 11 x64 zip. There is no installer and no code s
 | `cargo fmt --all --check`, `cargo clippy --workspace --all-targets` | CI, every PR and push to `master` | Formatting and lints |
 | `cargo test --workspace`, `cargo build --workspace` (Debug) | CI | Rust engine, worker and CLI tests |
 | `dotnet build` and `dotnet test -m:1` (Debug) | CI (`windows-latest`) | Core, Infrastructure and in-process STA smoke tests |
-| Release build and tests (`cargo test --release`, `dotnet test -c Release`) | **This VM**, inside `Verify-WindowsRelease.ps1` | Release-only code paths, such as `WorkerExecutableLocator` ignoring dev overrides |
-| Self-contained publish, version check, notices, package | **This VM**, `Verify-WindowsRelease.ps1` | The zip contents, product version, `LICENSE.txt`, `THIRD-PARTY-NOTICES.txt`, `CHANGELOG.md` |
-| Worker protocol smoke and **WPF smoke** against the published app | **This VM**, `Verify-WindowsRelease.ps1` (needs a connected, idle RDP desktop) | Real worker plus real WPF against disposable state, including close and recovery scenarios |
+| Release build and tests (`cargo test --release`, `dotnet test -c Release`) | CI (`release-package` job) and **this VM**, both via `Verify-WindowsRelease.ps1` | Release-only code paths, such as `WorkerExecutableLocator` ignoring dev overrides |
+| Self-contained publish, version check, notices, package | CI (`release-package`) and **this VM** | The zip contents, product version, `LICENSE.txt`, `THIRD-PARTY-NOTICES.txt`, `CHANGELOG.md` |
+| Worker protocol smoke against the published app | CI (`release-package`, `-SkipWpfSmoke`) and **this VM** | Real worker from the publish folder against disposable state |
+| **WPF smoke** against the published app | **This VM only**, `Verify-WindowsRelease.ps1` (needs a connected, idle RDP desktop) | Real WPF against disposable state, including close and recovery scenarios |
 | Failure-mode pass (corrupt/newer/read-only database, worker kill, locked cache, missing and offline roots, long paths) | **This VM**, by hand with the Release app; see ROADMAP "First Release" | Graceful degradation; rerun when storage, worker lifecycle or path handling changes |
 | Accessibility: high contrast, Narrator/NVDA, multi-monitor/200% DPI | **Not run for v0.1.0** (operator decision) | Listed as unverified in `CHANGELOG.md` |
 
-CI never runs the Release configuration, the publish, or the WPF smoke against a real desktop.
-Those gates exist only on this VM.
+CI runs the Release configuration, the publish and the worker smoke on every PR and push, and keeps
+the zip from `master` builds for 14 days as the `windows-x64-package` artifact. Only the WPF smoke
+needs this VM. Publish the zip built and smoked here, not the CI artifact.
 
 ## Before the release
 
