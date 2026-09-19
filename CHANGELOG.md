@@ -3,6 +3,15 @@
 All notable changes to Super Duper are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Opening the results database no longer writes to it, so reading results, saving progress, and
+  other requests no longer wait for (or fail behind) a scan that is writing.
+- Starting a preflight check, and its final survivor check, wait briefly for another write to
+  finish instead of failing at once with "database is locked".
+
 ## [0.1.0] - Unreleased
 
 First release of the Windows app. It is **review-only**: Super Duper finds duplicates and records
@@ -49,4 +58,5 @@ what you want to keep or remove, but it never deletes, moves, or modifies scanne
 - Only the plain Windows 11 x64 zip is provided: no installer, no Arm64 build, and no automatic
   updates.
 
+[Unreleased]: https://github.com/garygentry/super-duper/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/garygentry/super-duper/releases/tag/v0.1.0

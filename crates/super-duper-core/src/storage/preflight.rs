@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::UNIX_EPOCH;
 
 use chrono::{DateTime, Utc};
-use rusqlite::{Connection, OptionalExtension, Transaction, params};
+use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
 use thiserror::Error;
 use twox_hash::XxHash64;
 
@@ -205,7 +205,8 @@ impl Database {
             });
         }
 
-        let tx = self.connection().unchecked_transaction()?;
+        // IMMEDIATE: this reads before it writes, and a deferred read cannot wait to become a write.
+        let tx = Transaction::new_unchecked(self.connection(), TransactionBehavior::Immediate)?;
         if let Some((preflight_id, saved_run_id, saved_revision)) = tx
             .query_row(
                 "SELECT id, run_id, review_revision FROM preflight WHERE operation_id = ?1",
@@ -1610,7 +1611,8 @@ fn enforce_live_survivors(
     connection: &Connection,
     preflight_id: i64,
 ) -> Result<(), PreflightError> {
-    let tx = connection.unchecked_transaction()?;
+    // IMMEDIATE for the same reason as `create_preflight`: it reads, then may write conflicts.
+    let tx = Transaction::new_unchecked(connection, TransactionBehavior::Immediate)?;
     let mut groups = Vec::new();
     {
         let mut statement = tx.prepare(

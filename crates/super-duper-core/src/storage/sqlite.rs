@@ -97,7 +97,8 @@ impl OpenFailure {
 
 impl Database {
     pub fn open(path: &str) -> Result<Self> {
-        let db = Self::open_connection(path)?;
+        let db = Self::connect(path)?;
+        db.migrate_schema()?;
         db.reconcile_interrupted_runs()?;
         db.reconcile_interrupted_preflights()?;
         db.reconcile_interrupted_recycle_operations()?;
@@ -106,7 +107,20 @@ impl Database {
 
     /// Opens an additional connection after process startup without treating currently active
     /// runs as abandoned. Long-lived worker commands and scan threads must use this entry point.
+    ///
+    /// A database already at the current version is not reconciled again: `schema.sql` rewrites
+    /// `user_version`, which needs the write lock, so every request and progress save would wait
+    /// behind (and could time out on) whichever connection was writing. `open` reconciles once at
+    /// startup, while the worker holds the database lock.
     pub fn open_connection(path: &str) -> Result<Self> {
+        let db = Self::connect(path)?;
+        if db.schema_version()? != CURRENT_SCHEMA_VERSION {
+            db.migrate_schema()?;
+        }
+        Ok(db)
+    }
+
+    fn connect(path: &str) -> Result<Self> {
         let conn = Connection::open(path)?;
         let db = Database { conn };
         // Before any pragma: switching to WAL rewrites the header of a newer build's database.
@@ -117,7 +131,6 @@ impl Database {
             )));
         }
         db.configure_pragmas()?;
-        db.migrate_schema()?;
         Ok(db)
     }
 
