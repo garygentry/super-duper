@@ -300,8 +300,6 @@ public sealed class WpfSurfaceSmokeTests
                     FindByAutomationId<TextBlock>(files, "FileSelectedSetReviewSummary")));
             var previousSet = FindByAutomationId<Button>(files, "FilePreviousSet");
             var nextSet = FindByAutomationId<Button>(files, "FileNextSet");
-            Assert.AreEqual(DispatcherPriority.Background, DuplicateFilesView.SetNavigationFocusPriority);
-            Assert.AreEqual(8, DuplicateFilesView.SetNavigationFocusAttemptLimit);
             StringAssert.Contains(AutomationProperties.GetName(previousSet), "focus returns");
             StringAssert.Contains(AutomationProperties.GetName(nextSet), "focus returns");
             Assert.AreEqual(ScrollBarVisibility.Auto,

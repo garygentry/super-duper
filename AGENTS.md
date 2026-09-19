@@ -70,9 +70,9 @@ dotnet test apps/windows/SuperDuper.Windows.sln -m:1
   (10.0.400), Windows 11 SDK `10.0.22000.0`, VS C++ build tools, and VS Clang (`LIBCLANG_PATH`) for
   RocksDB bindgen. The `scripts/*.ps1` workflows are written for PowerShell 7 (`pwsh`), not Windows
   PowerShell 5.1: they use .NET APIs 5.1 lacks, and `Verify-WindowsRelease.ps1` checks `$IsWindows`.
-- Core and Infrastructure tests use the MSTest 4 meta-package without `Microsoft.NET.Test.Sdk`.
-  Smoke.Tests still references `Microsoft.NET.Test.Sdk` with MSTest 3 (#35 tracks aligning it).
-  Test projects, opt-in categories and test-only variables are in `docs/windows-testing.md`.
+- Core, Infrastructure and Smoke.Tests all use the MSTest 4 meta-package without
+  `Microsoft.NET.Test.Sdk`. Test projects, opt-in categories and test-only variables are in
+  `docs/windows-testing.md`.
 - `[profile.dev] debug = "line-tables-only"` keeps debug builds near 7 GB instead of ~63 GB of
   PDBs, which previously filled the disk and hit the linker's `LNK1140` limit. Backtraces keep file
   and line numbers. Override locally rather than reverting the default, and reclaim space with
