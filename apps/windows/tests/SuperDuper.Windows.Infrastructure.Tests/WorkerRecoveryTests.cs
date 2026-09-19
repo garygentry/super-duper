@@ -7,7 +7,9 @@ using SuperDuper.Windows.Infrastructure.Protocol;
 
 namespace SuperDuper.Windows.Infrastructure.Tests;
 
+// Starts real worker processes; see MSTestSettings.cs.
 [TestClass]
+[DoNotParallelize]
 public sealed class WorkerRecoveryTests
 {
     [TestMethod]

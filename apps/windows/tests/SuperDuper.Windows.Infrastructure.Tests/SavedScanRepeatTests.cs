@@ -2,7 +2,9 @@ using SuperDuper.Windows.Core.Workers;
 
 namespace SuperDuper.Windows.Infrastructure.Tests;
 
+// Starts real worker processes; see MSTestSettings.cs.
 [TestClass]
+[DoNotParallelize]
 public sealed class SavedScanRepeatTests
 {
     [TestMethod]

@@ -69,6 +69,7 @@ public sealed class WorkerStateLocationsTests
     }
 
     [TestMethod]
+    [DoNotParallelize]
     public async Task Scan_CreatesMissingDefaultStateDirectoryAndKeepsAllStateThere()
     {
         var worker = FindWorker();
