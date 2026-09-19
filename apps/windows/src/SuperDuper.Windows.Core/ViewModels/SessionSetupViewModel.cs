@@ -30,6 +30,7 @@ public sealed class SessionSetupViewModel : ObservableObject
     private bool _isBusy;
     private bool _canMutate = true;
     private bool _isDirty;
+    private bool _hasUnsavedCloudDetection;
     private bool _suppressChanges;
     private WorkerSessionDefinition? _savedDefinition;
     private string? _operationError;
@@ -243,6 +244,24 @@ public sealed class SessionSetupViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// This PC's registered cloud locations differ from the saved definition. Unlike
+    /// <see cref="IsDirty"/>, this is not an operator edit.
+    /// </summary>
+    public bool HasUnsavedCloudDetection
+    {
+        get => _hasUnsavedCloudDetection;
+        private set
+        {
+            if (SetProperty(ref _hasUnsavedCloudDetection, value))
+            {
+                OnPropertyChanged(nameof(CanSave));
+                OnPropertyChanged(nameof(CloudDetectionSummary));
+                RefreshCommands();
+            }
+        }
+    }
+
     public string? OperationError
     {
         get => _operationError;
@@ -259,7 +278,8 @@ public sealed class SessionSetupViewModel : ObservableObject
 
     public bool CanEdit => CanMutate && !IsBusy && !IsDetectingCloudLocations;
 
-    public bool CanSave => CanEdit && IsDirty && _validation.IsValid && _manualExclusionValidationError is null;
+    public bool CanSave => CanEdit && (IsDirty || HasUnsavedCloudDetection)
+        && _validation.IsValid && _manualExclusionValidationError is null;
 
     public bool CanDelete => CanEdit && SessionId is not null;
 
@@ -287,7 +307,11 @@ public sealed class SessionSetupViewModel : ObservableObject
 
     public string CloudDetectionSummary => IsDetectingCloudLocations
         ? "Checking registered cloud locations…"
-        : CloudDetectionStatus switch
+        : HasUnsavedCloudDetection && CloudDetectionStatus == CloudDetectionStatusNames.Complete
+            ? CloudDetectionStatusText + " Cloud folders on this PC changed since this scan was saved; the new list is saved when a scan starts."
+            : CloudDetectionStatusText;
+
+    private string CloudDetectionStatusText => CloudDetectionStatus switch
         {
             CloudDetectionStatusNames.Complete when DetectedCloudLocations.Count == 0 =>
                 "No registered cloud locations intersect the selected scan roots.",
@@ -364,6 +388,7 @@ public sealed class SessionSetupViewModel : ObservableObject
             RefreshDetectedCloudLocations();
             OperationError = null;
             IsDirty = false;
+            HasUnsavedCloudDetection = false;
         }
         finally
         {
@@ -410,7 +435,7 @@ public sealed class SessionSetupViewModel : ObservableObject
                 }
             }
 
-            if (!IsDirty && SessionId is long existingId)
+            if (!IsDirty && !HasUnsavedCloudDetection && SessionId is long existingId)
             {
                 return await _workerClient.GetSessionAsync(existingId, cancellationToken);
             }
@@ -675,7 +700,9 @@ public sealed class SessionSetupViewModel : ObservableObject
         RefreshDetectedCloudLocations();
         if (changed && !_suppressChanges)
         {
-            IsDirty = true;
+            // Not an edit: leaving Setup does not ask to save it, and starting a scan re-detects and
+            // saves the current list anyway.
+            HasUnsavedCloudDetection = true;
         }
     }
 
