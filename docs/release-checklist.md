@@ -12,15 +12,16 @@ self-contained, unsigned Windows 11 x64 zip. There is no installer and no code s
 | `dotnet build` and `dotnet test -m:1` (Debug) | CI (`windows-latest`) | Core, Infrastructure and in-process STA smoke tests |
 | Release build and tests (`cargo test --release`, `dotnet test -c Release`) | CI (`release-package` job) and the dedicated Windows VM, both via `Verify-WindowsRelease.ps1` | Release-only code paths, such as `WorkerExecutableLocator` ignoring dev overrides |
 | Self-contained publish, version check, notices, package | CI (`release-package`) and the VM | The zip contents, product version, `LICENSE.txt`, `THIRD-PARTY-NOTICES.txt`, `CHANGELOG.md` |
-| Worker protocol smoke | CI (`release-package`, `-SkipWpfSmoke`) and the VM | The Release worker built in `target/release` against disposable state. It does not run the worker in the publish folder. |
+| Worker protocol smoke | CI (`release-package`, `-SkipWpfSmoke`) and the VM | The worker beside the published app (`artifacts/windows-x64`), against disposable state. |
 | **WPF smoke** against the published app | **The VM only**, `Verify-WindowsRelease.ps1` (needs a connected, idle RDP desktop) | Real WPF, and the worker beside it in the publish folder, against disposable state, including close and recovery scenarios |
 | Failure-mode pass | **The VM**, by hand with the Release app (see below) | Graceful degradation; rerun when storage, worker lifecycle or path handling changes |
 | Accessibility: high contrast, Narrator/NVDA, multi-monitor/200% DPI | **Not run for v0.1.0** (operator decision; issue #23) | Listed as unverified in `CHANGELOG.md` |
 
-CI runs the Release configuration, the publish and the worker protocol smoke on every PR and push,
-and keeps the zip from `master` builds for 14 days as the `windows-x64-package` artifact. Only the
-WPF smoke needs the VM, and it is the only gate that runs the published worker. Publish the zip
-built and smoked on the VM, not the CI artifact.
+CI runs the Release configuration, the publish, and the worker protocol smoke against the published
+worker on every PR and push, and keeps the zip from `master` builds for 14 days as the
+`windows-x64-package` artifact. Only the WPF smoke needs the VM, and it is the only gate that drives
+the published worker through the real app. Publish the zip built and smoked on the VM, not the CI
+artifact.
 
 ### Failure-mode pass
 
