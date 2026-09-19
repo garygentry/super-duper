@@ -63,8 +63,9 @@ dotnet run --project apps/windows/src/SuperDuper.Windows/SuperDuper.Windows.cspr
 ```
 
 The Debug WPF build copies `target/debug/super-duper-worker.exe` beside the app; Release copies
-`target/release/super-duper-worker.exe`. The copy runs only if that file exists, and a missing
-worker does not fail the build.
+`target/release/super-duper-worker.exe`. The copy runs only if that file exists. A missing worker
+gives a build warning in Debug; it fails the build in Release, and fails a `dotnet publish` in any
+configuration.
 
 A Release app launches only the worker beside it. A Debug app looks for the worker in this order
 (`WorkerExecutableLocator`):
@@ -74,8 +75,8 @@ A Release app launches only the worker beside it. A Debug app looks for the work
 3. `target/debug/super-duper-worker.exe` in the repository that contains the app or the current
    directory.
 
-Because the copy is skipped silently and the Debug app prefers any worker already beside it, a
-stale worker left in `bin/` from an earlier build can run against newer app code. After a
+Because the Debug app prefers any worker already beside it, a stale worker left in `bin/` from an
+earlier build can run against newer app code even though the build warned about it. After a
 `cargo clean`, or whenever the worker changed, run `cargo build` before building the app.
 
 For worker-backed UI development with a disposable database and an optional five-file test root,
