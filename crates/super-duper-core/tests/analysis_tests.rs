@@ -381,3 +381,33 @@ fn test_execute_deletion_plan_skips_rows_that_do_not_match_disk() {
     assert!(file_b.exists());
     assert!(db.get_deletion_plan().unwrap().is_empty());
 }
+
+#[test]
+fn test_similarity_shared_bytes_sums_shared_file_sizes() {
+    let (db, run_id) = setup_db_with_files(&[
+        ("/big/a.txt", 100, 111),
+        ("/big/b.txt", 200, 222),
+        ("/big/c.txt", 300, 333),
+        ("/small/a.txt", 100, 111),
+        ("/small/b.txt", 200, 222),
+        ("/other/shared.txt", 100, 111),
+        ("/other/unique.txt", 5_000, 999),
+    ]);
+
+    dir_fingerprint::build_directory_fingerprints(&db, run_id).unwrap();
+    dir_similarity::compute_directory_similarity(&db, run_id, 0.1).unwrap();
+
+    // Shared bytes are the sizes of the shared contents, not a count of shared hashes.
+    let pairs = db.get_similar_directories(run_id, 0.1, 0, 10).unwrap();
+    let pair = |a: &str, b: &str| {
+        pairs
+            .iter()
+            .find(|p| {
+                (p.dir_a_path == a && p.dir_b_path == b) || (p.dir_a_path == b && p.dir_b_path == a)
+            })
+            .unwrap_or_else(|| panic!("Expected {a} vs {b}, got: {pairs:?}"))
+    };
+    assert_eq!(pair("/big", "/small").match_type, "subset");
+    assert_eq!(pair("/big", "/small").shared_bytes, 300);
+    assert_eq!(pair("/big", "/other").shared_bytes, 100);
+}

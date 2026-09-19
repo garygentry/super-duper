@@ -152,8 +152,9 @@ Files: `crates/super-duper-core/src/analysis/deletion_plan.rs`,
 
 ### 2. Shared Bytes Accuracy
 
-The directory similarity shared-bytes estimate should consult actual file sizes rather than count
-shared hashes. All required data already exists in SQLite.
+Done in `d083fef`: directory similarity sums the sizes of the shared contents rather than counting
+shared hashes, now pinned by `test_similarity_shared_bytes_sums_shared_file_sizes`. Directory
+similarity is used by the CLI (`analyze-directories`) and the FFI, not the Windows app.
 
 Files: `crates/super-duper-core/src/analysis/dir_similarity.rs`,
 `crates/super-duper-core/src/storage/queries.rs`
