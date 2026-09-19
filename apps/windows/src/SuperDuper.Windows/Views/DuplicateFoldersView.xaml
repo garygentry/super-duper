@@ -207,7 +207,7 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel Margin="4,3">
-                                            <TextBlock FontWeight="SemiBold" Text="{Binding RepresentativePath}" TextWrapping="Wrap" />
+                                            <TextBlock FontWeight="SemiBold" Text="{Binding DisplayRepresentativePath}" TextWrapping="Wrap" />
                                             <TextBlock Margin="0,3,0,0" Text="{Binding RelationshipSummary}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </DataTemplate>
@@ -490,7 +490,7 @@
                                      HorizontalScrollBarVisibility="Disabled"
                                      IsReadOnly="True"
                                      IsReadOnlyCaretVisible="True"
-                                     Text="{Binding Path, Mode=OneWay}"
+                                     Text="{Binding DisplayPath, Mode=OneWay}"
                                      TextWrapping="Wrap"
                                      VerticalScrollBarVisibility="Auto" />
                             <WrapPanel Margin="0,6,0,0" automation:AutomationProperties.Name="Path actions for selected folder copy">

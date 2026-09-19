@@ -69,14 +69,14 @@ Done:
   `finalizing`. Both `terminal_run` and startup reconciliation used to overwrite it.
 - A root that does not exist is no longer reported as lost watcher coverage (F5), which had made
   it look dirty with "Watcher coverage overflowed … reconciliation required".
+- Paths are shown and copied in plain form (F4): `DisplayPaths.Plain` and `PlainPathConverter`
+  cover every results, Setup, history, preflight and preference surface, and Copy path copies the
+  plain spelling. Stored paths stay verbatim, and exact-path search accepts either spelling.
 
 Failure-mode pass, 2026-09-18 (Release app, 60,000-file disposable fixture). Degraded correctly:
 worker killed mid-scan, corrupt/truncated/newer/read-only main database (file never modified),
 corrupt status database, held hash-cache `LOCK`, long paths, a missing root, closing during a scan.
-Open findings, fixed in this order:
-
-- **F4** Every path in the UI shows the `\\?\` verbatim prefix; display and Copy path should use
-  the plain form.
+Its six findings (F1–F6) are fixed above.
 
 Not run: full disk (needs an operator-mounted small VHDX) and an offline OneDrive root (no signed-in
 account on the VM; the unavailable-detection fail-closed path is covered by the smoke).

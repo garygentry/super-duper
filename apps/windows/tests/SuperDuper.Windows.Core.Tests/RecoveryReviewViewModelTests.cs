@@ -343,6 +343,10 @@ public sealed class RecoveryReviewViewModelTests
         StringAssert.Contains(clipboard.Text, "Operation item 41");
         viewModel.CopyPathCommand.Execute(null);
         Assert.AreEqual(@"C:\fixture\unknown-41.bin", clipboard.Text);
+        viewModel.SelectedUnknownItem = new RecycleOperationItemViewModel(
+            Item(42, 8).Item with { Path = @"\\?\C:\fixture\unknown-42.bin" });
+        viewModel.CopyPathCommand.Execute(null);
+        Assert.AreEqual(@"C:\fixture\unknown-42.bin", clipboard.Text, "Copy path must use the plain spelling.");
         await viewModel.OpenRecycleBinCommand.ExecuteAsync(null);
         await viewModel.NavigateToFreshScanCommand.ExecuteAsync(null);
 

@@ -77,6 +77,7 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
         private set
         {
             if (!SetProperty(ref _currentPath, value)) return;
+            OnPropertyChanged(nameof(DisplayCurrentPath));
             OnPropertyChanged(nameof(ActivityFileName));
             OnPropertyChanged(nameof(ActivityParent));
         }
@@ -129,11 +130,11 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
     public bool IsIndeterminate => IsActive && PhaseWork.Unknown;
 
     // Display-only splitting handles Windows paths even in platform-neutral Core fixtures.
-    // The exact worker value remains untouched and selectable in Diagnostics.
-    private string DisplayActivityPath => CurrentPath is { } path
-        ? path.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase) ? @"\\" + path[8..]
-            : path.StartsWith(@"\\?\", StringComparison.Ordinal) ? path[4..] : path
-        : string.Empty;
+    // The exact worker value remains untouched in CurrentPath; Diagnostics shows its plain spelling.
+    private string DisplayActivityPath => DisplayPaths.Plain(CurrentPath);
+
+    /// <summary>The sampled path as users should see it; <see cref="CurrentPath"/> stays exact.</summary>
+    public string DisplayCurrentPath => DisplayActivityPath;
 
     public string ActivityFileName
     {

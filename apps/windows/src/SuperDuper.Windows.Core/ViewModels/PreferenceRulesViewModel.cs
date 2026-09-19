@@ -24,7 +24,7 @@ public sealed class PreferencePreviewGroupListItemViewModel
 
     public string Status => Group.Status == "blocked" ? "Blocked" : "Applicable";
 
-    public string PreferredRoot => Group.PreferredRoot ?? "No ranked root";
+    public string PreferredRoot => Group.PreferredRoot is { } root ? DisplayPaths.Plain(root) : "No ranked root";
 
     public string ProposedKeepText => $"{Group.ProposedKeepPathCount:N0} keep";
 

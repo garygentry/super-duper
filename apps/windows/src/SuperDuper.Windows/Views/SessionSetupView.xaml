@@ -28,14 +28,14 @@
                             </Grid.ColumnDefinitions>
                             <TextBox AutomationProperties.Name="Scan root path"
                                      IsEnabled="{Binding DataContext.CanEdit, ElementName=Root}"
-                                     Text="{Binding Path, UpdateSourceTrigger=PropertyChanged}" />
+                                     Text="{Binding Path, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource PlainPathConverter}}" />
                             <Button Grid.Column="1"
                                     Margin="8,0,0,0"
                                     Style="{StaticResource ShellIconAction}"
                                     Command="{Binding DataContext.RemoveRootCommand, ElementName=Root}"
                                     CommandParameter="{Binding}"
-                                    ToolTip="{Binding Path, StringFormat=Remove location: {0}}"
-                                    AutomationProperties.Name="{Binding Path, StringFormat=Remove location: {0}}">
+                                    ToolTip="{Binding Path, Converter={StaticResource PlainPathConverter}, StringFormat=Remove location: {0}}"
+                                    AutomationProperties.Name="{Binding Path, Converter={StaticResource PlainPathConverter}, StringFormat=Remove location: {0}}">
                                 <Path Data="{StaticResource ShellIconDismiss}" Style="{StaticResource ShellActionIcon}" />
                             </Button>
                             <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,4,0,0"
@@ -133,7 +133,7 @@
                                         CornerRadius="5">
                                     <StackPanel>
                                         <TextBlock FontWeight="SemiBold" Text="{Binding ProviderName}" />
-                                        <TextBlock Margin="0,2,0,0" Text="{Binding Path}" TextWrapping="Wrap" />
+                                        <TextBlock Margin="0,2,0,0" Text="{Binding Path, Converter={StaticResource PlainPathConverter}}" TextWrapping="Wrap" />
                                         <TextBlock Margin="0,2,0,0" Style="{StaticResource CaptionText}" Text="{Binding Behavior}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>

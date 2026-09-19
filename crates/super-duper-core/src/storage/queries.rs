@@ -1,5 +1,6 @@
 use super::models::*;
 use super::sqlite::{Database, normalized_file_extension_key};
+use crate::path_spelling::alternate_windows_spelling;
 use chrono::Utc;
 use rusqlite::types::Value as SqlValue;
 use rusqlite::{Error, OptionalExtension, Result, params, params_from_iter};
@@ -2084,6 +2085,9 @@ pub(super) fn duplicate_file_group_predicate(
                 parameters.push(SqlValue::Text(like_pattern(search)));
             }
             DuplicateFilePathMatchMode::Exact => {
+                // Stored paths are verbatim (`\\?\C:\...`) while people paste the plain form, so
+                // match either spelling. The second value repeats the first when there is no
+                // alternate, keeping the statement shape (and its index use) fixed.
                 predicates.push(
                     "dg.id IN (
                         SELECT exact_member.group_id
@@ -2091,12 +2095,15 @@ pub(super) fn duplicate_file_group_predicate(
                         JOIN duplicate_group_member exact_member
                           ON exact_member.file_id = exact_file.id
                         WHERE exact_file.run_id = ?
-                          AND exact_file.canonical_path = ? COLLATE UNICODE_NOCASE
+                          AND exact_file.canonical_path COLLATE UNICODE_NOCASE IN (?, ?)
                     )"
                     .to_owned(),
                 );
+                let alternate =
+                    alternate_windows_spelling(search).unwrap_or_else(|| search.to_owned());
                 parameters.push(SqlValue::Integer(run_id));
                 parameters.push(SqlValue::Text(search.to_owned()));
+                parameters.push(SqlValue::Text(alternate));
             }
         }
     }

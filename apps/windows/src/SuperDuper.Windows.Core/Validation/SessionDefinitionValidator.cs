@@ -1,3 +1,5 @@
+using SuperDuper.Windows.Core.ViewModels;
+
 namespace SuperDuper.Windows.Core.Validation;
 
 public enum ScanRootKind
@@ -98,7 +100,7 @@ public static class SessionDefinitionValidator
             {
                 if (!Path.IsPathFullyQualified(candidate))
                 {
-                    errors?.Add($"Scan root must be an absolute path: {candidate}");
+                    errors?.Add($"Scan root must be an absolute path: {DisplayPaths.Plain(candidate)}");
                     continue;
                 }
 
@@ -115,7 +117,7 @@ public static class SessionDefinitionValidator
                         root?.TrimEnd(Path.DirectorySeparatorChar),
                         StringComparison.OrdinalIgnoreCase))
                 {
-                    warnings?.Add($"{fullPath} scans an entire drive and may take a long time.");
+                    warnings?.Add($"{DisplayPaths.Plain(fullPath)} scans an entire drive and may take a long time.");
                 }
                 var kind = ClassifyRoot(fullPath);
                 // Network reachability can block the WPF dispatcher and is authoritatively checked
@@ -128,7 +130,7 @@ public static class SessionDefinitionValidator
                 }
                 if (!reachable)
                 {
-                    warnings?.Add($"Root is currently unavailable: {fullPath}");
+                    warnings?.Add($"Root is currently unavailable: {DisplayPaths.Plain(fullPath)}");
                 }
                 if (!absolute.Contains(fullPath, StringComparer.OrdinalIgnoreCase))
                 {
@@ -138,7 +140,7 @@ public static class SessionDefinitionValidator
             catch (Exception exception) when (
                 exception is ArgumentException or NotSupportedException or PathTooLongException)
             {
-                errors?.Add($"Scan root is not a valid Windows path: {candidate}");
+                errors?.Add($"Scan root is not a valid Windows path: {DisplayPaths.Plain(candidate)}");
             }
         }
 
@@ -154,7 +156,7 @@ public static class SessionDefinitionValidator
             var parent = result.FirstOrDefault(existing => IsSameOrDescendant(candidate, existing));
             if (parent is not null)
             {
-                warnings?.Add($"Removed nested root {candidate}; it is already covered by {parent}.");
+                warnings?.Add($"Removed nested root {DisplayPaths.Plain(candidate)}; it is already covered by {DisplayPaths.Plain(parent)}.");
                 continue;
             }
             result.Add(candidate);
@@ -199,7 +201,11 @@ public static class SessionDefinitionValidator
         }
     }
 
-    public static string? LocationWarning(string path, ScanRootKind kind, bool reachable) => kind switch
+    // Messages name the plain spelling; the classified path itself is not rewritten.
+    public static string? LocationWarning(string path, ScanRootKind kind, bool reachable) =>
+        LocationWarningText(DisplayPaths.Plain(path), kind, reachable);
+
+    private static string? LocationWarningText(string path, ScanRootKind kind, bool reachable) => kind switch
     {
         ScanRootKind.Removable =>
             $"Removable root availability may change during a scan; disconnects are reported as warnings: {path}",

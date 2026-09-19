@@ -1476,6 +1476,85 @@ public sealed class DuplicateFilesViewModelTests
         Assert.AreEqual(@"\\?\C:\Long\Shared\Working library", canonical.SelectedRoot);
     }
 
+    [TestMethod]
+    public async Task VerbatimPathsDisplayAndCopyPlainWhileIdentityStaysExact()
+    {
+        const string root = @"\\?\C:\Photos";
+        const string path = @"\\?\C:\Photos\photo.jpg";
+        DuplicateFileGroupQuery? lastGroupQuery = null;
+        ReviewLiveRootReconciliationRequest? reconciliation = null;
+        var dirty = new WorkerReviewLiveRootState(
+            70, root, "dirty", 2, "watcher_overflow", "2026-08-24T00:00:00Z",
+            null, 0, "2026-08-24T00:00:00Z", true);
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) =>
+            {
+                lastGroupQuery = query;
+                return Task.FromResult(new WorkerDuplicateFileGroupPage(
+                    [Group(1, query.RunId, "photo.jpg")], 1, null, null));
+            },
+            RootFacetPageHandler = (_, _) => Task.FromResult(new WorkerDuplicateFileSelectedRootFacetPage(
+                [new WorkerDuplicateFileSelectedRootFacet(root, 1)], 1, null, null)),
+            MemberPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFileMemberPage(
+                [Member(1, query.GroupId, path) with { DriveLetter = "C:" }], 1, null, null)),
+            DirtyReviewRootsHandler = (runId, _) => Task.FromResult(
+                new WorkerReviewLiveRootPage(runId, [dirty with { RunId = runId }], 1, false)),
+            DirtyRootReconciliationHandler = (request, _) =>
+            {
+                reconciliation = request;
+                return Task.FromResult(new WorkerReviewLiveRootReconciliationResult(
+                    9, request.RunId, request.RootPath, request.ExpectedDirtyRevision,
+                    request.ExpectedReviewRevision, false,
+                    new WorkerReviewLiveValidationSummary(1, 1, 0, 0, 0, 0), [],
+                    dirty with { RunId = request.RunId, State = "clean", ReconciliationRequired = false },
+                    false));
+            },
+        };
+        var clipboard = new TestClipboard();
+        var explorer = new TestExplorer();
+        using var viewModel = new DuplicateFilesViewModel(client, clipboard, explorer);
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(70, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        var member = viewModel.Members.Single();
+        Assert.AreEqual(path, member.Path);
+        Assert.AreEqual(root, member.SelectedRoot);
+        Assert.AreEqual(@"C:\Photos\photo.jpg", member.DisplayPath);
+        Assert.AreEqual(@"C:\Photos", member.DisplaySelectedRoot);
+        StringAssert.Contains(member.LiveStateAutomationName, @"for C:\Photos\photo.jpg:");
+        Assert.AreEqual(@"C:\Photos · 1 set", viewModel.SelectedRootFacetOptions[1].DisplayText);
+
+        viewModel.CopyPathCommand.Execute(member);
+        await viewModel.RevealInExplorerCommand.ExecuteAsync(member);
+        Assert.AreEqual(@"C:\Photos\photo.jpg", clipboard.Text);
+        Assert.AreEqual(path, explorer.RevealedPath, "Explorer reveal must receive the exact stored path.");
+
+        viewModel.SelectedRootFacet = viewModel.SelectedRootFacetOptions[1];
+        Assert.AreEqual(@"Draft root: C:\Photos", viewModel.SelectedRootFilterText);
+        await viewModel.ApplyFiltersCommand.ExecuteAsync(null);
+        Assert.AreEqual(root, lastGroupQuery!.Filter.SelectedRoot, "Filter keys must stay exact.");
+        Assert.AreEqual(@"Root: C:\Photos", viewModel.AppliedFilters.Single(chip => chip.Key == "root").Text);
+
+        StringAssert.Contains(viewModel.DirtyRootWarningMessage, @"Affected root: C:\Photos.");
+        Assert.IsFalse(viewModel.DirtyRootWarningMessage!.Contains(@"\\?\", StringComparison.Ordinal));
+        viewModel.ApplyLiveStateChanged(new WorkerResultStateChangedEventArgs
+        {
+            Kind = "overflow",
+            RunId = 70,
+            RootPath = root,
+            EventCount = 0,
+            CoalescedPathCount = 0,
+            Root = dirty with { DirtyRevision = 3 },
+            ExecutorEnabled = false,
+        });
+        StringAssert.Contains(viewModel.DirtyRootStatusMessage, @"Watcher coverage overflowed under C:\Photos.");
+
+        await viewModel.ReconcileDirtyRootCommand.ExecuteAsync(null);
+        Assert.AreEqual(root, reconciliation!.RootPath, "Reconciliation must name the exact stored root.");
+        StringAssert.Contains(viewModel.DirtyRootStatusMessage, @"bounded copies under C:\Photos;");
+    }
+
     private static WorkerDuplicateFileGroup Group(long id, long runId, string name) =>
         new(id, runId, "1024", 2, "1024", name, ".bin")
         {

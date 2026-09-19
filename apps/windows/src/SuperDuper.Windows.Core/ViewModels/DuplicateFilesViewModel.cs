@@ -651,7 +651,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
 
     public string? DirtyRootWarningMessage => DirtyRoots.FirstOrDefault() is { } root
         ? $"Working results are dirty and reconciliation is required after a filesystem watcher overflow. "
-            + $"Affected root: {root.RootPath}. {DirtyRoots.Count:N0} root(s) require attention; "
+            + $"Affected root: {DisplayPaths.Plain(root.RootPath)}. {DirtyRoots.Count:N0} root(s) require attention; "
             + "original scan history is unchanged. Each explicit request checks at most 200 server-owned duplicate copies."
         : null;
 
@@ -688,7 +688,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
         : $"{TotalDriveFacets:N0} drives";
 
     public string SelectedRootFilterText => SelectedRootFacet?.Value is { } value
-        ? $"Draft root: {value}"
+        ? $"Draft root: {DisplayPaths.Plain(value)}"
         : "All selected roots";
 
     public string SelectedDriveFilterText => SelectedDriveFacet?.Value is { } value
@@ -1123,7 +1123,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
                 .Take(64)
                 .ToArray();
             DirtyRootStatusMessage =
-                $"Watcher coverage overflowed under {dirtyRoot.RootPath}. The durable root is dirty; "
+                $"Watcher coverage overflowed under {DisplayPaths.Plain(dirtyRoot.RootPath)}. The durable root is dirty; "
                 + "use bounded reconciliation before trusting working results.";
             DirtyRootStatusAnnouncementVersion++;
             return;
@@ -1149,7 +1149,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
         }
         LiveHintStatusMessage =
             $"Coalesced {stateChanged.EventCount:N0} filesystem events into "
-            + $"{stateChanged.CoalescedPathCount:N0} bounded path hints under {stateChanged.RootPath}. "
+            + $"{stateChanged.CoalescedPathCount:N0} bounded path hints under {DisplayPaths.Plain(stateChanged.RootPath)}. "
             + (visibleCount > 0
                 ? $"{visibleCount:N0} visible duplicate copies are pending validation; choose Validate page."
                 : "No currently visible duplicate copy was bound for these hints.");
@@ -2280,7 +2280,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
                     _ => "Undecided",
                 };
                 SelectedSetStatusAnnouncement =
-                    $"Review decision saved: {decisionText} for {member.Path}. {SelectedReviewSummaryText}.";
+                    $"Review decision saved: {decisionText} for {member.DisplayPath}. {SelectedReviewSummaryText}.";
                 SelectedSetStatusAnnouncementVersion++;
             }
         }
@@ -2519,7 +2519,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
         }
         try
         {
-            _clipboard.CopyText(member.Path);
+            _clipboard.CopyText(member.DisplayPath);
             DetailErrorMessage = null;
         }
         catch (Exception exception)
@@ -2648,7 +2648,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
         IsDirtyRootReconciliationRunning = true;
         DirtyRootErrorMessage = null;
         DirtyRootStatusMessage =
-            $"Reconciling at most {PageSize:N0} server-owned duplicate copies under {dirtyRoot.RootPath}. "
+            $"Reconciling at most {PageSize:N0} server-owned duplicate copies under {DisplayPaths.Plain(dirtyRoot.RootPath)}. "
             + "No full result set will be bound and scan history will not change…";
         try
         {
@@ -2676,10 +2676,10 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
 
             var summary = result.Summary;
             DirtyRootStatusMessage = result.Root.ReconciliationRequired
-                ? $"Checked {summary.ItemCount:N0} bounded copies under {result.RootPath}; "
+                ? $"Checked {summary.ItemCount:N0} bounded copies under {DisplayPaths.Plain(result.RootPath)}; "
                     + $"{result.Root.ReconciledItemCount:N0} checked for this dirty revision and more remain. "
                     + "The root remains dirty; choose Reconcile next batch to continue."
-                : $"Reconciliation checked the final {summary.ItemCount:N0} bounded copies under {result.RootPath}; "
+                : $"Reconciliation checked the final {summary.ItemCount:N0} bounded copies under {DisplayPaths.Plain(result.RootPath)}; "
                     + $"{result.Root.ReconciledItemCount:N0} total checked. The overflow dirty marker is cleared. "
                     + "Original scan history was not changed.";
             if (summary.ChangedCount + summary.MissingCount + summary.UnavailableCount > 0)
@@ -2727,7 +2727,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
             {
                 DirtyRootStatusMessage = null;
                 DirtyRootErrorMessage =
-                    $"Reconciliation failed and {dirtyRoot.RootPath} remains dirty. "
+                    $"Reconciliation failed and {DisplayPaths.Plain(dirtyRoot.RootPath)} remains dirty. "
                     + $"Retry the same bounded root action. {exception.Message}";
                 DirtyRootErrorAnnouncementVersion++;
             }

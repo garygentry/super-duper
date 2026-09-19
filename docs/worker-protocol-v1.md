@@ -1153,7 +1153,11 @@ paths, limited to 512 characters. `filter.pathMatch` is `substring` by default o
 `canonical_path`; leading/trailing characters, separators, device prefixes, dot segments, and
 Unicode normalization forms are not rewritten. Only locale-independent Unicode lowercase
 comparison is applied, so the path stays snapshot-owned and the operation performs no filesystem
-canonicalization. Exact values may contain at most 32,767 Unicode scalar values. A blank search
+canonicalization. The one tolerated spelling difference is the Windows verbatim prefix: a value
+also matches its verbatim or plain equivalent (`C:\dir\file` and `\\?\C:\dir\file`;
+`\\server\share\file` and `\\?\UNC\server\share\file`), so a path copied from the app's plain
+display finds a member stored in verbatim form. Other verbatim forms (`\\?\Volume{...}\`,
+`\\?\GLOBALROOT\...`) match only as written. Exact values may contain at most 32,767 Unicode scalar values. A blank search
 normalizes `pathMatch` back to `substring` because it contributes no predicate.
 `filter.extension` is optional. When present, it applies exact matching to the suffix
 after the last dot of each immutable member's final persisted filename segment. The value contains

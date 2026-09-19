@@ -3025,6 +3025,92 @@ fn exact_member_path_filter_is_unicode_case_normalized_and_shared_by_facets() {
 }
 
 #[test]
+fn exact_member_path_filter_matches_plain_and_verbatim_windows_spellings() {
+    let db = Database::open_in_memory().unwrap();
+    let (_, run_id) = session_and_run(&db, "Exact spellings", &[r"\\?\C:\Data"]);
+    let stored = [
+        (r"\\?\C:\Data\photo.jpg", 100, 11),
+        (r"\\?\C:\Data\photo-copy.jpg", 100, 11),
+        (r"\\?\UNC\server\share\Docs\report.pdf", 200, 22),
+        (r"\\?\UNC\server\share\Docs\report-copy.pdf", 200, 22),
+        (r"D:\Plain\note.txt", 300, 33),
+        (r"D:\Plain\note-copy.txt", 300, 33),
+    ];
+    let files = stored
+        .iter()
+        .map(|(path, size, hash)| {
+            let mut file = file(run_id, path, *size, *hash);
+            let (parent, name) = path.rsplit_once('\\').unwrap();
+            file.root_path = parent.to_owned();
+            file.parent_dir = parent.to_owned();
+            file.file_name = name.to_owned();
+            file.relative_path = name.to_owned();
+            file
+        })
+        .collect::<Vec<_>>();
+    db.insert_scanned_files(&files).unwrap();
+    let groups = [11_i64, 22, 33]
+        .into_iter()
+        .map(|hash| {
+            let members = stored
+                .iter()
+                .filter(|(_, _, member_hash)| *member_hash == hash)
+                .map(|(path, _, _)| (*path).to_owned())
+                .collect::<Vec<_>>();
+            (
+                hash,
+                stored.iter().find(|entry| entry.2 == hash).unwrap().1,
+                members,
+            )
+        })
+        .collect::<Vec<_>>();
+    db.insert_duplicate_groups(run_id, &groups).unwrap();
+
+    let matching_sizes = |search: &str| {
+        let page = db
+            .page_duplicate_file_groups(&DuplicateFileGroupPageQuery {
+                run_id,
+                limit: 10,
+                sort_field: DuplicateFileGroupSortField::RecoverableBytes,
+                sort_direction: SortDirection::Descending,
+                filter: DuplicateFileGroupFilter {
+                    search: Some(search.to_owned()),
+                    path_match: DuplicateFilePathMatchMode::Exact,
+                    extension_key: None,
+                    extension_match: DuplicateFileExtensionMatchMode::AnyMember,
+                    minimum_size: 0,
+                    minimum_copy_count: 2,
+                    across_drives: false,
+                    selected_root: None,
+                    selected_drive: None,
+                },
+                cursor: None,
+            })
+            .unwrap();
+        page.groups
+            .iter()
+            .map(|group| group.file_size)
+            .collect::<Vec<_>>()
+    };
+
+    // A pasted plain path finds a member stored in verbatim form, case-insensitively.
+    assert_eq!(matching_sizes(r"C:\Data\PHOTO.jpg"), vec![100]);
+    assert_eq!(matching_sizes(r"\\server\share\Docs\report.pdf"), vec![200]);
+    // The stored verbatim spelling keeps working.
+    assert_eq!(matching_sizes(r"\\?\C:\Data\photo.jpg"), vec![100]);
+    assert_eq!(
+        matching_sizes(r"\\?\UNC\server\share\Docs\report.pdf"),
+        vec![200]
+    );
+    // A verbatim search also finds a member stored in plain form.
+    assert_eq!(matching_sizes(r"\\?\D:\Plain\note.txt"), vec![300]);
+    assert_eq!(matching_sizes(r"D:\Plain\note.txt"), vec![300]);
+    // Exact matching still does not degrade into a prefix or substring match.
+    assert!(matching_sizes(r"C:\Data").is_empty());
+    assert!(matching_sizes(r"\\server\share\Docs").is_empty());
+}
+
+#[test]
 fn extension_match_modes_use_persisted_filename_keys_and_shared_facets() {
     let db = Database::open_in_memory().unwrap();
     let (_, run_id) = session_and_run(&db, "Extension", &["/root"]);

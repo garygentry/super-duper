@@ -358,10 +358,11 @@ public sealed class WpfSurfaceSmokeTests
             Assert.IsTrue(selectedCopyPath.IsReadOnly && selectedCopyPath.IsReadOnlyCaretVisible);
             Assert.AreEqual(TextWrapping.Wrap, selectedCopyPath.TextWrapping);
             Assert.AreEqual(ScrollBarVisibility.Disabled, selectedCopyPath.HorizontalScrollBarVisibility);
-            Assert.AreEqual("Path", BindingOperations.GetBinding(selectedCopyPath, TextBox.TextProperty)?.Path.Path);
+            Assert.AreEqual("DisplayPath", BindingOperations.GetBinding(selectedCopyPath, TextBox.TextProperty)?.Path.Path);
             selectedCopyPanel.DataContext = new
             {
                 Path = @"C:\Data\item.bin",
+                DisplayPath = @"C:\Data\item.bin",
                 CanRecordCurrentDecision = true,
                 CanClearDecision = true,
             };
@@ -1442,7 +1443,7 @@ public sealed class WpfSurfaceSmokeTests
         Assert.IsTrue(selectedPath.IsReadOnly && selectedPath.IsReadOnlyCaretVisible);
         Assert.AreEqual(TextWrapping.Wrap, selectedPath.TextWrapping);
         Assert.AreEqual(ScrollBarVisibility.Disabled, selectedPath.HorizontalScrollBarVisibility);
-        Assert.AreEqual("Path", BindingOperations.GetBinding(selectedPath, TextBox.TextProperty)?.Path.Path);
+        Assert.AreEqual("DisplayPath", BindingOperations.GetBinding(selectedPath, TextBox.TextProperty)?.Path.Path);
         Assert.AreEqual("Back to folder copies in the selected exact-folder set", AutomationProperties.GetName(
             FindByAutomationId<Button>(folders, "FolderBackToCopies")));
     }
@@ -1886,6 +1887,8 @@ public sealed class WpfSurfaceSmokeTests
         public string Message => "Reading candidates";
 
         public string CurrentPath => @"C:\Data\candidate.bin";
+
+        public string DisplayCurrentPath => CurrentPath;
 
         public bool HasError => true;
 

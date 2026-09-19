@@ -270,7 +270,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock FontWeight="SemiBold" Text="{Binding Outcome}" />
                                 <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Target}" />
-                                <TextBlock Grid.Column="2" Margin="8,0,0,0" Text="{Binding Path}"
+                                <TextBlock Grid.Column="2" Margin="8,0,0,0" Text="{Binding DisplayPath}"
                                            TextTrimming="CharacterEllipsis" />
                                 <TextBlock Grid.Column="3" Margin="8,0,0,0" Text="{Binding Explanation}"
                                            TextWrapping="Wrap" />
@@ -378,7 +378,7 @@
                                             <ColumnDefinition Width="3*" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock FontWeight="SemiBold" Text="{Binding Status}" />
-                                        <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Item.Path}"
+                                        <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Item.Path, Converter={StaticResource PlainPathConverter}}"
                                                    TextTrimming="CharacterEllipsis" />
                                         <TextBlock Grid.Column="2" Margin="8,0,0,0" Text="{Binding Size}" />
                                         <StackPanel Grid.Column="3" Margin="8,0,0,0">

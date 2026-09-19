@@ -48,6 +48,39 @@ public sealed class WindowsExplorerServiceTests
     }
 
     [TestMethod]
+    public async Task RevealAsync_ParsesThePlainSpellingAndNamesItInFailures()
+    {
+        string? capturedPath = null;
+        var service = new WindowsExplorerService(path =>
+        {
+            capturedPath = path;
+            throw new IOException("The location is unavailable.");
+        });
+
+        var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => service.RevealAsync(@"\\?\C:\missing\folder"));
+
+        Assert.AreEqual(@"C:\missing\folder", capturedPath);
+        StringAssert.Contains(exception.Message, @"File Explorer could not reveal 'C:\missing\folder'.");
+        Assert.IsFalse(exception.Message.Contains(@"\\?\", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task SelectByParentAsync_ReportsVerbatimParentFailuresInPlainForm()
+    {
+        var service = new WindowsExplorerService(
+            _ => { },
+            (_, _) => throw new IOException("The parent is offline."));
+
+        var result = await service.SelectByParentAsync(
+            [@"\\?\D:\Offline\Three", @"\\?\UNC\server\share\Folder\Four"]);
+
+        CollectionAssert.AreEquivalent(
+            new[] { @"D:\Offline", @"\\server\share\Folder" },
+            result.Failures.Select(failure => failure.ParentPath).ToArray());
+    }
+
+    [TestMethod]
     public async Task RevealAsync_CancellationBeforeDispatchDoesNotRunNativeWork()
     {
         var called = false;

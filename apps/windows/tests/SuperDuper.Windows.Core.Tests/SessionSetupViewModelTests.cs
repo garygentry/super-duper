@@ -129,6 +129,27 @@ public sealed class SessionSetupViewModelTests
     }
 
     [TestMethod]
+    public void VerbatimRootStatusNamesThePlainPathAndKeepsTheStoredRoot()
+    {
+        const string root = @"\\?\UNC\server\share\Archive";
+        var viewModel = new SessionSetupViewModel(
+            new TestWorkerClient(),
+            new TestFolderPicker(),
+            new TestConfirmation(),
+            _ => [],
+            new TestCloudLocationService());
+        viewModel.BeginNew();
+
+        viewModel.Roots[0].Path = root;
+
+        Assert.AreEqual(root, viewModel.Roots[0].Path);
+        Assert.IsTrue(viewModel.Roots[0].HasStatusNotice);
+        StringAssert.Contains(viewModel.Roots[0].Status, @"UNC network root is best-effort");
+        StringAssert.Contains(viewModel.Roots[0].Status, @"\\server\share\Archive");
+        Assert.IsFalse(viewModel.Roots[0].Status.Contains(@"\\?\", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task BrowseRootCommand_ReusesExistingBlankEditor()
     {
         var selected = Path.GetTempPath();

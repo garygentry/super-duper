@@ -113,7 +113,7 @@
                                     <TextBox Margin="0,3,0,0"
                                              AutomationProperties.Name="Recorded scan location"
                                              BorderThickness="0" IsReadOnly="True" IsReadOnlyCaretVisible="True"
-                                             Text="{Binding Mode=OneWay}" TextWrapping="Wrap" />
+                                             Text="{Binding Mode=OneWay, Converter={StaticResource PlainPathConverter}}" TextWrapping="Wrap" />
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -176,7 +176,7 @@
                                             <ItemsControl Margin="0,3,0,0" ItemsSource="{Binding Examples}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate><TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                             Text="{Binding Path=., StringFormat='Example: {0}'}" TextWrapping="Wrap" /></DataTemplate>
+                                                                             Text="{Binding Path=., Converter={StaticResource PlainPathConverter}, StringFormat='Example: {0}'}" TextWrapping="Wrap" /></DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
                                             <Expander Margin="0,4,0,0" Header="Warning code and category">

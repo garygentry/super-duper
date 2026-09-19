@@ -11,6 +11,9 @@ public sealed class DuplicateFolderGroupListItemViewModel(WorkerDuplicateFolderG
 
     public string RepresentativePath => Group.RepresentativePath;
 
+    /// <summary>Plain spelling of <see cref="RepresentativePath"/> for visible text.</summary>
+    public string DisplayRepresentativePath => DisplayPaths.Plain(Group.RepresentativePath);
+
     public string TotalBytes => DisplayFormatting.Bytes(Group.TotalBytes);
 
     public string DescendantFileCount => Group.DescendantFileCount.ToString("N0");
@@ -56,7 +59,7 @@ public sealed class DuplicateFolderMemberListItemViewModel
         var differing = segments.Skip(commonPrefixLength).Take(differingLength).ToArray();
         var suffix = segments.Skip(commonPrefixLength + differingLength).ToArray();
 
-        FolderName = segments.LastOrDefault() ?? member.Path;
+        FolderName = segments.LastOrDefault() ?? DisplayPath;
         ParentLocation = Compact(segments.Take(Math.Max(0, segments.Count - 1)));
         SharedPathContext = FormatSharedContext(prefix, suffix);
         DifferingPathSegments = differing.Length == 0 ? "No differing segments" : Compact(differing);
@@ -70,6 +73,9 @@ public sealed class DuplicateFolderMemberListItemViewModel
     public long Id => Member.Id;
 
     public string Path => Member.Path;
+
+    /// <summary>Plain spelling of <see cref="Path"/> for visible text and the clipboard.</summary>
+    public string DisplayPath => DisplayPaths.Plain(Member.Path);
 
     public string FolderName { get; }
 
@@ -118,7 +124,8 @@ public sealed class DuplicateFolderMemberListItemViewModel
             return [];
         }
 
-        var tokenized = page.Select(member => Tokenize(member.Path)).ToArray();
+        // Segment the plain spelling so location labels never show a verbatim prefix.
+        var tokenized = page.Select(member => Tokenize(DisplayPaths.Plain(member.Path))).ToArray();
         var commonPrefixLength = CommonPrefixLength(tokenized);
         var commonSuffixLength = CommonSuffixLength(tokenized, commonPrefixLength);
         return page.Select((member, index) => new DuplicateFolderMemberListItemViewModel(
