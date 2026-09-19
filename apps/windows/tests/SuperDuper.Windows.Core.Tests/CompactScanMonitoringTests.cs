@@ -135,6 +135,7 @@ public sealed class CompactScanMonitoringTests
         Assert.AreEqual("candidate.bin", model.ActivityFileName);
         Assert.AreEqual(@"\\server\share\long parent\", model.ActivityParent);
         Assert.AreEqual(path, model.CurrentPath);
+        Assert.AreEqual(@"\\server\share\long parent\candidate.bin", model.DisplayCurrentPath);
         model.ApplyLifecycle(model.Run! with { Phase = "persisting" });
         Assert.AreEqual("No path reported for this phase", model.ActivityFileName);
         Assert.AreEqual(string.Empty, model.ActivityParent);

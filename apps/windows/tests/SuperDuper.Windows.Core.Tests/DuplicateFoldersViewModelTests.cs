@@ -48,6 +48,49 @@ public sealed class DuplicateFoldersViewModelTests
     }
 
     [TestMethod]
+    public async Task VerbatimFolderPathsDisplayAndCopyPlainWhileRevealUsesTheExactPath()
+    {
+        const string first = @"\\?\C:\Archive\One";
+        const string second = @"\\?\UNC\server\share\Archive\One";
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderGroupPage([Group(1, query.RunId, first)], 1, null, null)),
+            FolderMemberPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFolderMemberPage(
+                [new(1, query.GroupId, first), new(2, query.GroupId, second)], 2, null, null)),
+        };
+        var clipboard = new TestClipboard();
+        var explorer = new TestExplorer();
+        using var viewModel = new DuplicateFoldersViewModel(client, clipboard, explorer);
+
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(7, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        Assert.AreEqual(first, viewModel.Groups.Single().RepresentativePath);
+        Assert.AreEqual(@"C:\Archive\One", viewModel.Groups.Single().DisplayRepresentativePath);
+        var local = viewModel.Members[0];
+        var network = viewModel.Members[1];
+        Assert.AreEqual(first, local.Path);
+        Assert.AreEqual(@"C:\Archive\One", local.DisplayPath);
+        Assert.AreEqual(@"\\server\share\Archive\One", network.DisplayPath);
+        Assert.AreEqual("C: › Archive", local.ParentLocation);
+        Assert.AreEqual(@"\\server\share › Archive", network.ParentLocation);
+        foreach (var member in viewModel.Members)
+        {
+            foreach (var text in new[] { member.FolderName, member.ParentLocation, member.SharedPathContext,
+                         member.DifferingPathSegments, member.LocationLabel, member.AutomationName })
+            {
+                Assert.IsFalse(text.Contains(@"\\?\", StringComparison.Ordinal), text);
+            }
+        }
+
+        viewModel.CopyPathCommand.Execute(network);
+        Assert.AreEqual(@"\\server\share\Archive\One", clipboard.Text);
+        viewModel.SelectedMember = local;
+        await viewModel.RevealInExplorerCommand.ExecuteAsync(local);
+        Assert.AreEqual(first, explorer.RevealedPath, "Explorer reveal must receive the exact stored path.");
+    }
+
+    [TestMethod]
     public async Task FilterGenerationRejectsLateResponseAndCacheRemainsBounded()
     {
         var oldResponse = new TaskCompletionSource<WorkerDuplicateFolderGroupPage>(TaskCreationOptions.RunContinuationsAsynchronously);

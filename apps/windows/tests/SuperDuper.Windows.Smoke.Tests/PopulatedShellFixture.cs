@@ -703,7 +703,7 @@ internal static class PopulatedShellFixture
         Assert.AreEqual(0, memberScroll.ScrollableWidth, 0.5,
             $"{suffix}: essential copy comparison must not require horizontal scrolling.");
         var exactPath = Find<TextBox>(window, "FileSelectedCopyPath");
-        Assert.AreEqual(model.DuplicateFiles.Members[0].Path, exactPath.Text);
+        Assert.AreEqual(model.DuplicateFiles.Members[0].DisplayPath, exactPath.Text);
         Assert.AreEqual(TextWrapping.Wrap, exactPath.TextWrapping);
         Assert.AreEqual(ScrollBarVisibility.Disabled, exactPath.HorizontalScrollBarVisibility);
         var selectedPanel = Find<Border>(window, "FileSelectedCopyPanel");
@@ -902,7 +902,7 @@ internal static class PopulatedShellFixture
         Drain();
         var selectedPanel = Find<Border>(window, "FolderSelectedCopyPanel");
         var selectedPath = Find<TextBox>(window, "FolderSelectedCopyPath");
-        Assert.AreEqual(model.DuplicateFolders.Members[0].Path, selectedPath.Text);
+        Assert.AreEqual(model.DuplicateFolders.Members[0].DisplayPath, selectedPath.Text);
         Assert.AreEqual(TextWrapping.Wrap, selectedPath.TextWrapping);
         Assert.AreEqual(ScrollBarVisibility.Disabled, selectedPath.HorizontalScrollBarVisibility);
         Assert.IsTrue(selectedPanel.IsVisible);

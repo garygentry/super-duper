@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using SuperDuper.Windows.Core.Services;
+using SuperDuper.Windows.Core.ViewModels;
 using Windows.Win32;
 using Windows.Win32.UI.Shell.Common;
 
@@ -92,7 +93,8 @@ public sealed class WindowsExplorerService : IExplorerService
         ArgumentException.ThrowIfNullOrWhiteSpace(requestedPath);
         var displayPath = Path.GetFullPath(requestedPath);
         var shellPath = Path.GetFullPath(WindowsShellPath.ToParsingPath(requestedPath));
-        var displayParentPath = GetParentPath(displayPath, requestedPath);
+        // Failures name the parent in plain form; the shell still parses the exact path.
+        var displayParentPath = DisplayPaths.Plain(GetParentPath(displayPath, requestedPath));
         var shellParentPath = GetParentPath(shellPath, requestedPath);
         return new SelectionItem(displayParentPath, shellParentPath, shellPath);
     }
@@ -104,7 +106,7 @@ public sealed class WindowsExplorerService : IExplorerService
         if (string.IsNullOrWhiteSpace(parentPath))
         {
             throw new ArgumentException(
-                $"Explorer cannot select the root location '{requestedPath}' inside a parent directory.",
+                $"Explorer cannot select the root location '{DisplayPaths.Plain(requestedPath)}' inside a parent directory.",
                 nameof(requestedPath));
         }
         return parentPath;
@@ -139,7 +141,7 @@ public sealed class WindowsExplorerService : IExplorerService
         catch (Exception exception)
         {
             throw new InvalidOperationException(
-                $"File Explorer could not reveal '{requestedPath}'. {exception.Message}",
+                $"File Explorer could not reveal '{DisplayPaths.Plain(requestedPath)}'. {exception.Message}",
                 exception);
         }
     }

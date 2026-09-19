@@ -5,5 +5,5 @@ public sealed record CloudLocationListItemViewModel(
     string Path,
     string Behavior)
 {
-    public string AccessibilityName => $"{ProviderName}: {Path}. {Behavior}";
+    public string AccessibilityName => $"{ProviderName}: {DisplayPaths.Plain(Path)}. {Behavior}";
 }

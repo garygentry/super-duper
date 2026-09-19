@@ -20,8 +20,8 @@ public sealed class DuplicateFileSelectedRootFacetListItemViewModel
     public string DisplayText => Facet is null
         ? Value is null
             ? "All selected roots"
-            : $"{Value} (selected; outside this page)"
-        : $"{Facet.Value} · {Facet.MatchingGroupCount:N0} {Pluralize(Facet.MatchingGroupCount, "set", "sets")}";
+            : $"{DisplayPaths.Plain(Value)} (selected; outside this page)"
+        : $"{DisplayPaths.Plain(Facet.Value)} · {Facet.MatchingGroupCount:N0} {Pluralize(Facet.MatchingGroupCount, "set", "sets")}";
 
     private static string Pluralize(long value, string singular, string plural) =>
         value == 1 ? singular : plural;
@@ -104,7 +104,13 @@ public sealed class DuplicateFileMemberListItemViewModel
 
     public string Path => Member.Path;
 
+    /// <summary>Plain spelling of <see cref="Path"/> for visible text and the clipboard.</summary>
+    public string DisplayPath => DisplayPaths.Plain(Member.Path);
+
     public string SelectedRoot => Member.RootPath;
+
+    /// <summary>Plain spelling of <see cref="SelectedRoot"/> for visible text.</summary>
+    public string DisplaySelectedRoot => DisplayPaths.Plain(Member.RootPath);
 
     public string SelectedRootLabel { get; }
 
@@ -134,7 +140,7 @@ public sealed class DuplicateFileMemberListItemViewModel
     };
 
     public string LiveStateAutomationName =>
-        $"Working file state for {Path}: {LiveState}. Immutable scan result unchanged.";
+        $"Working file state for {DisplayPath}: {LiveState}. Immutable scan result unchanged.";
 
     public bool CanRecordCurrentDecision =>
         Member.ValidationState is null or "present";
@@ -190,7 +196,7 @@ internal static class SelectedRootLabelFormatter
             .Select(Normalize)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        if (!choices.Contains(root, StringComparer.OrdinalIgnoreCase)) return rootPath;
+        if (!choices.Contains(root, StringComparer.OrdinalIgnoreCase)) return DisplayPaths.Plain(rootPath);
 
         var parts = choices.Select(path => new RootParts(path)).ToArray();
         var selected = parts.First(part => string.Equals(part.Path, root, StringComparison.OrdinalIgnoreCase));
@@ -202,18 +208,11 @@ internal static class SelectedRootLabelFormatter
                 .All(part => !string.Equals(label, part.Suffix(length), StringComparison.OrdinalIgnoreCase)))
                 return label;
         }
-        return rootPath;
+        return DisplayPaths.Plain(rootPath);
     }
 
-    private static string Normalize(string path)
-    {
-        var normalized = path.Replace('/', '\\');
-        if (normalized.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase))
-            normalized = @"\\" + normalized[8..];
-        else if (normalized.StartsWith(@"\\?\", StringComparison.OrdinalIgnoreCase))
-            normalized = normalized[4..];
-        return normalized.TrimEnd('\\');
-    }
+    private static string Normalize(string path) =>
+        DisplayPaths.Plain(path.Replace('/', '\\')).TrimEnd('\\');
 
     private sealed class RootParts(string path)
     {

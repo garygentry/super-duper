@@ -683,7 +683,7 @@ public sealed class RecoveryReviewViewModel : ObservableObject, IDisposable
         {
             return;
         }
-        _clipboard.CopyText(SelectedUnknownItem.Item.Path);
+        _clipboard.CopyText(DisplayPaths.Plain(SelectedUnknownItem.Item.Path));
         PublishSuccess($"Stored source path for operation item {SelectedUnknownItem.Item.Id:N0} copied for independent inspection.");
     }
 

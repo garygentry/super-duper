@@ -110,7 +110,7 @@ public sealed partial class DuplicateFilesViewModel
             if (filter.AcrossDrives) chips.Add(new("across", "Across drives"));
             if (filter.Extension is not null)
                 chips.Add(new("extension", $"{(filter.ExtensionMatch == DuplicateFileExtensionMatchMode.AllMembers ? "All copies" : "Any copy")}: {(filter.Extension.Length == 0 ? "no extension" : "." + filter.Extension)}"));
-            if (filter.SelectedRoot is not null) chips.Add(new("root", $"Root: {filter.SelectedRoot}"));
+            if (filter.SelectedRoot is not null) chips.Add(new("root", $"Root: {DisplayPaths.Plain(filter.SelectedRoot)}"));
             if (filter.SelectedDrive is not null) chips.Add(new("drive", $"Drive: {filter.SelectedDrive}"));
             AppliedFilters = chips;
         }

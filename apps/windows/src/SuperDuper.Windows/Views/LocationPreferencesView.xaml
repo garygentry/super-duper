@@ -74,10 +74,15 @@
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem" BasedOn="{StaticResource DefaultListBoxItemStyle}">
-                    <Setter Property="AutomationProperties.Name" Value="{Binding}" />
+                    <Setter Property="AutomationProperties.Name" Value="{Binding Converter={StaticResource PlainPathConverter}}" />
                     <Setter Property="AutomationProperties.HelpText" Value="Use Move up and Move down to change this root's explicit rank" />
                 </Style>
             </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding Converter={StaticResource PlainPathConverter}}" />
+                </DataTemplate>
+            </ListBox.ItemTemplate>
         </ListBox>
         <WrapPanel Margin="0,6,0,0">
             <Button Margin="0,0,6,6" KeyboardNavigation.TabIndex="220"

@@ -926,7 +926,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
                     _ => "Reset decision to Undecided",
                 };
                 MemberStatusAnnouncement =
-                    $"Folder review decision saved: {decisionText} for {member.Path}. {SelectedReviewSummaryText}.";
+                    $"Folder review decision saved: {decisionText} for {member.DisplayPath}. {SelectedReviewSummaryText}.";
                 MemberStatusAnnouncementVersion++;
             }
         }
@@ -1008,7 +1008,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     private void CopyPath(DuplicateFolderMemberListItemViewModel? member)
     {
         if (member is null) return;
-        try { _clipboard.CopyText(member.Path); DetailErrorMessage = null; }
+        try { _clipboard.CopyText(member.DisplayPath); DetailErrorMessage = null; }
         catch (Exception exception) { DetailErrorMessage = exception.Message; }
     }
 
@@ -1192,7 +1192,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         var failureDetails = string.Join(
             "; ",
             result.Failures.Take(3).Select(failure =>
-                $"{CompactExplorerDetail(failure.ParentPath)} ({CompactExplorerDetail(failure.ErrorMessage)})"));
+                $"{CompactExplorerDetail(DisplayPaths.Plain(failure.ParentPath))} ({CompactExplorerDetail(failure.ErrorMessage)})"));
         if (result.Failures.Count > 3)
         {
             failureDetails += $"; plus {result.Failures.Count - 3:N0} more parent locations";

@@ -1291,7 +1291,9 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         if (progress.RunId == ActiveRunId)
         {
             StatusTitle = DisplayFormatting.Phase(progress.Phase);
-            StatusDetail = progress.Message ?? progress.CurrentPath ?? $"{progress.FilesDiscovered:N0} files discovered";
+            StatusDetail = progress.Message
+                ?? (progress.CurrentPath is { } currentPath ? DisplayPaths.Plain(currentPath) : null)
+                ?? $"{progress.FilesDiscovered:N0} files discovered";
         }
     }
 

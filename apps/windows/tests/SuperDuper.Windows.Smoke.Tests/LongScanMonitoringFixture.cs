@@ -210,7 +210,9 @@ internal static class LongScanMonitoringFixture
             Assert.AreEqual(30, path.SelectionLength);
             Assert.AreEqual(offset, Find<ScrollViewer>(view, "ScanProgressScrollViewer").VerticalOffset);
             Assert.AreEqual(horizontalOffset, path.HorizontalOffset);
-            Assert.AreEqual(pathText, path.Text);
+            // Diagnostics shows the plain spelling of the worker's verbatim path.
+            Assert.AreEqual(DisplayPaths.Plain(pathText), path.Text);
+            Assert.AreEqual(pathText, model.CurrentPath);
             AssertReachable(window, path);
             Capture(window, $"compact-exact-details-{size.Width}");
             foreach (var id in new[] { "ScanPartialRecentRate", "ScanFullCumulativeRate", "ScanFullCacheOutcomes" })

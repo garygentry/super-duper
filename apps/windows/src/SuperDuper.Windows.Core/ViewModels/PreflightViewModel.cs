@@ -1107,6 +1107,9 @@ public sealed class PreflightItemViewModel
 
     public string Path => Item.Path;
 
+    /// <summary>Plain spelling of <see cref="Path"/> for visible text.</summary>
+    public string DisplayPath => DisplayPaths.Plain(Item.Path);
+
     public string Explanation => Item.ReasonCode switch
     {
         "matched_snapshot" => "Identity, size, modified time, and content hash match the scan.",
@@ -1130,7 +1133,7 @@ public sealed class PreflightItemViewModel
         _ => Item.ReasonCode.Replace('_', ' '),
     };
 
-    public string AutomationName => $"{Outcome}; {Target}; {Path}; {Explanation}";
+    public string AutomationName => $"{Outcome}; {Target}; {DisplayPath}; {Explanation}";
 
     public ReviewResultTarget? ResultTarget => Item switch
     {

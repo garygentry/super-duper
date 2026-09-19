@@ -594,8 +594,10 @@ public sealed class SessionSetupViewModel : ObservableObject
         foreach (var root in Roots)
         {
             var path = root.Path.Trim();
+            // Validation messages name the plain spelling of a verbatim root.
+            var displayPath = DisplayPaths.Plain(path);
             var messages = _validation.Errors.Concat(_validation.Warnings)
-                .Where(message => path.Length > 0 && message.Contains(path, StringComparison.OrdinalIgnoreCase)).ToArray();
+                .Where(message => path.Length > 0 && message.Contains(displayPath, StringComparison.OrdinalIgnoreCase)).ToArray();
             root.HasStatusNotice = path.Length == 0 || messages.Length > 0;
             root.Status = path.Length == 0 ? "Enter an absolute folder or drive path."
                 : messages.Length > 0 ? string.Join(" ", messages)

@@ -308,7 +308,7 @@
                             IsReadOnly="True"
                             TextWrapping="NoWrap"
                             HorizontalScrollBarVisibility="Auto"
-                            Text="{Binding CurrentPath, Mode=OneWay}"
+                            Text="{Binding DisplayCurrentPath, Mode=OneWay}"
                             automation:AutomationProperties.AutomationId="ScanCurrentPath"
                             automation:AutomationProperties.Name="{Binding ActivityPathAutomationName}" />
                         <TextBlock Style="{StaticResource SecondaryProgressText}"

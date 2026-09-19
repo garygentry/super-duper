@@ -808,7 +808,7 @@
                       VirtualizingPanel.VirtualizationMode="Recycling">
                 <DataGrid.RowStyle>
                     <Style TargetType="DataGridRow" BasedOn="{StaticResource DefaultDataGridRowStyle}">
-                        <Setter Property="automation:AutomationProperties.Name" Value="{Binding Path, StringFormat='Duplicate copy {0}; select to reveal decisions and path actions'}" />
+                        <Setter Property="automation:AutomationProperties.Name" Value="{Binding DisplayPath, StringFormat='Duplicate copy {0}; select to reveal decisions and path actions'}" />
                     </Style>
                 </DataGrid.RowStyle>
                 <DataGrid.Columns>
@@ -816,20 +816,20 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Margin="3,4"
-                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Copy location {0}'}">
+                                            automation:AutomationProperties.Name="{Binding DisplayPath, StringFormat='Copy location {0}'}">
                                     <TextBlock FontWeight="SemiBold"
                                                automation:AutomationProperties.Name="{Binding RelativePath, StringFormat='Relative path: {0}'}"
-                                               automation:AutomationProperties.HelpText="{Binding Path, StringFormat='Complete path: {0}'}"
+                                               automation:AutomationProperties.HelpText="{Binding DisplayPath, StringFormat='Complete path: {0}'}"
                                                Text="{Binding RelativePath}"
                                                TextWrapping="NoWrap"
                                                TextTrimming="CharacterEllipsis"
-                                               ToolTip="{Binding Path}" />
+                                               ToolTip="{Binding DisplayPath}" />
                                     <TextBlock Margin="0,3,0,0"
-                                               automation:AutomationProperties.Name="{Binding SelectedRoot, StringFormat='Selected root: {0}'}"
+                                               automation:AutomationProperties.Name="{Binding DisplaySelectedRoot, StringFormat='Selected root: {0}'}"
                                                Text="{Binding SelectedRootLabel}"
                                                TextWrapping="NoWrap"
                                                TextTrimming="CharacterEllipsis"
-                                               ToolTip="{Binding SelectedRoot}" />
+                                               ToolTip="{Binding DisplaySelectedRoot}" />
                                     <WrapPanel Margin="0,3,0,0">
                                         <TextBlock Text="{Binding Size, StringFormat=Size {0}}" />
                                         <TextBlock Margin="8,0,0,0" Text="{Binding Modified, StringFormat=Modified {0}}" />
@@ -857,7 +857,7 @@
                     CornerRadius="6"
                     DataContext="{Binding SelectedItem, ElementName=MembersGrid}"
                     automation:AutomationProperties.AutomationId="FileSelectedCopyPanel"
-                    automation:AutomationProperties.Name="{Binding Path, StringFormat='Selected copy actions for {0}'}">
+                    automation:AutomationProperties.Name="{Binding DisplayPath, StringFormat='Selected copy actions for {0}'}">
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="Visibility" Value="Visible" />
@@ -898,21 +898,21 @@
                                             Text="{Binding Decision, StringFormat='Current decision: {0}'}"
                                             TextWrapping="Wrap" />
                                  <WrapPanel Margin="0,8,0,0" automation:AutomationProperties.Name="Review decision for selected copy">
-                                    <Button automation:AutomationProperties.Name="{Binding Path, StringFormat='Keep {0}; preserves this physical copy'}"
+                                    <Button automation:AutomationProperties.Name="{Binding DisplayPath, StringFormat='Keep {0}; preserves this physical copy'}"
                                             IsEnabled="{Binding CanRecordCurrentDecision}"
                                             Command="{Binding DataContext.KeepMemberCommand, ElementName=Root}"
                                             Click="OnReviewDecisionClick"
                                             CommandParameter="{Binding}"
                                             Content="Keep copy" />
                                     <Button Margin="6,0,0,0"
-                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Mark {0} for removal; records intent only and does not delete'}"
+                                            automation:AutomationProperties.Name="{Binding DisplayPath, StringFormat='Mark {0} for removal; records intent only and does not delete'}"
                                             IsEnabled="{Binding CanRecordCurrentDecision}"
                                             Command="{Binding DataContext.RemoveMemberCommand, ElementName=Root}"
                                             Click="OnReviewDecisionClick"
                                             CommandParameter="{Binding}"
                                             Content="Mark copy for removal" />
                                     <Button Margin="6,0,0,0"
-                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Reset decision for {0} to undecided'}"
+                                            automation:AutomationProperties.Name="{Binding DisplayPath, StringFormat='Reset decision for {0} to undecided'}"
                                             IsEnabled="{Binding CanClearDecision}"
                                             Command="{Binding DataContext.UndecideMemberCommand, ElementName=Root}"
                                             Click="OnReviewDecisionClick"
@@ -924,15 +924,15 @@
                                           MaxHeight="50"
                                           IsReadOnly="True"
                                           IsReadOnlyCaretVisible="True"
-                                          Text="{Binding Path, Mode=OneWay}"
+                                          Text="{Binding DisplayPath, Mode=OneWay}"
                                           TextWrapping="Wrap"
                                           VerticalScrollBarVisibility="Auto"
                                           HorizontalScrollBarVisibility="Disabled"
                                           automation:AutomationProperties.AutomationId="FileSelectedCopyPath"
-                                          automation:AutomationProperties.Name="{Binding Path, StringFormat='Complete selected copy path: {0}'}" />
+                                          automation:AutomationProperties.Name="{Binding DisplayPath, StringFormat='Complete selected copy path: {0}'}" />
                                 <WrapPanel Margin="0,6,0,0" automation:AutomationProperties.Name="Path actions for selected copy">
                                     <Button Style="{StaticResource ShellIconAction}"
-                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Copy complete path for {0}'}"
+                                            automation:AutomationProperties.Name="{Binding DisplayPath, StringFormat='Copy complete path for {0}'}"
                                             Command="{Binding DataContext.CopyPathCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
                                             ToolTip="Copy path">
@@ -940,7 +940,7 @@
                                     </Button>
                                     <Button Margin="6,0,0,0"
                                             Style="{StaticResource ShellIconAction}"
-                                            automation:AutomationProperties.Name="{Binding Path, StringFormat='Show {0} in Explorer'}"
+                                            automation:AutomationProperties.Name="{Binding DisplayPath, StringFormat='Show {0} in Explorer'}"
                                             Command="{Binding DataContext.RevealInExplorerCommand, ElementName=Root}"
                                             CommandParameter="{Binding}"
                                             ToolTip="Show in Explorer">
