@@ -33,4 +33,17 @@
     <Copy SourceFiles="$(WorkerExecutableSource)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
   </Target>
 
+  <!-- A missing worker used to be silent: Debug ran whatever worker was already beside the app
+       (stale or absent), and Release only failed later, in the release verifier's artifact check. -->
+  <Target Name="CheckWorkerExecutable" AfterTargets="Build" Condition="!Exists('$(WorkerExecutableSource)')">
+    <Warning Condition="'$(Configuration)' != 'Release'"
+             Text="super-duper-worker.exe not found at $(WorkerExecutableSource); build it first (cargo build --workspace) or the app will run a stale or missing worker." />
+    <Error Condition="'$(Configuration)' == 'Release'"
+           Text="super-duper-worker.exe not found at $(WorkerExecutableSource); a Release build requires it (cargo build --workspace --release)." />
+  </Target>
+
+  <Target Name="CheckWorkerExecutableForPublish" AfterTargets="Publish" Condition="!Exists('$(WorkerExecutableSource)')">
+    <Error Text="super-duper-worker.exe not found at $(WorkerExecutableSource); publish requires it (cargo build --workspace --release)." />
+  </Target>
+
 </Project>
