@@ -7,7 +7,7 @@ use std::ptr;
 use winapi::shared::minwindef::DWORD;
 use winapi::um::fileapi::{
     BY_HANDLE_FILE_INFORMATION, CreateFileW, FILE_BASIC_INFO, GetFileAttributesW,
-    GetFileInformationByHandle, INVALID_FILE_ATTRIBUTES, OPEN_EXISTING,
+    GetFileInformationByHandle, GetLongPathNameW, INVALID_FILE_ATTRIBUTES, OPEN_EXISTING,
 };
 use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
 use winapi::um::ioapiset::DeviceIoControl;
@@ -221,6 +221,38 @@ impl StorageDeviceProbe for WindowsStorageDeviceProbe {
             ));
         }
         Ok(descriptor.incurs_seek_penalty != 0)
+    }
+}
+
+/// Expands 8.3 short-name components (`RUNNER~1`) to their long names. Only paths with a `~` in
+/// some component are looked up, so ordinary paths, including cloud locations, are never touched.
+/// `GetLongPathNameW` reads parent directory entries; it does not open the path itself. Returns
+/// `None` when nothing needs expanding or the path cannot be resolved.
+pub(crate) fn long_path_name(path: &Path) -> Option<std::path::PathBuf> {
+    use std::os::windows::ffi::OsStringExt;
+
+    let has_short_component = path.components().any(|component| match component {
+        Component::Normal(name) => name.to_string_lossy().contains('~'),
+        _ => false,
+    });
+    if !has_short_component {
+        return None;
+    }
+    let wide = wide_null(path.as_os_str());
+    let mut buffer = vec![0u16; 1024];
+    loop {
+        // SAFETY: `wide` is NUL-terminated and `buffer` is writable for its full length.
+        let length =
+            unsafe { GetLongPathNameW(wide.as_ptr(), buffer.as_mut_ptr(), buffer.len() as DWORD) }
+                as usize;
+        if length == 0 {
+            return None;
+        }
+        if length < buffer.len() {
+            let long = std::path::PathBuf::from(OsString::from_wide(&buffer[..length]));
+            return (long.as_os_str() != path.as_os_str()).then_some(long);
+        }
+        buffer.resize(length, 0);
     }
 }
 
