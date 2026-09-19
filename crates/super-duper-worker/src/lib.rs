@@ -125,9 +125,30 @@ impl DatabaseUnavailable {
     }
 }
 
-/// `<database>.lock`, held exclusively for the worker's lifetime. Startup reconciliation marks
-/// every running run interrupted, which is only correct when no other worker owns the database.
-fn acquire_database_lock(database_path: &Path) -> Result<fs::File, DatabaseUnavailable> {
+/// How long a starting worker waits for `<database>.lock`. Windows releases a byte-range lock
+/// held by a terminated process asynchronously, so a worker restarted right after the previous
+/// one exited (or was killed) can briefly still see it held.
+const DATABASE_LOCK_WAIT: Duration = Duration::from_secs(3);
+
+/// `<database>.lock`, held exclusively for the worker's lifetime and released explicitly when the
+/// worker shuts down. Startup reconciliation marks every running run interrupted, which is only
+/// correct when no other worker owns the database.
+struct DatabaseLock(fs::File);
+
+impl Drop for DatabaseLock {
+    fn drop(&mut self) {
+        let _ = self.0.unlock();
+    }
+}
+
+fn acquire_database_lock(database_path: &Path) -> Result<DatabaseLock, DatabaseUnavailable> {
+    acquire_database_lock_within(database_path, DATABASE_LOCK_WAIT)
+}
+
+fn acquire_database_lock_within(
+    database_path: &Path,
+    wait: Duration,
+) -> Result<DatabaseLock, DatabaseUnavailable> {
     let mut lock_path = database_path.as_os_str().to_owned();
     lock_path.push(".lock");
     let file = fs::OpenOptions::new()
@@ -137,15 +158,23 @@ fn acquire_database_lock(database_path: &Path) -> Result<fs::File, DatabaseUnava
         .truncate(false)
         .open(&lock_path)
         .map_err(|error| DatabaseUnavailable::from_io(&error, database_path))?;
-    match file.try_lock() {
-        Ok(()) => Ok(file),
-        Err(fs::TryLockError::WouldBlock) => Err(DatabaseUnavailable::new(
-            "in_use",
-            "Another Super Duper worker is using this database",
-            database_path,
-        )),
-        Err(fs::TryLockError::Error(error)) => {
-            Err(DatabaseUnavailable::from_io(&error, database_path))
+    let deadline = Instant::now() + wait;
+    loop {
+        match file.try_lock() {
+            Ok(()) => return Ok(DatabaseLock(file)),
+            Err(fs::TryLockError::WouldBlock) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(fs::TryLockError::WouldBlock) => {
+                return Err(DatabaseUnavailable::new(
+                    "in_use",
+                    "Another Super Duper worker is using this database",
+                    database_path,
+                ));
+            }
+            Err(fs::TryLockError::Error(error)) => {
+                return Err(DatabaseUnavailable::from_io(&error, database_path));
+            }
         }
     }
 }
@@ -1326,7 +1355,7 @@ struct ActivePreflight {
 }
 
 struct SharedState {
-    _database_lock: fs::File,
+    _database_lock: DatabaseLock,
     database_path: PathBuf,
     status_database_path: PathBuf,
     diagnostic_log_path: Option<PathBuf>,
@@ -11383,6 +11412,8 @@ mod tests {
         drop(db);
 
         drop(owner);
+        // Dropping the owner releases the lock at once; no wait is needed.
+        drop(acquire_database_lock_within(&db_path, Duration::ZERO).unwrap());
         let frames = execute(
             &temp,
             &[
@@ -11395,6 +11426,32 @@ mod tests {
             response(&frames, "get")["result"]["run"]["status"],
             "interrupted"
         );
+    }
+
+    #[test]
+    fn a_lock_released_shortly_after_startup_is_waited_for() {
+        let temp = TempDir::new().unwrap();
+        let db_path = temp.path().join("worker.db");
+        let held = acquire_database_lock_within(&db_path, Duration::ZERO).unwrap();
+        assert!(matches!(
+            acquire_database_lock_within(&db_path, Duration::ZERO),
+            Err(DatabaseUnavailable {
+                reason: "in_use",
+                ..
+            })
+        ));
+
+        // Stands in for Windows releasing a terminated worker's lock a moment late.
+        let releaser = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(300));
+            drop(held);
+        });
+        let started = Instant::now();
+        let acquired = acquire_database_lock_within(&db_path, Duration::from_secs(3));
+        releaser.join().unwrap();
+
+        assert!(acquired.is_ok(), "the lock was released within the wait");
+        assert!(started.elapsed() >= Duration::from_millis(250));
     }
 
     #[test]
