@@ -79,6 +79,8 @@ Done:
 - README editorial pass: states that the app is review-only, describes the current state locations,
   env vars and test commands (`-m:1`), and replaces the MVP-era status with the v0.1.0 status and
   its unverified accessibility checks.
+- `resolver = "3"` (edition 2024 default). The resolved dependency graph and features were
+  identical to `"2"` (`cargo tree`, 233 package/feature lines) and `Cargo.lock` was unchanged.
 
 Failure-mode pass, 2026-09-18 (Release app, 60,000-file disposable fixture). Degraded correctly:
 worker killed mid-scan, corrupt/truncated/newer/read-only main database (file never modified),
@@ -99,7 +101,6 @@ Carried over from the handoff that stabilized `codex/ui-redesign` for the merge.
   against canonical walk paths, so an exclusion written with an 8.3 short name (or otherwise
   non-canonically) under a canonical root does not prune. The app supplies long paths today; this
   matters if exclusions become hand-typed.
-- **Move `resolver` to `"3"`** (the edition 2024 default) as its own testable change.
 - **Run `scripts/Verify-WindowsHashReadPath.ps1` at the next SOP7 check.** Its SOP7 assertion was
   retargeted from `hasher/cache.rs` to `hasher/xxhash.rs` but has not been run.
 
