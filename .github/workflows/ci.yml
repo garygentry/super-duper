@@ -38,6 +38,9 @@ jobs:
             ~/.cargo/git
             target
           key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          # A Cargo.lock change (a new dependency, a version bump) starts from the newest earlier
+          # build instead of from scratch; cargo rebuilds only what changed.
+          restore-keys: cargo-${{ runner.os }}-
 
       - name: Check formatting
         run: cargo fmt --all --check
@@ -95,6 +98,7 @@ jobs:
             ~/.cargo/git
             target/release
           key: cargo-release-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-release-${{ runner.os }}-
 
       - name: Cache cargo-about
         id: cargo-about

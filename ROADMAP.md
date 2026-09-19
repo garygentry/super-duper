@@ -102,8 +102,13 @@ Release candidate, 2026-09-18: `Verify-WindowsRelease.ps1` passed end to end on 
 `b34af74`, including the worker and WPF smoke against the published app. It produced
 `super-duper-0.1.0-win-x64.zip` (79,088,178 bytes, SHA-256
 `5056cd2113a61b50c9c9ff3ae107da0ce98c3390ad406509cf6736842718fa8e`). The unzipped package ran a
-scan with its own worker. Tagged `v0.1.0` at `b34af74` on 2026-09-19; the GitHub release is not
-yet published (`docs/release-checklist.md`).
+scan with its own worker. Tagged `v0.1.0` at `b34af74` and
+[published](https://github.com/garygentry/super-duper/releases/tag/v0.1.0) on 2026-09-19 with that
+zip and its `.sha256`; the version is now 0.1.1 for the next cycle.
+
+Dropped (operator decision, 2026-09-19): a navigation action for `exact_folder_hash_cache_warning`.
+Its results are complete (files were verified from content), and `scan/hash_recoverable_warning`
+stays the only warning with an action.
 
 After the database lock landed, 5 of 20 CI runs had intermittent Infrastructure failures (hello
 timeouts, SQLite locked or unopenable files) that did not reproduce locally under triple load, and
@@ -129,9 +134,6 @@ Cargo), and `Verify-WindowsRelease.ps1` checks it against the release version.
 
 Carried over from the handoff that stabilized `codex/ui-redesign` for the merge. None blocked it.
 
-- **Optionally surface `exact_folder_hash_cache_warning`** (after v0.1.0; verified, but the hash cache
-  degraded). It currently renders as a plain aggregate row; only `hash_recoverable_warning` gets
-  navigation affordances.
 - **Exclusions spelled through a junction or `subst` drive** still do not match the canonical walk.
   8.3 short names are handled (see Done); other aliases would need the excluded path to be opened,
   which the cloud-safety boundary avoids. The app supplies canonical long paths today.
