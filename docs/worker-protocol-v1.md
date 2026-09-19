@@ -1,39 +1,129 @@
-# Super Duper Worker Protocol V1
+# Super Duper worker protocol v1
 
-## Status and Scope
+## Status and scope
 
-This document defines version 1 of the local protocol between `SuperDuper.Windows` and the
-`super-duper-worker` child process. The worker is a single-client, long-lived process launched by
-the Windows application. Milestones 0–6 implement negotiation, session and scan lifecycle, and
-separately paged duplicate-file and exact-duplicate-folder result browsing. The read-only
-Milestone 8 additions extend duplicate-file pages with a filtered review summary, immutable
-selected-root/drive member context, bounded per-group selected-root/drive counts, optional
-across-drives, minimum-copy-count, and one-copy-size group filters, aggregate location coverage for the current
-query, and a keyset-paged
-selected-root facet plus a keyset-paged drive facet that can filter the group query. Warning
-commands remain reserved for a later milestone. The exact-path review entry point switches the
-existing group path search from its default literal substring behavior to complete immutable
-canonical-member-path equality without changing the member channel or reading the filesystem.
-The filename-extension entry point independently applies indexed exact extension or explicit
-no-extension matching from immutable member filenames. It defaults to any-member matching and can
-require all immutable members; it never infers from the representative label or classifies file
-type.
-The first Milestone 10 slice adds snapshot-backed manual review plans and decisions for completed
-runs. The second slice adds separate snapshot-backed exact-folder-copy decisions, folder/file
-overlap safety, and combined summaries on the same plan revision. It does not validate or mutate
-live files or folders and exposes no deletion command.
-The third slice adds separately persisted named ordered-preferred-scan-root configuration and a
-read-only virtual preview. Preview never writes a review decision, validates a live path, or exposes
-deletion.
+This document defines version 1 of the local protocol between the Windows app
+(`SuperDuper.Windows`) and the `super-duper-worker` child process. The app launches one worker and
+is its only client; the worker is long-lived and owns the main database, the scan status database,
+scanning, and validation reads. The transport is UTF-8 newline-delimited JSON (JSONL) over redirected
+standard input and standard output. It is a local process boundary, not a network API.
 
-The scan-optimization SOP4 addition exposes query-only bounded performance history and fixed
-current/peak summaries from the separate worker-owned status database. It never returns raw host or
-device samples and never changes the production execution lock.
+Version 1 covers:
 
-The transport is UTF-8 newline-delimited JSON (JSONL) over redirected standard input and standard
-output. It is a local process boundary, not a network API.
+- negotiation (`hello`) and worker status (`app.status`);
+- saved scan sessions and immutable scan runs, including lifecycle and progress events, cloud and
+  manual subtree exclusions, and durable warning aggregates;
+- query-only performance history and summaries from the separate status database;
+- duplicate-file and exact-duplicate-folder results, with filters, facets, and keyset paging;
+- snapshot-backed review plans with file and folder decisions;
+- ordered preferred-root rules, with preview, apply, and reverse;
+- live validation of review members, watcher hints, and dirty-root reconciliation;
+- reviewed-plan preflight;
+- the Recycle Bin operation foundation, which records operation intent and evidence but never
+  executes: every operation response reports `executorEnabled:false`; and
+- append-only recovery review of operations that need it.
 
-## Transport and Framing
+No command deletes, moves, or modifies a scanned file. Review decisions record intent only.
+
+Fields may be added to results and events within version 1, and clients ignore members they do not
+know. Request parameters are stricter: many commands reject an unknown `params` member with
+`invalid_request`, so a new request field must be optional and a client must not send it to a
+worker that does not document it. Breaking envelope or command changes require a new major protocol
+version. Update this document with any protocol change.
+
+## Method and event index
+
+Every method the worker dispatches (`crates/super-duper-worker/src/lib.rs`, `dispatch` and
+`handle_line`). Any other method name returns `method_not_found`.
+
+| Method | Purpose |
+|---|---|
+| [`hello`](#version-negotiation-and-hello) | Negotiate the protocol version; must succeed first |
+| [`app.status`](#appstatus) | Report the protocol version and the active run and preflight IDs |
+| [`session.list`](#sessionlist) | Page saved scan sessions |
+| [`session.get`](#sessionget) | Read one session |
+| [`session.create`](#sessioncreate) | Create a session definition |
+| [`session.update`](#sessionupdate) | Replace a session definition |
+| [`session.delete`](#sessiondelete) | Delete a session and its run history |
+| [`run.list`](#runlist) | Page runs, globally or for one session |
+| [`run.get`](#runget) | Read one run from durable storage |
+| [`run.start`](#runstart) | Create and start a run for a session |
+| [`run.cancel`](#runcancel) | Request cancellation of the active run |
+| [`run_exclusion.page`](#run_exclusionpage) | Page a run's cloud and manual subtree exclusions |
+| [`warning.page`](#warningpage) | Page a run's durable warning aggregates |
+| [`performance.run.page`](#performancerunpage) | Page performance history headers from the status database |
+| [`performance.snapshot.get`](#performancesnapshotget) | Read one run's counters, phases, host and device summaries |
+| [`duplicate_file_group.page`](#duplicate_file_grouppage) | Page duplicate-file sets with filters and a summary |
+| [`duplicate_file_selected_root_facet.page`](#duplicate_file_selected_root_facetpage) | Page selected-root values with matching-set counts |
+| [`duplicate_file_drive_facet.page`](#duplicate_file_drive_facetpage) | Page drive values with matching-set counts |
+| [`duplicate_file_group.members`](#duplicate_file_groupmembers) | Page the files in one duplicate set |
+| [`duplicate_folder_group.page`](#duplicate_folder_grouppage) | Page exact-duplicate folder sets |
+| [`duplicate_folder_group.members`](#duplicate_folder_groupmembers) | Page the folder copies in one set |
+| [`review_plan.get`](#review_planget) | Read a run's review plan and summary |
+| [`review_group.page`](#review_grouppage) | Page per-set file decision counts |
+| [`review_decision.set`](#review_decisionset) | Record Keep, Remove, or Undecided for one file |
+| [`review_folder_group.page`](#review_folder_grouppage) | Page per-set folder decision counts |
+| [`review_folder_decision.set`](#review_folder_decisionset) | Record Keep, Remove, or Undecided for one folder copy |
+| [`review_live_validation.run`](#review_live_validationrun) | Check up to 200 members of one set against the live filesystem |
+| [`review_live_hint.batch`](#review_live_hintbatch-and-resultstate_changed) | Map watcher-reported paths to duplicate members |
+| [`review_live_root.overflow`](#review_live_rootoverflow) | Mark a selected root dirty after lost watcher coverage |
+| [`review_live_root.list`](#review_live_rootlist) | List a run's dirty roots |
+| [`review_live_root.reconcile`](#review_live_rootreconcile) | Validate the next bounded batch under a dirty root |
+| [`preference_rule.list`](#preference_rulelist) | Page saved preference rules |
+| [`preference_rule.get`](#preference_ruleget) | Read one rule with its ordered roots |
+| [`preference_rule.save`](#preference_rulesave) | Create or update a rule |
+| [`preference_rule.preview`](#preference_rulepreview) | Page the virtual effect of a rule on a scope |
+| [`preference_rule.apply`](#preference_ruleapply) | Apply a previewed rule to the review plan |
+| [`preference_rule.application.page`](#preference_ruleapplicationpage) | Page a run's rule applications |
+| [`preference_rule.application.get`](#preference_ruleapplicationget) | Read one rule application |
+| [`preference_rule.application.reverse`](#preference_ruleapplicationreverse) | Reverse one rule application |
+| [`preflight.start`](#preflightstart) | Freeze and start validating a reviewed plan |
+| [`preflight.get`](#preflightget) | Read one preflight generation, or a run's latest |
+| [`preflight.item.page`](#preflightitempage) | Page preflight item observations |
+| [`preflight.cancel`](#preflightcancel) | Cancel the active preflight |
+| [`recycle_operation.prepare`](#recycle-bin-operation-foundation-execution-disabled) | Record operation intent from a fresh, fully ready preflight |
+| [`recycle_operation.get`](#recycle-bin-operation-foundation-execution-disabled) | Read one operation, or a run's latest |
+| [`recycle_operation.item.page`](#recycle-bin-operation-foundation-execution-disabled) | Page operation items |
+| [`recycle_operation.eligibility.report`](#recycle-bin-operation-foundation-execution-disabled) | Record per-item eligibility from an executor |
+| [`recycle_operation.confirm`](#recycle-bin-operation-foundation-execution-disabled) | Record final confirmation |
+| [`recycle_operation.cancel`](#recycle-bin-operation-foundation-execution-disabled) | Cancel an operation |
+| [`recycle_operation.batch.next`](#recycle-bin-operation-foundation-execution-disabled) | Revalidate and admit the next batch |
+| [`recycle_operation.batch.begin`](#recycle-bin-operation-foundation-execution-disabled) | Record that Shell work on a batch started |
+| [`recycle_operation.batch.report`](#recycle-bin-operation-foundation-execution-disabled) | Record per-item batch outcomes |
+| [`recovery_review.get`](#recovery-review-persistence-commands) | Read recovery-review coverage for an operation |
+| [`recovery_review.observation.page`](#recovery-review-persistence-commands) | Page current or historical operator observations |
+| [`recovery_review.observation.record`](#recovery-review-persistence-commands) | Append an operator observation or correction |
+
+The `recycle_operation.*` transitions after `prepare` exist for an executor. The Windows app's view
+models send only `recycle_operation.get` and `recycle_operation.item.page`; `WorkerClient`
+implements the other `recycle_operation.*` methods, but no production code path calls them.
+
+Events the worker emits:
+
+| Event | Emitted when | Data |
+|---|---|---|
+| [`run.started`](#run-events-and-ordering) | `run.start` has created and started a run | `{ "run": <run> }` |
+| [`run.progress`](#run-events-and-ordering) | Coalesced progress, at most one frame per 100 ms | Progress object |
+| [`run.completed`](#run-events-and-ordering) | The run reached `completed` | `{ "run": <run> }` |
+| [`run.cancelled`](#run-events-and-ordering) | The run reached `cancelled` | `{ "run": <run> }` |
+| [`run.failed`](#run-events-and-ordering) | The run reached any other terminal status | `{ "run": <run> }` |
+| [`preflight.started`](#preflight-events-and-recovery) | `preflight.start` started a new generation | `{ "preflight": <preflight> }` |
+| [`preflight.progress`](#preflight-events-and-recovery) | Coalesced validation progress, at most ten per second | Counters and optional path |
+| [`preflight.completed`](#preflight-events-and-recovery) | The preflight reached `completed` | `{ "preflight": <preflight> }` |
+| [`preflight.cancelled`](#preflight-events-and-recovery) | The preflight reached `cancelled` | `{ "preflight": <preflight> }` |
+| [`preflight.failed`](#preflight-events-and-recovery) | The preflight reached any other terminal status | `{ "preflight": <preflight> }` |
+| [`result.state_changed`](#review_live_hintbatch-and-resultstate_changed) | `review_live_hint.batch` (`kind:"hints"`) or `review_live_root.overflow` (`kind:"overflow"`) succeeded | Same payload as the response |
+
+The worker emits no other event; there is no `worker.ready` event.
+
+Windows client behavior: `DispatchEvent` in
+`apps/windows/src/SuperDuper.Windows.Infrastructure/WorkerClient.cs` handles `run.*` and
+`result.state_changed` and ignores every other event, including all `preflight.*` events. The
+preflight view polls `preflight.get` every 150 ms until the generation is terminal. The client
+forwards `result.state_changed` only for the run whose results are being watched, and treats
+`executorEnabled:true` in that event as a protocol error.
+
+## Transport and framing
 
 - The client writes requests to the worker's standard input.
 - The worker writes responses and events to standard output.
@@ -43,19 +133,25 @@ output. It is a local process boundary, not a network API.
 - UTF-8 is used without a byte-order mark.
 - A frame may contain at most 1,048,576 UTF-8 bytes, excluding the line terminator.
 - Empty lines are invalid frames.
-- Unknown object members are ignored so that fields can be added compatibly within version 1.
+- Unknown members of envelopes, results, and events are ignored so that fields can be added
+  compatibly within version 1. Many commands reject unknown `params` members with
+  `invalid_request`.
 - A malformed, empty, non-object, invalid-UTF-8, or oversized input frame is a fatal transport
   error. The worker writes a diagnostic to stderr and exits non-zero because no request ID can be
   correlated reliably.
 - A malformed, empty, non-object, invalid-UTF-8, or oversized stdout frame is a fatal worker error.
   The client fails all pending requests and stops using that worker process.
+- The worker does not write an oversized response. When a successful result would exceed the frame
+  limit, it answers with `invalid_request`, `retryable:true`, and `details.maximumFrameBytes`, so
+  the client can retry with a smaller page. A structured error that would itself exceed the limit
+  is a fatal worker error.
 
 Standard output is protocol-only. The worker must never write log prefixes, panic diagnostics,
 progress text, or other human-readable output to stdout. Diagnostics and panic output go to
 standard error. The client continuously drains stderr to prevent a full pipe from blocking the
 worker and retains a bounded diagnostic tail for connection errors.
 
-Milestone 6 performance diagnostics use stderr records such as:
+Performance diagnostics are stderr records such as:
 
 ```text
 performance kind=scan_phase run_id=19 phase=hashing duration_ms=842.117
@@ -87,7 +183,7 @@ Required fields:
 - `method`: command name string
 - `params`: JSON object; use `{}` when the command has no parameters
 
-### Successful Response
+### Successful response
 
 ```json
 {"type":"response","id":"42","ok":true,"result":{}}
@@ -100,7 +196,7 @@ Required fields:
 - `ok`: `true`
 - `result`: command-specific JSON value
 
-### Error Response
+### Error response
 
 ```json
 {"type":"response","id":"42","ok":false,"error":{"code":"invalid_request","message":"protocolVersions must not be empty","retryable":false,"details":{}}}
@@ -116,44 +212,15 @@ Required fields:
 - `error.retryable`: whether retrying the same operation without user/configuration changes may work
 - `error.details`: object containing structured, non-contract-breaking context; it may be empty
 
-The V1 base error codes are:
-
-- `invalid_request`: the envelope or command parameters are invalid
-- `method_not_found`: the requested method is not supported
-- `handshake_required`: a command was sent before a successful `hello`
-- `unsupported_protocol`: client and worker have no mutually supported protocol version
-- `invalid_state`: the command is not allowed in the current worker state
-- `internal_error`: the worker could not complete the request because of an unexpected failure
-- `database_unavailable`: the worker could not open or does not own its main database (see
-  [Database availability](#database-availability))
-
-Later commands may define additional stable codes, such as `scan_busy`.
-
-The scan-lifecycle and result commands additionally use:
-
-- `invalid_session`: a session name, root, ignore pattern, or saved definition is unusable
-- `session_name_conflict`: a case-insensitive session name is already in use
-- `session_not_found`: the requested session ID does not exist
-- `run_not_found`: the requested run ID does not exist
-- `scan_busy`: another run owns the single global scan slot; `details.activeRunId` identifies it
-- `invalid_cursor`: a result cursor is malformed or belongs to a different run, sort, or filter
-- `duplicate_group_not_found`: the requested duplicate-file group does not belong to the given run
-- `duplicate_folder_group_not_found`: the requested visible duplicate-folder group does not belong
-  to the given run
-- `review_generation_conflict`: `expectedRevision` is stale; details contain both revisions
-- `idempotency_conflict`: an operation ID was reused with a different review payload
-- `review_member_not_found`: the file is not owned by the addressed run/group
-- `unsafe_review_decision`: the decision would remove every independent physical survivor
-- `review_folder_member_not_found`: the folder copy is not owned by the addressed visible group
-- `review_overlap_conflict`: a file/folder or nested-folder decision conflicts or is redundant
-- `unsafe_folder_review_decision`: the decision would leave an exact-folder set without an intact
-  copy
+Every code the worker returns is listed in [Error codes](#error-codes).
 
 ### Event
 
 ```json
-{"type":"event","event":"worker.ready","data":{"protocolVersion":1}}
+{"type":"event","event":"preflight.cancelled","data":{"preflight":{"id":31,"runId":19,"status":"cancelled"}}}
 ```
+
+(The `preflight` object is abbreviated; see [`preflight.start`](#preflightstart).)
 
 Required fields:
 
@@ -162,10 +229,82 @@ Required fields:
 - `data`: event-specific JSON object
 
 Events have no request ID and require no acknowledgement. Responses may be interleaved with
-events. Clients correlate responses only by `id`. The Milestone 0 worker emits no events; the event
-envelope is reserved now for later lifecycle and progress work.
+events. Clients correlate responses only by `id`. The [event index](#method-and-event-index) lists
+every event the worker emits.
 
-## Version Negotiation and `hello`
+## Error codes
+
+`retryable` is `false` for every code except where the table says otherwise. Codes are stable
+snake-case strings; `message` is diagnostic text, not part of the contract.
+
+| Code | Returned when | Retryable |
+|---|---|---|
+| `invalid_request` | The envelope or command parameters are malformed, missing, or out of range. Also returned when a successful result would exceed the 1,048,576-byte frame limit; then `details.maximumFrameBytes` is set. | Only for an oversized result |
+| `method_not_found` | The method name is not dispatched. | No |
+| `handshake_required` | A request other than `hello` arrived before a successful `hello`. | No |
+| `unsupported_protocol` | `hello` offered no version the worker supports; `details.workerProtocolVersions` lists them. | No |
+| `invalid_state` | The command is not allowed now: a second `hello`; a session mutation while a scan is active (`details.activeRunId`); `run.cancel` for a run that is not the active one or is already terminal; a result, review, rule, live-validation, or preflight command for a run that is not `completed` (result queries set `details.status`); an archived preference rule. | No |
+| `internal_error` | An unexpected failure, including any SQLite error after startup ("Database operation failed") and stored data that cannot be decoded. `session.delete` also returns it when a run in the session has a Recycle Bin operation that is `prepared`, `awaiting_confirmation`, `submitted`, `executing`, `cancelling`, or `recovery_required`: the guarded delete changes no row. | No |
+| `database_unavailable` | The worker could not lock, open, or migrate its main database at startup. Every request, `hello` included, gets this error until input ends. See [Database availability](#database-availability). | No |
+| `database_error` | `performance.run.page` or `performance.snapshot.get` could not open or read the status database, including when its schema version is not the one this worker reads. | No |
+| `invalid_session` | A session definition is unusable (name, roots, ignore patterns, exclusions, or cloud locations; `details.field` names the field), or `run.start` found a non-default cloud policy, incomplete cloud detection, or no accessible root. | No |
+| `session_name_conflict` | Another session already uses the name (case-insensitive). | No |
+| `session_not_found` | The session ID does not exist. | No |
+| `run_not_found` | The run ID does not exist; `details.runId` is set. | No |
+| `scan_busy` | `run.start` while a scan or preflight is active; `details.activeRunId` or `details.activePreflightId` identifies it. | Yes |
+| `invalid_cursor` | A cursor is malformed, belongs to another query, run, sort, filter, or generation, or asks for backward paging where only forward paging is supported. | No |
+| `invalid_run_snapshot` | A live-validation, hint, or root command could not decode the run's immutable parameter snapshot. | No |
+| `duplicate_group_not_found` | The duplicate-file set does not belong to the run. | No |
+| `duplicate_folder_group_not_found` | The visible exact-folder set does not belong to the run. | No |
+| `review_generation_conflict` | An expected review revision is stale; details carry the expected and current revisions. | No |
+| `idempotency_conflict` | An operation or request ID was reused with a different payload. | No |
+| `review_member_not_found` | The file is not a member of the addressed set. | No |
+| `review_folder_member_not_found` | The folder copy is not a member of the addressed visible set. | No |
+| `unsafe_review_decision` | The decision would leave a duplicate set with no independent physical copy. | No |
+| `unsafe_folder_review_decision` | The decision would leave an exact-folder set with no intact copy. | No |
+| `review_overlap_conflict` | A file/folder or nested-folder decision conflicts with an existing one or is redundant. | No |
+| `review_live_state_conflict` | `review_decision.set` records Keep or Remove for a file whose latest live observation is not `present`; details carry `fileId`, `state`, and `decision`. | No |
+| `recycle_operation_locked` | A review, rule, preflight, or preparation change is blocked by a durable Recycle Bin operation on the run. | No |
+| `review_root_not_found` | A hinted path is not under one of the run's selected roots, or the root is not one of them. | No |
+| `review_root_not_dirty` | `review_live_root.reconcile` addressed a root that no longer needs reconciliation. | No |
+| `dirty_generation_conflict` | Another overflow changed the dirty root before reconciliation committed. | No |
+| `dirty_reconciliation_conflict` | Another reconciliation batch advanced the root's cursor first. | No |
+| `invalid_scope` | A preview or apply scope is malformed, or a selected set does not belong to the run. | No |
+| `preference_rule_not_found` | The rule ID does not exist. | No |
+| `preference_rule_name_conflict` | Another rule already uses the name. | No |
+| `preference_rule_generation_conflict` | The rule's revision is stale. | No |
+| `preview_too_complex` | The preview scope exceeds 100,000 sets or 500,000 paths. | No |
+| `preference_preview_conflict` | The apply request no longer matches its preview signature. | No |
+| `rule_application_empty` | The preview has no applicable rule decisions. | No |
+| `rule_application_overlap` | Another active rule application owns one of the decisions. | No |
+| `rule_application_not_found` | The application does not exist in the run. | No |
+| `rule_application_already_reversed` | A new reversal targets an application that is already reversed. | No |
+| `preflight_busy` | `preflight.start` while a scan or preflight is active; `details.activeRunId` or `details.activePreflightId` identifies it. | Yes |
+| `preflight_empty` | The run has no review plan or no effective removal. | No |
+| `preflight_snapshot_conflict` | The reviewed plan could not be frozen safely. | No |
+| `operation_conflict` | A preflight `operationId` was reused with another run or revision. | No |
+| `preflight_not_found` | The preflight ID does not exist. | No |
+| `preflight_not_cancellable` | The preflight is not the active one or is already terminal. | No |
+| `operation_busy` | `recycle_operation.prepare` while a scan or preflight is active; details carry both active IDs. | No |
+| `operation_preflight_incomplete` | Preparation named a preflight that is not `completed`. | No |
+| `operation_preflight_superseded` | A newer preflight generation exists for the run. | No |
+| `operation_preflight_expired` | The completed preflight is older than the preparation lease (`details.freshnessSeconds`). | No |
+| `operation_preflight_ineligible` | The preflight is not eligible for preparation, for example a removal is not `ready` or newer live evidence conflicts. | No |
+| `recycle_operation_not_found` | The operation ID does not exist. | No |
+| `recycle_operation_invalid_state` | The operation cannot make the requested transition. | No |
+| `recycle_operation_confirmation_expired` | The confirmation lease expired. | No |
+| `recycle_operation_submission_expired` | The batch-admission lease expired before Shell work began. | No |
+| `recycle_operation_item_not_found` | The item does not belong to the operation. | No |
+| `recycle_operation_batch_not_found` | The batch does not belong to the operation. | No |
+| `recycle_operation_admission_failed` | Fresh admission rejected an item; pending work stops. | No |
+| `recycle_operation_admission_unavailable` | Admission revalidation could not run. | No |
+| `recovery_review_invalid_state` | The operation is not `recovery_required`. | No |
+| `recovery_review_item_not_unknown` | The item's result is not `unknown`. | No |
+| `recovery_review_observation_not_found` | The superseded observation does not exist. | No |
+| `recovery_review_supersession_conflict` | The superseded observation is not the item's current one. | No |
+| `recovery_review_current_observation_exists` | The item already has a current observation and the request does not supersede it. | No |
+
+## Version negotiation and `hello`
 
 `hello` must be the first successfully processed request on a connection. The client lists every
 major protocol version it can speak, ordered from most to least preferred. The worker selects the
@@ -202,14 +341,17 @@ returns `invalid_state`. Any other request before negotiation returns `handshake
 ### Database availability
 
 At startup the worker takes an exclusive lock on `<database>.lock` beside its main database, then
-opens and migrates the database. Startup reconciliation marks every running run interrupted, so it
-runs only in the worker that holds the lock. If either step fails, the worker does not exit
-immediately: it answers every request, `hello` included, with `database_unavailable` until its input
-ends, then exits with code 1. `retryable` is false. `details`:
+opens and migrates the database. If the lock is held, the worker retries for up to 3 seconds before
+giving up, because Windows can release a terminated process's lock asynchronously. Startup
+reconciliation marks every running run interrupted, so it runs only in the worker that holds the
+lock. If either step fails, the worker does not exit immediately: it answers every request, `hello`
+included, with `database_unavailable` until its input ends, then exits with code 1. `retryable` is
+false. `details`:
 
-- `reason`: `in_use` (another worker holds the lock), `newer_version`, `unsupported_version`,
-  `damaged`, `read_only`, `unavailable` (for example a missing folder or a directory path),
-  `disk_full`, or `failed`
+- `reason`: `in_use` (another worker still holds the lock after the wait, or SQLite reported the
+  database busy or locked while opening), `newer_version`, `unsupported_version`, `damaged`,
+  `read_only`, `unavailable` (for example a missing folder or a directory path), `disk_full`, or
+  `failed`
 - `databasePath`: the main database path
 
 A database written by a newer engine is rejected before any pragma runs, so its file is not
@@ -223,12 +365,36 @@ Both sides must reject a successful `hello` response that selects a version the 
 offer. Minor compatible additions use new optional fields rather than a new version. Breaking
 envelope or command changes require a new major protocol version.
 
-## Session Commands
+## Worker status
 
-Session and run IDs are positive JSON integers. Session names are trimmed and unique under
-case-insensitive comparison. A session contains 1–64 absolute roots and at most 512 valid glob
-ignore patterns. Reachable non-excluded roots are canonicalized; roots already classified inside an
-effective cloud/manual exclusion remain lexical so validation cannot hydrate them. Duplicates are
+### `app.status`
+
+Params are `{}`. The command requires a successful `hello`, reads no database, and reports the
+worker's in-memory state:
+
+```json
+{"type":"request","id":"st1","method":"app.status","params":{}}
+```
+
+```json
+{"protocolVersion":1,"activeRunId":19,"activePreflightId":null}
+```
+
+- `protocolVersion`: the negotiated protocol version
+- `activeRunId`: the run that owns the scan slot, or `null`
+- `activePreflightId`: the preflight that is validating, or `null`
+
+The Windows client does not currently send this command.
+
+## Session commands
+
+Session and run IDs are positive JSON integers. Session names are trimmed, contain 1–200
+characters, and are unique under case-insensitive comparison. A session contains 1–64 absolute
+roots and at most 512 valid glob ignore patterns, each 1–1,024 bytes after trimming. It may list at
+most 256 manual location exclusions and 128 registered cloud locations. The encoded roots, ignore
+patterns, and cloud settings together may not exceed 524,288 bytes. Reachable non-excluded roots
+are canonicalized; roots already classified inside an effective cloud/manual exclusion remain
+lexical so validation cannot hydrate them. Duplicates are
 removed case-insensitively, and nested roots are collapsed so a child is not scanned twice.
 Definitions may retain a temporarily unreachable absolute root, but `run.start` requires at least
 one currently accessible directory. Both probes run per root in parallel and a request waits for
@@ -276,17 +442,21 @@ fields replace the current definition. Existing run snapshots are immutable. The
 `{ "session": <updated-session> }`.
 
 The registered location shape is `{ "path", "providerId", "displayName" }`. Paths must be
-absolute and provider metadata is bounded. The first Milestone 7 slice executes only
-`exclude_registered_roots`; `include_sync_roots_skip_placeholders` and `allow_cloud_access` are
-reserved until their Windows placeholder/confirmation contracts are implemented. `run.start`
-fails with `invalid_session` unless default-policy detection is `complete`.
+absolute; `providerId` and `displayName` are each at most 200 characters. The worker executes only
+the `exclude_registered_roots` cloud policy. The values `include_sync_roots_skip_placeholders` and
+`allow_cloud_access` are reserved, and `run.start` rejects them with `invalid_session`. `run.start`
+also fails with `invalid_session` unless default-policy detection is `complete`.
 
 ### `session.delete`
 
 Params are `{ "sessionId": 7 }`; the result is `{ "sessionId": 7 }`. SQLite cascade semantics
-remove that session's run history and results, so deletion is rejected while any scan is active.
+remove that session's run history and results, so deletion is rejected with `invalid_state` while
+any scan is active. Deletion is also refused while any run in the session has a Recycle Bin
+operation that is `prepared`, `awaiting_confirmation`, `submitted`, `executing`, `cancelling`, or
+`recovery_required`. That refusal currently surfaces as `internal_error` ("Database operation
+failed"), not as a dedicated code.
 
-## Run Commands
+## Run commands
 
 A run response uses this shape (large byte counters are decimal strings):
 
@@ -315,9 +485,24 @@ A run response uses this shape (large byte counters are decimal strings):
 
 `parameters` is the immutable snapshot used by that execution. `repeatCachePolicy` is exactly
 `reuse_verified` or `revalidate_content`; snapshots written before this additive field reconstruct
-as `revalidate_content`, matching their historical behavior. Durable statuses and phases are the
-values defined in `storage-schema-v4.md`. `excludedSubtreeCount` is distinct from recoverable
-warnings and counts aggregated subtrees pruned before content access.
+as `revalidate_content`, matching their historical behavior. `excludedSubtreeCount` is distinct
+from recoverable warnings and counts aggregated subtrees pruned before content access.
+
+`status` is one of:
+
+| Status | Meaning |
+|---|---|
+| `pending` | Created, not yet started |
+| `running` | The scan thread is working |
+| `cancelling` | Cancellation was requested and persisted; the scan is stopping |
+| `completed` | Terminal; results are queryable |
+| `cancelled` | Terminal; cancelled before completion |
+| `failed` | Terminal; the scan failed (`errorMessage` explains) |
+| `interrupted` | Terminal; the worker stopped while the run was active, and startup reconciliation marked it |
+
+`phase` is `null` until the run starts, then one of `discovering`, `hashing`, `persisting`,
+`analyzing_folders`, or `finalizing`, in that order. A `completed` run's phase is `finalizing`; a
+run that ends any other way keeps the last phase it reached.
 
 ### `run.list`
 
@@ -348,8 +533,8 @@ terminal or non-active run returns `invalid_state`.
 
 ### `run_exclusion.page`
 
-This is the bounded initial Activity-data hook for cloud/manual subtree exclusions. Params are
-`runId`, optional `offset` (default 0), and optional `limit` (default 100, maximum 500):
+This command pages the cloud and manual subtree exclusions recorded for a run. Params are `runId`,
+optional `offset` (default 0), and optional `limit` (default 100, maximum 500):
 
 ```json
 {"type":"request","id":"x1","method":"run_exclusion.page","params":{"runId":19,"offset":0,"limit":100}}
@@ -406,7 +591,7 @@ otherwise it is `unavailable` with reason `client_not_configured`. Diagnostic co
 developer/recovery detail and are never aggregate rows, paging input, or a replacement for
 `warningCount`/`accountedWarningCount`.
 
-The Windows client exposes one bounded action family: a completed-run
+Windows client behavior: the client exposes one bounded action family: a completed-run
 `scan/hash_recoverable_warning` may open the immutable duplicate-file set identified by that row's
 server-owned `runId`. Before changing workspace context, the client resolves the ID with `run.get`
 and requires the same completed run/session. A missing target produces actionable refresh guidance;
@@ -414,11 +599,12 @@ cancellation or a changed run/page rejects the late resolution. This is client n
 `warning.page` remains read-only, the aggregate remains immutable, and no other warning code infers
 a target from message text, examples, or paths.
 
-## Performance Status Commands
+## Performance status commands
 
-These commands open a query-only secondary connection to the separate status database. They do not
-read the filesystem, change scan/product state, reconcile a running status record, or return raw
-time-series samples.
+These commands open a query-only secondary connection to the separate status database (see
+[`scan-status-database.md`](scan-status-database.md)). They do not read the filesystem, change
+scan/product state, reconcile a running status record, or return raw time-series samples. A status
+database that cannot be opened or read returns `database_error`.
 
 ### `performance.run.page`
 
@@ -432,7 +618,8 @@ The result contains newest-first fixed run headers under `runs`, a strict `id < 
 `nextBeforeId` when a full page may have an older page, and `executorEnabled:false`. Each header
 includes status-run ID, optional product-run ID, metrics/engine/worker/app/product-schema versions,
 non-path input signature, lifecycle state/timestamps, last monotonic duration/sequence, and optional
-terminal error fields. The Windows surface binds only this one 25-row page.
+terminal error fields. Windows client behavior: the performance view binds only this one 25-row
+page.
 
 ### `performance.snapshot.get`
 
@@ -450,12 +637,13 @@ IOPS, latency, active-time, and queue values. Missing providers remain JSON `nul
 label them unavailable rather than substituting zero. SQL computes current/peak summaries inside
 the worker-owned database, so no complete sample history crosses into Core or WPF.
 
-Comparison is client-side over two bounded snapshots. Device/volume identity, the non-path input
-signature, and every recorded software/schema version are compared exactly; a mismatch is disclosed
-and the values are not described as like-for-like. Both commands are additive protocol-v1 reads and
-retain the permanent disabled-executor response.
+Both commands are read-only and report `executorEnabled:false`.
 
-## Run Events and Ordering
+Windows client behavior: comparison is client-side over two bounded snapshots. Device/volume
+identity, the non-path input signature, and every recorded software/schema version are compared
+exactly; a mismatch is disclosed and the values are not described as like-for-like.
+
+## Run events and ordering
 
 The implemented lifecycle events are `run.started`, `run.progress`, `run.completed`,
 `run.cancelled`, and `run.failed`. Lifecycle event data is `{ "run": <run> }`.
@@ -467,8 +655,9 @@ Progress data is:
 ```
 
 - The example abbreviates the nested `counters`, `logical`, `funnel`, and rate objects. The worker
-  emits the complete additive `progress` object defined by
-  [`scan-progress-contract-v1.md`](scan-progress-contract-v1.md). Legacy clients may ignore it.
+  always emits the complete `progress` object; every field is listed in
+  [Progress payload fields](scan-progress-contract-v1.md#progress-payload-fields). A client that
+  reads only the top-level fields may ignore it.
 - `sequence` is strictly increasing within one run and establishes transport event order.
   `progress.revision` is the source observation order; coalescing can skip source revisions, so it
   is not a substitute for `sequence`.
@@ -498,8 +687,8 @@ Progress data is:
   variant fields `remaining_logical_bytes` and `logical_bytes_per_second_millis`. File counts,
   basis points, durations, revisions, and sequences remain JSON numbers. Optional values and tagged
   `available`/`unavailable`/`complete` states remain distinct from zero.
-- The paired Windows client requires the complete typed object, exact documented field casing and
-  JSON kinds, canonical unsigned decimal strings, supported contract versions, closed tagged
+- Windows client behavior: the client requires the complete typed object, exact documented field
+  casing and JSON kinds, canonical unsigned decimal strings, supported contract versions, closed tagged
   states, and valid cumulative/funnel invariants. It ignores additive unknown fields. After parsing,
   Core independently rejects wrong-run, duplicate/out-of-order, regressing,
   running-after-cancelling, and post-terminal frames before applying the latest accepted snapshot.
@@ -519,7 +708,7 @@ Progress data is:
   event names, run IDs, and progress sequence numbers rather than assuming request/response
   adjacency.
 
-## Durable Review Commands
+## Durable review commands
 
 Review commands accept only immutable completed runs and operate exclusively on Rust-owned SQLite.
 They never inspect the current filesystem or excluded cloud placeholders. Byte totals use decimal
@@ -582,7 +771,7 @@ review command validates, moves, or deletes a file.
 ```
 
 ```json
-{"validationId":7,"runId":19,"groupId":31,"reviewRevision":5,"scope":"visible_page","replayed":false,"summary":{"itemCount":2,"presentCount":1,"changedCount":1,"missingCount":0,"unavailableCount":0,"invalidatedDecisionCount":1},"items":[{"fileId":88,"state":"changed","reasonCode":"size_changed","observedFileIdentity":"opaque","observedFileSize":"2048","observedLastModified":"1787500000000000000","osError":null,"decisionInvalidated":true,"invalidatedDecision":"remove","observedAt":"2026-08-23T20:00:00Z"},{"fileId":89,"state":"present","reasonCode":"snapshot_match","observedFileIdentity":"opaque","observedFileSize":"1024","observedLastModified":"1787400000000000000","osError":null,"decisionInvalidated":false,"invalidatedDecision":null,"observedAt":"2026-08-23T20:00:00Z"}]}
+{"validationId":7,"runId":19,"groupId":31,"reviewRevision":5,"scope":"visible_page","replayed":false,"summary":{"itemCount":2,"presentCount":1,"changedCount":1,"missingCount":0,"unavailableCount":0,"invalidatedDecisionCount":1},"items":[{"fileId":88,"state":"changed","reasonCode":"size_changed","decisionInvalidated":true,"invalidatedDecision":"remove","observedAt":"2026-08-23T20:00:00Z"},{"fileId":89,"state":"present","reasonCode":"matched_snapshot","decisionInvalidated":false,"invalidatedDecision":null,"observedAt":"2026-08-23T20:00:00Z"}]}
 ```
 
 The allow-listed request accepts scope `selection` or `visible_page` and 1–200 distinct positive
@@ -614,12 +803,12 @@ mutate files, invoke Shell/Recycle Bin, or enable an executor.
 {"type":"request","id":"hint1","method":"review_live_hint.batch","params":{"runId":19,"rootPath":"D:\\Archive","eventCount":1000,"paths":["D:\\Archive\\copy-a.bin","D:\\Archive\\copy-b.bin"]}}
 ```
 
-Infrastructure watches at most the immutable 64 selected roots for the one completed run currently
-shown. Raw create/change/delete/rename callbacks enter one global coalescer; they never call Core or
-the WPF dispatcher directly. The coalescer waits 100 ms before every drain, collapses repeated paths,
-and sends at most 200 distinct paths for one root. Therefore it can produce at most ten batches—and
-at most ten UI-producing worker events—per second across all roots. A rename counts as one raw event
-and may contribute its old and new path.
+Windows client behavior: Infrastructure watches at most the immutable 64 selected roots for the one
+completed run currently shown. Raw create/change/delete/rename callbacks enter one global
+coalescer; they never call Core or the WPF dispatcher directly. The coalescer waits 100 ms before
+every drain, collapses repeated paths, and sends at most 200 distinct paths for one root. Therefore
+it can produce at most ten batches—and at most ten UI-producing worker events—per second across all
+roots. A rename counts as one raw event and may contribute its old and new path.
 
 The worker requires one completed run, one exact immutable selected root, a positive aggregate event
 count, and 1–200 distinct paths inside that root. One read-only query maps only paths belonging to
@@ -630,17 +819,20 @@ response and the single event data have the same bounded payload:
 {"kind":"hints","runId":19,"rootPath":"D:\\Archive","eventCount":1000,"coalescedPathCount":2,"items":[{"fileId":44,"groupId":7,"path":"D:\\Archive\\copy-a.bin"}],"executorEnabled":false}
 ```
 
-Core rejects a frame for a non-current run, clears its bounded member cache once, binds the current
-visible member list at most once with matching rows marked `validation_pending`, and posts one
-polite WPF status/automation update. A hint never changes a recorded decision or schema-v12 live
-observation. The user must still validate the selected/visible page; selection-time, page-time,
-plan-time, manual, and restart fallbacks remain authoritative.
+A hint never changes a recorded decision or schema-v12 live observation.
 
-If a watcher reports an error or more than 200 distinct paths collect before a drain, Infrastructure
-drops the incomplete hint set and sends one idempotent `review_live_root.overflow` request. Its
-`result.state_changed` event uses `kind=overflow` and includes the durable schema-v13 root. Switching
-runs or disposing the client cancels queued batches, and late old-run events are rejected. Failed
-hint delivery attempts the same overflow fallback; a worker disconnect remains separately visible.
+Windows client behavior: Core rejects a frame for a non-current run, clears its bounded member
+cache once, binds the current visible member list at most once with matching rows marked
+`validation_pending`, and posts one polite WPF status/automation update. The user must still
+validate the selected/visible page; selection-time, page-time, plan-time, manual, and restart
+fallbacks remain authoritative.
+
+Windows client behavior: if a watcher reports an error or more than 200 distinct paths collect
+before a drain, Infrastructure drops the incomplete hint set and sends one idempotent
+`review_live_root.overflow` request. Its `result.state_changed` event uses `kind=overflow` and
+includes the durable schema-v13 root. Switching runs or disposing the client cancels queued
+batches, and late old-run events are rejected. Failed hint delivery attempts the same overflow
+fallback; a worker disconnect remains separately visible.
 
 ### `review_live_root.overflow`
 
@@ -655,9 +847,9 @@ edited roots are not accepted. The response returns the latest root state, `repl
 its reconciliation cursor/count, and persists `reasonCode=watcher_overflow`. Exact operation replay
 does not increment the revision; a conflicting payload returns `idempotency_conflict`.
 
-The Windows app reports it when a root's watcher raises an error or cannot be started. A root that
-does not exist is not watched and not reported: nothing was being observed, and results under it
-are still checked by live validation when viewed.
+Windows client behavior: the app reports it when a root's watcher raises an error or cannot be
+started. A root that does not exist is not watched and not reported: nothing was being observed,
+and results under it are still checked by live validation when viewed.
 
 This is a loss-of-trust report, not an authoritative filesystem event. It emits one bounded
 `result.state_changed` overflow event so the currently selected matching run becomes visibly dirty;
@@ -674,8 +866,9 @@ it validates no path and performs no filesystem or Shell mutation.
 ```
 
 Only dirty roots are returned, ordered by root path. A run contains at most 64 immutable roots, so
-the response is bounded and has no cursor. WPF uses this command when a completed run opens or
-reopens; failure must be shown as trust-state unavailable, never as silently clean.
+the response is bounded and has no cursor. Windows client behavior: the app sends this command when
+a completed run opens or reopens; failure must be shown as trust-state unavailable, never as
+silently clean.
 
 ### `review_live_root.reconcile`
 
@@ -687,8 +880,8 @@ One explicit request validates the next 1–200 server-owned duplicate members u
 starting after the durable root cursor. It never accepts a client file-ID list or result cursor,
 enumerates a directory, follows member-page cursors, or returns/binds a full result set. The response
 contains the bounded batch summary/items, latest root state, `replayed`, and
-`executorEnabled:false`. WPF may merge only matching already-bound rows and refresh its exact
-current member page through the accepted bounded cache.
+`executorEnabled:false`. Windows client behavior: the app merges only matching already-bound rows
+and refreshes its exact current member page through the accepted bounded cache.
 
 Storage repeats completed-run, root, dirty-revision, review-revision, and durable-cursor checks at
 commit. A concurrent overflow returns `dirty_generation_conflict`; a review mutation returns
@@ -736,7 +929,7 @@ and intact visible/suppressed folder-copy survivors, advances the plan revision,
 idempotent result. `Keep`, `Remove`, and `Undecided` are review choices only. The command never
 enumerates or mutates the live tree.
 
-## Ordered Preferred-Root Rule Commands
+## Ordered preferred-root rule commands
 
 Rule configuration is reusable and independent of runs and review plans. Root comparison uses
 exact locale-independent case-insensitive equality with immutable `scanned_file.root_path`; the
@@ -881,19 +1074,20 @@ unknown or cross-run IDs return `rule_application_not_found`.
 Reversal deletes only rule-decision rows owned by the application, preserves all manual file/folder
 rows and other applications, marks provenance reversed, rechecks effective-plan invariants, and
 advances the shared revision once. Exact replay returns the original reversal revision. A new
-operation against an already reversed application, a stale revision, or wrong run/plan ownership
-changes nothing.
+operation against an already reversed application returns `rule_application_already_reversed`; a
+stale revision returns `review_generation_conflict`; an unknown or cross-run application returns
+`rule_application_not_found`. None of these changes anything.
 
 Apply and reverse are durable review mutations only. Neither command validates live state, reads an
 excluded cloud placeholder, creates an execution schedule, invokes Shell/Recycle Bin behavior, or
 deletes data.
 
-## Reviewed-Plan Preflight Commands
+## Reviewed-plan preflight commands
 
 These schema-v9 commands freeze and validate an exact active review-plan revision. They do not
 authorize, schedule, or execute deletion and never invoke the Windows Shell or Recycle Bin.
 Preflight observations remain separate from immutable scan history, manual decisions, rule
-configuration/application provenance, future execution state, and Milestone 12 live state.
+configuration/application provenance, Recycle Bin operation state, and live-validation state.
 
 ### `preflight.start`
 
@@ -929,9 +1123,8 @@ generation or `preflight:null`. The response uses the preflight object above. `c
 and `isCurrent` are computed at query time; review changes never rewrite the frozen header or item
 observations.
 
-Freshness clarification (Windows UI polish, 2026-09-16; no schema or wire-version change):
-`isCurrent` requires both the same active review revision and no known conflicting live evidence
-for a source of a checked item. Immutable `review_live_validation_item` and
+Freshness: `isCurrent` requires both the same active review revision and no known conflicting
+live evidence for a source of a checked item. Immutable `review_live_validation_item` and
 `review_live_root_reconciliation_item` history contributes `changed`, `missing`, and `unavailable`
 observations for exact `preflight_item_source.file_id` matches, including removal targets,
 required survivor copies, logical aliases, and flattened folder descendants. Unrelated sets do
@@ -1000,13 +1193,15 @@ are not opened, enumerated, canonicalized, hashed, or passed to native identity 
 non-opening attributes classify reparse points and offline/recall placeholders before metadata or
 content reads; placeholders are never hydrated.
 
-## Provisional Recycle Operation Foundation
+## Recycle Bin operation foundation (execution disabled)
 
-These schema-v10 commands persist and reconstruct the second Milestone 11 operation contract.
-Every operation response still includes `executorEnabled:false`, WPF exposes no submission action,
-and none of these commands itself moves, deletes, recycles, schedules, or hydrates a target. A
-separately gated Infrastructure executor now exists for explicit acceptance tests, but it is not
-registered by the application.
+These commands (storage schema v10) persist and reconstruct a Recycle Bin operation: its intent,
+eligibility, confirmation, batches, per-item results, and recovery evidence. Production execution
+is disabled. Every operation response includes `executorEnabled:false`, which the worker never sets
+to true; the Windows app exposes no submission action; and none of these commands itself moves,
+deletes, recycles, schedules, or hydrates a target. The Infrastructure project contains a separately
+gated executor (`WindowsRecycleOperationExecutor`) that only opt-in tests use; the application
+registers `DisabledRecycleOperationCapabilityExecutor` instead.
 
 `recycle_operation.prepare` accepts `operationId`, positive `runId` and `preflightId`, and
 `expectedReviewRevision`. The preflight must be the latest completed generation, current for the
@@ -1062,20 +1257,21 @@ The remaining allow-listed injected-executor transitions are:
 Report IDs and canonical sorted payload signatures make exact retries replayable and reject changed
 payloads. Startup expires unsubmitted intent. Submitted/executing/cancelling work becomes
 `recovery_required`; pending items from `shell_started` batches become `unknown` with durable
-recovery evidence, so retry cannot repeat a possibly completed mutation. Structured errors include
-`operation_preflight_expired`, `operation_preflight_ineligible`, `recycle_operation_locked`,
+recovery evidence, so retry cannot repeat a possibly completed mutation. `prepare` returns
+`operation_busy` while a scan or preflight is active. The other structured errors are
+`operation_preflight_incomplete`, `operation_preflight_superseded`, `operation_preflight_expired`,
+`operation_preflight_ineligible`, `recycle_operation_locked`, `recycle_operation_not_found`,
 `recycle_operation_invalid_state`, `recycle_operation_confirmation_expired`,
-`recycle_operation_submission_expired`, and item/batch-not-found codes.
+`recycle_operation_submission_expired`, `recycle_operation_admission_failed`,
+`recycle_operation_admission_unavailable`, and the item and batch not-found codes; see
+[Error codes](#error-codes).
 
 The five-minute, 60-second, 30-second, and 32-entry values are provisional, not accepted product
 constants. Local fixed/removable roots currently require a successful official
 `SHQueryRecycleBinW` query; remote/UNC/unrecognized roots fail closed. Real provider behavior,
 locked/capacity-limited mappings, `FOFX_ADDUNDORECORD`, and residual Shell TOCTOU remain unresolved.
-The evidence-only acceptance collector and its explicit non-mutating/provider/Shell boundaries are
-documented in [`windows-recycle-bin-acceptance.md`](windows-recycle-bin-acceptance.md); it does not
-alter this disabled protocol surface or make `executorEnabled` true.
 
-## Recovery Review Persistence Commands
+## Recovery review persistence commands
 
 These schema-v11 methods implement the accepted append-only operator-observation contract for an
 existing `recovery_required` operation. They read and write only SQLite records. They do not inspect
@@ -1124,7 +1320,7 @@ Stable recovery-review errors include `recovery_review_invalid_state`,
 `recovery_review_supersession_conflict`, and `recovery_review_current_observation_exists`, in
 addition to the existing not-found, cursor, request, database, and idempotency errors.
 
-## Duplicate File Result Commands
+## Duplicate file result commands
 
 Duplicate-file results are immutable and queryable only when the addressed run has status
 `completed`. All commands require the run ID, so a group from one historical run cannot leak into
@@ -1305,7 +1501,7 @@ not access the current filesystem. A drive label may be empty for a path type wi
 The plan ID, revision, and group summary describe the same active review generation as the member
 rows; clients reject late pages and refresh after a mutation.
 
-## Exact Duplicate Folder Result Commands
+## Exact duplicate folder result commands
 
 Exact-folder results use the same completed-run requirement, immutable run ownership, page-size
 limits, opaque query-bound cursors, and stable ID tie-breaker rules as duplicate-file results.
@@ -1357,10 +1553,9 @@ and time are null for implicit Undecided state.
    in a failed state. The failure includes the attempted executable path and captured stderr tail.
 
 The worker writes nothing to stdout merely because it started. This avoids a race between an
-unsolicited ready event and negotiation. A `worker.ready` event may be introduced after negotiation
-in a later milestone without changing the handshake.
+unsolicited ready event and negotiation; the worker has no `worker.ready` event.
 
-## Shutdown and Process Exit
+## Shutdown and process exit
 
 For V1, graceful shutdown is signalled by the client closing the worker's stdin. On EOF, the worker
 finishes writing the response for every completely received request. If a scan or preflight is
@@ -1376,12 +1571,13 @@ commands that support cancellation define their own protocol behavior.
 Unexpected worker exit fails every pending request. Exit code 0 means graceful EOF shutdown only;
 it does not turn incomplete commands or runs into successful operations.
 
-## Path and Data Rules
+## Path and data rules
 
-Paths in future commands are JSON strings containing normal Windows Unicode paths. They are not
-URLs and are not required to use slash normalization. The worker owns canonicalization and all
-filesystem/database access. Numbers that can exceed JavaScript's exact integer range must be
-encoded as decimal strings when those fields are introduced.
+Paths are JSON strings containing normal Windows Unicode paths. They are not URLs and are not
+required to use slash normalization. The worker owns canonicalization and all filesystem/database
+access. Byte counts and most other numbers that can exceed JavaScript's exact integer range are
+encoded as decimal strings. One exception exists today: `preflight.item.page` returns the
+nanosecond `observedLastModified` as a JSON number.
 
 Fixed local roots are primary. Explicit removable, mapped-drive, and UNC roots are best-effort.
 Reparse points and links are skipped. Under `exclude_registered_roots`, effective registered/manual
@@ -1394,7 +1590,7 @@ still be persisted; affected entries cannot create false duplicate results.
 Secrets must not be placed in protocol errors. Local stderr diagnostics may contain paths needed
 for troubleshooting; any future telemetry must redact sensitive path data.
 
-## Representative Transcripts
+## Representative transcripts
 
 Lines prefixed `C>` are written by the client to worker stdin. Lines prefixed `W>` are written by
 the worker to stdout. The prefixes are explanatory and are not transmitted.

@@ -8,6 +8,17 @@ The Windows app is **review-only**: it records keep/remove decisions but never d
 modifies scanned files. The repository contains the Rust engine, a CLI, a reusable FFI boundary,
 the versioned worker process, and the Windows 11 x64 WPF app.
 
+## Use The Windows App
+
+Download `super-duper-<version>-win-x64.zip` from the
+[latest release](https://github.com/garygentry/super-duper/releases), unzip it anywhere, and run
+`SuperDuper.Windows.exe`. It needs Windows 11 x64 and no separate .NET runtime or installer. The
+build is not code-signed, so SmartScreen may warn on first launch.
+
+New to Super Duper? Start with [Find your first duplicates](docs/user-guide/getting-started.md).
+The [documentation index](docs/README.md) lists the full user guide, the architecture notes, and the
+build, test and release guides.
+
 ## Features
 
 - Staged hashing: exact file size, then a 1 KB XxHash64 partial hash, then full-content hashing only
@@ -29,7 +40,10 @@ the versioned worker process, and the Windows 11 x64 WPF app.
 
 ## Architecture
 
-Super Duper is a Cargo workspace. The Rust core library owns the product logic; the CLI links it directly, the FFI crate exposes a stable boundary for future native interfaces, and the Windows app connects to the Rust engine through a long-lived JSONL worker process.
+Super Duper is a Cargo workspace. The Rust core library owns the product logic; the CLI links it
+directly, the FFI crate exposes a stable boundary for future native interfaces, and the Windows app
+connects to the Rust engine through a long-lived JSONL worker process that alone owns the app's
+databases. See the [system overview](docs/architecture/overview.md) for the containers and stores.
 
 ```text
 super-duper/
@@ -43,28 +57,31 @@ super-duper/
     super-duper-worker/   # JSONL process boundary for the Windows app
   apps/
     windows/              # WPF/.NET 10 solution, application layers, and tests
+  scripts/                # smoke, UI-dev launch, release verification, notices
   docs/
-    architecture.svg
-    windows-mvp-plan.md
-    worker-protocol-v1.md
-    windows-build.md
-    windows-smoke.md
-    windows-recovery.md
+    README.md             # documentation index
+    user-guide/           # using the Windows app
+    architecture/         # system overview, Windows app structure, decisions
+    windows-*.md          # build, UI dev sessions, testing, smoke, recovery
+    worker-protocol-v1.md # worker protocol and other contracts, schema notes
 ```
 
-![Super Duper architecture](docs/architecture.svg)
-
-## Getting Started
+## Build From Source
 
 ### Prerequisites
 
-| Tool           | Notes                                                             |
-| -------------- | ----------------------------------------------------------------- |
-| Rust toolchain | `rustup` recommended, stable channel, 1.98 or newer                |
-| `libclang-dev` | Required by RocksDB's bindgen step on Linux                       |
-| .NET SDK       | 10.0.400 or a compatible 10.0 patch; required for the Windows app |
-| Windows        | Windows 11 x64 for building and running the WPF application       |
-| Windows SDK    | A Windows 11 SDK capable of targeting `10.0.22000.0`              |
+| Tool           | Notes                                                                        |
+| -------------- | ---------------------------------------------------------------------------- |
+| Rust toolchain | `rustup` recommended, stable channel, 1.98 or newer                          |
+| `libclang-dev` | Required by RocksDB's bindgen step on Linux                                  |
+| .NET SDK       | 10.0.400 or a compatible 10.0 patch; required for the Windows app            |
+| Windows        | Windows 11 x64 for building and running the WPF application                  |
+| Windows SDK    | A Windows 11 SDK capable of targeting `10.0.22000.0`                         |
+| VS build tools | C++ x64 build tools and Clang (`LIBCLANG_PATH`) for RocksDB on Windows       |
+| PowerShell 7   | `pwsh` for the `scripts/*.ps1` workflows                                     |
+| `cargo-about`  | Only for release verification (third-party notices)                          |
+
+[`docs/windows-build.md`](docs/windows-build.md) has the exact Visual Studio components and setup.
 
 ### Build The Windows Application
 
@@ -87,9 +104,10 @@ dotnet test apps/windows/SuperDuper.Windows.sln --configuration Release -m:1
 Run the .NET test projects serially (`-m:1`): the WPF smoke tests start real windows on an STA
 thread and can time out when they run alongside the worker-backed integration tests.
 
-The Debug app uses `target/debug/super-duper-worker.exe`; the Release app uses
-`target/release/super-duper-worker.exe`. If the worker has not been built first, the WPF build or
-startup will report the missing worker rather than silently using a stale binary.
+The Debug build copies `target/debug/super-duper-worker.exe` beside the app; the Release build
+copies `target/release/super-duper-worker.exe`. The copy is skipped silently when the worker has not
+been built, so build Rust first: a Debug app otherwise runs whatever worker is already beside it
+(possibly stale) or falls back to `target/debug`, and a Release app fails to start its worker.
 
 ### Test
 
@@ -130,8 +148,8 @@ a release candidate.
 
 The verifier runs the Rust and .NET Release tests and creates a self-contained `win-x64` publish
 in `artifacts/windows-x64`. It checks that the Cargo and .NET versions agree, adds `LICENSE.txt`,
-`THIRD-PARTY-NOTICES.txt` (generated with `cargo-about`) and `CHANGELOG.md`, runs the real
-worker/WPF smoke against the published app, and packages
+`THIRD-PARTY-NOTICES.txt` (generated with `cargo-about`) and `CHANGELOG.md`, runs the worker
+protocol smoke (against `target/release`) and the WPF smoke against the published app, and packages
 `artifacts/super-duper-<version>-win-x64.zip` with a `.sha256` file. The zip needs no installed
 .NET runtime. See [`docs/release-checklist.md`](docs/release-checklist.md) for the full release
 procedure and which gates run in CI versus on the Windows VM.
@@ -169,6 +187,7 @@ old overrides before a normal launch if they refer to deleted disposable state:
 ```powershell
 Remove-Item Env:SUPER_DUPER_WORKER_PATH -ErrorAction SilentlyContinue
 Remove-Item Env:SUPER_DUPER_DB_PATH -ErrorAction SilentlyContinue
+Remove-Item Env:SUPER_DUPER_STATUS_DB_PATH -ErrorAction SilentlyContinue
 Remove-Item Env:HASH_CACHE_PATH -ErrorAction SilentlyContinue
 ```
 
@@ -257,27 +276,21 @@ Each version has its own note, from [`docs/storage-schema-v3.md`](docs/storage-s
 [`docs/storage-schema-v4.md`](docs/storage-schema-v4.md) for cloud-safe run policy.
 
 Scan telemetry lives in a separate worker-owned status database (`scan_status.db`), not in this
-schema.
+schema; see [`docs/scan-status-database.md`](docs/scan-status-database.md).
 
-Key tables:
+The schema has 40 tables in these families
+([`schema.sql`](crates/super-duper-core/src/storage/schema.sql) is authoritative):
 
-| Table                           | Purpose                                                                  |
-| ------------------------------- | ------------------------------------------------------------------------ |
-| `scan_session`                  | Named, editable scan definitions                                         |
-| `scan_run`                      | Immutable executions, parameter snapshots, lifecycle, and counters       |
-| `run_exclusion`                 | Run-owned cloud/manual subtree exclusions recorded before content access |
-| `scanned_file`                  | Immutable per-run file snapshots with root-relative paths                |
-| `duplicate_group`               | Confirmed duplicate sets owned by one run                                |
-| `duplicate_group_member`        | Duplicate group membership                                               |
-| `duplicate_folder_group`        | Verified exact-folder groups, including retained suppression state       |
-| `duplicate_folder_group_member` | Run-owned duplicate-folder roots                                         |
-| `directory_node`                | Per-run directory tree aggregates                                        |
-| `directory_fingerprint`         | Per-directory content fingerprints                                       |
-| `directory_similarity`          | Precomputed Jaccard pairs                                                |
-| `review_plan`                   | One active durable review plan per immutable completed run               |
-| `review_decision`               | Manual keep/remove/undecided decisions with immutable file snapshots     |
-| `review_command`                | Idempotent review-mutation ledger                                        |
-| `deletion_plan`                 | Legacy CLI/FFI deletion staging (unused by the Windows app)              |
+| Family                  | Tables                                                                                  |
+| ----------------------- | --------------------------------------------------------------------------------------- |
+| Saved scans and runs    | `scan_session`, `scan_run`, `run_exclusion`, `run_warning_aggregate`                     |
+| Scan results            | `scanned_file`, `duplicate_group[_member]`, `duplicate_folder_group[_member]`, `directory_node`, `directory_fingerprint`, `directory_similarity` |
+| Review                  | `review_plan`, `review_decision`, `review_folder_decision`, `review_command`, `review_folder_command` |
+| Location preferences    | `preference_rule`, `preference_rule_root`, `preference_rule_command`, `review_rule_application`, `review_rule_decision`, `review_rule_reversal_command` |
+| Live validation         | `review_live_validation[_item]`, `review_live_root_state`, `review_live_root_overflow`, `review_live_root_reconciliation[_item]`, `review_live_file_state` |
+| Whole-plan check        | `preflight`, `preflight_item`, `preflight_item_source`                                   |
+| Recycle Bin foundation  | `recycle_operation`, `recycle_operation_batch`, `recycle_operation_item`, `recycle_operation_report`, `recycle_operation_recovery`, `recovery_review_observation` (execution is disabled in the app) |
+| Legacy                  | `deletion_plan` (CLI/FFI deletion staging, unused by the Windows app)                    |
 
 ## FFI Boundary
 
@@ -293,13 +306,13 @@ The `super-duper-ffi` crate exposes the core through a C ABI for future native c
 
 The first release, [v0.1.0](https://github.com/garygentry/super-duper/releases/tag/v0.1.0), was
 published on 2026-09-19; open work is tracked in
-[GitHub issues](https://github.com/garygentry/super-duper/issues). The Rust engine and CLI are functional, and the Windows app has completed its MVP, redesign
-and polish streams. The app is review-only: it has no operation that deletes or moves scanned
-files, and Recycle Bin execution is disabled in production builds.
+[GitHub issues](https://github.com/garygentry/super-duper/issues). The Rust engine and CLI are
+functional, and the Windows app is released. The app is review-only: it has no operation that
+deletes or moves scanned files, and Recycle Bin execution is disabled in production builds.
 
 Not yet verified for v0.1.0: Windows high contrast, Narrator/NVDA, and multi-monitor or 200% DPI
-behavior. Historical plans and acceptance evidence live under `plans/` and `docs/`; they are
-records, not a work queue.
+behavior. Earlier plans and acceptance evidence were removed after v0.1.0 and remain available at
+the [`v0.1.0` tag](https://github.com/garygentry/super-duper/tree/v0.1.0).
 
 ## License
 

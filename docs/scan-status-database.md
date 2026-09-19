@@ -1,9 +1,35 @@
-# Scan Status Database
+# Scan status database
 
 The Rust worker owns a local SQLite status database for scan performance and health telemetry. It
 is separate from the product-results database: status rows may reference a product run ID, but they
 do not own duplicate results, review state, warning truth, preflight state, or operation evidence.
 Deleting this database or its terminal history cannot delete or reinterpret product results.
+
+The schema lives in `crates/super-duper-core/src/telemetry/status_schema.sql`; the store is
+`crates/super-duper-core/src/telemetry/status_db.rs`. The worker reads it through the
+[performance status commands](worker-protocol-v1.md#performance-status-commands)
+(`performance.run.page` and `performance.snapshot.get`), which return `database_error` when the
+status database cannot be opened or read.
+
+## Schema version and tables
+
+The status schema version is 2 (`PRAGMA user_version = 2`, `CURRENT_STATUS_SCHEMA_VERSION`). The
+writer creates an empty database at version 2 and migrates a version 1 database by adding
+`status_flush`. It refuses a newer version, an older unsupported version, or an unversioned
+database that already has tables, and does not change their schema. The query-only reader opens
+only a version 2 database.
+
+| Table | Purpose |
+|---|---|
+| `status_run` | One row per status run: operation ID, optional product run ID, metrics/engine/worker/app/product-schema versions, non-path input signature, lifecycle state, timestamps, last monotonic time and sequence, and terminal error |
+| `status_phase` | Per-run phase state and accumulated active time |
+| `status_counter` | Per-run, per-phase fixed metric values with the flush sequence that last changed each one |
+| `status_device` | Per-run device and volume descriptors: filesystem, capacity, free space at start, bus and media type, model |
+| `status_host_sample` | Bounded host samples: process CPU, memory, and I/O counters, system CPU and memory |
+| `status_device_sample` | Per-device samples keyed to a host sample: read throughput, IOPS, latency, active time, queue depth |
+| `status_flush` | Replay ledger of applied flush payloads while a run is writable |
+
+Every per-run table cascades from `status_run`, and device samples cascade from their host sample.
 
 ## Location and lifecycle
 

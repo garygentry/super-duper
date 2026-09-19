@@ -1,210 +1,183 @@
-# Windows Developer Smoke Workflow
+# Windows smoke workflow
 
-`scripts/Invoke-WindowsSmoke.ps1` creates a disposable deterministic filesystem fixture and drives
-the real worker protocol. On an interactive desktop it also launches the real WPF application and
-uses stable UI Automation IDs to exercise both result surfaces, bounded Explorer reveal, and
-current-page parent-grouped Explorer selection.
+`scripts/Invoke-WindowsSmoke.ps1` builds a disposable filesystem fixture, drives the real worker
+over its JSONL protocol, and on an interactive desktop launches the real WPF app and drives it
+through UI Automation. It never touches your real database, hash cache or files.
 
-## Coverage
-
-- session creation and protocol negotiation;
-- active-run cancellation and durable `cancelled` state;
-- a completed rerun and restoration after worker restart;
-- more than one page of duplicate-file groups, sorting, filtering, forward cursor paging, and
-  member browsing, including the worker-owned filtered review summary, bounded per-group
-  selected-root/drive span, aggregate filtered location coverage, the worker-owned across-drives
-  and minimum-copy-count filters, the one-copy-size minimum and accessible 1 GB-or-larger preset,
-  exact canonical-member-path matching while preserving literal path substring search, indexed
-  any-member and all-member filename-extension matching plus explicit no-extension matching without representative-name inference,
-  worker-owned paged selected-root and drive facets with exact filters, and immutable selected-root,
-  relative-path, and drive member context;
-- exact duplicate-folder sorting, filtering, and member browsing;
-- immutable review-revision preflight start and exact replay, structured ready observations,
-  bounded detail paging, completed-generation reconstruction after worker restart, and assertions
-  that reviewed disposable files remain present and byte-for-byte unchanged;
-- schema-v12 one-ID external-deletion validation, working Remove invalidation, immutable member
-  metadata, restart reconstruction, restored-file `present` state with sticky prior intent, and no
-  cursor expansion or product mutation;
-- a deterministic 1,000-event worker hint aggregate plus a real disposable non-result-file watcher
-  burst;
-  one 100 ms global coalescer, at most 200 distinct paths per frame, one current-run Core/WPF
-  binding/automation update per frame, and schema-v13 overflow fallback without authoritative hint
-  persistence;
-- schema-v10 non-mutating operation preparation and exact replay, bounded item paging, explicit
-  `executorEnabled:false`, injected `non_recyclable/executor_disabled` whole-plan failure, durable
-  summary counts, and unchanged disposable files; no Shell or Recycle Bin API is invoked;
-- fixed-drive scanning, a path longer than 260 characters, a locked file, and a skipped junction;
-- all five scan-phase timings and all five result-query timings on stderr;
-- WPF startup/restoration, duplicate-file and exact-folder tabs, grid sorting, paging, filtering,
-  row selection, exact-path and any/all extension/no-extension filtering, next/previous-set keyboard focus restoration, accessible selected-root and drive
-  facets plus 1 GB-or-larger/minimum-copy-count/
-  across-drives/review-summary/aggregate-location/set-explanation/location-span text, completed ordinary/
-  long-path file reveal; single-folder keyboard Explorer reveal success/actionable missing-location
-  failure; and bounded three-item/two-parent grouped folder selection with Alt+G, aggregate success,
-  actionable partial failure, stable selection/focus, and restored disposable fixtures, and
-  deterministic result-loaded, repeated idle, startup-failure, and database-failure shutdown;
-- WPF bounded visible-set validation over an externally modified reviewed copy, actionable changed
-  and invalidated-decision state, immutable-history disclosure, restored copy revalidation, required
-  fresh review intent, stable validation/cancellation automation, and copy-grid focus restoration;
-- WPF preflight plan summary, explicit non-deleting metadata/content-read confirmation, keyboard Yes
-  action, terminal summary and focus movement, virtualized observation details, and unchanged
-  disposable files, plus a focusable read-only operation heading and explicit disabled-executor,
-  partial/ambiguous-risk disclosure with no submission action.
-- Cloud locations setup accessibility, responsive registration refresh, Start scan becoming enabled
-  after successful discovery, and a separate deterministic provider-unavailable launch where the
-  default policy remains fail closed before and after refresh.
-
-Run Debug or Release:
+## Run the smoke
 
 ```powershell
 ./scripts/Invoke-WindowsSmoke.ps1
 ./scripts/Invoke-WindowsSmoke.ps1 -Configuration Release
 ```
 
-Useful options:
+| Parameter | Effect |
+|---|---|
+| `-Configuration Debug\|Release` | Selects `target/<debug\|release>/super-duper-worker.exe` and the matching app build. Default `Debug`. |
+| `-SkipBuild` | Skips `cargo build -p super-duper-worker` and `dotnet build` of the solution; uses what is on disk. |
+| `-SkipWpf` | Runs only the worker protocol half. Use it on a headless agent or when UI Automation is blocked. |
+| `-KeepArtifacts` | Keeps the fixture folder after the run instead of deleting it. |
+| `-AdditionalRoot <path[]>` | Adds real removable, mapped or UNC test roots to the scan as best-effort extras. |
+| `-AppPath <path>` | The WPF app to drive, for example a published `SuperDuper.Windows.exe`. It does not change the worker used by the protocol half. |
+
+The protocol half always launches `target/<profile>/super-duper-worker.exe` directly. The WPF half
+launches the app: a Debug app uses that same worker through `SUPER_DUPER_WORKER_PATH`, and a Release
+app uses the worker beside it. `Verify-WindowsRelease.ps1` passes `-AppPath` so the WPF half drives
+the published app.
+
+The built-in fixture uses the local fixed drive that holds `%TEMP%`. Removable media, mapped drives
+and UNC shares cannot be created portably, so pass real, non-production roots with
+`-AdditionalRoot`:
 
 ```powershell
-# Protocol/worker smoke suitable for a headless agent
-./scripts/Invoke-WindowsSmoke.ps1 -SkipWpf
-
-# Use already-built binaries or retain the fixture for diagnosis
-./scripts/Invoke-WindowsSmoke.ps1 -SkipBuild
-./scripts/Invoke-WindowsSmoke.ps1 -KeepArtifacts
-
-# Exercise real removable, mapped, or UNC test roots as best-effort additions
 ./scripts/Invoke-WindowsSmoke.ps1 -AdditionalRoot 'E:\Archive','Z:\Team','\\server\share'
 ```
 
-The built-in fixture exercises the local fixed drive hosting `%TEMP%`. Removable media, mapped
-drives, and UNC shares cannot be fabricated portably, so pass real, non-production test roots with
-`-AdditionalRoot`. The fixed fixture root remains available, which lets an unavailable additional
-root become a warning instead of preventing the run.
+An unavailable additional root becomes a warning; the fixture root still scans.
 
-## Explicit real Recycle Bin acceptance
+## What it checks
 
-The real Shell adapter is tested separately because it intentionally mutates only its own uniquely
-named disposable fixtures. It is never part of `Invoke-WindowsSmoke.ps1` and does not enable the
-WPF action. Start with the non-mutating evidence collector:
+The fixture lives in `%TEMP%\super-duper-windows-smoke-<id>`. It holds 230 two-copy file sets (one
+with a third `.JPG` copy), a pair of files without extensions, three identical folders, a file
+under a path longer than 260 characters, a junction that must be skipped, and a file held open
+without sharing so hashing records a warning.
 
-```powershell
-./scripts/Invoke-WindowsRecycleBinAcceptance.ps1 -Configuration Release
+Worker protocol half:
+
+- Protocol negotiation, a cancelled run that stays `cancelled`, and a completed run.
+- Warning drilldown (`warning.page`): the counted warnings are fully accounted for, with one to
+  three examples each, and survive a worker restart.
+- Progress frames: increasing sequence and revision, and the current contract versions.
+- Completed history and results restored after a worker restart.
+- Duplicate-file paging, sorting and filtering: size, copy count, drives, selected-root and drive
+  facets, extension (any copy or all copies), no extension, and exact-path matching.
+- Duplicate-folder paging, sorting, filtering and members.
+- File and folder review decisions; a preferred-location rule saved, previewed, applied and
+  reversed; and preflight start and replay. Every reviewed fixture file stays present and
+  unchanged.
+- Live validation after a fixture file is deleted and restored, a 1,000-event watcher hint batch,
+  and an injected watcher overflow that keeps its root marked dirty across a restart.
+- Recycle operation preparation, replay and item paging with `executorEnabled:false`; no Shell or
+  Recycle Bin API is called.
+- Timing records on stderr for five scan phases (`discovering`, `hashing`, `persisting`,
+  `analyzing_folders`, `finalizing`) and eleven result queries: `duplicate_file_group.page`,
+  `duplicate_file_group.members`, `duplicate_file_selected_root_facet.page`,
+  `duplicate_file_drive_facet.page`, `duplicate_folder_group.page`,
+  `duplicate_folder_group.members`, `review_plan.get`, `review_folder_group.page`,
+  `preference_rule.preview`, `preflight.item.page` and `recycle_operation.item.page`.
+
+WPF half (skipped by `-SkipWpf`):
+
+- The restored completed run in Setup, Progress and History, including cloud location refresh.
+- Warning drilldown: **Open duplicate results** (Alt+O) opens that run's duplicate files with focus
+  in the set list, and closing the drilldown returns focus to run history.
+- File filters, sorting, paging, previous and next set with focus restoration, and the filtered
+  summary.
+- The dirty-root warning and one **Reconcile next batch** request, a real watcher burst shown as a
+  coalesced status, a review decision, and **Check these copies** after a copy is changed outside
+  the app and then restored.
+- Location preference preview, apply and reverse; preflight confirmation and summary; and the
+  disabled Recycle Bin operation notice.
+- **Show in Explorer** for an ordinary and a long-path file; for folders, Alt+E reveal, Alt+G
+  grouped selection, a partial failure and a missing-location failure. Explorer windows opened on
+  the fixture are closed at the end.
+- A second launch with cloud registration discovery disabled
+  (`SUPER_DUPER_DISABLE_CLOUD_REGISTRATION_DISCOVERY=1`), where scans must stay blocked.
+- Four close scenarios: two idle closes, a close after worker startup failure (an app copy with no
+  worker), and a close after a database failure. Each checks that the app exits within 10 seconds
+  with exit code 0 and that no worker it started outlives it.
+
+## Read the result
+
+A full run prints these lines, in order:
+
+```text
+WPF automation passed for restored run <run id>, including …
+WPF cloud setup automation passed, including deterministic provider-unavailable fail-closed start behavior.
+WPF shutdown passed: idle connected close 1
+WPF shutdown passed: idle connected close 2
+WPF shutdown passed: worker startup failure close
+WPF shutdown passed: database failure close
+Windows smoke passed. Fixture: <fixture path>
 ```
 
-It writes a machine-readable matrix, Markdown report, command logs, and TRX under the ignored
-`artifacts/windows-recycle-bin-acceptance/` tree. Unavailable provider/physical prerequisites stay
-open rather than being reported as passes. See
-[`windows-recycle-bin-acceptance.md`](windows-recycle-bin-acceptance.md) for the full operator,
-provider, performance, constants, Windows Undo, TOCTOU/recovery, and physical-accessibility
-procedures.
+With `-SkipWpf`, only the last line appears. The last line always names the fixture path. Without
+`-KeepArtifacts` the script deletes that folder afterwards, including after a failure; with it,
+the folder stays for diagnosis.
 
-Run the explicit mutation slice only on an interactive Windows 11 desktop with an available local
-Recycle Bin:
+Any failure stops the script with an error naming the check that failed.
 
-```powershell
-./scripts/Invoke-WindowsRecycleBinAcceptance.ps1 -Configuration Release -ConfirmRecycleBinMutation
-```
+## Run the WPF part by hand
 
-The acceptance proves one dedicated STA owns COM; successful local-root capability requires a
-non-opening ordinary-item classification plus successful `SHQueryRecycleBinW`; durable-start
-acknowledgement occurs before `PerformOperations`; positive `PostDeleteItem` recycled-item,
-`FinishOperations`, outer HRESULT, and abort evidence are retained; cancellation after durable
-start stops at `PreDeleteItem`; and an independent hard-link alias and exact-folder copy survive
-byte-identically. The success fixtures remain recoverable in the current user's Recycle Bin. The
-test deliberately implements no permanent cleanup.
-
-On the 2026-08-20 development host, success returned `PerformOperations=0`,
-`FinishOperations=0`, positive recycled items, and `GetAnyOperationsAborted=false`. Returning the
-cancellation HRESULT from `PreDeleteItem` kept the source unchanged and produced the expected
-per-item cancellation while the aggregate abort flag also remained false. A source opened without
-delete sharing produced Windows copy-engine HRESULT `0x80270027`, mapped to `sharing_violation`,
-and remained byte-identical. This is host evidence, not a provider-wide contract.
-
-## Real Cloud Files acceptance
-
-`Invoke-WindowsCloudPolicyAcceptance.ps1` is the separate operator gate for a registered OneDrive
-or other Cloud Files root. It performs metadata-only fixture discovery, validates the root through
-the real Infrastructure registration API, runs the worker against both the cloud root's broad
-parent and the explicit cloud root, and compares logical size, allocated size, last-write time,
-placeholder/pin attributes, and provider-process transfer counters before and after.
-
-Run it while the provider is available and otherwise idle:
+If UI Automation is blocked by a locked session, an elevation boundary or a headless runner, run
+the protocol half and keep its fixture:
 
 ```powershell
-./scripts/Invoke-WindowsCloudPolicyAcceptance.ps1 -Configuration Release
+./scripts/Invoke-WindowsSmoke.ps1 -SkipWpf -KeepArtifacts
 ```
 
-The script can auto-select a non-hidden locally available file and an offline placeholder, or the
-operator can pass `-LocallyAvailableFile` and `-OfflinePlaceholder`. It excludes unrelated direct
-children of the broad parent, creates only isolated temporary worker state, never reads fixture
-content, and removes its state unless `-KeepArtifacts` is used.
-
-Then intentionally pause or exit the provider using its supported UI and rerun without asking the
-script to stop any process:
+Then start the app on an interactive Windows 11 desktop against the fixture's database:
 
 ```powershell
-./scripts/Invoke-WindowsCloudPolicyAcceptance.ps1 -Configuration Release -SkipBuild -ExpectProviderUnavailable
+$fixture = '<path printed after "Fixture:">'
+$env:SUPER_DUPER_DB_PATH = "$fixture\smoke.db"
+$env:HASH_CACHE_PATH = "$fixture\hash-cache"
+dotnet run --project apps/windows/src/SuperDuper.Windows/SuperDuper.Windows.csproj
 ```
 
-The unavailable mode requires all named provider processes to be absent. Restore the provider
-normally after the run. Both modes must report zero discovered files for the broad and explicit
-runs, unchanged file/placeholder state, and `PROVIDER_TRANSFER_COUNTERS_UNCHANGED=true`.
+1. Choose **Saved scans** and select **Milestone 6 Cancellation**; in **History** > **Scans**,
+   confirm its cancelled run. Select **Milestone 6 Smoke** and confirm its completed run. If asked
+   to save setup changes, choose **Discard**.
+2. In **History** > **Scans**, select the completed run and choose **Review warnings**. On the hash
+   warning, choose **Open duplicate results** (Alt+O). Confirm **Results** > **Files** opens for
+   the same run with focus in the set list. Go back to **History** > **Scans**, confirm the
+   warning is unchanged, and choose **Return to run history**.
+3. In **Results** > **Files**, confirm the warning that working results are dirty and
+   reconciliation is required. Choose **Reconcile next batch** (Alt+X). Confirm the status reports
+   the copies checked (at most 200 per request) and focus returns to the copy list. If more remain,
+   the warning stays; otherwise the status says the overflow dirty marker is cleared. No file moves
+   or disappears.
+4. Choose **Filters** and check each filter with **Apply**, then clear it:
+   - **1 GiB or larger**: no sets match.
+   - **Three or more copies**: the three-copy set matches.
+   - `JPG` in **Extension**: exactly one set matches. Add **All copies must match**: none match.
+   - Clear **Extension**, check **No extension** with **All copies must match** still checked:
+     exactly one set (the extensionless pair) matches.
+   - A root in **Selected root**, then a drive in **Drive**: each shows as an applied filter.
 
-## Expected Result
+   Choose **Clear filters** when done.
+5. Sort by **One-copy size, largest first**, go to the next page of sets, and select a set. Use the
+   previous and next duplicate set buttons and confirm focus returns to the selected set.
+6. Enter `group010` in **Path search** and choose **Apply**. Confirm the summary and **Location
+   coverage and largest opportunity** show the selected-root and drive counts. Select a copy and
+   choose **Show in Explorer**.
+7. Check **Exact path**, replace the search with a complete copy path, and choose **Apply**:
+   exactly one set matches. Clear **Exact path**, search for `long-a.txt`, select a copy and
+   choose **Show in Explorer** to reveal the long-path file.
+8. In **Results** > **Folders**, sort by **Representative path, A–Z**, enter `original-set` in
+   **Path search**, choose **Apply**, and select the set. Confirm three folder copies. Select one
+   and choose **Show in Explorer** (Alt+E from the copy row), then **Select page in Explorer**
+   (Alt+G) and confirm Explorer selects the copies grouped by parent folder.
+9. In **Results** > **Files**, rapidly change the last-write time of one visible copy and restore
+   the exact original time. Confirm a status says filesystem events were coalesced into bounded
+   path hints, and the copy shows **Validation pending after a coalesced filesystem hint**. A hint
+   is not a result; choose **Check these copies** (Alt+V) for an authoritative check.
+10. Select a copy and choose **Mark copy for removal**. Outside the app, change that file's length,
+    then choose **Check these copies**. Confirm the copy shows **Changed since scan; prior Remove
+    decision invalidated** and the file still exists. Restore the exact bytes and last-write time,
+    choose **Check these copies** again, and confirm the copy shows **Present; Remove decision
+    remains invalidated until reviewed again**. Choose **Mark copy for removal** again to record a
+    fresh decision. Do not use a cloud placeholder for this step.
+11. Close and reopen the app with the same environment variables. Confirm run history, results and
+    the latest check results are restored.
 
-The script prints `Windows smoke passed`. It first proves the locked-file warning count is exactly
-accounted for by bounded `warning.page` aggregates with one to three examples, survives worker
-restart, remains `executorEnabled:false`, and opens from Run history through an accessible WPF
-drilldown whose server-owned count ordering is exposed accessibly, whose virtualized grid binds only
-the current bounded page, and whose close action restores history-grid focus. For the existing
-hash-warning family only, the real WPF pass uses Alt+O on the aggregate-scoped action, resolves the
-server-owned run ID, opens that completed run's immutable duplicate-file set, verifies group-grid
-focus, and returns to unchanged warning history. The automation harness
-reacquires stable automation IDs before keyboard focus and foregrounds only its disposable WPF
-window. It sends one deterministic bounded worker hint frame with
-an aggregate count of 1,000, and the real WPF pass rapidly rewrites one disposable non-result file
-under the selected root, observes one coalesced/bounded live-hint status, removes that file, and
-leaves the scan fixtures unchanged. It also injects one watcher overflow without changing a fixture,
-proves the dirty root survives a worker restart, and requires every hint/overflow/list response to
-retain `executorEnabled:false`. With WPF enabled it proves the durable root appears as a visible
-dirty/reconciliation-required warning, invokes one explicit at-most-200-item batch, keeps a partial
-root visibly dirty or clears only the final batch, restores copy-grid focus, and leaves immutable
-scan history and fixtures unchanged. WPF automation also fails if an admitted reveal or
-grouped selection lacks terminal aggregate success or actionable failure state, verifies that owned
-workers do not survive the app, and may leave
-Explorer windows showing selected disposable fixture items grouped by parent. By
-default the fixture is removed after the app closes; `-KeepArtifacts` prints and retains its path.
+When you finish, close the app, remove the two environment variables from the session, close any
+Explorer windows showing the fixture, and delete the fixture folder.
 
-If UI Automation is blocked by a locked session, elevation boundary, or headless runner, rerun with
-`-SkipWpf`, then perform the WPF portion manually on an interactive Windows 11 desktop:
+## Opt-in real provider tests
 
-1. Select `Milestone 6 Smoke` and its completed run; confirm the cancelled run is also in history.
-2. In Run history, open warnings. On the hash warning, choose **Open duplicate results** (Alt+O),
-   confirm Duplicate files opens for the same completed run with focus in the set grid, then return
-   to Run history and confirm the warning remains unchanged. Open Duplicate Files, sort Group size,
-   choose Next, filter for `group010`, select a group, and
-   confirm the filtered summary and selected-root/drive detail. Use Next set and Previous set and
-   confirm keyboard focus returns to the selected group row. Apply `1 GB or larger` and confirm
-   the small fixture is empty, then clear it. Apply `Three or more copies`, then clear it. Filter
-   one set, select `Exact path`, replace the search with a complete member path, and confirm exactly
-   one set remains; then clear it. Enter `JPG` in Extension and confirm the mixed-extension set is
-   isolated, then enable `All copies must match` and confirm it is excluded. Select `No extension`
-   while all-copy matching remains enabled and confirm the all-extensionless set is isolated, then
-   clear the filters. Choose and apply counted
-   selected-root and drive facets, clear them, then choose Show in Explorer.
-3. Open Duplicate Folders, sort Representative folder, filter for `original-set`, select the group,
-   and reveal a folder in Explorer.
-4. On one disposable visible copy, rapidly change only its last-write timestamp and restore the
-   exact original timestamp. Confirm one polite status says the filesystem events were coalesced
-   into bounded path hints and the matching visible row is validation pending. Do not expect a hint
-   to become durable truth; choose **Validate page** for an authoritative observation.
-5. Before changing a file, confirm the injected watcher overflow appears as a dirty/
-   reconciliation-required root warning. Choose **Reconcile next batch** (Alt+X), confirm the action
-   reports at most 200 checked copies, and confirm focus returns to the current copy grid. If more
-   work remains, the warning must remain; otherwise the final status must explicitly say the dirty
-   marker was cleared. No file should move or disappear.
-6. On a disposable reviewed copy, change its length outside the app, choose **Validate page**, and
-   confirm the row reports Changed and its prior decision is invalidated without deleting the file.
-   Restore the exact bytes and timestamp, validate again, confirm Present retains the prior-intent
-   warning, then record a fresh decision. Do not use a provider placeholder for this manual step.
-7. Close and reopen the app and confirm completed/cancelled history, completed results, and the
-   latest live-validation overlay restore.
+The smoke never calls the Recycle Bin or a cloud provider. The tests that do are opt-in categories
+in the Infrastructure test project: `RealRecycleBin` (moves disposable fixture files into the
+current user's Recycle Bin), `RealRecycleBinProvider` and `RealCloudProvider`. Their environment
+variables and commands are in
+[`windows-testing.md`](windows-testing.md#opt-in-real-environment-categories).

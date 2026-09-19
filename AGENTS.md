@@ -33,13 +33,14 @@ super-duper/
     src/SuperDuper.Windows.Core/            # view models, service/worker contracts, validation (net10.0)
     src/SuperDuper.Windows.Infrastructure/  # worker client, JSONL protocol, Shell/Recycle Bin/Explorer interop
     tests/  Core.Tests, Infrastructure.Tests, Smoke.Tests (MSTest; Smoke drives real WPF on an STA thread)
-    tools/  RedesignFixture (fictional in-memory UI fixture), AmbiguousStartHost (test host)
-  scripts/        # PowerShell build, smoke, acceptance, and measurement workflows
-  docs/           # protocol, schema, build, smoke, recovery docs; docs/evidence holds measurement JSON
-  plans/          # versioned UI plans (ui-redesign, ui-polish); other plans/ content is gitignored
+  scripts/        # smoke, UI-dev launch, release verification, third-party notices, icon generation
+  docs/           # index in docs/README.md; user-guide/, architecture/ (incl. decisions/), build,
+                  # testing, smoke, recovery, release, protocol, progress, schema notes; docplan.json
 ```
 
-Rust-specific module detail lives in `crates/CLAUDE.md`.
+Rust-specific module detail lives in `crates/CLAUDE.md`. Windows app structure, runtime behavior,
+conventions and decisions are in `docs/architecture/`; start with
+`docs/architecture/windows-app-components.md`.
 
 ## Build And Test
 
@@ -56,8 +57,9 @@ dotnet test apps/windows/SuperDuper.Windows.sln -m:1
 ```
 
 - `cargo build` is what produces `super-duper-worker.exe`; `clippy` and `cargo test` do not. After a
-  `cargo clean`, skipping it makes six worker-backed Infrastructure tests report Inconclusive
-  instead of running.
+  `cargo clean`, skipping it makes nine worker-backed Infrastructure tests report Inconclusive
+  instead of running. The WPF build also copies the worker only if it exists, so a stale copy
+  already in `bin/` can be used silently.
 - Keep the workspace rustfmt-clean and clippy-clean; both are clean today, so any new finding is
   yours. Silence a lint only with a scoped `#[allow]` and a reason.
 - Run the .NET test projects serially (`-m:1`). Running the WPF STA smoke suite concurrently with
@@ -68,7 +70,9 @@ dotnet test apps/windows/SuperDuper.Windows.sln -m:1
   (10.0.400), Windows 11 SDK `10.0.22000.0`, VS C++ build tools, and VS Clang (`LIBCLANG_PATH`) for
   RocksDB bindgen. The `scripts/*.ps1` workflows are written for PowerShell 7 (`pwsh`), not Windows
   PowerShell 5.1: they use .NET APIs 5.1 lacks, and `Verify-WindowsRelease.ps1` checks `$IsWindows`.
-- Windows tests use the MSTest 4 meta-package; `Microsoft.NET.Test.Sdk` is deliberately absent.
+- Core and Infrastructure tests use the MSTest 4 meta-package without `Microsoft.NET.Test.Sdk`.
+  Smoke.Tests still references `Microsoft.NET.Test.Sdk` with MSTest 3 (#35 tracks aligning it).
+  Test projects, opt-in categories and test-only variables are in `docs/windows-testing.md`.
 - `[profile.dev] debug = "line-tables-only"` keeps debug builds near 7 GB instead of ~63 GB of
   PDBs, which previously filled the disk and hit the linker's `LNK1140` limit. Backtraces keep file
   and line numbers. Override locally rather than reverting the default, and reclaim space with
@@ -157,24 +161,34 @@ See `docs/windows-build.md`, `docs/windows-smoke.md`, and `docs/windows-recovery
 - `SUPER_DUPER_WORKER_PATH` — app override for worker discovery; Debug builds only (Release launches
   only the sibling worker).
 - `SUPER_DUPER_DISABLE_CLOUD_REGISTRATION_DISCOVERY` — test/diagnostic switch.
-- `SUPER_DUPER_SOP*`, `SUPER_DUPER_WPM13_*`, `SUPER_DUPER_*_EVIDENCE*`, `SUPER_DUPER_UIR05C_CAPTURES`
-  are evidence/measurement hooks used by scripts and tests only.
+- Test-only switches: `SUPER_DUPER_EXPECTED_CLOUD_ROOT`, `SUPER_DUPER_RUN_REAL_RECYCLE_BIN_TESTS`,
+  `SUPER_DUPER_RUN_REAL_RECYCLE_PROVIDER_TESTS` with `SUPER_DUPER_RECYCLE_*`, the WPF capture
+  folders `SUPER_DUPER_UIR03_CAPTURES`, `_UIR04_`, `_UIR04B_`, `_UIR05C_CAPTURES`, and the storage-test
+  outputs `SUPER_DUPER_WPM13_EVIDENCE_PATH` and `SUPER_DUPER_REVIEW_PROFILE_EVIDENCE`. See
+  `docs/windows-testing.md`.
 
 Debug app builds also honor a `.uidev` sidecar next to the executable (written by
 `Start-WindowsUiDev.ps1`) when no database override is set; it is compiled out of Release.
 
+## Documentation
+
+`docs/README.md` indexes every document by audience. `docs/docplan.json` (validated by
+`docs/docplan.schema.json`) records what each document covers, its sources of truth and known gaps.
+
+- A change to user-visible labels, messages, limits or shortcuts in the Windows app must update
+  `docs/user-guide/`. The guide quotes labels exactly as displayed.
+- A change to layering, the worker boundary, startup/shutdown or crosscutting rules must update
+  `docs/architecture/`. Record a new significant decision as the next ADR in
+  `docs/architecture/decisions/`; supersede rather than edit accepted ADRs.
+- Protocol and schema changes keep their existing rules (see Architecture Rules and Storage).
+
 ## Project Status And History
 
-The Windows MVP (milestones 0–6), the UI redesign (UIR-00–UIR-09), the usability/visual-polish
-stream (P00–P08), and the large-drive scan optimization stream (SOP1–SOP10) are complete. The
-Windows post-MVP release-validation stream is parked; its ledger is
-`docs/windows-roadmap-closure-ledger.md`, and production Recycle Bin execution remains disabled.
-`ROADMAP.md` tracks forward-looking work.
-
-Historical plans, handoffs, and evidence (`plans/`, `docs/windows-post-mvp-ux-plan.md`,
-`docs/windows-roadmap-session-handoff.md`, `docs/evidence/`) are records, not work queues. Do not
-replay accepted gates, rerun consumed campaign identities, or infer new work from them unless the
-operator reopens that scope.
+v0.1.0 is released (see `CHANGELOG.md` and GitHub releases). Open work is tracked in GitHub issues;
+production Recycle Bin execution remains disabled and parked (#28). Earlier plans, ledgers, handoffs,
+evidence and campaign scripts were removed after v0.1.0 and remain available at the `v0.1.0` tag.
+They are records, not work queues: do not replay accepted gates or infer new work from them unless
+the operator reopens that scope.
 
 ## Dedicated Windows VM
 

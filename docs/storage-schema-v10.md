@@ -90,8 +90,8 @@ and before `PerformOperations`, maps `PreDeleteItem`/`PostDeleteItem`/`FinishOpe
 evidence, and never offers a permanent-delete fallback. `FOFX_ADDUNDORECORD` is intentionally not
 set pending its unresolved evidence review.
 
-`Invoke-WindowsRecycleBinAcceptance.ps1` is the evidence-only gate for this adapter. Its default
-pass is non-mutating; optional local Shell and explicit-fixture provider modes are separately
-gated. The generated matrix never changes v10 state and explicitly records that production remains
-disabled. Detailed procedures and unresolved rows are in
-[`windows-recycle-bin-acceptance.md`](windows-recycle-bin-acceptance.md).
+The adapter's real Shell tests are opt-in Infrastructure tests in the `RealRecycleBin` and
+`RealRecycleBinProvider` categories. They report Inconclusive unless
+`SUPER_DUPER_RUN_REAL_RECYCLE_BIN_TESTS=1` or `SUPER_DUPER_RUN_REAL_RECYCLE_PROVIDER_TESTS=1` is
+set (the provider test also needs explicit fixture paths), and they do not change production
+composition.
