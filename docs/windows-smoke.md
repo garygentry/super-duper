@@ -18,12 +18,14 @@ through UI Automation. It never touches your real database, hash cache or files.
 | `-SkipWpf` | Runs only the worker protocol half. Use it on a headless agent or when UI Automation is blocked. |
 | `-KeepArtifacts` | Keeps the fixture folder after the run instead of deleting it. |
 | `-AdditionalRoot <path[]>` | Adds real removable, mapped or UNC test roots to the scan as best-effort extras. |
-| `-AppPath <path>` | The WPF app to drive, for example a published `SuperDuper.Windows.exe`. It does not change the worker used by the protocol half. |
+| `-AppPath <path>` | The WPF app to drive, for example a published `SuperDuper.Windows.exe`. It also moves the protocol half to the worker beside that app. |
 
-The protocol half always launches `target/<profile>/super-duper-worker.exe` directly. The WPF half
-launches the app: a Debug app uses that same worker through `SUPER_DUPER_WORKER_PATH`, and a Release
-app uses the worker beside it. `Verify-WindowsRelease.ps1` passes `-AppPath` so the WPF half drives
-the published app.
+Without `-AppPath`, the protocol half launches `target/<profile>/super-duper-worker.exe` directly.
+With `-AppPath`, it launches the worker beside that app instead, so it smokes the same worker the
+WPF half will run. The WPF half launches the app: a Debug app uses the protocol half's worker
+through `SUPER_DUPER_WORKER_PATH`, and a Release app always uses the worker beside it regardless of
+that variable. `Verify-WindowsRelease.ps1` passes `-AppPath` so both halves smoke the published
+worker.
 
 The built-in fixture uses the local fixed drive that holds `%TEMP%`. Removable media, mapped drives
 and UNC shares cannot be created portably, so pass real, non-production roots with

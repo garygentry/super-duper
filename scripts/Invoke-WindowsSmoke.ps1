@@ -15,12 +15,18 @@ Set-StrictMode -Version Latest
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $solution = Join-Path $repo 'apps/windows/SuperDuper.Windows.sln'
 $profile = if ($Configuration -eq 'Release') { 'release' } else { 'debug' }
-$worker = Join-Path $repo "target/$profile/super-duper-worker.exe"
 $defaultApp = Join-Path $repo "apps/windows/src/SuperDuper.Windows/bin/$Configuration/net10.0-windows10.0.22000.0/win-x64/SuperDuper.Windows.exe"
 $app = if ([string]::IsNullOrWhiteSpace($AppPath)) {
     $defaultApp
 } else {
     (Resolve-Path -LiteralPath $AppPath).Path
+}
+# -AppPath names the app to smoke, so the protocol pass smokes the worker beside it (for example
+# the published artifacts/windows-x64 worker), not the build-output worker under target/.
+$worker = if ([string]::IsNullOrWhiteSpace($AppPath)) {
+    Join-Path $repo "target/$profile/super-duper-worker.exe"
+} else {
+    Join-Path (Split-Path $app -Parent) 'super-duper-worker.exe'
 }
 $smokeRoot = Join-Path ([IO.Path]::GetTempPath()) ("super-duper-windows-smoke-" + [guid]::NewGuid().ToString('N'))
 $database = Join-Path $smokeRoot 'smoke.db'
@@ -1714,7 +1720,7 @@ $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
         $operationBoundary = Find-Element AutomationId 'RecycleOperationBoundaryNotice'
         Assert-True ($operationBoundary.Current.Name.Contains('execution is disabled', [StringComparison]::OrdinalIgnoreCase)) 'WPF did not disclose the disabled Recycle Bin executor boundary.'
         Assert-True ([IO.File]::Exists($exactPath)) 'WPF preflight unexpectedly removed a disposable fixture file.'
-        Write-Output "WPF automation passed for restored run $RunId, including stable-ID hash-warning navigation by Alt+O to the exact immutable duplicate-file set with group-grid focus and unchanged warning history, a real coalesced watcher burst with bounded live-state hints, durable watcher-overflow warning and one explicit bounded reconciliation batch with copy-grid focus restoration, durable non-deleting file Remove and exact-folder Keep review decisions, bounded external-modification validation with immutable history, sticky decision invalidation, fresh-choice recovery, bounded side-by-side folder location cards with stable automation and Down Arrow/Ctrl+Home focus, current-page parent-grouped Explorer selection with keyboard access, aggregate success, actionable partial failure, and focus restoration, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, ordinary/long-path file reveal, and keyboard folder reveal success plus actionable missing-location failure."
+        Write-Output "WPF automation passed for restored run $RunId, including stable-ID hash-warning navigation by Alt+O to the exact immutable duplicate-file set with group-grid focus and unchanged warning history, a real coalesced watcher burst with bounded live-state hints, durable watcher-overflow warning and one explicit bounded reconciliation batch with copy-grid focus restoration, durable non-deleting file Remove and exact-folder Keep review decisions, bounded external-modification validation with immutable history, sticky decision invalidation, fresh-choice recovery, bounded side-by-side folder location cards with stable automation and Down Arrow/Ctrl+Home focus, current-page parent-grouped Explorer selection with keyboard access, aggregate success, actionable partial failure, and focus restoration, completed-run preferred-root preview/application/isolated reversal with confirmation focus and manual-choice preservation, bounded preflight confirmation/validation/summary focus, disabled Recycle Bin operation disclosure, unchanged fixtures, exact member-path, any/all-member extension/no-extension, 1 GiB-or-larger, and minimum-copy-count entry points, selected-root and drive facet filtering, next/previous-set focus restoration, ordinary/long-path file reveal, and keyboard folder reveal success plus actionable missing-location failure."
     }
     catch {
         $automationFailure = $_
