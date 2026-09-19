@@ -4039,6 +4039,161 @@ fn preflight_validates_exact_metadata_hash_and_preserves_disposable_files() {
     ));
 }
 
+/// Holds the database write lock from another connection, as a worker's scan or progress write
+/// does, and releases it after `hold`. Returns once the lock is held.
+fn hold_write_lock(path: &Path, hold: std::time::Duration) -> std::thread::JoinHandle<()> {
+    let (held, acquired) = std::sync::mpsc::channel();
+    let path = path.to_owned();
+    let holder = std::thread::spawn(move || {
+        let connection = Connection::open(&path).unwrap();
+        connection.execute_batch("BEGIN IMMEDIATE;").unwrap();
+        held.send(()).unwrap();
+        std::thread::sleep(hold);
+        connection.execute_batch("ROLLBACK;").unwrap();
+    });
+    acquired.recv().unwrap();
+    holder
+}
+
+#[test]
+fn secondary_connection_opens_and_reads_while_another_connection_writes() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("secondary.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    session_and_run(&db, "Readable while writing", &["/root"]);
+    let holder = hold_write_lock(&path, std::time::Duration::from_secs(3));
+
+    // Worker requests and progress saves each open a connection. Opening one must not need the
+    // write lock, or every read waits behind (and can time out on) an unrelated writer.
+    let started = Instant::now();
+    let secondary = Database::open_connection(path.to_str().unwrap()).unwrap();
+    assert_eq!(secondary.list_sessions(0, 10).unwrap().1, 1);
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(1),
+        "opening a secondary connection waited {:?} for the write lock",
+        started.elapsed()
+    );
+    holder.join().unwrap();
+}
+
+#[test]
+fn preflight_start_waits_for_a_concurrent_writer_instead_of_failing() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("preflight-writer.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    let (run_id, group_id, [first, _, second]) = completed_review_fixture(&db);
+    db.set_review_decision(
+        "remove",
+        run_id,
+        group_id,
+        first,
+        ReviewDecisionKind::Remove,
+        0,
+    )
+    .unwrap();
+    db.set_review_decision(
+        "keep",
+        run_id,
+        group_id,
+        second,
+        ReviewDecisionKind::Keep,
+        1,
+    )
+    .unwrap();
+    let holder = hold_write_lock(&path, std::time::Duration::from_millis(300));
+
+    // A transaction that reads before it writes cannot wait for the write lock: SQLite fails the
+    // upgrade at once with "database is locked", whatever the busy timeout.
+    let created = db
+        .create_preflight("start-while-writing", run_id, 2)
+        .unwrap();
+    assert_eq!(created.view.preflight.status, "pending");
+    holder.join().unwrap();
+}
+
+#[test]
+fn preflight_survivor_check_waits_for_a_concurrent_writer_instead_of_failing() {
+    let temp = tempdir().unwrap();
+    let root = fs::canonicalize(temp.path()).unwrap();
+    let remove_path = root.join("remove.bin");
+    let survivor_path = root.join("survivor.bin");
+    fs::write(&remove_path, b"preflight fixture").unwrap();
+    fs::write(&survivor_path, b"preflight fixture").unwrap();
+    let db_path = root.join("preflight-survivor-writer.db");
+    let db = Database::open(db_path.to_str().unwrap()).unwrap();
+    let root_text = root.to_string_lossy().into_owned();
+    let (_, run_id) = session_and_run(&db, "Survivor check", &[&root_text]);
+    let remove = live_file(run_id, &root, &remove_path);
+    let survivor = live_file(run_id, &root, &survivor_path);
+    let hash = remove.content_hash.unwrap();
+    let size = remove.file_size;
+    let paths = vec![
+        remove.canonical_path.clone(),
+        survivor.canonical_path.clone(),
+    ];
+    db.insert_scanned_files(&[remove, survivor]).unwrap();
+    db.insert_duplicate_groups(run_id, &[(hash, size, paths.clone())])
+        .unwrap();
+    db.complete_scan_run(run_id, 2, size * 2, 2, 1, 0, size, 0)
+        .unwrap();
+    let id_of = |sql: &str, value: &str| -> i64 {
+        db.connection()
+            .query_row(sql, params![value], |row| row.get(0))
+            .unwrap()
+    };
+    let group_id: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM duplicate_group WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let file_sql = "SELECT id FROM scanned_file WHERE canonical_path = ?1";
+    db.set_review_decision(
+        "remove",
+        run_id,
+        group_id,
+        id_of(file_sql, &paths[0]),
+        ReviewDecisionKind::Remove,
+        0,
+    )
+    .unwrap();
+    db.set_review_decision(
+        "keep",
+        run_id,
+        group_id,
+        id_of(file_sql, &paths[1]),
+        ReviewDecisionKind::Keep,
+        1,
+    )
+    .unwrap();
+    let preflight = db.create_preflight("survivor-check", run_id, 2).unwrap();
+    // The survivor changes, so the final survivor check must write a conflict for the removal.
+    fs::write(&survivor_path, b"changed survivor!").unwrap();
+
+    let mut holder = None;
+    let result = db
+        .validate_preflight(
+            preflight.view.preflight.id,
+            &AtomicBool::new(false),
+            |current, _| {
+                let summary = &current.summary;
+                if holder.is_none() && summary.processed_item_count == summary.total_item_count {
+                    holder = Some(hold_write_lock(
+                        &db_path,
+                        std::time::Duration::from_millis(300),
+                    ));
+                }
+            },
+        )
+        .unwrap();
+    holder.expect("every item was processed").join().unwrap();
+    assert_eq!(result.status, "completed");
+    assert_eq!(result.summary.ready_count, 0);
+    assert_eq!(result.summary.conflict_count, 1);
+}
+
 #[test]
 fn recycle_operation_is_revision_bound_idempotent_locked_and_restart_safe() {
     let temp = tempdir().unwrap();
