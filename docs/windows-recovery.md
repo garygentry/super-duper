@@ -19,7 +19,7 @@ troubleshooting. Set `SUPER_DUPER_LOG` to a Rust tracing filter such as
 
 ## Known MVP Limitations
 
-- Windows 11 x64 only; output is unpackaged and framework-dependent.
+- Windows 11 x64 only; releases are an unpackaged, self-contained zip.
 - Fixed local drives are primary. Removable, mapped, and UNC roots are explicitly selected and
   best-effort. Disconnects, credentials, provider latency, and mapped-drive visibility under a
   different account can produce warnings.

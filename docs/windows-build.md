@@ -1,7 +1,8 @@
 # Windows Build And Release Verification
 
-The Windows MVP targets Windows 11 x64 and .NET 10. It is an unpackaged, framework-dependent WPF
-application. Build Rust before .NET so the selected worker profile can be copied beside the app.
+The Windows app targets Windows 11 x64 and .NET 10. It is an unpackaged WPF application; releases
+ship as a self-contained zip. Build Rust before .NET so the selected worker profile can be copied
+beside the app.
 
 ## Prerequisites
 
@@ -47,8 +48,10 @@ see [`windows-ui-dev-session.md`](windows-ui-dev-session.md) and run
 ```
 
 The script verifies Windows 11 x64, runs the Rust Release tests/build, builds and tests the .NET
-solution in Release, publishes the framework-dependent `win-x64` app, verifies the app/worker
-artifacts, and runs the deterministic smoke workflow. The generated
+solution in Release, publishes the self-contained `win-x64` app, verifies the app/worker
+artifacts and version, adds the license, third-party notices and changelog, runs the deterministic
+smoke workflow against the published app, and packages `artifacts/super-duper-<version>-win-x64.zip`
+with a SHA-256 file (see `release-checklist.md`). The generated
 `artifacts/windows-x64/` directory is cleaned before publishing so stale binaries cannot satisfy
 artifact checks.
 

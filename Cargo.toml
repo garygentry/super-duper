@@ -8,7 +8,10 @@ members = [
 resolver = "3"
 
 [workspace.package]
+version = "0.1.0"
 edition = "2024"
+license = "MIT"
+repository = "https://github.com/garygentry/super-duper"
 # The toolchain the workspace is built and tested with; rust-toolchain.toml tracks stable.
 rust-version = "1.98"
 
