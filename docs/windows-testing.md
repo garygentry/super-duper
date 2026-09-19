@@ -12,10 +12,9 @@ All three projects are in `apps/windows/SuperDuper.Windows.sln` under `apps/wind
 |---|---|---|---|---|
 | `SuperDuper.Windows.Core.Tests` | `net10.0` | `MSTest` 4.4.1 meta-package | Method level | Nothing outside the process |
 | `SuperDuper.Windows.Infrastructure.Tests` | `net10.0-windows10.0.22000.0` | `MSTest` 4.4.1 meta-package | Method level; worker-backed classes are `[DoNotParallelize]` | A built worker for the worker-backed tests |
-| `SuperDuper.Windows.Smoke.Tests` | `net10.0-windows10.0.22000.0`, `win-x64`, WPF | `Microsoft.NET.Test.Sdk` 17.14.1, `MSTest.TestAdapter` and `MSTest.TestFramework` 3.11.1 | One worker (`Workers = 1`) | No worker and no interactive desktop |
+| `SuperDuper.Windows.Smoke.Tests` | `net10.0-windows10.0.22000.0`, `win-x64`, WPF | `MSTest` 4.4.1 meta-package | One worker (`Workers = 1`) | No worker and no interactive desktop |
 
-Parallel settings are in each project's `MSTestSettings.cs`. Smoke.Tests still uses the older
-MSTest packages; aligning it with the MSTest 4 meta-package is tracked in issue #35.
+Parallel settings are in each project's `MSTestSettings.cs`.
 
 - **Core.Tests** covers view models, validation and display helpers in
   `SuperDuper.Windows.Core` against in-memory test doubles (`TestDoubles.cs`).
