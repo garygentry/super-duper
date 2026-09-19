@@ -122,12 +122,13 @@ CI now also runs `Verify-WindowsRelease.ps1 -SkipWpfSmoke` in a parallel `releas
 Release tests, self-contained publish, notices, the worker smoke against the publish, and the zip
 (kept 14 days from `master` builds). Only the WPF smoke remains VM-only.
 
+`super-duper-worker.exe` has a Windows version resource (`build.rs`, `winresource`, version from
+Cargo), and `Verify-WindowsRelease.ps1` checks it against the release version.
+
 ## Post-Merge Follow-Ups
 
 Carried over from the handoff that stabilized `codex/ui-redesign` for the merge. None blocked it.
 
-- **Give `super-duper-worker.exe` a Windows version resource.** The app exe reports its product
-  and version, but the worker's file properties are blank.
 - **Optionally surface `exact_folder_hash_cache_warning`** (after v0.1.0; verified, but the hash cache
   degraded). It currently renders as a plain aggregate row; only `hash_recoverable_warning` gets
   navigation affordances.
