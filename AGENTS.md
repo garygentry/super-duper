@@ -190,6 +190,11 @@ evidence and campaign scripts were removed after v0.1.0 and remain available at 
 They are records, not work queues: do not replay accepted gates or infer new work from them unless
 the operator reopens that scope.
 
+The active work queue is the burn-down tracking issue
+[#51](https://github.com/garygentry/super-duper/issues/51) (operator-directed, 2026-09-19): staged
+sessions toward v0.2.0, with a tracker, the operator's decisions, and the commit and merge protocol
+those sessions follow. Its handoff comments are the session log.
+
 ## Dedicated Windows VM
 
 The dedicated Windows VM is where this project is developed and where anything touching the UI must
