@@ -1151,7 +1151,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
             $"Coalesced {stateChanged.EventCount:N0} filesystem events into "
             + $"{stateChanged.CoalescedPathCount:N0} bounded path hints under {DisplayPaths.Plain(stateChanged.RootPath)}. "
             + (visibleCount > 0
-                ? $"{visibleCount:N0} visible duplicate copies are pending validation; choose Validate page."
+                ? $"{visibleCount:N0} visible duplicate copies are pending validation; choose Check these copies."
                 : "No currently visible duplicate copy was bound for these hints.");
         LiveHintAnnouncementVersion++;
     }

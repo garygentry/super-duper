@@ -1429,6 +1429,8 @@ public sealed class DuplicateFilesViewModelTests
         Assert.AreEqual("Not validated in this working view", viewModel.Members[1].LiveState);
         StringAssert.Contains(viewModel.LiveHintStatusMessage, "Coalesced 1,000 filesystem events");
         StringAssert.Contains(viewModel.LiveHintStatusMessage, "20 bounded path hints");
+        StringAssert.Contains(viewModel.LiveHintStatusMessage, "choose Check these copies");
+        Assert.IsFalse(viewModel.LiveHintStatusMessage.Contains("choose Validate page"));
 
         viewModel.ApplyLiveStateChanged(new WorkerResultStateChangedEventArgs
         {
