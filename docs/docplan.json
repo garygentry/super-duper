@@ -1677,29 +1677,12 @@
       ]
     },
     {
-      "note": "Tooling decisions left to the owner: whether the protocol smoke should run the published worker, whether the build should fail when the worker is missing, and aligning Smoke.Tests to MSTest 4 (#35). Docs describe current behavior.",
-      "affects": [
-        "windows-build",
-        "windows-smoke",
-        "release-checklist",
-        "windows-testing",
-        "agents"
-      ]
-    },
-    {
       "note": "Worker log location: the app always writes worker stderr to %LOCALAPPDATA%\\SuperDuper\\logs, even with SUPER_DUPER_DB_PATH set (WorkerClient.cs:87, 1569), so smoke and UI-dev runs write into the real log folder despite the disposable-state rule. LOG_FILE_PATH set by Start-WindowsUiDev.ps1 and .uidev is read only by the CLI.",
       "affects": [
         "windows-recovery",
         "windows-ui-dev",
         "arch-risks",
         "ug-troubleshoot"
-      ]
-    },
-    {
-      "note": "Code comment and output drift outside the docs: ci.yml:69-72 says release-package smokes the worker against the published app (it runs target/release); Invoke-WindowsSmoke.ps1:1717 still prints 1 GB-or-larger for the 1 GiB filter.",
-      "affects": [
-        "windows-smoke",
-        "release-checklist"
       ]
     },
     {
