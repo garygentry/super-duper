@@ -661,7 +661,7 @@ fn build_content_hash_map_with_scheduler(
         .into_iter()
         .filter(|(_, files)| files.len() > 1)
         .collect::<Vec<_>>();
-    // Kept verbatim: scripts/Verify-WindowsHashReadPath.ps1 asserts this accepted SOP7 bucket order.
+    // Largest size buckets first: the accepted read order for full hashing.
     #[allow(clippy::unnecessary_sort_by)]
     buckets.sort_by(|left, right| right.0.cmp(&left.0));
     let total_files = buckets.iter().map(|(_, files)| files.len()).sum();
