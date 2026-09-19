@@ -76,6 +76,9 @@ Done:
   cloud locations and the saved definition is no longer an edit, so switching saved scans does not
   ask to save. Setup notes the change, Save stays available, and starting a scan re-detects and
   saves the current list as before (`HasUnsavedCloudDetection`).
+- README editorial pass: states that the app is review-only, describes the current state locations,
+  env vars and test commands (`-m:1`), and replaces the MVP-era status with the v0.1.0 status and
+  its unverified accessibility checks.
 
 Failure-mode pass, 2026-09-18 (Release app, 60,000-file disposable fixture). Degraded correctly:
 worker killed mid-scan, corrupt/truncated/newer/read-only main database (file never modified),
@@ -97,8 +100,6 @@ Carried over from the handoff that stabilized `codex/ui-redesign` for the merge.
   non-canonically) under a canonical root does not prune. The app supplies long paths today; this
   matters if exclusions become hand-typed.
 - **Move `resolver` to `"3"`** (the edition 2024 default) as its own testable change.
-- **Give `README.md` an editorial pass.** Factual drift is corrected; the acceptance and status
-  prose may still describe an earlier state.
 - **Run `scripts/Verify-WindowsHashReadPath.ps1` at the next SOP7 check.** Its SOP7 assertion was
   retargeted from `hasher/cache.rs` to `hasher/xxhash.rs` but has not been run.
 

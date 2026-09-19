@@ -1,23 +1,31 @@
 # Super Duper
 
-A high-performance duplicate file detector written in Rust with a Windows front-end. Super Duper scans large file collections, confirms duplicates by content rather than filename, identifies near-duplicate directory trees, and stages reviewed deletion plans locally.
+A high-performance duplicate file detector written in Rust with a Windows front end. Super Duper
+scans large file collections, confirms duplicates by content rather than filename, finds exact
+duplicate folders, and lets you review what to keep.
 
-The repository contains the Rust engine, CLI, reusable FFI boundary, versioned worker process, and the Windows 11 x64 WPF MVP.
+The Windows app is **review-only**: it records keep/remove decisions but never deletes, moves, or
+modifies scanned files. The repository contains the Rust engine, a CLI, a reusable FFI boundary,
+the versioned worker process, and the Windows 11 x64 WPF app.
 
 ## Features
 
-- Two-tier hashing: exact file size, then a 1 KB XxHash64 partial hash, then full-content hashing only for candidates
-- Streaming full-file hashing with a bounded buffer and one RocksDB repeat cache, keyed by a content signature (canonical path, size, and high-resolution modified timestamp) and shared by hashing and exact-folder verification
-- SQLite session storage for scans, duplicate groups, directory analysis, and deletion plans
-- Directory fingerprinting and Jaccard similarity for exact, subset, and near-match folder trees
+- Staged hashing: exact file size, then a 1 KB XxHash64 partial hash, then full-content hashing only
+  for remaining candidates
+- Streaming full-file hashing with a bounded buffer and one RocksDB repeat cache, keyed by a content
+  signature (canonical path, size, and high-resolution modified timestamp) and shared by hashing and
+  exact-folder verification
+- SQLite storage for saved scans, immutable runs, duplicate groups, directory analysis, and review
+  decisions
 - Exact duplicate-folder verification by relative structure and content, with redundant nested
-  matches suppressed
-- Reviewed deletion workflow: files are staged before execution
+  matches suppressed; directory fingerprinting and Jaccard similarity for near-match folder trees
+- Cloud-safe scanning: registered cloud sync folders (OneDrive and others) are excluded before any
+  content is read, and scans refuse to start when detection is unavailable
+- Windows 11 app with saved scans, cancellable progress, paged duplicate-file and duplicate-folder
+  browsing, durable non-deleting review decisions, preferred-location rules, and Explorer reveal
 - Headless CLI for repeatable scans, scripting, and verification
-- C-compatible FFI crate for future native clients
-- Windows 11 WPF front end with durable sessions/runs, cancellation, run-owned cursor paging,
-  duplicate-file and exact-folder browsing, durable non-deleting manual review decisions, and
-  Explorer reveal
+- C-compatible FFI crate for future native clients (the CLI and FFI keep a legacy deletion-plan
+  model; the Windows app does not use it)
 
 ## Architecture
 
@@ -68,13 +76,16 @@ before .NET. The WPF project copies the worker for the selected configuration be
 cargo build --workspace
 cargo test --workspace
 dotnet build apps/windows/SuperDuper.Windows.sln
-dotnet test apps/windows/SuperDuper.Windows.sln
+dotnet test apps/windows/SuperDuper.Windows.sln -m:1
 
 # Release engine, worker, Windows application, and tests
 cargo build --workspace --release
 dotnet build apps/windows/SuperDuper.Windows.sln --configuration Release
-dotnet test apps/windows/SuperDuper.Windows.sln --configuration Release
+dotnet test apps/windows/SuperDuper.Windows.sln --configuration Release -m:1
 ```
+
+Run the .NET test projects serially (`-m:1`): the WPF smoke tests start real windows on an STA
+thread and can time out when they run alongside the worker-backed integration tests.
 
 The Debug app uses `target/debug/super-duper-worker.exe`; the Release app uses
 `target/release/super-duper-worker.exe`. If the worker has not been built first, the WPF build or
@@ -85,8 +96,8 @@ startup will report the missing worker rather than silently using a stale binary
 ```bash
 cargo test --workspace
 cargo test --workspace --release
-dotnet test apps/windows/SuperDuper.Windows.sln
-dotnet test apps/windows/SuperDuper.Windows.sln --configuration Release
+dotnet test apps/windows/SuperDuper.Windows.sln -m:1
+dotnet test apps/windows/SuperDuper.Windows.sln --configuration Release -m:1
 ```
 
 ### Run A Debug Build
@@ -142,7 +153,10 @@ These optional environment variables override those locations:
 
 - `SUPER_DUPER_WORKER_PATH`: absolute path to `super-duper-worker.exe` (Debug builds only)
 - `SUPER_DUPER_DB_PATH`: absolute path to the worker-owned SQLite database
+- `SUPER_DUPER_STATUS_DB_PATH`: absolute path to the scan-telemetry status database
 - `HASH_CACHE_PATH`: path to the RocksDB content-hash cache directory
+
+Super Duper runs one window per data folder: starting it again brings the existing window forward.
 
 PowerShell environment variables are inherited by applications started from that terminal. Clear
 old overrides before a normal launch if they refer to deleted disposable state:
@@ -214,21 +228,23 @@ cargo run -p super-duper-cli -- truncate-db
 
 ## Environment Variables
 
-Configured via a `.env` file in the working directory when needed.
+The CLI reads these from the environment or a `.env` file in its working directory. The Windows
+app and its worker read the `SUPER_DUPER_*` and `HASH_CACHE_PATH` variables from the environment.
 
-| Variable                  | Default                                         | Description                                              |
-| ------------------------- | ----------------------------------------------- | -------------------------------------------------------- |
-| `TRACING_LEVEL`           | `info`                                          | Log verbosity: `trace`, `debug`, `info`, `warn`, `error` |
-| `LOG_FILE_PATH`           | `./logs/sd.log`                                 | File log output path                                     |
-| `HASH_CACHE_PATH`         | `content_hash_cache.db`                         | RocksDB hash cache location                              |
-| `SUPER_DUPER_DB_PATH`     | App: `%LOCALAPPDATA%\SuperDuper\super_duper.db` | Worker-owned SQLite database override                    |
-| `SUPER_DUPER_LOG`         | `super_duper_core=info,super_duper_worker=info` | Worker stderr tracing filter                             |
-| `SUPER_DUPER_WORKER_PATH` | Auto-detected                                   | Worker executable override (Debug builds only)           |
+| Variable                     | Default                                                       | Description                                              |
+| ---------------------------- | ------------------------------------------------------------- | -------------------------------------------------------- |
+| `TRACING_LEVEL`              | `info`                                                        | CLI log verbosity: `trace`, `debug`, `info`, `warn`, `error` |
+| `LOG_FILE_PATH`              | `./logs/sd.log`                                               | CLI file log output path                                 |
+| `HASH_CACHE_PATH`            | App: beside the database; CLI: `content_hash_cache.db`        | RocksDB hash cache location                              |
+| `SUPER_DUPER_DB_PATH`        | App: `%LOCALAPPDATA%\SuperDuper\super_duper.db`               | Worker-owned SQLite database                             |
+| `SUPER_DUPER_STATUS_DB_PATH` | Beside the database (`scan_status.db`)                        | Scan telemetry database                                  |
+| `SUPER_DUPER_LOG`            | `super_duper_core=info,super_duper_worker=info`               | Worker stderr tracing filter                             |
+| `SUPER_DUPER_WORKER_PATH`    | Auto-detected                                                 | Worker executable override (Debug builds only)           |
 
 ## Database
 
-Super Duper uses embedded SQLite (`super_duper.db` in the working directory). New databases use
-schema version 15. Version 2 through 14 databases are upgraded transactionally and in place;
+Super Duper uses embedded SQLite: the app keeps `super_duper.db` in `%LOCALAPPDATA%\SuperDuper`,
+and the CLI uses its working directory. New databases use schema version 15. Version 2 through 14 databases are upgraded transactionally and in place;
 unknown older schemas and databases created by a newer engine are rejected without modification.
 Each version has its own note, from [`docs/storage-schema-v3.md`](docs/storage-schema-v3.md) to
 [`docs/storage-schema-v15.md`](docs/storage-schema-v15.md); see
@@ -256,7 +272,7 @@ Key tables:
 | `review_plan`                   | One active durable review plan per immutable completed run               |
 | `review_decision`               | Manual keep/remove/undecided decisions with immutable file snapshots     |
 | `review_command`                | Idempotent review-mutation ledger                                        |
-| `deletion_plan`                 | Files staged for deletion                                                |
+| `deletion_plan`                 | Legacy CLI/FFI deletion staging (unused by the Windows app)              |
 
 ## FFI Boundary
 
@@ -270,10 +286,11 @@ The `super-duper-ffi` crate exposes the core through a C ABI for future native c
 
 ## Project Status
 
-The Rust core and CLI are functional, and Windows MVP Milestones 0–6 are implemented, followed by
-the UI redesign (UIR-00–UIR-09) and usability/visual-polish (P00–P08) streams. The bounded
-release-acceptance remediation for immediate rerun, native Explorer reveal, deterministic
-shutdown, unexpected-worker recovery, sorting, and accessibility is code complete and verified.
-See
-[`docs/windows-release-acceptance-remediation-plan.md`](docs/windows-release-acceptance-remediation-plan.md)
-for the acceptance scope. The Windows surface exposes no scanned-file deletion operation.
+The first release, v0.1.0, is in preparation; [`ROADMAP.md`](ROADMAP.md) tracks the remaining
+work. The Rust engine and CLI are functional, and the Windows app has completed its MVP, redesign
+and polish streams. The app is review-only: it has no operation that deletes or moves scanned
+files, and Recycle Bin execution is disabled in production builds.
+
+Not yet verified for v0.1.0: Windows high contrast, Narrator/NVDA, and multi-monitor or 200% DPI
+behavior. Historical plans and acceptance evidence live under `plans/` and `docs/`; they are
+records, not a work queue.
