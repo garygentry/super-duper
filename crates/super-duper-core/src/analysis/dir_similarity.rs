@@ -10,18 +10,20 @@ use tracing::info;
 ///
 /// 1. Build inverted index: content_hash → Vec<directory_id>
 /// 2. Identify candidate pairs (directories sharing at least one hash)
-/// 3. Skip hashes appearing in >50 directories (noise)
+/// 3. Skip hashes appearing in more than `noise_cutoff` directories (noise)
 /// 4. Compute Jaccard = |intersection| / |union| for each candidate pair
 /// 5. Store pairs above threshold
 pub fn compute_directory_similarity(
     db: &Database,
     run_id: i64,
     threshold: f64,
+    noise_cutoff: u32,
 ) -> Result<usize, crate::Error> {
     compute_directory_similarity_cancellable(
         db,
         run_id,
         threshold,
+        noise_cutoff,
         &AtomicBool::new(false),
         &SilentReporter,
     )
@@ -31,6 +33,7 @@ pub fn compute_directory_similarity_cancellable(
     db: &Database,
     run_id: i64,
     threshold: f64,
+    noise_cutoff: u32,
     cancel_token: &AtomicBool,
     progress: &dyn ProgressReporter,
 ) -> Result<usize, crate::Error> {
@@ -96,8 +99,9 @@ pub fn compute_directory_similarity_cancellable(
     }
 
     // Find candidate pairs (share at least one hash)
-    // Skip hashes appearing in >50 directories (noise: common files like README, .gitkeep)
-    let max_dir_frequency = 50;
+    // Skip hashes appearing in more than `noise_cutoff` directories (noise: common files like
+    // README, .gitkeep)
+    let max_dir_frequency = noise_cutoff as usize;
     let mut candidate_pairs: AHashSet<(i64, i64)> = AHashSet::new();
 
     for (_hash, dir_ids) in &inverted_index {

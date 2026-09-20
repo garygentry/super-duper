@@ -85,16 +85,100 @@ fn path_bytes_eq(left: &[u8], right: &[u8]) -> bool {
     }
 }
 
-/// Auto-mark duplicates for deletion using a strategy.
-/// For each duplicate group in the given run, keep one file (the first alphabetically)
-/// and mark the rest.
+/// Explicit rule for choosing which file in a duplicate group survives auto-marking. Every
+/// strategy keeps exactly one survivor per group (multi-member groups only); ties break by
+/// canonical path so results are deterministic and repeatable.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AutoMarkStrategy {
+    /// Keep whichever file sorts first alphabetically by canonical path. The original,
+    /// previously-hardcoded default.
+    KeepFirst,
+    /// Keep the most recently modified file.
+    KeepNewest,
+    /// Keep the least recently modified file.
+    KeepOldest,
+    /// Keep a file whose canonical path starts with `prefix`. When no member of a group matches,
+    /// falls back to `KeepFirst` for that group so every group still keeps a survivor.
+    PreferredPathPrefix(String),
+}
+
+impl AutoMarkStrategy {
+    /// Parse a strategy name (`keep_first`, `keep_newest`, `keep_oldest`,
+    /// `preferred_path_prefix`) plus the prefix required only by the last one.
+    pub fn parse(name: &str, prefix: Option<&str>) -> Result<Self, String> {
+        match name {
+            "keep_first" => Ok(AutoMarkStrategy::KeepFirst),
+            "keep_newest" => Ok(AutoMarkStrategy::KeepNewest),
+            "keep_oldest" => Ok(AutoMarkStrategy::KeepOldest),
+            "preferred_path_prefix" => match prefix {
+                Some(prefix) if !prefix.trim().is_empty() => {
+                    Ok(AutoMarkStrategy::PreferredPathPrefix(prefix.to_string()))
+                }
+                _ => Err("preferred_path_prefix strategy requires a non-empty prefix".to_string()),
+            },
+            other => Err(format!("unknown auto-mark strategy '{other}'")),
+        }
+    }
+
+    /// A short, stable label recorded on each marked file's `deletion_plan.strategy` column.
+    fn label(&self) -> &'static str {
+        match self {
+            AutoMarkStrategy::KeepFirst => "keep_first",
+            AutoMarkStrategy::KeepNewest => "keep_newest",
+            AutoMarkStrategy::KeepOldest => "keep_oldest",
+            AutoMarkStrategy::PreferredPathPrefix(_) => "preferred_path_prefix",
+        }
+    }
+
+    /// Index into `files` of the member this strategy keeps. `files` must be non-empty.
+    fn survivor_index(&self, files: &[ScannedFile]) -> usize {
+        match self {
+            AutoMarkStrategy::KeepFirst => Self::alphabetically_first(files),
+            AutoMarkStrategy::KeepNewest => Self::by_modified(files, true),
+            AutoMarkStrategy::KeepOldest => Self::by_modified(files, false),
+            AutoMarkStrategy::PreferredPathPrefix(prefix) => files
+                .iter()
+                .enumerate()
+                .filter(|(_, file)| file.canonical_path.starts_with(prefix.as_str()))
+                .min_by(|a, b| a.1.canonical_path.cmp(&b.1.canonical_path))
+                .map(|(index, _)| index)
+                .unwrap_or_else(|| Self::alphabetically_first(files)),
+        }
+    }
+
+    fn alphabetically_first(files: &[ScannedFile]) -> usize {
+        files
+            .iter()
+            .enumerate()
+            .min_by(|a, b| a.1.canonical_path.cmp(&b.1.canonical_path))
+            .map(|(index, _)| index)
+            .expect("caller guarantees at least one file")
+    }
+
+    fn by_modified(files: &[ScannedFile], newest: bool) -> usize {
+        files
+            .iter()
+            .enumerate()
+            .min_by(|a, b| {
+                let by_time = a.1.last_modified.cmp(&b.1.last_modified);
+                let by_time = if newest { by_time.reverse() } else { by_time };
+                by_time.then_with(|| a.1.canonical_path.cmp(&b.1.canonical_path))
+            })
+            .map(|(index, _)| index)
+            .expect("caller guarantees at least one file")
+    }
+}
+
+/// Auto-mark duplicates for deletion using `strategy`. For each duplicate group in the given run,
+/// keep the file `strategy` selects as the survivor and mark the rest.
 pub fn auto_mark_duplicates(
     db: &Database,
     run_id: i64,
-    strategy: Option<&str>,
+    strategy: &AutoMarkStrategy,
 ) -> Result<usize, crate::Error> {
     let groups = db.get_duplicate_groups(run_id, 0, i64::MAX)?;
     let mut marked_count = 0;
+    let label = strategy.label();
 
     for group in &groups {
         let files = db.get_files_in_group(group.id)?;
@@ -102,17 +186,20 @@ pub fn auto_mark_duplicates(
             continue;
         }
 
-        // Keep the first file (sorted by path), mark the rest
-        let mut sorted_files = files.clone();
-        sorted_files.sort_by(|a, b| a.canonical_path.cmp(&b.canonical_path));
-
-        for file in sorted_files.iter().skip(1) {
-            db.mark_file_for_deletion(file.id, strategy)?;
+        let survivor_index = strategy.survivor_index(&files);
+        for (index, file) in files.iter().enumerate() {
+            if index == survivor_index {
+                continue;
+            }
+            db.mark_file_for_deletion(file.id, Some(label))?;
             marked_count += 1;
         }
     }
 
-    info!("Auto-marked {} files for deletion", marked_count);
+    info!(
+        "Auto-marked {} files for deletion ({})",
+        marked_count, label
+    );
     Ok(marked_count)
 }
 

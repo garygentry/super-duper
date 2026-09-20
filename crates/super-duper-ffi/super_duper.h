@@ -24,6 +24,29 @@ typedef enum SdResultCode {
 } SdResultCode;
 
 /**
+ * Survivor-selection rule for `sd_auto_mark_for_deletion`.
+ */
+typedef enum SdAutoMarkStrategy {
+    /**
+     * Keep whichever file sorts first alphabetically by canonical path.
+     */
+    KeepFirst = 0,
+    /**
+     * Keep the most recently modified file.
+     */
+    KeepNewest = 1,
+    /**
+     * Keep the least recently modified file.
+     */
+    KeepOldest = 2,
+    /**
+     * Keep a file whose canonical path starts with the `preferred_path_prefix` argument; falls
+     * back to `KeepFirst` for any group with no matching member.
+     */
+    PreferredPathPrefix = 3,
+} SdAutoMarkStrategy;
+
+/**
  * Deletion execution result.
  */
 typedef struct SdDeletionResult {
@@ -152,9 +175,15 @@ extern "C" {
 #endif // __cplusplus
 
 /**
- * Auto-mark duplicate files for deletion (keeps first alphabetically).
+ * Auto-mark duplicate files for deletion using `strategy`. `preferred_path_prefix` is required
+ * (non-null, non-empty) only when `strategy` is `PreferredPathPrefix`; it is ignored otherwise.
+ *
+ * # Safety
+ * `preferred_path_prefix` must be null or a valid null-terminated C string.
  */
-enum SdResultCode sd_auto_mark_for_deletion(uint64_t handle);
+enum SdResultCode sd_auto_mark_for_deletion(uint64_t handle,
+                                            enum SdAutoMarkStrategy strategy,
+                                            const char *preferred_path_prefix);
 
 /**
  * Clear all entries from the RocksDB hash cache at `HASH_CACHE_PATH` (default

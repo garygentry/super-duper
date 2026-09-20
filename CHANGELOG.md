@@ -13,6 +13,14 @@ All notable changes to Super Duper are recorded here. Versions follow
 - `--format json` on `analyze-directories`, `count-hash-cache`, and `print-config` prints one JSON
   value to stdout instead of the human-readable text, for scripting. The default (no flag) is
   unchanged.
+- A `super-duper auto-mark` CLI subcommand marks every duplicate file group's non-survivors for
+  deletion, keeping one file per group by an explicit strategy: `keep-first` (the default,
+  alphabetical, previously hardcoded), `keep-newest`, `keep-oldest`, or `preferred-path-prefix`
+  (falls back to `keep-first` for any group with no member under the given prefix). The same
+  strategies are exposed to FFI clients through `sd_auto_mark_for_deletion`.
+- `Config.toml` now accepts `directory_similarity_threshold` (default `0.5`) and
+  `directory_similarity_noise_cutoff` (default `50`) to tune `analyze-directories`' Jaccard
+  similarity threshold and noise cutoff without recompiling; both are validated on load.
 
 ### Changed
 

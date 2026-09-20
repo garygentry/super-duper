@@ -300,6 +300,7 @@ fn scanner_does_not_traverse_directory_links_or_reparse_points() {
     let result = ScanEngine::new(AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: vec![],
+        ..Default::default()
     })
     .with_db_path(db_path.to_str().unwrap())
     .scan(&SilentReporter)
@@ -324,6 +325,7 @@ fn hard_link_aliases_do_not_form_recoverable_file_or_folder_copies() {
     let result = ScanEngine::new(AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: vec![],
+        ..Default::default()
     })
     .with_db_path(db_path.to_str().unwrap())
     .scan(&SilentReporter)

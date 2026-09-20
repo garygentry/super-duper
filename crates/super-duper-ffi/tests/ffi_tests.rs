@@ -390,7 +390,8 @@ fn test_deletion_plan_summary() {
     assert_eq!(bytes, 0);
 
     // Auto-mark
-    let result = sd_auto_mark_for_deletion(handle);
+    let result =
+        unsafe { sd_auto_mark_for_deletion(handle, SdAutoMarkStrategy::KeepFirst, ptr::null()) };
     assert_eq!(result, SdResultCode::Ok);
 
     // Now should have entries
@@ -566,7 +567,7 @@ fn test_auto_mark_and_execute_deletion() {
     sd_scan_start(handle);
 
     // Auto-mark
-    sd_auto_mark_for_deletion(handle);
+    unsafe { sd_auto_mark_for_deletion(handle, SdAutoMarkStrategy::KeepFirst, ptr::null()) };
 
     // Get count before
     let mut count: i64 = 0;
@@ -586,6 +587,106 @@ fn test_auto_mark_and_execute_deletion() {
     // After execution, plan should be empty
     unsafe { sd_deletion_plan_summary(handle, &mut count, &mut bytes) };
     assert_eq!(count, 0, "deletion plan should be empty after execution");
+
+    sd_engine_destroy(handle);
+}
+
+#[test]
+fn test_auto_mark_preferred_path_prefix_keeps_matching_file() {
+    let dir = tempdir().unwrap();
+    let scan_dir = dir.path().join("data");
+    let db_path = dir.path().join("test.db");
+    create_test_tree(&scan_dir);
+
+    let handle = create_engine(db_path.to_str().unwrap());
+    let scan_path_str = c_str(scan_dir.to_str().unwrap());
+    let paths = [scan_path_str.as_ptr()];
+    unsafe { sd_engine_set_scan_paths(handle, paths.as_ptr(), 1) };
+    sd_scan_start(handle);
+
+    let mut page = SdDuplicateGroupPage {
+        groups: ptr::null_mut(),
+        count: 0,
+        total_available: 0,
+    };
+    unsafe { sd_query_duplicate_groups(handle, 0, 100, &mut page) };
+    assert!(page.count > 0);
+    let group_id = unsafe { (*page.groups).id };
+
+    let mut file_page = SdFileRecordPage {
+        files: ptr::null_mut(),
+        count: 0,
+    };
+    unsafe { sd_query_files_in_group(handle, group_id, &mut file_page) };
+    assert!(file_page.count >= 2);
+
+    // Prefer the directory of whichever member happens to be first; the other member(s) of the
+    // group live in a sibling directory in `create_test_tree`, so the prefix picks exactly one.
+    let preferred_path = unsafe { CStr::from_ptr((*file_page.files).canonical_path) }
+        .to_str()
+        .unwrap()
+        .to_string();
+    let preferred_dir = preferred_path
+        .rsplit_once(['\\', '/'])
+        .expect("canonical path has a parent")
+        .0
+        .to_string();
+    let prefix = c_str(&preferred_dir);
+
+    let result = unsafe {
+        sd_auto_mark_for_deletion(
+            handle,
+            SdAutoMarkStrategy::PreferredPathPrefix,
+            prefix.as_ptr(),
+        )
+    };
+    assert_eq!(result, SdResultCode::Ok);
+
+    unsafe { sd_free_file_record_page(&mut file_page) };
+    let mut file_page2 = SdFileRecordPage {
+        files: ptr::null_mut(),
+        count: 0,
+    };
+    unsafe { sd_query_files_in_group(handle, group_id, &mut file_page2) };
+    let preferred_marked = (0..file_page2.count as usize).find_map(|i| unsafe {
+        let record = &*file_page2.files.add(i);
+        let path = CStr::from_ptr(record.canonical_path).to_str().unwrap();
+        if path == preferred_path {
+            Some(record.is_marked_for_deletion)
+        } else {
+            None
+        }
+    });
+    assert_eq!(
+        preferred_marked,
+        Some(0),
+        "the file under the preferred prefix must survive"
+    );
+
+    unsafe {
+        sd_free_file_record_page(&mut file_page2);
+        sd_free_duplicate_group_page(&mut page);
+    }
+    sd_engine_destroy(handle);
+}
+
+#[test]
+fn test_auto_mark_preferred_path_prefix_requires_prefix() {
+    let dir = tempdir().unwrap();
+    let scan_dir = dir.path().join("data");
+    let db_path = dir.path().join("test.db");
+    create_test_tree(&scan_dir);
+
+    let handle = create_engine(db_path.to_str().unwrap());
+    let scan_path_str = c_str(scan_dir.to_str().unwrap());
+    let paths = [scan_path_str.as_ptr()];
+    unsafe { sd_engine_set_scan_paths(handle, paths.as_ptr(), 1) };
+    sd_scan_start(handle);
+
+    let result = unsafe {
+        sd_auto_mark_for_deletion(handle, SdAutoMarkStrategy::PreferredPathPrefix, ptr::null())
+    };
+    assert_eq!(result, SdResultCode::InvalidArgument);
 
     sd_engine_destroy(handle);
 }

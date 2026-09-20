@@ -235,6 +235,10 @@ ignore_patterns = [
     "**/.git/**",
     "*/$RECYCLE.BIN",
 ]
+
+# Optional; both default to the values below and are validated on load.
+# directory_similarity_threshold = 0.5      # minimum Jaccard similarity to report (0.0-1.0)
+# directory_similarity_noise_cutoff = 50    # a hash in more directories than this is noise
 ```
 
 ### Run The CLI
@@ -251,6 +255,9 @@ cargo run -p super-duper-cli -- count-hash-cache
 
 # Print loaded configuration
 cargo run -p super-duper-cli -- print-config
+
+# Mark duplicate-group non-survivors for deletion (keeps one file per group)
+cargo run -p super-duper-cli -- auto-mark --strategy keep-newest
 
 # Wipe all SQLite tables with confirmation
 cargo run -p super-duper-cli -- truncate-db
