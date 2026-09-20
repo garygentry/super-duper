@@ -49,6 +49,8 @@ All notable changes to Super Duper are recorded here. Versions follow
   the whole run at 5 seconds with "database is locked".
 - The performance view now says telemetry is unavailable, instead of showing a database error, when
   no scan has ever run in the current state folder.
+- Deleting a saved scan that a durable Recycle Bin operation still locks now reports which run and
+  operation are responsible instead of a generic internal error.
 
 ## [0.1.0] - 2026-09-19
 

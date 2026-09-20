@@ -454,8 +454,9 @@ Params are `{ "sessionId": 7 }`; the result is `{ "sessionId": 7 }`. SQLite casc
 remove that session's run history and results, so deletion is rejected with `invalid_state` while
 any scan is active. Deletion is also refused while any run in the session has a Recycle Bin
 operation that is `prepared`, `awaiting_confirmation`, `submitted`, `executing`, `cancelling`, or
-`recovery_required`. That refusal currently surfaces as `internal_error` ("Database operation
-failed"), not as a dedicated code.
+`recovery_required`: that reuses the `recycle_operation_locked` code documented under
+[Recycle Bin operation foundation](#recycle-bin-operation-foundation-execution-disabled), with the
+same `{ "runId", "recycleOperationId" }` details.
 
 ## Run commands
 

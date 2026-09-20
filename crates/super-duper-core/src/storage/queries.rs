@@ -1,4 +1,5 @@
 use super::models::*;
+use super::recycle_operation::RecycleOperationError;
 use super::sqlite::{Database, normalized_file_extension_key};
 use crate::path_spelling::alternate_windows_spelling;
 use chrono::Utc;
@@ -164,8 +165,12 @@ impl Database {
         }
     }
 
-    pub fn delete_session(&self, session_id: i64) -> Result<()> {
-        changed_one(self.connection().execute(
+    /// A session with a run that has a Recycle Bin operation in `prepared`,
+    /// `awaiting_confirmation`, `submitted`, `executing`, `cancelling` or `recovery_required`
+    /// deletes nothing (the guard is in the `DELETE`'s `WHERE`); this reports which run and
+    /// operation are responsible instead of a generic query failure.
+    pub fn delete_session(&self, session_id: i64) -> Result<(), RecycleOperationError> {
+        let changed = self.connection().execute(
             "DELETE FROM scan_session
              WHERE id = ?1 AND NOT EXISTS(
                  SELECT 1 FROM scan_run run
@@ -175,7 +180,36 @@ impl Database {
                      'cancelling', 'recovery_required')
              )",
             params![session_id],
-        )?)
+        )?;
+        if changed == 1 {
+            return Ok(());
+        }
+        if let Some((run_id, operation_id)) = self.session_locked_by_operation(session_id)? {
+            return Err(RecycleOperationError::OperationLocked {
+                run_id,
+                operation_id,
+            });
+        }
+        Err(RecycleOperationError::InvalidRequest {
+            message: format!("session {session_id} was not deleted"),
+        })
+    }
+
+    /// The run and Recycle Bin operation that currently blocks [`delete_session`](Self::delete_session)
+    /// for this session, if any.
+    fn session_locked_by_operation(&self, session_id: i64) -> Result<Option<(i64, i64)>> {
+        self.connection()
+            .query_row(
+                "SELECT run.id, operation.id FROM scan_run run
+                 JOIN recycle_operation operation ON operation.run_id = run.id
+                 WHERE run.session_id = ?1 AND operation.status IN
+                    ('prepared', 'awaiting_confirmation', 'submitted', 'executing',
+                     'cancelling', 'recovery_required')
+                 ORDER BY operation.id DESC LIMIT 1",
+                params![session_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
     }
 
     // -- Immutable scan runs and lifecycle ----------------------------------
