@@ -313,6 +313,14 @@ impl HashPipelineIo for SystemHashPipelineIo {
             let after_lookup = observe_content_signature(path, &probe);
             match compare_content_signatures(before.clone(), after_lookup.clone()) {
                 ContentSignatureWindow::Unchanged(signature) => {
+                    if let Some(cache_store) = self.repeat_cache.as_ref()
+                        && let Err(error) = cache_store.mark_seen(&signature)
+                    {
+                        append_warning(
+                            &mut warning,
+                            format!("Repeat cache mark-seen failed: {error}"),
+                        );
+                    }
                     return Ok(PartialHashRead {
                         hash,
                         physical_bytes_read: 0,
@@ -389,8 +397,16 @@ impl HashPipelineIo for SystemHashPipelineIo {
         if let Some(hash) = cached_hash {
             let after_lookup = observe_content_signature(path, &probe);
             match compare_content_signatures(before.clone(), after_lookup.clone()) {
-                ContentSignatureWindow::Unchanged(_) => {
+                ContentSignatureWindow::Unchanged(signature) => {
                     observe(FullHashIoEvent::CacheLookup(cache::CacheLookupOutcome::Hit))?;
+                    if let Some(cache_store) = self.repeat_cache.as_ref()
+                        && let Err(error) = cache_store.mark_seen(&signature)
+                    {
+                        append_warning(
+                            &mut warning,
+                            format!("Repeat cache mark-seen failed: {error}"),
+                        );
+                    }
                     return Ok(FullHashRead {
                         hash,
                         warning,
@@ -1589,6 +1605,72 @@ mod tests {
             assert_ne!(changed.cache_outcome, Some(cache::CacheLookupOutcome::Hit));
             assert!(changed.physical_bytes_read > 0);
         }
+    }
+
+    #[test]
+    fn cache_hit_confirmation_refreshes_last_seen_generation_so_trim_keeps_it() {
+        let temp = TempDir::new().unwrap();
+        let file = temp.path().join("candidate.bin");
+        let cache_path = temp.path().join("repeat-cache");
+        fs::write(&file, vec![0x41; 4_096]).unwrap();
+        let cancel = AtomicBool::new(false);
+
+        let signature = {
+            let cache_store = Arc::new(RepeatHashCache::open(&cache_path).unwrap());
+            let io = SystemHashPipelineIo::with_repeat_cache(
+                cache_store,
+                RepeatCachePolicy::RevalidateContent,
+            );
+            let partial = io.partial_hash(&file, &cancel).unwrap();
+            io.full_hash(
+                &file,
+                partial.hash,
+                partial.verified_signature.as_ref(),
+                crate::platform::StorageMediaClass::SolidState,
+                &cancel,
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+            partial.verified_signature.expect("verified signature")
+        };
+
+        // A `ReuseVerified` hit in the very next generation should refresh the entry's last-seen
+        // generation, even though this path performs no other write (see `mark_seen`'s doc
+        // comment) — it's the only place a pure cache hit is confirmed.
+        {
+            let cache_store = Arc::new(RepeatHashCache::open(&cache_path).unwrap());
+            let io = SystemHashPipelineIo::with_repeat_cache(
+                cache_store,
+                RepeatCachePolicy::ReuseVerified,
+            );
+            let partial = io.partial_hash(&file, &cancel).unwrap();
+            assert_eq!(partial.cache_outcome, Some(cache::CacheLookupOutcome::Hit));
+            io.full_hash(
+                &file,
+                partial.hash,
+                partial.verified_signature.as_ref(),
+                crate::platform::StorageMediaClass::SolidState,
+                &cancel,
+                &mut |_| Ok(()),
+            )
+            .unwrap();
+        }
+
+        // Advance one more generation without touching the file again: current generation is now
+        // 3 generations past the file's creation (generation 1) but only 1 past its hit-confirmed
+        // last-seen (generation 2).
+        RepeatHashCache::open(&cache_path).unwrap();
+
+        // Unseen for exactly one generation only stays within bound if the hit above refreshed
+        // last-seen; without that refresh the entry would be two generations stale and removed.
+        let report = repeat_cache::trim_unseen(&cache_path, 1).unwrap();
+        assert_eq!(report.removed, 0, "a re-verified entry must not age out");
+
+        let cache_store = RepeatHashCache::open(&cache_path).unwrap();
+        assert!(matches!(
+            cache_store.lookup(&signature).unwrap(),
+            RepeatCacheLookup::Hit(_)
+        ));
     }
 
     #[test]

@@ -11,11 +11,23 @@ use tracing::{error, info};
 
 const DEFAULT_HASH_CACHE_PATH: &str = "content_hash_cache.db";
 
+/// Entries unseen for more generations than this, with no `--unseen-scans` override, are trimmed.
+/// One generation is assigned per scan (`super::repeat_cache`'s doc comment on
+/// `RepeatHashCache::open`), so this is roughly ten scans' worth of inactivity.
+pub const DEFAULT_TRIM_UNSEEN_GENERATIONS: u64 = 10;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CacheLookupOutcome {
     Hit,
     Miss,
     Error,
+}
+
+/// Report from [`trim`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TrimReport {
+    pub live_entries_before: u64,
+    pub removed: u64,
 }
 
 /// `HASH_CACHE_PATH`, or `content_hash_cache.db` in the working directory.
@@ -35,6 +47,24 @@ pub fn clear_all(path: &Path) -> io::Result<()> {
     super::repeat_cache::clear_store(path)?;
     info!("Hash cache '{}' cleared", path.display());
     Ok(())
+}
+
+/// Remove entries not confirmed unchanged, or created, within the last `max_unseen_generations`
+/// generations (roughly scans; see [`DEFAULT_TRIM_UNSEEN_GENERATIONS`]). Fails while a scan holds
+/// the store, same as [`clear_all`].
+pub fn trim(path: &Path, max_unseen_generations: u64) -> io::Result<TrimReport> {
+    let report = super::repeat_cache::trim_unseen(path, max_unseen_generations)?;
+    info!(
+        "Hash cache '{}' trimmed: {} of {} entries removed (unseen for more than {} scans)",
+        path.display(),
+        report.removed,
+        report.live_entries_before,
+        max_unseen_generations
+    );
+    Ok(TrimReport {
+        live_entries_before: report.live_entries_before,
+        removed: report.removed,
+    })
 }
 
 pub fn print_count(path: &Path) {
@@ -83,6 +113,29 @@ mod tests {
         assert_eq!(count_entries(&path).unwrap(), 0);
         let reopened = RepeatHashCache::open(&path).unwrap();
         cache_is_empty(&reopened, &signature);
+    }
+
+    #[test]
+    fn trim_fails_while_a_scan_holds_the_store_and_reports_removals_once_released() {
+        let temp = TempDir::new().unwrap();
+        let path = temp.path().join("cache");
+        let cache = RepeatHashCache::open(&path).unwrap();
+        let signature = CacheSignatureKey {
+            stable_identity: "volume:1:file:1".into(),
+            size: 4096,
+            modified_unix_nanos: 1,
+            content_change_token: "change:1".into(),
+        };
+        cache.store_full(&signature, 7, 11).unwrap();
+        assert!(trim(&path, 0).is_err(), "trim must not race an open handle");
+        drop(cache);
+
+        let report = trim(&path, 0).unwrap();
+        assert_eq!(report.live_entries_before, 1);
+        assert_eq!(
+            report.removed, 0,
+            "the entry was created in the current generation"
+        );
     }
 
     fn cache_is_empty(cache: &RepeatHashCache, signature: &CacheSignatureKey) {

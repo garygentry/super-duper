@@ -21,6 +21,12 @@ All notable changes to Super Duper are recorded here. Versions follow
 - `Config.toml` now accepts `directory_similarity_threshold` (default `0.5`) and
   `directory_similarity_noise_cutoff` (default `50`) to tune `analyze-directories`' Jaccard
   similarity threshold and noise cutoff without recompiling; both are validated on load.
+- A `super-duper trim-hash-cache` CLI subcommand (and `sd_trim_hash_cache` FFI function) removes
+  hash-cache entries not confirmed unchanged, or created, within the last N scans (`--unseen-scans`,
+  default 10). Every scan and confirmed cache hit now records the scan generation an entry was last
+  seen in, kept separate from the entry's pinned on-disk encoding; a store written before this
+  change falls back to the generation the entry was created in, so it still trims correctly. Fails
+  cleanly while a scan holds the cache open, like the existing count and clear maintenance.
 
 ### Changed
 

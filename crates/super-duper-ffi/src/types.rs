@@ -121,6 +121,13 @@ pub struct SdDeletionResult {
     pub error_count: u32,
 }
 
+/// Hash-cache trim result: entries examined and entries removed.
+#[repr(C)]
+pub struct SdTrimHashCacheResult {
+    pub live_entries_before: u64,
+    pub removed: u64,
+}
+
 /// Survivor-selection rule for `sd_auto_mark_for_deletion`.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
