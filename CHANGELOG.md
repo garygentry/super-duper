@@ -27,6 +27,10 @@ All notable changes to Super Duper are recorded here. Versions follow
   seen in, kept separate from the entry's pinned on-disk encoding; a store written before this
   change falls back to the generation the entry was created in, so it still trims correctly. Fails
   cleanly while a scan holds the cache open, like the existing count and clear maintenance.
+- New FFI entry points `sd_scan_start_async`, `sd_scan_observe`, and `sd_scan_join` run a scan on a
+  background thread instead of blocking the calling thread for its duration, so `sd_scan_cancel`
+  and every query stay usable while it runs. The existing blocking `sd_scan_start` is unchanged.
+  Native clients only; the Windows app talks to the worker process instead.
 
 ### Changed
 

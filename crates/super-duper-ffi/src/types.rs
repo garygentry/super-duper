@@ -128,6 +128,24 @@ pub struct SdTrimHashCacheResult {
     pub removed: u64,
 }
 
+/// Status reported by `sd_scan_observe` for a scan started with `sd_scan_start_async`.
+///
+/// `Completed` is reported exactly once, on whichever `sd_scan_observe`/`sd_scan_join` call first
+/// notices the scan finished; that same call also finalizes the engine state (`active_session_id`,
+/// `is_scanning`) so query functions see the new results immediately. A later call, or one made
+/// when no async scan was ever started, reports `Idle`.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SdScanStatus {
+    /// No async scan is running, and none has finished without being observed yet.
+    Idle = 0,
+    /// An async scan is still running.
+    Running = 1,
+    /// An async scan just finished; the returned `SdResultCode` carries its outcome (`Ok` for
+    /// success, or the same mapped error code `sd_scan_start` would have returned).
+    Completed = 2,
+}
+
 /// Survivor-selection rule for `sd_auto_mark_for_deletion`.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
