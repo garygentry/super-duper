@@ -578,15 +578,13 @@ public sealed class ShellSessionWorkflowTests
         using var shell = CreateShell(client);
         await shell.InitializeAsync();
         shell.SelectedDestination = WorkspaceDestination.FileResults;
-        shell.ScanAgainCommand.Execute(null);
+        shell.SelectedDestination = WorkspaceDestination.ScanSetup;
         Assert.AreEqual(WorkspaceDestination.ScanSetup, shell.SelectedDestination);
         Assert.AreEqual(old, shell.SelectedRun);
         Assert.AreEqual(session.Roots[0], shell.Setup.Roots[0].Path);
         shell.Setup.Name = "Updated archive";
         shell.Setup.IgnorePatternsText = "**/*.tmp";
         shell.Setup.RepeatCachePolicy = RepeatCachePolicyNames.RevalidateContent;
-        shell.ScanAgainCommand.Execute(null);
-        Assert.AreEqual("Updated archive", shell.Setup.Name, "Reopening setup must retain drafts.");
         await shell.StartRunCommand.ExecuteAsync(null);
         var current = shell.SelectedRun!;
         Assert.AreNotEqual(old.Id, current.Id);

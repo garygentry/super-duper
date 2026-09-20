@@ -32,10 +32,9 @@ internal static class SetupWorkflowFixture
                 window.Width = size.Width; window.Height = size.Height;
                 model.SelectedDestination = WorkspaceDestination.FileResults;
                 Drain();
-                model.ScanAgainCommand.Execute(null);
+                model.SelectedDestination = WorkspaceDestination.ScanSetup;
                 Drain();
                 Assert.AreEqual(WorkspaceDestination.ScanSetup, model.SelectedDestination);
-                Assert.IsTrue(((TabItem)((TabControl)window.FindName("ScanTabs")).SelectedItem).IsKeyboardFocused);
                 Assert.AreEqual(old, model.SelectedRun);
                 var view = Descendants<SessionSetupView>(window).Single();
                 var advanced = (Expander)view.FindName("SetupAdvanced");
