@@ -1,25 +1,35 @@
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::io;
 use std::mem::{size_of, zeroed};
 use std::os::windows::ffi::OsStrExt;
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 use std::ptr;
 use winapi::shared::minwindef::DWORD;
+use winapi::shared::winerror::ERROR_INSUFFICIENT_BUFFER;
 use winapi::um::fileapi::{
     BY_HANDLE_FILE_INFORMATION, CreateFileW, FILE_BASIC_INFO, GetFileAttributesW,
     GetFileInformationByHandle, GetLongPathNameW, INVALID_FILE_ATTRIBUTES, OPEN_EXISTING,
+    QueryDosDeviceW,
 };
 use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
 use winapi::um::ioapiset::DeviceIoControl;
 use winapi::um::minwinbase::FileBasicInfo;
-use winapi::um::winbase::{FILE_FLAG_BACKUP_SEMANTICS, GetFileInformationByHandleEx};
-use winapi::um::winioctl::{IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, VOLUME_DISK_EXTENTS};
+use winapi::um::winbase::{
+    FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, GetFileInformationByHandleEx,
+};
+use winapi::um::winioctl::{
+    FSCTL_GET_REPARSE_POINT, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, VOLUME_DISK_EXTENTS,
+};
 use winapi::um::winnt::{
     FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_OFFLINE, FILE_ATTRIBUTE_REPARSE_POINT,
     FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+    IO_REPARSE_TAG_MOUNT_POINT, IO_REPARSE_TAG_SYMLINK, MAXIMUM_REPARSE_DATA_BUFFER_SIZE,
 };
 
 use super::{ContentSignatureMetadata, PathSafety, StorageDevice, StorageMediaClass};
+
+/// `SYMLINK_FLAG_RELATIVE` from `ntifs.h`; not exposed by the `winapi` crate.
+const SYMLINK_FLAG_RELATIVE: u32 = 0x1;
 
 const FILE_ATTRIBUTE_RECALL_ON_OPEN: DWORD = 0x0004_0000;
 const FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS: DWORD = 0x0040_0000;
@@ -258,6 +268,216 @@ pub(crate) fn long_path_name(path: &Path) -> Option<std::path::PathBuf> {
 
 fn wide_null(value: &std::ffi::OsStr) -> Vec<u16> {
     value.encode_wide().chain(std::iter::once(0)).collect()
+}
+
+/// The walk visits paths after Windows transparently resolves any `subst` drive letter or
+/// directory junction/symlink along the way (opening through one, which is what
+/// `fs::canonicalize` does, follows it automatically). An exclusion spelled through such an
+/// alias needs its resolved spelling added the same way [`long_path_name`] adds an 8.3 short
+/// name's long spelling.
+///
+/// Resolution only ever inspects the alias segment itself: a `subst` letter is resolved with
+/// `QueryDosDeviceW` (an Object Manager namespace query, no file I/O), and a junction or symlink
+/// is resolved by reading its own reparse point (`FILE_FLAG_OPEN_REPARSE_POINT`), never its
+/// target's contents. A component already classified as a cloud placeholder is never opened.
+/// Anything that can't be resolved this way (a volume-GUID mount point, a mapped network drive,
+/// a permission error) is left alone rather than guessed at.
+pub(crate) fn resolve_alias_spelling(path: &Path) -> Option<PathBuf> {
+    let mut current = path.to_path_buf();
+    let mut changed = false;
+    // Bounded against a pathological alias chain; real configurations resolve in one or two hops.
+    for _ in 0..8 {
+        let next =
+            resolve_subst_prefix(&current).or_else(|| resolve_first_reparse_ancestor(&current));
+        match next {
+            Some(next) if next != current => {
+                current = next;
+                changed = true;
+            }
+            _ => break,
+        }
+    }
+    changed.then_some(current)
+}
+
+fn resolve_subst_prefix(path: &Path) -> Option<PathBuf> {
+    let drive = get_drive_letter(path)?;
+    let letter = drive.to_string_lossy().chars().next()?.to_ascii_uppercase();
+    let device_name = format!("{letter}:");
+    let target = query_dos_device_target(&device_name)?;
+    let real_root = target.strip_prefix(r"\??\")?;
+    if real_root.is_empty() {
+        return None;
+    }
+    // `PathBuf::join` treats a joined path that has a root but no prefix as drive-relative: it
+    // would keep only `real_root`'s own prefix and drop the rest of it. Push the components
+    // after the drive letter one at a time instead, so the whole of `real_root` is kept.
+    let mut resolved = PathBuf::from(real_root);
+    for component in path.components() {
+        if !matches!(component, Component::Prefix(_) | Component::RootDir) {
+            resolved.push(component.as_os_str());
+        }
+    }
+    Some(resolved)
+}
+
+/// Returns the object manager target of a DOS device name (for example `C:`). A `subst` drive
+/// resolves to `\??\<real path>`; an ordinary drive resolves to a `\Device\...` path, which the
+/// caller treats as "not an alias" by failing the `\??\` prefix check.
+fn query_dos_device_target(device_name: &str) -> Option<String> {
+    let wide = wide_null(OsStr::new(device_name));
+    let mut buffer = vec![0u16; 512];
+    loop {
+        // SAFETY: `wide` is NUL-terminated and `buffer` is writable for its full length.
+        let length =
+            unsafe { QueryDosDeviceW(wide.as_ptr(), buffer.as_mut_ptr(), buffer.len() as DWORD) };
+        if length > 0 {
+            let first = buffer[..length as usize]
+                .split(|&unit| unit == 0)
+                .next()
+                .unwrap_or(&[]);
+            return (!first.is_empty()).then(|| String::from_utf16_lossy(first));
+        }
+        let error = io::Error::last_os_error();
+        if error.raw_os_error() == Some(ERROR_INSUFFICIENT_BUFFER as i32)
+            && buffer.len() < 64 * 1024
+        {
+            buffer.resize(buffer.len() * 2, 0);
+            continue;
+        }
+        return None;
+    }
+}
+
+enum ReparseTarget {
+    Absolute(PathBuf),
+    Relative(PathBuf),
+}
+
+/// Walks `path` from the root looking for the first component that is itself a reparse point
+/// (junction or symlink) and splices in its resolved target. Stops, without opening anything,
+/// at the first component it cannot classify or that is a cloud placeholder.
+fn resolve_first_reparse_ancestor(path: &Path) -> Option<PathBuf> {
+    let components: Vec<Component<'_>> = path.components().collect();
+    let mut prefix = PathBuf::new();
+    for (index, component) in components.iter().enumerate() {
+        prefix.push(component.as_os_str());
+        if matches!(component, Component::Prefix(_) | Component::RootDir) {
+            continue;
+        }
+        match classify_path_without_open(&prefix) {
+            Ok(PathSafety::ReparsePoint) => {
+                let target = match read_reparse_target(&prefix) {
+                    Ok(Some(target)) => target,
+                    _ => return None,
+                };
+                let remainder: PathBuf = components[index + 1..].iter().collect();
+                let resolved_root = match target {
+                    ReparseTarget::Absolute(root) => root,
+                    ReparseTarget::Relative(relative) => prefix.parent()?.join(relative),
+                };
+                return Some(if remainder.as_os_str().is_empty() {
+                    resolved_root
+                } else {
+                    resolved_root.join(remainder)
+                });
+            }
+            Ok(PathSafety::CloudPlaceholder) | Err(_) => return None,
+            Ok(_) => continue,
+        }
+    }
+    None
+}
+
+/// Reads the reparse point stored on `path` itself via `FSCTL_GET_REPARSE_POINT`. This never
+/// touches the target: the tag and substitute name are metadata attached to the link.
+fn read_reparse_target(path: &Path) -> io::Result<Option<ReparseTarget>> {
+    let wide = wide_null(path.as_os_str());
+    let handle = unsafe {
+        CreateFileW(
+            wide.as_ptr(),
+            0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            ptr::null_mut(),
+            OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+            ptr::null_mut(),
+        )
+    };
+    if handle == INVALID_HANDLE_VALUE {
+        return Err(io::Error::last_os_error());
+    }
+    let mut buffer = vec![0u8; MAXIMUM_REPARSE_DATA_BUFFER_SIZE as usize];
+    let mut returned: DWORD = 0;
+    // SAFETY: `buffer` is writable for its full length and `returned` receives the used length.
+    let result = unsafe {
+        DeviceIoControl(
+            handle,
+            FSCTL_GET_REPARSE_POINT,
+            ptr::null_mut(),
+            0,
+            buffer.as_mut_ptr() as *mut _,
+            buffer.len() as DWORD,
+            &mut returned,
+            ptr::null_mut(),
+        )
+    };
+    let error = (result == 0).then(io::Error::last_os_error);
+    unsafe { CloseHandle(handle) };
+    if let Some(error) = error {
+        return Err(error);
+    }
+    Ok(parse_reparse_buffer(&buffer[..returned as usize]))
+}
+
+/// Parses the `REPARSE_DATA_BUFFER` layout by hand: `winapi` does not define it. Only the
+/// mount-point (junction) and symlink shapes are understood; anything else, including a
+/// volume-GUID mount point, returns `None`.
+fn parse_reparse_buffer(buffer: &[u8]) -> Option<ReparseTarget> {
+    let tag = u32::from_ne_bytes(buffer.get(0..4)?.try_into().ok()?);
+    match tag {
+        IO_REPARSE_TAG_MOUNT_POINT => {
+            let offset = u16::from_ne_bytes(buffer.get(8..10)?.try_into().ok()?) as usize;
+            let length = u16::from_ne_bytes(buffer.get(10..12)?.try_into().ok()?) as usize;
+            let name = decode_utf16_range(buffer, 16, offset, length)?;
+            strip_nt_prefix(&name).map(ReparseTarget::Absolute)
+        }
+        IO_REPARSE_TAG_SYMLINK => {
+            let offset = u16::from_ne_bytes(buffer.get(8..10)?.try_into().ok()?) as usize;
+            let length = u16::from_ne_bytes(buffer.get(10..12)?.try_into().ok()?) as usize;
+            let flags = u32::from_ne_bytes(buffer.get(16..20)?.try_into().ok()?);
+            let name = decode_utf16_range(buffer, 20, offset, length)?;
+            if flags & SYMLINK_FLAG_RELATIVE != 0 {
+                Some(ReparseTarget::Relative(PathBuf::from(name)))
+            } else {
+                strip_nt_prefix(&name).map(ReparseTarget::Absolute)
+            }
+        }
+        _ => None,
+    }
+}
+
+fn decode_utf16_range(buffer: &[u8], base: usize, offset: usize, length: usize) -> Option<String> {
+    let start = base.checked_add(offset)?;
+    let end = start.checked_add(length)?;
+    let bytes = buffer.get(start..end)?;
+    if !bytes.len().is_multiple_of(2) {
+        return None;
+    }
+    let units: Vec<u16> = bytes
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u16::from_ne_bytes(*pair))
+        .collect();
+    Some(String::from_utf16_lossy(&units))
+}
+
+/// A mount point's or absolute symlink's substitute name is an NT path (`\??\D:\Data`, or
+/// `\??\Volume{guid}\...` for a volume mount point this crate does not resolve).
+fn strip_nt_prefix(name: &str) -> Option<PathBuf> {
+    let stripped = name.strip_prefix(r"\??\")?;
+    (!stripped.is_empty() && !stripped.starts_with("Volume{")).then(|| PathBuf::from(stripped))
 }
 
 /// Return the stable volume/file-index pair used by Windows to identify one physical file.
