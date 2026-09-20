@@ -63,6 +63,7 @@ fn exact_folder_verification_shares_the_engine_hash_cache_across_repeated_runs()
         let result = ScanEngine::new(AppConfig {
             root_paths: vec![root.to_string_lossy().into_owned()],
             ignore_patterns: vec![],
+            ..Default::default()
         })
         .with_db_path(db_path.to_str().unwrap())
         .with_hash_cache_path(&cache_path)

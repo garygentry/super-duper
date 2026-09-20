@@ -113,6 +113,7 @@ fn test_full_scan_pipeline() {
     let config = AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: vec![],
+        ..Default::default()
     };
 
     let engine = ScanEngine::new(config)
@@ -267,6 +268,7 @@ fn test_scan_with_ignore_patterns() {
     let config = AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: vec!["**/folder_c/**".to_string()],
+        ..Default::default()
     };
 
     let engine = ScanEngine::new(config).with_db_path(db_path.to_str().unwrap());
@@ -293,6 +295,7 @@ fn typed_discovery_progress_advances_before_candidate_totals_are_known() {
     ScanEngine::new(AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: Vec::new(),
+        ..Default::default()
     })
     .with_db_path(product_path.to_str().unwrap())
     .scan(&progress)
@@ -320,6 +323,7 @@ fn test_scan_cancellation() {
     let config = AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: vec![],
+        ..Default::default()
     };
 
     let engine = ScanEngine::new(config)
@@ -391,6 +395,7 @@ fn telemetry_heartbeat_samples_during_a_phase_without_progress_callbacks() {
     let result = ScanEngine::new(AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: Vec::new(),
+        ..Default::default()
     })
     .with_db_path(product_path.to_str().unwrap())
     .with_status_db_path(status_path.to_str().unwrap())
@@ -475,6 +480,7 @@ fn test_pipeline_failure_is_persisted_as_failed() {
     let result = ScanEngine::new(AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: vec![],
+        ..Default::default()
     })
     .with_db_path(db_path.to_str().unwrap())
     .with_status_db_path(status_path.to_str().unwrap())
@@ -515,6 +521,7 @@ fn test_full_pipeline_with_directory_analysis() {
     let config = AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: vec![],
+        ..Default::default()
     };
 
     // Phase 1: Run scan
@@ -542,7 +549,7 @@ fn test_full_pipeline_with_directory_analysis() {
 
     // Phase 3: Directory similarity
     let sim_count =
-        dir_similarity::compute_directory_similarity(&db, scan_result.run_id, 0.1).unwrap();
+        dir_similarity::compute_directory_similarity(&db, scan_result.run_id, 0.1, 50).unwrap();
     // folder_a and folder_b both contain shared.txt, so there should be some similarity
     assert!(
         sim_count > 0,
@@ -571,6 +578,7 @@ fn test_full_pipeline_with_deletion() {
     let config = AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: vec![],
+        ..Default::default()
     };
 
     // Scan
@@ -580,7 +588,12 @@ fn test_full_pipeline_with_deletion() {
 
     // Auto-mark duplicates for deletion
     let db = Database::open(db_path.to_str().unwrap()).unwrap();
-    deletion_plan::auto_mark_duplicates(&db, scan_result.run_id, None).unwrap();
+    deletion_plan::auto_mark_duplicates(
+        &db,
+        scan_result.run_id,
+        &deletion_plan::AutoMarkStrategy::KeepFirst,
+    )
+    .unwrap();
 
     // Check deletion plan
     let (count, bytes) = db.get_deletion_plan_summary().unwrap();
@@ -620,6 +633,7 @@ fn test_rescan_after_deletion() {
     let config = AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: vec![],
+        ..Default::default()
     };
 
     // First scan
@@ -658,6 +672,7 @@ fn test_idempotent_rescan() {
     let config = AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: vec![],
+        ..Default::default()
     };
 
     // First scan
@@ -705,6 +720,7 @@ fn hard_links_are_snapshotted_but_not_counted_as_recoverable_copies() {
     let result = ScanEngine::new(AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: vec![],
+        ..Default::default()
     })
     .with_db_path(db_path.to_str().unwrap())
     .scan(&SilentReporter)
@@ -751,6 +767,7 @@ fn files_changed_or_removed_after_discovery_become_warnings_not_false_results() 
     let result = ScanEngine::new(AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: vec![],
+        ..Default::default()
     })
     .with_db_path(db_path.to_str().unwrap())
     .scan(&MutateAfterDiscovery {
@@ -801,6 +818,7 @@ fn windows_long_paths_scan_without_truncation() {
     let result = ScanEngine::new(AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: vec![],
+        ..Default::default()
     })
     .with_db_path(db_path.to_str().unwrap())
     .scan(&SilentReporter)
@@ -831,6 +849,7 @@ fn windows_sharing_violations_are_recoverable_scan_warnings() {
     let result = ScanEngine::new(AppConfig {
         root_paths: vec![root.to_string_lossy().into_owned()],
         ignore_patterns: vec![],
+        ..Default::default()
     })
     .with_db_path(db_path.to_str().unwrap())
     .scan(&SilentReporter)

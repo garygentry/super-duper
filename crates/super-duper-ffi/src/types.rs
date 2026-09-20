@@ -121,6 +121,21 @@ pub struct SdDeletionResult {
     pub error_count: u32,
 }
 
+/// Survivor-selection rule for `sd_auto_mark_for_deletion`.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SdAutoMarkStrategy {
+    /// Keep whichever file sorts first alphabetically by canonical path.
+    KeepFirst = 0,
+    /// Keep the most recently modified file.
+    KeepNewest = 1,
+    /// Keep the least recently modified file.
+    KeepOldest = 2,
+    /// Keep a file whose canonical path starts with the `preferred_path_prefix` argument; falls
+    /// back to `KeepFirst` for any group with no matching member.
+    PreferredPathPrefix = 3,
+}
+
 /// Progress callback signature.
 pub type SdProgressCallback = extern "C" fn(
     phase: u32, // 0=scan, 1=hash, 2=db_write

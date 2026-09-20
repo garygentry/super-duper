@@ -105,6 +105,7 @@ fn standalone_exact_folder_analysis_does_not_lock_out_a_later_engine_run() {
         let result = ScanEngine::new(AppConfig {
             root_paths: vec![scan_root.to_string_lossy().into_owned()],
             ignore_patterns: vec![],
+            ..Default::default()
         })
         .with_db_path(db_path.to_str().unwrap())
         .with_hash_cache_path(&cache_path)

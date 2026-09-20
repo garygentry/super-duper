@@ -22,6 +22,7 @@ pub unsafe extern "C" fn sd_engine_create(db_path: *const c_char) -> u64 {
         let config = AppConfig {
             root_paths: Vec::new(),
             ignore_patterns: Vec::new(),
+            ..Default::default()
         };
 
         let engine = ScanEngine::new(config).with_db_path(&db_path_str);
@@ -98,6 +99,7 @@ pub unsafe extern "C" fn sd_engine_set_scan_paths(
             let config = AppConfig {
                 root_paths: state.root_paths.clone(),
                 ignore_patterns: state.ignore_patterns.clone(),
+                ..Default::default()
             };
             state.engine = ScanEngine::new(config).with_db_path(&state.db_path);
             state.cancel_token = state.engine.cancel_token();
@@ -141,6 +143,7 @@ pub unsafe extern "C" fn sd_engine_set_ignore_patterns(
             let config = AppConfig {
                 root_paths: state.root_paths.clone(),
                 ignore_patterns: state.ignore_patterns.clone(),
+                ..Default::default()
             };
             state.engine = ScanEngine::new(config).with_db_path(&state.db_path);
             state.cancel_token = state.engine.cancel_token();
@@ -355,9 +358,37 @@ pub unsafe extern "C" fn sd_mark_directory_for_deletion(
     }
 }
 
-/// Auto-mark duplicate files for deletion (keeps first alphabetically).
+/// Auto-mark duplicate files for deletion using `strategy`. `preferred_path_prefix` is required
+/// (non-null, non-empty) only when `strategy` is `PreferredPathPrefix`; it is ignored otherwise.
+///
+/// # Safety
+/// `preferred_path_prefix` must be null or a valid null-terminated C string.
 #[unsafe(no_mangle)]
-pub extern "C" fn sd_auto_mark_for_deletion(handle: u64) -> SdResultCode {
+pub unsafe extern "C" fn sd_auto_mark_for_deletion(
+    handle: u64,
+    strategy: SdAutoMarkStrategy,
+    preferred_path_prefix: *const c_char,
+) -> SdResultCode {
+    use super_duper_core::analysis::deletion_plan::AutoMarkStrategy;
+
+    let prefix = unsafe { c_string_to_rust(preferred_path_prefix) };
+    let strategy = match strategy {
+        SdAutoMarkStrategy::KeepFirst => AutoMarkStrategy::KeepFirst,
+        SdAutoMarkStrategy::KeepNewest => AutoMarkStrategy::KeepNewest,
+        SdAutoMarkStrategy::KeepOldest => AutoMarkStrategy::KeepOldest,
+        SdAutoMarkStrategy::PreferredPathPrefix => match prefix {
+            Some(prefix) if !prefix.trim().is_empty() => {
+                AutoMarkStrategy::PreferredPathPrefix(prefix)
+            }
+            _ => {
+                set_last_error(
+                    "preferred_path_prefix strategy requires a non-empty prefix".to_string(),
+                );
+                return SdResultCode::InvalidArgument;
+            }
+        },
+    };
+
     let result = with_handle(handle, |state| {
         let session_id = match state.active_session_id {
             Some(id) => id,
@@ -374,9 +405,7 @@ pub extern "C" fn sd_auto_mark_for_deletion(handle: u64) -> SdResultCode {
             }
         };
         match super_duper_core::analysis::deletion_plan::auto_mark_duplicates(
-            db,
-            session_id,
-            Some("auto"),
+            db, session_id, &strategy,
         ) {
             Ok(_) => SdResultCode::Ok,
             Err(e) => map_core_error(e),

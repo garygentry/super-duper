@@ -198,7 +198,7 @@ fn test_compute_similarity_exact_match() {
     ]);
 
     dir_fingerprint::build_directory_fingerprints(&db, run_id).unwrap();
-    let count = dir_similarity::compute_directory_similarity(&db, run_id, 0.5).unwrap();
+    let count = dir_similarity::compute_directory_similarity(&db, run_id, 0.5, 50).unwrap();
     assert!(count > 0);
 
     let pairs = db.get_similar_directories(run_id, 1.0, 0, 10).unwrap();
@@ -219,7 +219,7 @@ fn test_compute_similarity_partial_overlap() {
     ]);
 
     dir_fingerprint::build_directory_fingerprints(&db, run_id).unwrap();
-    dir_similarity::compute_directory_similarity(&db, run_id, 0.1).unwrap();
+    dir_similarity::compute_directory_similarity(&db, run_id, 0.1, 50).unwrap();
 
     let pairs = db.get_similar_directories(run_id, 0.1, 0, 10).unwrap();
     // Should find dir_a vs dir_b with Jaccard ~0.33 (1 shared / 3 total unique hashes)
@@ -249,7 +249,7 @@ fn test_compute_similarity_below_threshold() {
     ]);
 
     dir_fingerprint::build_directory_fingerprints(&db, run_id).unwrap();
-    dir_similarity::compute_directory_similarity(&db, run_id, 0.5).unwrap();
+    dir_similarity::compute_directory_similarity(&db, run_id, 0.5, 50).unwrap();
 
     // With threshold 0.5, this pair (Jaccard ≈ 0.14) should NOT be stored
     let pairs = db.get_similar_directories(run_id, 0.5, 0, 10).unwrap();
@@ -268,7 +268,7 @@ fn test_compute_similarity_subset() {
     ]);
 
     dir_fingerprint::build_directory_fingerprints(&db, run_id).unwrap();
-    dir_similarity::compute_directory_similarity(&db, run_id, 0.5).unwrap();
+    dir_similarity::compute_directory_similarity(&db, run_id, 0.5, 50).unwrap();
 
     let pairs = db.get_similar_directories(run_id, 0.5, 0, 10).unwrap();
     let subset_pair = pairs.iter().find(|p| p.match_type == "subset");
@@ -277,6 +277,42 @@ fn test_compute_similarity_subset() {
         "Expected subset pair, got: {:?}",
         pairs
     );
+}
+
+#[test]
+fn test_noise_cutoff_excludes_hashes_over_the_limit() {
+    let (db, run_id) = setup_db_with_files(&[
+        ("/dir1/common.txt", 10, 999),
+        ("/dir1/unique1.txt", 10, 1),
+        ("/dir2/common.txt", 10, 999),
+        ("/dir2/unique2.txt", 10, 2),
+        ("/dir3/common.txt", 10, 999),
+        ("/dir3/unique3.txt", 10, 3),
+        ("/dir4/common.txt", 10, 999),
+        ("/dir4/unique4.txt", 10, 4),
+    ]);
+
+    dir_fingerprint::build_directory_fingerprints(&db, run_id).unwrap();
+
+    // Every sibling directory shares only the "common" hash with every other sibling; the
+    // synthetic root directory (which inherits every descendant hash) is excluded from this
+    // check since it would trivially overlap with each child regardless of the noise cutoff.
+    let sibling_pairs = |db: &Database| -> usize {
+        db.get_similar_directories(run_id, 0.0, 0, 100)
+            .unwrap()
+            .into_iter()
+            .filter(|pair| pair.dir_a_path != "/" && pair.dir_b_path != "/")
+            .count()
+    };
+
+    // The shared hash appears in all 4 directories; a cutoff of 3 treats it as noise, so no
+    // sibling pair remains (each sibling's only other file is unique to it).
+    dir_similarity::compute_directory_similarity(&db, run_id, 0.1, 3).unwrap();
+    assert_eq!(sibling_pairs(&db), 0);
+
+    // A cutoff that covers all 4 directories lets the shared hash form sibling pairs.
+    dir_similarity::compute_directory_similarity(&db, run_id, 0.1, 10).unwrap();
+    assert!(sibling_pairs(&db) > 0);
 }
 
 #[test]
@@ -306,7 +342,12 @@ fn test_auto_mark_duplicates() {
     )];
     db.insert_duplicate_groups(session_id, &groups).unwrap();
 
-    let marked = deletion_plan::auto_mark_duplicates(&db, session_id, Some("auto")).unwrap();
+    let marked = deletion_plan::auto_mark_duplicates(
+        &db,
+        session_id,
+        &deletion_plan::AutoMarkStrategy::KeepFirst,
+    )
+    .unwrap();
     assert_eq!(marked, 1);
 
     // /a/alpha.txt is first alphabetically, so /z/beta.txt should be marked
@@ -395,7 +436,7 @@ fn test_similarity_shared_bytes_sums_shared_file_sizes() {
     ]);
 
     dir_fingerprint::build_directory_fingerprints(&db, run_id).unwrap();
-    dir_similarity::compute_directory_similarity(&db, run_id, 0.1).unwrap();
+    dir_similarity::compute_directory_similarity(&db, run_id, 0.1, 50).unwrap();
 
     // Shared bytes are the sizes of the shared contents, not a count of shared hashes.
     let pairs = db.get_similar_directories(run_id, 0.1, 0, 10).unwrap();

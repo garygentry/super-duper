@@ -11,6 +11,7 @@ use commands::{Cli, Commands, ExportKind, OutputFormat};
 use dotenv::dotenv;
 use progress::CliReporter;
 use super_duper_core::ScanEngine;
+use super_duper_core::analysis::deletion_plan::AutoMarkStrategy;
 use super_duper_core::export;
 use tracing::{error, info};
 
@@ -36,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Some(Commands::AnalyzeDirectories { format }) => {
-            if let Err(err) = run_analyze_directories(format) {
+            if let Err(err) = run_analyze_directories(&config, format) {
                 error!("Error: {}", err);
                 process::exit(1);
             }
@@ -74,6 +75,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
         Some(Commands::Export { kind }) => {
             if let Err(err) = run_export(kind) {
+                error!("Error: {}", err);
+                process::exit(1);
+            }
+        }
+        Some(Commands::AutoMark {
+            run,
+            strategy,
+            prefix,
+            format,
+        }) => {
+            if let Err(err) = run_auto_mark(run, strategy, prefix, format) {
                 error!("Error: {}", err);
                 process::exit(1);
             }
@@ -146,7 +158,10 @@ fn run_process(config: &super_duper_core::AppConfig) -> Result<(), Box<dyn std::
     Ok(())
 }
 
-fn run_analyze_directories(format: OutputFormat) -> Result<(), Box<dyn std::error::Error>> {
+fn run_analyze_directories(
+    config: &super_duper_core::AppConfig,
+    format: OutputFormat,
+) -> Result<(), Box<dyn std::error::Error>> {
     let db = super_duper_core::storage::Database::open("super_duper.db")?;
     let run_id = db
         .get_latest_completed_run_id()?
@@ -163,7 +178,12 @@ fn run_analyze_directories(format: OutputFormat) -> Result<(), Box<dyn std::erro
         info!("Computing directory similarity...");
     }
     let similarity_count =
-        super_duper_core::analysis::dir_similarity::compute_directory_similarity(&db, run_id, 0.5)?;
+        super_duper_core::analysis::dir_similarity::compute_directory_similarity(
+            &db,
+            run_id,
+            config.directory_similarity_threshold,
+            config.directory_similarity_noise_cutoff,
+        )?;
     if text {
         info!("{} similar directory pairs found", similarity_count);
     } else {
@@ -195,6 +215,39 @@ fn run_export(kind: ExportKind) -> Result<(), Box<dyn std::error::Error>> {
     if !output.ends_with('\n') {
         println!();
     }
+    Ok(())
+}
+
+fn run_auto_mark(
+    run: Option<i64>,
+    strategy: commands::AutoMarkStrategyArg,
+    prefix: Option<String>,
+    format: OutputFormat,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let db = super_duper_core::storage::Database::open("super_duper.db")?;
+    let run_id = match run {
+        Some(run_id) => {
+            db.get_scan_run(run_id)
+                .map_err(|_| format!("run {run_id} not found"))?;
+            run_id
+        }
+        None => db
+            .get_latest_completed_run_id()?
+            .ok_or("No completed run is available for auto-mark")?,
+    };
+    let strategy = AutoMarkStrategy::parse(strategy.as_str(), prefix.as_deref())?;
+
+    let marked =
+        super_duper_core::analysis::deletion_plan::auto_mark_duplicates(&db, run_id, &strategy)?;
+
+    match format {
+        OutputFormat::Text => info!("Marked {} files for deletion (run {})", marked, run_id),
+        OutputFormat::Json => println!(
+            "{}",
+            serde_json::json!({"runId": run_id, "markedCount": marked})
+        ),
+    }
+
     Ok(())
 }
 

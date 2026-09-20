@@ -24,6 +24,7 @@ cargo run -p super-duper-cli -- count-hash-cache --format json
 cargo run -p super-duper-cli -- print-config --format json
 cargo run -p super-duper-cli -- export duplicate-groups --format json
 cargo run -p super-duper-cli -- export sessions --format csv
+cargo run -p super-duper-cli -- auto-mark --strategy keep-newest
 cargo run -p super-duper-cli -- truncate-db
 ```
 

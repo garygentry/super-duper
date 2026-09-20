@@ -59,6 +59,42 @@ pub enum Commands {
         #[command(subcommand)]
         kind: ExportKind,
     },
+    /// Mark duplicate files for deletion, keeping one survivor per group by `strategy`
+    AutoMark {
+        /// Run to mark; defaults to the latest completed run
+        #[arg(long)]
+        run: Option<i64>,
+        #[arg(long, value_enum, default_value_t = AutoMarkStrategyArg::KeepFirst)]
+        strategy: AutoMarkStrategyArg,
+        /// Required (and only used) when --strategy=preferred-path-prefix: the file kept per
+        /// group is the one whose canonical path starts with this prefix, falling back to
+        /// keep-first when no member matches
+        #[arg(long)]
+        prefix: Option<String>,
+        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+        format: OutputFormat,
+    },
+}
+
+/// CLI-facing survivor-selection rule for `auto-mark` (`analysis::deletion_plan::AutoMarkStrategy`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum AutoMarkStrategyArg {
+    KeepFirst,
+    KeepNewest,
+    KeepOldest,
+    PreferredPathPrefix,
+}
+
+impl AutoMarkStrategyArg {
+    /// The name `AutoMarkStrategy::parse` expects.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AutoMarkStrategyArg::KeepFirst => "keep_first",
+            AutoMarkStrategyArg::KeepNewest => "keep_newest",
+            AutoMarkStrategyArg::KeepOldest => "keep_oldest",
+            AutoMarkStrategyArg::PreferredPathPrefix => "preferred_path_prefix",
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]

@@ -4054,6 +4054,7 @@ impl WorkerSession {
         let engine = ScanEngine::new(AppConfig {
             root_paths: run_parameters.roots.clone(),
             ignore_patterns: run_parameters.ignore_patterns.clone(),
+            ..Default::default()
         })
         .with_db_path(&self.state.database_path.to_string_lossy())
         .with_status_db_path(&self.state.status_database_path.to_string_lossy())

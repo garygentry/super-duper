@@ -3,6 +3,7 @@ use std::sync::atomic::AtomicBool;
 use std::time::UNIX_EPOCH;
 
 use super_duper_core::analysis::deletion_plan;
+use super_duper_core::analysis::deletion_plan::AutoMarkStrategy;
 use super_duper_core::hasher::xxhash::hash_file_streaming;
 use super_duper_core::platform;
 use super_duper_core::storage::Database;
@@ -114,6 +115,15 @@ fn marked_paths(db: &Database) -> Vec<String> {
         .unwrap();
     let rows = stmt.query_map([], |row| row.get(0)).unwrap();
     rows.collect::<Result<Vec<String>, _>>().unwrap()
+}
+
+/// Registers `files` as a single duplicate group so `auto_mark_duplicates` will consider them.
+fn insert_group(db: &Database, run_id: i64, files: &[ScannedFile]) {
+    let hash = files[0].content_hash.unwrap();
+    let size = files[0].file_size;
+    let paths = files.iter().map(|f| f.canonical_path.clone()).collect();
+    db.insert_duplicate_groups(run_id, &[(hash, size, paths)])
+        .unwrap();
 }
 
 fn execution_result(db: &Database, file_id: i64) -> Option<String> {
@@ -357,6 +367,145 @@ fn execute_skips_target_replaced_by_different_file() {
     assert!(Path::new(&pair.remove.canonical_path).exists());
     let result = execution_result(&pair.db, pair.remove.id).unwrap();
     assert!(result.starts_with("skipped:"), "unexpected result {result}");
+}
+
+#[test]
+fn auto_mark_strategy_parse_roundtrip() {
+    assert_eq!(
+        AutoMarkStrategy::parse("keep_first", None),
+        Ok(AutoMarkStrategy::KeepFirst)
+    );
+    assert_eq!(
+        AutoMarkStrategy::parse("keep_newest", None),
+        Ok(AutoMarkStrategy::KeepNewest)
+    );
+    assert_eq!(
+        AutoMarkStrategy::parse("keep_oldest", None),
+        Ok(AutoMarkStrategy::KeepOldest)
+    );
+    assert_eq!(
+        AutoMarkStrategy::parse("preferred_path_prefix", Some("/x")),
+        Ok(AutoMarkStrategy::PreferredPathPrefix("/x".to_string()))
+    );
+    assert!(AutoMarkStrategy::parse("preferred_path_prefix", None).is_err());
+    assert!(AutoMarkStrategy::parse("preferred_path_prefix", Some("  ")).is_err());
+    assert!(AutoMarkStrategy::parse("bogus", None).is_err());
+}
+
+#[test]
+fn auto_mark_keep_newest_keeps_the_most_recently_modified_file() {
+    let db = Database::open_in_memory().unwrap();
+    let run_id = create_run(&db);
+    let mut older = synthetic_file(run_id, "/dir", "older.txt", '/');
+    older.last_modified = 100;
+    let mut newer = synthetic_file(run_id, "/dir", "newer.txt", '/');
+    newer.last_modified = 200;
+    db.insert_scanned_files(&[older.clone(), newer.clone()])
+        .unwrap();
+    insert_group(&db, run_id, &[older.clone(), newer.clone()]);
+
+    let marked =
+        deletion_plan::auto_mark_duplicates(&db, run_id, &AutoMarkStrategy::KeepNewest).unwrap();
+
+    assert_eq!(marked, 1);
+    assert_eq!(marked_paths(&db), vec![older.canonical_path]);
+}
+
+#[test]
+fn auto_mark_keep_oldest_keeps_the_least_recently_modified_file() {
+    let db = Database::open_in_memory().unwrap();
+    let run_id = create_run(&db);
+    let mut older = synthetic_file(run_id, "/dir", "older.txt", '/');
+    older.last_modified = 100;
+    let mut newer = synthetic_file(run_id, "/dir", "newer.txt", '/');
+    newer.last_modified = 200;
+    db.insert_scanned_files(&[older.clone(), newer.clone()])
+        .unwrap();
+    insert_group(&db, run_id, &[older.clone(), newer.clone()]);
+
+    let marked =
+        deletion_plan::auto_mark_duplicates(&db, run_id, &AutoMarkStrategy::KeepOldest).unwrap();
+
+    assert_eq!(marked, 1);
+    assert_eq!(marked_paths(&db), vec![newer.canonical_path]);
+}
+
+#[test]
+fn auto_mark_preferred_path_prefix_keeps_the_matching_file() {
+    let db = Database::open_in_memory().unwrap();
+    let run_id = create_run(&db);
+    let a = synthetic_file(run_id, "/a", "a.txt", '/');
+    let b = synthetic_file(run_id, "/b", "b.txt", '/');
+    db.insert_scanned_files(&[a.clone(), b.clone()]).unwrap();
+    insert_group(&db, run_id, &[a.clone(), b.clone()]);
+
+    let marked = deletion_plan::auto_mark_duplicates(
+        &db,
+        run_id,
+        &AutoMarkStrategy::PreferredPathPrefix("/b".to_string()),
+    )
+    .unwrap();
+
+    assert_eq!(marked, 1);
+    assert_eq!(marked_paths(&db), vec![a.canonical_path]);
+}
+
+#[test]
+fn auto_mark_preferred_path_prefix_falls_back_to_keep_first_when_nothing_matches() {
+    let db = Database::open_in_memory().unwrap();
+    let run_id = create_run(&db);
+    let a = synthetic_file(run_id, "/a", "a.txt", '/');
+    let b = synthetic_file(run_id, "/b", "b.txt", '/');
+    db.insert_scanned_files(&[a.clone(), b.clone()]).unwrap();
+    insert_group(&db, run_id, &[a.clone(), b.clone()]);
+
+    // No file's path starts with "/nowhere", so the fallback (alphabetically first) applies:
+    // "/a/a.txt" survives and "/b/b.txt" is marked.
+    let marked = deletion_plan::auto_mark_duplicates(
+        &db,
+        run_id,
+        &AutoMarkStrategy::PreferredPathPrefix("/nowhere".to_string()),
+    )
+    .unwrap();
+
+    assert_eq!(marked, 1);
+    assert_eq!(marked_paths(&db), vec![b.canonical_path]);
+}
+
+#[test]
+fn auto_mark_every_strategy_keeps_exactly_one_survivor_per_group() {
+    let strategies = [
+        AutoMarkStrategy::KeepFirst,
+        AutoMarkStrategy::KeepNewest,
+        AutoMarkStrategy::KeepOldest,
+        AutoMarkStrategy::PreferredPathPrefix("/dir/b".to_string()),
+    ];
+
+    for strategy in strategies {
+        let db = Database::open_in_memory().unwrap();
+        let run_id = create_run(&db);
+        let mut one = synthetic_file(run_id, "/dir/a", "one.txt", '/');
+        one.last_modified = 10;
+        let mut two = synthetic_file(run_id, "/dir/b", "two.txt", '/');
+        two.last_modified = 20;
+        let mut three = synthetic_file(run_id, "/dir/c", "three.txt", '/');
+        three.last_modified = 30;
+        db.insert_scanned_files(&[one.clone(), two.clone(), three.clone()])
+            .unwrap();
+        insert_group(&db, run_id, &[one, two, three]);
+
+        let marked = deletion_plan::auto_mark_duplicates(&db, run_id, &strategy).unwrap();
+
+        assert_eq!(
+            marked, 2,
+            "{strategy:?} must mark every member but one survivor"
+        );
+        assert_eq!(
+            marked_paths(&db).len(),
+            2,
+            "{strategy:?} must leave exactly one unmarked survivor"
+        );
+    }
 }
 
 #[test]
