@@ -74,7 +74,8 @@ The **Re-read candidate content** choice exists for the times you want certainty
 depend on metadata at all. It bypasses hash reuse but keeps the normal narrowing by size and first
 kilobyte, so it does not read every discovered file in full. The hashes it computes still refresh
 the cache for later scans. The choice applies to the scan you start and is not stored with the saved
-scan: it returns to **Reuse verified hashes** whenever you open one.
+scan: opening one preselects whatever its latest scan used, defaulting to **Reuse verified hashes**
+for a saved scan with no runs yet.
 
 ## Why cloud folders are skipped
 

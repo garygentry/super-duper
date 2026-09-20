@@ -50,9 +50,6 @@ Paths are relative to `apps/windows/src/` unless they start with another top-lev
 - **Stale set counts while loading.** When the selected duplicate set changes,
   `DuplicateFilesViewModel.SetSelectedGroup` keeps the previous set's review summary until the new
   member page arrives, so the counts briefly describe the wrong set (issue #25).
-- **Repeat-scan choice is not saved.** `SessionSetupViewModel.Load` and `BeginNew` reset
-  **Repeat scans** to "Reuse verified hashes", so the choice does not persist with a saved scan.
-  Intent is not recorded.
 
 ## Diagnostics
 

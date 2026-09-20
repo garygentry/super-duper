@@ -848,6 +848,10 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             await historyTask;
             token.ThrowIfCancellationRequested();
             var latest = History.Runs.FirstOrDefault()?.Run;
+            if (latest is not null && RepeatCachePolicyNames.IsSupported(latest.Parameters.RepeatCachePolicy))
+            {
+                Setup.RepeatCachePolicy = latest.Parameters.RepeatCachePolicy;
+            }
             if (!preserveWorkspace) SetWorkspaceRun(latest);
             selected.StatusText = latest is null ? "No scans yet" : DisplayFormatting.Status(latest.Status);
             if (latest?.Status is "pending" or "running" or "cancelling")

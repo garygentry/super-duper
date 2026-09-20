@@ -100,8 +100,9 @@ Page title **Choose locations**.
 | **Advanced: content reads and exclusions** | **Repeat scans** (**Reuse verified hashes** or **Re-read candidate content**), **Manual cloud location exclusions** (one absolute path per line), **Ignore patterns** (one glob per line) |
 | **Manage saved scan** | **Delete saved scan and history**, with a **Delete saved scan?** confirmation |
 
-**Repeat scans** is not saved with the saved scan. It resets to **Reuse verified hashes** whenever a
-saved scan is loaded.
+**Repeat scans** is not saved with the saved scan; it is recorded on each scan run instead. Loading
+a saved scan preselects the choice its latest run recorded, or **Reuse verified hashes** if it has
+no runs yet. Starting a new saved scan always starts at **Reuse verified hashes**.
 
 Default ignore patterns for a new saved scan: `**/node_modules/**`, `*/$RECYCLE.BIN`, `*/.bzvol`,
 `*/System Volume Information`, `*/Recovery`.

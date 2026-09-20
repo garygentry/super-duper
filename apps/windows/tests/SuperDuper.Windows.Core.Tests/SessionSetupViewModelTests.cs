@@ -101,6 +101,34 @@ public sealed class SessionSetupViewModelTests
     }
 
     [TestMethod]
+    public async Task EnsureSavedAsync_PreservesTheSelectedRepeatCachePolicyAcrossSaveThenStart()
+    {
+        var client = new TestWorkerClient();
+        var session = client.AddSession("Old name", Path.GetTempPath());
+        var viewModel = CreateViewModel(client);
+        viewModel.Load(session);
+
+        viewModel.RepeatCachePolicy = RepeatCachePolicyNames.RevalidateContent;
+        viewModel.Name = "Renamed";
+        var saved = await viewModel.EnsureSavedAsync(requireReachableRoot: false);
+
+        Assert.IsNotNull(saved);
+        Assert.AreEqual(RepeatCachePolicyNames.RevalidateContent, viewModel.RepeatCachePolicy);
+    }
+
+    [TestMethod]
+    public void BeginNew_DefaultsToReuseVerifiedEvenAfterSelectingRevalidateContent()
+    {
+        var viewModel = CreateViewModel(new TestWorkerClient());
+        viewModel.BeginNew();
+        viewModel.RepeatCachePolicy = RepeatCachePolicyNames.RevalidateContent;
+
+        viewModel.BeginNew();
+
+        Assert.AreEqual(RepeatCachePolicyNames.ReuseVerified, viewModel.RepeatCachePolicy);
+    }
+
+    [TestMethod]
     public async Task DeleteCommand_RemovesPersistedSessionAfterConfirmation()
     {
         var client = new TestWorkerClient();

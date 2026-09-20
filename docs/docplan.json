@@ -390,7 +390,7 @@
         },
         {
           "heading": "Scan the same locations again",
-          "intent": "Scan again starts immediately; Repeat scans choice and that it resets on load.",
+          "intent": "Scan again starts immediately; Repeat scans choice and that it preselects the loaded scan's latest run.",
           "sourceRefs": [
             "shell-vm",
             "core-viewmodels"
@@ -1617,21 +1617,6 @@
       "affects": [
         "ug-check",
         "windows-smoke",
-        "arch-risks"
-      ]
-    },
-    {
-      "note": "The header 'Scan again' button starts a scan immediately; ScanAgainCommand (open Setup) exists but is not bound. Whether that is intended is unknown; docs describe the current behavior.",
-      "affects": [
-        "ug-scan",
-        "arch-risks"
-      ]
-    },
-    {
-      "note": "The Repeat scans choice is not saved with the saved scan and resets to 'Reuse verified hashes' when a saved scan loads. Intent unknown; docs describe current behavior.",
-      "affects": [
-        "ug-scan",
-        "ug-concepts",
         "arch-risks"
       ]
     },
