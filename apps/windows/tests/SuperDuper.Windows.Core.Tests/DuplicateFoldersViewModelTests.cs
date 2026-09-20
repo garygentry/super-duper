@@ -931,7 +931,7 @@ public sealed class DuplicateFoldersViewModelTests
                 }),
             ReviewFolderDecisionHandler = (_, _, _, _, _, _, _) =>
                 Task.FromException<WorkerReviewFolderDecisionMutation>(
-                    new InvalidOperationException("review_overlap_conflict: conflicting file decision")),
+                    new TestWorkerRequestFailure("review_overlap_conflict", "conflicting file decision")),
         };
         using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), new TestExplorer());
         await viewModel.ShowRunAsync(
@@ -942,6 +942,64 @@ public sealed class DuplicateFoldersViewModelTests
         Assert.AreEqual("Keep", viewModel.Members.Single().Decision);
         StringAssert.Contains(viewModel.DetailErrorMessage, "Clear the contained file or folder decision first");
         Assert.AreEqual(1, viewModel.MemberErrorAnnouncementVersion);
+    }
+
+    [TestMethod]
+    public async Task FolderDecisionGenerationConflictIsActionableByItsCode()
+    {
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderGroupPage([Group(1, query.RunId, @"C:\One")], 1, null, null)),
+            FolderMemberPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderMemberPage(
+                    [new WorkerDuplicateFolderMember(10, query.GroupId, @"C:\One") { Decision = "keep" }],
+                    1,
+                    null,
+                    null)
+                {
+                    ReviewSummary = new WorkerReviewFolderGroupSummary(query.GroupId, 1, 0, 0, 1),
+                }),
+            ReviewFolderDecisionHandler = (_, _, _, _, _, _, _) =>
+                Task.FromException<WorkerReviewFolderDecisionMutation>(
+                    new TestWorkerRequestFailure("review_generation_conflict", "revision moved on")),
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(23, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        await viewModel.RemoveFolderCommand.ExecuteAsync(viewModel.Members.Single());
+
+        StringAssert.Contains(viewModel.DetailErrorMessage, "Reload the selected run and try again");
+    }
+
+    [TestMethod]
+    public async Task FolderDecisionErrorWithoutAKnownCodeFallsBackToTheWorkerMessage()
+    {
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderGroupPage([Group(1, query.RunId, @"C:\One")], 1, null, null)),
+            FolderMemberPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderMemberPage(
+                    [new WorkerDuplicateFolderMember(10, query.GroupId, @"C:\One") { Decision = "keep" }],
+                    1,
+                    null,
+                    null)
+                {
+                    ReviewSummary = new WorkerReviewFolderGroupSummary(query.GroupId, 1, 0, 0, 1),
+                }),
+            ReviewFolderDecisionHandler = (_, _, _, _, _, _, _) =>
+                Task.FromException<WorkerReviewFolderDecisionMutation>(
+                    new InvalidOperationException("connection lost")),
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(24, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        await viewModel.RemoveFolderCommand.ExecuteAsync(viewModel.Members.Single());
+
+        StringAssert.Contains(viewModel.DetailErrorMessage, "The folder review decision was not saved. connection lost");
     }
 
     private static WorkerDuplicateFolderGroup Group(long id, long runId, string path) =>

@@ -910,3 +910,11 @@ internal sealed class TestExplorer : IExplorerService
             []));
     }
 }
+
+/// <summary>A code-bearing worker failure a fake <see cref="IWorkerClient"/> can throw, standing in
+/// for Infrastructure's <c>WorkerProtocolException</c> (Core cannot reference Infrastructure).</summary>
+internal sealed class TestWorkerRequestFailure(string code, string message)
+    : Exception(message), IWorkerRequestFailure
+{
+    public string? Code { get; } = code;
+}

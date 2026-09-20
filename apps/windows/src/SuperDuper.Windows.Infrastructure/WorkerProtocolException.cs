@@ -1,8 +1,9 @@
 using System.Text.Json;
+using SuperDuper.Windows.Core.Workers;
 
 namespace SuperDuper.Windows.Infrastructure;
 
-public class WorkerProtocolException : Exception
+public class WorkerProtocolException : Exception, IWorkerRequestFailure
 {
     public WorkerProtocolException(string message)
         : base(message)
