@@ -317,6 +317,9 @@ The `super-duper-ffi` crate exposes the core through a C ABI for future native c
 - Thread-local error messages via `sd_last_error_message()`
 - Paginated list queries for large result sets
 - Progress callbacks for long-running scans
+- A blocking `sd_scan_start`, and a cancellable, non-blocking
+  `sd_scan_start_async`/`sd_scan_observe`/`sd_scan_join` alternative that runs the scan on a
+  background thread so `sd_scan_cancel` and every query stay usable while it runs
 
 ## Project Status
 

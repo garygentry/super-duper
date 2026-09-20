@@ -47,6 +47,30 @@ typedef enum SdAutoMarkStrategy {
 } SdAutoMarkStrategy;
 
 /**
+ * Status reported by `sd_scan_observe` for a scan started with `sd_scan_start_async`.
+ *
+ * `Completed` is reported exactly once, on whichever `sd_scan_observe`/`sd_scan_join` call first
+ * notices the scan finished; that same call also finalizes the engine state (`active_session_id`,
+ * `is_scanning`) so query functions see the new results immediately. A later call, or one made
+ * when no async scan was ever started, reports `Idle`.
+ */
+typedef enum SdScanStatus {
+    /**
+     * No async scan is running, and none has finished without being observed yet.
+     */
+    Idle = 0,
+    /**
+     * An async scan is still running.
+     */
+    Running = 1,
+    /**
+     * An async scan just finished; the returned `SdResultCode` carries its outcome (`Ok` for
+     * success, or the same mapped error code `sd_scan_start` would have returned).
+     */
+    Completed = 2,
+} SdScanStatus;
+
+/**
  * Deletion execution result.
  */
 typedef struct SdDeletionResult {
@@ -406,7 +430,8 @@ enum SdResultCode sd_query_similar_directories(uint64_t handle,
                                                struct SdDirectorySimilarityPage *out_page);
 
 /**
- * Request cancellation of the current scan.
+ * Request cancellation of the current scan (synchronous or async). Safe to call more than once;
+ * a second call is a no-op.
  */
 enum SdResultCode sd_scan_cancel(uint64_t handle);
 
@@ -416,9 +441,48 @@ enum SdResultCode sd_scan_cancel(uint64_t handle);
 bool sd_scan_is_running(uint64_t handle);
 
 /**
+ * Block the calling thread until a scan started with `sd_scan_start_async` finishes, then
+ * finalize and return its result exactly like the blocking `sd_scan_start`. Returns `Ok`
+ * immediately if no async scan is running (including one already observed as finished). Unlike
+ * `sd_scan_start`, this does not hold the handle for the wait itself, so `sd_scan_cancel` and
+ * every query remain usable from another thread while this call blocks.
+ */
+enum SdResultCode sd_scan_join(uint64_t handle);
+
+/**
+ * Non-blocking check of a scan started with `sd_scan_start_async`. Always returns `Ok` itself
+ * (unless `handle`/`out_status` are invalid); the scan's own outcome is reported once, through
+ * `out_status` and this call's return code together, per `SdScanStatus`'s doc comment.
+ *
+ * # Safety
+ * `out_status` must be a valid pointer.
+ */
+enum SdResultCode sd_scan_observe(uint64_t handle, enum SdScanStatus *out_status);
+
+/**
  * Start a synchronous scan. Blocks until complete.
  */
 enum SdResultCode sd_scan_start(uint64_t handle);
+
+/**
+ * Start a scan on a background thread and return immediately. Only one scan (sync or async) may
+ * run per handle at a time; the usual `SdResultCode::ScanInProgress` applies. Poll with
+ * `sd_scan_observe`, or block the calling thread (without holding the handle) with
+ * `sd_scan_join`. Cancel with `sd_scan_cancel`, same as a synchronous scan.
+ *
+ * # Thread safety
+ * The scan itself, and the progress callback set by `sd_set_progress_callback` (if any), run on a
+ * dedicated background thread — not the caller's. The callback must be safe to call from any
+ * thread; it already must be, since it also fires from the scan thread `sd_scan_start` blocks on.
+ * Every other FFI call for this handle, including `sd_scan_cancel` and every query, remains safe
+ * to call concurrently while the scan runs. `sd_scan_observe`/`sd_scan_join` are not safe to call
+ * concurrently with each other for the same handle; drive a given handle's scan from one thread.
+ *
+ * If the handle is destroyed with `sd_engine_destroy` while the scan is still running, the scan
+ * keeps running to completion in the background (its callback may keep firing) and its result is
+ * then silently discarded, since there is no longer a handle to report it to.
+ */
+enum SdResultCode sd_scan_start_async(uint64_t handle);
 
 /**
  * Set the active session used by all query functions.

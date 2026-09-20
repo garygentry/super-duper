@@ -1,7 +1,7 @@
 use std::ffi::{CStr, CString, c_char};
 use std::fs;
 use std::ptr;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use tempfile::tempdir;
 
 use super_duper_ffi::actions::*;
@@ -284,6 +284,219 @@ fn test_progress_callback_fires() {
     let result = sd_clear_progress_callback(handle);
     assert_eq!(result, SdResultCode::Ok);
 
+    sd_engine_destroy(handle);
+}
+
+// ── Async scan ───────────────────────────────────────────────────────────────
+// `sd_scan_start_async`/`sd_scan_observe`/`sd_scan_join` run the scan on a background thread so
+// `sd_scan_cancel` and every query stay usable while it runs (unlike `sd_scan_start`, which holds
+// the handle, and therefore every other call for every handle, for its whole duration).
+
+static CANCEL_ON_PROGRESS_HANDLE: AtomicU64 = AtomicU64::new(0);
+
+/// Cancels the scan the very first time it fires (`on_scan_start`), before any real traversal
+/// work, so cancellation mid-scan is deterministic instead of racing a real file scan's duration.
+extern "C" fn cancel_on_first_progress_callback(
+    _phase: u32,
+    _current: u64,
+    _total: u64,
+    _message: *const c_char,
+) {
+    let handle = CANCEL_ON_PROGRESS_HANDLE.swap(0, Ordering::SeqCst);
+    if handle != 0 {
+        sd_scan_cancel(handle);
+    }
+}
+
+#[test]
+fn test_async_scan_completes_and_populates_query_results() {
+    let dir = tempdir().unwrap();
+    let scan_dir = dir.path().join("data");
+    let db_path = dir.path().join("test.db");
+    create_test_tree(&scan_dir);
+
+    let handle = create_engine(db_path.to_str().unwrap());
+    let scan_path_str = c_str(scan_dir.to_str().unwrap());
+    let paths = [scan_path_str.as_ptr()];
+    unsafe { sd_engine_set_scan_paths(handle, paths.as_ptr(), 1) };
+
+    assert_eq!(sd_scan_start_async(handle), SdResultCode::Ok);
+    assert!(sd_scan_is_running(handle));
+    // Only one scan (sync or async) may run per handle at a time, same as `sd_scan_start`.
+    assert_eq!(sd_scan_start_async(handle), SdResultCode::ScanInProgress);
+
+    assert_eq!(sd_scan_join(handle), SdResultCode::Ok);
+    assert!(!sd_scan_is_running(handle));
+    // Joining again reports idle rather than re-running or blocking.
+    assert_eq!(sd_scan_join(handle), SdResultCode::Ok);
+
+    let mut page = SdDuplicateGroupPage {
+        groups: ptr::null_mut(),
+        count: 0,
+        total_available: 0,
+    };
+    let result = unsafe { sd_query_duplicate_groups(handle, 0, 100, &mut page) };
+    assert_eq!(result, SdResultCode::Ok);
+    assert!(
+        page.count > 0,
+        "the async scan's results should be queryable once joined"
+    );
+    unsafe { sd_free_duplicate_group_page(&mut page) };
+
+    sd_engine_destroy(handle);
+}
+
+#[test]
+fn test_scan_observe_reports_idle_then_completed_exactly_once() {
+    let dir = tempdir().unwrap();
+    let scan_dir = dir.path().join("data");
+    let db_path = dir.path().join("test.db");
+    create_test_tree(&scan_dir);
+
+    let handle = create_engine(db_path.to_str().unwrap());
+    let scan_path_str = c_str(scan_dir.to_str().unwrap());
+    let paths = [scan_path_str.as_ptr()];
+    unsafe { sd_engine_set_scan_paths(handle, paths.as_ptr(), 1) };
+
+    let mut status = SdScanStatus::Running;
+    assert_eq!(
+        unsafe { sd_scan_observe(handle, &mut status) },
+        SdResultCode::Ok
+    );
+    assert_eq!(status, SdScanStatus::Idle, "no scan has started yet");
+
+    assert_eq!(sd_scan_start_async(handle), SdResultCode::Ok);
+
+    let mut code = SdResultCode::InvalidHandle;
+    for _ in 0..2000 {
+        code = unsafe { sd_scan_observe(handle, &mut status) };
+        if status == SdScanStatus::Completed {
+            break;
+        }
+        assert_eq!(status, SdScanStatus::Running);
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert_eq!(
+        status,
+        SdScanStatus::Completed,
+        "scan did not finish in time"
+    );
+    assert_eq!(code, SdResultCode::Ok);
+    assert!(!sd_scan_is_running(handle));
+
+    // `Completed` is reported once; a later observation is idle rather than repeating it.
+    assert_eq!(
+        unsafe { sd_scan_observe(handle, &mut status) },
+        SdResultCode::Ok
+    );
+    assert_eq!(status, SdScanStatus::Idle);
+
+    sd_engine_destroy(handle);
+}
+
+#[test]
+fn test_async_scan_cancelled_mid_scan_reports_cancelled_on_join() {
+    let dir = tempdir().unwrap();
+    let scan_dir = dir.path().join("data");
+    let db_path = dir.path().join("test.db");
+    create_test_tree(&scan_dir);
+
+    let handle = create_engine(db_path.to_str().unwrap());
+    let scan_path_str = c_str(scan_dir.to_str().unwrap());
+    let paths = [scan_path_str.as_ptr()];
+    unsafe { sd_engine_set_scan_paths(handle, paths.as_ptr(), 1) };
+
+    CANCEL_ON_PROGRESS_HANDLE.store(handle, Ordering::SeqCst);
+    assert_eq!(
+        sd_set_progress_callback(handle, cancel_on_first_progress_callback),
+        SdResultCode::Ok
+    );
+
+    assert_eq!(sd_scan_start_async(handle), SdResultCode::Ok);
+    assert_eq!(sd_scan_join(handle), SdResultCode::Cancelled);
+    assert!(!sd_scan_is_running(handle));
+
+    sd_engine_destroy(handle);
+}
+
+#[test]
+fn test_async_scan_double_cancel_during_scan_is_safe() {
+    let dir = tempdir().unwrap();
+    let scan_dir = dir.path().join("data");
+    let db_path = dir.path().join("test.db");
+    create_test_tree(&scan_dir);
+
+    let handle = create_engine(db_path.to_str().unwrap());
+    let scan_path_str = c_str(scan_dir.to_str().unwrap());
+    let paths = [scan_path_str.as_ptr()];
+    unsafe { sd_engine_set_scan_paths(handle, paths.as_ptr(), 1) };
+
+    assert_eq!(sd_scan_start_async(handle), SdResultCode::Ok);
+    assert_eq!(sd_scan_cancel(handle), SdResultCode::Ok);
+    assert_eq!(
+        sd_scan_cancel(handle),
+        SdResultCode::Ok,
+        "a second cancel is a no-op"
+    );
+
+    // The scan may have finished before either cancel took effect (the fixture tree is tiny), so
+    // either outcome is a correct, safe result; the point is that neither call crashed or hung.
+    let join_result = sd_scan_join(handle);
+    assert!(matches!(
+        join_result,
+        SdResultCode::Ok | SdResultCode::Cancelled
+    ));
+    assert!(!sd_scan_is_running(handle));
+
+    sd_engine_destroy(handle);
+}
+
+#[test]
+fn test_engine_destroy_while_async_scan_is_running_does_not_block_or_crash() {
+    let dir = tempdir().unwrap();
+    let scan_dir = dir.path().join("data");
+    let db_path = dir.path().join("test.db");
+    create_test_tree(&scan_dir);
+
+    let handle = create_engine(db_path.to_str().unwrap());
+    let scan_path_str = c_str(scan_dir.to_str().unwrap());
+    let paths = [scan_path_str.as_ptr()];
+    unsafe { sd_engine_set_scan_paths(handle, paths.as_ptr(), 1) };
+
+    assert_eq!(sd_scan_start_async(handle), SdResultCode::Ok);
+    // Must return promptly (it does not join the background thread) and must not crash even
+    // though the scan may still be running; the orphaned thread keeps its own `Arc` clones alive
+    // and simply discards its result once it finishes.
+    assert_eq!(sd_engine_destroy(handle), SdResultCode::Ok);
+
+    assert_eq!(sd_scan_cancel(handle), SdResultCode::InvalidHandle);
+    assert_eq!(sd_scan_join(handle), SdResultCode::InvalidHandle);
+    let mut status = SdScanStatus::Idle;
+    assert_eq!(
+        unsafe { sd_scan_observe(handle, &mut status) },
+        SdResultCode::InvalidHandle
+    );
+}
+
+#[test]
+fn test_scan_join_invalid_handle() {
+    assert_eq!(sd_scan_join(999999), SdResultCode::InvalidHandle);
+}
+
+#[test]
+fn test_scan_observe_invalid_handle() {
+    let mut status = SdScanStatus::Idle;
+    let result = unsafe { sd_scan_observe(999999, &mut status) };
+    assert_eq!(result, SdResultCode::InvalidHandle);
+}
+
+#[test]
+fn test_scan_observe_null_out_status() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("test.db");
+    let handle = create_engine(db_path.to_str().unwrap());
+    let result = unsafe { sd_scan_observe(handle, ptr::null_mut()) };
+    assert_eq!(result, SdResultCode::InvalidArgument);
     sd_engine_destroy(handle);
 }
 

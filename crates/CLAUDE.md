@@ -114,4 +114,9 @@ cover upgrade and fresh-create paths in `tests/storage_tests.rs`, and add `docs/
 
 Opaque `u64` handles, `#[repr(C)]` types and result codes, progress callbacks, thread-local error
 detail (`sd_last_error_message()`), paginated queries, and Rust-owned buffers freed by `sd_free_*()`.
-Keep it app-neutral.
+Keep it app-neutral. `sd_scan_start` blocks on the calling thread and holds the handle (and, via
+the shared handle-table lock, every other handle) for the scan's duration; `sd_scan_start_async` /
+`sd_scan_observe` / `sd_scan_join` run the scan on a background thread instead, so `sd_scan_cancel`
+and every query stay usable while it runs. An error from an async scan is translated to an
+`SdResultCode` (and `sd_last_error_message()`'s thread-local) on the observing thread, not the
+background thread, when `sd_scan_observe`/`sd_scan_join` finalize it.

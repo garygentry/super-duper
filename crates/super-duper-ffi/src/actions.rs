@@ -3,6 +3,7 @@ use crate::error::{map_core_error, set_last_error};
 use crate::handle::{EngineState, allocate_handle, destroy_handle, with_handle};
 use crate::types::*;
 use std::ffi::c_char;
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use super_duper_core::storage::Database;
 use super_duper_core::{AppConfig, ScanEngine, SilentReporter};
@@ -25,7 +26,7 @@ pub unsafe extern "C" fn sd_engine_create(db_path: *const c_char) -> u64 {
             ..Default::default()
         };
 
-        let engine = ScanEngine::new(config).with_db_path(&db_path_str);
+        let engine = Arc::new(ScanEngine::new(config).with_db_path(&db_path_str));
         let cancel_token = engine.cancel_token();
 
         let db = match Database::open(&db_path_str) {
@@ -49,6 +50,7 @@ pub unsafe extern "C" fn sd_engine_create(db_path: *const c_char) -> u64 {
             cancel_token,
             progress_bridge: None,
             active_session_id,
+            async_scan: None,
         };
 
         allocate_handle(state)
@@ -101,7 +103,7 @@ pub unsafe extern "C" fn sd_engine_set_scan_paths(
                 ignore_patterns: state.ignore_patterns.clone(),
                 ..Default::default()
             };
-            state.engine = ScanEngine::new(config).with_db_path(&state.db_path);
+            state.engine = Arc::new(ScanEngine::new(config).with_db_path(&state.db_path));
             state.cancel_token = state.engine.cancel_token();
             SdResultCode::Ok
         });
@@ -145,7 +147,7 @@ pub unsafe extern "C" fn sd_engine_set_ignore_patterns(
                 ignore_patterns: state.ignore_patterns.clone(),
                 ..Default::default()
             };
-            state.engine = ScanEngine::new(config).with_db_path(&state.db_path);
+            state.engine = Arc::new(ScanEngine::new(config).with_db_path(&state.db_path));
             state.cancel_token = state.engine.cancel_token();
             SdResultCode::Ok
         });
@@ -161,7 +163,7 @@ pub extern "C" fn sd_set_progress_callback(
     callback: SdProgressCallback,
 ) -> SdResultCode {
     let result = with_handle(handle, |state| {
-        state.progress_bridge = Some(FfiProgressBridge::new(callback));
+        state.progress_bridge = Some(Arc::new(FfiProgressBridge::new(callback)));
         SdResultCode::Ok
     });
 
@@ -189,10 +191,9 @@ pub extern "C" fn sd_scan_start(handle: u64) -> SdResultCode {
         }
 
         state.is_scanning = true;
-        let scan_result = if let Some(ref bridge) = state.progress_bridge {
-            state.engine.scan(bridge)
-        } else {
-            state.engine.scan(&SilentReporter)
+        let scan_result = match state.progress_bridge.as_deref() {
+            Some(bridge) => state.engine.scan(bridge),
+            None => state.engine.scan(&SilentReporter),
         };
         state.is_scanning = false;
 
@@ -208,7 +209,156 @@ pub extern "C" fn sd_scan_start(handle: u64) -> SdResultCode {
     result.unwrap_or(SdResultCode::InvalidHandle)
 }
 
-/// Request cancellation of the current scan.
+/// Start a scan on a background thread and return immediately. Only one scan (sync or async) may
+/// run per handle at a time; the usual `SdResultCode::ScanInProgress` applies. Poll with
+/// `sd_scan_observe`, or block the calling thread (without holding the handle) with
+/// `sd_scan_join`. Cancel with `sd_scan_cancel`, same as a synchronous scan.
+///
+/// # Thread safety
+/// The scan itself, and the progress callback set by `sd_set_progress_callback` (if any), run on a
+/// dedicated background thread — not the caller's. The callback must be safe to call from any
+/// thread; it already must be, since it also fires from the scan thread `sd_scan_start` blocks on.
+/// Every other FFI call for this handle, including `sd_scan_cancel` and every query, remains safe
+/// to call concurrently while the scan runs. `sd_scan_observe`/`sd_scan_join` are not safe to call
+/// concurrently with each other for the same handle; drive a given handle's scan from one thread.
+///
+/// If the handle is destroyed with `sd_engine_destroy` while the scan is still running, the scan
+/// keeps running to completion in the background (its callback may keep firing) and its result is
+/// then silently discarded, since there is no longer a handle to report it to.
+#[unsafe(no_mangle)]
+pub extern "C" fn sd_scan_start_async(handle: u64) -> SdResultCode {
+    let result = with_handle(handle, |state| {
+        if state.is_scanning {
+            set_last_error("Scan already in progress".to_string());
+            return SdResultCode::ScanInProgress;
+        }
+
+        let engine = Arc::clone(&state.engine);
+        let bridge = state.progress_bridge.clone();
+        let outcome = Arc::new(std::sync::Mutex::new(None));
+        let outcome_for_thread = Arc::clone(&outcome);
+        let thread = std::thread::spawn(move || {
+            let scan_result = match bridge.as_deref() {
+                Some(bridge) => engine.scan(bridge),
+                None => engine.scan(&SilentReporter),
+            };
+            *outcome_for_thread
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(scan_result);
+        });
+
+        state.is_scanning = true;
+        state.async_scan = Some(crate::handle::AsyncScan {
+            thread: Some(thread),
+            outcome,
+        });
+        SdResultCode::Ok
+    });
+
+    result.unwrap_or(SdResultCode::InvalidHandle)
+}
+
+/// If the async scan for this handle has produced an outcome, join its thread, clear
+/// `async_scan`, update `is_scanning`/`active_session_id`, and map the outcome to an
+/// `SdResultCode` — calling `set_last_error` on the CALLING thread for an error, matching
+/// `sd_scan_start`. Returns `None` if there is no async scan, or it hasn't finished yet.
+fn take_finished_async_scan(state: &mut EngineState) -> Option<SdResultCode> {
+    let ready = state
+        .async_scan
+        .as_ref()?
+        .outcome
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .is_some();
+    if !ready {
+        return None;
+    }
+    let mut async_scan = state.async_scan.take().expect("checked Some above");
+    let outcome = async_scan
+        .outcome
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .take()
+        .expect("checked ready above");
+    if let Some(thread) = async_scan.thread.take() {
+        let _ = thread.join();
+    }
+    state.is_scanning = false;
+    Some(match outcome {
+        Ok(result) => {
+            state.active_session_id = Some(result.run_id);
+            SdResultCode::Ok
+        }
+        Err(e) => map_core_error(e),
+    })
+}
+
+/// Non-blocking check of a scan started with `sd_scan_start_async`. Always returns `Ok` itself
+/// (unless `handle`/`out_status` are invalid); the scan's own outcome is reported once, through
+/// `out_status` and this call's return code together, per `SdScanStatus`'s doc comment.
+///
+/// # Safety
+/// `out_status` must be a valid pointer.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sd_scan_observe(
+    handle: u64,
+    out_status: *mut SdScanStatus,
+) -> SdResultCode {
+    unsafe {
+        if out_status.is_null() {
+            set_last_error("out_status is null".to_string());
+            return SdResultCode::InvalidArgument;
+        }
+
+        let result = with_handle(handle, |state| {
+            if state.async_scan.is_none() {
+                *out_status = SdScanStatus::Idle;
+                return SdResultCode::Ok;
+            }
+            match take_finished_async_scan(state) {
+                Some(code) => {
+                    *out_status = SdScanStatus::Completed;
+                    code
+                }
+                None => {
+                    *out_status = SdScanStatus::Running;
+                    SdResultCode::Ok
+                }
+            }
+        });
+
+        result.unwrap_or(SdResultCode::InvalidHandle)
+    }
+}
+
+/// Block the calling thread until a scan started with `sd_scan_start_async` finishes, then
+/// finalize and return its result exactly like the blocking `sd_scan_start`. Returns `Ok`
+/// immediately if no async scan is running (including one already observed as finished). Unlike
+/// `sd_scan_start`, this does not hold the handle for the wait itself, so `sd_scan_cancel` and
+/// every query remain usable from another thread while this call blocks.
+#[unsafe(no_mangle)]
+pub extern "C" fn sd_scan_join(handle: u64) -> SdResultCode {
+    let thread = with_handle(handle, |state| {
+        state
+            .async_scan
+            .as_mut()
+            .and_then(|scan| scan.thread.take())
+    });
+    let Some(maybe_thread) = thread else {
+        return SdResultCode::InvalidHandle;
+    };
+    if let Some(thread) = maybe_thread {
+        let _ = thread.join();
+    }
+
+    let result = with_handle(handle, |state| {
+        take_finished_async_scan(state).unwrap_or(SdResultCode::Ok)
+    });
+    result.unwrap_or(SdResultCode::InvalidHandle)
+}
+
+/// Request cancellation of the current scan (synchronous or async). Safe to call more than once;
+/// a second call is a no-op.
 #[unsafe(no_mangle)]
 pub extern "C" fn sd_scan_cancel(handle: u64) -> SdResultCode {
     let result = with_handle(handle, |state| {
