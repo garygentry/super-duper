@@ -7,10 +7,11 @@ use std::process;
 
 use clap::{CommandFactory, Parser};
 use colored::*;
-use commands::{Cli, Commands};
+use commands::{Cli, Commands, ExportKind};
 use dotenv::dotenv;
 use progress::CliReporter;
 use super_duper_core::ScanEngine;
+use super_duper_core::export;
 use tracing::{error, info};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -46,6 +47,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some(Commands::PrintConfig) => {
             println!("Configuration: {:?}", config);
+        }
+        Some(Commands::Export { kind }) => {
+            if let Err(err) = run_export(kind) {
+                error!("Error: {}", err);
+                process::exit(1);
+            }
         }
         Some(Commands::TruncateDb) => {
             match prompt_confirm(
@@ -131,6 +138,24 @@ fn run_analyze_directories() -> Result<(), Box<dyn std::error::Error>> {
         super_duper_core::analysis::dir_similarity::compute_directory_similarity(&db, run_id, 0.5)?;
     info!("{} similar directory pairs found", similarity_count);
 
+    Ok(())
+}
+
+fn run_export(kind: ExportKind) -> Result<(), Box<dyn std::error::Error>> {
+    let db = super_duper_core::storage::Database::open("super_duper.db")?;
+    let output = match kind {
+        ExportKind::DuplicateGroups { run, format } => {
+            export::export_duplicate_groups(&db, run, format.into())?
+        }
+        ExportKind::Sessions { session, format } => {
+            export::export_sessions(&db, session, format.into())?
+        }
+    };
+    // The CSV form already ends in a line terminator; JSON does not. Emit exactly one either way.
+    print!("{output}");
+    if !output.ends_with('\n') {
+        println!();
+    }
     Ok(())
 }
 

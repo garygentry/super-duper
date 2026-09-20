@@ -22,6 +22,8 @@ cargo run -p super-duper-cli -- process
 cargo run -p super-duper-cli -- analyze-directories
 cargo run -p super-duper-cli -- count-hash-cache
 cargo run -p super-duper-cli -- print-config
+cargo run -p super-duper-cli -- export duplicate-groups --format json
+cargo run -p super-duper-cli -- export sessions --format csv
 cargo run -p super-duper-cli -- truncate-db
 ```
 
@@ -38,6 +40,7 @@ The workspace is edition 2024 and requires Rust 1.98 or newer; `edition`, `rust-
 super-duper-core/src/
   engine.rs              # ScanEngine: scan -> hash -> store -> analyze, cancellation, progress
   config.rs, error.rs, progress.rs
+  export.rs              # versioned duplicate-groups/sessions export documents (docs/export-format-v1.md)
   path_spelling.rs       # match verbatim (\\?\) and plain Windows path spellings without rewriting
   scanner/walk.rs        # parallel traversal, ignore patterns, size grouping, cloud/run exclusions
   hasher/

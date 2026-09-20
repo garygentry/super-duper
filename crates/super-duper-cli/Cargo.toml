@@ -13,6 +13,9 @@ super-duper-core = { path = "../super-duper-core" }
 clap = { version = "4.5.4", features = ["derive"] }
 dotenv = "0.15.0"
 
+# Structured output
+serde_json = "1.0"
+
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "ansi"] }
@@ -21,3 +24,6 @@ tracing-appender = "0.2"
 # Display
 colored = "3"
 indicatif = "0.18"
+
+[dev-dependencies]
+tempfile = "3"

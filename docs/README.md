@@ -52,6 +52,7 @@ For maintainers changing the app, the worker or the engine.
 | [Worker protocol v1](worker-protocol-v1.md) | JSONL wire contract between the app and the worker |
 | [Scan progress contract v1](scan-progress-contract-v1.md) | Progress payload, constants and how the app applies it |
 | [Scan status database](scan-status-database.md) | Worker-owned telemetry database |
+| [Export format v1](export-format-v1.md) | JSON and CSV shape of the CLI's `export` subcommand |
 | [Storage schema v3](storage-schema-v3.md) … [v15](storage-schema-v15.md) | What each schema version added; `schema.sql` is authoritative |
 
 ## About this documentation

@@ -5,10 +5,18 @@ All notable changes to Super Duper are recorded here. Versions follow
 
 ## [Unreleased]
 
+### Added
+
+- A `super-duper export` CLI subcommand writes duplicate file groups (`duplicate-groups`) or
+  session definitions and their run history (`sessions`) as CSV (the default) or JSON, to stdout.
+  See `docs/export-format-v1.md`.
+
 ### Changed
 
 - `super-duper-worker.exe` now carries product, version, and copyright details in its file
   properties, like `SuperDuper.Windows.exe`.
+- The CLI's logs (and the human-readable summaries built from them) now go to stderr instead of
+  stdout, so stdout stays clean for CSV/JSON export.
 
 ### Fixed
 
