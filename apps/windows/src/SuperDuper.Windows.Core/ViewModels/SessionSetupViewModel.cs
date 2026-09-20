@@ -11,13 +11,23 @@ namespace SuperDuper.Windows.Core.ViewModels;
 
 public sealed record RepeatCachePolicyOption(string Value, string DisplayName, string Description);
 
-public sealed class SessionSetupViewModel : ObservableObject
+public sealed class SessionSetupViewModel : ObservableObject, IDisposable
 {
+    // Debounces root-availability probing while the user is still typing a path; bounded like the
+    // worker's own root probes so a removable or offline network drive cannot stall this either.
+    internal static readonly TimeSpan RootProbeDebounce = TimeSpan.FromMilliseconds(400);
+    internal static readonly TimeSpan RootProbeTimeout = TimeSpan.FromSeconds(3);
+
     private readonly IWorkerClient _workerClient;
     private readonly IFolderPickerService _folderPicker;
     private readonly IUserConfirmationService _confirmation;
     private readonly ICloudLocationService _cloudLocations;
     private readonly Func<long?, IReadOnlyList<string>> _otherSessionNames;
+    private readonly Action<Action> _postToUi;
+    private CancellationTokenSource? _rootProbeLifetime;
+    private Task _pendingRootProbe = Task.CompletedTask;
+    private long _rootProbeGeneration;
+    private bool _disposed;
     private long? _sessionId;
     private string _name = "";
     private string _ignorePatternsText = "";
@@ -42,13 +52,15 @@ public sealed class SessionSetupViewModel : ObservableObject
         IFolderPickerService folderPicker,
         IUserConfirmationService confirmation,
         Func<long?, IReadOnlyList<string>> otherSessionNames,
-        ICloudLocationService? cloudLocations = null)
+        ICloudLocationService? cloudLocations = null,
+        IUiDispatcher? dispatcher = null)
     {
         _workerClient = workerClient;
         _folderPicker = folderPicker;
         _confirmation = confirmation;
         _cloudLocations = cloudLocations ?? new UnavailableCloudLocationService();
         _otherSessionNames = otherSessionNames;
+        _postToUi = dispatcher is null ? static action => action() : dispatcher.Post;
         Roots.CollectionChanged += OnRootsChanged;
 
         AddRootCommand = new RelayCommand(AddRoot, () => CanEdit);
@@ -609,13 +621,22 @@ public sealed class SessionSetupViewModel : ObservableObject
         Validate();
     }
 
+    // Fast, synchronous, no-I/O syntax validation, safe to call on every keystroke. Availability
+    // (drive classification, reachability) is filled in afterward, off the dispatcher, by
+    // ScheduleRootAvailabilityProbe.
     private void Validate()
     {
-        _validation = SessionDefinitionValidator.Validate(
+        _validation = SessionDefinitionValidator.ValidateSyntax(
             Name,
             Roots.Select(root => root.Path),
             SplitIgnorePatterns(IgnorePatternsText),
             _otherSessionNames(SessionId));
+        ApplyValidation();
+        ScheduleRootAvailabilityProbe();
+    }
+
+    private void ApplyValidation()
+    {
         foreach (var root in Roots)
         {
             var path = root.Path.Trim();
@@ -648,6 +669,106 @@ public sealed class SessionSetupViewModel : ObservableObject
         OnPropertyChanged(nameof(CloudDetectionSummary));
         RefreshDetectedCloudLocations();
         RefreshCommands();
+    }
+
+    // Debounces so a fast typist doesn't spawn a probe per keystroke, then bounds the probe itself
+    // to RootProbeTimeout so a removable or offline network root can't stall it either. A generation
+    // counter guards against a slow probe applying its result after newer input made it stale.
+    private void ScheduleRootAvailabilityProbe()
+    {
+        _rootProbeLifetime?.Cancel();
+        _rootProbeLifetime?.Dispose();
+        _rootProbeLifetime = null;
+
+        var roots = _validation.Roots;
+        if (roots.Count == 0)
+        {
+            _pendingRootProbe = Task.CompletedTask;
+            return;
+        }
+
+        var lifetime = new CancellationTokenSource();
+        _rootProbeLifetime = lifetime;
+        var generation = ++_rootProbeGeneration;
+        _pendingRootProbe = RunRootAvailabilityProbeAsync(roots, generation, lifetime.Token);
+    }
+
+    // Lets tests await the in-flight debounce and probe instead of racing it.
+    internal Task WaitForPendingRootProbeAsync() => _pendingRootProbe;
+
+    // Test-only seams for exercising the stale-generation guard deterministically, without racing
+    // real timers (see ApplyRootAvailability).
+    internal long CurrentRootProbeGenerationForTests => _rootProbeGeneration;
+
+    internal void ApplyRootAvailabilityForTests(
+        IReadOnlyList<string> roots,
+        long generation,
+        IReadOnlyDictionary<string, RootAvailability> availability) =>
+        ApplyRootAvailability(roots, generation, availability);
+
+    private async Task RunRootAvailabilityProbeAsync(
+        IReadOnlyList<string> roots,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(RootProbeDebounce, cancellationToken).ConfigureAwait(false);
+            var availability = await SessionDefinitionValidator
+                .ProbeRootAvailabilityAsync(roots, RootProbeTimeout, cancellationToken)
+                .ConfigureAwait(false);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            _postToUi(() => ApplyRootAvailability(roots, generation, availability));
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void ApplyRootAvailability(
+        IReadOnlyList<string> roots,
+        long generation,
+        IReadOnlyDictionary<string, RootAvailability> availability)
+    {
+        if (_disposed || generation != _rootProbeGeneration)
+        {
+            // Superseded by newer input since this probe started; never let it overwrite that.
+            return;
+        }
+
+        var warnings = new List<string>(_validation.Warnings);
+        var hasReachableRoot = false;
+        foreach (var root in roots)
+        {
+            if (!availability.TryGetValue(root, out var result))
+            {
+                // Timed out: still unknown, so stay optimistic rather than falsely block Start.
+                hasReachableRoot = true;
+                continue;
+            }
+            hasReachableRoot |= result.Reachable;
+            if (result.Warning is { } warning)
+            {
+                warnings.Add(warning);
+            }
+        }
+
+        _validation = _validation with { Warnings = warnings, HasReachableRoot = hasReachableRoot };
+        ApplyValidation();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+        _rootProbeLifetime?.Cancel();
+        _rootProbeLifetime?.Dispose();
     }
 
     private void RefreshCommands()

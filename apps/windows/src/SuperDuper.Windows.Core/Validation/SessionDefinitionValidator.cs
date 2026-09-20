@@ -21,6 +21,13 @@ public sealed record SessionValidationResult(
     public bool IsValid => Errors.Count == 0;
 }
 
+/// <summary>
+/// A root's drive classification and availability, from <see cref="SessionDefinitionValidator.EvaluateRootAvailability"/>.
+/// Producing this touches the file system and, for a removable or slow drive, can block; see
+/// <see cref="SessionDefinitionValidator.ProbeRootAvailabilityAsync"/> for the bounded, off-thread way to get it.
+/// </summary>
+public sealed record RootAvailability(ScanRootKind Kind, bool Reachable, string? Warning);
+
 public static class SessionDefinitionValidator
 {
     public const int MaximumNameLength = 200;
@@ -37,7 +44,42 @@ public static class SessionDefinitionValidator
         "*/Recovery",
     ];
 
+    /// <summary>
+    /// Full validation: syntax plus each surviving root's drive classification and availability.
+    /// Touches the file system (<see cref="EvaluateRootAvailability"/>) and can block on a
+    /// removable, network, or otherwise slow drive, so callers on the WPF dispatcher must not call
+    /// this directly — use <see cref="ValidateSyntax"/> for immediate feedback and
+    /// <see cref="ProbeRootAvailabilityAsync"/>, debounced, off the dispatcher.
+    /// </summary>
     public static SessionValidationResult Validate(
+        string name,
+        IEnumerable<string> roots,
+        IEnumerable<string> ignorePatterns,
+        IEnumerable<string> otherSessionNames)
+    {
+        var syntax = ValidateSyntax(name, roots, ignorePatterns, otherSessionNames);
+        var warnings = new List<string>(syntax.Warnings);
+        var hasReachableRoot = false;
+        foreach (var path in syntax.Roots)
+        {
+            var availability = EvaluateRootAvailability(path);
+            hasReachableRoot |= availability.Reachable;
+            if (availability.Warning is { } warning)
+            {
+                warnings.Add(warning);
+            }
+        }
+        return syntax with { Warnings = warnings, HasReachableRoot = hasReachableRoot };
+    }
+
+    /// <summary>
+    /// Pure, synchronous validation: name, path syntax, duplicate and nested-root collapsing, and
+    /// ignore patterns. Touches no file, drive or network, so it is safe to call on the WPF
+    /// dispatcher on every keystroke. <see cref="SessionValidationResult.HasReachableRoot"/> is
+    /// optimistic (<c>true</c> whenever there is at least one syntactically valid root) until a
+    /// <see cref="ProbeRootAvailabilityAsync"/> result narrows it.
+    /// </summary>
+    public static SessionValidationResult ValidateSyntax(
         string name,
         IEnumerable<string> roots,
         IEnumerable<string> ignorePatterns,
@@ -60,20 +102,79 @@ public static class SessionDefinitionValidator
             errors.Add("Another saved scan already uses this name.");
         }
 
-        var normalizedRoots = NormalizeRoots(roots, errors, warnings);
+        var normalizedRoots = NormalizeRootsSyntax(roots, errors, warnings);
         var patterns = NormalizeIgnorePatterns(ignorePatterns, errors);
-        var hasPotentiallyReachableRoot = normalizedRoots.Any(path =>
-            ClassifyRoot(path) is ScanRootKind.MappedNetwork or ScanRootKind.UncNetwork
-            || Directory.Exists(path));
         return new SessionValidationResult(
             normalizedRoots,
             patterns,
             warnings,
             errors,
-            hasPotentiallyReachableRoot);
+            HasReachableRoot: normalizedRoots.Count > 0);
     }
 
-    public static IReadOnlyList<string> NormalizeRoots(
+    /// <summary>
+    /// Classifies a root's drive type and checks whether it currently exists. Blocks the calling
+    /// thread on a removable, network, or otherwise slow drive; never call this from the WPF
+    /// dispatcher (see <see cref="ProbeRootAvailabilityAsync"/>).
+    /// </summary>
+    public static RootAvailability EvaluateRootAvailability(string fullPath)
+    {
+        var kind = ClassifyRoot(fullPath);
+        // Network reachability can block for the SMB timeout and is authoritatively checked by
+        // run.start in the worker instead.
+        var reachable = kind is ScanRootKind.MappedNetwork or ScanRootKind.UncNetwork
+            || Directory.Exists(fullPath);
+        var warning = LocationWarning(fullPath, kind, reachable)
+            ?? (reachable ? null : $"Root is currently unavailable: {DisplayPaths.Plain(fullPath)}");
+        return new RootAvailability(kind, reachable, warning);
+    }
+
+    /// <summary>
+    /// Evaluates each root's availability off the calling thread, bounded to <paramref name="timeout"/>
+    /// in total. A root whose probe has not finished by the deadline is left out of the result
+    /// (its thread-pool work item runs to completion in the background and is discarded): the
+    /// operating system, not this method, decides when a stuck removable or network probe gives up.
+    /// </summary>
+    public static Task<IReadOnlyDictionary<string, RootAvailability>> ProbeRootAvailabilityAsync(
+        IReadOnlyList<string> roots,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default) =>
+        ProbeRootAvailabilityAsync(roots, timeout, EvaluateRootAvailability, cancellationToken);
+
+    // The probe delegate is overridable so tests can simulate a stuck removable or network drive
+    // without an actual one; production always uses EvaluateRootAvailability.
+    internal static async Task<IReadOnlyDictionary<string, RootAvailability>> ProbeRootAvailabilityAsync(
+        IReadOnlyList<string> roots,
+        TimeSpan timeout,
+        Func<string, RootAvailability> probe,
+        CancellationToken cancellationToken = default)
+    {
+        var distinctRoots = roots.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (distinctRoots.Length == 0)
+        {
+            return new Dictionary<string, RootAvailability>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var probes = distinctRoots.ToDictionary(
+            root => root,
+            root => Task.Run(() => probe(root), cancellationToken),
+            StringComparer.OrdinalIgnoreCase);
+
+        await Task.WhenAny(Task.WhenAll(probes.Values), Task.Delay(timeout, cancellationToken))
+            .ConfigureAwait(false);
+
+        var results = new Dictionary<string, RootAvailability>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (root, probeTask) in probes)
+        {
+            if (probeTask.IsCompletedSuccessfully)
+            {
+                results[root] = probeTask.Result;
+            }
+        }
+        return results;
+    }
+
+    public static IReadOnlyList<string> NormalizeRootsSyntax(
         IEnumerable<string> roots,
         ICollection<string>? errors = null,
         ICollection<string>? warnings = null)
@@ -118,19 +219,6 @@ public static class SessionDefinitionValidator
                         StringComparison.OrdinalIgnoreCase))
                 {
                     warnings?.Add($"{DisplayPaths.Plain(fullPath)} scans an entire drive and may take a long time.");
-                }
-                var kind = ClassifyRoot(fullPath);
-                // Network reachability can block the WPF dispatcher and is authoritatively checked
-                // by run.start in the worker instead.
-                var reachable = kind is ScanRootKind.MappedNetwork or ScanRootKind.UncNetwork
-                    || Directory.Exists(fullPath);
-                if (LocationWarning(fullPath, kind, reachable) is { } locationWarning)
-                {
-                    warnings?.Add(locationWarning);
-                }
-                if (!reachable)
-                {
-                    warnings?.Add($"Root is currently unavailable: {DisplayPaths.Plain(fullPath)}");
                 }
                 if (!absolute.Contains(fullPath, StringComparer.OrdinalIgnoreCase))
                 {
