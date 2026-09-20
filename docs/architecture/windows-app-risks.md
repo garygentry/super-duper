@@ -36,12 +36,6 @@ Paths are relative to `apps/windows/src/` unless they start with another top-lev
   `WorkerProtocolException.Code`, but that type lives in Infrastructure, which Core cannot
   reference. A change to the message format would silently fall through to the generic text.
 
-## Usability defects
-
-- **Stale set counts while loading.** When the selected duplicate set changes,
-  `DuplicateFilesViewModel.SetSelectedGroup` keeps the previous set's review summary until the new
-  member page arrives, so the counts briefly describe the wrong set (issue #25).
-
 ## Diagnostics
 
 - **The worker log ignores state overrides.** `WorkerClient` always writes worker stderr to

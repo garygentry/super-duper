@@ -376,6 +376,7 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
             if (SetProperty(ref _isDetailLoading, value))
             {
                 OnPropertyChanged(nameof(IsDetailEmpty));
+                OnPropertyChanged(nameof(SelectedReviewSummaryText));
                 RaiseMemberPagingProperties();
                 OnPropertyChanged(nameof(CanReconcileDirtyRoot));
                 ReconcileDirtyRootCommand.NotifyCanExecuteChanged();
@@ -737,6 +738,8 @@ public sealed partial class DuplicateFilesViewModel : ObservableObject, IDisposa
 
     public string SelectedReviewSummaryText => SelectedGroup is null
         ? "No duplicate set selected for review."
+        : IsDetailLoading
+        ? "Loading set review summary…"
         : $"Set review: {SelectedReviewSummary.KeepCount:N0} keep, "
             + $"{SelectedReviewSummary.RemoveCount:N0} remove, "
             + $"{SelectedReviewSummary.UndecidedCount:N0} undecided · "

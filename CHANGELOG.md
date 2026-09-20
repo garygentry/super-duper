@@ -29,6 +29,8 @@ All notable changes to Super Duper are recorded here. Versions follow
   **Files** now respond to the Alt+P and Alt+N they already advertised, and **Review warnings** on
   **Progress** now responds to the Alt+W it announces. See the updated shortcut table in the user
   guide.
+- Moving to the next or previous duplicate set on **Results** › **Files** no longer leaves the prior
+  set's review counts (kept, removed, undecided) on screen while the new set's members load.
 
 ## [0.1.0] - 2026-09-19
 
