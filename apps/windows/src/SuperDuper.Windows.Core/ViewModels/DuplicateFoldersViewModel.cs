@@ -950,27 +950,19 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         }
     }
 
-    private static string ReviewDecisionError(Exception exception)
-    {
-        var message = exception.Message;
-        if (message.Contains("review_overlap_conflict", StringComparison.Ordinal))
+    private static string ReviewDecisionError(Exception exception) =>
+        (exception as IWorkerRequestFailure)?.Code switch
         {
-            return "This folder choice overlaps an existing Keep or Remove choice. Clear the contained file or folder decision first, then retry.";
-        }
-        if (message.Contains("unsafe_folder_review_decision", StringComparison.Ordinal))
-        {
-            return "This choice would leave an exact-folder set without an intact copy. Keep or undecide another folder copy first.";
-        }
-        if (message.Contains("unsafe_review_decision", StringComparison.Ordinal))
-        {
-            return "This choice would leave a duplicate-file set without an accessible physical copy. Keep or undecide another copy first.";
-        }
-        if (message.Contains("review_generation_conflict", StringComparison.Ordinal))
-        {
-            return "Review choices changed before this update was saved. Reload the selected run and try again.";
-        }
-        return $"The folder review decision was not saved. {message}";
-    }
+            "review_overlap_conflict" =>
+                "This folder choice overlaps an existing Keep or Remove choice. Clear the contained file or folder decision first, then retry.",
+            "unsafe_folder_review_decision" =>
+                "This choice would leave an exact-folder set without an intact copy. Keep or undecide another folder copy first.",
+            "unsafe_review_decision" =>
+                "This choice would leave a duplicate-file set without an accessible physical copy. Keep or undecide another copy first.",
+            "review_generation_conflict" =>
+                "Review choices changed before this update was saved. Reload the selected run and try again.",
+            _ => $"The folder review decision was not saved. {exception.Message}",
+        };
 
     private bool TryBuildFilter(out DuplicateFolderGroupFilter filter)
     {
