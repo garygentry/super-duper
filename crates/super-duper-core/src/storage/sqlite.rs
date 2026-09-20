@@ -6,6 +6,14 @@ use tracing::{debug, info};
 
 pub const CURRENT_SCHEMA_VERSION: i64 = 15;
 
+/// `busy_timeout` for every connection except the scan thread's own (below).
+pub const DEFAULT_BUSY_TIMEOUT_MS: u64 = 5_000;
+
+/// `busy_timeout` for the scan thread's own connection. A scan can outlast a stalled writer on
+/// another connection (antivirus, disk contention) far longer than a request-loop connection
+/// should ever block, so it gets a much longer wait instead of failing the whole run.
+pub const SCAN_BUSY_TIMEOUT_MS: u64 = 30_000;
+
 pub struct Database {
     conn: Connection,
 }
@@ -97,7 +105,13 @@ impl OpenFailure {
 
 impl Database {
     pub fn open(path: &str) -> Result<Self> {
-        let db = Self::connect(path)?;
+        Self::open_with_busy_timeout(path, DEFAULT_BUSY_TIMEOUT_MS)
+    }
+
+    /// Same as [`open`](Self::open), with an explicit `busy_timeout`. The scan thread uses
+    /// [`SCAN_BUSY_TIMEOUT_MS`]; everything else should keep the default.
+    pub fn open_with_busy_timeout(path: &str, busy_timeout_ms: u64) -> Result<Self> {
+        let db = Self::connect(path, busy_timeout_ms)?;
         db.migrate_schema()?;
         db.reconcile_interrupted_runs()?;
         db.reconcile_interrupted_preflights()?;
@@ -113,14 +127,20 @@ impl Database {
     /// behind (and could time out on) whichever connection was writing. `open` reconciles once at
     /// startup, while the worker holds the database lock.
     pub fn open_connection(path: &str) -> Result<Self> {
-        let db = Self::connect(path)?;
+        Self::open_connection_with_busy_timeout(path, DEFAULT_BUSY_TIMEOUT_MS)
+    }
+
+    /// Same as [`open_connection`](Self::open_connection), with an explicit `busy_timeout`. The
+    /// scan thread uses [`SCAN_BUSY_TIMEOUT_MS`]; request-loop connections keep the default.
+    pub fn open_connection_with_busy_timeout(path: &str, busy_timeout_ms: u64) -> Result<Self> {
+        let db = Self::connect(path, busy_timeout_ms)?;
         if db.schema_version()? != CURRENT_SCHEMA_VERSION {
             db.migrate_schema()?;
         }
         Ok(db)
     }
 
-    fn connect(path: &str) -> Result<Self> {
+    fn connect(path: &str, busy_timeout_ms: u64) -> Result<Self> {
         let conn = Connection::open(path)?;
         let db = Database { conn };
         // Before any pragma: switching to WAL rewrites the header of a newer build's database.
@@ -130,14 +150,14 @@ impl Database {
                 SchemaVersionError::NewerThanSupported { found },
             )));
         }
-        db.configure_pragmas()?;
+        db.configure_pragmas(busy_timeout_ms)?;
         Ok(db)
     }
 
     pub fn open_in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory()?;
         let db = Database { conn };
-        db.configure_pragmas()?;
+        db.configure_pragmas(DEFAULT_BUSY_TIMEOUT_MS)?;
         db.migrate_schema()?;
         db.reconcile_interrupted_runs()?;
         db.reconcile_interrupted_preflights()?;
@@ -145,17 +165,17 @@ impl Database {
         Ok(db)
     }
 
-    fn configure_pragmas(&self) -> Result<()> {
+    fn configure_pragmas(&self, busy_timeout_ms: u64) -> Result<()> {
         self.conn
             .create_collation("UNICODE_NOCASE", unicode_nocase_compare)?;
-        self.conn.execute_batch(
+        self.conn.execute_batch(&format!(
             "PRAGMA journal_mode = WAL;
              PRAGMA synchronous = NORMAL;
              PRAGMA foreign_keys = ON;
              PRAGMA cache_size = -64000;
              PRAGMA mmap_size = 268435456;
-             PRAGMA busy_timeout = 5000;",
-        )?;
+             PRAGMA busy_timeout = {busy_timeout_ms};"
+        ))?;
         Ok(())
     }
 

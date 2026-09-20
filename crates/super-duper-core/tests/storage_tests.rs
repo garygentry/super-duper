@@ -28,7 +28,7 @@ use super_duper_core::storage::preflight::PreflightError;
 use super_duper_core::storage::recovery_review::RecoveryReviewError;
 use super_duper_core::storage::recycle_operation::RecycleOperationError;
 use super_duper_core::storage::review::ReviewError;
-use super_duper_core::storage::sqlite::CURRENT_SCHEMA_VERSION;
+use super_duper_core::storage::sqlite::{CURRENT_SCHEMA_VERSION, SCAN_BUSY_TIMEOUT_MS};
 use super_duper_core::storage::{Database, OpenFailure};
 use tempfile::tempdir;
 #[cfg(windows)]
@@ -4072,6 +4072,34 @@ fn secondary_connection_opens_and_reads_while_another_connection_writes() {
         started.elapsed() < std::time::Duration::from_secs(1),
         "opening a secondary connection waited {:?} for the write lock",
         started.elapsed()
+    );
+    holder.join().unwrap();
+}
+
+#[test]
+fn scan_connection_busy_timeout_outlasts_a_stalled_writer_past_five_seconds() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("scan-busy-timeout.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    let (_, run_id) = session_and_run(&db, "Scan busy timeout", &["/root"]);
+
+    // Longer than the default 5 s busy_timeout every other connection uses, so a scan connection
+    // opened with the default would fail this write with "database is locked".
+    let hold = std::time::Duration::from_secs(7);
+    let holder = hold_write_lock(&path, hold);
+
+    let scan_db =
+        Database::open_connection_with_busy_timeout(path.to_str().unwrap(), SCAN_BUSY_TIMEOUT_MS)
+            .unwrap();
+    let started = Instant::now();
+    scan_db
+        .update_run_progress_with_warning_accounting(run_id, "hashing", 10, 1_000, 5, 0)
+        .unwrap();
+    assert!(
+        started.elapsed() >= hold,
+        "the write returned after {:?}, before the stalled writer released the lock at {:?}",
+        started.elapsed(),
+        hold
     );
     holder.join().unwrap();
 }
