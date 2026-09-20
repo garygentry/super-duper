@@ -4289,6 +4289,10 @@ struct WorkerProgressReporter {
     reducer: Mutex<ProgressReducer>,
     projection: Arc<(Mutex<LatestValueCoalescer<PendingProgress>>, Condvar)>,
     projection_thread: Mutex<Option<std::thread::JoinHandle<()>>>,
+    /// The scan's one progress-write connection, opened on first use and reused for the rest of
+    /// the scan (discovery can call `update` concurrently from several rayon threads, hence the
+    /// lock) instead of opening a fresh connection on every write.
+    db: Mutex<Option<Database>>,
 }
 
 struct ProgressState {
@@ -4346,13 +4350,29 @@ impl WorkerProgressReporter {
             reducer: Mutex::new(ProgressReducer::new()),
             projection,
             projection_thread: Mutex::new(projection_thread),
+            db: Mutex::new(None),
         }
     }
 
+    /// Runs `f` against the scan's shared connection, opening it on first use. Returns the open
+    /// error if the connection has never been opened successfully.
+    fn with_database<T>(&self, f: impl FnOnce(&Database) -> T) -> Result<T, rusqlite::Error> {
+        let mut guard = self
+            .db
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if guard.is_none() {
+            let opened = Database::open_connection_with_busy_timeout(
+                &self.state.database_path.to_string_lossy(),
+                super_duper_core::storage::sqlite::SCAN_BUSY_TIMEOUT_MS,
+            )?;
+            *guard = Some(opened);
+        }
+        Ok(f(guard.as_ref().expect("just populated above")))
+    }
+
     fn phase(&self, phase: &'static str) {
-        if let Ok(db) = Database::open_connection(&self.state.database_path.to_string_lossy())
-            && let Ok(run) = db.get_scan_run(self.run_id)
-        {
+        if let Ok(Ok(run)) = self.with_database(|db| db.get_scan_run(self.run_id)) {
             let mut progress = self
                 .progress
                 .lock()
@@ -4398,35 +4418,39 @@ impl WorkerProgressReporter {
         progress.last_database_write = Some(now);
         drop(progress);
 
-        match Database::open_connection(&self.state.database_path.to_string_lossy()) {
-            Ok(db) => match db.update_run_progress_with_warning_accounting(
-                self.run_id,
+        let run_id = self.run_id;
+        let write_outcome = self.with_database(|db| {
+            db.update_run_progress_with_warning_accounting(
+                run_id,
                 phase,
                 files_discovered as i64,
                 bytes_discovered.min(i64::MAX as u64) as i64,
                 files_hashed as i64,
                 warning_count as i64,
-            ) {
-                Ok(()) => {
-                    let mut progress = self
-                        .progress
-                        .lock()
-                        .unwrap_or_else(|poisoned| poisoned.into_inner());
-                    progress.durable_warning_count =
-                        progress.durable_warning_count.max(warning_count);
-                    true
+            )
+            .map_err(|error| {
+                let terminal = matches!(db.get_scan_run(run_id), Ok(run) if run.status == "completed" || run.status == "cancelled" || run.status == "failed");
+                (error, terminal)
+            })
+        });
+        match write_outcome {
+            Ok(Ok(())) => {
+                let mut progress = self
+                    .progress
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                progress.durable_warning_count = progress.durable_warning_count.max(warning_count);
+                true
+            }
+            Ok(Err((error, terminal))) => {
+                if !terminal {
+                    eprintln!(
+                        "worker progress persistence failed for run {}: {error}",
+                        self.run_id
+                    );
                 }
-                Err(error) => {
-                    if !matches!(db.get_scan_run(self.run_id), Ok(run) if run.status == "completed" || run.status == "cancelled" || run.status == "failed")
-                    {
-                        eprintln!(
-                            "worker progress persistence failed for run {}: {error}",
-                            self.run_id
-                        );
-                    }
-                    false
-                }
-            },
+                false
+            }
             Err(error) => {
                 if warning_count > 0 {
                     eprintln!(
