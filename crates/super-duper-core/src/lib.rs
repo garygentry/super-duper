@@ -2,6 +2,7 @@ pub mod analysis;
 pub mod config;
 pub mod engine;
 pub mod error;
+pub mod export;
 pub mod hasher;
 pub mod path_spelling;
 pub mod platform;

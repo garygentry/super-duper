@@ -15,7 +15,9 @@ pub fn init_logger() -> impl Drop {
     tracing_subscriber::registry()
         .with(
             fmt::layer()
-                .with_writer(std::io::stdout)
+                // Stdout stays clean for `--format json` and other machine-readable output;
+                // logs (and the human-readable summaries built from `info!`) go to stderr.
+                .with_writer(std::io::stderr)
                 .pretty()
                 .with_file(false)
                 .without_time()
@@ -25,7 +27,7 @@ pub fn init_logger() -> impl Drop {
         .with(filter_layer)
         .init();
 
-    info!("Tracing is configured for stdout and file logging.");
+    info!("Tracing is configured for stderr and file logging.");
 
     guard
 }

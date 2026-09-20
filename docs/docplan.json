@@ -175,6 +175,18 @@
       "note": "Schema v15, migrations, open-failure classification, session delete cascade and refusal."
     },
     {
+      "id": "core-export",
+      "path": "crates/super-duper-core/src/export.rs",
+      "type": "api",
+      "note": "Versioned duplicate-groups and sessions export documents (JSON and CSV), format version 1."
+    },
+    {
+      "id": "cli",
+      "path": "crates/super-duper-cli/src/**",
+      "type": "entrypoint",
+      "note": "Headless CLI: process, analyze-directories, count-hash-cache, print-config, truncate-db, export."
+    },
+    {
       "id": "core-telemetry",
       "path": "crates/super-duper-core/src/telemetry/**",
       "type": "schema",
@@ -1401,6 +1413,25 @@
       "verification": "Audit: accurate; add schema version and table list, link the performance commands."
     },
     {
+      "id": "export-format",
+      "title": "Export format v1",
+      "path": "docs/export-format-v1.md",
+      "family": "diataxis",
+      "type": "reference",
+      "audience": [
+        "maintainer"
+      ],
+      "purpose": "Defines the JSON and CSV shape the CLI's export subcommand produces, shared with a future Windows app export.",
+      "sourceRefs": [
+        "core-export",
+        "cli",
+        "core-storage"
+      ],
+      "status": "drafted",
+      "priority": 3,
+      "verification": "Written alongside the stage 9 implementation (crates/super-duper-core/src/export.rs); field names and examples checked against its tests."
+    },
+    {
       "id": "storage-schema-history",
       "title": "Storage schema version notes (v3–v15)",
       "path": "docs/storage-schema-v*.md",
@@ -1583,6 +1614,7 @@
         "worker-protocol",
         "scan-progress-contract",
         "scan-status-database",
+        "export-format",
         "storage-schema-current",
         "storage-schema-history"
       ]

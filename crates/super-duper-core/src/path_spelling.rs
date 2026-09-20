@@ -2,8 +2,10 @@
 //!
 //! Scans store canonical Windows paths in verbatim form (`\\?\C:\...`, `\\?\UNC\server\share\...`),
 //! while people see, copy, and paste the plain form (`C:\...`, `\\server\share\...`). Lookups that
-//! accept a user-supplied path use these helpers to match either spelling without rewriting what is
-//! stored. The functions are pure string operations, so they behave the same on every platform.
+//! accept a user-supplied path use [`alternate_windows_spelling`] to match either spelling without
+//! rewriting what is stored. Display and export surfaces use the one-directional
+//! [`to_plain_spelling`] instead, mirroring `DisplayPaths.Plain` in the Windows app. The functions
+//! are pure string operations, so they behave the same on every platform.
 
 const VERBATIM_PREFIX: &str = r"\\?\";
 const VERBATIM_UNC_PREFIX: &str = r"\\?\UNC\";
@@ -29,6 +31,25 @@ pub fn alternate_windows_spelling(path: &str) -> Option<String> {
             .then(|| format!("{VERBATIM_UNC_PREFIX}{rest}"));
     }
     is_drive_root_prefix(path, false).then(|| format!("{VERBATIM_PREFIX}{path}"))
+}
+
+/// Returns `path` without a verbatim drive or UNC prefix, for display or export only.
+///
+/// Unlike [`alternate_windows_spelling`], this never runs the other direction: a path that is
+/// already plain, relative, POSIX, or another verbatim form (`\\?\Volume{...}\`,
+/// `\\?\GLOBALROOT\...`) is returned unchanged. Never use the result as an identity value —
+/// worker requests, review decisions, filter keys, comparisons, and stored records keep the exact
+/// original spelling.
+pub fn to_plain_spelling(path: &str) -> String {
+    if let Some(rest) = strip_prefix_ignore_ascii_case(path, VERBATIM_UNC_PREFIX) {
+        return format!(r"\\{rest}");
+    }
+    if let Some(rest) = path.strip_prefix(VERBATIM_PREFIX)
+        && is_drive_root_prefix(rest, true)
+    {
+        return rest.to_owned();
+    }
+    path.to_owned()
 }
 
 /// `X:` followed by `\` (or by nothing, when `allow_bare_drive` is set).
@@ -111,5 +132,37 @@ mod tests {
     fn non_ascii_text_is_not_split_inside_a_character() {
         assert_eq!(alternate_windows_spelling("Überraschung"), None);
         assert_eq!(alternate_windows_spelling(r"\\?\Ü"), None);
+    }
+
+    #[test]
+    fn to_plain_spelling_strips_verbatim_drive_and_unc_prefixes() {
+        assert_eq!(
+            to_plain_spelling(r"\\?\C:\Users\x\file.bin"),
+            r"C:\Users\x\file.bin"
+        );
+        assert_eq!(to_plain_spelling(r"\\?\d:"), "d:");
+        assert_eq!(
+            to_plain_spelling(r"\\?\UNC\server\share\file"),
+            r"\\server\share\file"
+        );
+        assert_eq!(
+            to_plain_spelling(r"\\?\unc\server\share"),
+            r"\\server\share"
+        );
+    }
+
+    #[test]
+    fn to_plain_spelling_never_runs_the_other_direction() {
+        for path in [
+            r"C:\Users\x\file.bin",
+            r"\\server\share\file",
+            r"relative\path",
+            r"\\?\Volume{01234567-89ab-cdef-0123-456789abcdef}\Data",
+            r"\\?\GLOBALROOT\Device\HarddiskVolume3\Data",
+            r"\\?\C:file.bin",
+            "",
+        ] {
+            assert_eq!(to_plain_spelling(path), path, "{path}");
+        }
     }
 }
