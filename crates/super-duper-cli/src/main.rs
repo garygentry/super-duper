@@ -63,6 +63,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
+        Some(Commands::TrimHashCache {
+            unseen_scans,
+            format,
+        }) => {
+            let cache = super_duper_core::hasher::cache::default_hash_cache_path();
+            match super_duper_core::hasher::cache::trim(&cache, unseen_scans) {
+                // `trim` already logs a human-readable summary at info level.
+                Ok(_) if format == OutputFormat::Text => {}
+                Ok(report) => println!(
+                    "{}",
+                    serde_json::json!({
+                        "path": cache.to_string_lossy(),
+                        "unseenScans": unseen_scans,
+                        "liveEntriesBefore": report.live_entries_before,
+                        "removed": report.removed,
+                    })
+                ),
+                Err(err) => {
+                    error!("Error trimming hash cache: {}", err);
+                    process::exit(1);
+                }
+            }
+        }
         Some(Commands::PrintConfig { format }) => match format {
             OutputFormat::Text => println!("Configuration: {:?}", config),
             OutputFormat::Json => match config.to_json_pretty() {

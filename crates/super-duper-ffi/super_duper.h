@@ -170,6 +170,14 @@ typedef void (*SdProgressCallback)(uint32_t phase,
                                    uint64_t total,
                                    const char *message);
 
+/**
+ * Hash-cache trim result: entries examined and entries removed.
+ */
+typedef struct SdTrimHashCacheResult {
+    uint64_t live_entries_before;
+    uint64_t removed;
+} SdTrimHashCacheResult;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -421,6 +429,18 @@ enum SdResultCode sd_set_active_session(uint64_t handle, int64_t session_id);
  * Set a progress callback for scan operations.
  */
 enum SdResultCode sd_set_progress_callback(uint64_t handle, SdProgressCallback callback);
+
+/**
+ * Remove hash-cache entries not confirmed unchanged, or created, within the last
+ * `max_unseen_generations` scans (see `super_duper_core::hasher::cache::DEFAULT_TRIM_UNSEEN_GENERATIONS`
+ * for the CLI's default). Fails while a scan holds the cache open. Does not affect the SQLite
+ * database.
+ *
+ * # Safety
+ * `out_result` must be a valid pointer.
+ */
+enum SdResultCode sd_trim_hash_cache(uint64_t max_unseen_generations,
+                                     struct SdTrimHashCacheResult *out_result);
 
 /**
  * Truncate all SQLite tables (sessions, files, groups, directory data, deletion plan).

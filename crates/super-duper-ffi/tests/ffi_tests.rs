@@ -419,6 +419,37 @@ fn test_deletion_plan_summary_null_pointers() {
     sd_engine_destroy(handle);
 }
 
+// ── Hash cache maintenance ───────────────────────────────────────────────────
+// Trim mechanics (which entries age out, legacy stores, failing while a scan holds the store) are
+// covered by super-duper-core's hasher::repeat_cache and hasher::cache unit tests; these only cover
+// the FFI wiring. `HASH_CACHE_PATH` is process-global, so only this one test touches it.
+
+#[test]
+fn test_trim_hash_cache_reports_zero_for_a_fresh_cache_path() {
+    let dir = tempdir().unwrap();
+    let cache_path = dir.path().join("content_hash_cache.db");
+    // SAFETY: no other test reads or writes `HASH_CACHE_PATH`.
+    unsafe { std::env::set_var("HASH_CACHE_PATH", &cache_path) };
+
+    let mut result = SdTrimHashCacheResult {
+        live_entries_before: u64::MAX,
+        removed: u64::MAX,
+    };
+    let code = unsafe { sd_trim_hash_cache(10, &mut result) };
+
+    unsafe { std::env::remove_var("HASH_CACHE_PATH") };
+
+    assert_eq!(code, SdResultCode::Ok);
+    assert_eq!(result.live_entries_before, 0);
+    assert_eq!(result.removed, 0);
+}
+
+#[test]
+fn test_trim_hash_cache_null_out_result() {
+    let result = unsafe { sd_trim_hash_cache(10, ptr::null_mut()) };
+    assert_eq!(result, SdResultCode::InvalidArgument);
+}
+
 // ── Error message API ────────────────────────────────────────────────────────
 
 #[test]

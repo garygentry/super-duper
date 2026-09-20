@@ -253,6 +253,9 @@ cargo run -p super-duper-cli -- analyze-directories
 # Count live entries in the persistent hash cache (read-only; safe while a scan is running)
 cargo run -p super-duper-cli -- count-hash-cache
 
+# Remove hash-cache entries not confirmed unchanged, or created, in the last 10 scans (default)
+cargo run -p super-duper-cli -- trim-hash-cache
+
 # Print loaded configuration
 cargo run -p super-duper-cli -- print-config
 

@@ -21,6 +21,7 @@ cargo build -p super-duper-worker            # needed before building/running th
 cargo run -p super-duper-cli -- process
 cargo run -p super-duper-cli -- analyze-directories --format json
 cargo run -p super-duper-cli -- count-hash-cache --format json
+cargo run -p super-duper-cli -- trim-hash-cache --unseen-scans 10 --format json
 cargo run -p super-duper-cli -- print-config --format json
 cargo run -p super-duper-cli -- export duplicate-groups --format json
 cargo run -p super-duper-cli -- export sessions --format csv
@@ -46,10 +47,11 @@ super-duper-core/src/
   scanner/walk.rs        # parallel traversal, ignore patterns, size grouping, cloud/run exclusions
   hasher/
     xxhash.rs            # partial (1 KB) and full XxHash64 hashing pipeline
-    cache.rs             # hash-cache path resolution and count/clear maintenance (no global handle)
+    cache.rs             # hash-cache path resolution and count/clear/trim maintenance (no global handle)
     scheduler.rs         # per-device read scheduling (HDD vs SSD)
     repeat_cache.rs      # the one RocksDB hash-cache store; a scan opens it once and shares it
-                         # with exact-folder verification
+                         # with exact-folder verification; tracks each entry's last-seen scan
+                         # generation (separate from the pinned entry encoding) for trim_unseen
     hash_stability.rs    # pinned XxHash64 values for persisted hashes, fingerprints, cache keys
   analysis/
     file_dupes.rs        # confirmed duplicate-file groups

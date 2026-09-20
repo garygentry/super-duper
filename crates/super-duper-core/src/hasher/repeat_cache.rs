@@ -15,6 +15,15 @@ const ACTIVE_GENERATION_KEY: &[u8] = b"\0super-duper/repeat-cache/active-generat
 const NEXT_GENERATION_KEY: &[u8] = b"\0super-duper/repeat-cache/next-generation";
 const ENTRY_PREFIX: &[u8] = b"\0super-duper/repeat-cache/entry/";
 const ORDER_PREFIX: &[u8] = b"\0super-duper/repeat-cache/order/";
+/// One key per live entry, keyed the same way as `ENTRY_PREFIX` (prefix swapped), value a
+/// big-endian `u64` generation. Kept out of `StoredEntry` because its bincode encoding is pinned
+/// (`stored_encoding_bytes_are_pinned`); this lets last-seen tracking evolve independently and
+/// keeps every existing on-disk entry byte-identical. Written by [`RepeatHashCache::mark_seen`] on
+/// a confirmed-unchanged cache hit (the hot path that otherwise performs no write at all) and
+/// refreshed whenever an entry is stored or upgraded. [`trim_unseen`] reads it directly off the raw
+/// store; an entry with no last-seen key yet (written before this trim existed) falls back to the
+/// generation it was created in.
+const LAST_SEEN_PREFIX: &[u8] = b"\0super-duper/repeat-cache/last-seen/";
 
 pub(crate) const NORMAL_LIVE_TARGET_ENTRIES: u64 = 5_000_000;
 pub(crate) const POST_PRUNE_TARGET_ENTRIES: u64 = 4_500_000;
@@ -228,6 +237,13 @@ pub(crate) struct RepeatCacheStats {
     pub encoded_value_bytes: u64,
 }
 
+/// Report from [`trim_unseen`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct RepeatCacheTrimReport {
+    pub live_entries_before: u64,
+    pub removed: u64,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct StoredEntry {
     version: u32,
@@ -393,13 +409,27 @@ impl RepeatHashCache {
             hashes,
         })?;
         let order_key = encode_order_key(sequence, &entry_key)?;
+        let last_seen_key = last_seen_key_from_entry_key(&entry_key);
         let mut batch = WriteBatch::default();
         batch.put(&entry_key, value);
         batch.put(order_key, []);
+        batch.put(last_seen_key, self.generation.to_be_bytes());
         batch.put(COUNT_KEY, next_count.to_be_bytes());
         batch.put(NEXT_SEQUENCE_KEY, next_sequence.to_be_bytes());
         self.db.write(batch).map_err(rocks_error)?;
         Ok(RepeatCacheStoreOutcome::Stored)
+    }
+
+    /// Record that `signature`'s entry was confirmed unchanged in the current generation, so
+    /// [`trim_unseen`] doesn't age it out while scans keep verifying it. This is the only write on
+    /// the hot cache-hit path in `hasher::xxhash`, which otherwise returns the cached hash without
+    /// touching the store at all.
+    pub(crate) fn mark_seen(&self, signature: &CacheSignatureKey) -> io::Result<()> {
+        let entry_key = encode_entry_key(signature)?;
+        let last_seen_key = last_seen_key_from_entry_key(&entry_key);
+        self.db
+            .put(last_seen_key, self.generation.to_be_bytes())
+            .map_err(rocks_error)
     }
 
     pub(crate) fn store_partial(
@@ -548,6 +578,7 @@ impl RepeatHashCache {
         }
 
         self.remove_orphan_order_keys()?;
+        self.remove_orphan_last_seen_keys()?;
         let persisted_next = self.read_next_sequence().unwrap_or(1);
         let next_sequence = persisted_next
             .max(maximum_sequence.saturating_add(1))
@@ -646,6 +677,37 @@ impl RepeatHashCache {
         }
     }
 
+    /// Defensive cleanup for a last-seen key whose entry disappeared (for example through a
+    /// process that deletes an entry without going through this crate). Normal entry removal
+    /// already deletes both together (`prune_to_target`, `trim_unseen`).
+    fn remove_orphan_last_seen_keys(&self) -> io::Result<()> {
+        loop {
+            let mut deletes = WriteBatch::default();
+            let mut delete_count = 0usize;
+            for item in self
+                .db
+                .iterator(IteratorMode::From(LAST_SEEN_PREFIX, Direction::Forward))
+            {
+                let (key, _) = item.map_err(rocks_error)?;
+                if !key.starts_with(LAST_SEEN_PREFIX) {
+                    break;
+                }
+                let entry_key = entry_key_from_last_seen_key(&key);
+                if self.db.get(&entry_key).map_err(rocks_error)?.is_none() {
+                    deletes.delete(key);
+                    delete_count += 1;
+                    if delete_count == PRUNE_BATCH_ENTRIES {
+                        break;
+                    }
+                }
+            }
+            if delete_count == 0 {
+                return Ok(());
+            }
+            self.db.write(deletes).map_err(rocks_error)?;
+        }
+    }
+
     fn prune_to_target(&self, target: u64, protected_generation: Option<u64>) -> io::Result<()> {
         let mut count = self.read_count()?;
         while count > target {
@@ -676,8 +738,10 @@ impl RepeatHashCache {
                     {
                         continue;
                     }
+                    let last_seen_key = last_seen_key_from_entry_key(entry_key);
                     batch.delete(entry_key);
                     batch.delete(order_key);
+                    batch.delete(last_seen_key);
                     removed += 1;
                 }
                 if removed == wanted {
@@ -733,9 +797,11 @@ impl RepeatHashCache {
             })?;
         let mut stored = decode_entry(&value)?;
         stored.hashes = hashes;
-        self.db
-            .put(entry_key, encode_entry(stored)?)
-            .map_err(rocks_error)?;
+        let last_seen_key = last_seen_key_from_entry_key(&entry_key);
+        let mut batch = WriteBatch::default();
+        batch.put(entry_key, encode_entry(stored)?);
+        batch.put(last_seen_key, self.generation.to_be_bytes());
+        self.db.write(batch).map_err(rocks_error)?;
         Ok(RepeatCacheStoreOutcome::Stored)
     }
 }
@@ -791,6 +857,72 @@ pub(crate) fn clear_store(path: &Path) -> io::Result<()> {
         db.write(batch).map_err(rocks_error)?;
     }
     Ok(())
+}
+
+/// Remove entries not confirmed unchanged, or created, within the last `max_unseen_generations`
+/// generations. One generation is assigned per [`RepeatHashCache::open`], which in this codebase
+/// means one per scan (`engine.rs` opens exactly one cache handle per scan and shares it). An entry
+/// with no last-seen record yet (written before this trim existed) falls back to the generation it
+/// was created in, so it ages out normally once scans resume.
+///
+/// Opens the store directly rather than through [`RepeatHashCache::open`], so this never assigns a
+/// new generation of its own (a trim run isn't a scan) and, like [`clear_store`], fails rather than
+/// racing while a scan holds the store open.
+pub(crate) fn trim_unseen(
+    path: &Path,
+    max_unseen_generations: u64,
+) -> io::Result<RepeatCacheTrimReport> {
+    let mut options = Options::default();
+    options.create_if_missing(true);
+    let db = DB::open(&options, path).map_err(rocks_error)?;
+    let current_generation = match db.get(NEXT_GENERATION_KEY).map_err(rocks_error)? {
+        Some(value) => decode_u64(&value, "repeat-cache next generation")?.saturating_sub(1),
+        None => 0,
+    };
+
+    let mut live_entries_before = 0u64;
+    let mut removed = 0u64;
+    let mut batch = WriteBatch::default();
+    let mut batch_count = 0usize;
+    for item in db.iterator(IteratorMode::From(ENTRY_PREFIX, Direction::Forward)) {
+        let (key, value) = item.map_err(rocks_error)?;
+        if !key.starts_with(ENTRY_PREFIX) {
+            break;
+        }
+        live_entries_before += 1;
+        let decoded = decode_entry(&value).ok();
+        let last_seen_key = last_seen_key_from_entry_key(&key);
+        let last_seen = match db.get(&last_seen_key).map_err(rocks_error)? {
+            Some(raw) => decode_u64(&raw, "repeat-cache last-seen generation")?,
+            None => decoded.as_ref().map(|entry| entry.generation).unwrap_or(0),
+        };
+        if current_generation.saturating_sub(last_seen) <= max_unseen_generations {
+            continue;
+        }
+        batch.delete(&key);
+        batch.delete(last_seen_key);
+        if let Some(entry) = decoded {
+            batch.delete(encode_order_key(entry.sequence, &key)?);
+        }
+        removed += 1;
+        batch_count += 1;
+        if batch_count == PRUNE_BATCH_ENTRIES {
+            db.write(std::mem::take(&mut batch)).map_err(rocks_error)?;
+            batch_count = 0;
+        }
+    }
+    if batch_count != 0 {
+        db.write(batch).map_err(rocks_error)?;
+    }
+    if removed > 0 {
+        let remaining = live_entries_before.saturating_sub(removed);
+        db.put(COUNT_KEY, remaining.to_be_bytes())
+            .map_err(rocks_error)?;
+    }
+    Ok(RepeatCacheTrimReport {
+        live_entries_before,
+        removed,
+    })
 }
 
 fn migrate_v2_entries(db: &DB) -> io::Result<()> {
@@ -856,6 +988,26 @@ fn encode_entry_key(signature: &CacheSignatureKey) -> io::Result<Vec<u8>> {
         ));
     }
     Ok(key)
+}
+
+/// `entry_key` must start with `ENTRY_PREFIX` (true of every key produced by
+/// [`encode_entry_key`] and every key yielded by an `ENTRY_PREFIX` iteration).
+fn last_seen_key_from_entry_key(entry_key: &[u8]) -> Vec<u8> {
+    let suffix = &entry_key[ENTRY_PREFIX.len()..];
+    let mut key = Vec::with_capacity(LAST_SEEN_PREFIX.len() + suffix.len());
+    key.extend_from_slice(LAST_SEEN_PREFIX);
+    key.extend_from_slice(suffix);
+    key
+}
+
+/// Inverse of [`last_seen_key_from_entry_key`]; `last_seen_key` must start with
+/// `LAST_SEEN_PREFIX`.
+fn entry_key_from_last_seen_key(last_seen_key: &[u8]) -> Vec<u8> {
+    let suffix = &last_seen_key[LAST_SEEN_PREFIX.len()..];
+    let mut key = Vec::with_capacity(ENTRY_PREFIX.len() + suffix.len());
+    key.extend_from_slice(ENTRY_PREFIX);
+    key.extend_from_slice(suffix);
+    key
 }
 
 fn encode_entry(entry: StoredEntry) -> io::Result<Vec<u8>> {
@@ -1488,6 +1640,144 @@ mod tests {
             RepeatCacheLookup::Hit(hashes(41))
         );
         assert_eq!(reopened.stats().unwrap().live_entries, 1);
+    }
+
+    #[test]
+    fn mark_seen_updates_last_seen_generation_for_confirmed_hits() {
+        let temp = TempDir::new().unwrap();
+        let key = signature(7);
+        {
+            let cache = RepeatHashCache::open(temp.path()).unwrap();
+            cache.store(&key, hashes(7)).unwrap();
+        }
+        let entry_key = encode_entry_key(&key).unwrap();
+        let last_seen_key = last_seen_key_from_entry_key(&entry_key);
+        let read_last_seen = || {
+            let db = DB::open_for_read_only(&Options::default(), temp.path(), false).unwrap();
+            decode_u64(&db.get(&last_seen_key).unwrap().unwrap(), "last seen").unwrap()
+        };
+        assert_eq!(read_last_seen(), 1);
+
+        {
+            let cache = RepeatHashCache::open(temp.path()).unwrap();
+            assert_eq!(cache.generation, 2);
+            cache.mark_seen(&key).unwrap();
+        }
+        assert_eq!(read_last_seen(), 2);
+    }
+
+    /// Exercises the trim boundary directly: an entry re-marked seen in a later generation
+    /// survives a bound that removes an entry never touched again after its creation generation,
+    /// and a scan after the trim (a fresh store, plus lookups) still verifies correctly.
+    #[test]
+    fn trim_unseen_removes_only_entries_past_the_bound_and_a_scan_still_verifies_after() {
+        let temp = TempDir::new().unwrap();
+        let path = temp.path();
+
+        // Generation 1: three entries created, none touched again.
+        {
+            let cache = RepeatHashCache::open(path).unwrap();
+            for id in 0..3 {
+                cache.store(&signature(id), hashes(id)).unwrap();
+            }
+        }
+        // Generation 2: entry 0 is re-confirmed (as a real hit would), entry 3 is created fresh.
+        {
+            let cache = RepeatHashCache::open(path).unwrap();
+            cache.mark_seen(&signature(0)).unwrap();
+            cache.store(&signature(3), hashes(3)).unwrap();
+        }
+        // Generation 3: no activity, just advances the current-generation reference point.
+        {
+            RepeatHashCache::open(path).unwrap();
+        }
+
+        // current generation is 3; entries 1 and 2 (last seen at generation 1) are 2 generations
+        // stale, entries 0 and 3 (last seen at generation 2) are only 1 generation stale.
+        let report = trim_unseen(path, 1).unwrap();
+        assert_eq!(report.live_entries_before, 4);
+        assert_eq!(report.removed, 2);
+
+        let cache = RepeatHashCache::open(path).unwrap();
+        assert_eq!(
+            cache.lookup(&signature(0)).unwrap(),
+            RepeatCacheLookup::Hit(hashes(0))
+        );
+        assert_eq!(
+            cache.lookup(&signature(1)).unwrap(),
+            RepeatCacheLookup::Miss
+        );
+        assert_eq!(
+            cache.lookup(&signature(2)).unwrap(),
+            RepeatCacheLookup::Miss
+        );
+        assert_eq!(
+            cache.lookup(&signature(3)).unwrap(),
+            RepeatCacheLookup::Hit(hashes(3))
+        );
+        assert_eq!(cache.stats().unwrap().live_entries, 2);
+        assert_eq!(cache.read_count().unwrap(), 2);
+
+        // A scan after the trim still stores and verifies correctly.
+        cache.store(&signature(4), hashes(4)).unwrap();
+        assert_eq!(
+            cache.lookup(&signature(4)).unwrap(),
+            RepeatCacheLookup::Hit(hashes(4))
+        );
+        assert_eq!(cache.read_count().unwrap(), 3);
+    }
+
+    /// A store written before last-seen tracking existed has entries but no last-seen keys; trim
+    /// must still open it and fall back to each entry's creation generation.
+    #[test]
+    fn trim_unseen_opens_and_trims_a_store_predating_last_seen_tracking() {
+        let temp = TempDir::new().unwrap();
+        let path = temp.path();
+        {
+            let cache = RepeatHashCache::open(path).unwrap();
+            cache.store(&signature(0), hashes(0)).unwrap();
+            cache.store(&signature(1), hashes(1)).unwrap();
+            // Simulate entries written before this trim existed: no last-seen key at all.
+            let key0 = encode_entry_key(&signature(0)).unwrap();
+            let key1 = encode_entry_key(&signature(1)).unwrap();
+            cache
+                .db
+                .delete(last_seen_key_from_entry_key(&key0))
+                .unwrap();
+            cache
+                .db
+                .delete(last_seen_key_from_entry_key(&key1))
+                .unwrap();
+        }
+        // Advance two more generations without touching either entry.
+        for _ in 0..2 {
+            RepeatHashCache::open(path).unwrap();
+        }
+
+        let report = trim_unseen(path, 1).unwrap();
+        assert_eq!(report.live_entries_before, 2);
+        assert_eq!(report.removed, 2);
+
+        let cache = RepeatHashCache::open(path).unwrap();
+        assert_eq!(
+            cache.lookup(&signature(0)).unwrap(),
+            RepeatCacheLookup::Miss
+        );
+        assert_eq!(
+            cache.lookup(&signature(1)).unwrap(),
+            RepeatCacheLookup::Miss
+        );
+        assert_eq!(cache.stats().unwrap().live_entries, 0);
+    }
+
+    #[test]
+    fn trim_unseen_fails_while_a_scan_holds_the_store() {
+        let temp = TempDir::new().unwrap();
+        let cache = RepeatHashCache::open(temp.path()).unwrap();
+        cache.store(&signature(0), hashes(0)).unwrap();
+        assert!(trim_unseen(temp.path(), 0).is_err());
+        drop(cache);
+        assert!(trim_unseen(temp.path(), 0).is_ok());
     }
 
     #[test]

@@ -518,6 +518,40 @@ pub extern "C" fn sd_clear_hash_cache() -> SdResultCode {
     }
 }
 
+/// Remove hash-cache entries not confirmed unchanged, or created, within the last
+/// `max_unseen_generations` scans (see `super_duper_core::hasher::cache::DEFAULT_TRIM_UNSEEN_GENERATIONS`
+/// for the CLI's default). Fails while a scan holds the cache open. Does not affect the SQLite
+/// database.
+///
+/// # Safety
+/// `out_result` must be a valid pointer.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sd_trim_hash_cache(
+    max_unseen_generations: u64,
+    out_result: *mut SdTrimHashCacheResult,
+) -> SdResultCode {
+    unsafe {
+        if out_result.is_null() {
+            set_last_error("out_result is null".to_string());
+            return SdResultCode::InvalidArgument;
+        }
+        let cache = super_duper_core::hasher::cache::default_hash_cache_path();
+        match super_duper_core::hasher::cache::trim(&cache, max_unseen_generations) {
+            Ok(report) => {
+                *out_result = SdTrimHashCacheResult {
+                    live_entries_before: report.live_entries_before,
+                    removed: report.removed,
+                };
+                SdResultCode::Ok
+            }
+            Err(e) => {
+                set_last_error(e.to_string());
+                SdResultCode::InternalError
+            }
+        }
+    }
+}
+
 /// Execute the deletion plan. Returns success/error counts via out parameters.
 ///
 /// Each file is re-validated against its scan snapshot (identity, size, modification time,

@@ -47,6 +47,14 @@ pub enum Commands {
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
         format: OutputFormat,
     },
+    /// Remove hash-cache entries not confirmed unchanged, or created, within the last N scans
+    TrimHashCache {
+        /// Entries unseen for more than this many scans are removed
+        #[arg(long, default_value_t = super_duper_core::hasher::cache::DEFAULT_TRIM_UNSEEN_GENERATIONS)]
+        unseen_scans: u64,
+        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+        format: OutputFormat,
+    },
     /// Print configuration values
     PrintConfig {
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
