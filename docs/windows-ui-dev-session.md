@@ -23,9 +23,11 @@ The script:
    unique content. A scan of that root finds two duplicate-file sets and one exact duplicate-folder
    set.
 4. Launches the app with `SUPER_DUPER_WORKER_PATH` set to `target/<profile>/super-duper-worker.exe`
-   (a Release app ignores it and starts the worker beside it) and the state variables pointed into the state directory: `SUPER_DUPER_DB_PATH`
-   (`super_duper.db`), `SUPER_DUPER_STATUS_DB_PATH` (`scan_status.db`), `HASH_CACHE_PATH`
-   (`hash-cache`) and `LOG_FILE_PATH` (`app.log`).
+   (a Release app ignores it and starts the worker beside it) and the state variables pointed into
+   the state directory: `SUPER_DUPER_DB_PATH` (`super_duper.db`), `SUPER_DUPER_STATUS_DB_PATH`
+   (`scan_status.db`) and `HASH_CACHE_PATH` (`hash-cache`). The worker's diagnostic log follows
+   `SUPER_DUPER_DB_PATH` automatically (`<state>/logs/worker.log`), so nothing needs to point it
+   there.
 
 It prints:
 

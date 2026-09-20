@@ -24,13 +24,6 @@ Paths are relative to `apps/windows/src/` unless they start with another top-lev
 
 ## Diagnostics
 
-- **The worker log ignores state overrides.** `WorkerClient` always writes worker stderr to
-  `%LOCALAPPDATA%\SuperDuper\logs\worker.log`, because `App.xaml.cs` passes no log path and
-  `DefaultDiagnosticLogPath` does not consult `WorkerStateLocations`. Disposable and UI-dev runs
-  with `SUPER_DUPER_DB_PATH` set therefore log into the default location.
-- **`LOG_FILE_PATH` has no effect on the app.** The `.uidev` sidecar
-  (`SuperDuper.Windows/App.xaml.cs`) and `scripts/Start-WindowsUiDev.ps1` set it, but only the
-  CLI reads it (`crates/super-duper-cli/src/logging.rs`).
 - **Log failures are silent.** If `BoundedDiagnosticLog` cannot open or write the file, it gives up
   quietly and only the 16 KiB in-memory stderr tail remains
   (`SuperDuper.Windows.Infrastructure/BoundedDiagnosticLog.cs`).

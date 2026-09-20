@@ -175,6 +175,9 @@ When the log grows to about 5 MB, Super Duper renames it to `worker.log.previous
 `worker.log`, so you have at most two files. The logs stay on your PC and can contain the paths of
 scanned files; review them before sharing them with anyone.
 
+If you (or a script) move your saved data with `SUPER_DUPER_DB_PATH`, the log moves with it, into a
+`logs` folder next to the database.
+
 ## A newer version can't be undone
 
 A newer version of Super Duper may upgrade your saved data the first time it opens it. After that,

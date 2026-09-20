@@ -40,6 +40,9 @@ All notable changes to Super Duper are recorded here. Versions follow
 - Folder review decision errors (for example an overlapping Keep or Remove choice) are recognized
   by their worker error code instead of by searching the error text, so a wording change can no
   longer make the wrong message appear.
+- The worker's diagnostic log now follows a database moved with `SUPER_DUPER_DB_PATH` (or a
+  UI-development session) into a `logs` folder beside it, instead of always writing to
+  `%LOCALAPPDATA%\SuperDuper\logs`.
 
 ## [0.1.0] - 2026-09-19
 

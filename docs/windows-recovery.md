@@ -14,8 +14,10 @@ characters to show in connection-failure messages, and writes everything to a ro
 %LOCALAPPDATA%\SuperDuper\logs\worker.log.previous
 ```
 
-- The log is always in `%LOCALAPPDATA%\SuperDuper\logs`, even when `SUPER_DUPER_DB_PATH` moves the
-  database and other state elsewhere.
+- The log lives in a `logs` folder beside the database: `%LOCALAPPDATA%\SuperDuper\logs` with no
+  overrides, or `<folder>\logs` when `SUPER_DUPER_DB_PATH` moves the database elsewhere. This keeps
+  a disposable run (smoke, UI-dev session) self-contained instead of writing into the real log
+  folder.
 - The active log rotates at 5 MiB and keeps one previous file.
 - Performance records (`performance kind=scan_phase …` and `performance kind=result_query …`)
   contain run and group identifiers, counts and durations, but no searched path or filter text.

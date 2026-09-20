@@ -14,6 +14,25 @@ public sealed class WorkerClientStartupTests
     }
 
     [TestMethod]
+    public void WorkerClient_DerivesDiagnosticLogPathFromStateDirectory()
+    {
+        // A disposable database override must not leave the worker log behind in the real
+        // %LOCALAPPDATA%\SuperDuper\logs folder (issue #42).
+        var database = Path.Combine(Path.GetTempPath(), $"sd-diag-log-{Guid.NewGuid():N}", "super_duper.db");
+        var state = WorkerStateLocations.Resolve(
+            name => name == "SUPER_DUPER_DB_PATH" ? database : null,
+            Path.Combine(Path.GetTempPath(), "unused-local-app-data"));
+
+        using var client = new WorkerClient(
+            Path.Combine(Path.GetTempPath(), $"unused-worker-{Guid.NewGuid():N}.exe"),
+            state);
+
+        Assert.AreEqual(
+            Path.Combine(state.StateDirectory, "logs", "worker.log"),
+            client.DiagnosticLogPath);
+    }
+
+    [TestMethod]
     public async Task ConnectAsync_WhenExecutableIsMissing_ReturnsActionableFailure()
     {
         var missingPath = Path.Combine(

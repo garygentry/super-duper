@@ -83,10 +83,9 @@ At runtime, with no overrides, all state lives in `%LOCALAPPDATA%\SuperDuper`
 | `presentation-preferences.json` | app |
 | `logs\worker.log`, `logs\worker.log.previous` | app, from worker stderr |
 
-Setting `SUPER_DUPER_DB_PATH` moves the database, and the preferences file with it. The status
-database and hash cache follow the database's folder unless `SUPER_DUPER_STATUS_DB_PATH` or
-`HASH_CACHE_PATH` overrides them. The diagnostic log always stays under
-`%LOCALAPPDATA%\SuperDuper\logs`.
+Setting `SUPER_DUPER_DB_PATH` moves the database, and the preferences file and diagnostic log with
+it (into a `logs` folder beside the database). The status database and hash cache follow the
+database's folder unless `SUPER_DUPER_STATUS_DB_PATH` or `HASH_CACHE_PATH` overrides them.
 
 ## Related decisions
 
