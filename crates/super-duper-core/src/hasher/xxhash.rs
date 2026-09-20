@@ -934,6 +934,14 @@ fn populate_full_hash(
     io: &dyn HashPipelineIo,
 ) -> io::Result<Option<u64>> {
     let mut lookup = None;
+    // Accumulated locally and merged into the one delta recorded once the file's outcome is
+    // fully known (below), instead of published immediately here. A cache hit resolves almost
+    // instantly with no further events, so publishing its counter as soon as the lookup happens
+    // (separately from `full_hash_satisfied_files`, recorded later) let a concurrent thread's
+    // publish observe the two counters out of lockstep under heavy cache-hit traffic, tripping
+    // `full-hash satisfied files must equal cache hits plus completed content reads` (see #65).
+    // `populate_partial_hash` already builds its whole delta locally for the same reason.
+    let mut lookup_delta = HashProgressDelta::default();
     let mut content_started = false;
     let result = io.full_hash(
         file,
@@ -944,13 +952,12 @@ fn populate_full_hash(
         &mut |event| match event {
             FullHashIoEvent::CacheLookup(outcome) => {
                 lookup = Some(outcome);
-                let mut delta = HashProgressDelta::default();
                 match outcome {
-                    cache::CacheLookupOutcome::Hit => delta.full_hash_cache_hits = 1,
-                    cache::CacheLookupOutcome::Miss => delta.full_hash_cache_misses = 1,
-                    cache::CacheLookupOutcome::Error => delta.full_hash_cache_errors = 1,
+                    cache::CacheLookupOutcome::Hit => lookup_delta.full_hash_cache_hits = 1,
+                    cache::CacheLookupOutcome::Miss => lookup_delta.full_hash_cache_misses = 1,
+                    cache::CacheLookupOutcome::Error => lookup_delta.full_hash_cache_errors = 1,
                 }
-                batcher.record(delta, 0, false)
+                Ok(())
             }
             FullHashIoEvent::ContentReadStarted => {
                 content_started = true;
@@ -991,13 +998,11 @@ fn populate_full_hash(
                     "cache fallback completed without content-read start",
                 ));
             }
-            let mut delta = HashProgressDelta {
-                full_hash_satisfied_files: 1,
-                full_hash_satisfied_bytes: file_size,
-                hash_pipeline_resolved_files: 1,
-                hash_pipeline_resolved_bytes: file_size,
-                ..Default::default()
-            };
+            let mut delta = lookup_delta;
+            delta.full_hash_satisfied_files = 1;
+            delta.full_hash_satisfied_bytes = file_size;
+            delta.hash_pipeline_resolved_files = 1;
+            delta.hash_pipeline_resolved_bytes = file_size;
             if content_started {
                 delta.full_hash_content_reads_completed = 1;
             }
@@ -1012,19 +1017,20 @@ fn populate_full_hash(
             Ok(Some(outcome.hash))
         }
         Err(error) if error.kind() == io::ErrorKind::Interrupted => {
+            // A cache hit always returns `Ok` immediately (see the early return above), so only a
+            // miss/error lookup can reach here; record it rather than silently drop it.
+            batcher.record(lookup_delta, 0, false)?;
             batcher.cancellation_check(true)?;
             Err(error)
         }
         Err(error) => {
             tracing::error!("Error processing file '{}': {}", file.display(), error);
-            let mut delta = HashProgressDelta {
-                warning_count: 1,
-                full_hash_failures: 1,
-                full_hash_failed_bytes: file_size,
-                hash_pipeline_resolved_files: 1,
-                hash_pipeline_resolved_bytes: file_size,
-                ..Default::default()
-            };
+            let mut delta = lookup_delta;
+            delta.warning_count = 1;
+            delta.full_hash_failures = 1;
+            delta.full_hash_failed_bytes = file_size;
+            delta.hash_pipeline_resolved_files = 1;
+            delta.hash_pipeline_resolved_bytes = file_size;
             if content_started {
                 delta.full_hash_content_reads_failed = 1;
             }
@@ -1978,6 +1984,87 @@ mod tests {
         assert_eq!(store_error.full_hash_cache_stores, 0);
         assert_eq!(store_error.warning_count, 2);
         assert_eq!(store_error.full_hash_satisfied_files, 2);
+    }
+
+    struct AlwaysHitIo;
+
+    impl HashPipelineIo for AlwaysHitIo {
+        fn partial_hash(&self, _path: &Path, _cancel: &AtomicBool) -> io::Result<PartialHashRead> {
+            unreachable!("test only drives full_hash directly")
+        }
+
+        fn full_hash(
+            &self,
+            _path: &Path,
+            _partial_hash: u64,
+            _partial_signature: Option<&repeat_cache::CacheSignatureKey>,
+            _media: crate::platform::StorageMediaClass,
+            _cancel: &AtomicBool,
+            observe: &mut dyn FnMut(FullHashIoEvent) -> io::Result<()>,
+        ) -> io::Result<FullHashRead> {
+            observe(FullHashIoEvent::CacheLookup(cache::CacheLookupOutcome::Hit))?;
+            // Real I/O (the syscalls behind a repeat-cache lookup) takes long enough to let other
+            // threads' publishes interleave here; yield repeatedly to reproduce that same window
+            // deterministically without a real filesystem.
+            for _ in 0..50 {
+                std::thread::yield_now();
+            }
+            Ok(FullHashRead {
+                hash: 7,
+                warning: None,
+                cache_outcome: Some(cache::CacheLookupOutcome::Hit),
+                cache_stored: false,
+            })
+        }
+    }
+
+    /// A cache hit resolves with no content read, so `full_hash_cache_hits` and
+    /// `full_hash_satisfied_files` must always travel together in the same published delta;
+    /// otherwise a concurrent publish can observe one without the other and violate
+    /// `ProgressLogicalCounters::validate`'s exact-equality invariant (see issue #65 — a real
+    /// warm re-scan of ~30k files hit this under `rayon`'s actual parallelism). `HASH_PROGRESS_FILE_QUANTUM`
+    /// is 256, so 512 concurrent hits forces multiple publishes and exercises real interleaving.
+    #[test]
+    fn concurrent_full_hash_cache_hits_never_publish_a_snapshot_with_mismatched_satisfied_files() {
+        let sink = RecordingSink::default();
+        let batcher = HashProgressBatcher::new(&sink);
+        let io = AlwaysHitIo;
+        let cancel = AtomicBool::new(false);
+        const FILES: usize = 512;
+
+        std::thread::scope(|scope| {
+            for i in 0..FILES {
+                let batcher = &batcher;
+                let io = &io;
+                let cancel = &cancel;
+                scope.spawn(move || {
+                    let path = PathBuf::from(format!("file-{i}"));
+                    populate_full_hash(
+                        &path,
+                        4_096,
+                        1,
+                        None,
+                        crate::platform::StorageMediaClass::SolidState,
+                        cancel,
+                        batcher,
+                        io,
+                    )
+                    .unwrap();
+                });
+            }
+        });
+        batcher.flush().unwrap();
+
+        for snapshot in sink.history.lock().unwrap().iter() {
+            assert_eq!(
+                snapshot.full_hash_satisfied_files,
+                snapshot.full_hash_cache_hits + snapshot.full_hash_content_reads_completed,
+                "a published snapshot must never separate a cache hit from its satisfied-file count"
+            );
+        }
+        let total = sink.snapshot();
+        assert_eq!(total.full_hash_cache_hits, FILES as u64);
+        assert_eq!(total.full_hash_satisfied_files, FILES as u64);
     }
 
     #[test]
