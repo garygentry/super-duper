@@ -841,7 +841,10 @@ impl ScanEngine {
         self.cancel_token.store(false, Ordering::Relaxed);
 
         let roots = config::non_overlapping_directories(self.config.root_paths.clone());
-        let db = Database::open(&self.db_path)?;
+        let db = Database::open_with_busy_timeout(
+            &self.db_path,
+            crate::storage::sqlite::SCAN_BUSY_TIMEOUT_MS,
+        )?;
         let session_id = match self.session_id {
             Some(id) => {
                 db.get_session(id)?;
@@ -878,7 +881,10 @@ impl ScanEngine {
         run_id: i64,
         progress: &dyn ProgressReporter,
     ) -> Result<ScanResult, Error> {
-        let db = Database::open_connection(&self.db_path)?;
+        let db = Database::open_connection_with_busy_timeout(
+            &self.db_path,
+            crate::storage::sqlite::SCAN_BUSY_TIMEOUT_MS,
+        )?;
         let run = db.get_scan_run(run_id)?;
         let parameters = RunParameters::from_json(&run.parameters_json)
             .ok_or_else(|| Error::Other(format!("run {run_id} has invalid parameters")))?;

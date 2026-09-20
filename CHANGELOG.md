@@ -45,6 +45,8 @@ All notable changes to Super Duper are recorded here. Versions follow
   `%LOCALAPPDATA%\SuperDuper\logs`.
 - Checking a scan root's drive type and availability while editing **Setup** no longer runs on the
   window's UI thread; a slow removable or network drive can no longer stall typing.
+- A scan's own database writes now wait up to 30 seconds for a stalled writer instead of failing
+  the whole run at 5 seconds with "database is locked".
 
 ## [0.1.0] - 2026-09-19
 
