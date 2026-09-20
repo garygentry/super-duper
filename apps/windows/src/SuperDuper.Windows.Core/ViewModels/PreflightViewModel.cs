@@ -343,7 +343,7 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
     public double ProgressValue => Preflight?.ProcessedItemCount ?? 0;
 
     public string ProgressText => Preflight is null
-        ? "Preflight has not run."
+        ? "The check has not run."
         : $"Checked {Preflight.ProcessedItemCount:N0} of {Preflight.TotalItemCount:N0} validation items.";
 
     public string PlanSummary => _review is null
@@ -378,7 +378,7 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
         : $"Folders page {_folderReviewPageIndex + 1:N0} · showing {FolderReviewGroups.Count:N0} of {_folderReviewTotal:N0} review sets.";
 
     public string StatusSummary => Preflight is null
-        ? "No preflight observations are stored for this run."
+        ? "No check observations are stored for this run."
         : $"{PreflightStatus(Preflight.Status)}. Ready {Preflight.ReadyCount:N0}; "
           + $"changed {Preflight.ChangedCount:N0}; missing {Preflight.MissingCount:N0}; "
           + $"unavailable {Preflight.UnavailableCount:N0}; conflicts {Preflight.ConflictCount:N0}.";
@@ -543,7 +543,7 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
             NotifyStateChanged();
             if (Preflight is not null && !Preflight.IsCurrent)
             {
-                Announcement = $"{RevisionStatus} Run preflight again using Check marked copies. {ValidationOutcomeTitle}.";
+                Announcement = $"{RevisionStatus} Select Check marked copies again. {ValidationOutcomeTitle}.";
                 AnnouncementVersion++;
             }
         }
@@ -673,7 +673,7 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
             return;
         }
         var confirmed = await _confirmation.ConfirmAsync(
-            "Cancel preflight?",
+            "Cancel check?",
             "Stop validating the remaining items? Completed observations will remain available. No files will be deleted.");
         if (!confirmed)
         {
@@ -685,7 +685,7 @@ public sealed class PreflightViewModel : ObservableObject, IDisposable
             Preflight = await _worker.CancelPreflightAsync(
                 Preflight.Id,
                 _lifetime?.Token ?? CancellationToken.None);
-            Announcement = "Preflight cancellation requested.";
+            Announcement = "Check cancellation requested.";
             AnnouncementVersion++;
         }
         catch (Exception exception)
@@ -1119,7 +1119,7 @@ public sealed class PreflightItemViewModel
         "size_changed" => "The file size changed after the scan.",
         "timestamp_changed" => "The modified time changed after the scan.",
         "content_hash_changed" => "The complete content hash no longer matches the scan.",
-        "changed_during_validation" => "The file changed while preflight was reading it.",
+        "changed_during_validation" => "The file changed while the check was reading it.",
         "cloud_placeholder" or "folder_contains_cloud_placeholder" =>
             "A cloud placeholder was not opened or hydrated.",
         "excluded_location" or "folder_contains_excluded_location" =>

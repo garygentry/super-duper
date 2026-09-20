@@ -139,7 +139,7 @@ Diagnostics for these cases, including the worker log location, are in
 1. **Intercept.** `MainWindow.OnClosing` cancels the first close request and starts
    `ShutdownAsync`; later close requests are ignored while it runs.
 2. **Confirm.** `ShellViewModel.ConfirmCancelAndExitAsync` asks "Cancel scan and exit?" when a scan
-   is active, or "Cancel preflight and exit?" when a whole-plan check is running. Declining keeps
+   is active, or "Cancel check and exit?" when a whole-plan check is running. Declining keeps
    the window open. Accepting sends `run.cancel` or `preflight.cancel`; a failure there is ignored
    because closing stdin also cancels.
 3. **Stop the app side.** The window is disabled, the lifetime token is cancelled, and pending

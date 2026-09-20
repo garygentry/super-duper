@@ -1697,13 +1697,6 @@
       "affects": [
         "release-checklist"
       ]
-    },
-    {
-      "note": "User-facing text still uses protocol terms in places: validation messages say session, and Cancel preflight and exit? and a Run preflight again announcement say preflight, while the rest of the UI says saved scan and Check marked copies.",
-      "affects": [
-        "ug-reference",
-        "arch-concepts"
-      ]
     }
   ]
 }

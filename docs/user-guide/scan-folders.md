@@ -131,7 +131,7 @@ To delete a saved scan:
 
 1. Select it and go to **Scan** › **Setup**.
 2. Expand **Manage saved scan** and select **Delete saved scan and history**.
-3. In the **Delete session?** message, select **Yes**.
+3. In the **Delete saved scan?** message, select **Yes**.
 
 Deleting removes the saved scan together with its scan history, results and review decisions. It
 cannot be undone. It never touches the scanned files. You cannot delete a saved scan while a scan is

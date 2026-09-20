@@ -48,16 +48,16 @@ public static class SessionDefinitionValidator
         var trimmedName = name.Trim();
         if (trimmedName.Length == 0)
         {
-            errors.Add("Enter a session name.");
+            errors.Add("Enter a saved scan name.");
         }
         else if (trimmedName.Length > MaximumNameLength)
         {
-            errors.Add($"Session names may contain at most {MaximumNameLength} characters.");
+            errors.Add($"Saved scan names may contain at most {MaximumNameLength} characters.");
         }
         else if (otherSessionNames.Any(existing =>
                      string.Equals(existing.Trim(), trimmedName, StringComparison.OrdinalIgnoreCase)))
         {
-            errors.Add("Another session already uses this name.");
+            errors.Add("Another saved scan already uses this name.");
         }
 
         var normalizedRoots = NormalizeRoots(roots, errors, warnings);
@@ -90,7 +90,7 @@ public static class SessionDefinitionValidator
         }
         if (candidates.Count > MaximumRoots)
         {
-            errors?.Add($"A session may contain at most {MaximumRoots} scan roots.");
+            errors?.Add($"A saved scan may contain at most {MaximumRoots} scan roots.");
         }
 
         var absolute = new List<string>();
@@ -252,7 +252,7 @@ public static class SessionDefinitionValidator
         }
         if (result.Count > MaximumIgnorePatterns)
         {
-            errors?.Add($"A session may contain at most {MaximumIgnorePatterns} ignore patterns.");
+            errors?.Add($"A saved scan may contain at most {MaximumIgnorePatterns} ignore patterns.");
         }
         return result;
     }

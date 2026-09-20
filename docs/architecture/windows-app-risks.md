@@ -47,22 +47,12 @@ Paths are relative to `apps/windows/src/` unless they start with another top-lev
   `SuperDuper.Windows/Views/DuplicateFilesView.xaml` announce Alt+P and Alt+N in their tooltips and
   accessible names, but no access key or key binding backs them; the view registers only "v"
   (`DuplicateFilesView.xaml.cs`).
-- **Wrong button name in a notice.** The watcher notice says "choose Validate page"
-  (`DuplicateFilesViewModel.ApplyLiveStateChanged`); the button is **Check these copies**.
-- **Scan again starts immediately.** The header button runs `StartRunCommand` under both of its
-  labels. `ShellViewModel.ScanAgainCommand`, which opens Setup instead, is not bound anywhere in
-  XAML. Whether that is intended is not recorded.
-- **Repeat-scan choice is not saved.** `SessionSetupViewModel.Load` and `BeginNew` reset
-  **Repeat scans** to "Reuse verified hashes", so the choice does not persist with a saved scan.
-  Intent is not recorded.
 - **Stale set counts while loading.** When the selected duplicate set changes,
   `DuplicateFilesViewModel.SetSelectedGroup` keeps the previous set's review summary until the new
   member page arrives, so the counts briefly describe the wrong set (issue #25).
-- **Technical terms in user text.** "session" appears in validation messages and the delete
-  confirmation (`SuperDuper.Windows.Core/Validation/SessionDefinitionValidator.cs`,
-  `SessionSetupViewModel.cs`), and "preflight" in the close prompt (`ShellViewModel.cs`) and a
-  screen-reader announcement on the Review screen (`PreflightViewModel.cs`). See
-  [Wording](windows-app-concepts.md#wording).
+- **Repeat-scan choice is not saved.** `SessionSetupViewModel.Load` and `BeginNew` reset
+  **Repeat scans** to "Reuse verified hashes", so the choice does not persist with a saved scan.
+  Intent is not recorded.
 
 ## Diagnostics
 

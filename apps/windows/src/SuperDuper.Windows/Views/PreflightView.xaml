@@ -96,7 +96,7 @@
                     <TextBlock Margin="0,8,0,0" Text="{Binding ProgressText}" />
                     <Button Margin="0,12,0,0" HorizontalAlignment="Left"
                             AutomationProperties.AutomationId="CancelPreflightButton"
-                            AutomationProperties.Name="Cancel preflight validation"
+                            AutomationProperties.Name="Cancel check validation"
                             Command="{Binding CancelCommand}" Content="Cancel check" />
                 </StackPanel>
             </Border>
@@ -254,7 +254,7 @@
                            TextWrapping="Wrap" />
                 <ListView Margin="0,14,0,0" MinHeight="180" MaxHeight="420"
                           AutomationProperties.AutomationId="PreflightItemsList"
-                          AutomationProperties.Name="Preflight observation details"
+                          AutomationProperties.Name="Check observation details"
                           ItemsSource="{Binding Items}" ScrollViewer.CanContentScroll="True"
                           VirtualizingPanel.IsVirtualizing="True"
                           VirtualizingPanel.VirtualizationMode="Recycling">
