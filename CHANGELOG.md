@@ -47,6 +47,8 @@ All notable changes to Super Duper are recorded here. Versions follow
   window's UI thread; a slow removable or network drive can no longer stall typing.
 - A scan's own database writes now wait up to 30 seconds for a stalled writer instead of failing
   the whole run at 5 seconds with "database is locked".
+- The performance view now says telemetry is unavailable, instead of showing a database error, when
+  no scan has ever run in the current state folder.
 
 ## [0.1.0] - 2026-09-19
 

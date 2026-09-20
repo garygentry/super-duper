@@ -42,7 +42,8 @@ use super_duper_core::storage::review::ReviewError;
 use super_duper_core::storage::root_reconciliation::ReviewLiveRootError;
 use super_duper_core::storage::{Database, OpenFailure};
 use super_duper_core::telemetry::{
-    ProgressObservation, ProgressReducer, ScanProgressSnapshot, StatusDatabase, TelemetryPhase,
+    ProgressObservation, ProgressReducer, ScanProgressSnapshot, StatusDatabase, StatusStoreError,
+    TelemetryPhase,
 };
 use super_duper_core::{AppConfig, ScanEngine};
 
@@ -1399,8 +1400,16 @@ impl SharedState {
     }
 
     fn status_database(&self) -> Result<StatusDatabase, ProtocolFailure> {
-        StatusDatabase::open_reader(&self.status_database_path.to_string_lossy())
-            .map_err(|error| ProtocolFailure::new("database_error", error.to_string()))
+        StatusDatabase::open_reader(&self.status_database_path.to_string_lossy()).map_err(|error| {
+            if status_database_file_missing(&error) {
+                ProtocolFailure::new(
+                    "telemetry_unavailable",
+                    "No scan telemetry has been recorded for this state folder yet",
+                )
+            } else {
+                ProtocolFailure::new("database_error", error.to_string())
+            }
+        })
     }
 
     fn active_run_id(&self) -> Option<i64> {
@@ -6533,6 +6542,17 @@ fn internal_database_error(error: rusqlite::Error) -> ProtocolFailure {
     )
 }
 
+/// The status database is created lazily when the first scan starts, so a state folder with no
+/// scan history yet has no file to open. Distinguishes that (telemetry not recorded yet) from a
+/// present-but-damaged or wrong-schema status database (a real `database_error`).
+fn status_database_file_missing(error: &StatusStoreError) -> bool {
+    matches!(
+        error,
+        StatusStoreError::Database(rusqlite::Error::SqliteFailure(failure, _))
+            if matches!(failure.code, rusqlite::ErrorCode::CannotOpen | rusqlite::ErrorCode::NotFound)
+    )
+}
+
 fn preference_rule_summary_dto(rule: &PreferenceRuleSummary) -> Value {
     json!({
         "id":rule.id,
@@ -7624,6 +7644,74 @@ mod tests {
             overridden.status_database_path,
             PathBuf::from("diagnostics/custom-status.db")
         );
+    }
+
+    #[test]
+    fn performance_queries_report_telemetry_unavailable_when_no_scan_has_ever_run() {
+        let temp = TempDir::new().unwrap();
+        let product_path = temp.path().join("worker.db");
+        // Never created: the status database is created lazily by the first scan.
+        let status_path = temp.path().join("status.db");
+        let options = WorkerOptions::new(product_path).with_status_database_path(status_path);
+        let (sender, _receiver) = mpsc::channel();
+        let state = SharedState::new(options, sender).unwrap();
+        let mut session = WorkerSession::new(state);
+        session.handle_line(HELLO).unwrap();
+
+        let history: Value = serde_json::from_str(
+            &session
+                .handle_line(
+                    &json!({
+                        "type":"request", "id":"history", "method":"performance.run.page",
+                        "params":{"pageSize":25}
+                    })
+                    .to_string(),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(history["error"]["code"], "telemetry_unavailable");
+
+        let snapshot: Value = serde_json::from_str(
+            &session
+                .handle_line(
+                    &json!({
+                        "type":"request", "id":"snapshot", "method":"performance.snapshot.get",
+                        "params":{"productRunId":1}
+                    })
+                    .to_string(),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(snapshot["error"]["code"], "telemetry_unavailable");
+    }
+
+    #[test]
+    fn performance_queries_report_database_error_for_a_present_but_unreadable_status_database() {
+        let temp = TempDir::new().unwrap();
+        let product_path = temp.path().join("worker.db");
+        let status_path = temp.path().join("status.db");
+        fs::write(&status_path, b"not a sqlite database").unwrap();
+        let options = WorkerOptions::new(product_path).with_status_database_path(status_path);
+        let (sender, _receiver) = mpsc::channel();
+        let state = SharedState::new(options, sender).unwrap();
+        let mut session = WorkerSession::new(state);
+        session.handle_line(HELLO).unwrap();
+
+        let history: Value = serde_json::from_str(
+            &session
+                .handle_line(
+                    &json!({
+                        "type":"request", "id":"history", "method":"performance.run.page",
+                        "params":{"pageSize":25}
+                    })
+                    .to_string(),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(history["error"]["code"], "database_error");
     }
 
     #[test]
