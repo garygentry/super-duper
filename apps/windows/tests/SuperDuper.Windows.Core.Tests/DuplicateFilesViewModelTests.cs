@@ -575,6 +575,66 @@ public sealed class DuplicateFilesViewModelTests
     }
 
     [TestMethod]
+    public async Task SelectedSetReviewSummaryClearsWhileTheNextSetIsStillLoading()
+    {
+        var secondResponse = new TaskCompletionSource<WorkerDuplicateFileMemberPage>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondRequestObserved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new TestWorkerClient
+        {
+            GroupPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFileGroupPage(
+                    [Group(1, query.RunId, "first.bin"), Group(2, query.RunId, "second.bin")],
+                    2,
+                    null,
+                    null)),
+            MemberPageHandler = (query, _) =>
+            {
+                if (query.GroupId == 2)
+                {
+                    secondRequestObserved.TrySetResult();
+                    return secondResponse.Task;
+                }
+                return Task.FromResult(new WorkerDuplicateFileMemberPage(
+                    [Member(1, query.GroupId, @"C:\Data\first.bin")],
+                    1,
+                    null,
+                    null)
+                {
+                    ReviewSummary = new WorkerReviewGroupSummary(1, 2, 0, 0, 3),
+                });
+            },
+        };
+        using var viewModel = new DuplicateFilesViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(16, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        StringAssert.Contains(viewModel.SelectedReviewSummaryText, "2 keep");
+
+        _ = viewModel.NextSetCommand.ExecuteAsync(null);
+        await secondRequestObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.AreEqual(2, viewModel.SelectedGroup!.Id);
+        Assert.IsTrue(viewModel.IsDetailLoading);
+        Assert.AreEqual("Loading set review summary…", viewModel.SelectedReviewSummaryText);
+        Assert.IsFalse(viewModel.SelectedReviewSummaryText.Contains("keep", StringComparison.Ordinal));
+
+        secondResponse.SetResult(new WorkerDuplicateFileMemberPage(
+            [Member(2, 2, @"C:\Data\second.bin")],
+            1,
+            null,
+            null)
+        {
+            ReviewSummary = new WorkerReviewGroupSummary(2, 0, 1, 0, 2),
+        });
+        await Task.Yield();
+        await Task.Yield();
+
+        Assert.IsFalse(viewModel.IsDetailLoading);
+        StringAssert.Contains(viewModel.SelectedReviewSummaryText, "1 remove");
+    }
+
+    [TestMethod]
     public async Task SelectedSetAnnouncementsRepeatForCachedPagesAndCoverEmptyAndWorkerFailure()
     {
         var client = new TestWorkerClient
