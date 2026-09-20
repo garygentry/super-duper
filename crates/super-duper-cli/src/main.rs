@@ -7,7 +7,7 @@ use std::process;
 
 use clap::{CommandFactory, Parser};
 use colored::*;
-use commands::{Cli, Commands, ExportKind};
+use commands::{Cli, Commands, ExportKind, OutputFormat};
 use dotenv::dotenv;
 use progress::CliReporter;
 use super_duper_core::ScanEngine;
@@ -35,19 +35,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 error!("Error: {}", err);
             }
         }
-        Some(Commands::AnalyzeDirectories) => {
-            if let Err(err) = run_analyze_directories() {
+        Some(Commands::AnalyzeDirectories { format }) => {
+            if let Err(err) = run_analyze_directories(format) {
                 error!("Error: {}", err);
+                process::exit(1);
             }
         }
-        Some(Commands::CountHashCache) => {
-            info!("Counting content cache hash...");
+        Some(Commands::CountHashCache { format }) => {
             let cache = super_duper_core::hasher::cache::default_hash_cache_path();
-            super_duper_core::hasher::cache::print_count(&cache);
+            match format {
+                OutputFormat::Text => {
+                    info!("Counting content cache hash...");
+                    super_duper_core::hasher::cache::print_count(&cache);
+                }
+                OutputFormat::Json => {
+                    match super_duper_core::hasher::cache::count_entries(&cache) {
+                        Ok(count) => println!(
+                            "{}",
+                            serde_json::json!({"path": cache.to_string_lossy(), "entries": count})
+                        ),
+                        Err(err) => {
+                            error!("Error counting hash cache entries: {}", err);
+                            process::exit(1);
+                        }
+                    }
+                }
+            }
         }
-        Some(Commands::PrintConfig) => {
-            println!("Configuration: {:?}", config);
-        }
+        Some(Commands::PrintConfig { format }) => match format {
+            OutputFormat::Text => println!("Configuration: {:?}", config),
+            OutputFormat::Json => match config.to_json_pretty() {
+                Ok(json) => println!("{json}"),
+                Err(err) => {
+                    error!("Error serializing configuration: {}", err);
+                    process::exit(1);
+                }
+            },
+        },
         Some(Commands::Export { kind }) => {
             if let Err(err) = run_export(kind) {
                 error!("Error: {}", err);
@@ -122,21 +146,36 @@ fn run_process(config: &super_duper_core::AppConfig) -> Result<(), Box<dyn std::
     Ok(())
 }
 
-fn run_analyze_directories() -> Result<(), Box<dyn std::error::Error>> {
+fn run_analyze_directories(format: OutputFormat) -> Result<(), Box<dyn std::error::Error>> {
     let db = super_duper_core::storage::Database::open("super_duper.db")?;
     let run_id = db
         .get_latest_completed_run_id()?
         .ok_or("No completed run is available for directory analysis")?;
 
-    info!("Building directory fingerprints...");
+    let text = format == OutputFormat::Text;
+    if text {
+        info!("Building directory fingerprints...");
+    }
     let fingerprint_count =
         super_duper_core::analysis::dir_fingerprint::build_directory_fingerprints(&db, run_id)?;
-    info!("{} directory fingerprints computed", fingerprint_count);
-
-    info!("Computing directory similarity...");
+    if text {
+        info!("{} directory fingerprints computed", fingerprint_count);
+        info!("Computing directory similarity...");
+    }
     let similarity_count =
         super_duper_core::analysis::dir_similarity::compute_directory_similarity(&db, run_id, 0.5)?;
-    info!("{} similar directory pairs found", similarity_count);
+    if text {
+        info!("{} similar directory pairs found", similarity_count);
+    } else {
+        println!(
+            "{}",
+            serde_json::json!({
+                "runId": run_id,
+                "directoryFingerprints": fingerprint_count,
+                "similarDirectoryPairs": similarity_count,
+            })
+        );
+    }
 
     Ok(())
 }
