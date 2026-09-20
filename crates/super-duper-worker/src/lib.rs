@@ -1790,7 +1790,7 @@ impl WorkerSession {
         let db = self.state.database()?;
         let _ = get_session(&db, parameters.session_id)?;
         db.delete_session(parameters.session_id)
-            .map_err(internal_database_error)?;
+            .map_err(recycle_operation_error)?;
         Ok(json!({"sessionId":parameters.session_id}))
     }
 
@@ -8997,6 +8997,88 @@ mod tests {
         );
         assert_eq!(response(&frames, "list")["result"]["total"], 1);
         assert_eq!(response(&frames, "delete")["ok"], true);
+    }
+
+    /// A session with a run that has a Recycle Bin operation in `recovery_required` (one of the
+    /// six statuses that lock a run against `session.delete`; unlike `prepared` or
+    /// `awaiting_confirmation`, it survives the worker startup reconciliation that
+    /// `execute()` triggers when it opens this fixture's database), with the minimum rows a
+    /// foreign-key insert needs (`review_plan`, `preflight`, `recycle_operation`).
+    fn insert_locked_session_fixture(temp: &TempDir) -> (i64, i64, i64) {
+        let database = temp.path().join("worker.db");
+        let db = Database::open(database.to_str().unwrap()).unwrap();
+        let session_id = db
+            .create_session("Locked by operation", &["Z:/locked".to_owned()], &[])
+            .unwrap();
+        let parameters = RunParameters {
+            roots: vec!["Z:/locked".to_owned()],
+            ignore_patterns: Vec::new(),
+            directory_similarity_threshold_millis: 500,
+            repeat_cache_policy: RepeatCachePolicy::RevalidateContent,
+            cloud_policy: CloudPolicy::ExcludeRegisteredRoots,
+            manual_location_exclusions: Vec::new(),
+            registered_cloud_locations: Vec::new(),
+            cloud_detection_status: CloudDetectionStatus::Complete,
+        };
+        let run_id = db
+            .create_scan_run(session_id, &parameters, "locked-session-test")
+            .unwrap();
+        let now = "2026-09-19T00:00:00Z";
+        db.connection()
+            .execute(
+                "INSERT INTO review_plan (run_id, state, revision, created_at, updated_at)
+                 VALUES (?1, 'active', 0, ?2, ?2)",
+                params![run_id, now],
+            )
+            .unwrap();
+        let plan_id = db.connection().last_insert_rowid();
+        db.connection()
+            .execute(
+                "INSERT INTO preflight
+                    (operation_id, run_id, plan_id, review_revision, snapshot_signature, status,
+                     logical_removal_count, physical_removal_count, folder_removal_count,
+                     affected_group_count, planned_removal_bytes, total_item_count,
+                     processed_item_count, ready_count, changed_count, missing_count,
+                     unavailable_count, conflict_count, created_at, completed_at)
+                 VALUES ('locked-preflight', ?1, ?2, 0, 'snapshot', 'completed',
+                         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ?3, ?3)",
+                params![run_id, plan_id, now],
+            )
+            .unwrap();
+        let preflight_id = db.connection().last_insert_rowid();
+        db.connection()
+            .execute(
+                "INSERT INTO recycle_operation
+                    (operation_id, run_id, plan_id, preflight_id, review_revision,
+                     preflight_snapshot_signature, intent_signature, policy_version, status,
+                     logical_removal_count, shell_item_count, physical_item_count,
+                     folder_item_count, affected_group_count, planned_removal_bytes, prepared_at)
+                 VALUES ('locked-operation', ?1, ?2, ?3, 0, 'snapshot', 'intent', 1,
+                         'recovery_required', 0, 0, 0, 0, 0, 0, ?4)",
+                params![run_id, plan_id, preflight_id, now],
+            )
+            .unwrap();
+        let operation_id = db.connection().last_insert_rowid();
+        (session_id, run_id, operation_id)
+    }
+
+    #[test]
+    fn session_delete_locked_by_recycle_operation_reports_a_specific_code() {
+        let temp = TempDir::new().unwrap();
+        let (session_id, run_id, operation_id) = insert_locked_session_fixture(&temp);
+        let frames = execute(
+            &temp,
+            &[
+                HELLO.to_owned(),
+                format!(
+                    r#"{{"type":"request","id":"delete","method":"session.delete","params":{{"sessionId":{session_id}}}}}"#
+                ),
+            ],
+        );
+        let error = &response(&frames, "delete")["error"];
+        assert_eq!(error["code"], "recycle_operation_locked");
+        assert_eq!(error["details"]["runId"], run_id);
+        assert_eq!(error["details"]["recycleOperationId"], operation_id);
     }
 
     #[test]
