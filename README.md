@@ -45,6 +45,12 @@ directly, the FFI crate exposes a stable boundary for future native interfaces, 
 connects to the Rust engine through a long-lived JSONL worker process that alone owns the app's
 databases. See the [system overview](docs/architecture/overview.md) for the containers and stores.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture/images/arch-overview.dark.svg" />
+  <source media="(prefers-color-scheme: light)" srcset="docs/architecture/images/arch-overview.light.svg" />
+  <img alt="Container diagram: the owner uses SuperDuper.Windows, which talks to super-duper-worker over JSONL and to the Windows Shell; the worker, the CLI, and the FFI crate all link super-duper-core, which owns the main database, the status database, and the hash cache." src="docs/architecture/images/arch-overview.light.svg" />
+</picture>
+
 ```text
 super-duper/
   Cargo.toml
