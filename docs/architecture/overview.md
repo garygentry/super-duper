@@ -4,7 +4,13 @@ This is the container view of Super Duper: the processes and libraries that run,
 own, and how they talk. It is written for maintainers deciding where a change belongs. The Windows
 app's internals are in [Windows app components](windows-app-components.md).
 
-A rendered container diagram is pending; the tables below carry the same information.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/arch-overview.dark.svg" />
+  <source media="(prefers-color-scheme: light)" srcset="images/arch-overview.light.svg" />
+  <img alt="Container diagram: the owner uses SuperDuper.Windows, which talks to super-duper-worker over JSONL and to the Windows Shell; the worker, the CLI, and the FFI crate all link super-duper-core, which owns the main database, the status database, and the hash cache." src="images/arch-overview.light.svg" />
+</picture>
+
+The tables below carry the same information as the diagram.
 
 ## Context
 

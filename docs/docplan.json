@@ -776,7 +776,7 @@
       ],
       "status": "drafted",
       "priority": 1,
-      "verification": "Diagram not rendered: Node.js is unavailable on this machine, so diagram-generator could not run. The page carries a text table instead; the stale docs/architecture.svg is removed."
+      "verification": "Rendered as light/dark SVGs (docs/architecture/images/arch-overview.{light,dark}.svg) with diagram-generator, embedded in the page and in README.md via a <picture> element, and checked against the source components and edges listed in diagrams[]."
     },
     {
       "id": "arch-components",
@@ -842,7 +842,8 @@
         }
       ],
       "status": "drafted",
-      "priority": 1
+      "priority": 1,
+      "verification": "Rendered as light/dark SVGs (docs/architecture/images/arch-components.{light,dark}.svg) with diagram-generator, embedded in the page via a <picture> element, and checked against the projects and dependencies listed in diagrams[]."
     },
     {
       "id": "arch-runtime",
@@ -897,7 +898,8 @@
         }
       ],
       "status": "drafted",
-      "priority": 1
+      "priority": 1,
+      "verification": "Rendered as light/dark SVGs (docs/architecture/images/arch-runtime.{light,dark}.svg) with diagram-generator as a sequence diagram, embedded in the page via a <picture> element, and checked against the startup sequence listed in diagrams[]."
     },
     {
       "id": "arch-concepts",
@@ -1626,14 +1628,6 @@
         "ug-reference",
         "arch-concepts",
         "arch-risks"
-      ]
-    },
-    {
-      "note": "Diagrams were not rendered: Node.js is not installed, so diagram-generator's renderer cannot run. The diagrams[] requests remain for a later pass; affected pages use text tables.",
-      "affects": [
-        "arch-overview",
-        "arch-components",
-        "arch-runtime"
       ]
     },
     {

@@ -5,8 +5,15 @@
 This chapter walks through what actually executes when the Windows app starts, runs a scan, keeps
 review results current, loses its worker, and shuts down. It is for maintainers changing lifecycle,
 threading or protocol code. Structure is in [Windows app components](windows-app-components.md);
-rules are in [Windows app conventions](windows-app-concepts.md). A rendered startup sequence
-diagram is pending; the numbered steps below carry the same information.
+rules are in [Windows app conventions](windows-app-concepts.md).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/arch-runtime.dark.svg" />
+  <source media="(prefers-color-scheme: light)" srcset="images/arch-runtime.light.svg" />
+  <img alt="Startup sequence: App calls WorkerStateLocations.FromEnvironment and SingleInstanceGate.TryAcquire, then MainWindow.InitializeAsync, which initializes ShellViewModel, which calls WorkerClient.ConnectAsync; WorkerClient launches super-duper-worker and sends hello, the worker replies with the selected protocol or a database_unavailable error, and ShellViewModel then requests session.list." src="images/arch-runtime.light.svg" />
+</picture>
+
+The numbered steps below carry the same information as the diagram.
 
 Paths are relative to `apps/windows/src/` unless they start with `crates/`.
 

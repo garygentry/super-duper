@@ -6,7 +6,13 @@ their main parts so you can tell where a change belongs. For the processes aroun
 [Windows app runtime scenarios](windows-app-runtime.md); for the rules a change must keep, see
 [Windows app conventions](windows-app-concepts.md).
 
-A rendered component diagram is pending; the tables below carry the same information.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/arch-components.dark.svg" />
+  <source media="(prefers-color-scheme: light)" srcset="images/arch-components.light.svg" />
+  <img alt="Component diagram: SuperDuper.Windows depends on SuperDuper.Windows.Core and SuperDuper.Windows.Infrastructure; Infrastructure depends on Core; Infrastructure's WorkerClient talks to super-duper-worker.exe." src="images/arch-components.light.svg" />
+</picture>
+
+The tables below carry the same information as the diagram.
 
 ## Projects and dependencies
 
