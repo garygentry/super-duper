@@ -36,10 +36,12 @@ are relative to `apps/windows/src/` unless they start with another top-level fol
   file-system call runs on the WPF UI thread. Explorer, cloud detection and the start-time root
   reachability check run on the thread pool (`WindowsExplorerService.cs`,
   `WindowsCloudLocationService.cs`, `SessionSetupViewModel.EnsureSavedAsync`); worker I/O is
-  asynchronous on dedicated pumps. The one exception is Setup validation, which reads each root's
-  drive type with `DriveInfo` and checks local and removable roots with `Directory.Exists` whenever
-  Setup is validated; it deliberately skips the existence check for mapped and UNC roots
-  (`SuperDuper.Windows.Core/Validation/SessionDefinitionValidator.cs`).
+  asynchronous on dedicated pumps. Setup validation follows the same rule by splitting the pure,
+  synchronous syntax checks (name, path shape, duplicate and nested roots) from each root's drive
+  type and existence check, which run off the dispatcher, debounced while typing and bounded to 3
+  seconds like the worker's own root probes
+  (`SuperDuper.Windows.Core/Validation/SessionDefinitionValidator.ValidateSyntax`,
+  `.ProbeRootAvailabilityAsync`, `SessionSetupViewModel.ScheduleRootAvailabilityProbe`).
 - **View models run on the UI thread.** Their `await`s resume on the UI context; Core uses
   `ConfigureAwait(false)` only inside the progress scheduler.
 - **Worker events arrive off the UI thread.** `RunProgress`, `RunLifecycleChanged`,
@@ -54,7 +56,8 @@ are relative to `apps/windows/src/` unless they start with another top-level fol
   the newest at most every 100 ms, with one dispatcher post outstanding.
 - **Stale results are discarded.** Long operations capture a generation counter or cancellation
   token and check it after each `await` before touching state (for example `_startGeneration` and
-  `_navigationGeneration` in `ShellViewModel.cs`). Follow the same pattern for new async commands.
+  `_navigationGeneration` in `ShellViewModel.cs`, and `_rootProbeGeneration` in
+  `SessionSetupViewModel.cs`). Follow the same pattern for new async commands.
 
 ## Bounded data
 

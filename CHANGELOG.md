@@ -43,6 +43,8 @@ All notable changes to Super Duper are recorded here. Versions follow
 - The worker's diagnostic log now follows a database moved with `SUPER_DUPER_DB_PATH` (or a
   UI-development session) into a `logs` folder beside it, instead of always writing to
   `%LOCALAPPDATA%\SuperDuper\logs`.
+- Checking a scan root's drive type and availability while editing **Setup** no longer runs on the
+  window's UI thread; a slow removable or network drive can no longer stall typing.
 
 ## [0.1.0] - 2026-09-19
 

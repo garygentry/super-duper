@@ -981,7 +981,7 @@
       "outline": [
         {
           "heading": "Reliability",
-          "intent": "No per-request timeout, left out deliberately (issue #43); UI-thread file-system probing in Setup validation (issue #44)."
+          "intent": "No per-request timeout, left out deliberately (issue #43)."
         },
         {
           "heading": "Diagnostics",
@@ -1647,13 +1647,6 @@
       "affects": [
         "windows-recovery",
         "ug-troubleshoot"
-      ]
-    },
-    {
-      "note": "SessionDefinitionValidator calls Directory.Exists and DriveInfo on the UI thread for local and removable roots (SessionDefinitionValidator.cs:67,126,190), an exception to the no-filesystem-on-dispatcher rule (issue #44, not yet fixed).",
-      "affects": [
-        "arch-concepts",
-        "arch-risks"
       ]
     },
     {

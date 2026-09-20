@@ -16,11 +16,6 @@ Paths are relative to `apps/windows/src/` unless they start with another top-lev
   preview over a big run) have no natural upper bound, so a fixed timeout would misfire on a
   legitimately slow one rather than a stuck one. A future attempt would need a per-request-kind
   budget, not one constant.
-- **Setup validation touches the file system on the UI thread.** `SessionDefinitionValidator`
-  (`SuperDuper.Windows.Core/Validation/SessionDefinitionValidator.cs`) reads each root's drive type
-  with `DriveInfo` and calls `Directory.Exists` for local and removable roots each time Setup is
-  validated. The existence check is skipped for network roots for this reason, but a slow removable
-  or failing local drive could still stall the window (issue #44).
 
 ## Diagnostics
 

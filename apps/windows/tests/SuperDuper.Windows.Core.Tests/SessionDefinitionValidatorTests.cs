@@ -108,4 +108,59 @@ public sealed class SessionDefinitionValidatorTests
         Assert.IsTrue(result.Warnings.Any(warning => warning.Contains("UNC", StringComparison.Ordinal)));
         Assert.IsFalse(result.Warnings.Any(warning => warning.Contains("unavailable", StringComparison.OrdinalIgnoreCase)));
     }
+
+    [TestMethod]
+    public void ValidateSyntax_NeverTouchesTheFileSystem()
+    {
+        // A syntactically valid but nonexistent root would need a filesystem or drive call to
+        // classify or check reachability; ValidateSyntax must not make that call (issue #44).
+        var missing = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+
+        var result = SessionDefinitionValidator.ValidateSyntax("Setup", [missing], [], []);
+
+        Assert.IsTrue(result.IsValid);
+        Assert.IsTrue(result.HasReachableRoot, "syntax validation is optimistic until a probe narrows it");
+        Assert.IsFalse(result.Warnings.Any(warning => warning.Contains("unavailable", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [TestMethod]
+    public async Task ProbeRootAvailabilityAsync_DropsAProbeThatDoesNotFinishByTheDeadline()
+    {
+        using var release = new ManualResetEventSlim(false);
+        RootAvailability BlockOnSlowRoot(string root)
+        {
+            if (root == "slow")
+            {
+                release.Wait(TimeSpan.FromSeconds(10));
+            }
+            return new RootAvailability(ScanRootKind.Fixed, true, null);
+        }
+
+        try
+        {
+            var results = await SessionDefinitionValidator.ProbeRootAvailabilityAsync(
+                ["slow", "fast"],
+                TimeSpan.FromMilliseconds(200),
+                BlockOnSlowRoot);
+
+            Assert.IsFalse(results.ContainsKey("slow"), "a probe past the deadline is left out, not waited on");
+            Assert.IsTrue(results.ContainsKey("fast"));
+            Assert.IsTrue(results["fast"].Reachable);
+        }
+        finally
+        {
+            release.Set();
+        }
+    }
+
+    [TestMethod]
+    public async Task ProbeRootAvailabilityAsync_ReturnsEveryRootThatFinishesInTime()
+    {
+        var results = await SessionDefinitionValidator.ProbeRootAvailabilityAsync(
+            [Path.GetTempPath()],
+            TimeSpan.FromSeconds(3));
+
+        Assert.AreEqual(1, results.Count);
+        Assert.IsTrue(results[Path.GetTempPath()].Reachable);
+    }
 }

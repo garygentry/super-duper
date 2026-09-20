@@ -83,7 +83,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             folderPicker,
             confirmation,
             sessionId => Sessions.NamesExcept(sessionId),
-            cloudLocations);
+            cloudLocations,
+            dispatcher);
         Progress = new ScanProgressViewModel(
             workerClient,
             dispatcher,
@@ -584,6 +585,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         }
         DuplicateFiles.ReviewRevisionChanged -= OnFileReviewRevisionChanged;
         DuplicateFolders.ReviewRevisionChanged -= OnFolderReviewRevisionChanged;
+        Setup.Dispose();
         Progress.Dispose();
         Summary.Dispose();
         Progress.PropertyChanged -= OnProgressPropertyChanged;

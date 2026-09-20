@@ -74,15 +74,60 @@ public sealed class SessionSetupViewModelTests
     }
 
     [TestMethod]
-    public void Validation_DisablesStartForUnavailableRoots()
+    public async Task Validation_DisablesStartForUnavailableRoots()
     {
         var viewModel = CreateViewModel(new TestWorkerClient());
         viewModel.BeginNew();
         viewModel.Roots.Clear();
         viewModel.Roots.Add(new SessionRootViewModel(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))));
 
+        // Availability is a bounded, debounced background probe (issue #44), not immediate.
+        await viewModel.WaitForPendingRootProbeAsync();
+
         Assert.IsFalse(viewModel.CanStart);
         Assert.IsTrue(viewModel.HasWarnings);
+    }
+
+    [TestMethod]
+    public async Task RootProbe_SupersededEditCancelsThePriorProbeInstead()
+    {
+        var viewModel = CreateViewModel(new TestWorkerClient());
+        viewModel.BeginNew();
+        viewModel.Roots[0].Path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+
+        // Edits before the debounce elapses replace the pending probe; the unreachable root's
+        // probe must never apply after the user has already moved on (issue #44).
+        viewModel.Roots[0].Path = Path.GetTempPath();
+        await viewModel.WaitForPendingRootProbeAsync();
+
+        Assert.IsTrue(viewModel.CanStart);
+        Assert.IsFalse(viewModel.HasWarnings);
+    }
+
+    [TestMethod]
+    public void ApplyRootAvailability_IgnoresAStaleGeneration()
+    {
+        var viewModel = CreateViewModel(new TestWorkerClient());
+        viewModel.BeginNew();
+        var root = Path.GetTempPath();
+        viewModel.Roots[0].Path = root;
+        var staleGeneration = viewModel.CurrentRootProbeGenerationForTests;
+
+        // A further edit bumps the generation past the one captured above.
+        viewModel.Roots[0].Path = Path.Combine(root, "child-that-does-not-exist");
+        var warningsBeforeStaleApply = viewModel.WarningMessage;
+        var canStartBeforeStaleApply = viewModel.CanStart;
+
+        viewModel.ApplyRootAvailabilityForTests(
+            [root],
+            staleGeneration,
+            new Dictionary<string, RootAvailability>(StringComparer.OrdinalIgnoreCase)
+            {
+                [root] = new RootAvailability(ScanRootKind.Fixed, true, "a stale warning that must never appear"),
+            });
+
+        Assert.AreEqual(warningsBeforeStaleApply, viewModel.WarningMessage);
+        Assert.AreEqual(canStartBeforeStaleApply, viewModel.CanStart);
     }
 
     [TestMethod]
@@ -157,7 +202,7 @@ public sealed class SessionSetupViewModelTests
     }
 
     [TestMethod]
-    public void VerbatimRootStatusNamesThePlainPathAndKeepsTheStoredRoot()
+    public async Task VerbatimRootStatusNamesThePlainPathAndKeepsTheStoredRoot()
     {
         const string root = @"\\?\UNC\server\share\Archive";
         var viewModel = new SessionSetupViewModel(
@@ -169,6 +214,8 @@ public sealed class SessionSetupViewModelTests
         viewModel.BeginNew();
 
         viewModel.Roots[0].Path = root;
+        // The UNC classification and its warning come from the debounced background probe (#44).
+        await viewModel.WaitForPendingRootProbeAsync();
 
         Assert.AreEqual(root, viewModel.Roots[0].Path);
         Assert.IsTrue(viewModel.Roots[0].HasStatusNotice);
