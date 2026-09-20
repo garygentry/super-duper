@@ -31,6 +31,15 @@ All notable changes to Super Duper are recorded here. Versions follow
   guide.
 - Moving to the next or previous duplicate set on **Results** › **Files** no longer leaves the prior
   set's review counts (kept, removed, undecided) on screen while the new set's members load.
+- An unexpected error no longer ends the app silently: it is logged to the worker's diagnostic log,
+  the worker is stopped cleanly, and a plain message names the log file before the app closes.
+- A bug in a view model's worker-event handler no longer looks like a worker crash: it is logged
+  and the worker connection stays up.
+- Cancelling a worker request now frees its tracking entry immediately instead of holding it until
+  the worker eventually answers.
+- Folder review decision errors (for example an overlapping Keep or Remove choice) are recognized
+  by their worker error code instead of by searching the error text, so a wording change can no
+  longer make the wrong message appear.
 
 ## [0.1.0] - 2026-09-19
 

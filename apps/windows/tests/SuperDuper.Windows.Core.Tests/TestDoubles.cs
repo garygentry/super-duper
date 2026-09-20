@@ -21,6 +21,8 @@ internal sealed class TestWorkerClient : IRestartableWorkerClient, IRecycleOpera
 
     public string DiagnosticLogPath => @"C:\test\logs\worker.log";
 
+    public Task LogDiagnosticAsync(string source, Exception exception) => Task.CompletedTask;
+
     public static WorkerDiagnosticLogMetadata DiagnosticLog { get; } = new(
         "available",
         "local_file",

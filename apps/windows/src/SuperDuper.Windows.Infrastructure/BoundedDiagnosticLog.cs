@@ -8,6 +8,11 @@ internal sealed class BoundedDiagnosticLog : IAsyncDisposable
 
     private readonly string _path;
     private readonly long _maximumBytes;
+    // Guards _writer: the stderr relay and event-subscriber-exception logging both write through
+    // one instance from separate concurrent pump tasks, and two independent file handles to the
+    // same path corrupt each other's writes (FileMode.Append seeks to end once per handle, not
+    // atomically per write), so every write must go through this single, serialized writer.
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
     private StreamWriter? _writer;
 
     private BoundedDiagnosticLog(string path, long maximumBytes)
@@ -44,13 +49,14 @@ internal sealed class BoundedDiagnosticLog : IAsyncDisposable
 
     internal async Task<bool> TryWriteLineAsync(string line, CancellationToken cancellationToken)
     {
-        if (_writer is null)
-        {
-            return false;
-        }
-
+        await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            if (_writer is null)
+            {
+                return false;
+            }
+
             await _writer.WriteLineAsync(line.AsMemory(), cancellationToken).ConfigureAwait(false);
             await _writer.FlushAsync(cancellationToken).ConfigureAwait(false);
             if (_writer.BaseStream.Length >= _maximumBytes)
@@ -75,15 +81,28 @@ internal sealed class BoundedDiagnosticLog : IAsyncDisposable
             }
             return false;
         }
+        finally
+        {
+            _writeLock.Release();
+        }
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (_writer is not null)
+        await _writeLock.WaitAsync().ConfigureAwait(false);
+        try
         {
-            await _writer.DisposeAsync().ConfigureAwait(false);
-            _writer = null;
+            if (_writer is not null)
+            {
+                await _writer.DisposeAsync().ConfigureAwait(false);
+                _writer = null;
+            }
         }
+        finally
+        {
+            _writeLock.Release();
+        }
+        _writeLock.Dispose();
     }
 
     private void RotateIfNeeded()

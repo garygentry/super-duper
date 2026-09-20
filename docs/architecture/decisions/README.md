@@ -12,6 +12,7 @@ commit history and the plans preserved at the `v0.1.0` tag.
 | [0003](0003-one-owner-per-database.md) | One worker owns a database, one window per data folder | Accepted | 2026-09-18 |
 | [0004](0004-keep-wpf-redesign-in-place.md) | Keep WPF and recompose the app instead of migrating | Accepted | 2026-09-14 |
 | [0005](0005-app-state-in-localappdata.md) | App state lives in %LOCALAPPDATA%\SuperDuper | Accepted | 2026-09-18 |
+| [0006](0006-last-chance-exception-handling.md) | Last-chance exception handling logs, stops the worker, and exits | Accepted | 2026-09-20 |
 
 To add a record, copy the Status, Date, Context, Decision and Consequences sections of an existing
 one, take the next number, and link it here and from the architecture chapters it affects.

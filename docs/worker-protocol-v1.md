@@ -116,7 +116,7 @@ Events the worker emits:
 
 The worker emits no other event; there is no `worker.ready` event.
 
-Windows client behavior: `DispatchEvent` in
+Windows client behavior: `DispatchEventAsync` in
 `apps/windows/src/SuperDuper.Windows.Infrastructure/WorkerClient.cs` handles `run.*` and
 `result.state_changed` and ignores every other event, including all `preflight.*` events. The
 preflight view polls `preflight.get` every 150 ms until the generation is terminal. The client

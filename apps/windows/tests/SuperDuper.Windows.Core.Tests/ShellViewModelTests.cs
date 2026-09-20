@@ -582,6 +582,8 @@ public sealed class ShellViewModelTests
 
         public string DiagnosticLogPath => @"C:\test\logs\worker.log";
 
+        public Task LogDiagnosticAsync(string source, Exception exception) => Task.CompletedTask;
+
         public Task<WorkerHelloResult> ConnectAsync(CancellationToken cancellationToken = default) =>
             connect(cancellationToken);
 

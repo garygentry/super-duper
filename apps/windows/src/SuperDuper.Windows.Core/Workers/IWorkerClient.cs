@@ -10,6 +10,11 @@ public interface IWorkerClient : IAsyncDisposable
 
     string DiagnosticLogPath { get; }
 
+    /// <summary>Appends one entry to <see cref="DiagnosticLogPath"/>, coordinated with the
+    /// worker's own stderr relay so a concurrent write cannot corrupt either one. Best-effort: a
+    /// failed write is swallowed, since this is itself used from exception-handling paths.</summary>
+    Task LogDiagnosticAsync(string source, Exception exception);
+
     Task<WorkerHelloResult> ConnectAsync(CancellationToken cancellationToken = default);
 
     Task<WorkerSessionPage> ListSessionsAsync(
