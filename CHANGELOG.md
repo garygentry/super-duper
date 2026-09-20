@@ -21,6 +21,8 @@ All notable changes to Super Duper are recorded here. Versions follow
 - Setup validation messages, the delete confirmation, and the whole-plan check's cancel and
   announcement text now say "saved scan" and "check" instead of the protocol terms "session" and
   "preflight".
+- Loading a saved scan now preselects the **Repeat scans** policy its latest run recorded, instead
+  of always resetting to **Reuse verified hashes**.
 
 ## [0.1.0] - 2026-09-19
 

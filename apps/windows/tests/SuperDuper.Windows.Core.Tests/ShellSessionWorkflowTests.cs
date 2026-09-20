@@ -324,6 +324,31 @@ public sealed class ShellSessionWorkflowTests
     }
 
     [TestMethod]
+    public async Task LoadingASavedScanPreselectsItsLatestRunsRepeatCachePolicy()
+    {
+        var client = new TestWorkerClient();
+        var session = client.AddSession("Repeat", Path.GetTempPath());
+        client.AddRun(session.Id, "completed");
+        using var shell = CreateShell(client);
+
+        await shell.InitializeAsync();
+
+        Assert.AreEqual(RepeatCachePolicyNames.RevalidateContent, shell.Setup.RepeatCachePolicy);
+    }
+
+    [TestMethod]
+    public async Task LoadingASavedScanWithNoRunsDefaultsToReuseVerified()
+    {
+        var client = new TestWorkerClient();
+        client.AddSession("Fresh", Path.GetTempPath());
+        using var shell = CreateShell(client);
+
+        await shell.InitializeAsync();
+
+        Assert.AreEqual(RepeatCachePolicyNames.ReuseVerified, shell.Setup.RepeatCachePolicy);
+    }
+
+    [TestMethod]
     public async Task CancelledStaleStartCannotReplaceNewSetupOrPublishItsFailure()
     {
         var client = new TestWorkerClient();

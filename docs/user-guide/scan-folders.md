@@ -98,8 +98,9 @@ do anything.
 **Scan again** starts a new scan at once with the saved locations; it does not open **Setup**
 first. Make any setup changes before you select it.
 
-The **Repeat scans** choice is not saved with the saved scan. It returns to **Reuse verified
-hashes** whenever you open a saved scan, so set it just before you start. See
+The **Repeat scans** choice is not saved with the saved scan; opening it preselects whatever its
+latest scan used (**Reuse verified hashes** if it has none yet). Change it before you start if you
+want something different this time. See
 [Why repeat scans are faster](how-it-works.md#why-repeat-scans-are-faster).
 
 Each scan is kept separately in the history of the saved scan; earlier scans and their decisions
