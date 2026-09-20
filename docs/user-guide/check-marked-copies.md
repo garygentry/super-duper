@@ -30,7 +30,7 @@ results.
 
 While **Results** › **Files** is open, Super Duper notices file changes under the scanned
 locations. Affected copies on screen show **Validation pending after a coalesced filesystem
-hint**, and a notice asks you to "choose Validate page". Use **Check these copies** for this.
+hint**, and a notice asks you to "select Check these copies" — select that button to validate them.
 
 ## Catch up after many file changes
 
