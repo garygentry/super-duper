@@ -35,7 +35,15 @@ internal static class PopulatedShellFixture
         {
             window.Show();
             Drain();
+            // Top-level tab headers always share MainTabs' single header strip, so their access
+            // keys always compete window-wide; a nested TabControl's own headers (Setup/Progress/
+            // Summary, Scans/Performance) exist only once their parent area has been selected.
+            // Assert the letters chosen to avoid the window-wide S/R clashes documented in #38.
+            Assert.AreEqual("Se_tup", Find<TabItem>(window, "SetupTab").Header);
+            Assert.AreEqual("Rev_iew", Find<TabItem>(window, "PreflightTab").Header);
             model.SelectedDestination = WorkspaceDestination.History;
+            Drain();
+            Assert.AreEqual("Sc_ans", Find<TabItem>(window, "RunHistoryTab").Header);
             model.History.SelectedRun = model.History.Runs.Single(run => run.Id == old.Id);
             model.OpenScanCommand.Execute(null);
             Drain();
@@ -111,7 +119,7 @@ internal static class PopulatedShellFixture
             Assert.IsTrue(warnings.IsKeyboardFocusWithin);
             Assert.AreEqual(1, warnings.Items.Count);
             Assert.AreEqual(old.Id, model.SelectedRun?.Id);
-            Assert.AreEqual("_Return to progress", Find<Button>(window, "CloseRunWarnings").Content);
+            Assert.AreEqual("Ret_urn to progress", Find<Button>(window, "CloseRunWarnings").Content);
             StringAssert.Contains(
                 AutomationProperties.GetName(Find<Button>(window, "CloseRunWarnings")),
                 "active scan warning entry");
@@ -789,6 +797,7 @@ internal static class PopulatedShellFixture
         Drain();
         model.History.SelectedRun = model.History.Runs.Single(run => run.Id == model.SelectedRun?.Id);
         Drain();
+        Assert.AreEqual("Re_fresh", Find<Button>(window, "RefreshRunHistory").Content);
         var history = Find<DataGrid>(window, "RunHistoryGrid");
         StringAssert.Contains(Find<TextBlock>(window, "HighlightedRunIdentity").Text, $"Scan {model.History.SelectedRun?.Id}");
         StringAssert.Contains(Find<TextBlock>(window, "HighlightedRunRelationship").Text, "open in the Results and Review workspace");
@@ -802,6 +811,11 @@ internal static class PopulatedShellFixture
         Find<ScrollViewer>(window, "HistoryWorkspaceScrollViewer").ScrollToTop();
         Drain();
         Capture(window, $"populated-History-context-{suffix}");
+        Assert.AreEqual("Op_en scan", ((AccessText)Find<Button>(window, "OpenScan").Content).Text);
+        Assert.AreEqual("Performance de_tails", Find<Button>(window, "OpenHighlightedPerformance").Content);
+        Assert.AreEqual("Review _warnings", Find<Button>(window, "OpenRunWarnings").Content);
+        Assert.AreEqual("Pre_vious scans", Find<Button>(window, "PreviousRunHistoryPage").Content);
+        Assert.AreEqual("_Next scans", Find<Button>(window, "NextRunHistoryPage").Content);
         Reach(Find<Button>(window, "OpenScan"), window);
         Reach(Find<Button>(window, "OpenRunWarnings"), window);
         Reach(Find<Button>(window, "PreviousRunHistoryPage"), window);
@@ -817,16 +831,19 @@ internal static class PopulatedShellFixture
         StringAssert.Contains(Find<TextBlock>(window, "RunWarningSnapshotBoundary").Text, "Terminal warning revision");
         warningDetails.IsExpanded = false;
         SettleLayout(window);
-        Assert.AreEqual("_Return to run history", Find<Button>(window, "CloseRunWarnings").Content);
+        Assert.AreEqual("Ret_urn to run history", Find<Button>(window, "CloseRunWarnings").Content);
         AssertVisible(warnings, window, minimumHeight: 36);
         Assert.IsTrue(history.ActualHeight >= 144 && warnings.ActualHeight >= 144);
         var warningActionColumn = warnings.Columns.Single(column => Equals(column.Header, "Warning aggregate"));
         warnings.ScrollIntoView(warnings.Items[0], warningActionColumn);
         Drain();
+        Assert.AreEqual("_Open duplicate results", Find<Button>(window, "RunWarningHashResults-1").Content);
         Reach(Find<Button>(window, "RunWarningHashResults-1"), window);
         Capture(window, $"populated-History-warning-action-{suffix}");
         Reach(Find<Button>(window, "CloseRunWarnings"), window);
         Capture(window, $"populated-History-warnings-{suffix}");
+        Assert.AreEqual("Refresh current warnin_gs", Find<Button>(window, "RefreshRunWarnings").Content);
+        Assert.AreEqual("Ne_xt warning page", Find<Button>(window, "NextRunWarningPage").Content);
         Reach(Find<Button>(window, "NextRunWarningPage"), window);
         Reach(Find<Button>(window, "CancelRunWarningLoad"), window);
         model.History.CloseWarningsCommand.Execute(null);

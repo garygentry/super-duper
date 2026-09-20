@@ -14,9 +14,9 @@
         <StackPanel KeyboardNavigation.TabNavigation="Continue">
             <DockPanel>
                 <WrapPanel DockPanel.Dock="Right" Margin="12,0,0,0">
-                    <Button Command="{Binding RefreshCommand}" Content="_Refresh"
+                    <Button Command="{Binding RefreshCommand}" Content="Re_fresh"
                             Style="{StaticResource ShellSecondaryAction}"
-                            automation:AutomationProperties.AccessKey="Alt+R"
+                            automation:AutomationProperties.AccessKey="Alt+F"
                             automation:AutomationProperties.AutomationId="RefreshPerformance"
                             automation:AutomationProperties.Name="Refresh bounded performance telemetry" />
                     <Button Margin="8,0,0,0" Command="{Binding ReturnCommand}" Content="{Binding ReturnLabel}"

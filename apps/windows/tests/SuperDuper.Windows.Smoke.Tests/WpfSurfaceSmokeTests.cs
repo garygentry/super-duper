@@ -72,6 +72,8 @@ public sealed class WpfSurfaceSmokeTests
             var preflight = new PreflightView();
             AssertScanProgressSurface();
             var repeatPolicy = FindByAutomationId<ComboBox>(setup, "RepeatCachePolicy");
+            var repeatPolicyLabel = FindLogicalDescendants<Label>(setup).Single(label => ReferenceEquals(label.Target, repeatPolicy));
+            Assert.AreEqual("R_epeat scans", repeatPolicyLabel.Content);
             Assert.AreEqual("Repeat scan hash policy", AutomationProperties.GetName(repeatPolicy));
             StringAssert.Contains(AutomationProperties.GetHelpText(repeatPolicy), "falls back");
             Assert.IsTrue(repeatPolicy.Focusable);
@@ -84,6 +86,13 @@ public sealed class WpfSurfaceSmokeTests
                 "FileApplyFilters",
                 "FileGroupsGrid",
                 "FileMembersGrid");
+            var fileSearch = FindByAutomationId<TextBox>(files, "FileSearch");
+            var fileSearchLabel = FindLogicalDescendants<Label>(files).Single(label => ReferenceEquals(label.Target, fileSearch));
+            Assert.AreEqual("Path sear_ch", fileSearchLabel.Content);
+            Assert.AreEqual("Fi_lters", FindByAutomationId<ToggleButton>(files, "FileFiltersToggle").Content);
+            var fileRootFacet = FindByAutomationId<ComboBox>(files, "FileSelectedRootFacet");
+            var fileRootFacetLabel = FindLogicalDescendants<Label>(files).Single(label => ReferenceEquals(label.Target, fileRootFacet));
+            Assert.AreEqual("Selected roo_t", fileRootFacetLabel.Content);
             var fileGroups = FindByAutomationId<DataGrid>(files, "FileGroupsGrid");
             Assert.AreEqual(1, fileGroups.Columns.Count);
             Assert.AreEqual("Duplicate sets", fileGroups.Columns[0].Header);
@@ -300,6 +309,8 @@ public sealed class WpfSurfaceSmokeTests
                     FindByAutomationId<TextBlock>(files, "FileSelectedSetReviewSummary")));
             var previousSet = FindByAutomationId<Button>(files, "FilePreviousSet");
             var nextSet = FindByAutomationId<Button>(files, "FileNextSet");
+            Assert.AreEqual("Alt+P", AutomationProperties.GetAccessKey(previousSet));
+            Assert.AreEqual("Alt+N", AutomationProperties.GetAccessKey(nextSet));
             StringAssert.Contains(AutomationProperties.GetName(previousSet), "focus returns");
             StringAssert.Contains(AutomationProperties.GetName(nextSet), "focus returns");
             Assert.AreEqual(ScrollBarVisibility.Auto,
@@ -1269,14 +1280,15 @@ public sealed class WpfSurfaceSmokeTests
         Assert.IsTrue(cancel.IsKeyboardFocused);
 
         var performanceEntry = FindByAutomationId<Button>(progress, "ProgressPerformanceEntry");
-        Assert.AreEqual("Alt+P", AutomationProperties.GetAccessKey(performanceEntry));
+        Assert.AreEqual("Alt+F", AutomationProperties.GetAccessKey(performanceEntry));
+        Assert.AreEqual("Per_formance details", performanceEntry.Content);
         StringAssert.Contains(AutomationProperties.GetName(performanceEntry), "exact Scan 42");
         performanceEntry.Command.Execute(performanceEntry.CommandParameter);
         Assert.AreEqual(1, data.OpenPerformanceCommand.ExecuteCount);
 
         var warningEntry = FindByAutomationId<Button>(progress, "ProgressWarningEntry");
         Assert.AreEqual("Alt+W", AutomationProperties.GetAccessKey(warningEntry));
-        Assert.AreEqual("_Review warnings", warningEntry.Content);
+        Assert.AreEqual("Review _warnings", warningEntry.Content);
         StringAssert.Contains(AutomationProperties.GetName(warningEntry), "2 current warnings");
         StringAssert.Contains(AutomationProperties.GetHelpText(warningEntry), "bounded persisted-warning drilldown");
         Assert.IsTrue(warningEntry.Focusable && KeyboardNavigation.GetIsTabStop(warningEntry));
@@ -1359,9 +1371,10 @@ public sealed class WpfSurfaceSmokeTests
         var status = FindByAutomationId<TextBlock>(performance, "PerformanceStatus");
         var healthCard = FindByAutomationId<Border>(performance, "PerformanceHealthCard");
 
-        Assert.AreEqual("Alt+R", AutomationProperties.GetAccessKey(refresh));
+        Assert.AreEqual("Alt+F", AutomationProperties.GetAccessKey(refresh));
+        Assert.AreEqual("Re_fresh", refresh.Content);
         Assert.AreEqual("Alt+C", AutomationProperties.GetAccessKey(compare));
-        Assert.AreEqual("_Return to scan history", returnButton.Content);
+        Assert.AreEqual("Ret_urn to scan history", returnButton.Content);
         Assert.AreEqual("Performance · highlighted scan", FindByAutomationId<TextBlock>(performance, "PerformanceHeading").Text);
         StringAssert.Contains(FindByAutomationId<TextBlock>(performance, "PerformanceRunIdentity").Text, "Scan 107");
         StringAssert.Contains(FindByAutomationId<TextBlock>(performance, "PerformanceSnapshotBoundary").Text, "raw samples and time-series data are not available");
@@ -1406,9 +1419,12 @@ public sealed class WpfSurfaceSmokeTests
         Assert.IsFalse(string.IsNullOrWhiteSpace(AutomationProperties.GetName(groups)));
         Assert.AreEqual("Folder-copy comparison list", AutomationProperties.GetName(cards));
         StringAssert.Contains(AutomationProperties.GetHelpText(cards), "Selection alone changes nothing");
+        var folderSearchLabel = FindLogicalDescendants<Label>(folders).Single(label => ReferenceEquals(label.Target, search));
+        Assert.AreEqual("_Path search", folderSearchLabel.Content);
         Assert.AreEqual("_Apply", apply.Content);
-        Assert.AreEqual("Show or hide advanced folder filters", AutomationProperties.GetName(
-            FindByAutomationId<ToggleButton>(folders, "FolderFiltersToggle")));
+        var folderFiltersToggle = FindByAutomationId<ToggleButton>(folders, "FolderFiltersToggle");
+        Assert.AreEqual("Fi_lters", folderFiltersToggle.Content);
+        Assert.AreEqual("Show or hide advanced folder filters", AutomationProperties.GetName(folderFiltersToggle));
         Assert.AreEqual("Clear filters", FindByAutomationId<Button>(folders, "FolderClearFilters").Content);
         Assert.AreEqual("Sort exact-folder sets", AutomationProperties.GetName(
             FindByAutomationId<ComboBox>(folders, "FolderSetSort")));
@@ -1496,6 +1512,12 @@ public sealed class WpfSurfaceSmokeTests
         LongScanMonitoringFixture.SettleLayout(host);
 
         var setupStage = FindByAutomationId<Expander>(review, "PreferenceSetupStage");
+        var ruleList = FindByAutomationId<ComboBox>(review, "PreferenceRuleList");
+        var ruleListLabel = FindLogicalDescendants<Label>(review).Single(label => ReferenceEquals(label.Target, ruleList));
+        Assert.AreEqual("Saved rul_e", ruleListLabel.Content);
+        var previewScope = FindByAutomationId<ComboBox>(review, "PreferencePreviewScope");
+        var previewScopeLabel = FindLogicalDescendants<Label>(review).Single(label => ReferenceEquals(label.Target, previewScope));
+        Assert.AreEqual("Preview sc_ope", previewScopeLabel.Content);
         var preview = FindByAutomationId<Button>(review, "PreferenceRunPreview");
         var previewRight = preview.TranslatePoint(new Point(preview.ActualWidth, 0), review).X;
         var preferenceList = FindByAutomationId<ListView>(review, "PreferencePreviewGroups");
@@ -1725,7 +1747,7 @@ public sealed class WpfSurfaceSmokeTests
         public string ContextHeading => "Performance · highlighted scan";
         public string ContextIdentity => "Photo archive · Scan 107 · 9/13/2026 8:00 PM · Completed";
         public string SnapshotBoundary => "Worker telemetry 7 for exact Scan 107. Current and peak values are persisted summaries; raw samples and time-series data are not available.";
-        public string ReturnLabel => "_Return to scan history";
+        public string ReturnLabel => "Ret_urn to scan history";
         public string ReturnAutomationName => "Close performance details and return focus to the highlighted scan performance entry";
         public string RunStatus => "Completed";
         public string RunDuration => "00.00:00:05";
@@ -1846,7 +1868,7 @@ public sealed class WpfSurfaceSmokeTests
         public ProgressSurfaceCommand OpenWarningsCommand { get; } = new();
 
         public string PerformanceAutomationName =>
-            "View bounded performance summaries for exact Scan 42; access key Alt+P";
+            "View bounded performance summaries for exact Scan 42; access key Alt+F";
 
         public ProgressSurfaceCommand OpenPerformanceCommand { get; } = new();
 

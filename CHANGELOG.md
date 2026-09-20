@@ -23,6 +23,12 @@ All notable changes to Super Duper are recorded here. Versions follow
   "preflight".
 - Loading a saved scan now preselects the **Repeat scans** policy its latest run recorded, instead
   of always resetting to **Reuse verified hashes**.
+- Every keyboard access key now activates its own control instead of cycling focus with another
+  control that shared the same underlined letter (for example **Scan** and **Setup**, **Results**
+  and **Review**, **Files** and **Filters**). The previous and next duplicate-set buttons on
+  **Files** now respond to the Alt+P and Alt+N they already advertised, and **Review warnings** on
+  **Progress** now responds to the Alt+W it announces. See the updated shortcut table in the user
+  guide.
 
 ## [0.1.0] - 2026-09-19
 

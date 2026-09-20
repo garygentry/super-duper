@@ -40,7 +40,7 @@ public sealed class PerformanceViewModelTests
         StringAssert.Contains(viewModel.ContextIdentity, $"Photo archive · Scan {productRun.Id}");
         StringAssert.Contains(viewModel.SnapshotBoundary, $"exact Scan {productRun.Id}");
         StringAssert.Contains(viewModel.SnapshotBoundary, "raw samples and time-series data are not available");
-        Assert.AreEqual("_Return to progress", viewModel.ReturnLabel);
+        Assert.AreEqual("Ret_urn to progress", viewModel.ReturnLabel);
         StringAssert.Contains(viewModel.ReadSummary, "actually read");
         StringAssert.Contains(viewModel.UnavailableSummary, "unavailable in latest host sample");
         Assert.IsFalse(viewModel.HasError);

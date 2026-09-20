@@ -15,7 +15,7 @@
         <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <DockPanel MinWidth="180" VerticalAlignment="Bottom">
-                <Label DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,8,0" Padding="0,0,0,3" Target="{Binding ElementName=FileSearch}" Content="Path _search"/>
+                <Label DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,8,0" Padding="0,0,0,3" Target="{Binding ElementName=FileSearch}" Content="Path sear_ch"/>
                                     <TextBox x:Name="FileSearch"
                              VerticalContentAlignment="Center"
                              KeyboardNavigation.TabIndex="10"
@@ -34,7 +34,7 @@
                         automation:AutomationProperties.Name="Apply duplicate file filters"
                         Command="{Binding ApplyFiltersCommand}"
                         Content="_Apply" />
-                <ToggleButton x:Name="FileFiltersToggle" KeyboardNavigation.TabIndex="25" Content="_Filters" Margin="8,0,0,0"
+                <ToggleButton x:Name="FileFiltersToggle" KeyboardNavigation.TabIndex="25" Content="Fi_lters" Margin="8,0,0,0"
                     automation:AutomationProperties.AutomationId="FileFiltersToggle"
                     automation:AutomationProperties.Name="Show or hide draft file filters"
                     IsChecked="{Binding IsExpanded, ElementName=FileFiltersExpander, Mode=TwoWay}"/>
@@ -205,7 +205,7 @@
                        VerticalAlignment="Center"
                        FontWeight="SemiBold"
                        Target="{Binding ElementName=FileSelectedRootFacet}"
-                       Content="Selected _root" />
+                       Content="Selected roo_t" />
                 <ComboBox x:Name="FileSelectedRootFacet"
                           Width="360"
                           MaxDropDownHeight="280"
@@ -737,6 +737,7 @@
                         <Button x:Name="PreviousSetButton"
                                 Style="{StaticResource ShellIconAction}"
                                 KeyboardNavigation.TabIndex="450"
+                                automation:AutomationProperties.AccessKey="Alt+P"
                                 automation:AutomationProperties.AutomationId="FilePreviousSet"
                                 automation:AutomationProperties.Name="Previous duplicate set; access key Alt+P; focus returns to the selected group"
                                 Click="OnSetNavigationClick"
@@ -748,6 +749,7 @@
                                 Margin="8,0,0,0"
                                 Style="{StaticResource ShellIconAction}"
                                 KeyboardNavigation.TabIndex="460"
+                                automation:AutomationProperties.AccessKey="Alt+N"
                                 automation:AutomationProperties.AutomationId="FileNextSet"
                                 automation:AutomationProperties.Name="Next duplicate set; access key Alt+N; focus returns to the selected group"
                                 Click="OnSetNavigationClick"

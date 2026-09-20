@@ -239,8 +239,8 @@ public sealed class ScanProgressViewModel : ObservableObject, IDisposable
     public bool CanOpenPerformance => Run is not null && _openPerformance is not null;
 
     public string PerformanceAutomationName => Run is { } run
-        ? $"View bounded performance summaries for exact Scan {run.Id:N0}; access key Alt+P"
-        : "No scan performance to review; access key Alt+P";
+        ? $"View bounded performance summaries for exact Scan {run.Id:N0}; access key Alt+F"
+        : "No scan performance to review; access key Alt+F";
 
     public WorkerScanProgressSnapshot? ProgressSnapshot
     {

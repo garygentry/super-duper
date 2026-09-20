@@ -38,15 +38,6 @@ Paths are relative to `apps/windows/src/` unless they start with another top-lev
 
 ## Usability defects
 
-- **Duplicate access keys.** In `SuperDuper.Windows/MainWindow.xaml`, **Scan** and **Setup** share
-  S, and **Results** and **Review** share R. In `SuperDuper.Windows/Views/RunHistoryView.xaml`,
-  **Refresh** and **Refresh current warnings** share R, **Next scans** and **Next warning page**
-  share N, and **Previous scans** and **Performance details** share P. WPF moves focus between
-  duplicates instead of activating one. Not tested at run time.
-- **Promised shortcuts that do not exist.** The previous and next duplicate-set buttons in
-  `SuperDuper.Windows/Views/DuplicateFilesView.xaml` announce Alt+P and Alt+N in their tooltips and
-  accessible names, but no access key or key binding backs them; the view registers only "v"
-  (`DuplicateFilesView.xaml.cs`).
 - **Stale set counts while loading.** When the selected duplicate set changes,
   `DuplicateFilesViewModel.SetSelectedGroup` keeps the previous set's review summary until the new
   member page arrives, so the counts briefly describe the wrong set (issue #25).

@@ -456,7 +456,7 @@
       ],
       "status": "drafted",
       "priority": 1,
-      "verification": "Next/previous set shortcuts are omitted: tooltips promise Alt+N/Alt+P but no binding exists (see gaps)."
+      "verification": "Next/previous set shortcuts (Alt+N/Alt+P) are bound via AccessKeyManager registration and documented in the app reference."
     },
     {
       "id": "ug-preferences",
@@ -982,10 +982,6 @@
         {
           "heading": "Reliability",
           "intent": "No global exception handler with async void handlers; no per-request timeout; TryCancel keeps pending entries; message-text error matching."
-        },
-        {
-          "heading": "Usability defects",
-          "intent": "Duplicate access keys, unbound Alt+N/Alt+P, Validate page wording, unwired ScanAgainCommand, repeat policy not saved."
         },
         {
           "heading": "Diagnostics",
@@ -1602,14 +1598,6 @@
         "ug-history",
         "ug-troubleshoot",
         "ug-reference"
-      ]
-    },
-    {
-      "note": "Access keys: tooltips on the next/previous duplicate-set buttons promise Alt+N/Alt+P but no binding exists (DuplicateFilesView.xaml:741-755, .xaml.cs:31). Progress announces Alt+W for Review warnings but its access key is R, already used by the Results and Review tabs (ScanProgressView.xaml:70-71). Alt+P on Progress is shared by the Progress tab and Performance details; Alt+F by the Files tab and Filters; Alt+R and Alt+S by top-level tabs; History shares R, N and P with its warnings controls. None of these are documented as working shortcuts; all keys are unverified at runtime.",
-      "affects": [
-        "ug-reference",
-        "ug-review",
-        "arch-risks"
       ]
     },
     {

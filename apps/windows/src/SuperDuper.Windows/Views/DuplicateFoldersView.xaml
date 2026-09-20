@@ -41,7 +41,7 @@
                                   Margin="8,0,0,0"
                                   automation:AutomationProperties.AutomationId="FolderFiltersToggle"
                                   automation:AutomationProperties.Name="Show or hide advanced folder filters"
-                                  Content="_Filters"
+                                  Content="Fi_lters"
                                   IsChecked="{Binding IsExpanded, ElementName=FolderFiltersExpander, Mode=TwoWay}" />
                     <Button x:Name="FolderClearFilters"
                             Margin="8,0,0,0"
