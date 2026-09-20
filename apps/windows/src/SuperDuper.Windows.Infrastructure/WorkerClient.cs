@@ -52,7 +52,12 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
     }
 
     public WorkerClient(string executablePath, WorkerStateLocations state)
-        : this(executablePath, DefaultStartupTimeout, state.DatabasePath, diagnosticLogPath: null, state.HashCachePath)
+        : this(
+            executablePath,
+            DefaultStartupTimeout,
+            state.DatabasePath,
+            diagnosticLogPath: Path.Combine(state.StateDirectory, "logs", "worker.log"),
+            state.HashCachePath)
     {
         _statusDatabasePath = Path.GetFullPath(state.StatusDatabasePath);
         _stateDirectoryToCreate = state.CreateStateDirectory ? Path.GetFullPath(state.StateDirectory) : null;

@@ -74,7 +74,6 @@ public partial class App : Application
         Environment.SetEnvironmentVariable("SUPER_DUPER_DB_PATH", Path.Combine(state, "super_duper.db"));
         Environment.SetEnvironmentVariable("SUPER_DUPER_STATUS_DB_PATH", Path.Combine(state, "scan_status.db"));
         Environment.SetEnvironmentVariable("HASH_CACHE_PATH", Path.Combine(state, "hash-cache"));
-        Environment.SetEnvironmentVariable("LOG_FILE_PATH", Path.Combine(state, "app.log"));
     }
 #endif
 

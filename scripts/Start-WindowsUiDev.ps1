@@ -84,7 +84,6 @@ $start.Environment['SUPER_DUPER_WORKER_PATH'] = $worker
 $start.Environment['SUPER_DUPER_DB_PATH'] = Join-Path $state 'super_duper.db'
 $start.Environment['SUPER_DUPER_STATUS_DB_PATH'] = Join-Path $state 'scan_status.db'
 $start.Environment['HASH_CACHE_PATH'] = Join-Path $state 'hash-cache'
-$start.Environment['LOG_FILE_PATH'] = Join-Path $state 'app.log'
 $process = [Diagnostics.Process]::Start($start)
 
 Write-Output "APP_PID=$($process.Id)"

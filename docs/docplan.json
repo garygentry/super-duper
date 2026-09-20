@@ -985,7 +985,7 @@
         },
         {
           "heading": "Diagnostics",
-          "intent": "Worker log ignores state overrides; LOG_FILE_PATH in .uidev has no effect."
+          "intent": "Log failures are silent; test failure evidence is deleted (issue #35)."
         },
         {
           "heading": "Verification gaps",
@@ -1646,15 +1646,6 @@
       "note": "Whether the worker itself writes a diagnostic log at SUPER_DUPER_DIAGNOSTIC_LOG_PATH or only reports it as metadata was not traced; docs describe the app-side worker.log only.",
       "affects": [
         "windows-recovery",
-        "ug-troubleshoot"
-      ]
-    },
-    {
-      "note": "Worker log location: the app always writes worker stderr to %LOCALAPPDATA%\\SuperDuper\\logs, even with SUPER_DUPER_DB_PATH set (WorkerClient.cs:87, 1569), so smoke and UI-dev runs write into the real log folder despite the disposable-state rule. LOG_FILE_PATH set by Start-WindowsUiDev.ps1 and .uidev is read only by the CLI.",
-      "affects": [
-        "windows-recovery",
-        "windows-ui-dev",
-        "arch-risks",
         "ug-troubleshoot"
       ]
     },
