@@ -5,6 +5,8 @@ All notable changes to Super Duper are recorded here. Versions follow
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-20
+
 ### Added
 
 - A `super-duper export` CLI subcommand writes duplicate file groups (`duplicate-groups`) or
@@ -87,6 +89,16 @@ All notable changes to Super Duper are recorded here. Versions follow
   counter was published separately from, and could race ahead of, its matching completed-file
   counter. Both now travel together in one update (#65).
 
+### Known limitations
+
+- Not yet verified: Windows high contrast themes, Narrator and NVDA, and multi-monitor or 200% DPI
+  setups.
+- Moving files to the Recycle Bin is intentionally not available in this release.
+- An exclusion written through a mapped network drive is not resolved to its share path; choose the
+  shared folder directly. (`subst` drive letters and directory junctions or symlinks are resolved.)
+- Only the plain Windows 11 x64 zip is provided: no installer, no Arm64 build, and no automatic
+  updates.
+
 ## [0.1.0] - 2026-09-19
 
 First release of the Windows app. It is **review-only**: Super Duper finds duplicates and records
@@ -133,5 +145,6 @@ what you want to keep or remove, but it never deletes, moves, or modifies scanne
 - Only the plain Windows 11 x64 zip is provided: no installer, no Arm64 build, and no automatic
   updates.
 
-[Unreleased]: https://github.com/garygentry/super-duper/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/garygentry/super-duper/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/garygentry/super-duper/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/garygentry/super-duper/releases/tag/v0.1.0
