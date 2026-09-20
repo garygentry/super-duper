@@ -153,11 +153,7 @@ in anything a user reads and the right column in code, protocol and maintainer d
 | **Check marked copies**, whole-plan check | preflight (`preflight.*`) |
 | Location preferences | preference rules (`preference_rule.*`) |
 
-A few strings still show the technical term: validation messages and the delete confirmation say
-"session" (`SuperDuper.Windows.Core/Validation/SessionDefinitionValidator.cs`,
-`SessionSetupViewModel.cs`), the close prompt says "Cancel preflight and exit?"
-(`ShellViewModel.cs`), and the watcher notice says "Validate page" (see
-[risks](windows-app-risks.md)). New text should use the left column.
+New text should use the left column.
 
 ## Presentation preferences
 

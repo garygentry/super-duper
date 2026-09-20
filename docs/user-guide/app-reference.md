@@ -98,7 +98,7 @@ Page title **Choose locations**.
 | Cloud detection line and **Refresh** | Result of registered cloud location detection (see below) |
 | **Scan policy details** | Counts of locations, ignore patterns and manual exclusions; the policy **Exclude registered cloud sync roots**; each detected cloud location; the repeat-scan choice |
 | **Advanced: content reads and exclusions** | **Repeat scans** (**Reuse verified hashes** or **Re-read candidate content**), **Manual cloud location exclusions** (one absolute path per line), **Ignore patterns** (one glob per line) |
-| **Manage saved scan** | **Delete saved scan and history**, with a **Delete session?** confirmation |
+| **Manage saved scan** | **Delete saved scan and history**, with a **Delete saved scan?** confirmation |
 
 **Repeat scans** is not saved with the saved scan. It resets to **Reuse verified hashes** whenever a
 saved scan is loaded.
@@ -385,17 +385,17 @@ Errors prevent saving and scanning. Warnings are shown but do not block.
 
 | Type | Message |
 | --- | --- |
-| Error | Enter a session name. |
-| Error | Session names may contain at most 200 characters. |
-| Error | Another session already uses this name. |
+| Error | Enter a saved scan name. |
+| Error | Saved scan names may contain at most 200 characters. |
+| Error | Another saved scan already uses this name. |
 | Error | Add at least one scan root. |
-| Error | A session may contain at most 64 scan roots. |
+| Error | A saved scan may contain at most 64 scan roots. |
 | Error | Scan root must be an absolute path: `<path>` |
 | Error | Scan root is not a valid Windows path: `<path>` |
 | Error | Ignore patterns may contain at most 1024 characters. |
 | Error | Ignore patterns cannot contain control characters. |
 | Error | Ignore pattern has an unmatched character class: `<pattern>` |
-| Error | A session may contain at most 512 ignore patterns. |
+| Error | A saved scan may contain at most 512 ignore patterns. |
 | Error | Manual cloud location exclusions must be absolute paths. |
 | Error at start | At least one scan root must be available before starting a scan. |
 | Warning | `<drive>` scans an entire drive and may take a long time. |
@@ -406,8 +406,8 @@ Errors prevent saving and scanning. Warnings are shown but do not block.
 | Warning | UNC network root is best-effort; latency, credentials, and disconnects may produce warnings: `<path>` |
 | Warning | Root uses a filesystem type that has not been classified as fixed, removable, or network: `<path>` |
 
-Validation messages say "session" where the rest of the app says "saved scan". Network locations
-are treated as reachable while you edit; the engine checks them when the scan starts.
+Network locations are treated as reachable while you edit; the engine checks them when the scan
+starts.
 
 ## Files the app keeps
 
@@ -443,7 +443,7 @@ Logs stay in `%LOCALAPPDATA%\SuperDuper\logs` whatever these are set to.
 
 | Term | Meaning |
 | --- | --- |
-| Saved scan | A named, reusable list of locations and settings. Validation messages call it a session |
+| Saved scan | A named, reusable list of locations and settings |
 | Scan | One run of a saved scan, identified as **Scan** `<id>`. Its settings and results never change afterwards |
 | Location (scan root) | A folder, drive or network path in a saved scan |
 | Duplicate set | Two or more files with identical content, also called a group |

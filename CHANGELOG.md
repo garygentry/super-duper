@@ -18,6 +18,9 @@ All notable changes to Super Duper are recorded here. Versions follow
   finish instead of failing at once with "database is locked".
 - The filesystem-change notice on **Results** › **Files** now names the **Check these copies**
   button instead of a nonexistent "Validate page".
+- Setup validation messages, the delete confirmation, and the whole-plan check's cancel and
+  announcement text now say "saved scan" and "check" instead of the protocol terms "session" and
+  "preflight".
 
 ## [0.1.0] - 2026-09-19
 

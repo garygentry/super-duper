@@ -35,7 +35,7 @@ public sealed class SessionSetupViewModel : ObservableObject
     private WorkerSessionDefinition? _savedDefinition;
     private string? _operationError;
     private string _repeatCachePolicy = RepeatCachePolicyNames.ReuseVerified;
-    private SessionValidationResult _validation = new([], [], [], ["Enter a session name."], false);
+    private SessionValidationResult _validation = new([], [], [], ["Enter a saved scan name."], false);
 
     public SessionSetupViewModel(
         IWorkerClient workerClient,
@@ -489,7 +489,7 @@ public sealed class SessionSetupViewModel : ObservableObject
             return;
         }
         var confirmed = await _confirmation.ConfirmAsync(
-            "Delete session?",
+            "Delete saved scan?",
             $"Delete '{Name}' and all of its run history and results? This cannot be undone.");
         if (!confirmed)
         {

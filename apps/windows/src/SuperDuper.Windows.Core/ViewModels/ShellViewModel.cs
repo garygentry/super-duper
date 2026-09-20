@@ -514,8 +514,8 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
                 return true;
             }
             var preflightConfirmed = await _confirmation.ConfirmAsync(
-                "Cancel preflight and exit?",
-                "Preflight validation is still running. Cancel it and close Super Duper? No files will be deleted.",
+                "Cancel check and exit?",
+                "The check is still running. Cancel it and close Super Duper? No files will be deleted.",
                 cancellationToken);
             if (!preflightConfirmed)
             {
@@ -531,7 +531,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
             }
             return true;
         }
-        var sessionName = Sessions.Find(_activeSessionId ?? -1)?.Name ?? "the active session";
+        var sessionName = Sessions.Find(_activeSessionId ?? -1)?.Name ?? "the active saved scan";
         var confirmed = await _confirmation.ConfirmAsync(
             "Cancel scan and exit?",
             $"'{sessionName}' is still scanning. Cancel the scan and close Super Duper?",

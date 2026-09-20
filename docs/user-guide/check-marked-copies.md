@@ -60,7 +60,7 @@ placeholders or excluded locations.
    files will be deleted. Select **Yes**.
 
    **Whole-plan check in progress** shows **Checked … of … validation items.** To stop, select
-   **Cancel check**, then **Yes** in the **Cancel preflight?** message. Completed results stay
+   **Cancel check**, then **Yes** in the **Cancel check?** message. Completed results stay
    available.
 
 4. Read the outcome:

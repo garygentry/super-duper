@@ -147,7 +147,7 @@ public sealed class PreflightViewModelTests
         Assert.IsFalse(viewModel.IsCurrent);
         Assert.AreEqual(3, viewModel.Preflight?.ReviewRevision);
         StringAssert.Contains(viewModel.RevisionStatus, "current review revision is 4");
-        StringAssert.Contains(viewModel.Announcement, "Run preflight again");
+        StringAssert.Contains(viewModel.Announcement, "Select Check marked copies again");
     }
 
     [TestMethod]
