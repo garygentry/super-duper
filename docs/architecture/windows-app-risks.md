@@ -9,32 +9,18 @@ Paths are relative to `apps/windows/src/` unless they start with another top-lev
 
 ## Reliability
 
-- **No process-wide exception handler.** Nothing subscribes to `DispatcherUnhandledException`,
-  `AppDomain.UnhandledException` or `TaskScheduler.UnobservedTaskException`. The app has 24
-  `async void` methods: `App.OnStartup` and view event handlers in
-  `SuperDuper.Windows/Views/DuplicateFilesView.xaml.cs`, `DuplicateFoldersView.xaml.cs` and
-  `RunHistoryView.xaml.cs`. An exception escaping one of them reaches WPF's default handling and
-  ends the app without the orderly path in `MainWindow.ShutdownAsync`.
 - **No per-request timeout.** Only the `hello` handshake (10 seconds) and the shutdown grace
   (2 seconds) are timed. A request the worker never answers waits until its caller cancels or the
-  connection fails (`SuperDuper.Windows.Infrastructure/WorkerClient.cs`, `SendRequestAsync`).
-- **Cancelling a request only stops waiting.** `ResponseCorrelator.TryCancel` completes the
-  caller's task but leaves the pending entry until the worker answers or the connection fails, and
-  the worker is not told to stop that work
-  (`SuperDuper.Windows.Infrastructure/Protocol/ResponseCorrelator.cs`).
-- **Event subscribers can stop the worker.** `WorkerClient.DispatchEvent` invokes subscribers on
-  the stdout pump thread inside its error handling, so an exception from any subscriber is treated
-  as a protocol failure: pending requests fail and the worker is killed.
+  connection fails (`SuperDuper.Windows.Infrastructure/WorkerClient.cs`, `SendRequestAsync`). Left
+  out deliberately (issue #43): several requests (large review or history pages, preference
+  preview over a big run) have no natural upper bound, so a fixed timeout would misfire on a
+  legitimately slow one rather than a stuck one. A future attempt would need a per-request-kind
+  budget, not one constant.
 - **Setup validation touches the file system on the UI thread.** `SessionDefinitionValidator`
   (`SuperDuper.Windows.Core/Validation/SessionDefinitionValidator.cs`) reads each root's drive type
   with `DriveInfo` and calls `Directory.Exists` for local and removable roots each time Setup is
   validated. The existence check is skipped for network roots for this reason, but a slow removable
-  or failing local drive could still stall the window.
-- **Error mapping by message text.** `DuplicateFoldersViewModel.ReviewDecisionError`
-  (`SuperDuper.Windows.Core/ViewModels/DuplicateFoldersViewModel.cs`) recognizes worker error codes
-  such as `review_overlap_conflict` by searching the exception message. The code is available as
-  `WorkerProtocolException.Code`, but that type lives in Infrastructure, which Core cannot
-  reference. A change to the message format would silently fall through to the generic text.
+  or failing local drive could still stall the window (issue #44).
 
 ## Diagnostics
 

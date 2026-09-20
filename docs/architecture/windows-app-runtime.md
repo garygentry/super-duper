@@ -157,8 +157,37 @@ Diagnostics for these cases, including the worker log location, are in
    `ShutdownCompletionIsNotQueuedAtStarvableIdlePriority`). `App.OnExit` disposes the container
    and the single-instance gate.
 
+## Unhandled exceptions
+
+The orderly shutdown above needs a working UI thread and an intact view model; a bug that escapes
+every local `catch` has neither. `App`'s constructor subscribes three last-chance handlers before
+anything else runs
+([ADR-0006](decisions/0006-last-chance-exception-handling.md)):
+
+1. **`DispatcherUnhandledException`.** Covers every `async void` view event handler and
+   `App.OnStartup`: none of them use `ConfigureAwait(false)` or a detached `Task.Run`, so a
+   continuation after `await` still resumes on the dispatcher and reaches here, the same as a
+   synchronous throw. Marked handled so the default WPF crash path does not also run.
+2. **`AppDomain.UnhandledException`.** Catches an exception on a thread pool or background thread
+   that never returns to the dispatcher. The CLR usually terminates the process right after this
+   handler returns regardless of what it does.
+3. **`TaskScheduler.UnobservedTaskException`.** Not fatal: a `Task` whose exception nobody observed
+   is logged and marked observed so it cannot also surface later through the finalizer thread.
+
+The two fatal handlers converge on one path: log the exception (source and full text) through
+`IWorkerClient.LogDiagnosticAsync`, stop the worker and dispose the single-instance gate the same
+way `App.OnExit` does (not the full confirm-and-cancel `ShutdownAsync` flow, which needs a working
+window), show a plain message box naming the log file, then `Environment.Exit(1)`. `WorkerClient`'s
+own event dispatch (`DispatchEventAsync`) isolates a subscriber's exception the same way at a
+smaller scope: it is logged through the same path and the pump keeps running, instead of failing
+every pending request and killing the worker for a bug in one view model's handler.
+`LogDiagnosticAsync` writes through the one `BoundedDiagnosticLog` the connection already owns for
+its stderr relay, serialized internally, so a crash report can never land in the same file at the
+same time as a relayed stderr line and corrupt either one.
+
 ## Related decisions
 
 - [ADR-0001: The Windows app reaches the engine through a worker process](decisions/0001-worker-process-boundary.md)
 - [ADR-0003: One worker owns a database, one window per data folder](decisions/0003-one-owner-per-database.md)
 - [ADR-0005: App state lives in %LOCALAPPDATA%\SuperDuper](decisions/0005-app-state-in-localappdata.md)
+- [ADR-0006: Last-chance exception handling logs, stops the worker, and exits](decisions/0006-last-chance-exception-handling.md)

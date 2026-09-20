@@ -581,7 +581,7 @@ public sealed class WorkerClientLifecycleTests
                     .Select(member => Path.GetFileName(member.Path.TrimEnd(Path.DirectorySeparatorChar)))
                     .ToArray());
 
-            var diagnosticText = await WaitForDiagnosticsAsync(diagnostics);
+            var diagnosticText = await WaitForDiagnosticsAsync(diagnostics, "duplicate_folder_group.members");
             foreach (var phase in new[] { "discovering", "hashing", "persisting", "analyzing_folders", "finalizing" })
             {
                 StringAssert.Contains(diagnosticText, $"kind=scan_phase run_id={started.Id} phase={phase}");
@@ -613,7 +613,68 @@ public sealed class WorkerClientLifecycleTests
         }
     }
 
-    private static async Task<string> WaitForDiagnosticsAsync(string path)
+    [TestMethod]
+    public async Task DispatchEvent_IsolatesAThrowingSubscriberAndKeepsThePumpAlive()
+    {
+        var worker = FindWorker();
+        var temp = Path.Combine(Path.GetTempPath(), $"super-duper-event-isolation-{Guid.NewGuid():N}");
+        var root = Path.Combine(temp, "root");
+        Directory.CreateDirectory(root);
+        await File.WriteAllTextAsync(Path.Combine(root, "one.txt"), "non-empty");
+        var diagnostics = Path.Combine(temp, "logs", "worker.log");
+
+        try
+        {
+            await using var client = new WorkerClient(
+                worker,
+                TimeSpan.FromSeconds(10),
+                Path.Combine(temp, "worker.db"),
+                diagnostics,
+                Path.Combine(temp, "hash-cache"));
+            var observedEvents = new List<string>();
+            var terminal = new TaskCompletionSource<string>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            client.RunLifecycleChanged += (_, eventArgs) =>
+            {
+                lock (observedEvents) observedEvents.Add(eventArgs.EventName);
+                if (eventArgs.EventName is "run.completed" or "run.cancelled" or "run.failed")
+                {
+                    terminal.TrySetResult(eventArgs.EventName);
+                }
+                if (eventArgs.EventName == "run.started")
+                {
+                    throw new InvalidOperationException("Simulated bug in a run.started subscriber.");
+                }
+            };
+
+            _ = await client.ConnectAsync();
+            var session = await client.CreateSessionAsync("Event isolation", [root], []);
+            var started = await client.StartRunAsync(session.Id);
+            var terminalEvent = await terminal.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            // The connection and pending-request tracking survived the throwing subscriber.
+            var durable = await client.GetRunAsync(started.Id);
+            var log = await WaitForDiagnosticsAsync(diagnostics, "event subscriber (run.started)");
+
+            Assert.AreEqual("run.completed", terminalEvent);
+            Assert.AreEqual("completed", durable.Status);
+            lock (observedEvents)
+            {
+                CollectionAssert.Contains(observedEvents, "run.started");
+                CollectionAssert.Contains(observedEvents, "run.completed");
+            }
+            StringAssert.Contains(log, "event subscriber (run.started)");
+            StringAssert.Contains(log, "Simulated bug in a run.started subscriber.");
+        }
+        finally
+        {
+            if (Directory.Exists(temp))
+            {
+                await TestDirectoryCleanup.DeleteAsync(temp, TestContext);
+            }
+        }
+    }
+
+    private static async Task<string> WaitForDiagnosticsAsync(string path, string expectedText)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
         while (DateTime.UtcNow < deadline)
@@ -629,7 +690,7 @@ public sealed class WorkerClientLifecycleTests
                     useAsync: true);
                 using var reader = new StreamReader(stream);
                 var text = await reader.ReadToEndAsync();
-                if (text.Contains("duplicate_folder_group.members", StringComparison.Ordinal))
+                if (text.Contains(expectedText, StringComparison.Ordinal))
                 {
                     return text;
                 }

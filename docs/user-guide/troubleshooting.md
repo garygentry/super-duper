@@ -122,6 +122,17 @@ log (see [Find the logs](#find-the-logs)), fix what it reports, and select **Rec
 A **Something needs attention** banner shows an error from the last action, for example a saved
 scan that could not load. Read the message, select **Dismiss**, and try the action again.
 
+## The app closes with an unexpected error
+
+If Super Duper hits a bug it cannot recover from, it shows **Super Duper ran into an unexpected
+error and needs to close. Nothing was changed. Details were written to** followed by the diagnostic
+log path, then closes. Nothing was changed: your saved scans, results and decisions are exactly as
+they were before.
+
+1. Start Super Duper again.
+2. If it keeps happening, check the diagnostic log (see [Find the logs](#find-the-logs)) for the
+   exception it recorded, and report it with that detail.
+
 ## Back up or reset your saved data
 
 Your saved scans, results and decisions live in `super_duper.db` in the data folder. While the app

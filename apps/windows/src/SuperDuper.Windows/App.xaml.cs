@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using SuperDuper.Windows.Core.Services;
 using SuperDuper.Windows.Core.ViewModels;
@@ -13,17 +14,24 @@ public partial class App : Application
 {
     private readonly ServiceProvider _services;
     private readonly SingleInstanceGate? _instance;
+    private readonly IWorkerClient _workerClient;
 
     public App()
     {
 #if DEBUG
         ApplyIsolatedUiDevConfiguration();
 #endif
+        // Registered before anything else can run, so no startup exception escapes unlogged.
+        AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
+
         var state = WorkerStateLocations.FromEnvironment();
         _instance = SingleInstanceGate.TryAcquire(state.StateDirectory, () => Dispatcher.InvokeAsync(ActivateMainWindow));
+        var workerClient = new WorkerClient(WorkerExecutableLocator.Resolve(), state);
+        _workerClient = workerClient;
         var services = new ServiceCollection();
-        services.AddSingleton<IWorkerClient>(
-            _ => new WorkerClient(WorkerExecutableLocator.Resolve(), state));
+        services.AddSingleton<IWorkerClient>(workerClient);
         services.AddSingleton<IFolderPickerService, FolderPickerService>();
         services.AddSingleton<IUserConfirmationService, UserConfirmationService>();
         services.AddSingleton<IUiDispatcher>(_ => new WpfUiDispatcher(Dispatcher));
@@ -118,5 +126,60 @@ public partial class App : Application
         _services.Dispose();
         _instance?.Dispose();
         base.OnExit(e);
+    }
+
+    // Last-chance handlers: an exception that reaches here escaped every local try/catch. There is
+    // no orderly path left (Setup validation, an active scan, a pending review write), so this logs
+    // what happened, stops the worker the same way OnExit does, tells the person plainly, and exits
+    // deliberately instead of leaving the default unhandled-exception behavior to decide.
+    private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        e.Handled = true;
+        HandleFatalException(e.Exception, "UI dispatcher");
+    }
+
+    private void OnDomainUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        if (e.ExceptionObject is Exception exception)
+        {
+            HandleFatalException(exception, "application domain");
+        }
+    }
+
+    private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        // Observed so a background task's exception cannot also surface here a second time via the
+        // finalizer thread; it is logged, not fatal, since nothing on the UI thread depends on it.
+        e.SetObserved();
+        LogFatalException("unobserved background task", e.Exception);
+    }
+
+    private void HandleFatalException(Exception exception, string source)
+    {
+        LogFatalException(source, exception);
+        try { _services.Dispose(); }
+        catch { }
+        try { _instance?.Dispose(); }
+        catch { }
+        try
+        {
+            MessageBox.Show(
+                "Super Duper ran into an unexpected error and needs to close. Nothing was changed. "
+                    + $"Details were written to {_workerClient.DiagnosticLogPath}.",
+                "Super Duper",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+        catch { }
+        Environment.Exit(1);
+    }
+
+    // Synchronous: none of the callers above are async, and this may run as the process is about
+    // to exit. Routed through the worker client so this coordinates with its own diagnostic-log
+    // writer instead of risking a second, independent file handle corrupting it.
+    private void LogFatalException(string source, Exception exception)
+    {
+        try { _workerClient.LogDiagnosticAsync(source, exception).GetAwaiter().GetResult(); }
+        catch { }
     }
 }

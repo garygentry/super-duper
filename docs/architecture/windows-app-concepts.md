@@ -44,9 +44,11 @@ are relative to `apps/windows/src/` unless they start with another top-level fol
   `ConfigureAwait(false)` only inside the progress scheduler.
 - **Worker events arrive off the UI thread.** `RunProgress`, `RunLifecycleChanged`,
   `ResultStateChanged` and `UnexpectedExit` are raised on the stdout pump or exit-monitor thread.
-  A handler must hand work to the UI through `IUiDispatcher.Post` or the progress gate, and must
-  not throw: `WorkerClient.DispatchEvent` treats any exception as a protocol failure and stops the
-  worker.
+  A handler must hand work to the UI through `IUiDispatcher.Post` or the progress gate. It should
+  still avoid throwing — a thrown exception stops that one event's remaining subscribers, the
+  ordinary multicast-delegate rule — but `WorkerClient.DispatchEventAsync` no longer treats it as a
+  protocol failure: it is logged and the pump and worker keep running
+  ([ADR-0006](decisions/0006-last-chance-exception-handling.md)).
 - **Progress goes through the gate.** Raw progress frames are never bound directly.
   `LatestProgressApplicationGate` admits only well-ordered frames for the active run and applies
   the newest at most every 100 ms, with one dispatcher post outstanding.

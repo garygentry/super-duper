@@ -34,6 +34,11 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
     private Task? _standardOutputPump;
     private Task? _standardErrorPump;
     private Task? _exitMonitor;
+
+    // One writer for the process's diagnostic log, shared by the stderr relay and event-subscriber
+    // exception logging (see BoundedDiagnosticLog's own writer lock): opened alongside the process
+    // and closed with it, not scoped to a single pump.
+    private BoundedDiagnosticLog? _diagnosticLog;
     private WorkerHelloResult? _hello;
     private long _nextRequestId;
     private int _disposed;
@@ -1226,6 +1231,7 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
             throw CreateConnectionException("The worker process could not be started.", exception);
         }
 
+        _diagnosticLog = BoundedDiagnosticLog.TryOpen(_diagnosticLogPath);
         _standardInput = _process.StandardInput;
         _standardInput.NewLine = "\n";
         _standardOutputPump = PumpStandardOutputAsync(_process.StandardOutput, _lifetime.Token);
@@ -1472,7 +1478,7 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
                 }
                 if (frame.Event is not null)
                 {
-                    DispatchEvent(frame.Event);
+                    await DispatchEventAsync(frame.Event).ConfigureAwait(false);
                 }
             }
         }
@@ -1486,42 +1492,52 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
         }
     }
 
-    private void DispatchEvent(EventEnvelope frame)
+    private async Task DispatchEventAsync(EventEnvelope frame)
     {
-        try
+        switch (frame.Name)
         {
-            switch (frame.Name)
+            case "run.progress":
             {
-                case "run.progress":
-                    var progress = WorkerRunProgressParser.Parse(frame.Data);
-                    RunProgress?.Invoke(this, progress);
-                    break;
+                var progress = ParseEventData(frame, static data => WorkerRunProgressParser.Parse(data));
+                await InvokeSubscribersAsync(frame.Name, () => RunProgress?.Invoke(this, progress))
+                    .ConfigureAwait(false);
+                break;
+            }
 
-                case "run.started":
-                case "run.completed":
-                case "run.cancelled":
-                case "run.failed":
-                    var lifecycle = frame.Data.Deserialize<RunResult>(JsonLineProtocol.SerializerOptions)
-                        ?? throw new WorkerProtocolException($"{frame.Name} event data is invalid.");
-                    RunLifecycleChanged?.Invoke(
+            case "run.started":
+            case "run.completed":
+            case "run.cancelled":
+            case "run.failed":
+            {
+                var lifecycle = ParseEventData(
+                    frame,
+                    data => data.Deserialize<RunResult>(JsonLineProtocol.SerializerOptions)
+                        ?? throw new WorkerProtocolException($"{frame.Name} event data is invalid."));
+                await InvokeSubscribersAsync(
+                    frame.Name,
+                    () => RunLifecycleChanged?.Invoke(
                         this,
                         new WorkerRunLifecycleEventArgs
                         {
                             EventName = frame.Name,
                             Run = lifecycle.Run,
-                        });
-                    break;
+                        })).ConfigureAwait(false);
+                break;
+            }
 
-                case "result.state_changed":
-                    var stateChanged = frame.Data.Deserialize<WorkerResultStateChangedEventArgs>(
-                        JsonLineProtocol.SerializerOptions)
-                        ?? throw new WorkerProtocolException(
-                            "result.state_changed event data is invalid.");
-                    if (stateChanged.ExecutorEnabled)
-                    {
-                        throw new WorkerProtocolException(
-                            "result.state_changed unexpectedly enabled production execution.");
-                    }
+            case "result.state_changed":
+            {
+                var stateChanged = ParseEventData(
+                    frame,
+                    data => data.Deserialize<WorkerResultStateChangedEventArgs>(JsonLineProtocol.SerializerOptions)
+                        ?? throw new WorkerProtocolException("result.state_changed event data is invalid."));
+                if (stateChanged.ExecutorEnabled)
+                {
+                    throw new WorkerProtocolException(
+                        "result.state_changed unexpectedly enabled production execution.");
+                }
+                await InvokeSubscribersAsync(frame.Name, () =>
+                {
                     lock (_liveWatchLock)
                     {
                         if (_observedLiveRunId == stateChanged.RunId)
@@ -1529,8 +1545,17 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
                             ResultStateChanged?.Invoke(this, stateChanged);
                         }
                     }
-                    break;
+                }).ConfigureAwait(false);
+                break;
             }
+        }
+    }
+
+    private static T ParseEventData<T>(EventEnvelope frame, Func<JsonElement, T> parse)
+    {
+        try
+        {
+            return parse(frame.Data);
         }
         catch (Exception exception) when (exception is not WorkerProtocolException)
         {
@@ -1538,9 +1563,39 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
         }
     }
 
+    // A subscriber's exception is theirs, not the protocol's: log it and keep the pump alive
+    // instead of failing every pending request and killing the worker.
+    private async Task InvokeSubscribersAsync(string eventName, Action invoke)
+    {
+        try
+        {
+            invoke();
+        }
+        catch (Exception exception)
+        {
+            await LogDiagnosticAsync($"event subscriber ({eventName})", exception).ConfigureAwait(false);
+        }
+    }
+
+    public async Task LogDiagnosticAsync(string source, Exception exception)
+    {
+        if (_diagnosticLog is { } diagnosticLog
+            && await diagnosticLog.TryWriteLineAsync(
+                $"{DateTimeOffset.UtcNow:O} [{source}] {exception}",
+                CancellationToken.None).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        // No process is connected, or the shared writer could not take the write (for example a
+        // shutdown in progress closed it between the check and the call): fall back to an
+        // independent, one-shot writer. Safe here because nothing else is writing concurrently in
+        // that case.
+        CrashReportLog.TryAppend(_diagnosticLogPath, source, exception);
+    }
+
     private async Task PumpStandardErrorAsync(StreamReader error, CancellationToken cancellationToken)
     {
-        await using var diagnosticLog = BoundedDiagnosticLog.TryOpen(_diagnosticLogPath);
         try
         {
             while (await error.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
@@ -1553,7 +1608,7 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
                         _standardError.Remove(0, _standardError.Length - MaximumDiagnosticCharacters);
                     }
                 }
-                if (diagnosticLog is not null)
+                if (_diagnosticLog is { } diagnosticLog)
                 {
                     await diagnosticLog.TryWriteLineAsync(
                         $"{DateTimeOffset.UtcNow:O} {line}",
@@ -1648,6 +1703,11 @@ public sealed class WorkerClient : IRestartableWorkerClient, IRecycleOperationWo
             await ObservePumpAsync(_standardOutputPump).ConfigureAwait(false);
             await ObservePumpAsync(_standardErrorPump).ConfigureAwait(false);
             await ObservePumpAsync(_exitMonitor).ConfigureAwait(false);
+            if (_diagnosticLog is not null)
+            {
+                await _diagnosticLog.DisposeAsync().ConfigureAwait(false);
+                _diagnosticLog = null;
+            }
             process.Dispose();
             _process = null;
             _standardOutputPump = null;
