@@ -16,6 +16,8 @@ All notable changes to Super Duper are recorded here. Versions follow
   other requests no longer wait for (or fail behind) a scan that is writing.
 - Starting a preflight check, and its final survivor check, wait briefly for another write to
   finish instead of failing at once with "database is locked".
+- The filesystem-change notice on **Results** › **Files** now names the **Check these copies**
+  button instead of a nonexistent "Validate page".
 
 ## [0.1.0] - 2026-09-19
 
