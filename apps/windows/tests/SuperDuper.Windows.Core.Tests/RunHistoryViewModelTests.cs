@@ -84,7 +84,7 @@ public sealed class RunHistoryViewModelTests
         Assert.AreEqual("Warnings · active scan", viewModel.WarningContextHeading);
         StringAssert.Contains(viewModel.WarningContextIdentity, $"Scan {active.Id}");
         StringAssert.Contains(viewModel.WarningSnapshotBoundary, "Current warning revision 9");
-        Assert.AreEqual("_Return to progress", viewModel.WarningReturnLabel);
+        Assert.AreEqual("Ret_urn to progress", viewModel.WarningReturnLabel);
         viewModel.CloseWarningsCommand.Execute(null);
         Assert.AreEqual(WarningReturnDestination.ScanProgress, returnedTo);
         Assert.AreNotEqual("history", viewModel.FocusTarget);

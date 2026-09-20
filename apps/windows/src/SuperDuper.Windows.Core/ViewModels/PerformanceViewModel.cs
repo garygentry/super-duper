@@ -148,9 +148,9 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
 
     public string ReturnLabel => _returnDestination switch
     {
-        PerformanceReturnDestination.ScanProgress => "_Return to progress",
-        PerformanceReturnDestination.ScanSummary => "_Return to scan summary",
-        _ => "_Return to scan history",
+        PerformanceReturnDestination.ScanProgress => "Ret_urn to progress",
+        PerformanceReturnDestination.ScanSummary => "Ret_urn to scan summary",
+        _ => "Ret_urn to scan history",
     };
 
     public string ReturnAutomationName => _returnDestination switch

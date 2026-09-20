@@ -186,7 +186,7 @@
                             <TabControl ItemContainerStyle="{StaticResource ShellNavigationItem}" x:Name="ScanTabs" AutomationProperties.AutomationId="ScanNavigation"
                                         AutomationProperties.Name="Scan views" SelectedValuePath="Tag"
                                         SelectedValue="{Binding ScanDestination, Mode=TwoWay}">
-                                <TabItem AutomationProperties.AutomationId="SetupTab" Header="_Setup" Tag="{x:Static vm:WorkspaceDestination.ScanSetup}">
+                                <TabItem AutomationProperties.AutomationId="SetupTab" Header="Se_tup" Tag="{x:Static vm:WorkspaceDestination.ScanSetup}">
                                     <Grid>
                                         <Grid.Style>
                                             <Style TargetType="Grid">
@@ -228,13 +228,13 @@
                                 </TabItem>
                             </TabControl>
                         </TabItem>
-                        <TabItem AutomationProperties.AutomationId="PreflightTab" Header="_Review" Tag="{x:Static vm:WorkspaceArea.Review}">
+                        <TabItem AutomationProperties.AutomationId="PreflightTab" Header="Rev_iew" Tag="{x:Static vm:WorkspaceArea.Review}">
                             <views:PreflightView DataContext="{Binding Preflight}" />
                         </TabItem>
                         <TabItem Header="_History" Tag="{x:Static vm:WorkspaceArea.History}">
                             <TabControl ItemContainerStyle="{StaticResource ShellNavigationItem}" AutomationProperties.AutomationId="HistoryNavigation" SelectedValuePath="Tag"
                                         SelectedValue="{Binding HistoryDestination, Mode=TwoWay}">
-                                <TabItem AutomationProperties.AutomationId="RunHistoryTab" Header="_Scans" Tag="{x:Static vm:WorkspaceDestination.History}">
+                                <TabItem AutomationProperties.AutomationId="RunHistoryTab" Header="Sc_ans" Tag="{x:Static vm:WorkspaceDestination.History}">
                                     <DockPanel>
                                         <DockPanel DockPanel.Dock="Top" Margin="24,8">
                                             <Button DockPanel.Dock="Right" Margin="12,0,0,0" Style="{StaticResource ShellPrimaryAction}"
@@ -242,8 +242,8 @@
                                                         Command="{Binding OpenScanCommand}">
                                                 <!-- Alt+E: the warning drilldown below shares this
                                                      scope and owns Alt+O for "_Open duplicate
-                                                     results"; two matches make WPF cycle focus
-                                                     instead of invoking either action. -->
+                                                     results"; Alt+E avoids that letter rather than
+                                                     colliding with it. -->
                                                 <AccessText Text="Op_en scan" />
                                             </Button>
                                             <TextBlock VerticalAlignment="Center" Style="{StaticResource ShellBody}" Text="{Binding HistoryContext}"

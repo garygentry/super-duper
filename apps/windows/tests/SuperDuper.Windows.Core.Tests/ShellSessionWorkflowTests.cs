@@ -535,7 +535,7 @@ public sealed class ShellSessionWorkflowTests
         Assert.AreEqual("Start scan: Active locations", shell.StartRunLabel);
         Assert.AreSame(groups, shell.DuplicateFiles.Groups);
         StringAssert.Contains(shell.History.WarningContextIdentity, $"Scan {active.Id}");
-        Assert.AreEqual("_Return to progress", shell.History.WarningReturnLabel);
+        Assert.AreEqual("Ret_urn to progress", shell.History.WarningReturnLabel);
         shell.History.CloseWarningsCommand.Execute(null);
         Assert.AreEqual(WorkspaceDestination.ScanProgress, shell.SelectedDestination);
         Assert.AreEqual("progress-warnings", shell.FocusTarget);

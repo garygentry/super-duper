@@ -234,9 +234,9 @@ public sealed class RunHistoryViewModel : ObservableObject, IDisposable
 
     public string WarningReturnLabel => _warningReturnDestination switch
     {
-        WarningReturnDestination.ScanProgress => "_Return to progress",
-        WarningReturnDestination.ScanSummary => "_Return to scan summary",
-        _ => "_Return to run history",
+        WarningReturnDestination.ScanProgress => "Ret_urn to progress",
+        WarningReturnDestination.ScanSummary => "Ret_urn to scan summary",
+        _ => "Ret_urn to run history",
     };
 
     public string WarningReturnAutomationName => _warningReturnDestination switch

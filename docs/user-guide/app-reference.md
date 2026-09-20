@@ -300,32 +300,57 @@ Shown when the scan engine cannot start, cannot open its data, or stops unexpect
 
 | Keys | Where | Action |
 | --- | --- | --- |
+| Alt+S | Anywhere in the workspace | Opens the **Scan** area |
+| Alt+R | Anywhere in the workspace | Opens the **Results** area |
+| Alt+I | Anywhere in the workspace | Opens the **Review** area |
 | Alt+H | Anywhere in the workspace | Opens the **History** area |
+| Alt+T | **Scan** area | Opens **Setup** |
+| Alt+P | **Scan** area | Opens **Progress** |
 | Alt+M | **Scan** area | Opens **Summary** |
+| Alt+E | **Scan** › **Setup**, **Advanced** expanded | Moves to **Repeat scans** |
+| Alt+C | **Scan** › **Progress** (or **Summary**) | **Cancel scan** |
+| Alt+F | **Scan** › **Progress** (or **Summary**) | **Performance details** |
+| Alt+W | **Scan** › **Progress** (or **Summary**) | **Review warnings** |
+| Alt+F | **Results** area | Opens **Files** |
 | Alt+O | **Results** area | Opens **Folders** |
-| Alt+C | **Scan** › **Progress** | **Cancel scan** |
 | Ctrl+F | **Results** › **Files** | Moves to **Path search** and selects its text |
+| Alt+C | **Results** › **Files** | Moves to **Path search** |
 | Alt+A | **Results** › **Files** or **Folders** | **Apply** |
 | Enter | **Results** › **Files**, in **Path search**, **Minimum size** or **Extension** | Applies the filters |
 | Enter | **Results** › **Folders**, in **Path search** or **Minimum size** | Applies the filters |
 | Esc | **Results** › **Files**, inside the open filter panel | Collapses the filter panel and returns to **Filters** |
+| Alt+L | **Results** › **Files** or **Folders** | **Filters** |
 | Alt+M, Alt+U | **Results** › **Files** or **Folders**, filter panel open | Moves to **Minimum size**, **Size unit** |
-| Alt+E, Alt+D | **Results** › **Files**, filter panel open | Moves to **Extension**, **Drive** |
+| Alt+E, Alt+D, Alt+T | **Results** › **Files**, filter panel open | Moves to **Extension**, **Drive**, **Selected root** |
+| Alt+P | **Results** › **Folders** | Moves to **Path search** |
+| Alt+P, Alt+N | **Results** › **Files** | **Previous duplicate set**, **Next duplicate set** |
 | Alt+V | **Results** › **Files** | **Check these copies** |
 | Alt+X | **Results** › **Files**, reconciliation warning shown | **Reconcile next batch** |
 | Alt+E | **Results** › **Folders**, folder-copy list focused | **Show in Explorer** for the selected folder copy |
 | Alt+G | **Results** › **Folders**, folder-copy list focused | **Select page in Explorer** |
 | Ctrl+Home | **Review**, after a whole-plan check | Moves to **Whole-plan check details** |
 | Esc | **Review** › **Location preferences**, confirmation open | Cancels the application or reversal confirmation |
+| Alt+E | **Review** › **Location preferences**, stage 1 | Moves to **Saved rule** |
+| Alt+N | **Review** › **Location preferences**, stage 1 | Moves to **Rule name** |
+| Alt+O | **Review** › **Location preferences**, stage 2 | Moves to **Preview scope** |
+| Alt+F | **History** › **Scans** | **Refresh** |
 | Alt+E | **History** › **Scans** | **Open scan** |
-| Alt+W | **History** › **Scans** | **Review warnings** for the highlighted scan |
+| Alt+V, Alt+N | **History** › **Scans** | **Previous scans**, **Next scans** |
+| Alt+T | **History** › **Scans**, a scan highlighted | **Performance details** |
+| Alt+W | **History** › **Scans**, a scan highlighted | **Review warnings** for the highlighted scan |
+| Alt+U | **History** › **Scans**, warning drilldown open | Returns to **Progress**, **Summary** or **Scans** |
+| Alt+O | **History** › **Scans**, warning drilldown open, a recoverable hash warning shown | **Open duplicate results** |
+| Alt+G | **History** › **Scans**, warning drilldown open | **Refresh current warnings** |
+| Alt+X | **History** › **Scans**, warning drilldown open | **Next warning page** |
+| Alt+C | **History** › **Scans**, warning drilldown open, navigation pending | **Cancel navigation** |
+| Alt+F | **History** › **Performance** | **Refresh** |
+| Alt+U | **History** › **Performance** | Returns to **Progress**, **Summary** or **Scans** |
 | Alt+C | **History** › **Performance** | **Compare selected run** |
 
-Other underlined letters in the app are shared by more than one control on the same screen, for
-example Alt+S (**Scan** and **Setup**) and Alt+R (**Results** and **Review**). Pressing a shared
-letter moves focus between those controls instead of acting, so those keys are not listed. The next
-and previous duplicate-set buttons on **Files** mention Alt+N and Alt+P in their tooltips, and
-**Review warnings** on **Progress** is announced as Alt+W, but none of these keys act on them.
+A letter is reused across screens only when those screens can never be visible at the same time (for
+example Alt+E on **Setup**, **Files**, **Review** and **History** › **Scans** all act on a different,
+mutually exclusive screen), so every listed key activates its control directly rather than cycling
+focus between two controls.
 
 ## Scan statuses and phases
 

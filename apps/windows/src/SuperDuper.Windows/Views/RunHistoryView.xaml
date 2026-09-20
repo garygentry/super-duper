@@ -18,7 +18,7 @@
                         AutomationProperties.AutomationId="RefreshRunHistory"
                         AutomationProperties.Name="Refresh the current bounded run-history page"
                         Command="{Binding RefreshCommand}"
-                        Content="_Refresh" />
+                        Content="Re_fresh" />
                 <StackPanel>
                     <TextBlock Style="{StaticResource PageTitle}" Text="Scan history" />
                 </StackPanel>
@@ -73,7 +73,7 @@
                 <WrapPanel DockPanel.Dock="Right" Margin="12,0,0,0">
                     <Button AutomationProperties.AutomationId="PreviousRunHistoryPage"
                             AutomationProperties.Name="Load the previous bounded run-history page and return focus to the highlighted scan"
-                            Command="{Binding PreviousHistoryPageCommand}" Content="_Previous scans" />
+                            Command="{Binding PreviousHistoryPageCommand}" Content="Pre_vious scans" />
                     <Button Margin="8,0,0,0" AutomationProperties.AutomationId="NextRunHistoryPage"
                             AutomationProperties.Name="Load the next bounded run-history page and return focus to the highlighted scan"
                             Command="{Binding NextHistoryPageCommand}" Content="_Next scans" />
@@ -124,7 +124,7 @@
                                 Style="{StaticResource ShellSecondaryAction}"
                                 AutomationProperties.AutomationId="OpenHighlightedPerformance"
                                 AutomationProperties.Name="View bounded performance summaries for the highlighted exact scan"
-                                Command="{Binding OpenPerformanceCommand}" Content="_Performance details" />
+                                Command="{Binding OpenPerformanceCommand}" Content="Performance de_tails" />
                         <Button AutomationProperties.AutomationId="OpenRunWarnings"
                                 Margin="8,0,0,0"
                                 Style="{StaticResource ShellSecondaryAction}"
@@ -255,10 +255,10 @@
                     <WrapPanel Margin="0,8,0,0">
                         <Button AutomationProperties.AutomationId="RefreshRunWarnings"
                                 AutomationProperties.Name="Refresh the current warning revision without combining revisions"
-                                Command="{Binding RefreshWarningsCommand}" Content="_Refresh current warnings" />
+                                Command="{Binding RefreshWarningsCommand}" Content="Refresh current warnin_gs" />
                         <Button Margin="8,0,0,0" AutomationProperties.AutomationId="NextRunWarningPage"
                                 AutomationProperties.Name="Load the next bounded warning aggregate page"
-                                Command="{Binding NextWarningPageCommand}" Content="_Next warning page" />
+                                Command="{Binding NextWarningPageCommand}" Content="Ne_xt warning page" />
                         <Button Margin="8,0,0,0" AutomationProperties.AutomationId="CancelRunWarningLoad"
                                 AutomationProperties.Name="Cancel loading run warnings"
                                 Command="{Binding CancelWarningLoadCommand}" Content="Cancel load" />

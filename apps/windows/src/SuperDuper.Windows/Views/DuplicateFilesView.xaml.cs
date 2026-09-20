@@ -28,8 +28,18 @@ public partial class DuplicateFilesView : UserControl
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
         PreviewKeyDown += OnWorkspaceKeyDown;
-        Loaded += (_, _) => AccessKeyManager.Register("v", ValidateFilePageButton);
-        Unloaded += (_, _) => AccessKeyManager.Unregister("v", ValidateFilePageButton);
+        Loaded += (_, _) =>
+        {
+            AccessKeyManager.Register("v", ValidateFilePageButton);
+            AccessKeyManager.Register("p", PreviousSetButton);
+            AccessKeyManager.Register("n", NextSetButton);
+        };
+        Unloaded += (_, _) =>
+        {
+            AccessKeyManager.Unregister("v", ValidateFilePageButton);
+            AccessKeyManager.Unregister("p", PreviousSetButton);
+            AccessKeyManager.Unregister("n", NextSetButton);
+        };
     }
 
     private void OnWorkspaceKeyDown(object sender, KeyEventArgs e)
