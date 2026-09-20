@@ -82,6 +82,10 @@ All notable changes to Super Duper are recorded here. Versions follow
   operation are responsible instead of a generic internal error.
 - An exclusion spelled through a `subst` drive letter or a directory junction or symlink now prunes
   the scan; previously only the real path pruned it, because the walk compares canonical paths.
+- A scan with heavy repeat-cache reuse (most files verified as cache hits) could abort outright with
+  "scan engine rejected a hash progress observation" under real concurrency, because a hit's cache
+  counter was published separately from, and could race ahead of, its matching completed-file
+  counter. Both now travel together in one update (#65).
 
 ## [0.1.0] - 2026-09-19
 
