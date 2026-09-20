@@ -67,7 +67,7 @@ pub fn discover_files_with_exclusions(
     cancel_token: &AtomicBool,
     progress: &dyn ProgressReporter,
 ) -> io::Result<TraversalResult> {
-    let location_exclusions = &with_long_spellings(location_exclusions);
+    let location_exclusions = &with_alias_spellings(&with_long_spellings(location_exclusions));
     let map = DashMap::new();
     let seen_file_identities = DashSet::new();
     let files = Mutex::new(Vec::new());
@@ -419,6 +419,23 @@ fn with_long_spellings(exclusions: &[LocationExclusion]) -> Vec<LocationExclusio
     all
 }
 
+/// The walk visits canonical paths, and opening through a `subst` drive letter or a directory
+/// junction/symlink resolves it transparently, so an exclusion spelled through such an alias
+/// would never prune. Such an exclusion is also matched by its resolved spelling; see
+/// [`platform::resolve_alias_spelling`] for what can be resolved without opening a cloud path.
+fn with_alias_spellings(exclusions: &[LocationExclusion]) -> Vec<LocationExclusion> {
+    let mut all = exclusions.to_vec();
+    for exclusion in exclusions {
+        if let Some(resolved) = platform::resolve_alias_spelling(&exclusion.path) {
+            all.push(LocationExclusion {
+                path: resolved,
+                ..exclusion.clone()
+            });
+        }
+    }
+    all
+}
+
 fn matching_exclusion<'a>(
     path: &Path,
     exclusions: &'a [LocationExclusion],
@@ -653,5 +670,200 @@ mod tests {
     #[cfg(not(windows))]
     fn paths_equal_for_test(left: &Path, right: &Path) -> bool {
         left == right
+    }
+
+    #[test]
+    fn alias_spellings_leave_ordinary_exclusions_alone() {
+        let exclusion = LocationExclusion {
+            path: PathBuf::from(if cfg!(windows) {
+                r"C:\Users\someone\OneDrive"
+            } else {
+                "/home/someone/cloud"
+            }),
+            reason_code: "registered_cloud_root_excluded".to_owned(),
+            provider_id: None,
+            provider_name: None,
+        };
+        assert_eq!(
+            with_alias_spellings(std::slice::from_ref(&exclusion)),
+            vec![exclusion]
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn exclusion_spelled_through_a_junction_prunes_the_canonical_walk() {
+        let temp = tempdir().unwrap();
+        let base = fs::canonicalize(temp.path()).unwrap();
+        // Scan the real location directly; the junction is only ever used to spell the exclusion.
+        let real_target = base.join("real-target");
+        let excluded = real_target.join("excluded-via-alias");
+        fs::create_dir_all(&excluded).unwrap();
+        fs::write(real_target.join("kept.bin"), b"local").unwrap();
+        fs::write(excluded.join("placeholder.bin"), b"excluded").unwrap();
+
+        let link = base.join("link-to-target");
+        let status = std::process::Command::new("cmd")
+            .args(["/c", "mklink", "/J"])
+            .arg(&link)
+            .arg(&real_target)
+            .status()
+            .unwrap();
+        assert!(status.success(), "test junction creation failed");
+
+        let root = real_target.to_string_lossy().into_owned();
+        let result = discover_files_with_exclusions(
+            &[&root],
+            &[],
+            &[LocationExclusion {
+                path: link.join("excluded-via-alias"),
+                reason_code: "manual_location_exclusion".to_owned(),
+                provider_id: None,
+                provider_name: None,
+            }],
+            &AtomicBool::new(false),
+            &SilentReporter,
+        )
+        .unwrap();
+
+        assert_eq!(
+            result.files_discovered, 1,
+            "the junction-spelled exclusion was not pruned"
+        );
+        assert!(result.files[0].canonical_path.contains("kept.bin"));
+        assert_eq!(result.excluded_subtrees.len(), 1);
+        assert!(paths_equal_for_test(
+            Path::new(&result.excluded_subtrees[0].path),
+            &excluded
+        ));
+    }
+
+    #[cfg(windows)]
+    struct SubstDrive {
+        letter: char,
+    }
+
+    #[cfg(windows)]
+    impl SubstDrive {
+        /// Maps an unused drive letter to `target` with `subst`, which needs no elevation and is
+        /// scoped to this session. Returns `None` (rather than panicking) when no letter is free
+        /// or `subst` itself is unavailable, so the test can skip cleanly on a constrained runner.
+        fn create(target: &Path) -> Option<Self> {
+            for letter in ('E'..='Z').rev() {
+                if Path::new(&format!("{letter}:\\")).exists() {
+                    continue;
+                }
+                let status = std::process::Command::new("cmd")
+                    .args(["/c", "subst", &format!("{letter}:")])
+                    .arg(target)
+                    .status()
+                    .ok()?;
+                if status.success() {
+                    return Some(Self { letter });
+                }
+            }
+            None
+        }
+
+        fn root(&self) -> PathBuf {
+            PathBuf::from(format!("{}:\\", self.letter))
+        }
+    }
+
+    #[cfg(windows)]
+    impl Drop for SubstDrive {
+        fn drop(&mut self) {
+            let _ = std::process::Command::new("cmd")
+                .args(["/c", "subst", &format!("{}:", self.letter), "/D"])
+                .status();
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn exclusion_spelled_through_a_subst_drive_prunes_the_canonical_walk() {
+        let temp = tempdir().unwrap();
+        let base = fs::canonicalize(temp.path()).unwrap();
+        let excluded = base.join("excluded-via-alias");
+        fs::create_dir_all(&excluded).unwrap();
+        fs::write(base.join("kept.bin"), b"local").unwrap();
+        fs::write(excluded.join("placeholder.bin"), b"excluded").unwrap();
+
+        let Some(subst) = SubstDrive::create(&base) else {
+            eprintln!("no free drive letter (or `subst` unavailable); skipping");
+            return;
+        };
+
+        let root = base.to_string_lossy().into_owned();
+        let result = discover_files_with_exclusions(
+            &[&root],
+            &[],
+            &[LocationExclusion {
+                path: subst.root().join("excluded-via-alias"),
+                reason_code: "manual_location_exclusion".to_owned(),
+                provider_id: None,
+                provider_name: None,
+            }],
+            &AtomicBool::new(false),
+            &SilentReporter,
+        )
+        .unwrap();
+
+        assert_eq!(
+            result.files_discovered, 1,
+            "the subst-spelled exclusion was not pruned"
+        );
+        assert!(result.files[0].canonical_path.contains("kept.bin"));
+        assert_eq!(result.excluded_subtrees.len(), 1);
+        assert!(paths_equal_for_test(
+            Path::new(&result.excluded_subtrees[0].path),
+            &excluded
+        ));
+    }
+
+    #[cfg(windows)]
+    fn mark_offline(path: &Path) {
+        use std::os::windows::ffi::OsStrExt;
+        use winapi::um::fileapi::{
+            GetFileAttributesW, INVALID_FILE_ATTRIBUTES, SetFileAttributesW,
+        };
+        use winapi::um::winnt::FILE_ATTRIBUTE_OFFLINE;
+
+        let wide: Vec<u16> = path.as_os_str().encode_wide().chain([0]).collect();
+        // SAFETY: `wide` is NUL-terminated.
+        let attributes = unsafe { GetFileAttributesW(wide.as_ptr()) };
+        assert_ne!(attributes, INVALID_FILE_ATTRIBUTES);
+        // SAFETY: `wide` is NUL-terminated; this only flips an attribute bit.
+        let updated =
+            unsafe { SetFileAttributesW(wide.as_ptr(), attributes | FILE_ATTRIBUTE_OFFLINE) };
+        assert_ne!(updated, 0, "failed to mark the test directory offline");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn alias_resolution_never_opens_a_path_behind_a_cloud_placeholder_ancestor() {
+        let temp = tempdir().unwrap();
+        let base = fs::canonicalize(temp.path()).unwrap();
+        let cloud_synced = base.join("cloud-synced");
+        let elsewhere = base.join("elsewhere");
+        fs::create_dir_all(&cloud_synced).unwrap();
+        fs::create_dir_all(&elsewhere).unwrap();
+        mark_offline(&cloud_synced);
+
+        // A real, resolvable junction sits behind the cloud-placeholder ancestor. If resolution
+        // walked past the placeholder to find it, this alias would prune; it must not.
+        let link = cloud_synced.join("link-to-elsewhere");
+        let status = std::process::Command::new("cmd")
+            .args(["/c", "mklink", "/J"])
+            .arg(&link)
+            .arg(&elsewhere)
+            .status()
+            .unwrap();
+        assert!(status.success(), "test junction creation failed");
+
+        assert!(
+            platform::resolve_alias_spelling(&link.join("sub")).is_none(),
+            "resolution must stop at the cloud-placeholder ancestor rather than open the junction beneath it"
+        );
     }
 }

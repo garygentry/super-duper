@@ -75,6 +75,18 @@ pub(crate) fn long_path_name(_path: &Path) -> Option<PathBuf> {
     None
 }
 
+/// See [`windows::resolve_alias_spelling`]. Not meaningful outside Windows, where `subst` and
+/// junctions don't exist.
+#[cfg(target_os = "windows")]
+pub(crate) fn resolve_alias_spelling(path: &Path) -> Option<PathBuf> {
+    windows::resolve_alias_spelling(path)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub(crate) fn resolve_alias_spelling(_path: &Path) -> Option<PathBuf> {
+    None
+}
+
 #[cfg(target_os = "windows")]
 pub fn get_drive_letter(path: &Path) -> Option<OsString> {
     windows::get_drive_letter(path)
