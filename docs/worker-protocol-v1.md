@@ -244,9 +244,10 @@ snake-case strings; `message` is diagnostic text, not part of the contract.
 | `handshake_required` | A request other than `hello` arrived before a successful `hello`. | No |
 | `unsupported_protocol` | `hello` offered no version the worker supports; `details.workerProtocolVersions` lists them. | No |
 | `invalid_state` | The command is not allowed now: a second `hello`; a session mutation while a scan is active (`details.activeRunId`); `run.cancel` for a run that is not the active one or is already terminal; a result, review, rule, live-validation, or preflight command for a run that is not `completed` (result queries set `details.status`); an archived preference rule. | No |
-| `internal_error` | An unexpected failure, including any SQLite error after startup ("Database operation failed") and stored data that cannot be decoded. `session.delete` also returns it when a run in the session has a Recycle Bin operation that is `prepared`, `awaiting_confirmation`, `submitted`, `executing`, `cancelling`, or `recovery_required`: the guarded delete changes no row. | No |
+| `internal_error` | An unexpected failure, including any SQLite error after startup ("Database operation failed") and stored data that cannot be decoded. | No |
 | `database_unavailable` | The worker could not lock, open, or migrate its main database at startup. Every request, `hello` included, gets this error until input ends. See [Database availability](#database-availability). | No |
-| `database_error` | `performance.run.page` or `performance.snapshot.get` could not open or read the status database, including when its schema version is not the one this worker reads. | No |
+| `database_error` | `performance.run.page` or `performance.snapshot.get` could not open or read a status database that exists but is damaged or a schema version this worker does not read. | No |
+| `telemetry_unavailable` | `performance.run.page` or `performance.snapshot.get` found no status database at all: the status database is created lazily by the first scan, so a state folder with no scan history yet has nothing to open. | No |
 | `invalid_session` | A session definition is unusable (name, roots, ignore patterns, exclusions, or cloud locations; `details.field` names the field), or `run.start` found a non-default cloud policy, incomplete cloud detection, or no accessible root. | No |
 | `session_name_conflict` | Another session already uses the name (case-insensitive). | No |
 | `session_not_found` | The session ID does not exist. | No |
@@ -603,8 +604,11 @@ a target from message text, examples, or paths.
 
 These commands open a query-only secondary connection to the separate status database (see
 [`scan-status-database.md`](scan-status-database.md)). They do not read the filesystem, change
-scan/product state, reconcile a running status record, or return raw time-series samples. A status
-database that cannot be opened or read returns `database_error`.
+scan/product state, reconcile a running status record, or return raw time-series samples. The
+status database is created lazily by the first scan in a state folder; before that, both commands
+return `telemetry_unavailable` rather than treating "no telemetry recorded yet" as an error. A
+status database that exists but cannot be read (damaged, or an unsupported schema version) still
+returns `database_error`.
 
 ### `performance.run.page`
 
