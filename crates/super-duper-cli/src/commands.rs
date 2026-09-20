@@ -8,6 +8,15 @@ pub struct Cli {
     pub command: Option<Commands>,
 }
 
+/// Output for a machine-readable command. `Text` (the default) keeps the existing human-readable
+/// output; `Json` prints one JSON value to stdout instead, for scripting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
+pub enum OutputFormat {
+    #[default]
+    Text,
+    Json,
+}
+
 /// The file format for an `export` document (`docs/export-format-v1.md`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum ExportFileFormat {
@@ -29,11 +38,20 @@ pub enum Commands {
     /// Perform full duplicate detection process on configured paths
     Process,
     /// Build directory fingerprints and compute similarity
-    AnalyzeDirectories,
+    AnalyzeDirectories {
+        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+        format: OutputFormat,
+    },
     /// Display the number of keys in the hash cache
-    CountHashCache,
+    CountHashCache {
+        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+        format: OutputFormat,
+    },
     /// Print configuration values
-    PrintConfig,
+    PrintConfig {
+        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+        format: OutputFormat,
+    },
     /// Truncate all database tables
     TruncateDb,
     /// Export duplicate groups or session data (docs/export-format-v1.md)

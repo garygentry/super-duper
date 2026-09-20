@@ -19,9 +19,9 @@ cargo test --workspace
 cargo test -p super-duper-core --test storage_tests
 cargo build -p super-duper-worker            # needed before building/running the Windows app
 cargo run -p super-duper-cli -- process
-cargo run -p super-duper-cli -- analyze-directories
-cargo run -p super-duper-cli -- count-hash-cache
-cargo run -p super-duper-cli -- print-config
+cargo run -p super-duper-cli -- analyze-directories --format json
+cargo run -p super-duper-cli -- count-hash-cache --format json
+cargo run -p super-duper-cli -- print-config --format json
 cargo run -p super-duper-cli -- export duplicate-groups --format json
 cargo run -p super-duper-cli -- export sessions --format csv
 cargo run -p super-duper-cli -- truncate-db

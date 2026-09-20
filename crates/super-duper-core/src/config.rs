@@ -1,11 +1,17 @@
 use config::{Config, ConfigError, File as ConfigFile};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AppConfig {
     pub root_paths: Vec<String>,
     pub ignore_patterns: Vec<String>,
+}
+
+impl AppConfig {
+    pub fn to_json_pretty(&self) -> serde_json::Result<String> {
+        serde_json::to_string_pretty(self)
+    }
 }
 
 pub fn load_configuration() -> Result<AppConfig, ConfigError> {

@@ -79,8 +79,8 @@ dotnet test apps/windows/SuperDuper.Windows.sln -m:1
   `cargo clean --profile dev` — disk pressure from `target/` is the recurring build failure here.
 - Run the app: `dotnet run --project apps/windows/src/SuperDuper.Windows/SuperDuper.Windows.csproj`.
 - CLI: `cargo run -p super-duper-cli -- process|analyze-directories|count-hash-cache|print-config|truncate-db|export`.
-  `export` writes duplicate groups or session data as CSV (the default) or JSON
-  (`docs/export-format-v1.md`).
+  The machine-readable commands (everything but `process` and `truncate-db`) take `--format json`
+  for scripting; `export` additionally defaults to CSV (`docs/export-format-v1.md`).
 
 Repeatable Windows workflows:
 

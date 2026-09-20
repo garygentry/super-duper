@@ -184,7 +184,7 @@
       "id": "cli",
       "path": "crates/super-duper-cli/src/**",
       "type": "entrypoint",
-      "note": "Headless CLI: process, analyze-directories, count-hash-cache, print-config, truncate-db, export."
+      "note": "Headless CLI: process, analyze-directories, count-hash-cache, print-config, truncate-db, export; --format json on the machine-readable commands."
     },
     {
       "id": "core-telemetry",

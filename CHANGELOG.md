@@ -10,13 +10,16 @@ All notable changes to Super Duper are recorded here. Versions follow
 - A `super-duper export` CLI subcommand writes duplicate file groups (`duplicate-groups`) or
   session definitions and their run history (`sessions`) as CSV (the default) or JSON, to stdout.
   See `docs/export-format-v1.md`.
+- `--format json` on `analyze-directories`, `count-hash-cache`, and `print-config` prints one JSON
+  value to stdout instead of the human-readable text, for scripting. The default (no flag) is
+  unchanged.
 
 ### Changed
 
 - `super-duper-worker.exe` now carries product, version, and copyright details in its file
   properties, like `SuperDuper.Windows.exe`.
 - The CLI's logs (and the human-readable summaries built from them) now go to stderr instead of
-  stdout, so stdout stays clean for CSV/JSON export.
+  stdout, so stdout stays clean for `--format json` and CSV/JSON export.
 
 ### Fixed
 
