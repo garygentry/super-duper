@@ -91,6 +91,56 @@ public sealed class DuplicateFoldersViewModelTests
     }
 
     [TestMethod]
+    public async Task SelectingAnotherGroupWhileLoadingDoesNotStrandStaleEmptyState()
+    {
+        var secondResponse = new TaskCompletionSource<WorkerDuplicateFolderMemberPage>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var callCount = 0;
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFolderGroupPage(
+                [Group(1, query.RunId, @"C:\One"), Group(2, query.RunId, @"C:\Two")], 2, null, null)),
+            FolderMemberPageHandler = (query, _) =>
+            {
+                callCount++;
+                return callCount == 1
+                    ? Task.FromResult(new WorkerDuplicateFolderMemberPage([new(1, query.GroupId, @"C:\One\A")], 1, null, null))
+                    : secondResponse.Task;
+            },
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(TestWorkerClient.CreateRun(9, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+        Assert.AreEqual(1, viewModel.TotalMembers);
+        Assert.IsFalse(viewModel.IsDetailEmpty);
+
+        var emptyStateNotifications = new List<bool>();
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(viewModel.IsDetailEmpty))
+            {
+                emptyStateNotifications.Add(viewModel.IsDetailEmpty);
+            }
+        };
+
+        // Selecting a second group resets TotalMembers to 0 before the worker responds; the
+        // detail pane must never be observed (or leave a stale notification) reporting empty
+        // while the load is still in flight.
+        viewModel.SelectedGroup = viewModel.Groups[1];
+
+        Assert.IsTrue(viewModel.IsDetailLoading);
+        Assert.IsFalse(viewModel.IsDetailEmpty, "A load in progress must never report as the empty state.");
+        Assert.IsTrue(emptyStateNotifications.Count > 0, "IsDetailEmpty must be re-raised once loading starts.");
+        Assert.IsFalse(
+            emptyStateNotifications[^1],
+            "The most recent IsDetailEmpty notification must reflect the loading state, not a stale empty reading.");
+
+        secondResponse.SetResult(new WorkerDuplicateFolderMemberPage([], 0, null, null));
+        await Task.Yield();
+        await Task.Yield();
+        Assert.IsFalse(viewModel.IsDetailLoading);
+        Assert.IsTrue(viewModel.IsDetailEmpty);
+    }
+
+    [TestMethod]
     public async Task FilterGenerationRejectsLateResponseAndCacheRemainsBounded()
     {
         var oldResponse = new TaskCompletionSource<WorkerDuplicateFolderGroupPage>(TaskCreationOptions.RunContinuationsAsynchronously);

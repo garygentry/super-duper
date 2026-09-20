@@ -214,7 +214,14 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     public bool IsDetailLoading
     {
         get => _isDetailLoading;
-        private set { if (SetProperty(ref _isDetailLoading, value)) RaiseMemberPaging(); }
+        private set
+        {
+            if (SetProperty(ref _isDetailLoading, value))
+            {
+                OnPropertyChanged(nameof(IsDetailEmpty));
+                RaiseMemberPaging();
+            }
+        }
     }
     public bool IsReviewUpdating
     {
@@ -744,7 +751,6 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
             if (display && generation == _memberGeneration)
             {
                 IsDetailLoading = false;
-                OnPropertyChanged(nameof(IsDetailEmpty));
                 PublishMemberQueryAnnouncement();
             }
         }

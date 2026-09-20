@@ -600,6 +600,7 @@
                 </ScrollViewer>
 
                 <Border Grid.Row="1"
+                        Panel.ZIndex="1"
                         Background="{DynamicResource ApplicationBackgroundBrush}"
                         Opacity="0.94"
                         Visibility="{Binding IsDetailLoading, Converter={StaticResource BooleanToVisibilityConverter}}">

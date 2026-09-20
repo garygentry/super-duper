@@ -3388,6 +3388,32 @@ fn existing_schema_four_extension_keys_are_backfilled_without_filesystem_access(
 }
 
 #[test]
+fn reopening_database_reconciles_case_insensitive_parent_dir_index() {
+    let temp = tempdir().unwrap();
+    let path = temp.path().join("parent-dir-index.db");
+    let db = Database::open(path.to_str().unwrap()).unwrap();
+    let index_count = |connection: &Connection| -> i64 {
+        connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE type = 'index' AND name = 'idx_file_run_parent_unicode_nocase'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap()
+    };
+    assert_eq!(index_count(db.connection()), 1);
+    db.connection()
+        .execute("DROP INDEX idx_file_run_parent_unicode_nocase", [])
+        .unwrap();
+    assert_eq!(index_count(db.connection()), 0);
+    drop(db);
+
+    let reopened = Database::open(path.to_str().unwrap()).unwrap();
+    assert_eq!(index_count(reopened.connection()), 1);
+}
+
+#[test]
 fn version_four_migrates_review_tables_transactionally() {
     let temp = tempdir().unwrap();
     let path = temp.path().join("review-v4.db");

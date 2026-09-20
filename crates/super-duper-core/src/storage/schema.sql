@@ -695,6 +695,8 @@ CREATE INDEX IF NOT EXISTS idx_run_status ON scan_run(status);
 CREATE INDEX IF NOT EXISTS idx_file_run_size ON scanned_file(run_id, file_size);
 CREATE INDEX IF NOT EXISTS idx_file_run_hash ON scanned_file(run_id, content_hash) WHERE content_hash IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_file_run_parent ON scanned_file(run_id, parent_dir);
+CREATE INDEX IF NOT EXISTS idx_file_run_parent_unicode_nocase
+    ON scanned_file(run_id, parent_dir COLLATE UNICODE_NOCASE);
 CREATE INDEX IF NOT EXISTS idx_file_run_path ON scanned_file(run_id, canonical_path);
 CREATE INDEX IF NOT EXISTS idx_file_run_path_unicode_nocase
     ON scanned_file(run_id, canonical_path COLLATE UNICODE_NOCASE);
