@@ -323,15 +323,15 @@ The `super-duper-ffi` crate exposes the core through a C ABI for future native c
 
 ## Project Status
 
-The first release, [v0.1.0](https://github.com/garygentry/super-duper/releases/tag/v0.1.0), was
-published on 2026-09-19; open work is tracked in
+The latest release, [v0.2.0](https://github.com/garygentry/super-duper/releases/tag/v0.2.0), was
+published on 2026-09-21; open work is tracked in
 [GitHub issues](https://github.com/garygentry/super-duper/issues). The Rust engine and CLI are
 functional, and the Windows app is released. The app is review-only: it has no operation that
 deletes or moves scanned files, and Recycle Bin execution is disabled in production builds.
 
-Not yet verified for v0.1.0: Windows high contrast, Narrator/NVDA, and multi-monitor or 200% DPI
-behavior. Earlier plans and acceptance evidence were removed after v0.1.0 and remain available at
-the [`v0.1.0` tag](https://github.com/garygentry/super-duper/tree/v0.1.0).
+Not yet verified: Windows high contrast, Narrator/NVDA, and multi-monitor or 200% DPI behavior.
+Earlier plans and acceptance evidence were removed after v0.1.0 and remain available at the
+[`v0.1.0` tag](https://github.com/garygentry/super-duper/tree/v0.1.0).
 
 ## License
 
