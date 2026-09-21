@@ -15,6 +15,7 @@ use super_duper_core::storage::models::{
     DuplicateFileGroupPageQuery, DuplicateFileGroupSortField, DuplicateFileMemberFilter,
     DuplicateFileMemberPageQuery, DuplicateFileMemberSortField, DuplicateFilePathMatchMode,
     DuplicateFileSelectedRootFacetPageQuery, DuplicateFileSelectedRootFacetSortField,
+    DuplicateFolderMemberFilter, DuplicateFolderMemberPageQuery, DuplicateFolderMemberSortField,
     ExactFolderGroupInsert, PageCursor, PageCursorValue, PreferencePreviewScope,
     RecoveryObservationKind, RecoveryReviewObservationInput, RecoveryReviewState,
     RecycleEligibilityObservation, RecycleItemResultObservation, RegisteredCloudLocation,
@@ -332,6 +333,17 @@ fn session_and_run(db: &Database, name: &str, roots: &[&str]) -> (i64, i64) {
     let run_id = db.create_scan_run(session_id, &params, "test").unwrap();
     db.start_scan_run(run_id).unwrap();
     (session_id, run_id)
+}
+
+fn index_exists(connection: &Connection, index_name: &str) -> bool {
+    connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?1",
+            [index_name],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap()
+        > 0
 }
 
 fn file(run_id: i64, path: &str, size: i64, hash: i64) -> ScannedFile {
@@ -3012,16 +3024,10 @@ fn exact_member_path_filter_is_unicode_case_normalized_and_shared_by_facets() {
     assert_eq!(drive_facets.total, 1);
     assert_eq!(drive_facets.facets[0].matching_group_count, 1);
 
-    let exact_path_index: i64 = db
-        .connection()
-        .query_row(
-            "SELECT COUNT(*) FROM sqlite_master
-             WHERE type = 'index' AND name = 'idx_file_run_path_unicode_nocase'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap();
-    assert_eq!(exact_path_index, 1);
+    assert!(index_exists(
+        db.connection(),
+        "idx_file_run_path_unicode_nocase"
+    ));
 }
 
 #[test]
@@ -3347,16 +3353,7 @@ fn extension_match_modes_use_persisted_filename_keys_and_shared_facets() {
         .unwrap();
     assert_eq!(different_unicode_form.total, 0);
 
-    let extension_index: i64 = db
-        .connection()
-        .query_row(
-            "SELECT COUNT(*) FROM sqlite_master
-             WHERE type = 'index' AND name = 'idx_file_run_extension_key'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap();
-    assert_eq!(extension_index, 1);
+    assert!(index_exists(db.connection(), "idx_file_run_extension_key"));
 }
 
 #[test]
@@ -3388,29 +3385,138 @@ fn existing_schema_four_extension_keys_are_backfilled_without_filesystem_access(
 }
 
 #[test]
-fn reopening_database_reconciles_case_insensitive_parent_dir_index() {
+fn reopening_database_reconciles_case_insensitive_parent_dir_indexes() {
     let temp = tempdir().unwrap();
     let path = temp.path().join("parent-dir-index.db");
     let db = Database::open(path.to_str().unwrap()).unwrap();
-    let index_count = |connection: &Connection| -> i64 {
-        connection
-            .query_row(
-                "SELECT COUNT(*) FROM sqlite_master
-                 WHERE type = 'index' AND name = 'idx_file_run_parent_unicode_nocase'",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap()
-    };
-    assert_eq!(index_count(db.connection()), 1);
+    assert!(index_exists(
+        db.connection(),
+        "idx_file_run_parent_unicode_nocase"
+    ));
+    assert!(index_exists(
+        db.connection(),
+        "idx_dir_run_path_unicode_nocase"
+    ));
     db.connection()
-        .execute("DROP INDEX idx_file_run_parent_unicode_nocase", [])
+        .execute_batch(
+            "DROP INDEX idx_file_run_parent_unicode_nocase;
+             DROP INDEX idx_dir_run_path_unicode_nocase;",
+        )
         .unwrap();
-    assert_eq!(index_count(db.connection()), 0);
+    assert!(!index_exists(
+        db.connection(),
+        "idx_file_run_parent_unicode_nocase"
+    ));
+    assert!(!index_exists(
+        db.connection(),
+        "idx_dir_run_path_unicode_nocase"
+    ));
     drop(db);
 
     let reopened = Database::open(path.to_str().unwrap()).unwrap();
-    assert_eq!(index_count(reopened.connection()), 1);
+    assert!(index_exists(
+        reopened.connection(),
+        "idx_file_run_parent_unicode_nocase"
+    ));
+    assert!(index_exists(
+        reopened.connection(),
+        "idx_dir_run_path_unicode_nocase"
+    ));
+}
+
+#[test]
+fn parent_dir_and_directory_path_joins_use_the_case_insensitive_indexes() {
+    let db = Database::open_in_memory().unwrap();
+    let plan = |sql: &str| -> String {
+        db.connection()
+            .prepare(sql)
+            .unwrap()
+            .query_map([1i64, 1i64], |row| row.get::<_, String>(3))
+            .unwrap()
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .unwrap()
+            .join(" | ")
+    };
+    let directory_driven = plan(
+        "EXPLAIN QUERY PLAN
+         SELECT 1 FROM directory_node directory
+         LEFT JOIN scanned_file file
+           ON file.run_id = directory.run_id
+          AND file.parent_dir = directory.path COLLATE UNICODE_NOCASE
+         WHERE directory.run_id = ?1 AND directory.id = ?2",
+    );
+    assert!(
+        directory_driven.contains("idx_file_run_parent_unicode_nocase"),
+        "expected the folder-copy summary join to use idx_file_run_parent_unicode_nocase, got: {directory_driven}"
+    );
+
+    let file_driven = plan(
+        "EXPLAIN QUERY PLAN
+         SELECT 1 FROM scanned_file file
+         JOIN directory_node directory
+           ON directory.run_id = file.run_id
+          AND directory.path = file.parent_dir COLLATE UNICODE_NOCASE
+         WHERE file.run_id = ?1 AND file.id = ?2",
+    );
+    assert!(
+        file_driven.contains("idx_dir_run_path_unicode_nocase"),
+        "expected the reversed file-to-directory join to use idx_dir_run_path_unicode_nocase, got: {file_driven}"
+    );
+}
+
+#[test]
+fn folder_group_summary_without_a_review_plan_matches_the_full_query_shape() {
+    let db = Database::open_in_memory().unwrap();
+    let (_, run_id) = session_and_run(&db, "No plan", &["/root"]);
+    let directory_a = db
+        .insert_directory_node(run_id, "/root/a", "a", None, 100, 1, 1)
+        .unwrap();
+    let directory_b = db
+        .insert_directory_node(run_id, "/root/b", "b", None, 100, 1, 1)
+        .unwrap();
+    db.replace_exact_folder_groups(
+        run_id,
+        &[ExactFolderGroupInsert {
+            structural_fingerprint: "fp".to_owned(),
+            verified_fingerprint: "fp".to_owned(),
+            total_size: 100,
+            file_count: 1,
+            directory_ids: vec![directory_a, directory_b],
+            is_suppressed: false,
+        }],
+        &AtomicBool::new(false),
+    )
+    .unwrap();
+    let group_id: i64 = db
+        .connection()
+        .query_row(
+            "SELECT id FROM duplicate_folder_group WHERE run_id = ?1",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+
+    // No review plan exists yet, so review_folder_group_summary_tx takes its no-plan
+    // short-circuit; assert it still matches what the full recursive query would compute
+    // (SQL NULL semantics make `plan_id = NULL` match nothing either way).
+    let page = db
+        .page_duplicate_folder_members(
+            &DuplicateFolderMemberPageQuery {
+                run_id,
+                group_id,
+                limit: 10,
+                sort_field: DuplicateFolderMemberSortField::Path,
+                sort_direction: SortDirection::Ascending,
+                filter: DuplicateFolderMemberFilter { search: None },
+                cursor: None,
+            },
+            None,
+        )
+        .unwrap();
+    assert_eq!(page.review_summary.keep_count, 0);
+    assert_eq!(page.review_summary.remove_count, 0);
+    assert_eq!(page.review_summary.undecided_count, 2);
+    assert_eq!(page.review_summary.intact_copy_count, 2);
 }
 
 #[test]

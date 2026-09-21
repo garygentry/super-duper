@@ -995,6 +995,43 @@ public sealed class DuplicateFoldersViewModelTests
     }
 
     [TestMethod]
+    public async Task DetailErrorAndSelectedGroupChangesAlsoRaiseIsDetailEmpty()
+    {
+        var client = new TestWorkerClient
+        {
+            FolderGroupPageHandler = (query, _) => Task.FromResult(new WorkerDuplicateFolderGroupPage(
+                [Group(1, query.RunId, @"C:\One"), Group(2, query.RunId, @"C:\Two")], 2, null, null)),
+            FolderMemberPageHandler = (query, _) => Task.FromResult(
+                new WorkerDuplicateFolderMemberPage([new(1, query.GroupId, @"C:\One\A")], 1, null, null)),
+            ReviewFolderDecisionHandler = (_, _, _, _, _, _, _) =>
+                Task.FromException<WorkerReviewFolderDecisionMutation>(
+                    new TestWorkerRequestFailure("review_overlap_conflict", "conflicting file decision")),
+        };
+        using var viewModel = new DuplicateFoldersViewModel(client, new TestClipboard(), new TestExplorer());
+        await viewModel.ShowRunAsync(
+            TestWorkerClient.CreateRun(30, 3, "completed", "finalizing", DateTimeOffset.UtcNow));
+
+        // IsDetailEmpty depends on DetailErrorMessage (via HasDetailError) and SelectedGroup too,
+        // not just IsDetailLoading/TotalMembers; every dependency's setter must re-raise it.
+        var emptyStateNotifications = 0;
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(viewModel.IsDetailEmpty))
+            {
+                emptyStateNotifications++;
+            }
+        };
+
+        await viewModel.RemoveFolderCommand.ExecuteAsync(viewModel.Members.Single());
+        Assert.IsTrue(viewModel.HasDetailError);
+        Assert.IsTrue(emptyStateNotifications > 0, "Setting DetailErrorMessage must re-raise IsDetailEmpty.");
+
+        emptyStateNotifications = 0;
+        viewModel.SelectedGroup = viewModel.Groups[1];
+        Assert.IsTrue(emptyStateNotifications > 0, "Changing SelectedGroup must re-raise IsDetailEmpty.");
+    }
+
+    [TestMethod]
     public async Task FolderDecisionGenerationConflictIsActionableByItsCode()
     {
         var client = new TestWorkerClient

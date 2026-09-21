@@ -825,7 +825,7 @@ impl Database {
         }
     }
 
-    pub(super) fn active_review_plan(&self, run_id: i64) -> rusqlite::Result<Option<ReviewPlan>> {
+    pub fn active_review_plan(&self, run_id: i64) -> rusqlite::Result<Option<ReviewPlan>> {
         self.connection()
             .query_row(
                 "SELECT id, run_id, state, revision, created_at, updated_at
@@ -1333,6 +1333,23 @@ pub(super) fn review_folder_group_summary_tx(
     folder_group_id: i64,
     plan_id: Option<i64>,
 ) -> rusqlite::Result<ReviewFolderGroupSummary> {
+    // With no active plan, `plan_id = ?2`/`decision.plan_id = ?2` below never match (SQL NULL
+    // equality), so every decision is undecided and no directory/file is ever "removed" — the
+    // full recursive descendant-tree walk always resolves to this trivial shape. Skip it.
+    if plan_id.is_none() {
+        let member_count: i64 = connection.query_row(
+            "SELECT COUNT(*) FROM duplicate_folder_group_member WHERE group_id = ?1",
+            params![folder_group_id],
+            |row| row.get(0),
+        )?;
+        return Ok(ReviewFolderGroupSummary {
+            folder_group_id,
+            keep_count: 0,
+            remove_count: 0,
+            undecided_count: member_count,
+            intact_copy_count: member_count,
+        });
+    }
     connection.query_row(
         "WITH RECURSIVE run_context(run_id) AS (
              SELECT run_id FROM duplicate_folder_group WHERE id = ?1

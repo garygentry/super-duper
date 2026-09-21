@@ -21,14 +21,25 @@ metadata. That local worker-stderr log is supplemental developer/recovery detail
 in SQLite, is not paged as a warning occurrence, and cannot replace exact durable warning
 accounting.
 
-## Case-insensitive parent-directory index
+## Case-insensitive parent-directory and directory-path indexes
 
 This change adds no table or column and does not advance `user_version`.
-`idx_file_run_parent_unicode_nocase` covers `(run_id, parent_dir COLLATE UNICODE_NOCASE)` and
-serves the `directory.path COLLATE UNICODE_NOCASE = file.parent_dir` joins in `storage/review.rs`
-(including `review_folder_group_summary_tx`, read on every `duplicate_folder_group.members` page).
-Without an index in the matching collation, those joins fell back to a per-row scan of every
-`scanned_file` in the run for each directory in a folder copy's descendant tree, so opening the
-Windows app's folder-copy comparison scaled with total run size rather than with the size of the
-compared copies. Opening an existing schema-v15 database creates this additive index idempotently
-under Rust ownership, matching the existing `idx_file_run_path_unicode_nocase` pattern.
+`idx_file_run_parent_unicode_nocase` covers `scanned_file(run_id, parent_dir COLLATE
+UNICODE_NOCASE)` and serves every `directory.path COLLATE UNICODE_NOCASE = file.parent_dir` join in
+`storage/review.rs` where a directory drives and a file is looked up (including
+`review_folder_group_summary_tx`, read on every `duplicate_folder_group.members` page).
+`idx_dir_run_path_unicode_nocase` covers the mirror-image shape, `directory_node(run_id, path
+COLLATE UNICODE_NOCASE)`, and serves the two join sites where a file drives and a directory is
+looked up instead (`review_plan_summary`'s `removed_file_ancestors` CTE, read on every review-plan
+load, and `validate_review_state`'s `file_folder_overlap` query, run on every review decision
+mutation). Without an index in the matching collation on whichever side is being probed, these
+joins fell back to a per-row scan of every candidate row in the run, so opening the Windows app's
+folder-copy comparison — and, for the mirror-image sites, loading a review plan or saving a review
+decision — scaled with total run size rather than with the size of the folder copies or decision
+involved. Opening an existing schema-v15 database creates both additive indexes idempotently under
+Rust ownership, matching the existing `idx_file_run_path_unicode_nocase` pattern.
+
+`review_folder_group_summary_tx` also now short-circuits when no review plan is active: with no
+plan, `plan_id = ?` never matches (SQL NULL equality), so every decision is undecided and nothing is
+ever "removed" — the full recursive descendant-tree walk always resolves to the same trivial shape,
+computed directly instead.

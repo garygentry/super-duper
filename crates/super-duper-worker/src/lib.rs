@@ -3263,11 +3263,11 @@ impl WorkerSession {
         let sort_field = parse_folder_member_sort_field(&parameters.sort.field)?;
         let sort_direction = parse_sort_direction(&parameters.sort.direction)?;
         let search = validate_search(parameters.filter.search)?;
-        let review = db
-            .get_review_plan_view(parameters.run_id)
-            .map_err(review_error)?;
-        let review_plan_id = review.plan.as_ref().map_or(0, |value| value.id);
-        let review_revision = review.plan.as_ref().map_or(0, |value| value.revision);
+        let plan = db
+            .active_review_plan(parameters.run_id)
+            .map_err(internal_database_error)?;
+        let review_plan_id = plan.as_ref().map_or(0, |value| value.id);
+        let review_revision = plan.as_ref().map_or(0, |value| value.revision);
         let signature = folder_member_query_signature(
             parameters.run_id,
             parameters.group_id,
@@ -3285,15 +3285,18 @@ impl WorkerSession {
         validate_cursor_value(cursor.as_ref(), true)?;
         let query_started = Instant::now();
         let page = db
-            .page_duplicate_folder_members(&DuplicateFolderMemberPageQuery {
-                run_id: parameters.run_id,
-                group_id: parameters.group_id,
-                limit: parameters.page_size,
-                sort_field,
-                sort_direction,
-                filter: DuplicateFolderMemberFilter { search },
-                cursor: cursor.clone(),
-            })
+            .page_duplicate_folder_members(
+                &DuplicateFolderMemberPageQuery {
+                    run_id: parameters.run_id,
+                    group_id: parameters.group_id,
+                    limit: parameters.page_size,
+                    sort_field,
+                    sort_direction,
+                    filter: DuplicateFolderMemberFilter { search },
+                    cursor: cursor.clone(),
+                },
+                plan.as_ref(),
+            )
             .map_err(internal_database_error)?;
         log_result_query(
             "duplicate_folder_group.members",
