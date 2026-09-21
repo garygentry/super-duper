@@ -1418,10 +1418,10 @@ impl Database {
     pub fn page_duplicate_folder_members(
         &self,
         query: &DuplicateFolderMemberPageQuery,
+        plan: Option<&ReviewPlan>,
     ) -> Result<DuplicateFolderMemberPage> {
-        let plan = self.active_review_plan(query.run_id)?;
-        let review_plan_id = plan.as_ref().map(|value| value.id);
-        let review_revision = plan.as_ref().map_or(0, |value| value.revision);
+        let review_plan_id = plan.map(|value| value.id);
+        let review_revision = plan.map_or(0, |value| value.revision);
         let mut predicates = vec![
             "dfg.run_id = ?".to_owned(),
             "dfg.id = ?".to_owned(),

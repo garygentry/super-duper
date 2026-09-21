@@ -168,7 +168,14 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     public string? DetailErrorMessage
     {
         get => _detailErrorMessage;
-        private set { if (SetProperty(ref _detailErrorMessage, value)) OnPropertyChanged(nameof(HasDetailError)); }
+        private set
+        {
+            if (SetProperty(ref _detailErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasDetailError));
+                RaiseDetailEmptyState();
+            }
+        }
     }
     public string? ExplorerStatusMessage
     {
@@ -214,7 +221,14 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
     public bool IsDetailLoading
     {
         get => _isDetailLoading;
-        private set { if (SetProperty(ref _isDetailLoading, value)) RaiseMemberPaging(); }
+        private set
+        {
+            if (SetProperty(ref _isDetailLoading, value))
+            {
+                RaiseDetailEmptyState();
+                RaiseMemberPaging();
+            }
+        }
     }
     public bool IsReviewUpdating
     {
@@ -278,7 +292,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
             {
                 OnPropertyChanged(nameof(MemberCountText));
                 OnPropertyChanged(nameof(MemberPageStatusText));
-                OnPropertyChanged(nameof(IsDetailEmpty));
+                RaiseDetailEmptyState();
             }
         }
     }
@@ -696,6 +710,7 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SelectedReviewSummaryText));
         OnPropertyChanged(nameof(SelectedRelationshipSummaryText));
         OnPropertyChanged(nameof(HasSelectedGroup));
+        RaiseDetailEmptyState();
         KeepFolderCommand.NotifyCanExecuteChanged();
         RemoveFolderCommand.NotifyCanExecuteChanged();
         UndecideFolderCommand.NotifyCanExecuteChanged();
@@ -744,7 +759,6 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
             if (display && generation == _memberGeneration)
             {
                 IsDetailLoading = false;
-                OnPropertyChanged(nameof(IsDetailEmpty));
                 PublishMemberQueryAnnouncement();
             }
         }
@@ -1385,4 +1399,9 @@ public sealed class DuplicateFoldersViewModel : ObservableObject, IDisposable
         NextMemberPageCommand.NotifyCanExecuteChanged();
         PreviousMemberPageCommand.NotifyCanExecuteChanged();
     }
+
+    // IsDetailEmpty is computed from SelectedGroup, IsDetailLoading, HasDetailError and
+    // TotalMembers; every setter that can change one of those four raises it here so the
+    // binding can never go stale behind an unraised dependency.
+    private void RaiseDetailEmptyState() => OnPropertyChanged(nameof(IsDetailEmpty));
 }
